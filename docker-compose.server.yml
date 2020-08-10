@@ -1,0 +1,19 @@
+version: '3.7'
+
+services:
+  binance-bot:
+    container_name: binance-bot
+    build:
+      context: ./
+      target: production-stage
+    networks:
+      - internal
+    env_file:
+      - .env
+    environment:
+      # - BINANCE_MODE=test
+      - BINANCE_MODE=live
+
+networks:
+  internal:
+    driver: bridge

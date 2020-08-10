@@ -1,0 +1,103 @@
+{
+  "name": "binance-trading-bot",
+  "version": "0.0.1",
+  "description": "Binance Auto Trading Bot",
+  "scripts": {
+    "start": "node dist/server.js",
+    "dev": "cross-env NODE_ENV=development nodemon app/server.js",
+    "build": "cross-env NODE_ENV=production webpack --config webpack.config.prod.js --progress --profile --colors",
+    "lint": "eslint ./app --fix",
+    "test": "cross-env NODE_ENV=test jest --coverage --detectOpenHandles"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrisleekr/binance-traiding-bot.git"
+  },
+  "keywords": [
+    "Binance",
+    "Trading Bot",
+    "Auto Bot"
+  ],
+  "author": "Chris Lee <git@chrislee.kr>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/chrisleekr/binance-traiding-bot/issues"
+  },
+  "homepage": "https://github.com/chrisleekr/binance-traiding-bot#readme",
+  "dependencies": {
+    "axios": "^0.19.2",
+    "binance-api-node": "^0.10.4",
+    "bunyan": "^1.8.14",
+    "clean-webpack-plugin": "^3.0.0",
+    "config": "^3.3.1",
+    "cron": "^1.8.2",
+    "cross-env": "^7.0.2",
+    "lodash": "^4.17.19",
+    "lodash-webpack-plugin": "^0.11.5",
+    "moment": "^2.27.0",
+    "node-cache": "^5.1.2",
+    "terser-webpack-plugin": "^4.0.0",
+    "tulind": "^0.8.18",
+    "uuid": "^8.3.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.10.5",
+    "@babel/preset-env": "^7.11.0",
+    "@types/jest": "^26.0.9",
+    "@types/node": "^14.0.27",
+    "babel-core": "^6.26.3",
+    "babel-loader": "^8.1.0",
+    "babel-plugin-lodash": "^3.3.4",
+    "babel-preset-env": "^1.7.0",
+    "eslint": "^7.6.0",
+    "eslint-config-airbnb": "^18.2.0",
+    "eslint-config-prettier": "^6.11.0",
+    "eslint-plugin-import": "^2.22.0",
+    "eslint-plugin-jest": "^23.20.0",
+    "eslint-plugin-jsx-a11y": "^6.3.1",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^3.1.4",
+    "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-react": "^7.20.5",
+    "husky": "^4.2.5",
+    "jest": "^26.3.0",
+    "lint-staged": "^10.2.11",
+    "nodemon": "^2.0.4",
+    "prettier": "^2.0.5",
+    "webpack": "^4.44.1",
+    "webpack-cli": "^3.3.12"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "resetMocks": true,
+    "globalSetup": "./jest.setup.js",
+    "collectCoverageFrom": [
+      "app/**/*.js",
+      "!**/node_modules/**",
+      "!**/__tests__/**",
+      "!**/coverage/**"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      }
+    }
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.js": [
+      "prettier --write",
+      "npm run lint"
+    ]
+  }
+}

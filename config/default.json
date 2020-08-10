@@ -1,0 +1,39 @@
+{
+  "mode": "test",
+  "tz": "Australia/Melbourne",
+  "binance": {
+    "live": {
+      "apiKey": "",
+      "secretKey": ""
+    },
+    "test": {
+      "apiKey": "",
+      "secretKey": ""
+    }
+  },
+  "slack": {
+    "enabled": false,
+    "webhookUrl": "",
+    "channel": "",
+    "username": ""
+  },
+  "jobs": {
+    "bbands": {
+      "enabled": true,
+      "cronTime": "*/5 * * * * *",
+      "symbol": "BTCUSDT",
+      "period": 50,
+      "stddev": 2,
+      "candles": {
+        "interval": "1m",
+        "limit": 200
+      }
+    },
+    "alive": {
+      "enabled": true,
+      "cronTime": "* */10 * * * *",
+      "priceSymbol": "BTCUSDT",
+      "balanceSymbols": "BTC,USDT"
+    }
+  }
+}

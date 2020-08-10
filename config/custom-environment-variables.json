@@ -1,0 +1,39 @@
+{
+  "mode": "BINANCE_MODE",
+  "tz": "BINANCE_TZ",
+  "binance": {
+    "live": {
+      "apiKey": "BINANCE_LIVE_API_KEY",
+      "secretKey": "BINANCE_LIVE_SECRET_KEY"
+    },
+    "test": {
+      "apiKey": "BINANCE_TEST_API_KEY",
+      "apiSercet": "BINANCE_TEST_API_SECRET"
+    }
+  },
+  "slack": {
+    "enabled": "BINANCE_SLACK_ENABLED",
+    "webhookUrl": "BINANCE_SLACK_WEBHOOL_URL",
+    "channel": "BINANCE_SLACK_CHANNEL",
+    "username": "BINANCE_SLACK_USERNAME"
+  },
+  "jobs": {
+    "bbands": {
+      "enabled": "BINANCE_JOBS_BBANDS_ENABLED",
+      "cronTime": "BINANCE_JOBS_BBANDS_CRONTIME",
+      "symbol": "BINANCE_JOBS_BBANDS_SYMBOL",
+      "period": "BINANCE_JOBS_BBANDS_PERIOD",
+      "stddev": "BINANCE_JOBS_BBANDS_STDDEV",
+      "candles": {
+        "interval": "BINANCE_JOBS_BBANDS_CANDLES_INTERVAL",
+        "limit": "BINANCE_JOBS_BBANDS_CANDLES_LIMIT"
+      }
+    },
+    "alive": {
+      "enabled": "BINANCE_JOBS_ALIVE_ENABLED",
+      "cronTime": "BINANCE_JOBS_ALIVE_CRONTIME",
+      "priceSymbol": "BINANCE_JOBS_ALIVE_PRICE_SYMBOL",
+      "balanceSymbols": "BINANCE_JOBS_ALIVE_BALANCE_SYMBOLS"
+    }
+  }
+}

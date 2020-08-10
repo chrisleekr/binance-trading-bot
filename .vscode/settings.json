@@ -1,0 +1,20 @@
+{
+  "editor.insertSpaces": true,
+  "editor.formatOnSave": true,
+  "editor.tabSize": 2,
+  "eslint.enable": true,
+  "eslint.alwaysShowStatus": true,
+  "eslint.autoFixOnSave": true,
+  "files.trimTrailingWhitespace": true,
+  "files.exclude": {},
+  "files.insertFinalNewline": true,
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "search.exclude": {
+    ".git": true,
+    ".build": true,
+    "**/.DS_Store": true,
+    "**/.vscode": true,
+    "**/coverage": true,
+    "**/node_modules": true
+  }
+}

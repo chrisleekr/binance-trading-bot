@@ -1,0 +1,15 @@
+{
+  "extends": ["airbnb", "prettier", "plugin:jest/recommended"],
+  "plugins": ["prettier", "jest"],
+  "rules": {
+    "prettier/prettier": ["error"],
+    "comma-dangle": ["error", "never"],
+    "max-len": ["error", { "code": 120 }],
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }]
+  },
+  "settings": {
+    "react": {
+      "version": "999.999.999"
+    }
+  }
+}
