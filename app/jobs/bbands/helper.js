@@ -1,7 +1,7 @@
-const _ = require('lodash');
 const moment = require('moment');
 const config = require('config');
 const { binance, tulind, slack } = require('../../helpers');
+const commonHelper = require('../common/helper');
 
 /**
  * Flatten candle data
@@ -90,163 +90,6 @@ const determineAction = (logger, indicators) => {
 };
 
 /**
- * Cancel any open orders to get available balance
- *
- * @param {*} logger
- * @param {*} symbol
- */
-const cancelOpenOrders = async (logger, symbol) => {
-  logger.info('Cancelling open orders');
-  // Cancel open orders first to make sure it does not have unsettled orders.
-  try {
-    const result = await binance.client.cancelOpenOrders({ symbol });
-    logger.info({ result }, 'Cancelled open orders');
-  } catch (e) {
-    logger.info({ e }, 'Cancel result failed, but it is ok. Do not worry');
-  }
-};
-
-/**
- * Retrieve balance for trade asset based on the side
- *
- * @param {*} logger
- * @param {*} symbolInfo
- * @param {*} side
- */
-const getBalance = async (logger, symbolInfo, side) => {
-  // 1. Get account info
-  const accountInfo = await binance.client.accountInfo();
-  logger.info('Retrieved Account info');
-
-  const tradeAsset = side === 'buy' ? symbolInfo.quoteAsset : symbolInfo.baseAsset;
-  logger.info({ tradeAsset }, 'Determined trade asset');
-
-  // 2. Get trade asset balance
-  const balance =
-    _.filter(accountInfo.balances, b => {
-      return b.asset === tradeAsset;
-    })[0] || {};
-
-  if (_.isEmpty(balance)) {
-    logger.error({ symbolInfo, balance }, 'Balance cannot be found.');
-    return {
-      result: false,
-      message: 'Balance cannot be found.',
-      balance
-    };
-  }
-
-  logger.info({ balance }, 'Balance found');
-
-  // 3. Calculate free balance with precision
-  const lotPrecision = symbolInfo.filterLotSize.stepSize.indexOf(1) - 1;
-  const freeBalance = +(+balance.free).toFixed(lotPrecision);
-
-  // 4. Validate free balance for buy action
-  if (side === 'buy' && freeBalance < +symbolInfo.filterMinNotional.minNotional) {
-    logger.error({ symbolInfo, freeBalance }, 'Balance is less than minimum notional.');
-
-    return {
-      result: false,
-      message: 'Balance is less than minimum notional.',
-      freeBalance
-    };
-  }
-
-  return {
-    result: true,
-    message: 'Balance found',
-    freeBalance
-  };
-};
-
-/**
- * Calculate order quantity
- *
- * @param {*} logger
- * @param {*} symbolInfo
- * @param {*} side
- * @param {*} balanceInfo
- * @param {*} percentage
- * @param {*} indicators
- */
-const getOrderQuantity = (logger, symbolInfo, side, balanceInfo, percentage, indicators) => {
-  const baseAssetPrice = +indicators.lastCandle.close;
-  logger.info({ baseAssetPrice }, 'Retrieved latest asset price');
-
-  const lotPrecision = symbolInfo.filterLotSize.stepSize.indexOf(1) - 1;
-  const { freeBalance } = balanceInfo;
-
-  let orderQuantity = 0;
-
-  if (side === 'buy') {
-    const orderQuantityBeforeCommission = 1 / (+baseAssetPrice / freeBalance / (percentage / 100));
-    orderQuantity = +(orderQuantityBeforeCommission - orderQuantityBeforeCommission * (0.1 / 100)).toFixed(
-      lotPrecision
-    );
-
-    if (orderQuantity <= 0) {
-      logger.error({ freeBalance, orderQuantity }, 'Order quantity is less or equal than 0.');
-      return {
-        result: false,
-        message: 'Order quantity is less or equal than 0.',
-        baseAssetPrice,
-        orderQuantity,
-        freeBalance
-      };
-    }
-  }
-
-  if (side === 'sell') {
-    const orderQuantityBeforeCommission = freeBalance * (percentage / 100);
-    orderQuantity = +(orderQuantityBeforeCommission - orderQuantityBeforeCommission * (0.1 / 100)).toFixed(
-      lotPrecision
-    );
-
-    if (orderQuantity <= +symbolInfo.filterPrice.minPrice) {
-      logger.error(
-        { freeBalance, symbolInfo },
-        `Order quantity is less or equal than minimum quantity - ${symbolInfo.filterPrice.minPrice}.`
-      );
-      return {
-        result: false,
-        message: `Order quantity is less or equal than minimum quantity - ${symbolInfo.filterPrice.minPrice}.`,
-        baseAssetPrice,
-        orderQuantity,
-        freeBalance
-      };
-    }
-  }
-  logger.info({ orderQuantity }, 'Order quantity');
-
-  return {
-    result: true,
-    message: `Calculated order quantity`,
-    baseAssetPrice,
-    orderQuantity,
-    freeBalance
-  };
-};
-
-/**
- * Calculate order price
- *
- * @param {*} logger
- * @param {*} symbolInfo
- * @param {*} orderQuantityInfo
- */
-const getOrderPrice = (logger, symbolInfo, orderQuantityInfo) => {
-  const orderPrecision = symbolInfo.filterPrice.tickSize.indexOf(1) - 1;
-  const orderPrice = +(+orderQuantityInfo.baseAssetPrice).toFixed(orderPrecision);
-  logger.info({ orderPrecision, orderPrice }, 'Calculated order price');
-
-  return {
-    result: true,
-    orderPrice
-  };
-};
-
-/**
  * Place order
  *
  * @param {*} logger
@@ -257,25 +100,32 @@ const getOrderPrice = (logger, symbolInfo, orderQuantityInfo) => {
 const placeOrder = async (logger, side, percentage, indicators) => {
   const symbol = config.get('jobs.bbands.symbol');
   // 1. Cancel any open orders
-  await cancelOpenOrders(logger, symbol);
+  await commonHelper.cancelOpenOrders(logger, binance, symbol);
 
   // 2. Get symbol info
-  const symbolInfo = await binance.getSymbolInfo(logger, symbol);
+  const symbolInfo = await commonHelper.getSymbolInfo(logger, binance, symbol);
 
   // 3. Get balance for trade asset
-  const balanceInfo = await getBalance(logger, symbolInfo, side);
+  const balanceInfo = await commonHelper.getBalance(logger, binance, symbolInfo, side);
   if (balanceInfo.result === false) {
     return balanceInfo;
   }
 
   // 4. Get order quantity
-  const orderQuantityInfo = getOrderQuantity(logger, symbolInfo, side, balanceInfo, percentage, indicators);
+  const orderQuantityInfo = commonHelper.getOrderQuantity(
+    logger,
+    symbolInfo,
+    side,
+    balanceInfo,
+    percentage,
+    indicators
+  );
   if (orderQuantityInfo.result === false) {
     return orderQuantityInfo;
   }
 
   // 4. Get order price
-  const orderPriceInfo = getOrderPrice(logger, symbolInfo, orderQuantityInfo);
+  const orderPriceInfo = commonHelper.getOrderPrice(logger, symbolInfo, orderQuantityInfo);
   if (orderPriceInfo.result === false) {
     return orderPriceInfo;
   }

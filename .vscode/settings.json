@@ -16,5 +16,9 @@
     "**/.vscode": true,
     "**/coverage": true,
     "**/node_modules": true
-  }
+  },
+  "cSpell.words": [
+    "MACD",
+    "tulind"
+  ]
 }

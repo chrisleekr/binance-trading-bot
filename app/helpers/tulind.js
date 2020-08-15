@@ -8,4 +8,8 @@ const sma = (candlesData, period) => {
   return tulind.indicators.sma.indicator([candlesData.close], [period]);
 };
 
-module.exports = { bbands, sma };
+const macd = (candlesData, shortPeriod, longPeriod, signalPeriod) => {
+  return tulind.indicators.macd.indicator([candlesData.close], [shortPeriod, longPeriod, signalPeriod]);
+};
+
+module.exports = { bbands, sma, macd };

@@ -2,7 +2,7 @@ const axios = require('axios');
 const config = require('config');
 
 const sendMessage = text => {
-  if (config.get('slack.enabled') === false) {
+  if (!!config.get('slack.enabled') !== true || process.env.NODE_ENV === 'test') {
     return Promise.resolve({});
   }
 

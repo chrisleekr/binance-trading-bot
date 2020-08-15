@@ -8,16 +8,7 @@ const execute = async logger => {
     // 1. Get balance
     const balanceInfo = await aliveHelper.getBalance(logger);
 
-    // 2. Get current candle
-    const lastCandle = await aliveHelper.getLastCandle(logger);
-
-    slack.sendMessage(
-      `Account Balance:\`\`\`${JSON.stringify(balanceInfo, undefined, 2)}\`\`\`\nLast Candle:\`\`\`${JSON.stringify(
-        lastCandle,
-        undefined,
-        2
-      )}\`\`\``
-    );
+    slack.sendMessage(`Account Balance:\`\`\`${JSON.stringify(balanceInfo, undefined, 2)}\`\`\``);
   } catch (e) {
     logger.error(e, 'Execution failed.');
     slack.sendMessage(`Execution failed\n\`\`\`${e.message}\`\`\``);

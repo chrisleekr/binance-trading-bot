@@ -19,8 +19,8 @@
   },
   "jobs": {
     "bbands": {
-      "enabled": true,
-      "cronTime": "*/5 * * * * *",
+      "enabled": false,
+      "cronTime": "* * * * * *",
       "symbol": "BTCUSDT",
       "period": 50,
       "stddev": 2,
@@ -30,10 +30,31 @@
       }
     },
     "alive": {
-      "enabled": true,
-      "cronTime": "* */10 * * * *",
+      "enabled": false,
+      "cronTime": "0 */10 * * * *",
       "priceSymbol": "BTCUSDT",
       "balanceSymbols": "BTC,USDT"
+    },
+    "macdStopChaser": {
+      "enabled": true,
+      "cronTime": "* * * * * *",
+      "symbol": "BTCUSDT",
+      "macd": {
+        "shortPeriod": 12,
+        "longPeriod": 26,
+        "signalPeriod": 9
+      },
+      "min": {
+        "period": 200
+      },
+      "candles": {
+        "interval": "1m",
+        "limit": 200
+      },
+      "stopLossLimit": {
+        "stopPercentage": 0.99,
+        "limitPercentage": 0.98
+      }
     }
   }
 }

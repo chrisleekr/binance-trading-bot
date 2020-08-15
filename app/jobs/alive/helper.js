@@ -1,5 +1,5 @@
-const _ = require('lodash');
 const config = require('config');
+const _ = require('lodash');
 const { binance } = require('../../helpers');
 
 const getBalance = async logger => {
