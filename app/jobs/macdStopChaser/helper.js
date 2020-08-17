@@ -84,7 +84,7 @@ const determineAction = (logger, indicators) => {
 
   let allRising = true;
   let allFalling = true;
-  for (let i = -3; i < 0; i += 1) {
+  for (let i = -2; i < 0; i += 1) {
     let macdValue = 0;
     let macdSignal = 0;
     if (i !== -1) {
@@ -194,7 +194,7 @@ const placeOrder = async (logger, side, percentage, indicators) => {
 
   // 5. Place order
   const orderParams = {
-    symbol: config.get('jobs.macdStopChaser.symbol'),
+    symbol,
     side,
     type: 'LIMIT',
     quantity: orderQuantityInfo.orderQuantity,
@@ -212,6 +212,8 @@ const placeOrder = async (logger, side, percentage, indicators) => {
   const orderResult = await binance.client.order(orderParams);
 
   logger.info({ orderResult }, 'Order result');
+
+  cache.set(`last-buy-price-${symbol}`, orderPriceInfo.orderPriceInfo);
 
   await slack.sendMessage(
     `Action Result: *${side}*
@@ -268,10 +270,10 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
   const basePrice = +indicators.lastCandle.close;
   // 3. If the order is not stop loss limit order, then do nothing
   if (order.type !== 'STOP_LOSS_LIMIT') {
-    logger.info({ order }, 'Order is not STOP_LOSS_LIMIT, do nothing.');
+    logger.info({ order }, 'Order is not STOP_LOSS_LIMIT, Do nothing.');
     return {
       result: false,
-      message: 'Order is not STOP_LOSS_LIMIT, do nothing.'
+      message: 'Order is not STOP_LOSS_LIMIT, Do nothing.'
     };
   }
 

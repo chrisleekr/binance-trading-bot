@@ -38,22 +38,22 @@
     "macdStopChaser": {
       "enabled": true,
       "cronTime": "* * * * * *",
-      "symbol": "BTCUSDT",
+      "symbol": "BNBUSDT",
       "macd": {
         "shortPeriod": 12,
         "longPeriod": 26,
         "signalPeriod": 9
       },
       "min": {
-        "period": 200
+        "period": 500
       },
       "candles": {
-        "interval": "1m",
-        "limit": 200
+        "interval": "3m",
+        "limit": 500
       },
       "stopLossLimit": {
-        "stopPercentage": 0.99,
-        "limitPercentage": 0.98
+        "stopPercentage": 0.998,
+        "limitPercentage": 0.985
       }
     }
   }

@@ -247,15 +247,32 @@ const placeStopLossLimitOrder = async (
   indicators,
   stopLossLimitInfo
 ) => {
+  const { symbol } = symbolInfo;
+  const lastBuyPrice = +(cache.get(`last-buy-price-${symbol}`) || 0);
+  const lastCandleClose = +indicators.lastCandle.close;
+
+  if (lastCandleClose <= lastBuyPrice) {
+    logger.error({ lastCandleClose, lastBuyPrice }, `Last buy price is lower than current price. Do not place order.`);
+    return {
+      result: false,
+      message: `Last buy price is lower than current price. Do not place order.`,
+      lastCandleClose,
+      lastBuyPrice
+    };
+  }
+
   const basePrice = +indicators.lastCandle.close;
   const balance = balanceInfo.freeBalance;
   const lotPrecision = symbolInfo.filterLotSize.stepSize.indexOf(1) - 1;
   const orderPrecision = symbolInfo.filterPrice.tickSize.indexOf(1) - 1;
 
-  logger.info({ basePrice, balance, orderPrecision, stopLossLimitInfo }, 'Prepare params');
+  logger.info(
+    { lastBuyPrice, lastCandleClose, basePrice, balance, orderPrecision, stopLossLimitInfo },
+    'Prepare params'
+  );
 
-  const stopPrice = roundDown(basePrice * stopLossLimitInfo.stopPercentage, orderPrecision);
-  const price = roundDown(basePrice * stopLossLimitInfo.limitPercentage, orderPrecision);
+  const stopPrice = roundDown(basePrice * +stopLossLimitInfo.stopPercentage, orderPrecision);
+  const price = roundDown(basePrice * +stopLossLimitInfo.limitPercentage, orderPrecision);
 
   // Calculate quantity - commission
   const quantity = +(balance - balance * (0.1 / 100)).toFixed(lotPrecision);

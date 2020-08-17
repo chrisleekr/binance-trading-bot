@@ -20,10 +20,11 @@ const execute = async logger => {
       `);
       orderResult = await macdStopChaserHelper.placeOrder(logger, 'buy', 100, indicators);
     } else if (tradeActionResult.action === 'sell') {
-      slack.sendMessage(`Signal: *SELL*
-      - Action Result: \`\`\`${JSON.stringify(tradeActionResult, undefined, 2)}\`\`\`
-      `);
-      orderResult = await macdStopChaserHelper.placeOrder(logger, 'sell', 100, indicators);
+      logger.info(`Got sell signal, but do nothing`);
+      // slack.sendMessage(`Signal: *SELL*
+      // - Action Result: \`\`\`${JSON.stringify(tradeActionResult, undefined, 2)}\`\`\`
+      // `);
+      // orderResult = await macdStopChaserHelper.placeOrder(logger, 'sell', 100, indicators);
     } else {
       orderResult = await macdStopChaserHelper.chaseStopLossLimitOrder(logger, indicators);
     }
