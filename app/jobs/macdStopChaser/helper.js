@@ -31,10 +31,13 @@ const flattenCandlesData = candles => {
  * @param {*} logger
  */
 const getIndicators = async logger => {
+  const macdStopChaser = config.get('jobs.macdStopChaser');
+  logger.info({ macdStopChaser }, 'Retrieved macdStopChaser configuration');
+
   const candles = await binance.client.candles({
-    symbol: config.get('jobs.macdStopChaser.symbol'),
-    interval: config.get('jobs.macdStopChaser.candles.interval'),
-    limit: config.get('jobs.macdStopChaser.candles.limit')
+    symbol: macdStopChaser.symbol,
+    interval: macdStopChaser.candles.interval,
+    limit: macdStopChaser.candles.limit
   });
   const [lastCandle] = candles.slice(-1);
 
@@ -45,16 +48,22 @@ const getIndicators = async logger => {
   // MACD
   const macdHistory = await tulind.macd(
     candlesData,
-    config.get('jobs.macdStopChaser.macd.shortPeriod'),
-    config.get('jobs.macdStopChaser.macd.longPeriod'),
-    config.get('jobs.macdStopChaser.macd.signalPeriod')
+    macdStopChaser.macd.shortPeriod,
+    macdStopChaser.macd.longPeriod,
+    macdStopChaser.macd.signalPeriod
   );
 
   logger.info({}, 'Retrieved MACD result');
 
   // MIN
-  const min = _.min(candlesData.close.slice(config.get('jobs.macdStopChaser.min.period') * -1));
-  const minHistory = { min, range: { min: min * 0.999, max: min * 1.001 } };
+  const min = _.min(candlesData.close);
+  const minHistory = {
+    min,
+    range: {
+      min: min * +macdStopChaser.min.range.min,
+      max: min * +macdStopChaser.min.range.max
+    }
+  };
   logger.info({ minHistory }, 'Retrieved MIN result');
 
   return {
@@ -70,13 +79,15 @@ const getIndicators = async logger => {
  * @param {*} logger
  * @param {*} indicators
  */
-const determineAction = (logger, indicators) => {
+const determineAction = async (logger, indicators) => {
   let action = 'hold';
+
+  const symbol = config.get('jobs.macdStopChaser.symbol');
 
   const { macdHistory, minHistory, lastCandle } = indicators;
 
   // Checking trend
-  const lastTrend = cache.get('last-macd-trend') || 'unknown';
+  const lastTrend = (await cache.get(`last-macd-trend-${symbol}`)) || 'unknown';
   logger.info({ lastTrend }, 'Retrieved last trend');
 
   // Get current MACD result
@@ -140,7 +151,7 @@ const determineAction = (logger, indicators) => {
 
   // Save only if rising or falling
   if (currentTrend === 'rising' || currentTrend === 'falling') {
-    cache.set('last-macd-trend', currentTrend);
+    await cache.set(`last-macd-trend-${symbol}`, currentTrend);
   }
 
   return { currentTrend, action };
@@ -213,7 +224,7 @@ const placeOrder = async (logger, side, percentage, indicators) => {
 
   logger.info({ orderResult }, 'Order result');
 
-  cache.set(`last-buy-price-${symbol}`, orderPriceInfo.orderPriceInfo);
+  await cache.set(`last-buy-price-${symbol}`, orderPriceInfo.orderPrice);
 
   await slack.sendMessage(
     `Action Result: *${side}*

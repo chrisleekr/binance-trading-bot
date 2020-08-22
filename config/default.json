@@ -11,6 +11,11 @@
       "secretKey": ""
     }
   },
+  "redis": {
+    "host": "binance-redis",
+    "port": 6379,
+    "password": ""
+  },
   "slack": {
     "enabled": false,
     "webhookUrl": "",
@@ -38,22 +43,26 @@
     "macdStopChaser": {
       "enabled": true,
       "cronTime": "* * * * * *",
-      "symbol": "BNBUSDT",
+      "symbol": "BTCUSDT",
       "macd": {
         "shortPeriod": 12,
         "longPeriod": 26,
         "signalPeriod": 9
       },
       "min": {
-        "period": 500
+        "range": {
+          "min": 0.99,
+          "max": 1.01
+        }
       },
       "candles": {
         "interval": "3m",
         "limit": 500
       },
       "stopLossLimit": {
-        "stopPercentage": 0.998,
-        "limitPercentage": 0.985
+        "lastBuyPercentage": 1.03,
+        "stopPercentage": 0.99,
+        "limitPercentage": 0.98
       }
     }
   }

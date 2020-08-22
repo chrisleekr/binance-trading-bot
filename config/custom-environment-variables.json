@@ -11,6 +11,11 @@
       "secretKey": "BINANCE_TEST_SECRET_KEY"
     }
   },
+  "redis": {
+    "host": "BINANCE_REDIS_HOST",
+    "port": "BINANCE_REDIS_PORT",
+    "password": "BINANCE_REDIS_PASSWORD"
+  },
   "slack": {
     "enabled": "BINANCE_SLACK_ENABLED",
     "webhookUrl": "BINANCE_SLACK_WEBHOOL_URL",
@@ -45,13 +50,17 @@
         "signalPeriod": "BINANCE_JOBS_MACD_STOP_CHASER_MACD_SIGNAL_PERIOD"
       },
       "min": {
-        "period": "BINANCE_JOBS_MACD_STOP_CHASER_MIN_PERIOD"
+        "range": {
+          "min": "BINANCE_JOBS_MACD_STOP_CHASER_MIN_RANGE_MIN",
+          "max": "BINANCE_JOBS_MACD_STOP_CHASER_MIN_RANGE_MAX"
+        }
       },
       "candles": {
         "interval": "BINANCE_JOBS_MACD_STOP_CHASER_CANDLES_INTERVAL",
         "limit": "BINANCE_JOBS_MACD_STOP_CHASER_CANDLES_LIMIT"
       },
       "stopLossLimit": {
+        "lastBuyPercentage": "BINANCE_JOBS_MACD_STOP_CHASER_STOP_LOSS_LIMIT_LAST_BUY_PERCENTAGE",
         "stopPercentage": "BINANCE_JOBS_MACD_STOP_CHASER_STOP_LOSS_LIMIT_STOP_PERCENTAGE",
         "limitPercentage": "BINANCE_JOBS_MACD_STOP_CHASER_STOP_LOSS_LIMIT_LIMIT_PERCENTAGE"
       }

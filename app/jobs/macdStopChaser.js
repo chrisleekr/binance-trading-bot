@@ -9,7 +9,7 @@ const execute = async logger => {
     const indicators = await macdStopChaserHelper.getIndicators(logger);
 
     // 2. Determine actions
-    const tradeActionResult = macdStopChaserHelper.determineAction(logger, indicators);
+    const tradeActionResult = await macdStopChaserHelper.determineAction(logger, indicators);
     logger.info({ tradeActionResult }, 'Determined action.');
 
     // 3. Place order based on MACD signal

@@ -1,5 +1,6 @@
 /* eslint-disable no-restricted-properties */
 const _ = require('lodash');
+const config = require('config');
 const cache = require('../../helpers/cache');
 
 /**
@@ -46,7 +47,7 @@ const getSymbolInfo = async (logger, binance, symbol) => {
   symbolInfo.filterPercent = _.filter(symbolInfo.filters, f => f.filterType === 'PERCENT_PRICE')[0] || {};
   symbolInfo.filterMinNotional = _.filter(symbolInfo.filters, f => f.filterType === 'MIN_NOTIONAL')[0] || {};
 
-  const success = cache.set(`symbol-info-${symbol}`, JSON.stringify(symbolInfo), 600);
+  const success = await cache.set(`symbol-info-${symbol}`, JSON.stringify(symbolInfo));
   logger.info({ success, symbolInfo }, 'Retrieved symbol info from Binance');
   return symbolInfo;
 };
@@ -247,12 +248,24 @@ const placeStopLossLimitOrder = async (
   indicators,
   stopLossLimitInfo
 ) => {
+  logger.info({}, 'Started place stop loss limit order');
   const { symbol } = symbolInfo;
-  const lastBuyPrice = +(cache.get(`last-buy-price-${symbol}`) || 0);
-  const lastCandleClose = +indicators.lastCandle.close;
+  const lastBuyPrice = +(await cache.get(`last-buy-price-${symbol}`)) || 0;
+  logger.info({ lastBuyPrice }, 'Retrieved last buy price');
 
-  if (lastCandleClose <= lastBuyPrice) {
-    logger.error({ lastCandleClose, lastBuyPrice }, `Last buy price is lower than current price. Do not place order.`);
+  const lastCandleClose = +indicators.lastCandle.close;
+  logger.info({ lastCandleClose }, 'Retrieved last closed price');
+
+  const calculatedLastBuyPrice = lastBuyPrice * +config.get('jobs.macdStopChaser.stopLossLimit.lastBuyPercentage');
+  if (lastCandleClose < calculatedLastBuyPrice) {
+    logger.error(
+      {
+        lastCandleClose,
+        lastBuyPrice,
+        calculatedLastBuyPrice
+      },
+      `Last buy price is lower than current price. Do not place order.`
+    );
     return {
       result: false,
       message: `Last buy price is lower than current price. Do not place order.`,
@@ -260,6 +273,11 @@ const placeStopLossLimitOrder = async (
       lastBuyPrice
     };
   }
+
+  logger.info(
+    { lastCandleClose, lastBuyPrice, calculatedLastBuyPrice },
+    `Last buy price is higher than current price. Place order.`
+  );
 
   const basePrice = +indicators.lastCandle.close;
   const balance = balanceInfo.freeBalance;

@@ -1,1 +1,9 @@
-{ "mode": "test", "slack": { "enabled": false } }
+{
+  "mode": "live",
+  "slack": { "enabled": false },
+  "jobs": {
+    "macdStopChaser": {
+      "symbol": "XLMUSDT"
+    }
+  }
+}

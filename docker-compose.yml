@@ -15,9 +15,25 @@ services:
     env_file:
       - .env
     environment:
-      # - BINANCE_MODE=test
-      - BINANCE_MODE=live
+      - BINANCE_MODE=test
+      # - BINANCE_MODE=live
+      - REDIS_HOST=binance-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+
+  binance-redis:
+    container_name: binance-redis
+    image: redis:6.0
+    networks:
+      - internal
+    volumes:
+      - redis_data:/data
+    ports:
+      - 6379:6379
 
 networks:
   internal:
     driver: bridge
+
+volumes:
+  redis_data:

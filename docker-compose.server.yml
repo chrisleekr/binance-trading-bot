@@ -13,7 +13,22 @@ services:
     environment:
       # - BINANCE_MODE=test
       - BINANCE_MODE=live
+      - BINANCE_JOBS_MACD_STOP_CHASER_SYMBOL=XLMUSDT
+      - REDIS_HOST=binance-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+
+  binance-redis:
+    container_name: binance-redis
+    image: redis:6.0
+    networks:
+      - internal
+    volumes:
+      - redis_data:/data
 
 networks:
   internal:
     driver: bridge
+
+volumes:
+  redis_data:
