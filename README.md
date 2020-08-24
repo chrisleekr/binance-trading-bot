@@ -18,8 +18,8 @@ The concept of MACD-Stop-Chaser is simple. Buy at low price, never sell under pu
 
    - If there is no open order but have coins that bought by the buy signal, then check
      - Get last purchase price
-     - If current closed price is higher than minimum profit percentage \* last purchase price, then place Stop-Loss-Limit order.
-     - Otherwise, do not place Stop-Loss-Limit order.
+     - If current closed price is higher than minimum profit percentage \* last purchase price, then **place Stop-Loss-Limit order.**
+     - Otherwise, _do not place Stop-Loss-Limit order._
    - If there is an open Stop-Loss-Limit order, then check current closed price.
      - If current closed price is higher than stop price, then cancel the open order. So it can be place new Stop-Loss-Limit order.
 
