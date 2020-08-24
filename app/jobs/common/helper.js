@@ -1,6 +1,5 @@
 /* eslint-disable no-restricted-properties */
 const _ = require('lodash');
-const config = require('config');
 const cache = require('../../helpers/cache');
 
 /**
@@ -249,45 +248,12 @@ const placeStopLossLimitOrder = async (
   stopLossLimitInfo
 ) => {
   logger.info({}, 'Started place stop loss limit order');
-  const { symbol } = symbolInfo;
-  const lastBuyPrice = +(await cache.get(`last-buy-price-${symbol}`)) || 0;
-  logger.info({ lastBuyPrice }, 'Retrieved last buy price');
-
-  const lastCandleClose = +indicators.lastCandle.close;
-  logger.info({ lastCandleClose }, 'Retrieved last closed price');
-
-  const calculatedLastBuyPrice = lastBuyPrice * +config.get('jobs.macdStopChaser.stopLossLimit.lastBuyPercentage');
-  if (lastCandleClose < calculatedLastBuyPrice) {
-    logger.error(
-      {
-        lastCandleClose,
-        lastBuyPrice,
-        calculatedLastBuyPrice
-      },
-      `Last buy price is lower than current price. Do not place order.`
-    );
-    return {
-      result: false,
-      message: `Last buy price is lower than current price. Do not place order.`,
-      lastCandleClose,
-      lastBuyPrice
-    };
-  }
-
-  logger.info(
-    { lastCandleClose, lastBuyPrice, calculatedLastBuyPrice },
-    `Last buy price is higher than current price. Place order.`
-  );
-
   const basePrice = +indicators.lastCandle.close;
   const balance = balanceInfo.freeBalance;
   const lotPrecision = symbolInfo.filterLotSize.stepSize.indexOf(1) - 1;
   const orderPrecision = symbolInfo.filterPrice.tickSize.indexOf(1) - 1;
 
-  logger.info(
-    { lastBuyPrice, lastCandleClose, basePrice, balance, orderPrecision, stopLossLimitInfo },
-    'Prepare params'
-  );
+  logger.info({ basePrice, balance, orderPrecision, stopLossLimitInfo }, 'Prepare params');
 
   const stopPrice = roundDown(basePrice * +stopLossLimitInfo.stopPercentage, orderPrecision);
   const price = roundDown(basePrice * +stopLossLimitInfo.limitPercentage, orderPrecision);

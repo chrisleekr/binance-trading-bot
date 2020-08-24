@@ -260,7 +260,38 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
       return balanceInfo;
     }
 
-    //  2-1. Place stop loss order
+    // 2-3. Get last buy price and make sure it is within minimum profit range.
+    const lastBuyPrice = +(await cache.get(`last-buy-price-${symbol}`)) || 0;
+    logger.info({ lastBuyPrice }, 'Retrieved last buy price');
+
+    const lastCandleClose = +indicators.lastCandle.close;
+    logger.info({ lastCandleClose }, 'Retrieved last closed price');
+
+    const calculatedLastBuyPrice = lastBuyPrice * +config.get('jobs.macdStopChaser.stopLossLimit.lastBuyPercentage');
+    if (lastCandleClose < calculatedLastBuyPrice) {
+      logger.error(
+        {
+          lastCandleClose,
+          lastBuyPrice,
+          calculatedLastBuyPrice
+        },
+        `Last buy price is lower than current price. Do not place order.`
+      );
+      return {
+        result: false,
+        message: `Last buy price is lower than current price. Do not place order.`,
+        lastCandleClose,
+        lastBuyPrice,
+        calculatedLastBuyPrice
+      };
+    }
+
+    logger.info(
+      { lastCandleClose, lastBuyPrice, calculatedLastBuyPrice },
+      `Last buy price is higher than current price. Place order.`
+    );
+
+    //  2-4. Place stop loss order
     const stopLossLimitOrderInfo = await commonHelper.placeStopLossLimitOrder(
       logger,
       binance,
@@ -272,8 +303,7 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
     );
     logger.info({ stopLossLimitOrderInfo }, 'StopLossLimitOrderInfo Result');
 
-    //  2-2. Return
-
+    // 2-5. Wait for my money
     return stopLossLimitOrderInfo;
   }
 
@@ -288,7 +318,7 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
     };
   }
 
-  // 4. If order's stop price is less than current price * 0.99
+  // 4. If order's stop price is less than current price * limit percentage
   if (order.stopPrice < basePrice * stopLossLimitInfo.limitPercentage) {
     //  4-1. Cancel order
     logger.info(
