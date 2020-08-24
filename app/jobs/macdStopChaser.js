@@ -20,7 +20,7 @@ const execute = async logger => {
       `);
       orderResult = await macdStopChaserHelper.placeOrder(logger, 'buy', 100, indicators);
     } else if (tradeActionResult.action === 'sell') {
-      logger.info(`Got sell signal, but do nothing`);
+      logger.info(`Got sell signal, but do nothing. Never lose money.`);
       // slack.sendMessage(`Signal: *SELL*
       // - Action Result: \`\`\`${JSON.stringify(tradeActionResult, undefined, 2)}\`\`\`
       // `);
