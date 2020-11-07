@@ -1,6 +1,6 @@
 {
   "name": "binance-trading-bot",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Binance Auto Trading Bot",
   "scripts": {
     "start": "node dist/server.js",
