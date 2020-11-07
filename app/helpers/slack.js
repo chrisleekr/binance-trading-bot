@@ -1,8 +1,13 @@
 const axios = require('axios');
 const config = require('config');
 
+/**
+ * Send slack message
+ *
+ * @param {*} text
+ */
 const sendMessage = text => {
-  if (!!config.get('slack.enabled') !== true || process.env.NODE_ENV === 'test') {
+  if (config.get('slack.enabled') !== true || process.env.NODE_ENV === 'test') {
     return Promise.resolve({});
   }
 

@@ -21,10 +21,6 @@ const execute = async logger => {
       orderResult = await macdStopChaserHelper.placeOrder(logger, 'buy', 100, indicators);
     } else if (tradeActionResult.action === 'sell') {
       logger.info(`Got sell signal, but do nothing. Never lose money.`);
-      // slack.sendMessage(`Signal: *SELL*
-      // - Action Result: \`\`\`${JSON.stringify(tradeActionResult, undefined, 2)}\`\`\`
-      // `);
-      // orderResult = await macdStopChaserHelper.placeOrder(logger, 'sell', 100, indicators);
     } else {
       orderResult = await macdStopChaserHelper.chaseStopLossLimitOrder(logger, indicators);
     }
@@ -32,7 +28,13 @@ const execute = async logger => {
     logger.info({ orderResult }, 'Retrieved order result.');
   } catch (e) {
     logger.error(e, 'Execution failed.');
-    slack.sendMessage(`Execution failed\n\`\`\`${e.message}\`\`\``);
+    if (e.code === -1001) {
+      // Let's silent for internal server error
+    } else {
+      slack.sendMessage(
+        `Execution failed\nCode: ${e.code}\nMessage:\`\`\`${e.message}\`\`\`Stack:\`\`\`${e.stack}\`\`\``
+      );
+    }
   }
 };
 

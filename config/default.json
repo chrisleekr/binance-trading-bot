@@ -56,7 +56,7 @@
         }
       },
       "candles": {
-        "interval": "3m",
+        "interval": "6h",
         "limit": 500
       },
       "stopLossLimit": {

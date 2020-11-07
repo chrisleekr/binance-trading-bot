@@ -40,6 +40,7 @@ const getIndicators = async logger => {
   logger.info('Retrieved candles');
 
   const candlesData = flattenCandlesData(candles);
+
   const [lastOpenTime] = candlesData.openTime.slice(-1);
 
   // Bollinger Bands
@@ -72,32 +73,31 @@ const getIndicators = async logger => {
 const determineAction = (logger, indicators) => {
   let action = 'hold';
 
-  // If close is less than lower, buy
+  // If last candle's closed price is less than lower than Bollinger Bands lower point, then action is to buy
   if (indicators.lastCandle.close < indicators.bbands.lower) {
     logger.info("Closed price is less than bbands lower price. Let's buy.");
     action = 'buy';
   }
 
-  // If close is more than upper, sell
+  // If last candle's closed price is more than Bollinger Bands upper point, then action is to sell
   if (indicators.lastCandle.close > indicators.bbands.upper) {
     logger.info("Closed price is more than bbands upper price. Let's sell.");
     action = 'sell';
   }
 
-  // Otherwise, hold
-
+  // Otherwise, let's hold
   return action;
 };
 
 /**
- * Place order
+ * Place order to Binance
  *
  * @param {*} logger
- * @param {*} side
+ * @param {*} tradeAction
  * @param {*} percentage
  * @param {*} indicators
  */
-const placeOrder = async (logger, side, percentage, indicators) => {
+const placeOrder = async (logger, tradeAction, percentage, indicators) => {
   const symbol = config.get('jobs.bbands.symbol');
   // 1. Cancel any open orders
   await commonHelper.cancelOpenOrders(logger, binance, symbol);
@@ -106,7 +106,7 @@ const placeOrder = async (logger, side, percentage, indicators) => {
   const symbolInfo = await commonHelper.getSymbolInfo(logger, binance, symbol);
 
   // 3. Get balance for trade asset
-  const balanceInfo = await commonHelper.getBalance(logger, binance, symbolInfo, side);
+  const balanceInfo = await commonHelper.getBalance(logger, binance, symbolInfo, tradeAction);
   if (balanceInfo.result === false) {
     return balanceInfo;
   }
@@ -115,7 +115,7 @@ const placeOrder = async (logger, side, percentage, indicators) => {
   const orderQuantityInfo = commonHelper.getOrderQuantity(
     logger,
     symbolInfo,
-    side,
+    tradeAction,
     balanceInfo,
     percentage,
     indicators
@@ -133,14 +133,14 @@ const placeOrder = async (logger, side, percentage, indicators) => {
   // 5. Place order
   const orderParams = {
     symbol,
-    side,
+    side: tradeAction,
     type: 'LIMIT',
     quantity: orderQuantityInfo.orderQuantity,
     price: orderPriceInfo.orderPrice,
     timeInForce: 'GTC'
   };
 
-  slack.sendMessage(`Action: *${side}*
+  slack.sendMessage(`Action: *${tradeAction}*
   - Free Balance: ${orderQuantityInfo.freeBalance}
   - Order Quantity: ${orderQuantityInfo.orderQuantity}
   - Indicator:\`\`\`${JSON.stringify(indicators, undefined, 2)}\`\`\`
@@ -148,12 +148,13 @@ const placeOrder = async (logger, side, percentage, indicators) => {
   `);
 
   logger.info({ orderParams }, 'Order params');
+
   const orderResult = await binance.client.order(orderParams);
 
   logger.info({ orderResult }, 'Order result');
 
   await slack.sendMessage(
-    `Action Result: *${side}*
+    `Action Result: *${tradeAction}*
     - Order Result: \`\`\`${JSON.stringify(orderResult, undefined, 2)}\`\`\``
   );
 

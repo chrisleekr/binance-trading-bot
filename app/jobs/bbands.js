@@ -11,9 +11,11 @@ const execute = async logger => {
 
     // 2. Determine actions
     const tradeAction = bbandsHelper.determineAction(logger, indicators);
+
     logger.info({ tradeAction }, 'Determined action.');
 
     // 3. Get order result
+
     if (tradeAction !== 'hold') {
       // 3-1. Place buy order
       const orderResult = await bbandsHelper.placeOrder(logger, tradeAction, 100, indicators);

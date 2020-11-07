@@ -2,7 +2,7 @@ const bunyan = require('bunyan');
 const packageJson = require('../../package.json');
 
 const logger = bunyan.createLogger({
-  name: 'api',
+  name: 'binance-api',
   version: packageJson.version,
   streams: [{ stream: process.stdout, level: bunyan.TRACE }]
 });

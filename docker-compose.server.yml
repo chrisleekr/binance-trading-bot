@@ -3,16 +3,18 @@ version: '3.7'
 services:
   binance-bot:
     container_name: binance-bot
-    build:
-      context: ./
-      target: production-stage
+    image: chrisleekr/binance-trading-bot:latest
     networks:
       - internal
     env_file:
       - .env
+    restart: unless-stopped
     environment:
       # - BINANCE_MODE=test
       - BINANCE_MODE=live
+      - BINANCE_JOBS_ALIVE_PRICE_SYMBOL=BTCUSDT
+      - BINANCE_JOBS_ALIVE_BALANCE_SYMBOLS=BTC,USDT
+      - BINANCE_JOBS_BBANDS_SYMBOL=BTCUSDT
       - BINANCE_JOBS_MACD_STOP_CHASER_SYMBOL=XLMUSDT
       - REDIS_HOST=binance-redis
       - REDIS_PORT=6379
@@ -23,6 +25,7 @@ services:
     image: redis:6.0
     networks:
       - internal
+    restart: unless-stopped
     volumes:
       - redis_data:/data
 
