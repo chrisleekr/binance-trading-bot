@@ -32,6 +32,7 @@ const flattenCandlesData = candles => {
  */
 const getIndicators = async logger => {
   const macdStopChaser = config.get('jobs.macdStopChaser');
+
   logger.info({ macdStopChaser }, 'Retrieved macdStopChaser configuration');
 
   const candles = await binance.client.candles({
@@ -39,6 +40,7 @@ const getIndicators = async logger => {
     interval: macdStopChaser.candles.interval,
     limit: macdStopChaser.candles.limit
   });
+
   const [lastCandle] = candles.slice(-1);
 
   logger.info({ lastCandle }, 'Retrieved candles');
@@ -105,6 +107,7 @@ const determineAction = async (logger, indicators) => {
       macdValue = macdHistory[0].slice(i)[0];
       macdSignal = macdHistory[1].slice(i)[0];
     }
+
     const trend = macdValue > macdSignal ? 'rising' : 'falling';
     if (trend === 'falling') {
       allRising = false;
@@ -135,11 +138,12 @@ const determineAction = async (logger, indicators) => {
   }
   logger.info({ lastTrend, currentTrend, action }, 'Determined action.');
 
+  // When buy action, make sure last closed value is close to historical low value.
   if (action === 'buy') {
     if (lastCandle.close > minHistory.range.max) {
       logger.info(
         { min: minHistory.range.min, close: lastCandle.close, max: minHistory.range.max },
-        'Last closed value is higher than minimum range.'
+        'Last closed value is higher than maximum range.'
       );
       return { currentTrend: 'wait', action: 'hold' };
     }
@@ -154,7 +158,13 @@ const determineAction = async (logger, indicators) => {
     await cache.set(`last-macd-trend-${symbol}`, currentTrend);
   }
 
-  return { currentTrend, action };
+  return {
+    action,
+    lastTrend,
+    currentTrend,
+    lastCandleClose: lastCandle.close,
+    minHistoryRangeMax: minHistory.range.max
+  };
 };
 
 /**
@@ -199,6 +209,7 @@ const placeOrder = async (logger, side, percentage, indicators) => {
 
   // 4. Get order price
   const orderPriceInfo = commonHelper.getOrderPrice(logger, symbolInfo, orderQuantityInfo);
+
   if (orderPriceInfo.result === false) {
     return orderPriceInfo;
   }
@@ -261,13 +272,15 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
     }
 
     // 2-3. Get last buy price and make sure it is within minimum profit range.
+    //  If not cached for some reason, it will just place stop-loss-limit order.
     const lastBuyPrice = +(await cache.get(`last-buy-price-${symbol}`)) || 0;
     logger.info({ lastBuyPrice }, 'Retrieved last buy price');
 
     const lastCandleClose = +indicators.lastCandle.close;
     logger.info({ lastCandleClose }, 'Retrieved last closed price');
 
-    const calculatedLastBuyPrice = lastBuyPrice * +config.get('jobs.macdStopChaser.stopLossLimit.lastBuyPercentage');
+    const calculatedLastBuyPrice = lastBuyPrice * +stopLossLimitInfo.lastBuyPercentage;
+
     if (lastCandleClose < calculatedLastBuyPrice) {
       logger.error(
         {
@@ -319,12 +332,15 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
   }
 
   // 4. If order's stop price is less than current price * limit percentage
+  //      It means the price is increase more than expected, so cancel it and let's get more money.
+  //      Don't worry about the cancel. It will place another STOP-LOSS-LIMIT order.
   if (order.stopPrice < basePrice * stopLossLimitInfo.limitPercentage) {
     //  4-1. Cancel order
     logger.info(
       { stopPrice: order.stopPrice, basePrice, limitPercentage: basePrice * stopLossLimitInfo.limitPercentage },
       'Stop price is outside of expected range.'
     );
+
     await commonHelper.cancelOpenOrders(logger, binance, symbol);
   } else {
     logger.info(

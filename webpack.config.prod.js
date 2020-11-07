@@ -1,8 +1,5 @@
 const path = require('path');
 const fs = require('fs');
-const LodashModuleReplacementPlugin = require('lodash-webpack-plugin');
-const TerserPlugin = require('terser-webpack-plugin');
-const { CleanWebpackPlugin } = require('clean-webpack-plugin'); // installed via npm
 
 const { NODE_ENV = 'production' } = process.env;
 
@@ -23,16 +20,6 @@ module.exports = {
     filename: 'server.js',
     path: path.resolve(__dirname, 'dist')
   },
-  devtool: '#source-map',
-  plugins: [
-    new CleanWebpackPlugin(),
-    new TerserPlugin({
-      cache: true,
-      parallel: true,
-      sourceMap: true
-    }),
-    new LodashModuleReplacementPlugin()
-  ],
   resolve: {
     extensions: ['.js']
   },
@@ -45,7 +32,7 @@ module.exports = {
         exclude: /node_modules/,
         options: {
           plugins: ['lodash'],
-          presets: [['@babel/env', { targets: { node: 13 } }]]
+          presets: [['@babel/env', { targets: { node: 14 } }]]
         }
       }
     ]

@@ -35,6 +35,7 @@ const getSymbolInfo = async (logger, binance, symbol) => {
 
   logger.info({}, 'Request exchange info from Binance');
   const exchangeInfo = await binance.client.exchangeInfo();
+
   logger.info({}, 'Retrieved exchange info from Binance');
   const symbolInfo =
     _.filter(exchangeInfo.symbols, s => {
@@ -52,18 +53,19 @@ const getSymbolInfo = async (logger, binance, symbol) => {
 };
 
 /**
- * Retrieve balance for trade asset based on the side
+ * Retrieve balance for trade asset based on the trade action
  *
  * @param {*} logger
+ * @param {*} binance
  * @param {*} symbolInfo
- * @param {*} side
+ * @param {*} tradeAction
  */
-const getBalance = async (logger, binance, symbolInfo, side) => {
+const getBalance = async (logger, binance, symbolInfo, tradeAction) => {
   // 1. Get account info
-  const accountInfo = await binance.client.accountInfo();
+  const accountInfo = await binance.client.accountInfo({ recvWindow: 10000 });
   logger.info('Retrieved Account info');
 
-  const tradeAsset = side === 'buy' ? symbolInfo.quoteAsset : symbolInfo.baseAsset;
+  const tradeAsset = tradeAction === 'buy' ? symbolInfo.quoteAsset : symbolInfo.baseAsset;
   logger.info({ tradeAsset }, 'Determined trade asset');
 
   // 2. Get trade asset balance
@@ -88,7 +90,7 @@ const getBalance = async (logger, binance, symbolInfo, side) => {
   const freeBalance = +(+balance.free).toFixed(lotPrecision);
 
   // 4. Validate free balance for buy action
-  if (side === 'buy' && freeBalance < +symbolInfo.filterMinNotional.minNotional) {
+  if (tradeAction === 'buy' && freeBalance < +symbolInfo.filterMinNotional.minNotional) {
     logger.error({ freeBalance }, 'Balance is less than minimum notional.');
 
     return {
@@ -110,12 +112,12 @@ const getBalance = async (logger, binance, symbolInfo, side) => {
  *
  * @param {*} logger
  * @param {*} symbolInfo
- * @param {*} side
+ * @param {*} tradeAction
  * @param {*} balanceInfo
  * @param {*} percentage
  * @param {*} indicators
  */
-const getOrderQuantity = (logger, symbolInfo, side, balanceInfo, percentage, indicators) => {
+const getOrderQuantity = (logger, symbolInfo, tradeAction, balanceInfo, percentage, indicators) => {
   const baseAssetPrice = +indicators.lastCandle.close;
   logger.info({ baseAssetPrice }, 'Retrieved latest asset price');
 
@@ -124,7 +126,7 @@ const getOrderQuantity = (logger, symbolInfo, side, balanceInfo, percentage, ind
 
   let orderQuantity = 0;
 
-  if (side === 'buy') {
+  if (tradeAction === 'buy') {
     const orderQuantityBeforeCommission = 1 / (+baseAssetPrice / freeBalance / (percentage / 100));
     orderQuantity = +(orderQuantityBeforeCommission - orderQuantityBeforeCommission * (0.1 / 100)).toFixed(
       lotPrecision
@@ -142,7 +144,7 @@ const getOrderQuantity = (logger, symbolInfo, side, balanceInfo, percentage, ind
     }
   }
 
-  if (side === 'sell') {
+  if (tradeAction === 'sell') {
     const orderQuantityBeforeCommission = freeBalance * (percentage / 100);
     orderQuantity = +(orderQuantityBeforeCommission - orderQuantityBeforeCommission * (0.1 / 100)).toFixed(
       lotPrecision
@@ -185,20 +187,18 @@ const getOrderPrice = (logger, symbolInfo, orderQuantityInfo) => {
   const orderPrice = +(+orderQuantityInfo.baseAssetPrice).toFixed(orderPrecision);
   logger.info({ orderPrecision, orderPrice }, 'Calculated order price');
 
+  // Notional value = contract size (order quantity) * underlying price (order price)
   if (orderQuantityInfo.orderQuantity * orderPrice < symbolInfo.filterMinNotional.minNotional) {
     return {
       result: false,
-      message: `Order quantity * Order price is less than minNotional.`,
-      orderQuantity: orderQuantityInfo.orderQuantity,
-      orderPrice,
-      orderCost: orderQuantityInfo.orderQuantity * orderPrice,
-      minNotional: symbolInfo.filterMinNotional.minNotional
+      message: `Notional value is less than minimum notional value.`,
+      orderPrice
     };
   }
 
   return {
     result: true,
-    message: `Calculated order price`,
+    message: `Calculated notional value`,
     orderPrice
   };
 };
@@ -211,7 +211,7 @@ const getOrderPrice = (logger, symbolInfo, orderQuantityInfo) => {
  * @param {*} symbol
  */
 const getOpenOrders = async (logger, binance, symbol) => {
-  const openOrders = await binance.client.openOrders({ symbol });
+  const openOrders = await binance.client.openOrders({ symbol, recvWindow: 10000 });
   logger.info({ openOrders }, 'Get open orders');
 
   return openOrders;
@@ -223,7 +223,7 @@ const getOpenOrders = async (logger, binance, symbol) => {
  * @param {*} number
  * @param {*} decimals
  */
-const roundDown = (number, decimals = 0) => {
+const roundDown = (number, decimals) => {
   return Math.floor(number * Math.pow(10, decimals)) / Math.pow(10, decimals);
 };
 
@@ -273,17 +273,18 @@ const placeStopLossLimitOrder = async (
     };
   }
 
+  // Notional value = contract size (order quantity) * underlying price (order price)
   if (quantity * price < symbolInfo.filterMinNotional.minNotional) {
     logger.error(
       { quantity, price, minNotional: symbolInfo.filterMinNotional.minNotional },
-      `Order quantity * Order price is less than minNotional.`
+      `Notional value is less than minimum notional value.`
     );
     return {
       result: false,
-      message: `Order quantity * Order price is less than minNotional.`,
+      message: `Notional value is less than minimum notional value.`,
       quantity,
       price,
-      orderCost: quantity * price,
+      notionValue: quantity * price,
       minNotional: symbolInfo.filterMinNotional.minNotional
     };
   }

@@ -1,5 +1,5 @@
 # development stage
-FROM node:13-alpine AS dev-stage
+FROM node:14-alpine AS dev-stage
 
 RUN apk add --no-cache make gcc g++ python
 
@@ -25,7 +25,7 @@ RUN rm -rf node_modules
 RUN npm install --production
 
 # production stage
-FROM node:13-alpine AS production-stage
+FROM node:14-alpine AS production-stage
 
 ARG PACKAGE_VERSION=untagged
 LABEL PackageVersion=${PACKAGE_VERSION}

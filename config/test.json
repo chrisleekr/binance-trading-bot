@@ -3,7 +3,7 @@
   "slack": { "enabled": false },
   "jobs": {
     "macdStopChaser": {
-      "symbol": "XLMUSDT"
+      "symbol": "BTCUSDT"
     }
   }
 }

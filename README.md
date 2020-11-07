@@ -1,10 +1,16 @@
 # Binance Auto Trading API
 
+[![Build](https://github.com/chrisleekr/binance-trading-bot/workflows/main/badge.svg)](https://github.com/chrisleekr/binance-trading-bot/actions?query=workflow%3Amain) [![CodeCov](https://codecov.io/gh/chrisleekr/binance-trading-bot/branch/master/graph/badge.svg)](https://codecov.io/gh/chrisleekr/binance-trading-bot) [![MIT License](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
+
+This is a test project. I am not using for trade. So use with your own risk.
+
+By the way, I tested, you won't make a money with this bot...
+
 ## How it works
 
 ### MACD-Stop-Chaser
 
-The concept of MACD-Stop-Chaser is simple. Buy at low price, never sell under purchase price. Chase rising money.
+The concept of MACD-Stop-Chaser is simple. Buy at low price, never sell under purchase price. Chase rising money. Stop chaser methodology was the idea from @d0x2f.
 
 1. Detect buy signal
 
@@ -32,15 +38,19 @@ The concept of MACD-Stop-Chaser is simple. Buy at low price, never sell under pu
 3. Launch docker compose
 
 ```bash
-$ docker-compose up -d
+docker-compose up -d
 ```
 
-or
+or using latest build image
 
 ```bash
-$ docker-compose -f docker-compose.server.yml up -d
+docker-compose -f docker-compose.server.yml up -d
 ```
 
 ## Environment Parameters
 
 Use environment parameter to adjust parameters. Checkout `/config/custom-environment-variables.json`
+
+## Todo
+
+[ ] Support multiple symbols

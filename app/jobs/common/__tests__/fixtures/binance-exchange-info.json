@@ -1,0 +1,737 @@
+{
+  "timezone": "UTC",
+  "serverTime": 1604146628502,
+  "rateLimits": [
+    { "rateLimitType": "REQUEST_WEIGHT", "interval": "MINUTE", "intervalNum": 1, "limit": 1200 },
+    { "rateLimitType": "ORDERS", "interval": "SECOND", "intervalNum": 10, "limit": 100 },
+    { "rateLimitType": "ORDERS", "interval": "DAY", "intervalNum": 1, "limit": 200000 }
+  ],
+  "exchangeFilters": [],
+  "symbols": [
+    {
+      "symbol": "BNBBUSD",
+      "status": "TRADING",
+      "baseAsset": "BNB",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BUSD",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.00010000",
+          "maxPrice": "10000.00000000",
+          "tickSize": "0.00010000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.01000000", "maxQty": "9000.00000000", "stepSize": "0.01000000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "10.00000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "1000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "BTCBUSD",
+      "status": "TRADING",
+      "baseAsset": "BTC",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BUSD",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.01000000",
+          "maxPrice": "1000000.00000000",
+          "tickSize": "0.01000000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.00000100", "maxQty": "900.00000000", "stepSize": "0.00000100" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "10.00000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        { "filterType": "MARKET_LOT_SIZE", "minQty": "0.00000000", "maxQty": "100.00000000", "stepSize": "0.00000000" },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "ETHBUSD",
+      "status": "TRADING",
+      "baseAsset": "ETH",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BUSD",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.01000000",
+          "maxPrice": "100000.00000000",
+          "tickSize": "0.01000000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.00001000", "maxQty": "9000.00000000", "stepSize": "0.00001000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "10.00000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "1000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "LTCBUSD",
+      "status": "TRADING",
+      "baseAsset": "LTC",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BUSD",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.01000000",
+          "maxPrice": "100000.00000000",
+          "tickSize": "0.01000000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.00001000", "maxQty": "9000.00000000", "stepSize": "0.00001000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "10.00000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "1000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "TRXBUSD",
+      "status": "TRADING",
+      "baseAsset": "TRX",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BUSD",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.00001000",
+          "maxPrice": "1000.00000000",
+          "tickSize": "0.00001000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.10000000", "maxQty": "90000.00000000", "stepSize": "0.10000000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "10.00000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "10000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "XRPBUSD",
+      "status": "TRADING",
+      "baseAsset": "XRP",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BUSD",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.00001000",
+          "maxPrice": "1000.00000000",
+          "tickSize": "0.00001000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.10000000", "maxQty": "90000.00000000", "stepSize": "0.10000000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "10.00000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "10000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "BNBUSDT",
+      "status": "TRADING",
+      "baseAsset": "BNB",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "USDT",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.00010000",
+          "maxPrice": "10000.00000000",
+          "tickSize": "0.00010000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.01000000", "maxQty": "9000.00000000", "stepSize": "0.01000000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "10.00000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "1000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "BTCUSDT",
+      "status": "TRADING",
+      "baseAsset": "BTC",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "USDT",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.01000000",
+          "maxPrice": "1000000.00000000",
+          "tickSize": "0.01000000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.00000100", "maxQty": "900.00000000", "stepSize": "0.00000100" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "10.00000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        { "filterType": "MARKET_LOT_SIZE", "minQty": "0.00000000", "maxQty": "100.00000000", "stepSize": "0.00000000" },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "ETHUSDT",
+      "status": "TRADING",
+      "baseAsset": "ETH",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "USDT",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.01000000",
+          "maxPrice": "100000.00000000",
+          "tickSize": "0.01000000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.00001000", "maxQty": "9000.00000000", "stepSize": "0.00001000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "10.00000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "1000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "LTCUSDT",
+      "status": "TRADING",
+      "baseAsset": "LTC",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "USDT",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.01000000",
+          "maxPrice": "100000.00000000",
+          "tickSize": "0.01000000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.00001000", "maxQty": "9000.00000000", "stepSize": "0.00001000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "10.00000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "1000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "TRXUSDT",
+      "status": "TRADING",
+      "baseAsset": "TRX",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "USDT",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.00001000",
+          "maxPrice": "1000.00000000",
+          "tickSize": "0.00001000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.10000000", "maxQty": "90000.00000000", "stepSize": "0.10000000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "10.00000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "10000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "XRPUSDT",
+      "status": "TRADING",
+      "baseAsset": "XRP",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "USDT",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.00001000",
+          "maxPrice": "1000.00000000",
+          "tickSize": "0.00001000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.10000000", "maxQty": "90000.00000000", "stepSize": "0.10000000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "10.00000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "10000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "BNBBTC",
+      "status": "TRADING",
+      "baseAsset": "BNB",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BTC",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        { "filterType": "PRICE_FILTER", "minPrice": "0.00000010", "maxPrice": "10.00000000", "tickSize": "0.00000010" },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.01000000", "maxQty": "9000.00000000", "stepSize": "0.01000000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "0.00010000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "1000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "ETHBTC",
+      "status": "TRADING",
+      "baseAsset": "ETH",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BTC",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.00000100",
+          "maxPrice": "100.00000000",
+          "tickSize": "0.00000100"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.00001000", "maxQty": "9000.00000000", "stepSize": "0.00001000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "0.00010000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "1000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "LTCBTC",
+      "status": "TRADING",
+      "baseAsset": "LTC",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BTC",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.00000100",
+          "maxPrice": "100.00000000",
+          "tickSize": "0.00000100"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.00001000", "maxQty": "9000.00000000", "stepSize": "0.00001000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "0.00010000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "1000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "TRXBTC",
+      "status": "TRADING",
+      "baseAsset": "TRX",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BTC",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        { "filterType": "PRICE_FILTER", "minPrice": "0.00000001", "maxPrice": "1.00000000", "tickSize": "0.00000001" },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.10000000", "maxQty": "90000.00000000", "stepSize": "0.10000000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "0.00010000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "10000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "XRPBTC",
+      "status": "TRADING",
+      "baseAsset": "XRP",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BTC",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        { "filterType": "PRICE_FILTER", "minPrice": "0.00000001", "maxPrice": "1.00000000", "tickSize": "0.00000001" },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.10000000", "maxQty": "90000.00000000", "stepSize": "0.10000000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "0.00010000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "10000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "LTCBNB",
+      "status": "TRADING",
+      "baseAsset": "LTC",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BNB",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "minPrice": "0.00100000",
+          "maxPrice": "1000.00000000",
+          "tickSize": "0.00100000"
+        },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.00001000", "maxQty": "9000.00000000", "stepSize": "0.00001000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "0.10000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "1000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "TRXBNB",
+      "status": "TRADING",
+      "baseAsset": "TRX",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BNB",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        { "filterType": "PRICE_FILTER", "minPrice": "0.00000100", "maxPrice": "10.00000000", "tickSize": "0.00000100" },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.10000000", "maxQty": "90000.00000000", "stepSize": "0.10000000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "0.10000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "10000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    },
+    {
+      "symbol": "XRPBNB",
+      "status": "TRADING",
+      "baseAsset": "XRP",
+      "baseAssetPrecision": 8,
+      "quoteAsset": "BNB",
+      "quotePrecision": 8,
+      "quoteAssetPrecision": 8,
+      "baseCommissionPrecision": 8,
+      "quoteCommissionPrecision": 8,
+      "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+      "icebergAllowed": true,
+      "ocoAllowed": true,
+      "quoteOrderQtyMarketAllowed": true,
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "filters": [
+        { "filterType": "PRICE_FILTER", "minPrice": "0.00001000", "maxPrice": "10.00000000", "tickSize": "0.00001000" },
+        { "filterType": "PERCENT_PRICE", "multiplierUp": "5", "multiplierDown": "0.2", "avgPriceMins": 1 },
+        { "filterType": "LOT_SIZE", "minQty": "0.10000000", "maxQty": "90000.00000000", "stepSize": "0.10000000" },
+        { "filterType": "MIN_NOTIONAL", "minNotional": "0.10000000", "applyToMarket": true, "avgPriceMins": 1 },
+        { "filterType": "ICEBERG_PARTS", "limit": 10 },
+        {
+          "filterType": "MARKET_LOT_SIZE",
+          "minQty": "0.00000000",
+          "maxQty": "10000.00000000",
+          "stepSize": "0.00000000"
+        },
+        { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 },
+        { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 }
+      ],
+      "permissions": ["SPOT"]
+    }
+  ]
+}

@@ -2,9 +2,7 @@
   "editor.insertSpaces": true,
   "editor.formatOnSave": true,
   "editor.tabSize": 2,
-  "eslint.enable": true,
   "eslint.alwaysShowStatus": true,
-  "eslint.autoFixOnSave": true,
   "files.trimTrailingWhitespace": true,
   "files.exclude": {},
   "files.insertFinalNewline": true,
@@ -17,8 +15,7 @@
     "**/coverage": true,
     "**/node_modules": true
   },
-  "cSpell.words": [
-    "MACD",
-    "tulind"
-  ]
+  "cSpell.words": ["Bollinger", "MACD", "bbands", "chrisleekr", "mrkdwn", "tulind"],
+  "eslint.format.enable": true,
+  "eslint.codeActionsOnSave.mode": "all"
 }

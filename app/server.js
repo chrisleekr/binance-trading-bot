@@ -1,5 +1,6 @@
 const config = require('config');
 const { CronJob } = require('cron');
+
 const { v4: uuidv4 } = require('uuid');
 const { logger } = require('./helpers');
 
@@ -22,7 +23,7 @@ if (config.get('jobs.bbands.enabled')) {
       jobBbands.taskRunning = false;
     },
     null,
-    true,
+    false,
     config.get('tz')
   );
   jobBbands.start();
