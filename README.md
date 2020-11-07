@@ -10,7 +10,7 @@ By the way, I tested, you won't make a money with this bot...
 
 ### MACD-Stop-Chaser
 
-The concept of MACD-Stop-Chaser is simple. Buy at low price, never sell under purchase price. Chase rising money. Stop chaser methodology was the idea from @d0x2f
+The concept of MACD-Stop-Chaser is simple. Buy at low price, never sell under purchase price. Chase rising money. Stop chaser methodology was the idea from [@d0x2f](https://github.com/d0x2f)
 
 1. Detect buy signal
 
