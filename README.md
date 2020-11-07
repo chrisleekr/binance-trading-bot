@@ -10,7 +10,7 @@ By the way, I tested, you won't make a money with this bot...
 
 ### MACD-Stop-Chaser
 
-The concept of MACD-Stop-Chaser is simple. Buy at low price, never sell under purchase price. Chase rising money. Stop chaser methodology was the idea from @d0x2f.
+The concept of MACD-Stop-Chaser is simple. Buy at low price, never sell under purchase price. Chase rising money. Stop chaser methodology was the idea from @d0x2f
 
 1. Detect buy signal
 
@@ -37,15 +37,15 @@ The concept of MACD-Stop-Chaser is simple. Buy at low price, never sell under pu
 
 3. Launch docker compose
 
-```bash
-docker-compose up -d
-```
+   ```bash
+   docker-compose up -d
+   ```
 
-or using latest build image
+   or using latest build image
 
-```bash
-docker-compose -f docker-compose.server.yml up -d
-```
+   ```bash
+   docker-compose -f docker-compose.server.yml up -d
+   ```
 
 ## Environment Parameters
 
