@@ -47,6 +47,9 @@ The concept of MACD-Stop-Chaser is simple. Buy at low price, never sell under pu
    docker-compose -f docker-compose.server.yml up -d
    ```
 
+   [![asciicast](https://asciinema.org/a/371137.png)](https://asciinema.org/a/371137)
+
+
 ## Environment Parameters
 
 Use environment parameter to adjust parameters. Checkout `/config/custom-environment-variables.json`
