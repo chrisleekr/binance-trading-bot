@@ -54,6 +54,16 @@ The concept of MACD-Stop-Chaser is simple. Buy at low price, never sell under pu
 
 Use environment parameter to adjust parameters. Checkout `/config/custom-environment-variables.json`
 
+## First trade
+
+Chart | Order History
+------------ | -------------
+![IMG_6975](https://user-images.githubusercontent.com/5715919/99874214-f7f94a80-2c39-11eb-9f6d-92fa7b4cb000.jpeg)|![IMG_6973](https://user-images.githubusercontent.com/5715919/99874212-f465c380-2c39-11eb-8185-dce0d6d21e27.jpeg) 
+
+
+
+
+
 ## Todo
 
 [ ] Support multiple symbols
