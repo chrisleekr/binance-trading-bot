@@ -1,5 +1,5 @@
 {
-  "mode": "live",
+  "mode": "test",
   "slack": { "enabled": false },
   "jobs": {
     "macdStopChaser": {

@@ -4,9 +4,11 @@ const { CronJob } = require('cron');
 const { v4: uuidv4 } = require('uuid');
 const { logger } = require('./helpers');
 
-const { executeBbands, executeAlive, executeMacdStopChaser } = require('./jobs');
+const { executeBbands, executeAlive, executeMacdStopChaser, executeSimpleStopChaser } = require('./jobs');
 
 logger.info(`API ${config.get('mode')} trading started on`);
+
+logger.info({ config }, 'Config');
 
 if (config.get('jobs.bbands.enabled')) {
   const jobBbands = new CronJob(
@@ -72,4 +74,26 @@ if (config.get('jobs.macdStopChaser.enabled')) {
   );
   jobMacdStopChaser.start();
   logger.info({ cronTime: config.get('jobs.macdStopChaser.cronTime') }, 'MACD Stop Chaser job has been started.');
+}
+
+if (config.get('jobs.simpleStopChaser.enabled')) {
+  const jobSimpleStopChaser = new CronJob(
+    config.get('jobs.simpleStopChaser.cronTime'),
+    async () => {
+      if (jobSimpleStopChaser.taskRunning) {
+        return;
+      }
+      jobSimpleStopChaser.taskRunning = true;
+
+      const moduleLogger = logger.child({ job: 'simpleStopChaser', uuid: uuidv4() });
+      await executeSimpleStopChaser(moduleLogger);
+
+      jobSimpleStopChaser.taskRunning = false;
+    },
+    null,
+    false,
+    config.get('tz')
+  );
+  jobSimpleStopChaser.start();
+  logger.info({ cronTime: config.get('jobs.simpleStopChaser.cronTime') }, 'Simple Stop Chaser job has been started.');
 }

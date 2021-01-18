@@ -1,0 +1,17 @@
+{
+  "symbol": "BTCUSDT",
+  "lowestClosed": 13743.35,
+  "lastCandle": {
+    "openTime": 1604643600000,
+    "open": "15653.06000000",
+    "high": "15667.31000000",
+    "low": "15647.00000000",
+    "close": "15665.71000000",
+    "volume": "140.90258000",
+    "closeTime": 1604643899999,
+    "quoteVolume": "2205893.84750594",
+    "trades": 1890,
+    "baseAssetVolume": "49.27800800",
+    "quoteAssetVolume": "771413.92973118"
+  }
+}

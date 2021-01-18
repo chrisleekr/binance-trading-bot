@@ -34,6 +34,7 @@ const getSymbolInfo = async (logger, binance, symbol) => {
   }
 
   logger.info({}, 'Request exchange info from Binance');
+
   const exchangeInfo = await binance.client.exchangeInfo();
 
   logger.info({}, 'Retrieved exchange info from Binance');
