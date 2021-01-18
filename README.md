@@ -2,11 +2,34 @@
 
 [![Build](https://github.com/chrisleekr/binance-trading-bot/workflows/main/badge.svg)](https://github.com/chrisleekr/binance-trading-bot/actions?query=workflow%3Amain) [![CodeCov](https://codecov.io/gh/chrisleekr/binance-trading-bot/branch/master/graph/badge.svg)](https://codecov.io/gh/chrisleekr/binance-trading-bot) [![MIT License](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
 
-This is a test project. I am just testing my code. **You won't make money with this bot.**
+This is a test project. I am just testing my code. **I cannot guarantee whether you can make money or not.**
 
-**Use it at your own risk! I have no responsibility for any loss or hardship incurred directly or indirectly by using this code.**
+**So use it at your own risk! I have no responsibility for any loss or hardship incurred directly or indirectly by using this code.**
 
 ## How it works
+
+### Simple-Stop-Chaser
+
+This method is buying at lowest price without any indicator, never sell under purchase price. And chase rising money. I have found MACD indicators often mislead buying signal. In box pattern market, buy signal with lowest price is effective than using MACD indicators.
+
+**This method can monitor multiple symbols.**
+
+1. Get next symbol
+
+2. Detect buy signal
+
+   - Get lowest closed price with period
+   - If current closed price is lower than lowest closed price, then **buy NOW.**
+   - If current closed price is higher than lowest closed price, then _do not buy._
+
+3. Chase Stop-Loss-Limit order
+
+   - If there is no open order but have coins that bought by the buy signal, then check
+     - Get last purchase price
+     - If current closed price is higher than minimum profit percentage \* last purchase price, then **place Stop-Loss-Limit order.**
+     - Otherwise, _do not place Stop-Loss-Limit order._
+   - If there is an open Stop-Loss-Limit order, then check current closed price.
+     - If current closed price is higher than stop price, then cancel the open order. So it can be place new Stop-Loss-Limit order.
 
 ### MACD-Stop-Chaser
 
@@ -47,23 +70,27 @@ The concept of MACD-Stop-Chaser is simple. Buy at low price, never sell under pu
    docker-compose -f docker-compose.server.yml up -d
    ```
 
-   [![asciicast](https://asciinema.org/a/371137.png)](https://asciinema.org/a/371137)
-
+[![asciicast](https://asciinema.org/a/371137.png)](https://asciinema.org/a/371137)
 
 ## Environment Parameters
 
 Use environment parameter to adjust parameters. Checkout `/config/custom-environment-variables.json`
 
-## First trade
+## Trades
 
-Chart | Order History
------------- | -------------
-![IMG_6975](https://user-images.githubusercontent.com/5715919/99874214-f7f94a80-2c39-11eb-9f6d-92fa7b4cb000.jpeg)|![IMG_6973](https://user-images.githubusercontent.com/5715919/99874212-f465c380-2c39-11eb-8185-dce0d6d21e27.jpeg) 
+### First trade
 
+| Chart | Order History |
+| --- | --- |
+| ![Screenshot1](https://user-images.githubusercontent.com/5715919/99874214-f7f94a80-2c39-11eb-9f6d-92fa7b4cb000.jpeg) | ![Screenshot2](https://user-images.githubusercontent.com/5715919/99874212-f465c380-2c39-11eb-8185-dce0d6d21e27.jpeg) |
 
+### Last 30 days trade
 
-
+| Trade History | PNL Analysis |
+| --- | --- |
+| ![Screenshot3](https://user-images.githubusercontent.com/5715919/104917671-d4f3d880-59e7-11eb-87ea-b73a8e75f725.jpg) | ![Screenshot4](https://user-images.githubusercontent.com/5715919/104917674-d6250580-59e7-11eb-911f-9d5491fdfdcb.jpg) |
 
 ## Todo
 
-[ ] Support multiple symbols
+- [x] Support multiple symbols
+- [ ] Frontend to see statistics

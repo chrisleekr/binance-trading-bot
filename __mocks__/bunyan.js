@@ -6,7 +6,7 @@ const logger = {
   warn: jest.fn()
 };
 
-logger.child = jest.fn(() => logger);
+logger.child = () => logger;
 
 bunyan.createLogger = jest.fn(() => logger);
 // eslint-disable-next-line no-underscore-dangle

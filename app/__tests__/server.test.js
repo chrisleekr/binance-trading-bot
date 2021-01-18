@@ -8,6 +8,7 @@ describe('server', () => {
   let mockExecuteBbands;
   let mockExecuteAlive;
   let mockExecuteMacdStopChaser;
+  let mockExecuteSimpleStopChaser;
 
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
@@ -16,11 +17,13 @@ describe('server', () => {
     mockExecuteBbands = jest.fn().mockResolvedValue(true);
     mockExecuteAlive = jest.fn().mockResolvedValue(true);
     mockExecuteMacdStopChaser = jest.fn().mockResolvedValue(true);
+    mockExecuteSimpleStopChaser = jest.fn().mockResolvedValue(true);
 
     jest.mock('../jobs', () => ({
       executeBbands: mockExecuteBbands,
       executeAlive: mockExecuteAlive,
-      executeMacdStopChaser: mockExecuteMacdStopChaser
+      executeMacdStopChaser: mockExecuteMacdStopChaser,
+      executeSimpleStopChaser: mockExecuteSimpleStopChaser
     }));
 
     mockCronJob = jest.fn().mockImplementation((_cronTime, onTick, _onComplete, _start, _timeZone) => ({

@@ -28,27 +28,6 @@ describe('slack', () => {
       });
     });
 
-    describe('when environment is test', () => {
-      beforeEach(async () => {
-        process.env.NODE_ENV = 'test';
-
-        config.get = jest.fn(key => {
-          switch (key) {
-            case 'slack.enabled':
-              return true;
-            default:
-              return '';
-          }
-        });
-
-        result = await slack.sendMessage('my message');
-      });
-
-      it('returns expected value', () => {
-        expect(result).toStrictEqual({});
-      });
-    });
-
     describe('when slack is enabled', () => {
       beforeEach(async () => {
         process.env.NODE_ENV = 'live';

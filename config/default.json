@@ -41,7 +41,7 @@
       "balanceSymbols": "BTC,USDT"
     },
     "macdStopChaser": {
-      "enabled": true,
+      "enabled": false,
       "cronTime": "* * * * * *",
       "symbol": "BTCUSDT",
       "macd": {
@@ -63,6 +63,20 @@
         "lastBuyPercentage": 1.03,
         "stopPercentage": 0.99,
         "limitPercentage": 0.98
+      }
+    },
+    "simpleStopChaser": {
+      "enabled": false,
+      "cronTime": "* * * * * *",
+      "symbols": ["BTCUSDT", "ETHUSDT"],
+      "candles": {
+        "interval": "4h",
+        "limit": 100
+      },
+      "stopLossLimit": {
+        "lastBuyPercentage": 1.06,
+        "stopPercentage": 0.97,
+        "limitPercentage": 0.96
       }
     }
   }

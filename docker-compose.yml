@@ -14,13 +14,11 @@ services:
       - ./app:/srv/app
     env_file:
       - .env
+    restart: unless-stopped
     environment:
-      # - BINANCE_MODE=test
-      - BINANCE_MODE=live
-      - BINANCE_JOBS_ALIVE_PRICE_SYMBOL=BTCUSDT
-      - BINANCE_JOBS_ALIVE_BALANCE_SYMBOLS=BTC,USDT
-      - BINANCE_JOBS_BBANDS_SYMBOL=BTCUSDT
-      - BINANCE_JOBS_MACD_STOP_CHASER_SYMBOL=BTCUSDT
+      - BINANCE_MODE=test
+      # - BINANCE_MODE=live
+      - BINANCE_JOBS_SIMPLE_STOP_CHASER_SYMBOLS=["BTCUSDT", "ETHUSDT", "LTCUSDT", "XRPUSDT", "LINKUSDT", "BNBUSDT", "EOSUSDT", "TRXUSDT", "XLMUSDT"]
       - REDIS_HOST=binance-redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
@@ -28,6 +26,7 @@ services:
   binance-redis:
     container_name: binance-redis
     image: redis:6.0
+    restart: unless-stopped
     networks:
       - internal
     volumes:

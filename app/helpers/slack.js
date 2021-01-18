@@ -7,7 +7,7 @@ const config = require('config');
  * @param {*} text
  */
 const sendMessage = text => {
-  if (config.get('slack.enabled') !== true || process.env.NODE_ENV === 'test') {
+  if (config.get('slack.enabled') !== true) {
     return Promise.resolve({});
   }
 
