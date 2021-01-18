@@ -27,8 +27,5 @@ log
 
 .env
 
-examples/sample1-output.jpg
-references/*
-
 docker-compose.yml
 docker-compose.server.yml
