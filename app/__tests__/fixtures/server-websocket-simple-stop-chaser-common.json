@@ -1,0 +1,6 @@
+{
+  "configuration": "{\"enabled\":true,\"cronTime\":\"* * * * * *\",\"symbols\":[\"BTCUSDT\",\"ETHUSDT\",\"LTCUSDT\",\"XRPUSDT\",\"BNBUSDT\"],\"candles\":{\"interval\":\"1d\",\"limit\":6},\"maxPurchaseAmount\":104,\"stopLossLimit\":{\"lastBuyPercentage\":2.01,\"stopPercentage\":1.99,\"limitPercentage\":1.98}}",
+  "account-info": "{\"makerCommission\":0,\"takerCommission\":0,\"buyerCommission\":0,\"sellerCommission\":0,\"canTrade\":true,\"canWithdraw\":false,\"canDeposit\":false,\"updateTime\":1612477745287,\"accountType\":\"SPOT\",\"balances\":[{\"asset\":\"BTC\",\"free\":\"0.00089800\",\"locked\":\"0.79411700\"},{\"asset\":\"BUSD\",\"free\":\"10000.00000000\",\"locked\":\"0.00000000\"},{\"asset\":\"ETH\",\"free\":\"0.09648000\",\"locked\":\"95.66082000\"},{\"asset\":\"LTC\",\"free\":\"0.50000000\",\"locked\":\"499.50000000\"},{\"asset\":\"TRX\",\"free\":\"500000.00000000\",\"locked\":\"0.00000000\"},{\"asset\":\"USDT\",\"free\":\"193479.92919565\",\"locked\":\"0.00000000\"},{\"asset\":\"XRP\",\"free\":\"50.00000000\",\"locked\":\"46115.50000000\"}],\"permissions\":[\"SPOT\"]}",
+  "last-processed": "{\"timeUTC\":\"2021-02-04T22:37:39.002Z\",\"symbol\":\"XRPUSDT\"}",
+  "last-symbol": "XRPUSDT"
+}

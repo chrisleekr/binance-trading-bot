@@ -33,92 +33,128 @@ describe('simpleStopChaser', () => {
         }
       });
 
-      cache.set = jest.fn().mockResolvedValue(true);
+      cache.hset = jest.fn().mockResolvedValue(true);
     });
 
     describe('when tradeaActionResult is buy if there is no cached last symbol', () => {
       beforeEach(async () => {
-        cache.get = jest.fn().mockResolvedValue();
+        cache.hget = jest.fn().mockResolvedValue();
 
-        simpleStopChaserHelper.getIndicators = jest.fn().mockResolvedValue({ some: 'value' });
+        simpleStopChaserHelper.getIndicators = jest
+          .fn()
+          .mockResolvedValue({ some: 'value' });
 
         simpleStopChaserHelper.determineAction = jest.fn().mockResolvedValue({
           action: 'buy'
         });
 
-        simpleStopChaserHelper.placeOrder = jest.fn().mockResolvedValue({ result: true });
+        simpleStopChaserHelper.placeBuyOrder = jest
+          .fn()
+          .mockResolvedValue({ result: true });
 
         await simpleStopChaserExecute(logger);
       });
 
       it('triggers getIndicator', () => {
-        expect(simpleStopChaserHelper.getIndicators).toHaveBeenCalledWith('BTCUSDT', logger);
+        expect(simpleStopChaserHelper.getIndicators).toHaveBeenCalledWith(
+          'BTCUSDT',
+          logger
+        );
       });
 
-      it('caches last symbol', () => {
-        expect(cache.set).toHaveBeenCalledWith('simple-stop-chaser-last-symbol', 'BTCUSDT');
+      it('caches last processed time and symbol', () => {
+        expect(cache.hset).toHaveBeenCalledWith(
+          'simple-stop-chaser-common',
+          'last-processed',
+          expect.any(String)
+        );
       });
 
-      it('triggers placeOrder', () => {
-        expect(simpleStopChaserHelper.placeOrder).toHaveBeenCalledWith(logger, 'buy', 100, { some: 'value' });
+      it('triggers placeBuyOrder', () => {
+        expect(
+          simpleStopChaserHelper.placeBuyOrder
+        ).toHaveBeenCalledWith(logger, { some: 'value' });
       });
     });
 
     describe('when tradeaActionResult is sell if there is cached last symbol', () => {
       beforeEach(async () => {
-        cache.get = jest.fn().mockResolvedValue('BTCUSDT');
+        cache.hget = jest.fn().mockResolvedValue('BTCUSDT');
 
-        simpleStopChaserHelper.getIndicators = jest.fn().mockResolvedValue({ some: 'value' });
+        simpleStopChaserHelper.getIndicators = jest
+          .fn()
+          .mockResolvedValue({ some: 'value' });
 
         simpleStopChaserHelper.determineAction = jest.fn().mockResolvedValue({
           action: 'sell'
         });
 
-        simpleStopChaserHelper.placeOrder = jest.fn().mockResolvedValue({ result: true });
+        simpleStopChaserHelper.placeBuyOrder = jest
+          .fn()
+          .mockResolvedValue({ result: true });
 
         await simpleStopChaserExecute(logger);
       });
 
       it('triggers getIndicator', () => {
-        expect(simpleStopChaserHelper.getIndicators).toHaveBeenCalledWith('ETHUSDT', logger);
+        expect(simpleStopChaserHelper.getIndicators).toHaveBeenCalledWith(
+          'ETHUSDT',
+          logger
+        );
       });
 
-      it('caches last symbol', () => {
-        expect(cache.set).toHaveBeenCalledWith('simple-stop-chaser-last-symbol', 'ETHUSDT');
+      it('caches last processed time and symbol', () => {
+        expect(cache.hset).toHaveBeenCalledWith(
+          'simple-stop-chaser-common',
+          'last-processed',
+          expect.any(String)
+        );
       });
 
-      it('does not trigger placeOrder', () => {
-        expect(simpleStopChaserHelper.placeOrder).not.toHaveBeenCalled();
+      it('does not trigger placeBuyOrder', () => {
+        expect(simpleStopChaserHelper.placeBuyOrder).not.toHaveBeenCalled();
       });
     });
 
     describe('when tradeaActionResult is hold and there is cached last symbol and it is last symbol at symbols', () => {
       beforeEach(async () => {
-        cache.get = jest.fn().mockResolvedValue('ETHUSDT');
+        cache.hget = jest.fn().mockResolvedValue('ETHUSDT');
 
-        simpleStopChaserHelper.getIndicators = jest.fn().mockResolvedValue({ some: 'value' });
+        simpleStopChaserHelper.getIndicators = jest
+          .fn()
+          .mockResolvedValue({ some: 'value' });
 
         simpleStopChaserHelper.determineAction = jest.fn().mockResolvedValue({
-          action: 'hold'
+          action: 'wait'
         });
 
-        simpleStopChaserHelper.placeOrder = jest.fn().mockResolvedValue({ result: true });
+        simpleStopChaserHelper.placeBuyOrder = jest
+          .fn()
+          .mockResolvedValue({ result: true });
 
-        simpleStopChaserHelper.chaseStopLossLimitOrder = jest.fn().mockResolvedValue({ result: true });
+        simpleStopChaserHelper.chaseStopLossLimitOrder = jest
+          .fn()
+          .mockResolvedValue({ result: true });
 
         await simpleStopChaserExecute(logger);
       });
 
-      it('does not trigger placeOrder', () => {
-        expect(simpleStopChaserHelper.placeOrder).not.toHaveBeenCalled();
+      it('does not trigger placeBuyOrder', () => {
+        expect(simpleStopChaserHelper.placeBuyOrder).not.toHaveBeenCalled();
       });
 
-      it('caches last symbol', () => {
-        expect(cache.set).toHaveBeenCalledWith('simple-stop-chaser-last-symbol', 'BTCUSDT');
+      it('caches last processed time and symbol', () => {
+        expect(cache.hset).toHaveBeenCalledWith(
+          'simple-stop-chaser-common',
+          'last-processed',
+          expect.any(String)
+        );
       });
 
       it('triggers chaseStopLossLimitOrder', () => {
-        expect(simpleStopChaserHelper.chaseStopLossLimitOrder).toHaveBeenCalledWith(logger, { some: 'value' });
+        expect(
+          simpleStopChaserHelper.chaseStopLossLimitOrder
+        ).toHaveBeenCalledWith(logger, { some: 'value' });
       });
     });
 
@@ -131,9 +167,13 @@ describe('simpleStopChaser', () => {
           e.code = -1001;
           simpleStopChaserHelper.getIndicators = jest.fn().mockRejectedValue(e);
 
-          simpleStopChaserHelper.placeOrder = jest.fn().mockResolvedValue({ result: true });
+          simpleStopChaserHelper.placeOrder = jest
+            .fn()
+            .mockResolvedValue({ result: true });
 
-          simpleStopChaserHelper.chaseStopLossLimitOrder = jest.fn().mockResolvedValue({ result: true });
+          simpleStopChaserHelper.chaseStopLossLimitOrder = jest
+            .fn()
+            .mockResolvedValue({ result: true });
 
           await simpleStopChaserExecute(logger);
         });
@@ -143,7 +183,9 @@ describe('simpleStopChaser', () => {
         });
 
         it('does not trigger chaseStopLossLimitOrder', () => {
-          expect(simpleStopChaserHelper.chaseStopLossLimitOrder).not.toHaveBeenCalled();
+          expect(
+            simpleStopChaserHelper.chaseStopLossLimitOrder
+          ).not.toHaveBeenCalled();
         });
 
         it('does not trigger slack', () => {
@@ -159,9 +201,13 @@ describe('simpleStopChaser', () => {
           e.code = -1;
           simpleStopChaserHelper.getIndicators = jest.fn().mockRejectedValue(e);
 
-          simpleStopChaserHelper.placeOrder = jest.fn().mockResolvedValue({ result: true });
+          simpleStopChaserHelper.placeOrder = jest
+            .fn()
+            .mockResolvedValue({ result: true });
 
-          simpleStopChaserHelper.chaseStopLossLimitOrder = jest.fn().mockResolvedValue({ result: true });
+          simpleStopChaserHelper.chaseStopLossLimitOrder = jest
+            .fn()
+            .mockResolvedValue({ result: true });
 
           await simpleStopChaserExecute(logger);
         });

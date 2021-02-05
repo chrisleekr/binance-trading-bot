@@ -13,7 +13,7 @@ const sendMessage = text => {
 
   return axios.post(config.get('slack.webhookUrl'), {
     channel: config.get('slack.channel'),
-    username: config.get('slack.username'),
+    username: `${config.get('slack.username')} - ${config.get('mode')}`,
     type: 'mrkdwn',
     text
   });

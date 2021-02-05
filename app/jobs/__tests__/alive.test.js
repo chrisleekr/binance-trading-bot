@@ -8,14 +8,28 @@ describe('alive', () => {
   describe('execute', () => {
     describe('success', () => {
       beforeEach(async () => {
-        aliveHelper.getBalance = jest.fn().mockResolvedValue({ some: 'value' });
+        aliveHelper.getAccountInfo = jest.fn().mockResolvedValue({
+          updateTime: '1611365234776',
+          balances: [
+            {
+              asset: 'BNB',
+              free: '1000.00000000',
+              locked: '0.00000000'
+            },
+            {
+              asset: 'BTC',
+              free: '0.00100000',
+              locked: '0.99900000'
+            }
+          ]
+        });
         slack.sendMessage = jest.fn();
 
         await aliveExecute(logger);
       });
 
-      it('triggers getBalance', () => {
-        expect(aliveHelper.getBalance).toHaveBeenCalled();
+      it('triggers getAccountInfo', () => {
+        expect(aliveHelper.getAccountInfo).toHaveBeenCalled();
       });
 
       it('triggers slack', () => {
@@ -27,7 +41,7 @@ describe('alive', () => {
       beforeEach(async () => {
         const e = new Error('something happened');
 
-        aliveHelper.getBalance = jest.fn().mockRejectedValue(e);
+        aliveHelper.getAccountInfo = jest.fn().mockRejectedValue(e);
         slack.sendMessage = jest.fn();
 
         await aliveExecute(logger);

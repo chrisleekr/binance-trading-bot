@@ -14,7 +14,7 @@ const redis = new Redis({
  * @param {*} value
  * @param {*} ttl seconds
  */
-const set = (key, value, ttl = undefined) => {
+const set = async (key, value, ttl = undefined) => {
   if (ttl) {
     return redis.set(key, value, 'EX', ttl);
   }
@@ -26,8 +26,38 @@ const set = (key, value, ttl = undefined) => {
  *
  * @param {*} key
  */
-const get = key => {
+const get = async key => {
   return redis.get(key);
 };
 
-module.exports = { set, get };
+/**
+ * Set cache value
+ *
+ * @param {*} key
+ * @param {*} field
+ * @param {*} value
+ */
+const hset = async (key, field, value) => {
+  return redis.hset(key, field, value);
+};
+
+/**
+ * Get value from key
+ *
+ * @param {*} key
+ * @param {*} field
+ */
+const hget = async (key, field) => {
+  return redis.hget(key, field);
+};
+
+/**
+ * Get value from key
+ *
+ * @param {*} key
+ */
+const hgetall = async key => {
+  return redis.hgetall(key);
+};
+
+module.exports = { set, get, hset, hget, hgetall };

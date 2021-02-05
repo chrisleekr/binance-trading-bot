@@ -23,56 +23,32 @@
     "username": ""
   },
   "jobs": {
-    "bbands": {
-      "enabled": false,
-      "cronTime": "* * * * * *",
-      "symbol": "BTCUSDT",
-      "period": 50,
-      "stddev": 2,
-      "candles": {
-        "interval": "1m",
-        "limit": 200
-      }
-    },
     "alive": {
-      "enabled": false,
-      "cronTime": "0 */10 * * * *",
-      "priceSymbol": "BTCUSDT",
-      "balanceSymbols": "BTC,USDT"
-    },
-    "macdStopChaser": {
-      "enabled": false,
-      "cronTime": "* * * * * *",
-      "symbol": "BTCUSDT",
-      "macd": {
-        "shortPeriod": 12,
-        "longPeriod": 26,
-        "signalPeriod": 9
-      },
-      "min": {
-        "range": {
-          "min": 0.99,
-          "max": 1.01
-        }
-      },
-      "candles": {
-        "interval": "6h",
-        "limit": 500
-      },
-      "stopLossLimit": {
-        "lastBuyPercentage": 1.03,
-        "stopPercentage": 0.99,
-        "limitPercentage": 0.98
-      }
+      "enabled": true,
+      "cronTime": "0 0 9 * * *"
     },
     "simpleStopChaser": {
       "enabled": false,
       "cronTime": "* * * * * *",
-      "symbols": ["BTCUSDT", "ETHUSDT"],
+      "symbols": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "LTCUSDT",
+        "XRPUSDT",
+        "LINKUSDT",
+        "BNBUSDT",
+        "EOSUSDT",
+        "TRXUSDT",
+        "XLMUSDT",
+        "BCHUSDT",
+        "DOTUSDT",
+        "ADAUSDT"
+      ],
       "candles": {
-        "interval": "4h",
-        "limit": 100
+        "interval": "1d",
+        "limit": 5
       },
+      "maxPurchaseAmount": 100,
       "stopLossLimit": {
         "lastBuyPercentage": 1.06,
         "stopPercentage": 0.97,
