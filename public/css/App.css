@@ -1,0 +1,177 @@
+/* Dark Mode styles */
+body.dark-theme {
+  color: #cfcfcf;
+  background: #191f2c;
+  font-size: 0.8rem;
+}
+body.dark-theme a {
+  color: #809fff;
+}
+
+.app {
+  padding: 10px;
+}
+
+.app-h1 {
+  font-size: 1rem;
+  width: 100%;
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+.app-h1 .binance-img {
+  width: 17px;
+  vertical-align: text-top;
+}
+
+.app-h1 i {
+  color: #fff;
+}
+
+.app-header {
+  margin-bottom: 5px;
+}
+
+.header-wrapper {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: flex-start;
+}
+
+.header-wrapper .header-column.header-column-title {
+  text-align: left;
+  width: 80%;
+  display: flex;
+  flex-flow: row wrap;
+}
+
+.header-wrapper .header-column.header-column-title h1 {
+  line-height: 25px;
+}
+
+.header-wrapper .header-column.header-column-icon {
+  text-align: right;
+  width: 20%;
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: flex-end;
+}
+
+.header-wrapper .header-column.header-column-icon i {
+  color: #fff;
+  font-size: 20px;
+}
+
+.coin-wrappers {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: flex-start;
+  margin-bottom: 10px;
+}
+
+.coin-wrapper {
+  width: 25%;
+  -webkit-border-radius: 10px;
+  -moz-border-radius: 10px;
+  border-radius: 10px;
+  padding: 5px;
+  margin-bottom: 10px;
+  flex: 25% auto;
+}
+
+@media (max-width: 1200px) {
+  .coin-wrapper {
+    width: 50%;
+    flex: 50% auto;
+  }
+}
+
+@media (max-width: 550px) {
+  .coin-wrapper {
+    width: 100%;
+    flex: 100% auto;
+  }
+}
+
+.coin-wrapper-even {
+  background-color: #272b38;
+}
+
+.coin-info-wrapper {
+  width: 100%;
+  padding: 10px;
+  display: flex;
+  flex-flow: row wrap;
+}
+
+.coin-info-sub-wrapper {
+  width: 100%;
+  display: flex;
+  flex-flow: row wrap;
+}
+
+.coin-info-column {
+  flex: 1 100%;
+  display: flex;
+  flex-direction: row;
+}
+
+.coin-info-column-name {
+  font-weight: bold;
+  color: #fff;
+  font-size: 1rem;
+}
+
+.coin-info-column-title {
+  border-top: 1px solid rgb(143, 143, 143);
+  border-bottom: 1px solid rgb(143, 143, 143);
+  margin: 5px 0 5px 0;
+  padding: 5px 0 5px 0;
+}
+
+.coin-info-label,
+.coin-info-value {
+  width: 50%;
+  flex: 1 auto;
+}
+
+.coin-info-column-title .coin-info-label {
+  font-weight: bold;
+}
+
+.coin-info-column-title .coin-info-value {
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
+.coin-info-value {
+  text-align: right;
+}
+
+.coin-info-value-up,
+.coin-info-value-buy {
+  color: #02c076;
+}
+
+.coin-info-value-down,
+.coin-info-value-sell {
+  color: #f84960;
+}
+
+.blink {
+  animation: blinker 1s normal;
+}
+
+@keyframes blinker {
+  50% {
+    opacity: 0;
+  }
+}
+
+.modal-dialog {
+  color: #272b38;
+}
+
+.form-header {
+  font-size: 1rem;
+}

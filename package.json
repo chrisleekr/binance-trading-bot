@@ -1,6 +1,6 @@
 {
   "name": "binance-trading-bot",
-  "version": "0.0.12",
+  "version": "0.0.47",
   "description": "Binance Auto Trading Bot",
   "scripts": {
     "start": "node dist/server.js",
@@ -32,26 +32,31 @@
     "config": "^3.3.2",
     "cron": "^1.8.2",
     "cross-env": "^7.0.2",
+    "express": "^4.17.1",
     "ioredis": "^4.19.2",
     "lodash": "^4.17.20",
     "lodash-webpack-plugin": "^0.11.5",
     "moment": "^2.29.1",
-    "node-cache": "^5.1.2",
-    "tulind": "^0.8.18",
-    "uuid": "^8.3.1"
+    "moment-timezone": "^0.5.32",
+    "uuid": "^8.3.1",
+    "ws": "^7.4.2"
   },
   "devDependencies": {
     "@babel/cli": "^7.12.8",
     "@babel/preset-env": "^7.12.7",
+    "@types/express": "^4.17.11",
     "@types/jest": "^26.0.15",
     "@types/node": "^14.14.10",
     "babel-core": "^6.26.3",
+    "babel-eslint": "^10.1.0",
     "babel-loader": "^8.2.1",
     "babel-plugin-lodash": "^3.3.4",
     "babel-preset-env": "^1.7.0",
     "eslint": "^7.14.0",
     "eslint-config-airbnb": "^18.2.1",
     "eslint-config-prettier": "^6.15.0",
+    "eslint-config-react-app": "^6.0.0",
+    "eslint-plugin-flowtype": "^5.2.0",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-jest": "^24.1.3",
     "eslint-plugin-jsx-a11y": "^6.4.1",
@@ -59,6 +64,7 @@
     "eslint-plugin-prettier": "^3.1.4",
     "eslint-plugin-promise": "^4.2.1",
     "eslint-plugin-react": "^7.21.5",
+    "eslint-plugin-react-hooks": "^4.2.0",
     "husky": "^4.3.0",
     "jest": "^26.6.3",
     "lint-staged": "^10.5.2",
@@ -82,10 +88,10 @@
     ],
     "coverageThreshold": {
       "global": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
       }
     }
   },

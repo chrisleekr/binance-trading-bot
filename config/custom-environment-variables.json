@@ -133,6 +133,10 @@
           "__format": "number"
         }
       },
+      "maxPurchaseAmount": {
+        "__name": "BINANCE_JOBS_SIMPLE_STOP_CHASER_MAX_PURCHASE_AMOUNT",
+        "__format": "number"
+      },
       "stopLossLimit": {
         "lastBuyPercentage": {
           "__name": "BINANCE_JOBS_SIMPLE_STOP_CHASER_STOP_LOSS_LIMIT_LAST_BUY_PERCENTAGE",

@@ -2,12 +2,8 @@
 const _ = require('lodash');
 const config = require('config');
 const { binance, logger, cache, slack } = require('../../../helpers');
-const commonHelper = require('../../common/helper');
 
 const simpleStopChaserHelper = require('../helper');
-
-const indicators = require('./fixtures/helper-get-indicators.json');
-const symbolInfo = require('./fixtures/helper-get-symbol-info.json');
 
 jest.mock('config');
 
@@ -18,7 +14,607 @@ describe('helper', () => {
     slack.sendMessage = jest.fn().mockResolvedValue(true);
   });
 
+  describe('cancelOpenOrders', () => {
+    describe('success', () => {
+      beforeEach(async () => {
+        binance.client.cancelOpenOrders = jest.fn().mockResolvedValue(true);
+        await simpleStopChaserHelper.cancelOpenOrders(logger, 'BTCUSDT');
+      });
+
+      it('triggers logger.info', () => {
+        expect(logger.info).toHaveBeenCalledWith(
+          { result: true },
+          'Cancelled open orders'
+        );
+      });
+    });
+
+    describe('error', () => {
+      const e = new Error('something happened');
+      beforeEach(async () => {
+        binance.client.cancelOpenOrders = jest.fn().mockRejectedValue(e);
+
+        await simpleStopChaserHelper.cancelOpenOrders(logger, 'BTCUSDT');
+      });
+
+      it('triggers logger.info', () => {
+        expect(logger.info).toHaveBeenCalledWith(
+          { e },
+          'Cancel result failed, but it is ok. Do not worry'
+        );
+      });
+    });
+  });
+
+  describe('getSymbolInfo', () => {
+    describe('when there is cached symbol info', () => {
+      beforeEach(async () => {
+        cache.hget = jest
+          .fn()
+          .mockResolvedValue(JSON.stringify({ some: 'value' }));
+        result = await simpleStopChaserHelper.getSymbolInfo(logger, 'BTCUSDT');
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({ some: 'value' });
+      });
+    });
+
+    describe('when there is no cached symbol info', () => {
+      beforeEach(() => {
+        cache.hget = jest.fn().mockResolvedValue(false);
+        cache.hset = jest.fn().mockResolvedValue(true);
+      });
+
+      describe('when found symbol', () => {
+        beforeEach(async () => {
+          binance.client.exchangeInfo = jest
+            .fn()
+            .mockResolvedValue(
+              require('./fixtures/binance-exchange-info.json')
+            );
+
+          result = await simpleStopChaserHelper.getSymbolInfo(
+            logger,
+            'BTCUSDT'
+          );
+        });
+
+        it('returns expected value', () => {
+          expect(result).toStrictEqual(
+            require('./fixtures/helper-get-symbol-info1.json')
+          );
+        });
+      });
+
+      describe('when does not find symbol', () => {
+        beforeEach(async () => {
+          binance.client.exchangeInfo = jest
+            .fn()
+            .mockResolvedValue(
+              require('./fixtures/binance-exchange-info.json')
+            );
+
+          result = await simpleStopChaserHelper.getSymbolInfo(
+            logger,
+            'BTCUNKNW'
+          );
+        });
+
+        it('returns expected value', () => {
+          expect(result).toStrictEqual(
+            require('./fixtures/helper-get-symbol-info2.json')
+          );
+        });
+      });
+    });
+  });
+
+  describe('getBuyBalance', () => {
+    const orgAccountInfo = require('./fixtures/binance-account-info.json');
+    const orgIndicators = require('./fixtures/helper-indicators.json');
+
+    describe('when cannot find balance', () => {
+      beforeEach(async () => {
+        binance.client.accountInfo = jest
+          .fn()
+          .mockResolvedValue(orgAccountInfo);
+        const indicators = _.cloneDeep(orgIndicators);
+
+        indicators.symbolInfo.quoteAsset = 'UNKNWN';
+        indicators.symbolInfo.baseAsset = 'UNKNWN';
+
+        result = await simpleStopChaserHelper.getBuyBalance(
+          logger,
+          indicators,
+          { maxPurchaseAmount: 100 }
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          result: false,
+          message: 'Balance cannot be found. Do not place an order.',
+          quoteAssetBalance: {},
+          baseAssetBalance: {}
+        });
+      });
+    });
+
+    describe('when base asset balance is more than minimum notional value', () => {
+      beforeEach(async () => {
+        const accountInfo = _.cloneDeep(orgAccountInfo);
+        accountInfo.balances = _.map(accountInfo.balances, b => {
+          const balance = b;
+          if (balance.asset === 'BTC') {
+            balance.free = '0.01000';
+          }
+          return balance;
+        });
+        binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
+
+        const indicators = _.cloneDeep(orgIndicators);
+
+        result = await simpleStopChaserHelper.getBuyBalance(
+          logger,
+          indicators,
+          { maxPurchaseAmount: 100 }
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          result: false,
+          message:
+            'Base asset has enough balance to place stop loss limit order. Do not place an order.',
+          baseAsset: 'BTC',
+          baseAssetTotalBalance: 0.01,
+          currentBalanceInQuoteAsset: 117.6474,
+          lastCandleClose: '11764.74000000',
+          minNotional: '10.00000000'
+        });
+      });
+    });
+
+    describe('when balance is less than minimum notional value', () => {
+      beforeEach(async () => {
+        const accountInfo = _.cloneDeep(orgAccountInfo);
+        accountInfo.balances = _.map(accountInfo.balances, b => {
+          const balance = b;
+          if (balance.asset === 'USDT') {
+            balance.free = '9.00000';
+          }
+          return balance;
+        });
+
+        binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
+
+        const indicators = _.cloneDeep(orgIndicators);
+        indicators.symbolInfo.quoteAsset = 'USDT';
+
+        result = await simpleStopChaserHelper.getBuyBalance(
+          logger,
+          indicators,
+          { maxPurchaseAmount: 100 }
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          result: false,
+          message:
+            'Balance is less than minimum notional. Do not place an order.',
+          freeBalance: 9
+        });
+      });
+    });
+
+    describe('when quote asset balance is more than max purchase amount', () => {
+      beforeEach(async () => {
+        const accountInfo = _.cloneDeep(orgAccountInfo);
+        accountInfo.balances = _.map(accountInfo.balances, b => {
+          const balance = b;
+          if (balance.asset === 'USDT') {
+            balance.free = '119.00000';
+          }
+          return balance;
+        });
+
+        binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
+        const indicators = _.cloneDeep(orgIndicators);
+
+        result = await simpleStopChaserHelper.getBuyBalance(
+          logger,
+          indicators,
+          {
+            maxPurchaseAmount: 100
+          }
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          result: true,
+          message: 'Balance found',
+          freeBalance: 100
+        });
+      });
+    });
+
+    describe('when balance is available for buy', () => {
+      beforeEach(async () => {
+        const accountInfo = _.cloneDeep(orgAccountInfo);
+        accountInfo.balances = _.map(accountInfo.balances, b => {
+          const balance = b;
+          if (balance.asset === 'USDT') {
+            balance.free = '19.00000';
+          }
+          return balance;
+        });
+
+        binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
+        const indicators = _.cloneDeep(orgIndicators);
+        indicators.symbolInfo.quoteAsset = 'USDT';
+
+        result = await simpleStopChaserHelper.getBuyBalance(
+          logger,
+          indicators,
+          { maxPurchaseAmount: 100 }
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          result: true,
+          message: 'Balance found',
+          freeBalance: 19
+        });
+      });
+    });
+  });
+
+  describe('getSellBalance', () => {
+    const orgSymbolInfo = require('./fixtures/helper-get-symbol-info1.json');
+    const orgAccountInfo = require('./fixtures/binance-account-info.json');
+
+    describe('when cannot find balance', () => {
+      beforeEach(async () => {
+        binance.client.accountInfo = jest
+          .fn()
+          .mockResolvedValue(orgAccountInfo);
+
+        const symbolInfo = _.cloneDeep(orgSymbolInfo);
+        symbolInfo.baseAsset = 'UNKNWN';
+
+        result = await simpleStopChaserHelper.getSellBalance(
+          logger,
+          symbolInfo
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          result: false,
+          message: 'Balance cannot be found. Do not place an order.',
+          baseAssetBalance: {}
+        });
+      });
+    });
+
+    describe('when base asset balance is found', () => {
+      beforeEach(async () => {
+        const accountInfo = _.cloneDeep(orgAccountInfo);
+        accountInfo.balances = _.map(accountInfo.balances, b => {
+          const balance = b;
+          if (balance.asset === 'BTC') {
+            balance.free = '0.01000';
+          }
+          return balance;
+        });
+        binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
+
+        const symbolInfo = _.cloneDeep(orgSymbolInfo);
+
+        result = await simpleStopChaserHelper.getSellBalance(
+          logger,
+          symbolInfo
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          result: true,
+          message: 'Balance found',
+          freeBalance: 0.01
+        });
+      });
+    });
+  });
+
+  describe('getBuyOrderQuantity', () => {
+    const orgSymbolInfo = require('./fixtures/helper-get-symbol-info1.json');
+
+    describe('when order quantity is less than 0', () => {
+      beforeEach(async () => {
+        const symbolInfo = _.cloneDeep(orgSymbolInfo);
+        const balanceInfo = {
+          freeBalance: 0.005
+        };
+        const indicators = {
+          lastCandle: {
+            close: '11756.2900000'
+          }
+        };
+
+        result = simpleStopChaserHelper.getBuyOrderQuantity(
+          logger,
+          symbolInfo,
+          balanceInfo,
+          indicators
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          result: false,
+          message:
+            'Order quantity is less or equal than 0. Do not place an order.',
+          baseAssetPrice: 11756.29,
+          orderQuantity: 0,
+          freeBalance: 0.005
+        });
+      });
+    });
+
+    describe('when order quantity is more than 0', () => {
+      beforeEach(async () => {
+        const symbolInfo = _.cloneDeep(orgSymbolInfo);
+        const balanceInfo = {
+          freeBalance: 10
+        };
+        const indicators = {
+          lastCandle: {
+            close: '11756.2900000'
+          }
+        };
+
+        result = simpleStopChaserHelper.getBuyOrderQuantity(
+          logger,
+          symbolInfo,
+          balanceInfo,
+          indicators
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          result: true,
+          message: 'Calculated order quantity to buy.',
+          baseAssetPrice: 11756.29,
+          orderQuantity: 0.00085,
+          freeBalance: 10
+        });
+      });
+    });
+  });
+
+  describe('getBuyOrderPrice', () => {
+    const orgSymbolInfo = require('./fixtures/helper-get-symbol-info1.json');
+
+    describe('when notional value is less than minimum notional value', () => {
+      beforeEach(async () => {
+        const symbolInfo = _.cloneDeep(orgSymbolInfo);
+        const orderQuantityInfo = {
+          result: true,
+          baseAssetPrice: 11756.291561,
+          orderQuantity: 0.0001,
+          freeBalance: 0.0001
+        };
+
+        result = simpleStopChaserHelper.getBuyOrderPrice(
+          logger,
+          symbolInfo,
+          orderQuantityInfo
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          result: false,
+          message: `Notional value is less than minimum notional value. Do not place an order.`,
+          orderPrice: 11756.29
+        });
+      });
+    });
+
+    describe('when notional value is more than minimum notional value', () => {
+      beforeEach(async () => {
+        const symbolInfo = _.cloneDeep(orgSymbolInfo);
+        const orderQuantityInfo = {
+          result: true,
+          baseAssetPrice: 11756.291561,
+          orderQuantity: 0.001,
+          freeBalance: 0.01
+        };
+
+        result = simpleStopChaserHelper.getBuyOrderPrice(
+          logger,
+          symbolInfo,
+          orderQuantityInfo
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          result: true,
+          message: `Calculated notional value`,
+          orderPrice: 11756.29
+        });
+      });
+    });
+  });
+
+  describe('getOpenOrders', () => {
+    const openOrdersResult = require('./fixtures/binance-open-orders.json');
+    beforeEach(async () => {
+      binance.client.openOrders = jest.fn().mockResolvedValue(openOrdersResult);
+      result = await simpleStopChaserHelper.getOpenOrders(logger, 'BTCUSDT');
+    });
+
+    it('returns expected result', () => {
+      expect(result).toStrictEqual(openOrdersResult);
+    });
+  });
+
+  describe('placeStopLossLimitOrder', () => {
+    const symbolInfo = require('./fixtures/helper-get-symbol-info1.json');
+    const indicators = require('./fixtures/helper-indicators.json');
+    const stopLossLimitInfo = {
+      lastBuyPercentage: 1.03,
+      stopPercentage: 0.99,
+      limitPercentage: 0.98
+    };
+
+    beforeEach(() => {
+      binance.client.order = jest.fn().mockResolvedValue({
+        result: true
+      });
+      slack.sendMessage = jest.fn().mockResolvedValue();
+    });
+
+    describe('when quantity is less then minimum quantity', () => {
+      beforeEach(async () => {
+        const balanceInfo = {
+          result: true,
+          message: 'Balance found',
+          freeBalance: 0.000001
+        };
+
+        result = await simpleStopChaserHelper.placeStopLossLimitOrder(
+          logger,
+          symbolInfo,
+          balanceInfo,
+          indicators,
+          stopLossLimitInfo
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          result: false,
+          message:
+            'Order quantity is less or equal than minimum quantity - 0.00000100. Do not place an order.',
+          quantity: 0.000001
+        });
+      });
+    });
+
+    describe('when notional value is less then minimum notional value', () => {
+      beforeEach(async () => {
+        const balanceInfo = {
+          result: true,
+          message: 'Balance found',
+          freeBalance: 0.0008
+        };
+
+        result = await simpleStopChaserHelper.placeStopLossLimitOrder(
+          logger,
+          symbolInfo,
+          balanceInfo,
+          indicators,
+          stopLossLimitInfo
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          result: false,
+          message:
+            'Notional value is less than minimum notional value. Do not place an order.',
+          quantity: 0.000799,
+          price: 11529.44,
+          notionValue: 9.212022560000001,
+          minNotional: 10.0
+        });
+      });
+    });
+
+    describe('when order is good to go', () => {
+      beforeEach(async () => {
+        const balanceInfo = {
+          result: true,
+          message: 'Balance found',
+          freeBalance: 0.001
+        };
+
+        result = await simpleStopChaserHelper.placeStopLossLimitOrder(
+          logger,
+          symbolInfo,
+          balanceInfo,
+          indicators,
+          stopLossLimitInfo
+        );
+      });
+
+      it('triggers binance.client.order', () => {
+        expect(binance.client.order).toHaveBeenCalledWith({
+          symbol: 'BTCUSDT',
+          side: 'sell',
+          type: 'STOP_LOSS_LIMIT',
+          quantity: 0.000999,
+          price: 11529.44,
+          timeInForce: 'GTC',
+          stopPrice: 11647.09
+        });
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          result: true,
+          message: `Placed stop loss order.`,
+          orderParams: {
+            price: 11529.44,
+            quantity: 0.000999,
+            side: 'sell',
+            stopPrice: 11647.09,
+            symbol: 'BTCUSDT',
+            timeInForce: 'GTC',
+            type: 'STOP_LOSS_LIMIT'
+          },
+          orderResult: {
+            result: true
+          }
+        });
+      });
+    });
+  });
+
+  describe('getAccountInfo', () => {
+    beforeEach(async () => {
+      binance.client.accountInfo = jest.fn().mockResolvedValue({
+        updateTime: '1611365234776',
+        balances: [
+          { asset: 'BTC', free: '0.00100000', locked: '0.99900000' },
+          { asset: 'ETH', free: '0.00000000', locked: '0.00000000' }
+        ]
+      });
+
+      result = await simpleStopChaserHelper.getAccountInfo(logger);
+    });
+
+    it('return expected result', () => {
+      expect(result).toStrictEqual({
+        updateTime: '1611365234776',
+        balances: [{ asset: 'BTC', free: '0.00100000', locked: '0.99900000' }]
+      });
+    });
+  });
+
   describe('getIndicators', () => {
+    const orgIndicators = require('./fixtures/helper-get-indicators.json');
+    const orgCandles = require('./fixtures/binance-candles.json');
+    const orgExchangeInfo = require('./fixtures/binance-exchange-info.json');
+
     beforeEach(async () => {
       config.get = jest.fn(key => {
         switch (key) {
@@ -42,143 +638,191 @@ describe('helper', () => {
         }
       });
 
-      binance.client.candles = jest.fn().mockResolvedValue(require('./fixtures/binance-candles.json'));
+      binance.client.candles = jest.fn().mockResolvedValue(orgCandles);
+
+      binance.client.exchangeInfo = jest
+        .fn()
+        .mockResolvedValue(orgExchangeInfo);
 
       result = await simpleStopChaserHelper.getIndicators('BTCUSDT', logger);
     });
 
     it('returns expected result', () => {
-      expect(result).toMatchObject(require('./fixtures/helper-get-indicators.json'));
+      expect(result).toStrictEqual(orgIndicators);
     });
   });
 
   describe('determineAction', () => {
+    const orgIndicators = require('./fixtures/helper-get-indicators.json');
+
     describe('when lowest closed value is less than last closed value', () => {
       beforeEach(async () => {
-        const newIndicators = _.cloneDeep(indicators);
-        newIndicators.lastCandle.close = '15665.0000';
-        newIndicators.lowestClosed = 16000;
-        result = await simpleStopChaserHelper.determineAction(logger, newIndicators);
+        const indicators = _.cloneDeep(orgIndicators);
+        indicators.lastCandle.close = '15665.0000';
+        indicators.lowestClosed = 16000;
+        result = await simpleStopChaserHelper.determineAction(
+          logger,
+          indicators
+        );
       });
 
       it('returns expected result', () => {
-        expect(result).toStrictEqual({
-          symbol: 'BTCUSDT',
-          action: 'buy',
-          lastCandleClose: '15665.0000',
-          lowestClosed: 16000
-        });
+        expect(result.symbol).toEqual('BTCUSDT');
+        expect(result.action).toEqual('buy');
+        expect(result.lastCandleClose).toEqual('15665.0000');
+        expect(result.lowestClosed).toEqual(16000);
       });
     });
 
     describe('when lowest closed value is higher than last closed value', () => {
       beforeEach(async () => {
-        const newIndicators = _.cloneDeep(indicators);
-        newIndicators.lastCandle.close = '16000.0000';
-        newIndicators.lowestClosed = 15665;
-        result = await simpleStopChaserHelper.determineAction(logger, newIndicators);
+        const indicators = _.cloneDeep(orgIndicators);
+        indicators.lastCandle.close = '16000.0000';
+        indicators.lowestClosed = 15665;
+        result = await simpleStopChaserHelper.determineAction(
+          logger,
+          indicators
+        );
       });
 
       it('returns expected result', () => {
-        expect(result).toStrictEqual({
-          symbol: 'BTCUSDT',
-          action: 'hold',
-          lastCandleClose: '16000.0000',
-          lowestClosed: 15665
-        });
+        expect(result.symbol).toEqual('BTCUSDT');
+        expect(result.action).toEqual('wait');
+        expect(result.lastCandleClose).toEqual('16000.0000');
+        expect(result.lowestClosed).toEqual(15665);
       });
     });
   });
 
-  describe('placeOrder', () => {
+  describe('placeBuyOrder', () => {
+    const orgAccountInfo = require('./fixtures/binance-account-info.json');
+    const orgIndicators = require('./fixtures/helper-indicators.json');
+    const orgExchangeInfo = require('./fixtures/binance-exchange-info.json');
+
     beforeEach(() => {
       config.get = jest.fn(key => {
         switch (key) {
+          case 'jobs.simpleStopChaser.maxPurchaseAmount':
+            return 100;
           default:
             return '';
         }
       });
 
-      cache.set = jest.fn().mockResolvedValue(true);
+      cache.hset = jest.fn().mockResolvedValue(true);
 
       binance.client.order = jest.fn().mockResolvedValue(true);
 
-      commonHelper.cancelOpenOrders = jest.fn().mockResolvedValue(true);
-      commonHelper.getSymbolInfo = jest.fn().mockResolvedValue(require('./fixtures/helper-get-symbol-info.json'));
+      binance.client.cancelOpenOrders = jest.fn().mockResolvedValue(true);
+
+      binance.client.exchangeInfo = jest
+        .fn()
+        .mockResolvedValue(orgExchangeInfo);
     });
 
-    describe('when fail to get balance', () => {
+    describe('when fail to get buy balance', () => {
       beforeEach(async () => {
-        commonHelper.getBalance = jest.fn().mockResolvedValue({
-          result: false
-        });
-        result = await simpleStopChaserHelper.placeOrder(logger, 'buy', 100, indicators);
-      });
+        const accountInfo = _.cloneDeep(orgAccountInfo);
+        binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
 
-      it('returns expected result', () => {
-        expect(result).toStrictEqual({
-          result: false
-        });
-      });
-    });
+        const indicators = _.cloneDeep(orgIndicators);
+        indicators.symbolInfo.quoteAsset = 'UNKNWN';
+        indicators.symbolInfo.baseAsset = 'UNKNWN';
 
-    describe('when fail to get quantity to order', () => {
-      beforeEach(async () => {
-        commonHelper.getBalance = jest.fn().mockResolvedValue({
-          result: true,
-          message: 'Balance found',
-          freeBalance: 0.00005
-        });
-
-        result = await simpleStopChaserHelper.placeOrder(logger, 'buy', 100, indicators);
+        result = await simpleStopChaserHelper.placeBuyOrder(logger, indicators);
       });
 
       it('returns expected result', () => {
         expect(result).toStrictEqual({
           result: false,
-          baseAssetPrice: 15665.71,
-          freeBalance: 0.00005,
-          message: 'Order quantity is less or equal than 0.',
+          message: 'Balance cannot be found. Do not place an order.',
+          baseAssetBalance: {},
+          quoteAssetBalance: {}
+        });
+      });
+    });
+
+    describe('when fail to get buy quantity to order', () => {
+      beforeEach(async () => {
+        const indicators = _.cloneDeep(orgIndicators);
+
+        // Force to set unexpected step size for causing an error with getBuyOrderQuantity
+        indicators.symbolInfo.filterLotSize.stepSize = '0.1';
+
+        const accountInfo = _.cloneDeep(orgAccountInfo);
+        accountInfo.balances = _.map(accountInfo.balances, b => {
+          const balance = b;
+          if (balance.asset === 'USDT') {
+            balance.free = '10.00001';
+          }
+          return balance;
+        });
+
+        binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
+
+        result = await simpleStopChaserHelper.placeBuyOrder(logger, indicators);
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          result: false,
+          message:
+            'Order quantity is less or equal than 0. Do not place an order.',
+          baseAssetPrice: 11764.74,
+          freeBalance: 10,
           orderQuantity: 0
         });
       });
     });
 
-    describe('when fail to get order price to roder', () => {
+    describe('when fail to get buy order price to roder', () => {
       beforeEach(async () => {
-        commonHelper.getBalance = jest.fn().mockResolvedValue({
-          result: true,
-          message: 'Balance found',
-          freeBalance: 0.01
-        });
+        const indicators = _.cloneDeep(orgIndicators);
 
-        result = await simpleStopChaserHelper.placeOrder(logger, 'buy', 100, indicators);
+        const accountInfo = _.cloneDeep(orgAccountInfo);
+        accountInfo.balances = _.map(accountInfo.balances, b => {
+          const balance = b;
+          if (balance.asset === 'USDT') {
+            balance.free = '10.0001';
+          }
+          return balance;
+        });
+        binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
+
+        result = await simpleStopChaserHelper.placeBuyOrder(logger, indicators);
       });
 
       it('returns expected result', () => {
         expect(result).toStrictEqual({
           result: false,
-          message: 'Notional value is less than minimum notional value.',
-          orderPrice: 15665.71
+          message:
+            'Notional value is less than minimum notional value. Do not place an order.',
+          orderPrice: 11764.74
         });
       });
     });
 
     describe('when good to buy order', () => {
       beforeEach(async () => {
-        commonHelper.getBalance = jest.fn().mockResolvedValue({
-          result: true,
-          message: 'Balance found',
-          freeBalance: 50
-        });
+        const indicators = _.cloneDeep(orgIndicators);
 
-        result = await simpleStopChaserHelper.placeOrder(logger, 'buy', 100, indicators);
+        const accountInfo = _.cloneDeep(orgAccountInfo);
+        accountInfo.balances = _.map(accountInfo.balances, b => {
+          const balance = b;
+          if (balance.asset === 'USDT') {
+            balance.free = '11';
+          }
+          return balance;
+        });
+        binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
+
+        result = await simpleStopChaserHelper.placeBuyOrder(logger, indicators);
       });
 
       it('triggers binance.client.order', () => {
         expect(binance.client.order).toHaveBeenCalledWith({
-          price: 15665.71,
-          quantity: 0.003188,
+          price: 11764.74,
+          quantity: 0.000934,
           side: 'buy',
           symbol: 'BTCUSDT',
           timeInForce: 'GTC',
@@ -186,39 +830,12 @@ describe('helper', () => {
         });
       });
 
-      it('triggers cache.set', () => {
-        expect(cache.set).toHaveBeenCalledWith('last-buy-price-BTCUSDT', 15665.71);
-      });
-
-      it('returns expected result', () => {
-        expect(result).toBeTruthy();
-      });
-    });
-
-    describe('when good to sell order', () => {
-      beforeEach(async () => {
-        commonHelper.getBalance = jest.fn().mockResolvedValue({
-          result: true,
-          message: 'Balance found',
-          freeBalance: 0.005
-        });
-
-        result = await simpleStopChaserHelper.placeOrder(logger, 'sell', 100, indicators);
-      });
-
-      it('triggers binance.client.order', () => {
-        expect(binance.client.order).toHaveBeenCalledWith({
-          price: 15665.71,
-          quantity: 0.004995,
-          side: 'sell',
-          symbol: 'BTCUSDT',
-          timeInForce: 'GTC',
-          type: 'LIMIT'
-        });
-      });
-
-      it('triggers cache.set', () => {
-        expect(cache.set).toHaveBeenCalledWith('last-buy-price-BTCUSDT', 15665.71);
+      it('triggers cache.hset', () => {
+        expect(cache.hset).toHaveBeenCalledWith(
+          'simple-stop-chaser-symbols',
+          'BTCUSDT-last-buy-price',
+          11764.74
+        );
       });
 
       it('returns expected result', () => {
@@ -228,6 +845,10 @@ describe('helper', () => {
   });
 
   describe('chaseStopLossLimitOrder', () => {
+    const orgAccountInfo = require('./fixtures/binance-account-info.json');
+    const orgIndicators = require('./fixtures/helper-indicators.json');
+    const orgExchangeInfo = require('./fixtures/binance-exchange-info.json');
+
     let stopLossLimit;
 
     beforeEach(() => {
@@ -245,59 +866,76 @@ describe('helper', () => {
             return '';
         }
       });
+      binance.client.cancelOpenOrders = jest.fn().mockResolvedValue(true);
+
+      binance.client.exchangeInfo = jest
+        .fn()
+        .mockResolvedValue(orgExchangeInfo);
     });
 
     describe('when there is no open order', () => {
       beforeEach(() => {
-        commonHelper.getOpenOrders = jest.fn().mockResolvedValue([]);
+        binance.client.openOrders = jest.fn().mockResolvedValue([]);
 
-        cache.set = jest.fn().mockResolvedValue(true);
+        cache.hset = jest.fn().mockResolvedValue(true);
         binance.client.order = jest.fn().mockResolvedValue(true);
-
-        commonHelper.getSymbolInfo = jest.fn().mockResolvedValue(symbolInfo);
       });
 
       describe('when there is no balance', () => {
         beforeEach(async () => {
-          commonHelper.getBalance = jest.fn().mockResolvedValue({
-            result: false
-          });
+          const accountInfo = _.cloneDeep(orgAccountInfo);
+          binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
 
-          result = await simpleStopChaserHelper.chaseStopLossLimitOrder(logger, indicators);
+          const indicators = _.cloneDeep(orgIndicators);
+          indicators.symbolInfo.baseAsset = 'UNKNWN';
+
+          result = await simpleStopChaserHelper.chaseStopLossLimitOrder(
+            logger,
+            indicators
+          );
         });
 
         it('returns expected result', () => {
-          expect(result).toStrictEqual({ result: false });
+          expect(result).toStrictEqual({
+            result: false,
+            baseAssetBalance: {},
+            message: 'Balance cannot be found. Do not place an order.'
+          });
         });
       });
 
       describe('when last buy price is not cached', () => {
-        const balanceInfo = {
-          result: true,
-          message: 'Balance found',
-          freeBalance: 0.05
-        };
-
         beforeEach(async () => {
-          commonHelper.getBalance = jest.fn().mockResolvedValue(balanceInfo);
+          const accountInfo = _.cloneDeep(orgAccountInfo);
+          accountInfo.balances = _.map(accountInfo.balances, b => {
+            const balance = b;
+            if (balance.asset === 'BTC') {
+              balance.free = '0.01000';
+            }
+            return balance;
+          });
+          binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
 
-          cache.get = jest.fn().mockResolvedValue(null);
+          cache.hget = jest.fn().mockResolvedValue(undefined);
 
-          commonHelper.placeStopLossLimitOrder = jest.fn().mockResolvedValue(true);
+          const indicators = _.cloneDeep(orgIndicators);
 
-          result = await simpleStopChaserHelper.chaseStopLossLimitOrder(logger, indicators);
+          result = await simpleStopChaserHelper.chaseStopLossLimitOrder(
+            logger,
+            indicators
+          );
         });
 
-        it('triggers commonHelper.placeStopLossLimitOrder', () => {
-          expect(commonHelper.placeStopLossLimitOrder).toHaveBeenCalledWith(
-            logger,
-            binance,
-            slack,
-            symbolInfo,
-            balanceInfo,
-            indicators,
-            stopLossLimit
-          );
+        it('triggers binance.client.order', () => {
+          expect(binance.client.order).toHaveBeenCalledWith({
+            price: 11529.44,
+            quantity: 0.00999,
+            side: 'sell',
+            stopPrice: 11647.09,
+            symbol: 'BTCUSDT',
+            timeInForce: 'GTC',
+            type: 'STOP_LOSS_LIMIT'
+          });
         });
 
         it('returns expected result', () => {
@@ -306,53 +944,63 @@ describe('helper', () => {
       });
 
       describe('when last buy price is cached', () => {
-        const balanceInfo = {
-          result: true,
-          message: 'Balance found',
-          freeBalance: 0.05
-        };
-
         beforeEach(async () => {
-          commonHelper.getBalance = jest.fn().mockResolvedValue(balanceInfo);
-
-          commonHelper.placeStopLossLimitOrder = jest.fn().mockResolvedValue(true);
+          const accountInfo = _.cloneDeep(orgAccountInfo);
+          accountInfo.balances = _.map(accountInfo.balances, b => {
+            const balance = b;
+            if (balance.asset === 'BTC') {
+              balance.free = '0.01000';
+            }
+            return balance;
+          });
+          binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
         });
 
-        describe('when closed price is lower than last buy price', () => {
+        describe('when closed price is lower than minimum selling price', () => {
           beforeEach(async () => {
-            cache.get = jest.fn().mockResolvedValue(15665);
+            cache.hget = jest.fn().mockResolvedValue(12044);
 
-            result = await simpleStopChaserHelper.chaseStopLossLimitOrder(logger, indicators);
+            const indicators = _.cloneDeep(orgIndicators);
+
+            result = await simpleStopChaserHelper.chaseStopLossLimitOrder(
+              logger,
+              indicators
+            );
           });
 
           it('returns expected result', () => {
-            expect(result).toStrictEqual({
-              result: false,
-              message: 'Last buy price is lower than current price. Do not place order.',
-              lastCandleClose: 15665.71,
-              lastBuyPrice: 15665,
-              calculatedLastBuyPrice: 16134.95
-            });
+            expect(result.result).toBeFalsy();
+            expect(result.message).toEqual(
+              'Current price is lower than minimum selling price. Wait.'
+            );
+            expect(result.lastCandleClose).toEqual(11764.74);
+            expect(result.lastBuyPrice).toEqual(12044);
+            expect(result.calculatedLastBuyPrice).toEqual(12405.32);
           });
         });
 
-        describe('when closed price is more than last buy price', () => {
+        describe('when closed price is more than minimum selling price', () => {
           beforeEach(async () => {
-            cache.get = jest.fn().mockResolvedValue(15200);
+            cache.hget = jest.fn().mockResolvedValue(11411);
 
-            result = await simpleStopChaserHelper.chaseStopLossLimitOrder(logger, indicators);
+            const indicators = _.cloneDeep(orgIndicators);
+
+            result = await simpleStopChaserHelper.chaseStopLossLimitOrder(
+              logger,
+              indicators
+            );
           });
 
-          it('triggers commonHelper.placeStopLossLimitOrder', () => {
-            expect(commonHelper.placeStopLossLimitOrder).toHaveBeenCalledWith(
-              logger,
-              binance,
-              slack,
-              symbolInfo,
-              balanceInfo,
-              indicators,
-              stopLossLimit
-            );
+          it('triggers binance.client.order', () => {
+            expect(binance.client.order).toHaveBeenCalledWith({
+              price: 11529.44,
+              quantity: 0.00999,
+              side: 'sell',
+              stopPrice: 11647.09,
+              symbol: 'BTCUSDT',
+              timeInForce: 'GTC',
+              type: 'STOP_LOSS_LIMIT'
+            });
           });
 
           it('returns expected result', () => {
@@ -364,19 +1012,25 @@ describe('helper', () => {
 
     describe('when there is a open order', () => {
       beforeEach(() => {
-        commonHelper.cancelOpenOrders = jest.fn().mockResolvedValue(true);
+        cache.hset = jest.fn().mockResolvedValue(true);
+        binance.client.order = jest.fn().mockResolvedValue(true);
       });
 
       describe('when last order is not STOP_LOSS_LIMIT', () => {
         beforeEach(async () => {
-          commonHelper.getOpenOrders = jest.fn().mockResolvedValue([
+          binance.client.openOrders = jest.fn().mockResolvedValue([
             {
               type: 'LIMIT',
               stopPrice: '0.0000'
             }
           ]);
 
-          result = await simpleStopChaserHelper.chaseStopLossLimitOrder(logger, indicators);
+          const indicators = _.cloneDeep(orgIndicators);
+
+          result = await simpleStopChaserHelper.chaseStopLossLimitOrder(
+            logger,
+            indicators
+          );
         });
 
         it('returns expected result', () => {
@@ -389,50 +1043,63 @@ describe('helper', () => {
 
       describe('when order stop price is less than limit percentage', () => {
         beforeEach(async () => {
+          const indicators = _.cloneDeep(orgIndicators);
+
           indicators.lastCandle.close = '12600.00';
-          commonHelper.getOpenOrders = jest.fn().mockResolvedValue([
+          binance.client.openOrders = jest.fn().mockResolvedValue([
             {
               type: 'STOP_LOSS_LIMIT',
               stopPrice: 11529.44
             }
           ]);
 
-          result = await simpleStopChaserHelper.chaseStopLossLimitOrder(logger, indicators);
+          result = await simpleStopChaserHelper.chaseStopLossLimitOrder(
+            logger,
+            indicators
+          );
         });
 
-        it('triggers commonHelper.cancelOpenOrders', () => {
-          expect(commonHelper.cancelOpenOrders).toHaveBeenCalledWith(logger, binance, 'BTCUSDT');
+        it('triggers binance.client.cancelOpenOrders', () => {
+          expect(binance.client.cancelOpenOrders).toHaveBeenCalledWith({
+            symbol: 'BTCUSDT'
+          });
         });
 
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             result: true,
-            message: 'Finished to handle chaseStopLossLimitOrder'
+            message: 'Finished to process chaseStopLossLimitOrder.'
           });
         });
       });
 
       describe('when order stop price is more than limit percentage', () => {
         beforeEach(async () => {
+          const indicators = _.cloneDeep(orgIndicators);
+
           indicators.lastCandle.close = '11300.00';
-          commonHelper.getOpenOrders = jest.fn().mockResolvedValue([
+
+          binance.client.openOrders = jest.fn().mockResolvedValue([
             {
               type: 'STOP_LOSS_LIMIT',
               stopPrice: 11529.44
             }
           ]);
 
-          result = await simpleStopChaserHelper.chaseStopLossLimitOrder(logger, indicators);
+          result = await simpleStopChaserHelper.chaseStopLossLimitOrder(
+            logger,
+            indicators
+          );
         });
 
         it('does not trigger commonHelper.cancelOpenOrders', () => {
-          expect(commonHelper.cancelOpenOrders).not.toHaveBeenCalled();
+          expect(binance.client.cancelOpenOrders).not.toHaveBeenCalled();
         });
 
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             result: true,
-            message: 'Finished to handle chaseStopLossLimitOrder'
+            message: 'Finished to process chaseStopLossLimitOrder.'
           });
         });
       });

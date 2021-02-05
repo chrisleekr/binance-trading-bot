@@ -51,7 +51,7 @@ describe('slack', () => {
           channel: 'value-slack.channel',
           text: 'my message',
           type: 'mrkdwn',
-          username: 'value-slack.username'
+          username: 'value-slack.username - value-mode'
         });
       });
 

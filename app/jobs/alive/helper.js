@@ -1,5 +1,3 @@
-const config = require('config');
-const _ = require('lodash');
 const { binance } = require('../../helpers');
 
 /**
@@ -7,30 +5,20 @@ const { binance } = require('../../helpers');
  *
  * @param {*} logger
  */
-const getBalance = async logger => {
-  const balanceSymbols = config.get('jobs.alive.balanceSymbols').split(',');
+const getAccountInfo = async logger => {
   const accountInfo = await binance.client.accountInfo();
 
-  const balances = _.filter(accountInfo.balances, b => balanceSymbols.includes(b.asset));
+  accountInfo.balances = accountInfo.balances.reduce((acc, b) => {
+    const balance = b;
+    if (+balance.free > 0 || +balance.locked > 0) {
+      acc.push(balance);
+    }
 
-  logger.info({ balances }, 'Retrieved balances');
-  return balances;
+    return acc;
+  }, []);
+
+  logger.info({ accountInfo }, 'Retrieved account information');
+  return accountInfo;
 };
 
-/**
- * Get last candle from Binance
- *
- * @param {*} logger
- */
-const getLastCandle = async logger => {
-  const candle = await binance.client.candles({
-    symbol: config.get('jobs.alive.priceSymbol'),
-    interval: '1m',
-    limit: 1
-  });
-
-  logger.info({ candle }, 'Retrieved last candle');
-  return candle;
-};
-
-module.exports = { getBalance, getLastCandle };
+module.exports = { getAccountInfo };
