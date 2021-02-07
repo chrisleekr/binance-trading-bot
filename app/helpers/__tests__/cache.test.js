@@ -6,6 +6,7 @@ describe('cache', () => {
   let mockHSet;
   let mockHGet;
   let mockHGetAll;
+  let mockHDel;
   let cache;
 
   describe('set', () => {
@@ -155,6 +156,28 @@ describe('cache', () => {
 
     it('returns expected value', () => {
       expect(result).toBe('my-value');
+    });
+  });
+
+  describe('hdel', () => {
+    beforeEach(async () => {
+      jest.clearAllMocks().resetModules();
+
+      mockHDel = jest.fn(() => 'my-value');
+      jest.mock('config');
+      jest.mock('ioredis', () => {
+        return jest.fn().mockImplementation(() => ({
+          hdel: mockHDel
+        }));
+      });
+
+      cache = require('../cache');
+
+      result = await cache.hdel('my-key', 'my-field');
+    });
+
+    it('triggers mockGet', () => {
+      expect(mockHDel).toHaveBeenCalledWith('my-key', 'my-field');
     });
   });
 });

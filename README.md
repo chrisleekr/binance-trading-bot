@@ -55,8 +55,12 @@ effective than using MACD indicators.
 
 ## Environment Parameters
 
-Use environment parameter to adjust parameters. Checkout
-`/config/custom-environment-variables.json`
+Use environment parameters to adjust parameters. Check
+`/config/custom-environment-variables.json` to see list of available environment
+parameters.
+
+Or use frontend setting to adjust values after launching the bot. Note that if
+you restart bot, it will reset frontend adjusted value from frontend.
 
 ## How to use
 
@@ -116,3 +120,5 @@ React.js based frontend communicating via Web Socket
 - [x] Support maximum purchase amount per symbol
 - [x] Develop backend to send cache values for frontend
 - [x] Develop simple frontend to see statistics
+- [x] Fix the issue with configuration
+- [x] Update frontend to remove cache

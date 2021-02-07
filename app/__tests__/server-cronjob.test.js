@@ -1,5 +1,5 @@
 /* eslint-disable global-require */
-const { logger } = require('../helpers');
+const { logger, cache } = require('../helpers');
 
 describe('server-cronjob', () => {
   let config;
@@ -13,6 +13,8 @@ describe('server-cronjob', () => {
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
     jest.mock('config');
+
+    cache.hset = jest.fn().mockResolvedValue(true);
 
     mockExecuteAlive = jest.fn().mockResolvedValue(true);
     mockExecuteSimpleStopChaser = jest.fn().mockResolvedValue(true);

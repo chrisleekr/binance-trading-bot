@@ -1,5 +1,4 @@
 const moment = require('moment');
-const config = require('config');
 const { v4: uuidv4 } = require('uuid');
 
 const helper = require('./simpleStopChaser/helper');
@@ -24,31 +23,10 @@ const determineNextSymbol = async (symbols, logger) => {
   return currentSymbol;
 };
 
-const getConfiguration = async logger => {
-  const configValue =
-    (await cache.hget('simple-stop-chaser-common', 'configuration')) || '';
-
-  let simpleStopChaserConfig = {};
-  try {
-    simpleStopChaserConfig = JSON.parse(configValue);
-  } catch (e) {
-    simpleStopChaserConfig = config.get('jobs.simpleStopChaser');
-  }
-
-  logger.info({ simpleStopChaserConfig }, 'Simple stop chaser configuration');
-  await cache.hset(
-    'simple-stop-chaser-common',
-    'configuration',
-    JSON.stringify(simpleStopChaserConfig)
-  );
-
-  return simpleStopChaserConfig;
-};
-
 const execute = async logger => {
   logger.info('Trade: Simple Stop-Chasing');
 
-  const simpleStopChaser = await getConfiguration(logger);
+  const simpleStopChaser = await helper.getConfiguration(logger);
 
   const { symbols } = simpleStopChaser;
 
@@ -107,6 +85,7 @@ const execute = async logger => {
     symbolLogger.error(e, `${symbol} Execution failed.`);
     if (
       e.code === -1001 ||
+      e.code === -1021 || // Timestamp for this request is outside of the recvWindow
       e.code === 'ECONNRESET' ||
       e.code === 'ECONNREFUSED'
     ) {

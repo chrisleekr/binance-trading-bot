@@ -3,6 +3,45 @@ const _ = require('lodash');
 const config = require('config');
 const { binance, slack, cache } = require('../../helpers');
 
+const getConfiguration = async logger => {
+  const configValue =
+    (await cache.hget('simple-stop-chaser-common', 'configuration')) || '';
+
+  let simpleStopChaserConfig = {};
+  try {
+    simpleStopChaserConfig = JSON.parse(configValue);
+
+    logger.info(
+      { simpleStopChaserConfig },
+      'Successfully retrieved configuration from cache.'
+    );
+  } catch (e) {
+    simpleStopChaserConfig = config.get('jobs.simpleStopChaser');
+    await cache.hset(
+      'simple-stop-chaser-common',
+      'configuration',
+      JSON.stringify(simpleStopChaserConfig)
+    );
+    logger.info(
+      { simpleStopChaserConfig },
+      'Failed to parse cached configuration, getting from confiugration'
+    );
+  }
+
+  return simpleStopChaserConfig;
+};
+
+/**
+ * Calculate round down
+ *
+ * @param {*} number
+ * @param {*} decimals
+ */
+const roundDown = (number, decimals) => {
+  // eslint-disable-next-line no-restricted-properties
+  return Math.floor(number * Math.pow(10, decimals)) / Math.pow(10, decimals);
+};
+
 /**
  * Cancel any open orders to get available balance
  *
@@ -98,7 +137,7 @@ const getBuyBalance = async (logger, indicators, options) => {
   if (_.isEmpty(quoteAssetBalance) || _.isEmpty(baseAssetBalance)) {
     return {
       result: false,
-      message: 'Balance cannot be found. Do not place an order.',
+      message: 'Balance is not found. Cannot place an order.',
       quoteAssetBalance,
       baseAssetBalance
     };
@@ -110,18 +149,19 @@ const getBuyBalance = async (logger, indicators, options) => {
   logger.info({ quoteAssetBalance, baseAssetBalance }, 'Balance found');
 
   // 3. Make sure we don't have base asset balance which assume already purchased.
+  const lastCandleClose = +lastCandle.close;
   if (
-    baseAssetTotalBalance * lastCandle.close >
+    baseAssetTotalBalance * lastCandleClose >
     +symbolInfo.filterMinNotional.minNotional
   ) {
     return {
       result: false,
       message:
-        'Base asset has enough balance to place stop loss limit order. Do not place an order.',
+        'Base asset does not have enough balance to place stop loss limit order. Cannot place an order.',
       baseAsset,
       baseAssetTotalBalance,
-      lastCandleClose: lastCandle.close,
-      currentBalanceInQuoteAsset: baseAssetTotalBalance * lastCandle.close,
+      lastCandleClose,
+      currentBalanceInQuoteAsset: baseAssetTotalBalance * lastCandleClose,
       minNotional: symbolInfo.filterMinNotional.minNotional
     };
   }
@@ -142,7 +182,7 @@ const getBuyBalance = async (logger, indicators, options) => {
   if (freeBalance < +symbolInfo.filterMinNotional.minNotional) {
     return {
       result: false,
-      message: 'Balance is less than minimum notional. Do not place an order.',
+      message: 'Balance is less than minimum notional. Cannot place an order.',
       freeBalance
     };
   }
@@ -159,13 +199,20 @@ const getBuyBalance = async (logger, indicators, options) => {
  *
  * @param {*} logger
  * @param {*} symbolInfo
+ * @param {*} indicators
+ * @param {*} stopLossLimitConfig
  */
-const getSellBalance = async (logger, symbolInfo) => {
+const getSellBalance = async (
+  logger,
+  symbolInfo,
+  indicators,
+  stopLossLimitConfig
+) => {
   // 1. Get account info
   const accountInfo = await binance.client.accountInfo({ recvWindow: 10000 });
   logger.info('Retrieved Account info');
 
-  const { baseAsset } = symbolInfo;
+  const { baseAsset, symbol } = symbolInfo;
   logger.info({ baseAsset }, 'Retrieved base asset');
 
   // 2. Get trade asset balance
@@ -177,7 +224,7 @@ const getSellBalance = async (logger, symbolInfo) => {
   if (_.isEmpty(baseAssetBalance)) {
     return {
       result: false,
-      message: 'Balance cannot be found. Do not place an order.',
+      message: 'Balance is not found. Cannot place an order.',
       baseAssetBalance
     };
   }
@@ -187,11 +234,50 @@ const getSellBalance = async (logger, symbolInfo) => {
   // 3. Calculate free balance with precision
   const lotPrecision = symbolInfo.filterLotSize.stepSize.indexOf(1) - 1;
   const freeBalance = +(+baseAssetBalance.free).toFixed(lotPrecision);
+  const lockedBalance = +(+baseAssetBalance.locked).toFixed(lotPrecision);
+
+  // 4. If total balance is not enough to sell, then the last buy price is meaningless.
+  const totalBalance = freeBalance + lockedBalance;
+
+  // Calculate quantity - commission
+  const quantity = +(totalBalance - totalBalance * (0.1 / 100)).toFixed(
+    lotPrecision
+  );
+
+  if (quantity <= +symbolInfo.filterLotSize.minQty) {
+    await cache.hdel('simple-stop-chaser-symbols', `${symbol}-last-buy-price`);
+    return {
+      result: false,
+      message: 'Balance found, but not enough to sell. Delete last buy price.',
+      freeBalance,
+      lockedBalance
+    };
+  }
+
+  const lastCandleClose = +indicators.lastCandle.close;
+  const orderPrecision = symbolInfo.filterPrice.tickSize.indexOf(1) - 1;
+  const price = roundDown(
+    lastCandleClose * +stopLossLimitConfig.limitPercentage,
+    orderPrecision
+  );
+
+  // Notional value = contract size (order quantity) * underlying price (order price)
+  if (quantity * price < +symbolInfo.filterMinNotional.minNotional) {
+    await cache.hdel('simple-stop-chaser-symbols', `${symbol}-last-buy-price`);
+    return {
+      result: false,
+      message:
+        'Balance found, but notional value is less than minimum notional value. Delete last buy price.',
+      freeBalance,
+      lockedBalance
+    };
+  }
 
   return {
     result: true,
     message: 'Balance found',
-    freeBalance
+    freeBalance,
+    lockedBalance
   };
 };
 
@@ -284,17 +370,6 @@ const getOpenOrders = async (logger, symbol) => {
   logger.info({ openOrders }, 'Get open orders');
 
   return openOrders;
-};
-
-/**
- * Calculate round down
- *
- * @param {*} number
- * @param {*} decimals
- */
-const roundDown = (number, decimals) => {
-  // eslint-disable-next-line no-restricted-properties
-  return Math.floor(number * Math.pow(10, decimals)) / Math.pow(10, decimals);
 };
 
 /**
@@ -443,14 +518,17 @@ const flattenCandlesData = candles => {
  * @param {*} logger
  */
 const getIndicators = async (symbol, logger) => {
-  const simpleStopChaser = config.get('jobs.simpleStopChaser');
+  const simpleStopChaserConfig = await getConfiguration(logger);
 
-  logger.info({ simpleStopChaser }, 'Retrieved simpleStopChaser configuration');
+  logger.info(
+    { simpleStopChaserConfig },
+    'Retrieved simpleStopChaser configuration'
+  );
 
   const candles = await binance.client.candles({
     symbol,
-    interval: simpleStopChaser.candles.interval,
-    limit: simpleStopChaser.candles.limit
+    interval: simpleStopChaserConfig.candles.interval,
+    limit: simpleStopChaserConfig.candles.limit
   });
 
   const [lastCandle] = candles.slice(-1);
@@ -528,15 +606,15 @@ const determineAction = async (logger, indicators) => {
 const placeBuyOrder = async (logger, indicators) => {
   logger.info('Start placing buy order');
 
+  const simpleStopChaserConfig = await getConfiguration(logger);
+
   const { symbol, symbolInfo } = indicators;
 
   // 1. Cancel all orders
   await cancelOpenOrders(logger, symbol);
 
   // 3. Get balance for trade asset
-  const maxPurchaseAmount = config.get(
-    'jobs.simpleStopChaser.maxPurchaseAmount'
-  );
+  const { maxPurchaseAmount } = simpleStopChaserConfig;
 
   const balanceInfo = await getBuyBalance(logger, indicators, {
     maxPurchaseAmount
@@ -594,7 +672,7 @@ const placeBuyOrder = async (logger, indicators) => {
   const orderResult = await binance.client.order(orderParams);
 
   logger.info({ orderResult }, 'Buy order result');
-  cache.hset(
+  await cache.hset(
     'simple-stop-chaser-symbols',
     `${symbol}-last-placed-order`,
     JSON.stringify({ ...orderParams, timeUTC: moment().utc() })
@@ -622,11 +700,14 @@ const placeBuyOrder = async (logger, indicators) => {
  */
 const chaseStopLossLimitOrder = async (logger, indicators) => {
   logger.info('Start chaseStopLossLimitOrder');
+
+  const simpleStopChaserConfig = await getConfiguration(logger);
+
   let returnValue;
 
   const { symbol, symbolInfo } = indicators;
 
-  const stopLossLimitInfo = config.get('jobs.simpleStopChaser.stopLossLimit');
+  const { stopLossLimit: stopLossLimitConfig } = simpleStopChaserConfig;
 
   // 1. Get open orders
   const openOrders = await getOpenOrders(logger, symbol);
@@ -648,7 +729,7 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
   logger.info({ lastCandleClose }, 'Retrieved last closed price');
 
   const calculatedLastBuyPrice =
-    lastBuyPrice * +stopLossLimitInfo.lastBuyPercentage;
+    lastBuyPrice * +stopLossLimitConfig.lastBuyPercentage;
 
   const sellSignalInfo = {
     lastBuyPrice,
@@ -689,8 +770,14 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
       `Last buy price is higher than expected price. Let's check balance.`
     );
 
-    //  2-2. Get current balance BTC. If no current balance, then return.
-    const balanceInfo = await getSellBalance(logger, symbolInfo);
+    //  2-2. Get current balance of symbol.
+    //    If there is not enough balance, then remove last buy price and return.
+    const balanceInfo = await getSellBalance(
+      logger,
+      symbolInfo,
+      indicators,
+      stopLossLimitConfig
+    );
     if (balanceInfo.result === false) {
       logger.warn({ balanceInfo }, 'getSellBalance result');
       cache.hset(
@@ -712,7 +799,7 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
       symbolInfo,
       balanceInfo,
       indicators,
-      stopLossLimitInfo
+      stopLossLimitConfig
     );
     cache.hset(
       'simple-stop-chaser-symbols',
@@ -742,12 +829,12 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
   //      Don't worry about the cancel. It will place another STOP-LOSS-LIMIT order.
 
   const limitPrice =
-    +indicators.lastCandle.close * stopLossLimitInfo.limitPercentage;
+    +indicators.lastCandle.close * stopLossLimitConfig.limitPercentage;
 
   const openOrderInfo = {
     stopPrice: order.stopPrice,
     lastCandleClose: +indicators.lastCandle.close,
-    limitPercentage: stopLossLimitInfo.limitPercentage,
+    limitPercentage: stopLossLimitConfig.limitPercentage,
     limitPrice,
     message: '',
     timeUTC: moment().utc()
@@ -778,6 +865,7 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
 };
 
 module.exports = {
+  getConfiguration,
   getAccountInfo,
   flattenCandlesData,
   getIndicators,

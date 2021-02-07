@@ -1,6 +1,4 @@
 /* eslint-disable global-require */
-const config = require('config');
-
 describe('server-websocket', () => {
   let WebSocket;
 
@@ -10,12 +8,45 @@ describe('server-websocket', () => {
 
   let cacheMock;
   let wss;
+  let config;
 
   beforeEach(() => {
+    jest.clearAllMocks().resetModules();
+    config = require('config');
+
     config.get = jest.fn(key => {
       switch (key) {
         case 'mode':
           return 'test';
+        case 'jobs.simpleStopChaser':
+          return {
+            enabled: true,
+            cronTime: '* * * * * *',
+            symbols: [
+              'BTCUSDT',
+              'ETHUSDT',
+              'LTCUSDT',
+              'XRPUSDT',
+              'LINKUSDT',
+              'BNBUSDT',
+              'EOSUSDT',
+              'TRXUSDT',
+              'XLMUSDT',
+              'BCHUSDT',
+              'DOTUSDT',
+              'ADAUSDT'
+            ],
+            candles: {
+              interval: '15m',
+              limit: 200
+            },
+            maxPurchaseAmount: 100,
+            stopLossLimit: {
+              lastBuyPercentage: 1.06,
+              stopPercentage: 0.97,
+              limitPercentage: 0.96
+            }
+          };
         default:
           return `value-${key}`;
       }
@@ -24,8 +55,6 @@ describe('server-websocket', () => {
 
   describe('when message is not JSON', () => {
     beforeEach(() => {
-      jest.clearAllMocks().resetModules();
-
       WebSocket = require('ws');
 
       jest.mock('config');
@@ -80,8 +109,6 @@ describe('server-websocket', () => {
 
   describe('when message command is not defined', () => {
     beforeEach(() => {
-      jest.clearAllMocks().resetModules();
-
       WebSocket = require('ws');
 
       jest.mock('config');
@@ -141,8 +168,6 @@ describe('server-websocket', () => {
 
   describe('when message command is unknown', () => {
     beforeEach(() => {
-      jest.clearAllMocks().resetModules();
-
       WebSocket = require('ws');
 
       jest.mock('config');
@@ -202,12 +227,16 @@ describe('server-websocket', () => {
 
   describe('when message command is latest', () => {
     const simpleStopChaserCommonJson = require('./fixtures/server-websocket-simple-stop-chaser-common.json');
-    const simpleStopChaserSymbolsJson = require('./fixtures/server-websocket-simple-stop-chaser-symbols.json');
-    const simpleStopChaserStatsJson = require('./fixtures/server-websocket-stats.json');
+
+    // eslint-disable-next-line max-len
+    const simpleStopChaserSymbolsWithSellOrderJson = require('./fixtures/server-websocket-simple-stop-chaser-symbols-with-sell-order.json');
+    const simpleStopChaserStatsWithSellOrderJson = require('./fixtures/server-websocket-stats-with-sell-order.json');
+
+    // eslint-disable-next-line max-len
+    const simpleStopChaserSymbolsWithBuyOrderJson = require('./fixtures/server-webscoket-simple-stop-chaser-symbols-with-buy-order.json');
+    const simpleStopChaserStatsWithBuyOrderJson = require('./fixtures/server-websocket-stats-with-buy-order.json');
 
     beforeEach(() => {
-      jest.clearAllMocks().resetModules();
-
       WebSocket = require('ws');
 
       jest.mock('config');
@@ -234,55 +263,109 @@ describe('server-websocket', () => {
       WebSocket.Server.mockImplementation(() => ({
         on: mockServerOn
       }));
-
-      const { cache, logger } = require('../helpers');
-      cacheMock = cache;
-
-      cacheMock.hgetall = jest.fn().mockImplementation(key => {
-        if (key === 'simple-stop-chaser-common') {
-          return simpleStopChaserCommonJson;
-        }
-
-        if (key === 'simple-stop-chaser-symbols') {
-          return simpleStopChaserSymbolsJson;
-        }
-
-        return '';
-      });
-
-      cacheMock.hget = jest.fn().mockImplementation((key, field) => {
-        if (key === 'simple-stop-chaser-common' && field === 'configuration') {
-          return JSON.stringify({ enabled: true });
-        }
-        return '';
-      });
-
-      const { runWebSocket } = require('../server-websocket');
-      runWebSocket(logger);
     });
 
-    it('triggers ws.send with latest', () => {
-      expect(mockServerWebSocketSend).toHaveBeenCalledWith(
-        JSON.stringify({
-          result: true,
-          type: 'latest',
-          stats: simpleStopChaserStatsJson,
-          configuration: {
-            enabled: true
+    describe('when there are open orders with sell', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../helpers');
+        cacheMock = cache;
+
+        cacheMock.hgetall = jest.fn().mockImplementation(key => {
+          if (key === 'simple-stop-chaser-common') {
+            return simpleStopChaserCommonJson;
           }
-        })
-      );
+
+          if (key === 'simple-stop-chaser-symbols') {
+            return simpleStopChaserSymbolsWithSellOrderJson;
+          }
+
+          return '';
+        });
+
+        cacheMock.hget = jest.fn().mockImplementation((key, field) => {
+          if (
+            key === 'simple-stop-chaser-common' &&
+            field === 'configuration'
+          ) {
+            return JSON.stringify({ enabled: true });
+          }
+          return '';
+        });
+
+        const { runWebSocket } = require('../server-websocket');
+        runWebSocket(logger);
+      });
+
+      it('triggers ws.send with latest', () => {
+        expect(mockServerWebSocketSend).toHaveBeenCalledWith(
+          JSON.stringify({
+            result: true,
+            type: 'latest',
+            stats: simpleStopChaserStatsWithSellOrderJson,
+            configuration: {
+              enabled: true
+            }
+          })
+        );
+      });
+
+      it('returns wss', () => {
+        expect(wss).not.toBeNull();
+      });
     });
 
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
+    describe('when there are open orders with buy', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../helpers');
+        cacheMock = cache;
+
+        cacheMock.hgetall = jest.fn().mockImplementation(key => {
+          if (key === 'simple-stop-chaser-common') {
+            return simpleStopChaserCommonJson;
+          }
+
+          if (key === 'simple-stop-chaser-symbols') {
+            return simpleStopChaserSymbolsWithBuyOrderJson;
+          }
+
+          return '';
+        });
+
+        cacheMock.hget = jest.fn().mockImplementation((key, field) => {
+          if (
+            key === 'simple-stop-chaser-common' &&
+            field === 'configuration'
+          ) {
+            return JSON.stringify({ enabled: true });
+          }
+          return '';
+        });
+
+        const { runWebSocket } = require('../server-websocket');
+        runWebSocket(logger);
+      });
+
+      it('triggers ws.send with latest', () => {
+        expect(mockServerWebSocketSend).toHaveBeenCalledWith(
+          JSON.stringify({
+            result: true,
+            type: 'latest',
+            stats: simpleStopChaserStatsWithBuyOrderJson,
+            configuration: {
+              enabled: true
+            }
+          })
+        );
+      });
+
+      it('returns wss', () => {
+        expect(wss).not.toBeNull();
+      });
     });
   });
 
   describe('when message command is setting-update', () => {
     beforeEach(() => {
-      jest.clearAllMocks().resetModules();
-
       WebSocket = require('ws');
 
       jest.mock('config');
@@ -294,9 +377,31 @@ describe('server-websocket', () => {
           JSON.stringify({
             command: 'setting-update',
             data: {
+              enabled: true,
+              cronTime: '* * * * * *',
+              symbols: [
+                'BTCUSDT',
+                'ETHUSDT',
+                'LTCUSDT',
+                'XRPUSDT',
+                'LINKUSDT',
+                'BNBUSDT',
+                'EOSUSDT',
+                'TRXUSDT',
+                'XLMUSDT',
+                'BCHUSDT',
+                'DOTUSDT',
+                'ADAUSDT'
+              ],
               candles: {
-                interval: '2h',
-                limit: 40
+                interval: '15m',
+                limit: 150
+              },
+              maxPurchaseAmount: 150,
+              stopLossLimit: {
+                lastBuyPercentage: 1.1,
+                stopPercentage: 0.97,
+                limitPercentage: 0.96
               }
             }
           })
@@ -355,9 +460,29 @@ describe('server-websocket', () => {
             field === 'configuration'
           ) {
             return JSON.stringify({
+              enabled: true,
+              cronTime: '* * * * * *',
+              symbols: [
+                'BTCUSDT',
+                'ETHUSDT',
+                'LTCUSDT',
+                'XRPUSDT',
+                'LINKUSDT',
+                'BNBUSDT',
+                'EOSUSDT',
+                'TRXUSDT',
+                'XLMUSDT',
+                'BCHUSDT'
+              ],
               candles: {
                 interval: '1d',
-                limit: 20
+                limit: 5
+              },
+              maxPurchaseAmount: 100,
+              stopLossLimit: {
+                lastBuyPercentage: 1.05,
+                stopPercentage: 0.98,
+                limitPercentage: 0.97
               }
             });
           }
@@ -376,11 +501,131 @@ describe('server-websocket', () => {
           'simple-stop-chaser-common',
           'configuration',
           JSON.stringify({
-            candles: {
-              interval: '2h',
-              limit: 40
+            enabled: true,
+            cronTime: '* * * * * *',
+            symbols: [
+              'BTCUSDT',
+              'ETHUSDT',
+              'LTCUSDT',
+              'XRPUSDT',
+              'LINKUSDT',
+              'BNBUSDT',
+              'EOSUSDT',
+              'TRXUSDT',
+              'XLMUSDT',
+              'BCHUSDT',
+              'DOTUSDT',
+              'ADAUSDT'
+            ],
+            candles: { interval: '15m', limit: 150 },
+            maxPurchaseAmount: 150,
+            stopLossLimit: {
+              lastBuyPercentage: 1.1,
+              stopPercentage: 0.97,
+              limitPercentage: 0.96
             }
           })
+        );
+      });
+    });
+  });
+
+  describe('when message command is symbol-delete', () => {
+    beforeEach(() => {
+      jest.clearAllMocks().resetModules();
+
+      WebSocket = require('ws');
+
+      jest.mock('config');
+      jest.mock('ws');
+      jest.mock('ioredis');
+
+      mockServerWebSocketOn = jest.fn().mockImplementation((_event, cb) => {
+        cb(
+          JSON.stringify({
+            command: 'symbol-delete',
+            data: {
+              symbolInfo: {
+                symbol: 'BTCUSDT'
+              }
+            }
+          })
+        );
+      });
+
+      mockServerWebSocketSend = jest.fn().mockReturnValue(true);
+
+      mockServerOn = jest.fn().mockImplementation((_event, cb) => {
+        cb({
+          on: mockServerWebSocketOn,
+          send: mockServerWebSocketSend
+        });
+      });
+
+      WebSocket.Server.mockImplementation(() => ({
+        on: mockServerOn
+      }));
+    });
+
+    describe('when there is no cache starting with BTCUSDT', () => {
+      beforeEach(() => {
+        const { cache, logger } = require('../helpers');
+        cacheMock = cache;
+
+        cacheMock.hgetall = jest.fn().mockImplementation(key => {
+          if (key === 'simple-stop-chaser-symbols') {
+            return {
+              'LTCUSDT-some-key': 'some-value',
+              'QTUMUSDT-some-key': 'some-value'
+            };
+          }
+
+          return '';
+        });
+
+        cacheMock.hdel = jest.fn().mockResolvedValue();
+
+        const { runWebSocket } = require('../server-websocket');
+        runWebSocket(logger);
+      });
+
+      it('does not trigger cache.hdel', () => {
+        expect(cacheMock.hdel).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when there is cache starting with BTCUSDT', () => {
+      beforeEach(() => {
+        const { cache, logger } = require('../helpers');
+        cacheMock = cache;
+
+        cacheMock.hgetall = jest.fn().mockImplementation(key => {
+          if (key === 'simple-stop-chaser-symbols') {
+            return {
+              'LTCUSDT-some-key': 'some-value',
+              'BTCUSDT-some-key1': 'some-value',
+              'QTUMUSDT-some-key': 'some-value',
+              'BTCUSDT-some-key2': 'some-value'
+            };
+          }
+
+          return '';
+        });
+
+        cacheMock.hdel = jest.fn().mockResolvedValue();
+
+        const { runWebSocket } = require('../server-websocket');
+        runWebSocket(logger);
+      });
+
+      it('triggers cache.hdel', () => {
+        expect(cacheMock.hdel).toHaveBeenCalledWith(
+          'simple-stop-chaser-symbols',
+          'BTCUSDT-some-key1'
+        );
+        expect(cacheMock.hdel).toHaveBeenCalledWith(
+          'simple-stop-chaser-symbols',
+          'BTCUSDT-some-key2'
         );
       });
     });

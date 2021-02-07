@@ -4,12 +4,13 @@ const { CronJob } = require('cron');
 
 const { executeAlive, executeSimpleStopChaser } = require('./jobs');
 
-const runCronjob = serverLogger => {
+const runCronjob = async serverLogger => {
   const logger = serverLogger.child({ server: 'cronjob' });
   logger.info({ config }, `API ${config.get('mode')} trading started on`);
 
   const jobInstances = {};
 
+  // Execute jobs
   [
     { jobName: 'alive', executeJob: executeAlive },
     { jobName: 'simpleStopChaser', executeJob: executeSimpleStopChaser }

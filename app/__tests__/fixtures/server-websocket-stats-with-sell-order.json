@@ -25,17 +25,17 @@
         "updatedAt": "2021-02-04T22:37:37.514Z"
       },
       "openOrder": {
-        "type": "STOP_LOSS_LIMIT",
-        "side": "SELL",
-        "qty": 96.38082,
-        "stopPrice": 14553,
-        "createdAt": "2021-02-04T11:50:53.897Z",
-        "processMessage": "Stop price is higher than limit price. Wait.",
-        "currentPrice": 11091.39,
-        "limitPercentage": 0.98,
-        "limitPrice": 10869.562199999998,
-        "difference": -33.887637167208105,
-        "updatedAt": "2021-02-04T22:37:37.514Z"
+        "type": null,
+        "side": null,
+        "qty": null,
+        "stopPrice": null,
+        "createdAt": null,
+        "processMessage": null,
+        "currentPrice": null,
+        "limitPercentage": null,
+        "limitPrice": null,
+        "difference": null,
+        "updatedAt": null
       }
     },
     "LTCUSDT": {
@@ -118,11 +118,7 @@
       "symbol": "BNBUSDT",
       "baseAsset": "BNB",
       "quoteAsset": "USDT",
-      "balance": {
-        "free": 0,
-        "locked": 0,
-        "updatedAt": null
-      },
+      "balance": { "free": 0, "locked": 0, "updatedAt": null },
       "buy": {
         "action": "wait",
         "currentPrice": 55.4394,

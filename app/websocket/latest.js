@@ -124,8 +124,9 @@ const handleLatest = async (logger, ws, _payload) => {
       finalStat.sell.processMessage = sellSignalResult.message;
     }
 
+    let openOrders;
     if (newKey === 'open-orders') {
-      const openOrders = JSON.parse(value);
+      openOrders = JSON.parse(value);
       if (openOrders[0]) {
         finalStat.openOrder.type = openOrders[0].type;
         finalStat.openOrder.side = openOrders[0].side;
@@ -136,18 +137,25 @@ const handleLatest = async (logger, ws, _payload) => {
     }
 
     if (newKey === 'chase-stop-loss-limit-order-open-order-result') {
-      const openOrderResult = JSON.parse(value);
-      finalStat.openOrder.processMessage = openOrderResult.message;
-      finalStat.openOrder.currentPrice = +openOrderResult.lastCandleClose;
-      finalStat.openOrder.stopPrice = +openOrderResult.stopPrice;
-      finalStat.openOrder.limitPercentage = +openOrderResult.limitPercentage;
-      finalStat.openOrder.limitPrice = +openOrderResult.limitPrice;
+      // Make sure open order exist, otherwise, meaningless information
+      openOrders = JSON.parse(
+        cacheSimpleStopChaserSymbols[`${symbol}-open-orders`]
+      );
 
-      finalStat.openOrder.difference =
-        (1 - finalStat.openOrder.stopPrice / finalStat.openOrder.limitPrice) *
-        100;
+      if (openOrders[0]) {
+        const openOrderResult = JSON.parse(value);
+        finalStat.openOrder.processMessage = openOrderResult.message;
+        finalStat.openOrder.currentPrice = +openOrderResult.lastCandleClose;
+        finalStat.openOrder.stopPrice = +openOrderResult.stopPrice;
+        finalStat.openOrder.limitPercentage = +openOrderResult.limitPercentage;
+        finalStat.openOrder.limitPrice = +openOrderResult.limitPrice;
 
-      finalStat.openOrder.updatedAt = openOrderResult.timeUTC;
+        finalStat.openOrder.difference =
+          (1 - finalStat.openOrder.stopPrice / finalStat.openOrder.limitPrice) *
+          100;
+
+        finalStat.openOrder.updatedAt = openOrderResult.timeUTC;
+      }
     }
 
     stats.symbols[symbol] = finalStat;
