@@ -28,15 +28,20 @@ jobs:
           npm run test
           bash <(curl -s https://codecov.io/bash)
       - name: Bump Version (Patch)
-        if: github.repository == 'chrisleekr/binance-trading-bot' && github.ref == 'refs/heads/master'
+        if:
+          github.repository == 'chrisleekr/binance-trading-bot' && github.ref ==
+          'refs/heads/master'
         run: |
           git config --global user.email "$GIT_CI_EMAIL"
           git config --global user.name "$GIT_CI_NAME"
+          git pull
           npm version patch -m "Update version to %s [skip ci]"
           git status
           git push https://$GIT_CI_USERNAME:$GIT_CI_PASSWORD@$GIT_REPO_DOMAIN/chrisleekr/binance-trading-bot.git HEAD:$GITHUB_REF
       - name: Build/Push production docker image
-        if: github.repository == 'chrisleekr/binance-trading-bot' && github.ref == 'refs/heads/master'
+        if:
+          github.repository == 'chrisleekr/binance-trading-bot' && github.ref ==
+          'refs/heads/master'
         run: |
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin $REGISTRY_DOMAIN
           PACKAGE_VERSION=$(grep version package.json | cut -c 15- | rev | cut -c 3- | rev)
