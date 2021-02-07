@@ -1,7 +1,10 @@
 const config = require('config');
 const WebSocket = require('ws');
-const { handleLatest } = require('./websocket/latest');
-const { handleSettingUpdate } = require('./websocket/setting-update');
+const {
+  handleLatest,
+  handleSettingUpdate,
+  handleSymbolDelete
+} = require('./websocket');
 
 const handleWarning = (logger, ws, message) => {
   logger.warn({ message }, 'Warning occurred');
@@ -43,6 +46,9 @@ const runWebSocket = serverLogger => {
           break;
         case 'setting-update':
           await handleSettingUpdate(logger, ws, payload);
+          break;
+        case 'symbol-delete':
+          await handleSymbolDelete(logger, ws, payload);
           break;
         default:
           ws.send(handleWarning(logger, ws, 'Command is not recognised.'));

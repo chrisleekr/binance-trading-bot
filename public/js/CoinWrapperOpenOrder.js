@@ -52,24 +52,36 @@ class CoinWrapperOpenOrder extends React.Component {
               {symbolInfo.openOrder.currentPrice.toFixed(4)}
             </HightlightChange>
           </div>
-          <div className='coin-info-column coin-info-column-order'>
-            <span className='coin-info-label'>Stop Price:</span>
-            <HightlightChange className='coin-info-value'>
-              {symbolInfo.openOrder.stopPrice.toFixed(4)}
-            </HightlightChange>
-          </div>
-          <div className='coin-info-column coin-info-column-order'>
-            <span className='coin-info-label'>Limit Price:</span>
-            <HightlightChange className='coin-info-value'>
-              {symbolInfo.openOrder.limitPrice.toFixed(4)}
-            </HightlightChange>
-          </div>
-          <div className='coin-info-column coin-info-column-order'>
-            <span className='coin-info-label'>Difference:</span>
-            <HightlightChange className='coin-info-value'>
-              {symbolInfo.openOrder.difference.toFixed(2)}%
-            </HightlightChange>
-          </div>
+          {symbolInfo.openOrder.stopPrice ? (
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>Stop Price:</span>
+              <HightlightChange className='coin-info-value'>
+                {symbolInfo.openOrder.stopPrice.toFixed(4)}
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
+          {symbolInfo.openOrder.limitPrice ? (
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>Limit Price:</span>
+              <HightlightChange className='coin-info-value'>
+                {symbolInfo.openOrder.limitPrice.toFixed(4)}
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
+          {symbolInfo.openOrder.difference ? (
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>Difference:</span>
+              <HightlightChange className='coin-info-value'>
+                {symbolInfo.openOrder.difference.toFixed(2)}%
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
           <div className='coin-info-column coin-info-column-message'>
             <HightlightChange className='coin-info-message'>
               {symbolInfo.openOrder.processMessage}

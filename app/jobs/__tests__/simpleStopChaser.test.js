@@ -34,6 +34,10 @@ describe('simpleStopChaser', () => {
       });
 
       cache.hset = jest.fn().mockResolvedValue(true);
+
+      simpleStopChaserHelper.getConfiguration = jest
+        .fn()
+        .mockResolvedValue(jobConfig);
     });
 
     describe('when tradeaActionResult is buy if there is no cached last symbol', () => {

@@ -35,12 +35,11 @@ body.dark-theme a {
 .header-wrapper {
   display: flex;
   flex-flow: row wrap;
-  justify-content: flex-start;
+  justify-content: space-between;
 }
 
 .header-wrapper .header-column.header-column-title {
   text-align: left;
-  width: 80%;
   display: flex;
   flex-flow: row wrap;
 }
@@ -51,7 +50,6 @@ body.dark-theme a {
 
 .header-wrapper .header-column.header-column-icon {
   text-align: right;
-  width: 20%;
   display: flex;
   flex-flow: row wrap;
   justify-content: flex-end;
@@ -120,6 +118,29 @@ body.dark-theme a {
   font-weight: bold;
   color: #fff;
   font-size: 1rem;
+}
+
+.coin-info-sub-wrapper-symbol {
+  display: flex;
+  flex-flow: row wrap;
+}
+
+.coin-info-sub-wrapper-symbol .coin-info-column {
+  flex: 1 auto;
+  display: flex;
+  flex-flow: row wrap;
+}
+
+.coin-info-sub-wrapper-symbol .coin-info-column-icon {
+  display: flex;
+
+  flex-flow: row wrap;
+  justify-content: flex-end;
+  color: #fff;
+}
+
+.coin-info-sub-wrapper-symbol .coin-info-column-icon button {
+  color: #fff;
 }
 
 .coin-info-column-title {

@@ -60,4 +60,14 @@ const hgetall = async key => {
   return redis.hgetall(key);
 };
 
-module.exports = { set, get, hset, hget, hgetall };
+/**
+ * Delete key/field
+ *
+ * @param {*} key
+ * @param {*} field
+ */
+const hdel = async (key, field) => {
+  return redis.hdel(key, field);
+};
+
+module.exports = { set, get, hset, hget, hgetall, hdel };

@@ -1,3 +1,5 @@
+const _ = require('lodash');
+const config = require('config');
 const { cache } = require('../helpers');
 
 const handleSettingUpdate = async (logger, ws, payload) => {
@@ -5,33 +7,39 @@ const handleSettingUpdate = async (logger, ws, payload) => {
 
   const { data } = payload;
 
-  const configValue = await cache.hget(
+  const cachedConfigValue = await cache.hget(
     'simple-stop-chaser-common',
     'configuration'
   );
 
-  let configuration = {};
+  let cachedConfiguration = {};
   try {
-    configuration = JSON.parse(configValue);
+    cachedConfiguration = JSON.parse(cachedConfigValue);
   } catch (e) {
-    logger.warn({ configValue }, 'Failed to parse configuration');
+    logger.warn({ cachedConfigValue }, 'Failed to parse configuration');
     return;
   }
 
-  configuration = { ...configuration, ...data };
-  logger.info({ configuration }, 'New configuration');
+  const simpleStopChaserConfig = config.get('jobs.simpleStopChaser');
+
+  const newConfiguration = {
+    ...cachedConfiguration,
+    ..._.pick(simpleStopChaserConfig, ['symbols']),
+    ..._.pick(data, ['candles', 'maxPurchaseAmount', 'stopLossLimit'])
+  };
+  logger.info({ newConfiguration }, 'New configuration');
 
   await cache.hset(
     'simple-stop-chaser-common',
     'configuration',
-    JSON.stringify(configuration)
+    JSON.stringify(newConfiguration)
   );
 
   ws.send(
     JSON.stringify({
       result: true,
       type: 'setting-update-result',
-      configuration
+      newConfiguration
     })
   );
 };
