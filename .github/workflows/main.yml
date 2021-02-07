@@ -34,7 +34,6 @@ jobs:
         run: |
           git config --global user.email "$GIT_CI_EMAIL"
           git config --global user.name "$GIT_CI_NAME"
-          git pull
           npm version patch -m "Update version to %s [skip ci]"
           git status
           git push https://$GIT_CI_USERNAME:$GIT_CI_PASSWORD@$GIT_REPO_DOMAIN/chrisleekr/binance-trading-bot.git HEAD:$GITHUB_REF
