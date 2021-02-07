@@ -54,10 +54,10 @@ class App extends React.Component {
         self.setState({
           symbols: _.sortBy(response.stats.symbols, s => {
             if (s.sell.lastBuyPrice > 0) {
-              return (s.sell.difference - 100) * -10;
+              return (s.sell.difference + 100) * -10;
             }
             if (s.openOrder.difference) {
-              return (s.openOrder.difference - 100) * -10;
+              return (s.openOrder.difference + 100) * -10;
             }
             return s.buy.difference;
           }),
