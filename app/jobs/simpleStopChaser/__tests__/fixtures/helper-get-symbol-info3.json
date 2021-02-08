@@ -1,0 +1,83 @@
+{
+  "symbol": "DOTUPUSDT",
+  "status": "TRADING",
+  "baseAsset": "DOTUP",
+  "baseAssetPrecision": 8,
+  "quoteAsset": "USDT",
+  "quotePrecision": 8,
+  "quoteAssetPrecision": 8,
+  "baseCommissionPrecision": 8,
+  "quoteCommissionPrecision": 8,
+  "orderTypes": [
+    "LIMIT",
+    "LIMIT_MAKER",
+    "MARKET",
+    "STOP_LOSS_LIMIT",
+    "TAKE_PROFIT_LIMIT"
+  ],
+  "icebergAllowed": true,
+  "ocoAllowed": true,
+  "quoteOrderQtyMarketAllowed": true,
+  "isSpotTradingAllowed": false,
+  "isMarginTradingAllowed": false,
+  "filters": [
+    {
+      "filterType": "PRICE_FILTER",
+      "minPrice": "6.66600000",
+      "maxPrice": "126.64500000",
+      "tickSize": "0.00100000"
+    },
+    {
+      "filterType": "PERCENT_PRICE",
+      "multiplierUp": "5",
+      "multiplierDown": "0.2",
+      "avgPriceMins": 5
+    },
+    {
+      "filterType": "LOT_SIZE",
+      "minQty": "0.01000000",
+      "maxQty": "920000.00000000",
+      "stepSize": "0.01000000"
+    },
+    {
+      "filterType": "MIN_NOTIONAL",
+      "minNotional": "10.00000000",
+      "applyToMarket": true,
+      "avgPriceMins": 5
+    },
+    { "filterType": "ICEBERG_PARTS", "limit": 10 },
+    {
+      "filterType": "MARKET_LOT_SIZE",
+      "minQty": "0.00000000",
+      "maxQty": "4561.06981250",
+      "stepSize": "0.00000000"
+    },
+    { "filterType": "MAX_NUM_ORDERS", "maxNumOrders": 200 },
+    { "filterType": "MAX_NUM_ALGO_ORDERS", "maxNumAlgoOrders": 5 }
+  ],
+  "permissions": ["LEVERAGED"],
+  "filterLotSize": {
+    "filterType": "LOT_SIZE",
+    "minQty": "0.01000000",
+    "maxQty": "920000.00000000",
+    "stepSize": "0.01000000"
+  },
+  "filterPrice": {
+    "filterType": "PRICE_FILTER",
+    "minPrice": "6.66600000",
+    "maxPrice": "126.64500000",
+    "tickSize": "0.00100000"
+  },
+  "filterPercent": {
+    "filterType": "PERCENT_PRICE",
+    "multiplierUp": "5",
+    "multiplierDown": "0.2",
+    "avgPriceMins": 5
+  },
+  "filterMinNotional": {
+    "filterType": "MIN_NOTIONAL",
+    "minNotional": "10.00000000",
+    "applyToMarket": true,
+    "avgPriceMins": 5
+  }
+}

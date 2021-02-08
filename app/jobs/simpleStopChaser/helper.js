@@ -168,7 +168,7 @@ const getBuyBalance = async (logger, indicators, options) => {
 
   // 4. Calculate free balance with precision
   const lotPrecision = symbolInfo.filterLotSize.stepSize.indexOf(1) - 1;
-  let freeBalance = +(+quoteAssetBalance.free).toFixed(lotPrecision);
+  let freeBalance = parseFloat(_.floor(+quoteAssetBalance.free, lotPrecision));
 
   logger.info({ freeBalance }, 'Current free balance');
 
@@ -233,15 +233,17 @@ const getSellBalance = async (
 
   // 3. Calculate free balance with precision
   const lotPrecision = symbolInfo.filterLotSize.stepSize.indexOf(1) - 1;
-  const freeBalance = +(+baseAssetBalance.free).toFixed(lotPrecision);
-  const lockedBalance = +(+baseAssetBalance.locked).toFixed(lotPrecision);
+  const freeBalance = parseFloat(_.floor(+baseAssetBalance.free, lotPrecision));
+  const lockedBalance = parseFloat(
+    _.floor(+baseAssetBalance.locked, lotPrecision)
+  );
 
   // 4. If total balance is not enough to sell, then the last buy price is meaningless.
   const totalBalance = freeBalance + lockedBalance;
 
   // Calculate quantity - commission
-  const quantity = +(totalBalance - totalBalance * (0.1 / 100)).toFixed(
-    lotPrecision
+  const quantity = parseFloat(
+    _.floor(totalBalance - totalBalance * (0.1 / 100), lotPrecision)
   );
 
   if (quantity <= +symbolInfo.filterLotSize.minQty) {
@@ -298,10 +300,13 @@ const getBuyOrderQuantity = (logger, symbolInfo, balanceInfo, indicators) => {
 
   const orderQuantityBeforeCommission = 1 / (+baseAssetPrice / freeBalance);
 
-  const orderQuantity = +(
-    orderQuantityBeforeCommission -
-    orderQuantityBeforeCommission * (0.1 / 100)
-  ).toFixed(lotPrecision);
+  const orderQuantity = parseFloat(
+    _.floor(
+      orderQuantityBeforeCommission -
+        orderQuantityBeforeCommission * (0.1 / 100),
+      lotPrecision
+    )
+  );
 
   if (orderQuantity <= 0) {
     return {
@@ -331,8 +336,8 @@ const getBuyOrderQuantity = (logger, symbolInfo, balanceInfo, indicators) => {
  */
 const getBuyOrderPrice = (logger, symbolInfo, orderQuantityInfo) => {
   const orderPrecision = symbolInfo.filterPrice.tickSize.indexOf(1) - 1;
-  const orderPrice = +(+orderQuantityInfo.baseAssetPrice).toFixed(
-    orderPrecision
+  const orderPrice = parseFloat(
+    _.floor(+orderQuantityInfo.baseAssetPrice, orderPrecision)
   );
 
   logger.info({ orderPrecision, orderPrice }, 'Calculated order price');
@@ -409,7 +414,9 @@ const placeStopLossLimitOrder = async (
   );
 
   // Calculate quantity - commission
-  const quantity = +(balance - balance * (0.1 / 100)).toFixed(lotPrecision);
+  const quantity = parseFloat(
+    _.floor(balance - balance * (0.1 / 100), lotPrecision)
+  );
 
   if (quantity <= +symbolInfo.filterLotSize.minQty) {
     return {

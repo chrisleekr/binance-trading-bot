@@ -80,7 +80,7 @@ you restart bot, it will reset frontend adjusted value from frontend.
    docker-compose -f docker-compose.server.yml up -d
    ```
 
-[![asciicast](https://asciinema.org/a/371137.png)](https://asciinema.org/a/371137)
+   [![asciicast](https://asciinema.org/a/371137.png)](https://asciinema.org/a/371137)
 
 4. Open browser `http://0.0.0.0:8080` to see frontend statistics
 
@@ -122,3 +122,5 @@ React.js based frontend communicating via Web Socket
 - [x] Develop simple frontend to see statistics
 - [x] Fix the issue with configuration
 - [x] Update frontend to remove cache
+- [x] Fix the issue with rounding when places an order
+- [x] Fix the issue with persistent redis
