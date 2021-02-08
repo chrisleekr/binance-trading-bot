@@ -272,7 +272,22 @@
     { "asset": "BAL", "free": "0.00000000", "locked": "0.00000000" },
     { "asset": "YFI", "free": "0.00000000", "locked": "0.00000000" },
     { "asset": "SRM", "free": "0.00000000", "locked": "0.00000000" },
-    { "asset": "ANT", "free": "0.00000000", "locked": "0.00000000" }
+    { "asset": "ANT", "free": "0.00000000", "locked": "0.00000000" },
+    {
+      "asset": "LINKUP",
+      "free": "2.41000000",
+      "locked": "0.00000000"
+    },
+    {
+      "asset": "XRPDOWN",
+      "free": "0.00393000",
+      "locked": "0.00000000"
+    },
+    {
+      "asset": "DOTUP",
+      "free": "1.59840000",
+      "locked": "0.00000000"
+    }
   ],
   "permissions": ["SPOT"]
 }

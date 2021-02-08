@@ -415,6 +415,7 @@ describe('helper', () => {
 
   describe('getSellBalance', () => {
     const orgSymbolInfo = require('./fixtures/helper-get-symbol-info1.json');
+    const orgSymbolInfoDOTUSDT = require('./fixtures/helper-get-symbol-info3.json');
     const orgAccountInfo = require('./fixtures/binance-account-info.json');
     const orgIndicators = require('./fixtures/helper-indicators.json');
 
@@ -716,6 +717,44 @@ describe('helper', () => {
           });
         });
       });
+
+      describe('when has enough quantity to sell -no round', () => {
+        beforeEach(async () => {
+          const accountInfo = _.cloneDeep(orgAccountInfo);
+          accountInfo.balances = _.map(accountInfo.balances, b => {
+            const balance = b;
+            if (balance.asset === 'DOTUP') {
+              balance.free = '1.5984';
+              balance.locked = '0.0000';
+            }
+            return balance;
+          });
+          binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
+
+          const symbolInfo = _.cloneDeep(orgSymbolInfoDOTUSDT);
+          const indicators = _.cloneDeep(orgIndicators);
+
+          result = await simpleStopChaserHelper.getSellBalance(
+            logger,
+            symbolInfo,
+            indicators,
+            stopLossLimitConfig
+          );
+        });
+
+        it('does not trigger cache.hdel', () => {
+          expect(cache.hdel).not.toHaveBeenCalled();
+        });
+
+        it('returns expected value', () => {
+          expect(result).toStrictEqual({
+            result: true,
+            message: 'Balance found',
+            freeBalance: 1.59,
+            lockedBalance: 0.0
+          });
+        });
+      });
     });
   });
 
@@ -779,7 +818,7 @@ describe('helper', () => {
           result: true,
           message: 'Calculated order quantity to buy.',
           baseAssetPrice: 11756.29,
-          orderQuantity: 0.00085,
+          orderQuantity: 0.000849,
           freeBalance: 10
         });
       });
@@ -892,7 +931,7 @@ describe('helper', () => {
           result: false,
           message:
             'Order quantity is less or equal than minimum quantity - 0.00000100. Do not place an order.',
-          quantity: 0.000001
+          quantity: 0
         });
       });
     });
