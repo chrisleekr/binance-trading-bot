@@ -16,9 +16,6 @@ services:
     env_file:
       - .env
     restart: unless-stopped
-    ports:
-      - 8080:80
-      - 8081:81
     environment:
       - BINANCE_MODE=test
       # - BINANCE_MODE=live
@@ -32,10 +29,14 @@ services:
       - REDIS_HOST=binance-redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
+    ports:
+      - 8080:80
 
   binance-redis:
     container_name: binance-redis
     image: redis:6.0
+    sysctls:
+      net.core.somaxconn: 1024
     restart: unless-stopped
     networks:
       - internal
@@ -43,8 +44,6 @@ services:
       - redis_data:/data
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
     command: redis-server /usr/local/etc/redis/redis.conf
-    ports:
-      - 6380:6379
 
 networks:
   internal:

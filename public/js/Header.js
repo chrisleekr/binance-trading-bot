@@ -3,6 +3,13 @@
 /* eslint-disable no-undef */
 class Header extends React.Component {
   render() {
+    const {
+      configuration,
+      publicURL,
+      sendWebSocket,
+      exchangeSymbols
+    } = this.props;
+
     return (
       <div className='app-header'>
         <div className='header-wrapper'>
@@ -27,10 +34,29 @@ class Header extends React.Component {
               </a>
             </div>
 
-            <SettingIcon
-              configuration={this.props.configuration}
-              sendWebSocket={this.props.sendWebSocket}
-            />
+            {_.isEmpty(publicURL) === false ? (
+              <div className='header-column-icon-wrapper public-url-wrapper'>
+                <a
+                  href={publicURL}
+                  className='btn btn-sm btn-link p-0 pl-1 pr-1'
+                  target='_blank'
+                  rel='noreferrer'
+                  title={publicURL}>
+                  <i className='fa fa-link'></i>
+                </a>
+              </div>
+            ) : (
+              ''
+            )}
+            {_.isEmpty(configuration) === false ? (
+              <SettingIcon
+                exchangeSymbols={exchangeSymbols}
+                configuration={configuration}
+                sendWebSocket={sendWebSocket}
+              />
+            ) : (
+              ''
+            )}
           </div>
         </div>
       </div>

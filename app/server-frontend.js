@@ -1,15 +1,21 @@
 const express = require('express');
 const path = require('path');
-
 const config = require('config');
 
-const runFrontend = serverLogger => {
+const { configureWebSocket } = require('./websocket/configure');
+const { configureLocalTunnel } = require('./local-tunnel/configure');
+
+const runFrontend = async serverLogger => {
   const logger = serverLogger.child({ server: 'frontend' });
   logger.info({ config }, `API ${config.get('mode')} frontend started on`);
-  const server = express();
-  server.use(express.static(path.join(__dirname, '/../public')));
 
-  server.listen(80);
+  const app = express();
+  app.use(express.static(path.join(__dirname, '/../public')));
+
+  const server = app.listen(80);
+
+  await configureWebSocket(server, logger);
+  await configureLocalTunnel(logger);
 };
 
 module.exports = { runFrontend };

@@ -1,6 +1,5 @@
 const _ = require('lodash');
-const config = require('config');
-const { cache } = require('../helpers');
+const { cache } = require('../../helpers');
 
 const handleSettingUpdate = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start setting update');
@@ -20,12 +19,14 @@ const handleSettingUpdate = async (logger, ws, payload) => {
     return;
   }
 
-  const simpleStopChaserConfig = config.get('jobs.simpleStopChaser');
-
   const newConfiguration = {
     ...cachedConfiguration,
-    ..._.pick(simpleStopChaserConfig, ['symbols']),
-    ..._.pick(data, ['candles', 'maxPurchaseAmount', 'stopLossLimit'])
+    ..._.pick(data, [
+      'symbols',
+      'candles',
+      'maxPurchaseAmount',
+      'stopLossLimit'
+    ])
   };
   logger.info({ newConfiguration }, 'New configuration');
 

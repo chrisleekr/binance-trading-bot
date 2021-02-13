@@ -14,8 +14,16 @@
       href="https://unpkg.com/font-awesome@4.7.0/css/font-awesome.min.css"
       crossorigin="anonymous"
     />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/react-bootstrap-typeahead/css/Typeahead.css"
+    />
+
     <link rel="stylesheet" href="./css/App.css" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
   </head>
   <body class="dark-theme dark-mode">
     <div id="app"></div>
@@ -48,11 +56,15 @@
       src="https://unpkg.com/react-bootstrap@next/dist/react-bootstrap.min.js"
       crossorigin
     ></script>
+    <script
+      src="https://unpkg.com/react-bootstrap-typeahead@5.1.4/dist/react-bootstrap-typeahead.min.js"
+      crossorigin
+    ></script>
 
     <script>
-      const Modal = ReactBootstrap.Modal;
-      const Button = ReactBootstrap.Button;
-      const Form = ReactBootstrap.Form;
+      const { Modal, Button, Form, Spinner, Accordion, Card } = ReactBootstrap;
+
+      const { Typeahead } = ReactBootstrapTypeahead;
     </script>
 
     <script type="text/babel" src="./js/Config.js"></script>
@@ -61,9 +73,13 @@
     <script type="text/babel" src="./js/CoinWrapperSell.js"></script>
     <script type="text/babel" src="./js/CoinWrapperBuy.js"></script>
     <script type="text/babel" src="./js/CoinWrapperBalance.js"></script>
+    <script type="text/babel" src="./js/SymbolDeleteIcon.js"></script>
+    <script type="text/babel" src="./js/SymbolEditIcon.js"></script>
     <script type="text/babel" src="./js/CoinWrapperSymbol.js"></script>
     <script type="text/babel" src="./js/CoinWrapper.js"></script>
     <script type="text/babel" src="./js/SettingIcon.js"></script>
+    <script type="text/babel" src="./js/AccountWrapperAsset.js"></script>
+    <script type="text/babel" src="./js/AccountWrapper.js"></script>
     <script type="text/babel" src="./js/Header.js"></script>
     <script type="text/babel" src="./js/App.js"></script>
   </body>

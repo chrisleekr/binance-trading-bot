@@ -3,7 +3,7 @@
 /* eslint-disable no-undef */
 class CoinWrapper extends React.Component {
   render() {
-    const { symbolInfo, sendWebSocket } = this.props;
+    const { symbolInfo, sendWebSocket, configuration } = this.props;
 
     const className = 'coin-wrapper ' + this.props.extraClassName;
 
@@ -12,6 +12,7 @@ class CoinWrapper extends React.Component {
         <div className='coin-info-wrapper'>
           <CoinWrapperSymbol
             symbolInfo={symbolInfo}
+            configuration={configuration}
             sendWebSocket={sendWebSocket}
           />
           <CoinWrapperBalance symbolInfo={symbolInfo} />

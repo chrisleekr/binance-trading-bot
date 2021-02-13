@@ -14,11 +14,11 @@ incurred directly or indirectly by using this code.**
 
 ### Simple-Stop-Chaser
 
-This method is buying at lowest price without any indicator, never sell under
-purchase price. And chase rising money. Stop chaser methodology was the idea
-from [@d0x2f](https://github.com/d0x2f). I have found MACD indicators often
-mislead buying signal. In box pattern market, buy signal with lowest price is
-effective than using MACD indicators.
+This method is buying at the lowest price without any indicator, never sell
+under purchase price. And chase rising money. Stop chaser methodology was the
+idea from [@d0x2f](https://github.com/d0x2f). I have found MACD indicators often
+mislead buying signal. In box pattern market, buy signal with the lowest price
+is effective than using MACD indicators.
 
 #### Note
 
@@ -28,30 +28,29 @@ effective than using MACD indicators.
 
 #### Process
 
-1. Get next symbol
+1. Get the next symbol to process
 
-2. Detect buy signal
+2. Process buy signal
 
    - Get lowest closed price with period
-   - If current closed price is lower than lowest closed price, then **buy
+   - If the current price is lower than the lowest closed price, then **buy
      NOW.**
-     - It will only purchase maximum purchase amount or less.
-     - It will not purchase if base asset, such as BTC, has enough balance to
-       place stop loss limit order.
-   - If current closed price is higher than lowest closed price, then _do not
+     - It will only purchase the maximum purchase amount or less.
+     - It will not purchase if the base asset, such as BTC, has enough balance
+       to place a stop-loss limit order.
+   - If the current price is higher than the lowest closed price, then _do not
      buy._
 
-3. Chase Stop-Loss-Limit order
+3. Process Stop-Loss-Limit order
 
-   - If there is no open order but have coins that bought by the buy signal,
-     then check
-     - Get last purchase price
-     - If current closed price is higher than minimum profit percentage \* last
-       purchase price, then **place Stop-Loss-Limit order.**
+   - If there is no open order but have coins enough to sell, then check
+     - Get last buy price from the cache
+     - If the current price is higher than the minimum profit percentage _last
+       buy price_, then **place Stop-Loss-Limit order.**
      - Otherwise, _do not place Stop-Loss-Limit order._
-   - If there is an open Stop-Loss-Limit order, then check current closed price.
-     - If current closed price is higher than stop price, then cancel the open
-       order. So it can be place new Stop-Loss-Limit order.
+   - If there is an opened Stop-Loss-Limit order, then check the current price.
+     - If the current price is higher than stop price, then cancel the open
+       order. Then it will place new Stop-Loss-Limit order in next process.
 
 ## Environment Parameters
 
@@ -59,22 +58,32 @@ Use environment parameters to adjust parameters. Check
 `/config/custom-environment-variables.json` to see list of available environment
 parameters.
 
-Or use frontend setting to adjust values after launching the bot. Note that if
-you restart bot, it will reset frontend adjusted value from frontend.
+Or use the frontend to adjust configurations after launching the application.
 
 ## How to use
 
 1. Create `.env` file based on `.env.dist`.
 
+   | Environment Key                | Description                       | Sample Value   |
+   | ------------------------------ | --------------------------------- | -------------- |
+   | BINANCE_LIVE_API_KEY           | Binance API key for live          | (from Binance) |
+   | BINANCE_LIVE_SECRET_KEY        | Binance API secret for live       | (from Binance) |
+   | BINANCE_TEST_API_KEY           | Binance API key for test          | (from Binance) |
+   | BINANCE_TEST_SECRET_KEY        | Binance API secret for test       | (from Binance) |
+   | BINANCE_SLACK_WEBHOOK_URL      | Slack webhook URL                 | (from Slack)   |
+   | BINANCE_SLACK_CHANNEL          | Slack channel                     | "#binance"     |
+   | BINANCE_SLACK_USERNAME         | Slack username                    | Chris          |
+   | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain | binance        |
+
 2. Check `docker-compose.yml` for `BINANCE_MODE` environment parameter
 
-3. Launch docker compose
+3. Launch the application with docker-compose
 
    ```bash
    docker-compose up -d
    ```
 
-   or using latest build image
+   or using the latest build image
 
    ```bash
    docker-compose -f docker-compose.server.yml up -d
@@ -82,22 +91,27 @@ you restart bot, it will reset frontend adjusted value from frontend.
 
    [![asciicast](https://asciinema.org/a/371137.png)](https://asciinema.org/a/371137)
 
-4. Open browser `http://0.0.0.0:8080` to see frontend statistics
+4. Open browser `http://0.0.0.0:8080` to see the frontend
+
+   - When launching the application, it will notify public URL to the Slack.
 
 ## Frontend + WebSocket
 
-React.js based frontend communicating via Web Socket
+React.js based frontend communicating via Web Socket:
 
-- List monitoring coins with buy/sell signals
-- Manage settings
+- List monitoring coins with buy/sell signals/open orders
+- View account balances
+- Manage settings including symbols
+- Delete caches that are not monitored
+- Link to public URL
 
 | Frontend Mobile                                                                                                       | Setting                                                                                                               |
 | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot1](https://user-images.githubusercontent.com/5715919/106989986-77250600-67c7-11eb-97c7-3383dccd45b4.jpeg) | ![Screenshot2](https://user-images.githubusercontent.com/5715919/106989983-75f3d900-67c7-11eb-94f0-fdf6d3256c11.jpeg) |
+| ![Screenshot1](https://user-images.githubusercontent.com/5715919/107846451-fc4b9300-6e37-11eb-95cd-a24cc5cf746f.jpeg) | ![Screenshot2](https://user-images.githubusercontent.com/5715919/107846449-fa81cf80-6e37-11eb-9f4a-d35216997abb.jpeg) |
 
 | Frontend Desktop                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot](https://user-images.githubusercontent.com/5715919/106990244-f6b2d500-67c7-11eb-8f63-9603649f9d7d.png) |
+| ![Screenshot](https://user-images.githubusercontent.com/5715919/107846474-2a30d780-6e38-11eb-9abd-ebd1c2b60b66.png) |
 
 ## Trades
 
@@ -116,11 +130,18 @@ React.js based frontend communicating via Web Socket
 ## Todo
 
 - [x] Support multiple symbols
-- [x] Removed unused methods - Bollinger Bands, MACD Stop Chaser
-- [x] Support maximum purchase amount per symbol
+- [x] Remove unused methods - Bollinger Bands, MACD Stop Chaser
+- [x] Support a maximum purchase amount per symbol
 - [x] Develop backend to send cache values for frontend
 - [x] Develop simple frontend to see statistics
 - [x] Fix the issue with configuration
 - [x] Update frontend to remove cache
 - [x] Fix the issue with rounding when places an order
-- [x] Fix the issue with persistent redis
+- [x] Fix the issue with persistent Redis
+- [x] Fix the bug last buy price not removed
+- [x] Update frontend to be exposed to the public using the local tunnel
+- [x] Display account balances in the frontend
+- [x] Update frontend to change symbols in the configuration
+- [x] Update frontend to change last buy price per symbol
+- [ ] Secure frontend with the password to disable the configuration
+- [ ] Change to more persistence database

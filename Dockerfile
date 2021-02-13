@@ -11,9 +11,6 @@ RUN npm install
 
 COPY . .
 
-EXPOSE 80
-EXPOSE 81
-
 CMD [ "npm", "run", "dev" ]
 
 # build stage
@@ -37,8 +34,5 @@ LABEL Environment=${NODE_ENV}
 WORKDIR /srv
 
 COPY --from=build-stage /srv /srv
-
-EXPOSE 80
-EXPOSE 81
 
 CMD [ "npm", "start"]

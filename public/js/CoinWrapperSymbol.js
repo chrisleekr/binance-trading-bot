@@ -2,22 +2,16 @@
 /* eslint-disable react/jsx-no-undef */
 /* eslint-disable no-undef */
 class CoinWrapperSymbol extends React.Component {
-  constructor(props) {
-    super(props);
+  isMonitoring() {
+    const { configuration, symbolInfo } = this.props;
 
-    this.handleDelete = this.handleDelete.bind(this);
-  }
-
-  handleDelete(e) {
-    e.preventDefault();
-    const { symbolInfo } = this.props;
-    this.props.sendWebSocket('symbol-delete', {
-      symbolInfo
-    });
+    const { symbol } = symbolInfo;
+    const { symbols } = configuration;
+    return symbols.includes(symbol);
   }
 
   render() {
-    const { symbolInfo } = this.props;
+    const { symbolInfo, sendWebSocket } = this.props;
 
     return (
       <div className='coin-info-sub-wrapper coin-info-sub-wrapper-symbol'>
@@ -25,19 +19,27 @@ class CoinWrapperSymbol extends React.Component {
           <a
             href={`https://www.binance.com/en/trade/${symbolInfo.symbol}?layout=pro`}
             target='_blank'
-            rel='noreferrer'>
+            rel='noreferrer'
+            className='coin-symbol'>
             {symbolInfo.symbol}
           </a>
         </div>
         <div className='coin-info-column coin-info-column-icon'>
-          {symbolInfo.sell.lastBuyPrice <= 0 && (
-            <button
-              type='button'
-              className='btn btn-link btn-sm m-0 p-0'
-              onClick={this.handleDelete}>
-              X
-            </button>
+          {this.isMonitoring() && (
+            <Spinner
+              animation='border'
+              size='sm'
+              className='coin-info-spinner'
+            />
           )}
+          <SymbolEditIcon
+            symbolInfo={symbolInfo}
+            sendWebSocket={sendWebSocket}
+          />
+          <SymbolDeleteIcon
+            symbolInfo={symbolInfo}
+            sendWebSocket={sendWebSocket}
+          />
         </div>
       </div>
     );

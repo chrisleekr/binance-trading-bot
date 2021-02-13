@@ -7,15 +7,7 @@ class SettingIcon extends React.Component {
 
     this.state = {
       showModal: false,
-      configuration: {
-        candles: { interval: null, limit: null },
-        maxPurchaseAmount: null,
-        stopLossLimit: {
-          lastBuyPercentage: null,
-          stopPercentage: null,
-          limitPercentage: null
-        }
-      }
+      configuration: {}
     };
 
     this.handleModalShow = this.handleModalShow.bind(this);
@@ -80,6 +72,11 @@ class SettingIcon extends React.Component {
 
   render() {
     const { configuration } = this.state;
+    const { symbols: selectedSymbols } = configuration;
+
+    if (_.isEmpty(configuration)) {
+      return '';
+    }
 
     return (
       <div className='header-column-icon-wrapper setting-wrapper'>
@@ -98,6 +95,23 @@ class SettingIcon extends React.Component {
               <Modal.Title>Settings</Modal.Title>
             </Modal.Header>
             <Modal.Body>
+              <h2 className='form-header'>Symbols</h2>
+              <Form.Group>
+                <Typeahead
+                  multiple
+                  onChange={selected => {
+                    // Handle selections...
+                    const { configuration } = this.state;
+                    configuration.symbols = selected;
+                    this.setState({ configuration });
+                  }}
+                  size='sm'
+                  options={this.props.exchangeSymbols}
+                  defaultSelected={selectedSymbols}
+                  placeholder='Choose symbols to monitor...'
+                />
+              </Form.Group>
+
               <h2 className='form-header'>Candles</h2>
               <Form.Group controlId='field-candles-interval'>
                 <Form.Label>Interval</Form.Label>
@@ -127,6 +141,8 @@ class SettingIcon extends React.Component {
                   type='number'
                   placeholder='Enter limit'
                   required
+                  min='0'
+                  step='1'
                   data-state-key='candles.limit'
                   defaultValue={configuration.candles.limit}
                   onChange={this.handleInputChange}
@@ -145,6 +161,8 @@ class SettingIcon extends React.Component {
                   type='number'
                   placeholder='Enter maximum purchase amount'
                   required
+                  min='0'
+                  step='1'
                   data-state-key='maxPurchaseAmount'
                   defaultValue={configuration.maxPurchaseAmount}
                   onChange={this.handleInputChange}
@@ -164,7 +182,8 @@ class SettingIcon extends React.Component {
                   type='number'
                   placeholder='Enter minimum profit percentage'
                   required
-                  step='any'
+                  min='0'
+                  step='0.001'
                   data-state-key='stopLossLimit.lastBuyPercentage'
                   defaultValue={configuration.stopLossLimit.lastBuyPercentage}
                   onChange={this.handleInputChange}
@@ -181,7 +200,8 @@ class SettingIcon extends React.Component {
                   type='number'
                   placeholder='Enter stop price percentage'
                   required
-                  step='any'
+                  min='0'
+                  step='0.001'
                   data-state-key='stopLossLimit.stopPercentage'
                   defaultValue={configuration.stopLossLimit.stopPercentage}
                   onChange={this.handleInputChange}
@@ -200,7 +220,8 @@ class SettingIcon extends React.Component {
                   type='number'
                   placeholder='Enter limit price percentage'
                   required
-                  step='any'
+                  min='0'
+                  step='0.001'
                   data-state-key='stopLossLimit.limitPercentage'
                   defaultValue={configuration.stopLossLimit.limitPercentage}
                   onChange={this.handleInputChange}

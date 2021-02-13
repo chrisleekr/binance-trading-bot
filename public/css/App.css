@@ -1,15 +1,24 @@
 /* Dark Mode styles */
+body {
+  overflow-y: scroll; /* Show vertical scrollbar */
+}
+
 body.dark-theme {
   color: #cfcfcf;
   background: #191f2c;
   font-size: 0.8rem;
 }
-body.dark-theme a {
-  color: #809fff;
+
+.divider {
+  border-top: 1px dashed #585858;
 }
 
 .app {
   padding: 10px;
+}
+
+.app-body-loading {
+  text-align: center;
 }
 
 .app-h1 {
@@ -58,6 +67,73 @@ body.dark-theme a {
 .header-wrapper .header-column.header-column-icon i {
   color: #fff;
   font-size: 20px;
+}
+
+.account-wrapper {
+  margin-bottom: 10px;
+}
+
+.account-wrapper-assets {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: flex-start;
+}
+
+.account-wrapper-asset {
+  width: 20%;
+}
+
+@media (max-width: 1200px) {
+  .account-wrapper-asset {
+    width: 25%;
+  }
+}
+
+@media (max-width: 800px) {
+  .account-wrapper-asset {
+    width: 33.33%;
+  }
+}
+
+@media (max-width: 600px) {
+  .account-wrapper-asset {
+    width: 50%;
+  }
+}
+
+.btn-account-balance {
+  color: #809fff;
+}
+
+.account-wrapper-body {
+  -webkit-border-radius: 10px;
+  -moz-border-radius: 10px;
+  border-radius: 10px;
+
+  padding: 10px;
+  background-color: #272b38;
+}
+
+.btn-account-balance {
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+.account-asset-coin {
+  font-weight: bold;
+}
+
+.account-asset-row {
+  display: flex;
+  flex-flow: row wrap;
+}
+
+.account-asset-label {
+  flex: 1 40%;
+}
+.account-asset-value {
+  flex: 1 60%;
+  text-align: right;
 }
 
 .coin-wrappers {
@@ -118,6 +194,14 @@ body.dark-theme a {
   font-weight: bold;
   color: #fff;
   font-size: 1rem;
+}
+
+.coin-symbol {
+  color: #809fff;
+}
+
+.coin-info-spinner {
+  margin: 3px 5px 3px 3px;
 }
 
 .coin-info-sub-wrapper-symbol {

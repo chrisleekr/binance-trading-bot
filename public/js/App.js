@@ -11,7 +11,10 @@ class App extends React.Component {
         connected: false
       },
       configuration: {},
-      symbols: []
+      exchangeSymbols: [],
+      symbols: [],
+      accountInfo: {},
+      publicURL: ''
     };
     this.requestWebSocket = this.requestWebSocket.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
@@ -53,15 +56,20 @@ class App extends React.Component {
       if (response.type === 'latest') {
         self.setState({
           symbols: _.sortBy(response.stats.symbols, s => {
-            if (s.sell.lastBuyPrice > 0) {
-              return (s.sell.difference + 100) * -10;
-            }
             if (s.openOrder.difference) {
               return (s.openOrder.difference + 100) * -10;
             }
+            if (s.sell.difference) {
+              return s.sell.difference > -100
+                ? (s.sell.difference + 100) * -10
+                : (s.sell.difference + 100) * 10;
+            }
             return s.buy.difference;
           }),
-          configuration: response.configuration
+          exchangeSymbols: response.common.exchangeSymbols,
+          configuration: response.common.configuration,
+          accountInfo: response.common.accountInfo,
+          publicURL: response.common.publicURL
         });
       }
     };
@@ -101,7 +109,13 @@ class App extends React.Component {
   }
 
   render() {
-    const { symbols, configuration } = this.state;
+    const {
+      exchangeSymbols,
+      symbols,
+      configuration,
+      accountInfo,
+      publicURL
+    } = this.state;
 
     const coinWrappers = symbols.map((symbol, index) => {
       return (
@@ -111,17 +125,34 @@ class App extends React.Component {
           }
           key={symbol.symbol}
           symbolInfo={symbol}
+          configuration={configuration}
           sendWebSocket={this.sendWebSocket}
         />
       );
     });
+
     return (
       <div className='app'>
         <Header
           configuration={configuration}
+          publicURL={publicURL}
+          exchangeSymbols={exchangeSymbols}
           sendWebSocket={this.sendWebSocket}
         />
-        <div className='coin-wrappers'>{coinWrappers}</div>
+        {_.isEmpty(configuration) === false ? (
+          <div className='app-body'>
+            <div className='account-wrapper'>
+              <AccountWrapper accountInfo={accountInfo} />
+            </div>
+            <div className='coin-wrappers'>{coinWrappers}</div>
+          </div>
+        ) : (
+          <div className='app-body app-body-loading'>
+            <Spinner animation='border' role='status'>
+              <span className='sr-only'>Loading...</span>
+            </Spinner>
+          </div>
+        )}
       </div>
     );
   }
