@@ -1,4 +1,4 @@
-const { cache } = require('../helpers');
+const { cache } = require('../../helpers');
 
 const handleSymbolDelete = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol delete');

@@ -1,10 +1,10 @@
-const config = require('config');
 const WebSocket = require('ws');
 const {
   handleLatest,
   handleSettingUpdate,
+  handleSymbolUpdate,
   handleSymbolDelete
-} = require('./websocket');
+} = require('./handlers');
 
 const handleWarning = (logger, ws, message) => {
   logger.warn({ message }, 'Warning occurred');
@@ -17,12 +17,10 @@ const handleWarning = (logger, ws, message) => {
   );
 };
 
-const runWebSocket = serverLogger => {
-  const logger = serverLogger.child({ server: 'websocket' });
-  logger.info({ config }, `API ${config.get('mode')} websocket started on`);
-
+const configureWebSocket = async (server, funcLogger) => {
+  const logger = funcLogger.child({ server: 'websocket' });
   const wss = new WebSocket.Server({
-    port: 81
+    noServer: true
   });
 
   wss.on('connection', ws => {
@@ -47,11 +45,14 @@ const runWebSocket = serverLogger => {
         case 'setting-update':
           await handleSettingUpdate(logger, ws, payload);
           break;
+        case 'symbol-update':
+          await handleSymbolUpdate(logger, ws, payload);
+          break;
         case 'symbol-delete':
           await handleSymbolDelete(logger, ws, payload);
           break;
         default:
-          ws.send(handleWarning(logger, ws, 'Command is not recognised.'));
+          handleWarning(logger, ws, 'Command is not recognised.');
       }
     });
 
@@ -64,7 +65,13 @@ const runWebSocket = serverLogger => {
     );
   });
 
-  return { wss };
+  server.on('upgrade', (request, socket, head) => {
+    wss.handleUpgrade(request, socket, head, wSocket => {
+      wss.emit('connection', wSocket, request);
+    });
+  });
+
+  return wss;
 };
 
-module.exports = { runWebSocket };
+module.exports = { configureWebSocket };

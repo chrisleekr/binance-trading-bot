@@ -13,7 +13,7 @@ const getConfiguration = async logger => {
 
     logger.info(
       { simpleStopChaserConfig },
-      'Successfully retrieved configuration from cache.'
+      'Successfully retrieved configuration from the cache.'
     );
   } catch (e) {
     simpleStopChaserConfig = config.get('jobs.simpleStopChaser');
@@ -24,7 +24,7 @@ const getConfiguration = async logger => {
     );
     logger.info(
       { simpleStopChaserConfig },
-      'Failed to parse cached configuration, getting from confiugration'
+      'Failed to parse cached configuration, getting from configuration.'
     );
   }
 
@@ -55,7 +55,7 @@ const cancelOpenOrders = async (logger, symbol) => {
     const result = await binance.client.cancelOpenOrders({ symbol });
     logger.info({ result }, 'Cancelled open orders');
   } catch (e) {
-    logger.info({ e }, 'Cancel result failed, but it is ok. Do not worry');
+    logger.info({ e }, 'Cancel result failed, but it is ok. Do not worry.');
   }
 };
 
@@ -71,15 +71,15 @@ const getSymbolInfo = async (logger, symbol) => {
     `${symbol}-symbol-info`
   );
   if (cachedSymbolInfo) {
-    logger.info({ cachedSymbolInfo }, 'Retrieved symbol info from cache');
+    logger.info({ cachedSymbolInfo }, 'Retrieved symbol info from the cache.');
     return JSON.parse(cachedSymbolInfo);
   }
 
-  logger.info({}, 'Request exchange info from Binance');
+  logger.info({}, 'Request exchange info from Binance.');
 
   const exchangeInfo = await binance.client.exchangeInfo();
 
-  logger.info({}, 'Retrieved exchange info from Binance');
+  logger.info({}, 'Retrieved exchange info from Binance.');
   const symbolInfo =
     _.filter(exchangeInfo.symbols, s => {
       return s.symbol === symbol;
@@ -100,7 +100,7 @@ const getSymbolInfo = async (logger, symbol) => {
     `${symbol}-symbol-info`,
     JSON.stringify(symbolInfo)
   );
-  logger.info({ success, symbolInfo }, 'Retrieved symbol info from Binance');
+  logger.info({ success, symbolInfo }, 'Retrieved symbol info from Binance.');
   return symbolInfo;
 };
 
@@ -157,7 +157,7 @@ const getBuyBalance = async (logger, indicators, options) => {
     return {
       result: false,
       message:
-        'Base asset does not have enough balance to place stop loss limit order. Cannot place an order.',
+        'The base asset has enough balance to place a stop-loss limit order. Cannot place a buy order.',
       baseAsset,
       baseAssetTotalBalance,
       lastCandleClose,
@@ -182,14 +182,15 @@ const getBuyBalance = async (logger, indicators, options) => {
   if (freeBalance < +symbolInfo.filterMinNotional.minNotional) {
     return {
       result: false,
-      message: 'Balance is less than minimum notional. Cannot place an order.',
+      message:
+        'Balance is less than the minimum notional. Cannot place an order.',
       freeBalance
     };
   }
 
   return {
     result: true,
-    message: 'Balance found',
+    message: 'Balance found.',
     freeBalance
   };
 };
@@ -269,7 +270,7 @@ const getSellBalance = async (
     return {
       result: false,
       message:
-        'Balance found, but notional value is less than minimum notional value. Delete last buy price.',
+        'Balance found, but the notional value is less than the minimum notional value. Delete last buy price.',
       freeBalance,
       lockedBalance
     };
@@ -277,7 +278,7 @@ const getSellBalance = async (
 
   return {
     result: true,
-    message: 'Balance found',
+    message: 'Balance found.',
     freeBalance,
     lockedBalance
   };
@@ -311,7 +312,7 @@ const getBuyOrderQuantity = (logger, symbolInfo, balanceInfo, indicators) => {
   if (orderQuantity <= 0) {
     return {
       result: false,
-      message: 'Order quantity is less or equal than 0. Do not place an order.',
+      message: 'Order quantity is less or equal to 0. Do not place an order.',
       baseAssetPrice,
       orderQuantity,
       freeBalance
@@ -349,14 +350,14 @@ const getBuyOrderPrice = (logger, symbolInfo, orderQuantityInfo) => {
   ) {
     return {
       result: false,
-      message: `Notional value is less than minimum notional value. Do not place an order.`,
+      message: `Notional value is less than the minimum notional value. Do not place an order.`,
       orderPrice
     };
   }
 
   return {
     result: true,
-    message: `Calculated notional value`,
+    message: 'Calculated order price for buy.',
     orderPrice
   };
 };
@@ -422,7 +423,7 @@ const placeStopLossLimitOrder = async (
     return {
       result: false,
       message:
-        `Order quantity is less or equal than minimum quantity - ${symbolInfo.filterLotSize.minQty}. ` +
+        `Order quantity is less or equal than the minimum quantity - ${symbolInfo.filterLotSize.minQty}. ` +
         `Do not place an order.`,
       quantity
     };
@@ -432,7 +433,7 @@ const placeStopLossLimitOrder = async (
   if (quantity * price < +symbolInfo.filterMinNotional.minNotional) {
     return {
       result: false,
-      message: `Notional value is less than minimum notional value. Do not place an order.`,
+      message: `Notional value is less than the minimum notional value. Do not place an order.`,
       quantity,
       price,
       notionValue: quantity * price,
@@ -497,6 +498,46 @@ const getAccountInfo = async logger => {
 
   logger.info({ accountInfo }, 'Retrieved account information');
   return accountInfo;
+};
+
+/**
+ * Get exchange info from Binance
+ *
+ * @param {*} logger
+ */
+const getExchangeSymbols = async logger => {
+  const cachedExchangeInfo = await cache.hget(
+    'simple-stop-chaser-common',
+    'exchange-symbols'
+  );
+
+  if (_.isEmpty(cachedExchangeInfo) === false) {
+    logger.info(
+      { cachedExchangeInfo },
+      'Retrieved exchange information from cache'
+    );
+    return JSON.parse(cachedExchangeInfo);
+  }
+
+  const exchangeInfo = await binance.client.exchangeInfo();
+
+  const { symbols } = exchangeInfo;
+
+  const exchangeSymbols = symbols.reduce((acc, symbol) => {
+    if (symbol.symbol.includes('USDT')) {
+      acc.push(symbol.symbol);
+    }
+
+    return acc;
+  }, []);
+
+  await cache.hset(
+    'simple-stop-chaser-common',
+    'exchange-symbols',
+    JSON.stringify(exchangeSymbols)
+  );
+  logger.info({ exchangeSymbols }, 'Retrieved exchange symbols');
+  return exchangeSymbols;
 };
 
 /**
@@ -576,12 +617,12 @@ const determineAction = async (logger, indicators) => {
     action = 'buy';
     logger.info(
       { symbol, lowestClosed, close: lastCandle.close },
-      "Current price is less than lowest minimum price. Let's buy."
+      "Current price is less than the lowest minimum price. Let's buy it."
     );
   } else {
     logger.warn(
       { symbol, lowestClosed, close: lastCandle.close },
-      'Current price is higher than lowest minimum price. Do not buy.'
+      'Current price is higher than the lowest minimum price. Do not buy.'
     );
   }
 
@@ -725,11 +766,37 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
   );
 
   // 1-1. Get last buy price and make sure it is within minimum profit range.
-  const lastBuyPrice =
-    +(await cache.hget(
+
+  const cachedLastBuyPrice = await cache.hget(
+    'simple-stop-chaser-symbols',
+    `${symbol}-last-buy-price`
+  );
+  logger.debug({ cachedLastBuyPrice }, 'Last buy price');
+
+  if (
+    _.isEmpty(openOrders) &&
+    (!cachedLastBuyPrice || +cachedLastBuyPrice <= 0)
+  ) {
+    returnValue = {
+      result: false,
+      message:
+        'Open order cannot be found and cannot get last buy price from the cache. Wait.'
+    };
+    // Delete sell signal
+    cache.hdel(
       'simple-stop-chaser-symbols',
-      `${symbol}-last-buy-price`
-    )) || 0;
+      `${symbol}-chase-stop-loss-limit-order-sell-signal`
+    );
+    cache.hdel(
+      'simple-stop-chaser-symbols',
+      `${symbol}-chase-stop-loss-limit-order-sell-signal-result`
+    );
+
+    return returnValue;
+  }
+
+  const lastBuyPrice = +cachedLastBuyPrice;
+
   logger.info({ lastBuyPrice }, 'Retrieved last buy price');
 
   const lastCandleClose = +indicators.lastCandle.close;
@@ -755,29 +822,12 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
 
   // 2. If there is no open orders
   if (openOrders.length === 0) {
-    // 2-1. Compare last buy price is within minimum profit range.
-    //  If not cached for some reason, it will just place stop-loss-limit order.
-    if (lastCandleClose < calculatedLastBuyPrice) {
-      returnValue = {
-        result: false,
-        message: 'Current price is lower than minimum selling price. Wait.',
-        ...sellSignalInfo
-      };
-      cache.hset(
-        'simple-stop-chaser-symbols',
-        `${symbol}-chase-stop-loss-limit-order-sell-signal-result`,
-        JSON.stringify({ ...returnValue, timeUTC: moment().utc() })
-      );
-
-      return returnValue;
-    }
-
     logger.info(
-      { lastCandleClose, lastBuyPrice, calculatedLastBuyPrice },
-      `Last buy price is higher than expected price. Let's check balance.`
+      { openOrders, lastBuyPrice },
+      'There is no open orders but found the last buy price. Try to get a selling signal.'
     );
 
-    //  2-2. Get current balance of symbol.
+    //  2-1. Get current balance of symbol.
     //    If there is not enough balance, then remove last buy price and return.
     const balanceInfo = await getSellBalance(
       logger,
@@ -800,6 +850,28 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
     }
     logger.info({ balanceInfo }, 'getSellBalance result');
 
+    // 2-2. Compare last buy price is within minimum profit range.
+    //  If not cached for some reason, it will just place stop-loss-limit order.
+    if (lastCandleClose < calculatedLastBuyPrice) {
+      returnValue = {
+        result: false,
+        message: 'Current price is lower than the minimum selling price. Wait.',
+        ...sellSignalInfo
+      };
+      cache.hset(
+        'simple-stop-chaser-symbols',
+        `${symbol}-chase-stop-loss-limit-order-sell-signal-result`,
+        JSON.stringify({ ...returnValue, timeUTC: moment().utc() })
+      );
+
+      return returnValue;
+    }
+
+    logger.info(
+      { lastCandleClose, lastBuyPrice, calculatedLastBuyPrice },
+      `Last buy price is higher than the expected price. Let's check the balance.`
+    );
+
     //  2-3. Place stop loss order
     const stopLossLimitOrderInfo = await placeStopLossLimitOrder(
       logger,
@@ -821,13 +893,23 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
     return stopLossLimitOrderInfo;
   }
 
+  logger.info(
+    { openOrders, lastBuyPrice },
+    'There is an open order. Try to check profit.'
+  );
+
   const order = openOrders[0];
 
   // 3. If the order is not stop loss limit order, then do nothing
   if (order.type !== 'STOP_LOSS_LIMIT') {
+    // Delete sell signal
+    cache.hdel(
+      'simple-stop-chaser-symbols',
+      `${symbol}-chase-stop-loss-limit-order-open-order-result`
+    );
     return {
       result: false,
-      message: 'Order is not STOP_LOSS_LIMIT, Do nothing.'
+      message: 'Order is not STOP_LOSS_LIMIT. Do nothing.'
     };
   }
 
@@ -850,12 +932,13 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
   if (order.stopPrice < limitPrice) {
     //  4-1. Cancel order
     openOrderInfo.message =
-      'Stop price is lower than limit price. ' +
+      'The stop price is lower than the limit price. ' +
       'Cancel previous order and place new stop loss limit order.';
 
     await cancelOpenOrders(logger, symbol);
   } else {
-    openOrderInfo.message = 'Stop price is higher than limit price. Wait.';
+    openOrderInfo.message =
+      'The stop price is higher than the limit price. Wait.';
   }
   logger.info({ openOrderInfo });
 
@@ -874,6 +957,7 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
 module.exports = {
   getConfiguration,
   getAccountInfo,
+  getExchangeSymbols,
   flattenCandlesData,
   getIndicators,
   determineAction,

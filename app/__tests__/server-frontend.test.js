@@ -1,19 +1,33 @@
 /* eslint-disable global-require */
-const config = require('config');
-const { logger } = require('../helpers');
 
 describe('server-frontend', () => {
   let mockExpressStatic;
   let mockExpressUse;
   let mockExpressListen;
+  let mockExpressServerOn;
+
+  let mockConfigureWebSocket;
+  let mockConfigureLocalTunnel;
+
+  let config;
+
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
 
+    config = require('config');
+
+    jest.mock('ws');
     jest.mock('config');
+
+    mockConfigureWebSocket = jest.fn().mockResolvedValue(true);
+    mockConfigureLocalTunnel = jest.fn().mockResolvedValue(true);
 
     mockExpressStatic = jest.fn().mockResolvedValue(true);
     mockExpressUse = jest.fn().mockResolvedValue(true);
-    mockExpressListen = jest.fn().mockResolvedValue(true);
+
+    mockExpressListen = jest.fn().mockReturnValue({
+      on: mockExpressServerOn
+    });
 
     jest.mock('express', () => {
       const mockExpress = () => ({
@@ -36,11 +50,32 @@ describe('server-frontend', () => {
       }
     });
 
-    const { runFrontend } = require('../server-frontend');
-    runFrontend(logger);
+    jest.mock('../websocket/configure', () => ({
+      configureWebSocket: mockConfigureWebSocket
+    }));
+
+    jest.mock('../local-tunnel/configure', () => ({
+      configureLocalTunnel: mockConfigureLocalTunnel
+    }));
   });
 
-  it('triggers server.listen', () => {
-    expect(mockExpressListen).toHaveBeenCalledWith(80);
+  describe('check web server', () => {
+    beforeEach(() => {
+      const { logger } = require('../helpers');
+      const { runFrontend } = require('../server-frontend');
+      runFrontend(logger);
+    });
+
+    it('triggers server.listen', () => {
+      expect(mockExpressListen).toHaveBeenCalledWith(80);
+    });
+
+    it('triggers configureWebScoket', () => {
+      expect(mockConfigureWebSocket).toHaveBeenCalled();
+    });
+
+    it('triggers configureLocalTunnel', () => {
+      expect(mockConfigureLocalTunnel).toHaveBeenCalled();
+    });
   });
 });

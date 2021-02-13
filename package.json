@@ -34,6 +34,7 @@
     "cross-env": "^7.0.2",
     "express": "^4.17.1",
     "ioredis": "^4.19.2",
+    "localtunnel": "^2.0.1",
     "lodash": "^4.17.20",
     "lodash-webpack-plugin": "^0.11.5",
     "moment": "^2.29.1",

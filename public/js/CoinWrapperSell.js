@@ -9,41 +9,76 @@ class CoinWrapperSell extends React.Component {
       return null;
     }
 
-    if (symbolInfo.sell.lastBuyPrice) {
+    if (symbolInfo.sell.lastBuyPrice > 0) {
       return (
         <div className='coin-info-sub-wrapper'>
           <div className='coin-info-column coin-info-column-title'>
             <span className='coin-info-label'>Sell Signal</span>
-            <HightlightChange
-              className='coin-info-value'
-              title={symbolInfo.sell.updatedAt}>
-              {moment(symbolInfo.sell.updatedAt).format('HH:mm:ss')}
-            </HightlightChange>
+            {moment(symbolInfo.sell.updatedAt).isValid() ? (
+              <HightlightChange
+                className='coin-info-value'
+                title={symbolInfo.sell.updatedAt}>
+                {moment(symbolInfo.sell.updatedAt).format('HH:mm:ss')}
+              </HightlightChange>
+            ) : (
+              ''
+            )}
           </div>
-          <div className='coin-info-column coin-info-column-price'>
-            <span className='coin-info-label'>Last buy price:</span>
-            <HightlightChange className='coin-info-value'>
-              {symbolInfo.sell.lastBuyPrice.toFixed(4)}
-            </HightlightChange>
-          </div>
-          <div className='coin-info-column coin-info-column-price'>
-            <span className='coin-info-label'>Minimum selling price:</span>
-            <HightlightChange className='coin-info-value'>
-              {symbolInfo.sell.minimumSellingPrice.toFixed(4)}
-            </HightlightChange>
-          </div>
-          <div className='coin-info-column coin-info-column-price'>
-            <span className='coin-info-label'>Current price:</span>
-            <HightlightChange className='coin-info-value'>
-              {symbolInfo.sell.currentPrice.toFixed(4)}
-            </HightlightChange>
-          </div>
-          <div className='coin-info-column coin-info-column-price'>
-            <span className='coin-info-label'>Difference to sell:</span>
-            <HightlightChange className='coin-info-value'>
-              {symbolInfo.sell.difference.toFixed(2)}%
-            </HightlightChange>
-          </div>
+          {symbolInfo.sell.lastBuyPrice ? (
+            <div className='coin-info-column coin-info-column-price'>
+              <span className='coin-info-label'>Last buy price:</span>
+              <HightlightChange className='coin-info-value'>
+                {symbolInfo.sell.lastBuyPrice}
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
+          {symbolInfo.sell.currentPrice ? (
+            <div className='coin-info-column coin-info-column-price'>
+              <span className='coin-info-label'>Current price:</span>
+              <HightlightChange className='coin-info-value'>
+                {symbolInfo.sell.currentPrice.toFixed(4)}
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
+          {symbolInfo.sell.currentProfit ? (
+            <div className='coin-info-column coin-info-column-price'>
+              <span className='coin-info-label'>Profit/Loss:</span>
+              <HightlightChange className='coin-info-value'>
+                {symbolInfo.sell.currentProfit.toFixed(0)}{' '}
+                {symbolInfo.quoteAsset} (
+                {symbolInfo.sell.currentProfitPercentage.toFixed(2)}
+                %)
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
+          <div className='coin-info-column coin-info-column-price divider'></div>
+          {symbolInfo.sell.minimumSellingPrice ? (
+            <div className='coin-info-column coin-info-column-price'>
+              <span className='coin-info-label'>Minimum selling price:</span>
+              <HightlightChange className='coin-info-value'>
+                {symbolInfo.sell.minimumSellingPrice.toFixed(4)}
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
+          {symbolInfo.sell.difference ? (
+            <div className='coin-info-column coin-info-column-price'>
+              <span className='coin-info-label'>Difference to sell:</span>
+              <HightlightChange className='coin-info-value'>
+                {symbolInfo.sell.difference.toFixed(2)}%
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
+          <div className='coin-info-column coin-info-column-price divider'></div>
           <div className='coin-info-column coin-info-column-message'>
             <HightlightChange className='coin-info-message'>
               {symbolInfo.sell.processMessage}

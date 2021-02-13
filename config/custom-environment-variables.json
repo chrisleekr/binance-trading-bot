@@ -24,34 +24,14 @@
       "__name": "BINANCE_SLACK_ENABLED",
       "__format": "boolean"
     },
-    "webhookUrl": "BINANCE_SLACK_WEBHOOL_URL",
+    "webhookUrl": "BINANCE_SLACK_WEBHOOK_URL",
     "channel": "BINANCE_SLACK_CHANNEL",
     "username": "BINANCE_SLACK_USERNAME"
   },
+  "localTunnel": {
+    "subdomain": "BINANCE_LOCAL_TUNNEL_SUBDOMAIN"
+  },
   "jobs": {
-    "bbands": {
-      "enabled": {
-        "__name": "BINANCE_JOBS_BBANDS_ENABLED",
-        "__format": "boolean"
-      },
-      "cronTime": "BINANCE_JOBS_BBANDS_CRONTIME",
-      "symbol": "BINANCE_JOBS_BBANDS_SYMBOL",
-      "period": {
-        "__name": "BINANCE_JOBS_BBANDS_PERIOD",
-        "__format": "number"
-      },
-      "stddev": {
-        "__name": "BINANCE_JOBS_BBANDS_STDDEV",
-        "__format": "number"
-      },
-      "candles": {
-        "interval": "BINANCE_JOBS_BBANDS_CANDLES_INTERVAL",
-        "limit": {
-          "__name": "BINANCE_JOBS_BBANDS_CANDLES_LIMIT",
-          "__format": "number"
-        }
-      }
-    },
     "alive": {
       "enabled": {
         "__name": "BINANCE_JOBS_ALIVE_ENABLED",
@@ -60,61 +40,6 @@
       "cronTime": "BINANCE_JOBS_ALIVE_CRONTIME",
       "priceSymbol": "BINANCE_JOBS_ALIVE_PRICE_SYMBOL",
       "balanceSymbols": "BINANCE_JOBS_ALIVE_BALANCE_SYMBOLS"
-    },
-    "macdStopChaser": {
-      "enabled": {
-        "__name": "BINANCE_JOBS_MACD_STOP_CHASER_ENABLED",
-        "__format": "boolean"
-      },
-      "cronTime": "BINANCE_JOBS_MACD_STOP_CHASER_CRON_TIME",
-      "symbol": "BINANCE_JOBS_MACD_STOP_CHASER_SYMBOL",
-      "macd": {
-        "shortPeriod": {
-          "__name": "BINANCE_JOBS_MACD_STOP_CHASER_MACD_SHORT_PERIOD",
-          "__format": "number"
-        },
-        "longPeriod": {
-          "__name": "BINANCE_JOBS_MACD_STOP_CHASER_MACD_LONG_PERIOD",
-          "__format": "number"
-        },
-        "signalPeriod": {
-          "__name": "BINANCE_JOBS_MACD_STOP_CHASER_MACD_SIGNAL_PERIOD",
-          "__format": "number"
-        }
-      },
-      "min": {
-        "range": {
-          "min": {
-            "__name": "BINANCE_JOBS_MACD_STOP_CHASER_MIN_RANGE_MIN",
-            "__format": "number"
-          },
-          "max": {
-            "__name": "BINANCE_JOBS_MACD_STOP_CHASER_MIN_RANGE_MAX",
-            "__format": "number"
-          }
-        }
-      },
-      "candles": {
-        "interval": "BINANCE_JOBS_MACD_STOP_CHASER_CANDLES_INTERVAL",
-        "limit": {
-          "__name": "BINANCE_JOBS_MACD_STOP_CHASER_CANDLES_LIMIT",
-          "__format": "number"
-        }
-      },
-      "stopLossLimit": {
-        "lastBuyPercentage": {
-          "__name": "BINANCE_JOBS_MACD_STOP_CHASER_STOP_LOSS_LIMIT_LAST_BUY_PERCENTAGE",
-          "__format": "number"
-        },
-        "stopPercentage": {
-          "__name": "BINANCE_JOBS_MACD_STOP_CHASER_STOP_LOSS_LIMIT_STOP_PERCENTAGE",
-          "__format": "number"
-        },
-        "limitPercentage": {
-          "__name": "BINANCE_JOBS_MACD_STOP_CHASER_STOP_LOSS_LIMIT_LIMIT_PERCENTAGE",
-          "__format": "number"
-        }
-      }
     },
     "simpleStopChaser": {
       "enabled": {

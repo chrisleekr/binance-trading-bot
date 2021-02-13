@@ -14,11 +14,15 @@ class CoinWrapperOpenOrder extends React.Component {
         <div className='coin-info-sub-wrapper'>
           <div className='coin-info-column coin-info-column-title'>
             <span className='coin-info-label'>Open Order</span>
-            <HightlightChange
-              className='coin-info-value'
-              title={symbolInfo.openOrder.updatedAt}>
-              {moment(symbolInfo.openOrder.updatedAt).format('HH:mm:ss')}
-            </HightlightChange>
+            {moment(symbolInfo.openOrder.updatedAt).isValid() ? (
+              <HightlightChange
+                className='coin-info-value'
+                title={symbolInfo.openOrder.updatedAt}>
+                {moment(symbolInfo.openOrder.updatedAt).format('HH:mm:ss')}
+              </HightlightChange>
+            ) : (
+              ''
+            )}
           </div>
           <div className='coin-info-column coin-info-column-order'>
             <span className='coin-info-label'>Placed at:</span>
@@ -46,12 +50,40 @@ class CoinWrapperOpenOrder extends React.Component {
               {symbolInfo.openOrder.qty}
             </HightlightChange>
           </div>
-          <div className='coin-info-column coin-info-column-price'>
-            <span className='coin-info-label'>Current price:</span>
-            <HightlightChange className='coin-info-value'>
-              {symbolInfo.openOrder.currentPrice.toFixed(4)}
-            </HightlightChange>
-          </div>
+          <div className='coin-info-column coin-info-column-price divider'></div>
+          {symbolInfo.openOrder.lastBuyPrice ? (
+            <div className='coin-info-column coin-info-column-price'>
+              <span className='coin-info-label'>Last buy price:</span>
+              <HightlightChange className='coin-info-value'>
+                {symbolInfo.openOrder.lastBuyPrice.toFixed(4)}
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
+          {symbolInfo.openOrder.currentPrice ? (
+            <div className='coin-info-column coin-info-column-price'>
+              <span className='coin-info-label'>Current price:</span>
+              <HightlightChange className='coin-info-value'>
+                {symbolInfo.openOrder.currentPrice.toFixed(4)}
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
+          {symbolInfo.openOrder.minimumProfit ? (
+            <div className='coin-info-column coin-info-column-price'>
+              <span className='coin-info-label'>Minimum profit:</span>
+              <HightlightChange className='coin-info-value'>
+                {symbolInfo.openOrder.minimumProfit.toFixed(0)}{' '}
+                {symbolInfo.quoteAsset} (
+                {symbolInfo.openOrder.minimumProfitPercentage.toFixed(2)}%)
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
+          <div className='coin-info-column coin-info-column-price divider'></div>
           {symbolInfo.openOrder.stopPrice ? (
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>Stop Price:</span>
@@ -82,6 +114,7 @@ class CoinWrapperOpenOrder extends React.Component {
           ) : (
             ''
           )}
+          <div className='coin-info-column coin-info-column-price divider'></div>
           <div className='coin-info-column coin-info-column-message'>
             <HightlightChange className='coin-info-message'>
               {symbolInfo.openOrder.processMessage}

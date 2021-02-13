@@ -2,5 +2,12 @@
 /* eslint-disable no-restricted-globals */
 
 const config = {
-  webSocketUrl: `ws://${location.hostname}:8081`
+  webSocketUrl:
+    location.protocol === 'https:'
+      ? `wss://${location.hostname}${
+          location.port !== 80 ? ':' + location.port : ''
+        }`
+      : `ws://${location.hostname}${
+          location.port !== 80 ? ':' + location.port : ''
+        }`
 };

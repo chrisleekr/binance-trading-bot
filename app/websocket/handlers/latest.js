@@ -1,7 +1,7 @@
 const _ = require('lodash');
 const moment = require('moment');
 
-const { cache } = require('../helpers');
+const { cache } = require('../../helpers');
 
 const getSymbolFromKey = key => {
   const fragments = key.split('-');
@@ -32,7 +32,11 @@ const handleLatest = async (logger, ws, _payload) => {
   const common = {
     accountInfo: JSON.parse(cacheSimpleStopChaserCommon['account-info']),
     lastProcessed: JSON.parse(cacheSimpleStopChaserCommon['last-processed']),
-    configuration: JSON.parse(cacheSimpleStopChaserCommon.configuration)
+    configuration: JSON.parse(cacheSimpleStopChaserCommon.configuration),
+    exchangeSymbols: JSON.parse(
+      cacheSimpleStopChaserCommon['exchange-symbols']
+    ),
+    publicURL: cacheSimpleStopChaserCommon['local-tunnel-url']
   };
 
   _.forIn(cacheSimpleStopChaserSymbols, (value, key) => {
@@ -43,6 +47,7 @@ const handleLatest = async (logger, ws, _payload) => {
         baseAsset: null,
         quoteAsset: null,
         balance: {
+          total: 0,
           free: 0,
           locked: 0,
           updatedAt: null
@@ -59,6 +64,8 @@ const handleLatest = async (logger, ws, _payload) => {
           minimumSellingPrice: null,
           currentPrice: null,
           difference: null,
+          currentProfit: null,
+          currentProfitPercentage: null,
           processMessage: null,
           updatedAt: null
         },
@@ -73,6 +80,9 @@ const handleLatest = async (logger, ws, _payload) => {
           limitPercentage: null,
           limitPrice: null,
           difference: null,
+          lastBuyPrice: null,
+          minimumProfit: null,
+          minimumProfitPercentage: null,
           updatedAt: null
         }
       };
@@ -90,6 +100,7 @@ const handleLatest = async (logger, ws, _payload) => {
         if (b.asset === baseAsset) {
           finalStat.balance.free = +b.free;
           finalStat.balance.locked = +b.locked;
+          finalStat.balance.total = +b.free + +b.locked;
           finalStat.balance.updatedAt = moment(
             common.accountInfo.updateTime
           ).utc();
@@ -110,7 +121,6 @@ const handleLatest = async (logger, ws, _payload) => {
 
     if (newKey === 'chase-stop-loss-limit-order-sell-signal') {
       const sellSignal = JSON.parse(value);
-      finalStat.sell.lastBuyPrice = sellSignal.lastBuyPrice;
       finalStat.sell.minimumSellingPrice = sellSignal.calculatedLastBuyPrice;
       finalStat.sell.currentPrice = sellSignal.lastCandleClose;
       finalStat.sell.difference =
@@ -122,6 +132,12 @@ const handleLatest = async (logger, ws, _payload) => {
     if (newKey === 'chase-stop-loss-limit-order-sell-signal-result') {
       const sellSignalResult = JSON.parse(value);
       finalStat.sell.processMessage = sellSignalResult.message;
+    }
+
+    if (newKey === 'last-buy-price') {
+      finalStat.sell.lastBuyPrice = +value;
+
+      finalStat.openOrder.lastBuyPrice = +value;
     }
 
     let openOrders;
@@ -161,14 +177,49 @@ const handleLatest = async (logger, ws, _payload) => {
     stats.symbols[symbol] = finalStat;
   });
 
+  stats.symbols = _.map(stats.symbols, symbol => {
+    const newSymbol = symbol;
+    if (symbol.openOrder.lastBuyPrice > 0 && symbol.openOrder.stopPrice > 0) {
+      newSymbol.openOrder.minimumProfit =
+        (symbol.openOrder.stopPrice - symbol.openOrder.lastBuyPrice) *
+        symbol.openOrder.qty;
+      newSymbol.openOrder.minimumProfitPercentage =
+        (1 - symbol.openOrder.lastBuyPrice / symbol.openOrder.stopPrice) * 100;
+    }
+
+    if (symbol.sell.lastBuyPrice > 0 && symbol.sell.currentPrice > 0) {
+      newSymbol.sell.currentProfit =
+        (symbol.sell.currentPrice - symbol.sell.lastBuyPrice) *
+        symbol.balance.total;
+
+      newSymbol.sell.currentProfitPercentage =
+        (1 - symbol.sell.lastBuyPrice / symbol.sell.currentPrice) * 100;
+    }
+    return symbol;
+  });
+
   const configuration = JSON.parse(
     await cache.hget('simple-stop-chaser-common', `configuration`)
   );
 
-  logger.info({ stats, configuration }, 'stats');
+  logger.info(
+    {
+      account: common.accountInfo,
+      publicURL: common.publicURL,
+      stats,
+      configuration
+    },
+    'stats'
+  );
 
   ws.send(
-    JSON.stringify({ result: true, type: 'latest', stats, configuration })
+    JSON.stringify({
+      result: true,
+      type: 'latest',
+      configuration,
+      common,
+      stats
+    })
   );
 };
 

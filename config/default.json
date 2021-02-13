@@ -22,6 +22,9 @@
     "channel": "",
     "username": ""
   },
+  "localTunnel": {
+    "subdomain": "default"
+  },
   "jobs": {
     "alive": {
       "enabled": true,

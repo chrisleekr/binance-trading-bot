@@ -45,6 +45,9 @@ const execute = async logger => {
   );
 
   try {
+    // 0. Get exchange symbols
+    await helper.getExchangeSymbols(symbolLogger);
+
     // 0. Get account info
     const accountInfo = await helper.getAccountInfo(symbolLogger);
     cache.hset(
