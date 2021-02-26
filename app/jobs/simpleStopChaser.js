@@ -48,7 +48,7 @@ const execute = async logger => {
     // 0. Get exchange symbols
     await helper.getExchangeSymbols(symbolLogger);
 
-    // 0. Get account info
+    // 0. Get account 9info
     const accountInfo = await helper.getAccountInfo(symbolLogger);
     cache.hset(
       'simple-stop-chaser-common',

@@ -1,21 +1,22 @@
 const _ = require('lodash');
-const { cache } = require('../../helpers');
+const { mongo, cache } = require('../../helpers');
 
 const handleSettingUpdate = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start setting update');
 
   const { data } = payload;
 
-  const cachedConfigValue = await cache.hget(
+  const cachedConfiguration = await mongo.findOne(
+    logger,
     'simple-stop-chaser-common',
-    'configuration'
+    {
+      key: 'configuration'
+    }
   );
+  logger.info({ cachedConfiguration }, 'Configuration from MongoDB');
 
-  let cachedConfiguration = {};
-  try {
-    cachedConfiguration = JSON.parse(cachedConfigValue);
-  } catch (e) {
-    logger.warn({ cachedConfigValue }, 'Failed to parse configuration');
+  if (!cachedConfiguration) {
+    logger.warn({ cachedConfiguration }, 'Failed to parse configuration');
     return;
   }
 
@@ -23,6 +24,7 @@ const handleSettingUpdate = async (logger, ws, payload) => {
     ...cachedConfiguration,
     ..._.pick(data, [
       'symbols',
+      'supportFIATs',
       'candles',
       'maxPurchaseAmount',
       'stopLossLimit'
@@ -30,11 +32,16 @@ const handleSettingUpdate = async (logger, ws, payload) => {
   };
   logger.info({ newConfiguration }, 'New configuration');
 
-  await cache.hset(
+  await mongo.upsertOne(
+    logger,
     'simple-stop-chaser-common',
-    'configuration',
-    JSON.stringify(newConfiguration)
+    { key: 'configuration' },
+    {
+      key: 'configuration',
+      ...newConfiguration
+    }
   );
+  await cache.hdel('simple-stop-chaser-common', 'exchange-symbols');
 
   ws.send(
     JSON.stringify({

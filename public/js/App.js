@@ -12,6 +12,28 @@ class App extends React.Component {
       },
       configuration: {},
       exchangeSymbols: [],
+      // This list is from binance FIAT markets. Dosn't need to be dynamic.
+      exchangeFIATs: [
+        'USDT',
+        'BUSD',
+        'BRL',
+        'EUR',
+        'GBP',
+        'TRY',
+        'TUSD',
+        'USDC',
+        'PAX',
+        'AUD',
+        'BIDR',
+        'DAI',
+        'IDRT',
+        'RUB',
+        'ZAR',
+        'NGN',
+        'UAH',
+        'VAI',
+        'BVND'
+      ],
       symbols: [],
       accountInfo: {},
       publicURL: ''
@@ -111,6 +133,7 @@ class App extends React.Component {
   render() {
     const {
       exchangeSymbols,
+      exchangeFIATs,
       symbols,
       configuration,
       accountInfo,
@@ -137,6 +160,7 @@ class App extends React.Component {
           configuration={configuration}
           publicURL={publicURL}
           exchangeSymbols={exchangeSymbols}
+          exchangeFIATs={exchangeFIATs}
           sendWebSocket={this.sendWebSocket}
         />
         {_.isEmpty(configuration) === false ? (

@@ -1,5 +1,5 @@
-const config = require('config');
-const { logger, cache, slack } = require('../../helpers');
+const _ = require('lodash');
+const { logger, cache, slack, mongo } = require('../../helpers');
 const simpleStopChaserHelper = require('../simpleStopChaser/helper');
 const { execute: simpleStopChaserExecute } = require('../simpleStopChaser');
 
@@ -24,16 +24,20 @@ describe('simpleStopChaser', () => {
         }
       };
 
-      config.get = jest.fn(key => {
-        switch (key) {
-          case 'jobs.simpleStopChaser':
-            return jobConfig;
-          default:
-            return '';
+      cache.hset = jest.fn().mockResolvedValue(true);
+      mongo.findOne = jest.fn((_logger, collection, filter) => {
+        if (
+          collection === 'simple-stop-chaser-common' &&
+          _.isEqual(filter, { key: 'configuration' })
+        ) {
+          return jobConfig;
         }
+
+        return null;
       });
 
-      cache.hset = jest.fn().mockResolvedValue(true);
+      mongo.upsertOne = jest.fn().mockResolvedValue(true);
+      mongo.deleteOne = jest.fn().mockResolvedValue(true);
 
       simpleStopChaserHelper.getConfiguration = jest
         .fn()

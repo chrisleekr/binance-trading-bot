@@ -7,7 +7,8 @@ class Header extends React.Component {
       configuration,
       publicURL,
       sendWebSocket,
-      exchangeSymbols
+      exchangeSymbols,
+      exchangeFIATs
     } = this.props;
 
     return (
@@ -51,6 +52,7 @@ class Header extends React.Component {
             {_.isEmpty(configuration) === false ? (
               <SettingIcon
                 exchangeSymbols={exchangeSymbols}
+                exchangeFIATs={exchangeFIATs}
                 configuration={configuration}
                 sendWebSocket={sendWebSocket}
               />

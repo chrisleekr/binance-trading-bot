@@ -16,6 +16,11 @@
     "port": 6379,
     "password": ""
   },
+  "mongo": {
+    "host": "binance-mongo",
+    "port": 27017,
+    "database": "binance-bot"
+  },
   "slack": {
     "enabled": false,
     "webhookUrl": "",
@@ -30,23 +35,15 @@
       "enabled": true,
       "cronTime": "0 0 9 * * *"
     },
+    "cleanup": {
+      "enabled": true,
+      "cronTime": "0 0 9 * * *"
+    },
     "simpleStopChaser": {
       "enabled": false,
       "cronTime": "* * * * * *",
-      "symbols": [
-        "BTCUSDT",
-        "ETHUSDT",
-        "LTCUSDT",
-        "XRPUSDT",
-        "LINKUSDT",
-        "BNBUSDT",
-        "EOSUSDT",
-        "TRXUSDT",
-        "XLMUSDT",
-        "BCHUSDT",
-        "DOTUSDT",
-        "ADAUSDT"
-      ],
+      "symbols": ["BTCUSDT", "ETHUSDT"],
+      "supportFIATs": ["USDT"],
       "candles": {
         "interval": "1d",
         "limit": 5

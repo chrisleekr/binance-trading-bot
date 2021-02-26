@@ -21,8 +21,8 @@ services:
       # - BINANCE_MODE=live
       - BINANCE_JOBS_ALIVE_ENABLED=true
       - BINANCE_JOBS_SIMPLE_STOP_CHASER_ENABLED=true
-      - BINANCE_JOBS_SIMPLE_STOP_CHASER_SYMBOLS=["BTCUSDT", "ETHUSDT",
-        "LTCUSDT", "XRPUSDT", "BNBUSDT"]
+      - BINANCE_JOBS_SIMPLE_STOP_CHASER_SYMBOLS=["BTCUSDT", "ETHUSDT"]
+      - BINANCE_JOBS_SIMPLE_STOP_CHASER_SUPPORT_FIATS=["USDT"]
       - BINANCE_JOBS_SIMPLE_STOP_CHASER_STOP_LOSS_LIMIT_LAST_BUY_PERCENTAGE=1.01
       - BINANCE_JOBS_SIMPLE_STOP_CHASER_STOP_LOSS_LIMIT_STOP_PERCENTAGE=0.99
       - BINANCE_JOBS_SIMPLE_STOP_CHASER_STOP_LOSS_LIMIT_LIMIT_PERCENTAGE=0.98
@@ -45,9 +45,30 @@ services:
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
     command: redis-server /usr/local/etc/redis/redis.conf
 
+  binance-mongo:
+    container_name: binance-mongo
+    image: mongo:3.2.20-jessie
+    restart: unless-stopped
+    networks:
+      - internal
+    volumes:
+      - mongo_data:/data/db
+
+  binance-mongo-express:
+    container_name: binance-mongo-express
+    image: mongo-express:0.54
+    restart: unless-stopped
+    networks:
+      - internal
+    ports:
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_SERVER: binance-mongo
+
 networks:
   internal:
     driver: bridge
 
 volumes:
   redis_data:
+  mongo_data:

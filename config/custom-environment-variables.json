@@ -19,6 +19,14 @@
     },
     "password": "BINANCE_REDIS_PASSWORD"
   },
+  "mongo": {
+    "host": "BINANCE_MONGO_HOST",
+    "port": {
+      "__name": "BINANCE_MONGO_PORT",
+      "__format": "number"
+    },
+    "database": "BINANCE_MONGO_DATABASE"
+  },
   "slack": {
     "enabled": {
       "__name": "BINANCE_SLACK_ENABLED",
@@ -41,6 +49,13 @@
       "priceSymbol": "BINANCE_JOBS_ALIVE_PRICE_SYMBOL",
       "balanceSymbols": "BINANCE_JOBS_ALIVE_BALANCE_SYMBOLS"
     },
+    "cleanup": {
+      "enabled": {
+        "__name": "BINANCE_JOBS_CLEANUP_ENABLED",
+        "__format": "boolean"
+      },
+      "cronTime": "BINANCE_JOBS_CLEANUP_CRONTIME"
+    },
     "simpleStopChaser": {
       "enabled": {
         "__name": "BINANCE_JOBS_SIMPLE_STOP_CHASER_ENABLED",
@@ -49,6 +64,10 @@
       "cronTime": "BINANCE_JOBS_SIMPLE_STOP_CHASER_CRON_TIME",
       "symbols": {
         "__name": "BINANCE_JOBS_SIMPLE_STOP_CHASER_SYMBOLS",
+        "__format": "json"
+      },
+      "supportFIATs": {
+        "__name": "BINANCE_JOBS_SIMPLE_STOP_CHASER_SUPPORT_FIATS",
         "__format": "json"
       },
       "candles": {

@@ -10,6 +10,9 @@ you can make money or not.**
 **So use it at your own risk! I have no responsibility for any loss or hardship
 incurred directly or indirectly by using this code.**
 
+**Make sure you record last buy price in your note before you update any
+changes.**
+
 ## How it works
 
 ### Simple-Stop-Chaser
@@ -22,9 +25,15 @@ is effective than using MACD indicators.
 
 #### Note
 
-- This method is only tested and working with USDT pair in the FIAT market such
-  as BTCUSDT, ETHUSDT.
-- This method can monitor multiple symbols.
+- The bot can monitor multiple symbols.
+- The bot is only tested and working with USDT pair in the FIAT market such as
+  BTCUSDT, ETHUSDT. You can add more FIAT symbols like BUSD, AUD using
+  `BINANCE_JOBS_SIMPLE_STOP_CHASER_SUPPORT_FIATS` or update from the frontend.
+  However, I didn't test in the live server. So use with your own risk.
+- The bot is using MongoDB to provide a persistence database. However, it does
+  not use the latest MongoDB to support Raspberry Pi 32bit. Used MongoDB version
+  is 3.2.20, which is provided by
+  [apcheamitru](https://hub.docker.com/r/apcheamitru/arm32v7-mongo).
 
 #### Process
 
@@ -89,6 +98,12 @@ Or use the frontend to adjust configurations after launching the application.
    docker-compose -f docker-compose.server.yml up -d
    ```
 
+   or if using Raspberry Pi 32bit
+
+   ```bash
+   docker-compose -f docker-compose.rpi.yml up -d
+   ```
+
    [![asciicast](https://asciinema.org/a/371137.png)](https://asciinema.org/a/371137)
 
 4. Open browser `http://0.0.0.0:8080` to see the frontend
@@ -107,11 +122,11 @@ React.js based frontend communicating via Web Socket:
 
 | Frontend Mobile                                                                                                       | Setting                                                                                                               |
 | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot1](https://user-images.githubusercontent.com/5715919/107846451-fc4b9300-6e37-11eb-95cd-a24cc5cf746f.jpeg) | ![Screenshot2](https://user-images.githubusercontent.com/5715919/107846449-fa81cf80-6e37-11eb-9f4a-d35216997abb.jpeg) |
+| ![Screenshot1](https://user-images.githubusercontent.com/5715919/109266553-539c2b00-785c-11eb-9c2e-615ad922dd99.jpeg) | ![Screenshot2](https://user-images.githubusercontent.com/5715919/109266543-5139d100-785c-11eb-9076-b704178b3b1a.jpeg) |
 
 | Frontend Desktop                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot](https://user-images.githubusercontent.com/5715919/107846474-2a30d780-6e38-11eb-9abd-ebd1c2b60b66.png) |
+| ![Screenshot](https://user-images.githubusercontent.com/5715919/109266694-7cbcbb80-785c-11eb-862e-5afc83edbcfd.png) |
 
 ## Trades
 
@@ -133,8 +148,8 @@ React.js based frontend communicating via Web Socket:
 - [x] Remove unused methods - Bollinger Bands, MACD Stop Chaser
 - [x] Support a maximum purchase amount per symbol
 - [x] Develop backend to send cache values for frontend
-- [x] Develop simple frontend to see statistics
-- [x] Fix the issue with configuration
+- [x] Develop a simple frontend to see statistics
+- [x] Fix the issue with the configuration
 - [x] Update frontend to remove cache
 - [x] Fix the issue with rounding when places an order
 - [x] Fix the issue with persistent Redis
@@ -143,5 +158,10 @@ React.js based frontend communicating via Web Socket:
 - [x] Display account balances in the frontend
 - [x] Update frontend to change symbols in the configuration
 - [x] Update frontend to change last buy price per symbol
-- [ ] Secure frontend with the password to disable the configuration
-- [ ] Change to more persistence database
+- [x] Change to more persistence database - MongoDB - for configuration and last
+      buy price
+- [x] Display estimated value in the frontend
+- [x] Support other FIAT symbols such as BUSD, AUD
+- [ ] Override the lowest value in the frontend
+- [ ] Allow browser notification
+- [ ] Secure frontend with the password

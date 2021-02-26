@@ -1,30 +1,32 @@
 const moment = require('moment');
 const _ = require('lodash');
 const config = require('config');
-const { binance, slack, cache } = require('../../helpers');
+const { binance, slack, cache, mongo } = require('../../helpers');
 
 const getConfiguration = async logger => {
-  const configValue =
-    (await cache.hget('simple-stop-chaser-common', 'configuration')) || '';
+  const configValue = await mongo.findOne(logger, 'simple-stop-chaser-common', {
+    key: 'configuration'
+  });
 
   let simpleStopChaserConfig = {};
-  try {
-    simpleStopChaserConfig = JSON.parse(configValue);
-
-    logger.info(
-      { simpleStopChaserConfig },
-      'Successfully retrieved configuration from the cache.'
-    );
-  } catch (e) {
+  if (_.isEmpty(configValue) === false) {
+    logger.info('Found simple stop chaser config from MongoDB');
+    simpleStopChaserConfig = configValue;
+  } else {
     simpleStopChaserConfig = config.get('jobs.simpleStopChaser');
-    await cache.hset(
+    await mongo.upsertOne(
+      logger,
       'simple-stop-chaser-common',
-      'configuration',
-      JSON.stringify(simpleStopChaserConfig)
+      {
+        key: 'configuration'
+      },
+      {
+        key: 'configuration',
+        ...simpleStopChaserConfig
+      }
     );
     logger.info(
-      { simpleStopChaserConfig },
-      'Failed to parse cached configuration, getting from configuration.'
+      'Could not find configuration from MongoDB, retrieve from cache'
     );
   }
 
@@ -248,7 +250,9 @@ const getSellBalance = async (
   );
 
   if (quantity <= +symbolInfo.filterLotSize.minQty) {
-    await cache.hdel('simple-stop-chaser-symbols', `${symbol}-last-buy-price`);
+    await mongo.deleteOne(logger, 'simple-stop-chaser-symbols', {
+      key: `${symbol}-last-buy-price`
+    });
     return {
       result: false,
       message: 'Balance found, but not enough to sell. Delete last buy price.',
@@ -266,7 +270,9 @@ const getSellBalance = async (
 
   // Notional value = contract size (order quantity) * underlying price (order price)
   if (quantity * price < +symbolInfo.filterMinNotional.minNotional) {
-    await cache.hdel('simple-stop-chaser-symbols', `${symbol}-last-buy-price`);
+    await mongo.deleteOne(logger, 'simple-stop-chaser-symbols', {
+      key: `${symbol}-last-buy-price`
+    });
     return {
       result: false,
       message:
@@ -506,6 +512,8 @@ const getAccountInfo = async logger => {
  * @param {*} logger
  */
 const getExchangeSymbols = async logger => {
+  const simpleStopChaserConfig = await getConfiguration(logger);
+
   const cachedExchangeInfo = await cache.hget(
     'simple-stop-chaser-common',
     'exchange-symbols'
@@ -521,10 +529,16 @@ const getExchangeSymbols = async logger => {
 
   const exchangeInfo = await binance.client.exchangeInfo();
 
+  let { supportFIATs } = simpleStopChaserConfig;
+  if (!supportFIATs) {
+    supportFIATs = config.get('jobs.simpleStopChaser.supportFIATs');
+  }
+
+  logger.info({ supportFIATs }, 'Support FIATs');
   const { symbols } = exchangeInfo;
 
   const exchangeSymbols = symbols.reduce((acc, symbol) => {
-    if (symbol.symbol.includes('USDT')) {
+    if (new RegExp(supportFIATs.join('|')).test(symbol.symbol)) {
       acc.push(symbol.symbol);
     }
 
@@ -567,11 +581,6 @@ const flattenCandlesData = candles => {
  */
 const getIndicators = async (symbol, logger) => {
   const simpleStopChaserConfig = await getConfiguration(logger);
-
-  logger.info(
-    { simpleStopChaserConfig },
-    'Retrieved simpleStopChaser configuration'
-  );
 
   const candles = await binance.client.candles({
     symbol,
@@ -725,10 +734,17 @@ const placeBuyOrder = async (logger, indicators) => {
     `${symbol}-last-placed-order`,
     JSON.stringify({ ...orderParams, timeUTC: moment().utc() })
   );
-  await cache.hset(
+
+  await mongo.upsertOne(
+    logger,
     'simple-stop-chaser-symbols',
-    `${symbol}-last-buy-price`,
-    orderPriceInfo.orderPrice
+    {
+      key: `${symbol}-last-buy-price`
+    },
+    {
+      key: `${symbol}-last-buy-price`,
+      lastBuyPrice: orderPriceInfo.orderPrice
+    }
   );
 
   await slack.sendMessage(
@@ -766,11 +782,18 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
   );
 
   // 1-1. Get last buy price and make sure it is within minimum profit range.
-
-  const cachedLastBuyPrice = await cache.hget(
+  const lastBuyPriceDoc = await mongo.findOne(
+    logger,
     'simple-stop-chaser-symbols',
-    `${symbol}-last-buy-price`
+    {
+      key: `${symbol}-last-buy-price`
+    }
   );
+
+  const cachedLastBuyPrice =
+    lastBuyPriceDoc && lastBuyPriceDoc.lastBuyPrice
+      ? lastBuyPriceDoc.lastBuyPrice
+      : null;
   logger.debug({ cachedLastBuyPrice }, 'Last buy price');
 
   if (

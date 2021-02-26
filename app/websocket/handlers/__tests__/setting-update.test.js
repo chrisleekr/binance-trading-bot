@@ -1,10 +1,13 @@
 /* eslint-disable global-require */
+const _ = require('lodash');
 
 describe('setting-update.test.js', () => {
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
   let cacheMock;
+  let mongoMock;
+  let mockLogger;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -18,16 +21,24 @@ describe('setting-update.test.js', () => {
 
   describe('when configuration is invalid json', () => {
     beforeEach(async () => {
-      const { cache, logger } = require('../../../helpers');
+      const { mongo, cache, logger } = require('../../../helpers');
+      mockLogger = logger;
       cacheMock = cache;
+      mongoMock = mongo;
 
-      cacheMock.hset = jest.fn().mockResolvedValue(true);
-      cacheMock.hget = jest.fn().mockImplementation((key, field) => {
-        if (key === 'simple-stop-chaser-common' && field === 'configuration') {
+      cacheMock.hdel = jest.fn().mockResolvedValue(true);
+      mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
+      mongoMock.findOne = jest
+        .fn()
+        .mockImplementation((_logger, collection, filter) => {
+          if (
+            collection === 'simple-stop-chaser-common' &&
+            _.isEqual(filter, { key: 'configuration' })
+          ) {
+            return '';
+          }
           return '';
-        }
-        return '';
-      });
+        });
 
       const { handleSettingUpdate } = require('../setting-update');
       handleSettingUpdate(logger, mockWebSocketServer, {
@@ -35,53 +46,69 @@ describe('setting-update.test.js', () => {
       });
     });
 
-    it('triggers cache.hget', () => {
-      expect(cacheMock.hget).toHaveBeenCalledWith(
+    it('triggers mongo.findOne', () => {
+      expect(mongoMock.findOne).toHaveBeenCalledWith(
+        mockLogger,
         'simple-stop-chaser-common',
-        'configuration'
+        { key: 'configuration' }
       );
     });
 
-    it('does not trigger cache.hset', () => {
-      expect(cacheMock.hset).not.toHaveBeenCalled();
+    it('does not trigger mongo.upsertOne', () => {
+      expect(mongoMock.upsertOne).not.toHaveBeenCalled();
     });
 
     it('does not trigger ws.send', () => {
       expect(mockWebSocketServerWebSocketSend).not.toHaveBeenCalled();
     });
+
+    it('does not trigger cache.hdel', () => {
+      expect(cacheMock.hdel).not.toHaveBeenCalled();
+    });
   });
 
   describe('when configuration is valid', () => {
     beforeEach(async () => {
-      const { cache, logger } = require('../../../helpers');
+      const { mongo, logger, cache } = require('../../../helpers');
+      mockLogger = logger;
       cacheMock = cache;
+      mongoMock = mongo;
 
-      cacheMock.hset = jest.fn().mockResolvedValue(true);
-      cacheMock.hget = jest.fn().mockImplementation((key, field) => {
-        if (key === 'simple-stop-chaser-common' && field === 'configuration') {
-          return JSON.stringify({
-            enabled: true,
-            symbols: ['BTCUSDT'],
-            candles: {
-              interval: '1d',
-              limit: '10'
-            },
-            maxPurchaseAmount: 100,
-            stopLossLimit: {
-              lastbuyPercentage: 1.06,
-              stopPercentage: 0.99,
-              limitPercentage: 0.98
-            }
-          });
-        }
-        return '';
-      });
+      cacheMock.hdel = jest.fn().mockResolvedValue(true);
+
+      mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
+      mongoMock.findOne = jest
+        .fn()
+        .mockImplementation((_logger, collection, filter) => {
+          if (
+            collection === 'simple-stop-chaser-common' &&
+            _.isEqual(filter, { key: 'configuration' })
+          ) {
+            return {
+              enabled: true,
+              symbols: ['BTCUSDT'],
+              supportFIATs: ['USDT'],
+              candles: {
+                interval: '1d',
+                limit: '10'
+              },
+              maxPurchaseAmount: 100,
+              stopLossLimit: {
+                lastbuyPercentage: 1.06,
+                stopPercentage: 0.99,
+                limitPercentage: 0.98
+              }
+            };
+          }
+          return '';
+        });
 
       const { handleSettingUpdate } = require('../setting-update');
       await handleSettingUpdate(logger, mockWebSocketServer, {
         data: {
           enabeld: false,
           symbols: ['BTCUSDT', 'LTCUSDT'],
+          supportFIATs: ['USDT', 'BUSD'],
           candles: {
             interval: '1h',
             limit: '100'
@@ -96,20 +123,24 @@ describe('setting-update.test.js', () => {
       });
     });
 
-    it('triggers cache.hget', () => {
-      expect(cacheMock.hget).toHaveBeenCalledWith(
+    it('triggers mongo.findOne', () => {
+      expect(mongoMock.findOne).toHaveBeenCalledWith(
+        mockLogger,
         'simple-stop-chaser-common',
-        'configuration'
+        { key: 'configuration' }
       );
     });
 
-    it('triggers cache.hset', () => {
-      expect(cacheMock.hset).toHaveBeenCalledWith(
+    it('triggers mongo.upsertOne', () => {
+      expect(mongoMock.upsertOne).toHaveBeenCalledWith(
+        mockLogger,
         'simple-stop-chaser-common',
-        'configuration',
-        JSON.stringify({
+        { key: 'configuration' },
+        {
+          key: 'configuration',
           enabled: true,
           symbols: ['BTCUSDT', 'LTCUSDT'],
+          supportFIATs: ['USDT', 'BUSD'],
           candles: {
             interval: '1h',
             limit: '100'
@@ -120,7 +151,14 @@ describe('setting-update.test.js', () => {
             stopPercentage: 0.98,
             limitPercentage: 0.97
           }
-        })
+        }
+      );
+    });
+
+    it('triggersd cache.hdel', () => {
+      expect(cacheMock.hdel).toHaveBeenCalledWith(
+        'simple-stop-chaser-common',
+        'exchange-symbols'
       );
     });
 
@@ -132,6 +170,7 @@ describe('setting-update.test.js', () => {
           newConfiguration: {
             enabled: true,
             symbols: ['BTCUSDT', 'LTCUSDT'],
+            supportFIATs: ['USDT', 'BUSD'],
             candles: { interval: '1h', limit: '100' },
             maxPurchaseAmount: 150,
             stopLossLimit: {
