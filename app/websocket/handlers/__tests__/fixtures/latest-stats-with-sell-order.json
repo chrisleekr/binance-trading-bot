@@ -3,6 +3,7 @@
   "type": "latest",
   "configuration": { "enabled": true },
   "common": {
+    "configuration": { "enabled": true },
     "accountInfo": {
       "makerCommission": 0,
       "takerCommission": 0,
@@ -28,18 +29,6 @@
       "timeUTC": "2021-02-04T22:37:39.002Z",
       "symbol": "BTCUSDT"
     },
-    "configuration": {
-      "enabled": true,
-      "cronTime": "* * * * * *",
-      "symbols": ["BTCUSDT", "ETHUSDT", "LTCUSDT", "BNBUSDT"],
-      "candles": { "interval": "1d", "limit": 6 },
-      "maxPurchaseAmount": 104,
-      "stopLossLimit": {
-        "lastBuyPercentage": 2.01,
-        "stopPercentage": 1.99,
-        "limitPercentage": 1.98
-      }
-    },
     "exchangeSymbols": [
       "BNBUSDT",
       "BTCUSDT",
@@ -55,10 +44,12 @@
         "symbol": "ETHUSDT",
         "baseAsset": "ETH",
         "quoteAsset": "USDT",
+        "precision": 2,
         "balance": {
           "total": 95.7573,
           "free": 0.09648,
           "locked": 95.66082,
+          "estimatedValue": 1062081.559647,
           "updatedAt": "2021-02-04T22:29:05.287Z"
         },
         "buy": {
@@ -99,10 +90,12 @@
         "symbol": "LTCUSDT",
         "baseAsset": "LTC",
         "quoteAsset": "USDT",
+        "precision": 2,
         "balance": {
           "total": 500,
           "free": 0.5,
           "locked": 499.5,
+          "estimatedValue": 100000,
           "updatedAt": "2021-02-04T22:29:05.287Z"
         },
         "buy": {
@@ -143,7 +136,14 @@
         "symbol": "BNBUSDT",
         "baseAsset": "BNB",
         "quoteAsset": "USDT",
-        "balance": { "total": 0, "free": 0, "locked": 0, "updatedAt": null },
+        "precision": 4,
+        "balance": {
+          "total": 0,
+          "free": 0,
+          "locked": 0,
+          "estimatedValue": 0,
+          "updatedAt": null
+        },
         "buy": {
           "action": "wait",
           "currentPrice": 55.4394,
@@ -182,10 +182,12 @@
         "symbol": "BTCUSDT",
         "baseAsset": "BTC",
         "quoteAsset": "USDT",
+        "precision": 2,
         "balance": {
           "total": 0.7950149999999999,
           "free": 0.000898,
           "locked": 0.794117,
+          "estimatedValue": 34464.973520249994,
           "updatedAt": "2021-02-04T22:29:05.287Z"
         },
         "buy": {

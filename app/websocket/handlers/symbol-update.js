@@ -1,4 +1,4 @@
-const { cache } = require('../../helpers');
+const { mongo } = require('../../helpers');
 
 const handleSymbolUpdate = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol update');
@@ -10,10 +10,14 @@ const handleSymbolUpdate = async (logger, ws, payload) => {
 
   const { lastBuyPrice } = symbolInfo.sell;
 
-  await cache.hset(
+  await mongo.upsertOne(
+    logger,
     'simple-stop-chaser-symbols',
-    `${symbol}-last-buy-price`,
-    lastBuyPrice
+    { key: `${symbol}-last-buy-price` },
+    {
+      key: `${symbol}-last-buy-price`,
+      lastBuyPrice
+    }
   );
 
   ws.send(JSON.stringify({ result: true, type: 'symbol-update-result' }));

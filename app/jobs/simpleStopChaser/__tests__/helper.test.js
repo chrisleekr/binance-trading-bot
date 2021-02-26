@@ -1,7 +1,7 @@
 /* eslint-disable global-require */
 const _ = require('lodash');
 const config = require('config');
-const { binance, logger, cache, slack } = require('../../../helpers');
+const { binance, logger, cache, slack, mongo } = require('../../../helpers');
 
 const simpleStopChaserHelper = require('../helper');
 
@@ -16,7 +16,7 @@ describe('helper', () => {
 
   describe('getConfiguration', () => {
     beforeEach(() => {
-      cache.hset = jest.fn().mockResolvedValue(true);
+      mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
       config.get = jest.fn(key => {
         if (key === 'jobs.simpleStopChaser') {
@@ -30,15 +30,16 @@ describe('helper', () => {
 
     describe('when cache value is not found', () => {
       beforeEach(async () => {
-        cache.hget = jest.fn().mockResolvedValue(undefined);
+        mongo.findOne = jest.fn().mockResolvedValue(undefined);
 
         result = await simpleStopChaserHelper.getConfiguration(logger);
       });
 
-      it('triggers cache.hget', () => {
-        expect(cache.hget).toHaveBeenCalledWith(
+      it('triggers mongo.findOne', () => {
+        expect(mongo.findOne).toHaveBeenCalledWith(
+          logger,
           'simple-stop-chaser-common',
-          'configuration'
+          { key: 'configuration' }
         );
       });
 
@@ -46,11 +47,12 @@ describe('helper', () => {
         expect(config.get).toHaveBeenCalledWith('jobs.simpleStopChaser');
       });
 
-      it('triggers cache.hset', () => {
-        expect(cache.hset).toHaveBeenCalledWith(
+      it('triggers mongo.upsertOne', () => {
+        expect(mongo.upsertOne).toHaveBeenCalledWith(
+          logger,
           'simple-stop-chaser-common',
-          'configuration',
-          JSON.stringify({ enabled: true })
+          { key: 'configuration' },
+          { key: 'configuration', enabled: true }
         );
       });
 
@@ -61,27 +63,17 @@ describe('helper', () => {
 
     describe('when cache value is found, but it is null', () => {
       beforeEach(async () => {
-        cache.hget = jest.fn().mockResolvedValue(null);
+        mongo.findOne = jest.fn().mockResolvedValue(null);
 
         result = await simpleStopChaserHelper.getConfiguration(logger);
       });
 
-      it('triggers cache.hget', () => {
-        expect(cache.hget).toHaveBeenCalledWith(
+      it('triggers mongo.upsertOne', () => {
+        expect(mongo.upsertOne).toHaveBeenCalledWith(
+          logger,
           'simple-stop-chaser-common',
-          'configuration'
-        );
-      });
-
-      it('triggers config.get', () => {
-        expect(config.get).toHaveBeenCalledWith('jobs.simpleStopChaser');
-      });
-
-      it('triggers cache.hset', () => {
-        expect(cache.hset).toHaveBeenCalledWith(
-          'simple-stop-chaser-common',
-          'configuration',
-          JSON.stringify({ enabled: true })
+          { key: 'configuration' },
+          { key: 'configuration', enabled: true }
         );
       });
 
@@ -90,62 +82,22 @@ describe('helper', () => {
       });
     });
 
-    describe('when cache value is found, but it is invalid json', () => {
+    describe('when cache value is found', () => {
       beforeEach(async () => {
-        cache.hget = jest.fn().mockResolvedValue('something');
+        mongo.findOne = jest.fn().mockResolvedValue({
+          enabled: true,
+          some: 'value'
+        });
 
         result = await simpleStopChaserHelper.getConfiguration(logger);
-      });
-
-      it('triggers cache.hget', () => {
-        expect(cache.hget).toHaveBeenCalledWith(
-          'simple-stop-chaser-common',
-          'configuration'
-        );
-      });
-
-      it('triggers config.get', () => {
-        expect(config.get).toHaveBeenCalledWith('jobs.simpleStopChaser');
-      });
-
-      it('triggers cache.hset', () => {
-        expect(cache.hset).toHaveBeenCalledWith(
-          'simple-stop-chaser-common',
-          'configuration',
-          JSON.stringify({ enabled: true })
-        );
-      });
-
-      it('returns expected value', () => {
-        expect(result).toStrictEqual({ enabled: true });
-      });
-    });
-
-    describe('when cache value is found, and valid', () => {
-      beforeEach(async () => {
-        cache.hget = jest.fn().mockResolvedValue(
-          JSON.stringify({
-            enabled: true,
-            some: 'value'
-          })
-        );
-
-        result = await simpleStopChaserHelper.getConfiguration(logger);
-      });
-
-      it('triggers cache.hget', () => {
-        expect(cache.hget).toHaveBeenCalledWith(
-          'simple-stop-chaser-common',
-          'configuration'
-        );
       });
 
       it('does not triggers config.get', () => {
         expect(config.get).not.toHaveBeenCalled();
       });
 
-      it('does not triggers cache.hset', () => {
-        expect(cache.hset).not.toHaveBeenCalled();
+      it('does not triggers mongo.upsertOne', () => {
+        expect(mongo.upsertOne).not.toHaveBeenCalled();
       });
 
       it('returns expected value', () => {
@@ -426,7 +378,7 @@ describe('helper', () => {
     };
 
     beforeEach(() => {
-      cache.hdel = jest.fn().mockResolvedValue(true);
+      mongo.deleteOne = jest.fn().mockResolvedValue(true);
     });
 
     describe('when cannot find balance', () => {
@@ -485,10 +437,11 @@ describe('helper', () => {
             );
           });
 
-          it('triggers cache.hdel', () => {
-            expect(cache.hdel).toHaveBeenCalledWith(
+          it('triggers mongo.deleteOne', () => {
+            expect(mongo.deleteOne).toHaveBeenCalledWith(
+              logger,
               'simple-stop-chaser-symbols',
-              'BTCUSDT-last-buy-price'
+              { key: 'BTCUSDT-last-buy-price' }
             );
           });
 
@@ -529,10 +482,11 @@ describe('helper', () => {
             );
           });
 
-          it('triggers cache.hdel', () => {
-            expect(cache.hdel).toHaveBeenCalledWith(
+          it('triggers mongo.deleteOne', () => {
+            expect(mongo.deleteOne).toHaveBeenCalledWith(
+              logger,
               'simple-stop-chaser-symbols',
-              'BTCUSDT-last-buy-price'
+              { key: 'BTCUSDT-last-buy-price' }
             );
           });
 
@@ -573,8 +527,8 @@ describe('helper', () => {
             );
           });
 
-          it('does not trigger cache.hdel', () => {
-            expect(cache.hdel).not.toHaveBeenCalled();
+          it('does not trigger mongo.deleteOne', () => {
+            expect(mongo.deleteOne).not.toHaveBeenCalled();
           });
 
           it('returns expected value', () => {
@@ -615,10 +569,11 @@ describe('helper', () => {
             );
           });
 
-          it('triggers cache.hdel', () => {
-            expect(cache.hdel).toHaveBeenCalledWith(
+          it('triggers mongo.deleteOne', () => {
+            expect(mongo.deleteOne).toHaveBeenCalledWith(
+              logger,
               'simple-stop-chaser-symbols',
-              'BTCUSDT-last-buy-price'
+              { key: 'BTCUSDT-last-buy-price' }
             );
           });
 
@@ -659,10 +614,11 @@ describe('helper', () => {
             );
           });
 
-          it('triggers cache.hdel', () => {
-            expect(cache.hdel).toHaveBeenCalledWith(
+          it('triggers mongo.deleteOne', () => {
+            expect(mongo.deleteOne).toHaveBeenCalledWith(
+              logger,
               'simple-stop-chaser-symbols',
-              'BTCUSDT-last-buy-price'
+              { key: 'BTCUSDT-last-buy-price' }
             );
           });
 
@@ -703,8 +659,8 @@ describe('helper', () => {
             );
           });
 
-          it('does not trigger cache.hdel', () => {
-            expect(cache.hdel).not.toHaveBeenCalled();
+          it('does not trigger mongo.deleteOne', () => {
+            expect(mongo.deleteOne).not.toHaveBeenCalled();
           });
 
           it('returns expected value', () => {
@@ -742,8 +698,8 @@ describe('helper', () => {
           );
         });
 
-        it('does not trigger cache.hdel', () => {
-          expect(cache.hdel).not.toHaveBeenCalled();
+        it('does not trigger mongo.deleteOne', () => {
+          expect(mongo.deleteOne).not.toHaveBeenCalled();
         });
 
         it('returns expected value', () => {
@@ -1042,6 +998,13 @@ describe('helper', () => {
     beforeEach(() => {
       cache.hset = jest.fn().mockResolvedValue(true);
 
+      config.get = jest.fn(key => {
+        if (key === 'jobs.simpleStopChaser.supportFIATs') {
+          return ['USDT'];
+        }
+        return '';
+      });
+
       binance.client.exchangeInfo = jest.fn().mockResolvedValue({
         some: 'value',
         symbols: [
@@ -1059,12 +1022,39 @@ describe('helper', () => {
           },
           {
             symbol: 'BTCBUSD'
+          },
+          {
+            symbol: 'BTCAUD'
           }
         ]
       });
+
+      mongo.findOne = jest.fn((_logger, collection, filter) => {
+        if (
+          collection === 'simple-stop-chaser-common' &&
+          _.isEqual(filter, { key: 'configuration' })
+        ) {
+          return {
+            enabled: false,
+            cronTime: '* * * * * *',
+            symbols: ['BTCUSDT'],
+            supportFIATs: ['USDT', 'BUSD'],
+            candles: {
+              interval: '4h',
+              limit: 100
+            },
+            stopLossLimit: {
+              lastBuyPercentage: 1.06,
+              stopPercentage: 0.97,
+              limitPercentage: 0.96
+            }
+          };
+        }
+        return null;
+      });
     });
 
-    describe('when cache is null', () => {
+    describe('when cache is null and have two FIATs in the configuration', () => {
       beforeEach(async () => {
         cache.hget = jest.fn(() => {
           return null;
@@ -1081,19 +1071,54 @@ describe('helper', () => {
         expect(cache.hset).toHaveBeenCalledWith(
           'simple-stop-chaser-common',
           'exchange-symbols',
-          JSON.stringify(['BNBUSDT', 'BTCUSDT', 'BNBUPUSDT'])
+          JSON.stringify([
+            'BNBBUSD',
+            'BNBUSDT',
+            'BTCUSDT',
+            'BNBUPUSDT',
+            'BTCBUSD'
+          ])
         );
       });
 
       it('returns expected value', () => {
-        expect(result).toStrictEqual(['BNBUSDT', 'BTCUSDT', 'BNBUPUSDT']);
+        expect(result).toStrictEqual([
+          'BNBBUSD',
+          'BNBUSDT',
+          'BTCUSDT',
+          'BNBUPUSDT',
+          'BTCBUSD'
+        ]);
       });
     });
 
-    describe('when cache is empty string', () => {
+    describe('when cache is empty string, but no supportFIATs not in the configuration', () => {
       beforeEach(async () => {
         cache.hget = jest.fn(() => {
           return '';
+        });
+
+        mongo.findOne = jest.fn((_logger, collection, filter) => {
+          if (
+            collection === 'simple-stop-chaser-common' &&
+            _.isEqual(filter, { key: 'configuration' })
+          ) {
+            return {
+              enabled: false,
+              cronTime: '* * * * * *',
+              symbols: ['BTCUSDT'],
+              candles: {
+                interval: '4h',
+                limit: 100
+              },
+              stopLossLimit: {
+                lastBuyPercentage: 1.06,
+                stopPercentage: 0.97,
+                limitPercentage: 0.96
+              }
+            };
+          }
+          return null;
         });
 
         result = await simpleStopChaserHelper.getExchangeSymbols(logger);
@@ -1141,26 +1166,27 @@ describe('helper', () => {
     const orgExchangeInfo = require('./fixtures/binance-exchange-info.json');
 
     beforeEach(async () => {
-      config.get = jest.fn(key => {
-        switch (key) {
-          case 'jobs.simpleStopChaser':
-            return {
-              enabled: false,
-              cronTime: '* * * * * *',
-              symbols: ['BTCUSDT'],
-              candles: {
-                interval: '4h',
-                limit: 100
-              },
-              stopLossLimit: {
-                lastBuyPercentage: 1.06,
-                stopPercentage: 0.97,
-                limitPercentage: 0.96
-              }
-            };
-          default:
-            return '';
+      mongo.findOne = jest.fn((_logger, collection, filter) => {
+        if (
+          collection === 'simple-stop-chaser-common' &&
+          _.isEqual(filter, { key: 'configuration' })
+        ) {
+          return {
+            enabled: false,
+            cronTime: '* * * * * *',
+            symbols: ['BTCUSDT'],
+            candles: {
+              interval: '4h',
+              limit: 100
+            },
+            stopLossLimit: {
+              lastBuyPercentage: 1.06,
+              stopPercentage: 0.97,
+              limitPercentage: 0.96
+            }
+          };
         }
+        return null;
       });
 
       binance.client.candles = jest.fn().mockResolvedValue(orgCandles);
@@ -1225,16 +1251,30 @@ describe('helper', () => {
     const orgExchangeInfo = require('./fixtures/binance-exchange-info.json');
 
     beforeEach(() => {
-      config.get = jest.fn(key => {
-        switch (key) {
-          case 'jobs.simpleStopChaser.maxPurchaseAmount':
-            return 100;
-          default:
-            return '';
+      mongo.findOne = jest.fn((_logger, collection, filter) => {
+        if (
+          collection === 'simple-stop-chaser-common' &&
+          _.isEqual(filter, { key: 'configuration' })
+        ) {
+          return {
+            enabled: false,
+            cronTime: '* * * * * *',
+            symbols: ['BTCUSDT'],
+            candles: {
+              interval: '4h',
+              limit: 100
+            },
+            stopLossLimit: {
+              lastBuyPercentage: 1.06,
+              stopPercentage: 0.97,
+              limitPercentage: 0.96
+            }
+          };
         }
+        return null;
       });
 
-      cache.hset = jest.fn().mockResolvedValue(true);
+      mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
       binance.client.order = jest.fn().mockResolvedValue(true);
 
@@ -1355,11 +1395,12 @@ describe('helper', () => {
         });
       });
 
-      it('triggers cache.hset', () => {
-        expect(cache.hset).toHaveBeenCalledWith(
+      it('triggers mongo.upsertOne', () => {
+        expect(mongo.upsertOne).toHaveBeenCalledWith(
+          logger,
           'simple-stop-chaser-symbols',
-          'BTCUSDT-last-buy-price',
-          11764.74
+          { key: 'BTCUSDT-last-buy-price' },
+          { key: 'BTCUSDT-last-buy-price', lastBuyPrice: 11764.74 }
         );
       });
 
@@ -1374,25 +1415,41 @@ describe('helper', () => {
     const orgIndicators = require('./fixtures/helper-indicators.json');
     const orgExchangeInfo = require('./fixtures/binance-exchange-info.json');
 
-    let stopLossLimit;
+    let configuration;
 
     beforeEach(() => {
-      stopLossLimit = {
-        lastBuyPercentage: 1.03,
-        stopPercentage: 0.99,
-        limitPercentage: 0.98
+      configuration = {
+        enabled: false,
+        cronTime: '* * * * * *',
+        symbols: ['BTCUSDT'],
+        candles: {
+          interval: '4h',
+          limit: 100
+        },
+        stopLossLimit: {
+          lastBuyPercentage: 1.03,
+          stopPercentage: 0.99,
+          limitPercentage: 0.98
+        }
       };
 
-      config.get = jest.fn(key => {
-        switch (key) {
-          case 'jobs.simpleStopChaser':
-            return {
-              stopLossLimit
-            };
-          default:
-            return '';
+      mongo.findOne = jest.fn((_logger, collection, filter) => {
+        if (
+          collection === 'simple-stop-chaser-common' &&
+          _.isEqual(filter, { key: 'configuration' })
+        ) {
+          return configuration;
         }
+
+        if (
+          collection === 'simple-stop-chaser-symbols' &&
+          _.isEqual(filter, { key: 'BTCUSDT-last-buy-price' })
+        ) {
+          return null;
+        }
+        return null;
       });
+
       binance.client.cancelOpenOrders = jest.fn().mockResolvedValue(true);
 
       binance.client.exchangeInfo = jest
@@ -1423,15 +1480,21 @@ describe('helper', () => {
 
         describe('when cache value is undefined', () => {
           beforeEach(async () => {
-            cache.hget = jest.fn().mockImplementation((key, field) => {
+            mongo.findOne = jest.fn((_logger, collection, filter) => {
               if (
-                key === 'simple-stop-chaser-symbols' &&
-                field === 'BTCUSDT-last-buy-price'
+                collection === 'simple-stop-chaser-common' &&
+                _.isEqual(filter, { key: 'configuration' })
+              ) {
+                return configuration;
+              }
+
+              if (
+                collection === 'simple-stop-chaser-symbols' &&
+                _.isEqual(filter, { key: 'BTCUSDT-last-buy-price' })
               ) {
                 return undefined;
               }
-
-              return '';
+              return null;
             });
 
             const indicators = _.cloneDeep(orgIndicators);
@@ -1457,15 +1520,21 @@ describe('helper', () => {
 
         describe('when cache value is null', () => {
           beforeEach(async () => {
-            cache.hget = jest.fn().mockImplementation((key, field) => {
+            mongo.findOne = jest.fn((_logger, collection, filter) => {
               if (
-                key === 'simple-stop-chaser-symbols' &&
-                field === 'BTCUSDT-last-buy-price'
+                collection === 'simple-stop-chaser-common' &&
+                _.isEqual(filter, { key: 'configuration' })
+              ) {
+                return configuration;
+              }
+
+              if (
+                collection === 'simple-stop-chaser-symbols' &&
+                _.isEqual(filter, { key: 'BTCUSDT-last-buy-price' })
               ) {
                 return null;
               }
-
-              return '';
+              return null;
             });
 
             const indicators = _.cloneDeep(orgIndicators);
@@ -1491,15 +1560,21 @@ describe('helper', () => {
 
         describe('when cache value is 0', () => {
           beforeEach(async () => {
-            cache.hget = jest.fn().mockImplementation((key, field) => {
+            mongo.findOne = jest.fn((_logger, collection, filter) => {
               if (
-                key === 'simple-stop-chaser-symbols' &&
-                field === 'BTCUSDT-last-buy-price'
+                collection === 'simple-stop-chaser-common' &&
+                _.isEqual(filter, { key: 'configuration' })
+              ) {
+                return configuration;
+              }
+
+              if (
+                collection === 'simple-stop-chaser-symbols' &&
+                _.isEqual(filter, { key: 'BTCUSDT-last-buy-price' })
               ) {
                 return 0;
               }
-
-              return '';
+              return null;
             });
 
             const indicators = _.cloneDeep(orgIndicators);
@@ -1525,15 +1600,21 @@ describe('helper', () => {
 
         describe('when cache value is empty string', () => {
           beforeEach(async () => {
-            cache.hget = jest.fn().mockImplementation((key, field) => {
+            mongo.findOne = jest.fn((_logger, collection, filter) => {
               if (
-                key === 'simple-stop-chaser-symbols' &&
-                field === 'BTCUSDT-last-buy-price'
+                collection === 'simple-stop-chaser-common' &&
+                _.isEqual(filter, { key: 'configuration' })
+              ) {
+                return configuration;
+              }
+
+              if (
+                collection === 'simple-stop-chaser-symbols' &&
+                _.isEqual(filter, { key: 'BTCUSDT-last-buy-price' })
               ) {
                 return '';
               }
-
-              return '';
+              return null;
             });
 
             const indicators = _.cloneDeep(orgIndicators);
@@ -1559,15 +1640,21 @@ describe('helper', () => {
 
         describe('when cache value is negative value', () => {
           beforeEach(async () => {
-            cache.hget = jest.fn().mockImplementation((key, field) => {
+            mongo.findOne = jest.fn((_logger, collection, filter) => {
               if (
-                key === 'simple-stop-chaser-symbols' &&
-                field === 'BTCUSDT-last-buy-price'
+                collection === 'simple-stop-chaser-common' &&
+                _.isEqual(filter, { key: 'configuration' })
+              ) {
+                return configuration;
+              }
+
+              if (
+                collection === 'simple-stop-chaser-symbols' &&
+                _.isEqual(filter, { key: 'BTCUSDT-last-buy-price' })
               ) {
                 return -1;
               }
-
-              return '';
+              return null;
             });
 
             const indicators = _.cloneDeep(orgIndicators);
@@ -1607,24 +1694,21 @@ describe('helper', () => {
               .fn()
               .mockResolvedValue(accountInfo);
 
-            cache.hget = jest.fn().mockImplementation((key, field) => {
+            mongo.findOne = jest.fn((_logger, collection, filter) => {
               if (
-                key === 'simple-stop-chaser-common' &&
-                field === 'configuration'
+                collection === 'simple-stop-chaser-common' &&
+                _.isEqual(filter, { key: 'configuration' })
               ) {
-                return {
-                  stopLossLimit
-                };
+                return configuration;
               }
 
               if (
-                key === 'simple-stop-chaser-symbols' &&
-                field === 'BTCUSDT-last-buy-price'
+                collection === 'simple-stop-chaser-symbols' &&
+                _.isEqual(filter, { key: 'BTCUSDT-last-buy-price' })
               ) {
-                return 12044;
+                return { lastBuyPrice: 12044 };
               }
-
-              return '';
+              return null;
             });
 
             const indicators = _.cloneDeep(orgIndicators);
@@ -1653,24 +1737,22 @@ describe('helper', () => {
 
         describe('when current price is more than minimum selling price', () => {
           beforeEach(async () => {
-            cache.hget = jest.fn().mockImplementation((key, field) => {
+            mongo.deleteOne = jest.fn().mockResolvedValue(true);
+            mongo.findOne = jest.fn((_logger, collection, filter) => {
               if (
-                key === 'simple-stop-chaser-common' &&
-                field === 'configuration'
+                collection === 'simple-stop-chaser-common' &&
+                _.isEqual(filter, { key: 'configuration' })
               ) {
-                return {
-                  stopLossLimit
-                };
+                return configuration;
               }
 
               if (
-                key === 'simple-stop-chaser-symbols' &&
-                field === 'BTCUSDT-last-buy-price'
+                collection === 'simple-stop-chaser-symbols' &&
+                _.isEqual(filter, { key: 'BTCUSDT-last-buy-price' })
               ) {
-                return 11411;
+                return { lastBuyPrice: 11411 };
               }
-
-              return '';
+              return null;
             });
           });
 

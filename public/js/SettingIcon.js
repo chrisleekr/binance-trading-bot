@@ -72,7 +72,9 @@ class SettingIcon extends React.Component {
 
   render() {
     const { configuration } = this.state;
-    const { symbols: selectedSymbols } = configuration;
+    const { symbols: selectedSymbols, supportFIATs } = configuration;
+
+    const selectedFIATs = supportFIATs || ['USDT'];
 
     if (_.isEmpty(configuration)) {
       return '';
@@ -109,6 +111,23 @@ class SettingIcon extends React.Component {
                   options={this.props.exchangeSymbols}
                   defaultSelected={selectedSymbols}
                   placeholder='Choose symbols to monitor...'
+                />
+              </Form.Group>
+
+              <h2 className='form-header'>Support FIATs</h2>
+              <Form.Group>
+                <Typeahead
+                  multiple
+                  onChange={selected => {
+                    // Handle selections...
+                    const { configuration } = this.state;
+                    configuration.supportFIATs = selected;
+                    this.setState({ configuration });
+                  }}
+                  size='sm'
+                  options={this.props.exchangeFIATs}
+                  defaultSelected={selectedFIATs}
+                  placeholder='Choose FIAT market...'
                 />
               </Form.Group>
 

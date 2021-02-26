@@ -1,7 +1,7 @@
 const _ = require('lodash');
 const moment = require('moment');
 
-const { cache } = require('../../helpers');
+const { cache, mongo } = require('../../helpers');
 
 const getSymbolFromKey = key => {
   const fragments = key.split('-');
@@ -29,15 +29,31 @@ const handleLatest = async (logger, ws, _payload) => {
     symbols: {}
   };
 
-  const common = {
-    accountInfo: JSON.parse(cacheSimpleStopChaserCommon['account-info']),
-    lastProcessed: JSON.parse(cacheSimpleStopChaserCommon['last-processed']),
-    configuration: JSON.parse(cacheSimpleStopChaserCommon.configuration),
-    exchangeSymbols: JSON.parse(
-      cacheSimpleStopChaserCommon['exchange-symbols']
-    ),
-    publicURL: cacheSimpleStopChaserCommon['local-tunnel-url']
-  };
+  const configuration = await mongo.findOne(
+    logger,
+    'simple-stop-chaser-common',
+    {
+      key: 'configuration'
+    }
+  );
+  logger.info({ configuration }, 'Configuration from MongoDB');
+
+  let common = {};
+  try {
+    common = {
+      configuration,
+      accountInfo: JSON.parse(cacheSimpleStopChaserCommon['account-info']),
+      lastProcessed: JSON.parse(cacheSimpleStopChaserCommon['last-processed']),
+      exchangeSymbols: JSON.parse(
+        cacheSimpleStopChaserCommon['exchange-symbols']
+      ),
+      publicURL: cacheSimpleStopChaserCommon['local-tunnel-url']
+    };
+  } catch (e) {
+    logger.error({ e }, 'Something wrong with simple-stop-chaser-common cache');
+
+    return;
+  }
 
   _.forIn(cacheSimpleStopChaserSymbols, (value, key) => {
     const { symbol, newKey } = getSymbolFromKey(key);
@@ -46,10 +62,12 @@ const handleLatest = async (logger, ws, _payload) => {
         symbol,
         baseAsset: null,
         quoteAsset: null,
+        precision: 4,
         balance: {
           total: 0,
           free: 0,
           locked: 0,
+          estimatedValue: 0,
           updatedAt: null
         },
         buy: {
@@ -96,6 +114,8 @@ const handleLatest = async (logger, ws, _payload) => {
       finalStat.baseAsset = baseAsset;
       finalStat.quoteAsset = quoteAsset;
 
+      finalStat.precision = symbolInfo.filterPrice.tickSize.indexOf(1) - 1;
+
       _.forEach(common.accountInfo.balances, b => {
         if (b.asset === baseAsset) {
           finalStat.balance.free = +b.free;
@@ -133,13 +153,6 @@ const handleLatest = async (logger, ws, _payload) => {
       const sellSignalResult = JSON.parse(value);
       finalStat.sell.processMessage = sellSignalResult.message;
     }
-
-    if (newKey === 'last-buy-price') {
-      finalStat.sell.lastBuyPrice = +value;
-
-      finalStat.openOrder.lastBuyPrice = +value;
-    }
-
     let openOrders;
     if (newKey === 'open-orders') {
       openOrders = JSON.parse(value);
@@ -177,29 +190,47 @@ const handleLatest = async (logger, ws, _payload) => {
     stats.symbols[symbol] = finalStat;
   });
 
-  stats.symbols = _.map(stats.symbols, symbol => {
-    const newSymbol = symbol;
-    if (symbol.openOrder.lastBuyPrice > 0 && symbol.openOrder.stopPrice > 0) {
-      newSymbol.openOrder.minimumProfit =
-        (symbol.openOrder.stopPrice - symbol.openOrder.lastBuyPrice) *
-        symbol.openOrder.qty;
-      newSymbol.openOrder.minimumProfitPercentage =
-        (1 - symbol.openOrder.lastBuyPrice / symbol.openOrder.stopPrice) * 100;
-    }
+  stats.symbols = await Promise.all(
+    _.map(stats.symbols, async symbol => {
+      const newSymbol = symbol;
 
-    if (symbol.sell.lastBuyPrice > 0 && symbol.sell.currentPrice > 0) {
-      newSymbol.sell.currentProfit =
-        (symbol.sell.currentPrice - symbol.sell.lastBuyPrice) *
-        symbol.balance.total;
+      newSymbol.balance.estimatedValue =
+        symbol.buy.currentPrice * symbol.balance.total;
 
-      newSymbol.sell.currentProfitPercentage =
-        (1 - symbol.sell.lastBuyPrice / symbol.sell.currentPrice) * 100;
-    }
-    return symbol;
-  });
+      const lastBuyPriceDoc = await mongo.findOne(
+        logger,
+        'simple-stop-chaser-symbols',
+        {
+          key: `${newSymbol.symbol}-last-buy-price`
+        }
+      );
+      const cachedLastBuyPrice =
+        lastBuyPriceDoc && lastBuyPriceDoc.lastBuyPrice
+          ? lastBuyPriceDoc.lastBuyPrice
+          : null;
 
-  const configuration = JSON.parse(
-    await cache.hget('simple-stop-chaser-common', `configuration`)
+      newSymbol.sell.lastBuyPrice = cachedLastBuyPrice;
+      newSymbol.openOrder.lastBuyPrice = cachedLastBuyPrice;
+
+      if (symbol.openOrder.lastBuyPrice > 0 && symbol.openOrder.stopPrice > 0) {
+        newSymbol.openOrder.minimumProfit =
+          (symbol.openOrder.stopPrice - symbol.openOrder.lastBuyPrice) *
+          symbol.openOrder.qty;
+        newSymbol.openOrder.minimumProfitPercentage =
+          (1 - symbol.openOrder.lastBuyPrice / symbol.openOrder.stopPrice) *
+          100;
+      }
+
+      if (symbol.sell.lastBuyPrice > 0 && symbol.sell.currentPrice > 0) {
+        newSymbol.sell.currentProfit =
+          (symbol.sell.currentPrice - symbol.sell.lastBuyPrice) *
+          symbol.balance.total;
+
+        newSymbol.sell.currentProfitPercentage =
+          (1 - symbol.sell.lastBuyPrice / symbol.sell.currentPrice) * 100;
+      }
+      return symbol;
+    })
   );
 
   logger.info(

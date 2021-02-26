@@ -55,7 +55,9 @@ class CoinWrapperOpenOrder extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Last buy price:</span>
               <HightlightChange className='coin-info-value'>
-                {symbolInfo.openOrder.lastBuyPrice.toFixed(4)}
+                {symbolInfo.openOrder.lastBuyPrice.toFixed(
+                  symbolInfo.precision
+                )}
               </HightlightChange>
             </div>
           ) : (
@@ -65,7 +67,9 @@ class CoinWrapperOpenOrder extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Current price:</span>
               <HightlightChange className='coin-info-value'>
-                {symbolInfo.openOrder.currentPrice.toFixed(4)}
+                {symbolInfo.openOrder.currentPrice.toFixed(
+                  symbolInfo.precision
+                )}
               </HightlightChange>
             </div>
           ) : (
@@ -88,7 +92,7 @@ class CoinWrapperOpenOrder extends React.Component {
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>Stop Price:</span>
               <HightlightChange className='coin-info-value'>
-                {symbolInfo.openOrder.stopPrice.toFixed(4)}
+                {symbolInfo.openOrder.stopPrice.toFixed(symbolInfo.precision)}
               </HightlightChange>
             </div>
           ) : (
@@ -98,7 +102,7 @@ class CoinWrapperOpenOrder extends React.Component {
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>Limit Price:</span>
               <HightlightChange className='coin-info-value'>
-                {symbolInfo.openOrder.limitPrice.toFixed(4)}
+                {symbolInfo.openOrder.limitPrice.toFixed(symbolInfo.precision)}
               </HightlightChange>
             </div>
           ) : (

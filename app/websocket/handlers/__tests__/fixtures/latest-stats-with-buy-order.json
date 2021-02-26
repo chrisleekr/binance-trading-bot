@@ -3,6 +3,7 @@
   "type": "latest",
   "configuration": { "enabled": true },
   "common": {
+    "configuration": { "enabled": true },
     "accountInfo": {
       "makerCommission": 0,
       "takerCommission": 0,
@@ -28,18 +29,6 @@
       "timeUTC": "2021-02-04T22:37:39.002Z",
       "symbol": "BTCUSDT"
     },
-    "configuration": {
-      "enabled": true,
-      "cronTime": "* * * * * *",
-      "symbols": ["BTCUSDT", "ETHUSDT", "LTCUSDT", "BNBUSDT"],
-      "candles": { "interval": "1d", "limit": 6 },
-      "maxPurchaseAmount": 104,
-      "stopLossLimit": {
-        "lastBuyPercentage": 2.01,
-        "stopPercentage": 1.99,
-        "limitPercentage": 1.98
-      }
-    },
     "exchangeSymbols": [
       "BNBUSDT",
       "BTCUSDT",
@@ -55,7 +44,14 @@
         "symbol": "ADAUPUSDT",
         "baseAsset": "ADAUP",
         "quoteAsset": "USDT",
-        "balance": { "total": 0, "free": 0, "locked": 0, "updatedAt": null },
+        "precision": 3,
+        "balance": {
+          "total": 0,
+          "free": 0,
+          "locked": 0,
+          "estimatedValue": 0,
+          "updatedAt": null
+        },
         "buy": {
           "action": "wait",
           "currentPrice": 45.164,
@@ -94,7 +90,14 @@
         "symbol": "LINKUPUSDT",
         "baseAsset": "LINKUP",
         "quoteAsset": "USDT",
-        "balance": { "total": 0, "free": 0, "locked": 0, "updatedAt": null },
+        "precision": 3,
+        "balance": {
+          "total": 0,
+          "free": 0,
+          "locked": 0,
+          "estimatedValue": 0,
+          "updatedAt": null
+        },
         "buy": {
           "action": "wait",
           "currentPrice": 17.397,
@@ -133,7 +136,14 @@
         "symbol": "BTCUPUSDT",
         "baseAsset": "BTCUP",
         "quoteAsset": "USDT",
-        "balance": { "total": 0, "free": 0, "locked": 0, "updatedAt": null },
+        "precision": 3,
+        "balance": {
+          "total": 0,
+          "free": 0,
+          "locked": 0,
+          "estimatedValue": 0,
+          "updatedAt": null
+        },
         "buy": {
           "action": "wait",
           "currentPrice": 94.991,
@@ -172,7 +182,14 @@
         "symbol": "DOTUPUSDT",
         "baseAsset": "DOTUP",
         "quoteAsset": "USDT",
-        "balance": { "total": 0, "free": 0, "locked": 0, "updatedAt": null },
+        "precision": 3,
+        "balance": {
+          "total": 0,
+          "free": 0,
+          "locked": 0,
+          "estimatedValue": 0,
+          "updatedAt": null
+        },
         "buy": {
           "action": "wait",
           "currentPrice": 64.779,
@@ -211,7 +228,14 @@
         "symbol": "XLMUPUSDT",
         "baseAsset": "XLMUP",
         "quoteAsset": "USDT",
-        "balance": { "total": 0, "free": 0, "locked": 0, "updatedAt": null },
+        "precision": 3,
+        "balance": {
+          "total": 0,
+          "free": 0,
+          "locked": 0,
+          "estimatedValue": 0,
+          "updatedAt": null
+        },
         "buy": {
           "action": "wait",
           "currentPrice": 20.224,
@@ -250,7 +274,14 @@
         "symbol": "LTCUPUSDT",
         "baseAsset": "LTCUP",
         "quoteAsset": "USDT",
-        "balance": { "total": 0, "free": 0, "locked": 0, "updatedAt": null },
+        "precision": 3,
+        "balance": {
+          "total": 0,
+          "free": 0,
+          "locked": 0,
+          "estimatedValue": 0,
+          "updatedAt": null
+        },
         "buy": {
           "action": "wait",
           "currentPrice": 26.028,
@@ -289,7 +320,14 @@
         "symbol": "BNBUPUSDT",
         "baseAsset": "BNBUP",
         "quoteAsset": "USDT",
-        "balance": { "total": 0, "free": 0, "locked": 0, "updatedAt": null },
+        "precision": 3,
+        "balance": {
+          "total": 0,
+          "free": 0,
+          "locked": 0,
+          "estimatedValue": 0,
+          "updatedAt": null
+        },
         "buy": {
           "action": "wait",
           "currentPrice": 91,
@@ -328,7 +366,14 @@
         "symbol": "XRPUPUSDT",
         "baseAsset": "XRPUP",
         "quoteAsset": "USDT",
-        "balance": { "total": 0, "free": 0, "locked": 0, "updatedAt": null },
+        "precision": 3,
+        "balance": {
+          "total": 0,
+          "free": 0,
+          "locked": 0,
+          "estimatedValue": 0,
+          "updatedAt": null
+        },
         "buy": {
           "action": "wait",
           "currentPrice": 3.615,
@@ -367,7 +412,14 @@
         "symbol": "TRXUPUSDT",
         "baseAsset": "TRXUP",
         "quoteAsset": "USDT",
-        "balance": { "total": 0, "free": 0, "locked": 0, "updatedAt": null },
+        "precision": 3,
+        "balance": {
+          "total": 0,
+          "free": 0,
+          "locked": 0,
+          "estimatedValue": 0,
+          "updatedAt": null
+        },
         "buy": {
           "action": "wait",
           "currentPrice": 2.608,
@@ -406,7 +458,14 @@
         "symbol": "ETHUPUSDT",
         "baseAsset": "ETHUP",
         "quoteAsset": "USDT",
-        "balance": { "total": 0, "free": 0, "locked": 0, "updatedAt": null },
+        "precision": 3,
+        "balance": {
+          "total": 0,
+          "free": 0,
+          "locked": 0,
+          "estimatedValue": 0,
+          "updatedAt": null
+        },
         "buy": {
           "action": "wait",
           "currentPrice": 156.998,
@@ -415,12 +474,12 @@
           "updatedAt": "2021-02-07T01:55:33.427Z"
         },
         "sell": {
-          "lastBuyPrice": 154.633,
+          "lastBuyPrice": null,
           "minimumSellingPrice": 163.91098000000002,
           "currentPrice": 156.998,
           "difference": -4.403228066599585,
-          "currentProfit": 0,
-          "currentProfitPercentage": 1.5063886164154883,
+          "currentProfit": null,
+          "currentProfitPercentage": null,
           "processMessage": "Balance found, but not enough to sell. Delete last buy price.",
           "updatedAt": "2021-02-07T01:55:33.639Z"
         },
@@ -435,7 +494,7 @@
           "limitPercentage": null,
           "limitPrice": null,
           "difference": null,
-          "lastBuyPrice": 154.633,
+          "lastBuyPrice": null,
           "minimumProfit": null,
           "minimumProfitPercentage": null,
           "updatedAt": null

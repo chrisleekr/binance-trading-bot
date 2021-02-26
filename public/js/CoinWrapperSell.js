@@ -28,7 +28,7 @@ class CoinWrapperSell extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Last buy price:</span>
               <HightlightChange className='coin-info-value'>
-                {symbolInfo.sell.lastBuyPrice}
+                {symbolInfo.sell.lastBuyPrice.toFixed(symbolInfo.precision)}
               </HightlightChange>
             </div>
           ) : (
@@ -38,7 +38,7 @@ class CoinWrapperSell extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Current price:</span>
               <HightlightChange className='coin-info-value'>
-                {symbolInfo.sell.currentPrice.toFixed(4)}
+                {symbolInfo.sell.currentPrice.toFixed(symbolInfo.precision)}
               </HightlightChange>
             </div>
           ) : (
@@ -48,7 +48,7 @@ class CoinWrapperSell extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Profit/Loss:</span>
               <HightlightChange className='coin-info-value'>
-                {symbolInfo.sell.currentProfit.toFixed(0)}{' '}
+                {symbolInfo.sell.currentProfit.toFixed(2)}{' '}
                 {symbolInfo.quoteAsset} (
                 {symbolInfo.sell.currentProfitPercentage.toFixed(2)}
                 %)
@@ -62,7 +62,9 @@ class CoinWrapperSell extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Minimum selling price:</span>
               <HightlightChange className='coin-info-value'>
-                {symbolInfo.sell.minimumSellingPrice.toFixed(4)}
+                {symbolInfo.sell.minimumSellingPrice.toFixed(
+                  symbolInfo.precision
+                )}
               </HightlightChange>
             </div>
           ) : (

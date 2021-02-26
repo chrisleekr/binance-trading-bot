@@ -5,6 +5,8 @@ describe('symbol-delete.test.js', () => {
   let mockWebSocketServerWebSocketSend;
 
   let cacheMock;
+  let mongoMock;
+  let loggerMock;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -18,16 +20,19 @@ describe('symbol-delete.test.js', () => {
 
   describe('delete symbol', () => {
     beforeEach(async () => {
-      const { cache, logger } = require('../../../helpers');
+      const { cache, logger, mongo } = require('../../../helpers');
       cacheMock = cache;
+      mongoMock = mongo;
+      loggerMock = logger;
 
       cacheMock.hdel = jest.fn().mockResolvedValue(true);
+      mongoMock.deleteOne = jest.fn().mockResolvedValue(true);
       cacheMock.hgetall = jest.fn().mockImplementation(key => {
         if (key === 'simple-stop-chaser-symbols') {
           return {
             'BTCUSDT-key-1': 'value1',
             'LTCUSDT-key-1': 'value3',
-            'BTCUSDT-key-2': 'value2',
+            'BTCUSDT-last-buy-price': 123,
             'LTCUSDT-key-2': 'value4'
           };
         }
@@ -49,9 +54,13 @@ describe('symbol-delete.test.js', () => {
         'simple-stop-chaser-symbols',
         'BTCUSDT-key-1'
       );
-      expect(cacheMock.hdel).toHaveBeenCalledWith(
+    });
+
+    it('triggers mongo.mock', () => {
+      expect(mongoMock.deleteOne).toHaveBeenCalledWith(
+        loggerMock,
         'simple-stop-chaser-symbols',
-        'BTCUSDT-key-2'
+        { key: 'BTCUSDT-last-buy-price' }
       );
     });
 

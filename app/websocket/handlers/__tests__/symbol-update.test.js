@@ -4,7 +4,8 @@ describe('symbol-update.test.js', () => {
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
-  let cacheMock;
+  let loggerMock;
+  let mongoMock;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -18,10 +19,11 @@ describe('symbol-update.test.js', () => {
 
   describe('update symbol', () => {
     beforeEach(async () => {
-      const { cache, logger } = require('../../../helpers');
-      cacheMock = cache;
+      const { mongo, logger } = require('../../../helpers');
+      mongoMock = mongo;
+      loggerMock = logger;
 
-      cacheMock.hset = jest.fn().mockResolvedValue(true);
+      mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
 
       const { handleSymbolUpdate } = require('../symbol-update');
       handleSymbolUpdate(logger, mockWebSocketServer, {
@@ -34,11 +36,12 @@ describe('symbol-update.test.js', () => {
       });
     });
 
-    it('triggers cache.hset', () => {
-      expect(cacheMock.hset).toHaveBeenCalledWith(
+    it('triggers mongo.upsertOne', () => {
+      expect(mongoMock.upsertOne).toHaveBeenCalledWith(
+        loggerMock,
         'simple-stop-chaser-symbols',
-        'BTCUSDT-last-buy-price',
-        12000
+        { key: 'BTCUSDT-last-buy-price' },
+        { key: 'BTCUSDT-last-buy-price', lastBuyPrice: 12000 }
       );
     });
 

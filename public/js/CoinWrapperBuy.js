@@ -26,7 +26,7 @@ class CoinWrapperBuy extends React.Component {
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>Current price:</span>
             <HightlightChange className='coin-info-value'>
-              {symbolInfo.buy.currentPrice.toFixed(4)}
+              {symbolInfo.buy.currentPrice.toFixed(symbolInfo.precision)}
             </HightlightChange>
           </div>
         ) : (
@@ -36,7 +36,7 @@ class CoinWrapperBuy extends React.Component {
           <div className='coin-info-column coin-info-column-lowest-price'>
             <span className='coin-info-label'>Lowest price:</span>
             <HightlightChange className='coin-info-value'>
-              {symbolInfo.buy.lowestPrice.toFixed(4)}
+              {symbolInfo.buy.lowestPrice.toFixed(symbolInfo.precision)}
             </HightlightChange>
           </div>
         ) : (
