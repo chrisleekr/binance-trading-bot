@@ -16,6 +16,7 @@ describe('websocket/configure.js', () => {
   let mockHandleSettingUpdate;
   let mockHandleSymbolUpdate;
   let mockHandleSymbolDelete;
+  let mockHandleSymbolSettingUpdate;
 
   let wss;
   let config;
@@ -61,6 +62,12 @@ describe('websocket/configure.js', () => {
               lastBuyPercentage: 1.06,
               stopPercentage: 0.97,
               limitPercentage: 0.96
+            },
+            buy: {
+              enabled: true
+            },
+            sell: {
+              enabled: true
             }
           };
         default:
@@ -72,12 +79,14 @@ describe('websocket/configure.js', () => {
     mockHandleSettingUpdate = jest.fn().mockResolvedValue(true);
     mockHandleSymbolUpdate = jest.fn().mockResolvedValue(true);
     mockHandleSymbolDelete = jest.fn().mockResolvedValue(true);
+    mockHandleSymbolSettingUpdate = jest.fn().mockResolvedValue(true);
 
     jest.mock('../handlers', () => ({
       handleLatest: mockHandleLatest,
       handleSettingUpdate: mockHandleSettingUpdate,
       handleSymbolUpdate: mockHandleSymbolUpdate,
-      handleSymbolDelete: mockHandleSymbolDelete
+      handleSymbolDelete: mockHandleSymbolDelete,
+      handleSymbolSettingUpdate: mockHandleSymbolSettingUpdate
     }));
 
     mockExpressServerOn = jest.fn().mockImplementation((_event, cb) => {
@@ -453,6 +462,54 @@ describe('websocket/configure.js', () => {
         expect.any(Object),
         {
           command: 'symbol-delete'
+        }
+      );
+    });
+
+    it('returns wss', () => {
+      expect(wss).not.toBeNull();
+    });
+  });
+
+  describe('when message command is symbol-setting-update', () => {
+    beforeEach(() => {
+      mockWebSocketServerWebSocketOn = jest
+        .fn()
+        .mockImplementation((_event, cb) => {
+          cb(
+            JSON.stringify({
+              command: 'symbol-setting-update'
+            })
+          );
+        });
+
+      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
+
+      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
+        cb({
+          on: mockWebSocketServerWebSocketOn,
+          send: mockWebSocketServerWebSocketSend
+        });
+      });
+
+      WebSocket.Server.mockImplementation(() => ({
+        on: mockWebSocketServerOn,
+        handleUpgrade: mockWebSocketServerHandleUpgrade,
+        emit: mockWebSocketServerEmit
+      }));
+
+      const { logger } = require('../../helpers');
+
+      const { configureWebSocket } = require('../configure');
+      configureWebSocket(mockExpressServer, logger);
+    });
+
+    it('triggers handleSymbolSettingUpdate', () => {
+      expect(mockHandleSymbolSettingUpdate).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.any(Object),
+        {
+          command: 'symbol-setting-update'
         }
       );
     });

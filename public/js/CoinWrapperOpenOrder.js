@@ -3,7 +3,7 @@
 /* eslint-disable no-undef */
 class CoinWrapperOpenOrder extends React.Component {
   render() {
-    const { symbolInfo } = this.props;
+    const { symbolInfo, symbolConfiguration } = this.props;
 
     if (symbolInfo.openOrder.type === null) {
       return null;
@@ -13,7 +13,16 @@ class CoinWrapperOpenOrder extends React.Component {
       return (
         <div className='coin-info-sub-wrapper'>
           <div className='coin-info-column coin-info-column-title'>
-            <span className='coin-info-label'>Open Order</span>
+            <span className='coin-info-label'>
+              Open Order{' '}
+              <span className='coin-info-value'>
+                {symbolConfiguration.sell.enabled ? (
+                  <i className='fa fa-toggle-on'></i>
+                ) : (
+                  <i className='fa fa-toggle-off'></i>
+                )}
+              </span>
+            </span>
             {moment(symbolInfo.openOrder.updatedAt).isValid() ? (
               <HightlightChange
                 className='coin-info-value'

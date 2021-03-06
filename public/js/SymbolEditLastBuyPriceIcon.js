@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable react/jsx-no-undef */
 /* eslint-disable no-undef */
-class SymbolEditIcon extends React.Component {
+class SymbolEditLastBuyPriceIcon extends React.Component {
   constructor(props) {
     super(props);
 
@@ -78,10 +78,10 @@ class SymbolEditIcon extends React.Component {
     }
 
     return (
-      <div className='header-column-icon-wrapper symbol-edit-wrapper'>
+      <div className='symbol-edit-last-buy-price-icon-wrapper'>
         <button
           type='button'
-          className='btn btn-sm btn-link p-0 pl-1 pr-1'
+          className='btn btn-sm btn-link p-0'
           onClick={this.handleModalShow}>
           <i className='fa fa-edit'></i>
         </button>
@@ -91,10 +91,10 @@ class SymbolEditIcon extends React.Component {
           size='sm'>
           <Form onSubmit={this.handleFormSubmit}>
             <Modal.Header className='pt-1 pb-1'>
-              <Modal.Title>Edit Symbol</Modal.Title>
+              <Modal.Title>Edit Last Buy Price</Modal.Title>
             </Modal.Header>
             <Modal.Body>
-              <h2 className='form-header'>Sell</h2>
+              <h2 className='form-header'>Sell Signal</h2>
               <Form.Group controlId='field-candles-interval'>
                 <Form.Label>Last Buy Price</Form.Label>
                 <Form.Control
@@ -103,13 +103,29 @@ class SymbolEditIcon extends React.Component {
                   placeholder='Enter last buy price'
                   required
                   min='0'
-                  step='0.0001'
+                  step='0.000001'
                   data-state-key='sell.lastBuyPrice'
                   defaultValue={symbolInfo.sell.lastBuyPrice}
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
-                  Set last buy price of the symbol.
+                  Set/modify the last buy price of the symbol.
+                  <br />
+                  <br />
+                  If the bot purchased the coin, then the last buy price will
+                  automatically set.
+                  <br />
+                  <br />
+                  If you purchased the coin manually, then you can set the last
+                  buy price to allow the bot to sell at the expected price.
+                  <br />
+                  <br />
+                  Once the last buy price is set, then the bot will start
+                  monitoring the sell signal.
+                  <br />
+                  <br />
+                  If you want to remove the last buy price, simply enter{' '}
+                  <code>0</code>.
                 </Form.Text>
               </Form.Group>
             </Modal.Body>

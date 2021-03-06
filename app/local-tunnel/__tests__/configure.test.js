@@ -57,12 +57,12 @@ describe('local-tunnel/configure.js', () => {
         return '';
       });
 
-      jest.mock('localtunnel', () => {
-        return jest.fn().mockImplementation(() => ({
+      jest.mock('localtunnel', () =>
+        jest.fn().mockImplementation(() => ({
           url: 'my-domain.loca.lt',
           on: mockLocalTunnelOnClose
-        }));
-      });
+        }))
+      );
 
       localTunnel = require('localtunnel');
 
@@ -107,12 +107,12 @@ describe('local-tunnel/configure.js', () => {
         return '';
       });
 
-      jest.mock('localtunnel', () => {
-        return jest.fn().mockImplementation(() => ({
+      jest.mock('localtunnel', () =>
+        jest.fn().mockImplementation(() => ({
           url: 'different-domain.loca.lt',
           on: mockLocalTunnelOnClose
-        }));
-      });
+        }))
+      );
 
       localTunnel = require('localtunnel');
 
@@ -157,12 +157,12 @@ describe('local-tunnel/configure.js', () => {
         return '';
       });
 
-      jest.mock('localtunnel', () => {
-        return jest.fn().mockImplementation(() => ({
+      jest.mock('localtunnel', () =>
+        jest.fn().mockImplementation(() => ({
           url: 'old-domain.loca.lt',
           on: mockLocalTunnelOnClose
-        }));
-      });
+        }))
+      );
 
       localTunnel = require('localtunnel');
 
@@ -174,12 +174,12 @@ describe('local-tunnel/configure.js', () => {
         .fn()
         .mockImplementation((_event, _cb) => {});
 
-      jest.mock('localtunnel', () => {
-        return jest.fn().mockImplementation(() => ({
+      jest.mock('localtunnel', () =>
+        jest.fn().mockImplementation(() => ({
           url: 'old-domain.loca.lt',
           on: mockLocalTunnelOnClose
-        }));
-      });
+        }))
+      );
 
       jest.runOnlyPendingTimers();
     });

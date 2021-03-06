@@ -3,33 +3,119 @@ const _ = require('lodash');
 const config = require('config');
 const { binance, slack, cache, mongo } = require('../../helpers');
 
-const getConfiguration = async logger => {
+const getGlobalConfiguration = async logger => {
   const configValue = await mongo.findOne(logger, 'simple-stop-chaser-common', {
     key: 'configuration'
   });
 
-  let simpleStopChaserConfig = {};
-  if (_.isEmpty(configValue) === false) {
-    logger.info('Found simple stop chaser config from MongoDB');
-    simpleStopChaserConfig = configValue;
-  } else {
-    simpleStopChaserConfig = config.get('jobs.simpleStopChaser');
-    await mongo.upsertOne(
-      logger,
-      'simple-stop-chaser-common',
-      {
-        key: 'configuration'
-      },
-      {
-        key: 'configuration',
-        ...simpleStopChaserConfig
-      }
-    );
-    logger.info(
-      'Could not find configuration from MongoDB, retrieve from cache'
-    );
+  if (_.isEmpty(configValue)) {
+    logger.info('Could not find global configuration.');
+    return {};
   }
 
+  logger.info('Found global configuration.');
+
+  // To avoid undefined, little housekeeping here.
+  if (!configValue.buy) {
+    configValue.buy = {
+      enabled: true
+    };
+  }
+
+  if (!configValue.sell) {
+    configValue.sell = {
+      enabled: true
+    };
+  }
+
+  return configValue;
+};
+
+const getSymbolConfiguration = async (logger, symbol = null) => {
+  if (symbol === null) {
+    // If symbol is not provided, then return empty.
+    return {};
+  }
+
+  const configValue = await mongo.findOne(
+    logger,
+    'simple-stop-chaser-symbols',
+    {
+      key: `${symbol}-configuration`
+    }
+  );
+
+  if (_.isEmpty(configValue)) {
+    logger.info('Could not find symbol configuration.');
+    return {};
+  }
+
+  logger.info({ configValue }, 'Found symbol configuration.');
+
+  return configValue;
+};
+
+const saveGlobalConfiguration = async (logger, configuration) =>
+  mongo.upsertOne(
+    logger,
+    'simple-stop-chaser-common',
+    {
+      key: 'configuration'
+    },
+    {
+      key: 'configuration',
+      ...configuration
+    }
+  );
+
+const saveSymbolConfiguration = async (
+  logger,
+  symbol = null,
+  configuration = {}
+) => {
+  if (symbol === null) {
+    // If symbol is not provided, then return empty.
+    return {};
+  }
+
+  return mongo.upsertOne(
+    logger,
+    'simple-stop-chaser-symbols',
+    {
+      key: `${symbol}-configuration`
+    },
+    {
+      key: `${symbol}-configuration`,
+      ...configuration
+    }
+  );
+};
+
+const getConfiguration = async (logger, symbol = null) => {
+  // If symbol is not provided, then it only looks up global configuration
+  const globalConfigValue = await getGlobalConfiguration(logger);
+  const symbolConfigValue = await getSymbolConfiguration(logger, symbol);
+
+  // Merge global and symbol configuration
+  const configValue = { ...globalConfigValue, ...symbolConfigValue };
+
+  let simpleStopChaserConfig = {};
+  if (_.isEmpty(configValue) === false) {
+    logger.info('Found configuration from MongoDB');
+
+    simpleStopChaserConfig = configValue;
+  } else {
+    logger.info(
+      'Could not find configuration from MongoDB, retrieve from initial configuration.'
+    );
+
+    // If it is empty, then global configuration is not stored in the
+    simpleStopChaserConfig = config.get('jobs.simpleStopChaser');
+
+    await saveGlobalConfiguration(logger, simpleStopChaserConfig);
+  }
+
+  logger.info({ simpleStopChaserConfig }, 'Get configuration result');
   return simpleStopChaserConfig;
 };
 
@@ -39,10 +125,9 @@ const getConfiguration = async logger => {
  * @param {*} number
  * @param {*} decimals
  */
-const roundDown = (number, decimals) => {
+const roundDown = (number, decimals) =>
   // eslint-disable-next-line no-restricted-properties
-  return Math.floor(number * Math.pow(10, decimals)) / Math.pow(10, decimals);
-};
+  Math.floor(number * Math.pow(10, decimals)) / Math.pow(10, decimals);
 
 /**
  * Cancel any open orders to get available balance
@@ -83,9 +168,7 @@ const getSymbolInfo = async (logger, symbol) => {
 
   logger.info({}, 'Retrieved exchange info from Binance.');
   const symbolInfo =
-    _.filter(exchangeInfo.symbols, s => {
-      return s.symbol === symbol;
-    })[0] || {};
+    _.filter(exchangeInfo.symbols, s => s.symbol === symbol)[0] || {};
 
   symbolInfo.filterLotSize =
     _.filter(symbolInfo.filters, f => f.filterType === 'LOT_SIZE')[0] || {};
@@ -127,19 +210,15 @@ const getBuyBalance = async (logger, indicators, options) => {
 
   // 2. Get quote asset balance
   const quoteAssetBalance =
-    _.filter(accountInfo.balances, b => {
-      return b.asset === quoteAsset;
-    })[0] || {};
+    _.filter(accountInfo.balances, b => b.asset === quoteAsset)[0] || {};
 
   const baseAssetBalance =
-    _.filter(accountInfo.balances, b => {
-      return b.asset === baseAsset;
-    })[0] || {};
+    _.filter(accountInfo.balances, b => b.asset === baseAsset)[0] || {};
 
   if (_.isEmpty(quoteAssetBalance) || _.isEmpty(baseAssetBalance)) {
     return {
       result: false,
-      message: 'Balance is not found. Cannot place an order.',
+      message: 'Balance is not found. Do not place an order.',
       quoteAssetBalance,
       baseAssetBalance
     };
@@ -159,7 +238,7 @@ const getBuyBalance = async (logger, indicators, options) => {
     return {
       result: false,
       message:
-        'The base asset has enough balance to place a stop-loss limit order. Cannot place a buy order.',
+        'The base asset has enough balance to place a stop-loss limit order. Do not place a buy order.',
       baseAsset,
       baseAssetTotalBalance,
       lastCandleClose,
@@ -185,7 +264,7 @@ const getBuyBalance = async (logger, indicators, options) => {
     return {
       result: false,
       message:
-        'Balance is less than the minimum notional. Cannot place an order.',
+        'Balance is less than the minimum notional. Do not place an order.',
       freeBalance
     };
   }
@@ -220,14 +299,12 @@ const getSellBalance = async (
 
   // 2. Get trade asset balance
   const baseAssetBalance =
-    _.filter(accountInfo.balances, b => {
-      return b.asset === baseAsset;
-    })[0] || {};
+    _.filter(accountInfo.balances, b => b.asset === baseAsset)[0] || {};
 
   if (_.isEmpty(baseAssetBalance)) {
     return {
       result: false,
-      message: 'Balance is not found. Cannot place an order.',
+      message: 'Balance is not found. Do not place an order.',
       baseAssetBalance
     };
   }
@@ -580,7 +657,7 @@ const flattenCandlesData = candles => {
  * @param {*} logger
  */
 const getIndicators = async (symbol, logger) => {
-  const simpleStopChaserConfig = await getConfiguration(logger);
+  const simpleStopChaserConfig = await getConfiguration(logger, symbol);
 
   const candles = await binance.client.candles({
     symbol,
@@ -662,15 +739,16 @@ const determineAction = async (logger, indicators) => {
  */
 const placeBuyOrder = async (logger, indicators) => {
   logger.info('Start placing buy order');
-
-  const simpleStopChaserConfig = await getConfiguration(logger);
-
   const { symbol, symbolInfo } = indicators;
+
+  const simpleStopChaserConfig = await getConfiguration(logger, symbol);
+
+  let returnValue;
 
   // 1. Cancel all orders
   await cancelOpenOrders(logger, symbol);
 
-  // 3. Get balance for trade asset
+  // 2. Get balance for trade asset
   const { maxPurchaseAmount } = simpleStopChaserConfig;
 
   const balanceInfo = await getBuyBalance(logger, indicators, {
@@ -679,11 +757,18 @@ const placeBuyOrder = async (logger, indicators) => {
 
   if (balanceInfo.result === false) {
     logger.warn({ balanceInfo }, 'getBuyBalance result');
+
+    cache.hset(
+      'simple-stop-chaser-symbols',
+      `${symbol}-place-buy-order-result`,
+      JSON.stringify(balanceInfo)
+    );
+
     return balanceInfo;
   }
   logger.info({ balanceInfo }, 'getBuyBalance result');
 
-  // 4. Get order quantity
+  // 3. Get order quantity
   const orderQuantityInfo = getBuyOrderQuantity(
     logger,
     symbolInfo,
@@ -692,11 +777,18 @@ const placeBuyOrder = async (logger, indicators) => {
   );
   if (orderQuantityInfo.result === false) {
     logger.warn({ orderQuantityInfo }, 'getBuyOrderQuantity result');
+
+    cache.hset(
+      'simple-stop-chaser-symbols',
+      `${symbol}-place-buy-order-result`,
+      JSON.stringify(orderQuantityInfo)
+    );
+
     return orderQuantityInfo;
   }
   logger.info({ orderQuantityInfo }, 'getBuyOrderQuantity result');
 
-  // 5. Get order price
+  // 4. Get order price
   const orderPriceInfo = getBuyOrderPrice(
     logger,
     symbolInfo,
@@ -705,9 +797,33 @@ const placeBuyOrder = async (logger, indicators) => {
 
   if (orderPriceInfo.result === false) {
     logger.warn({ orderPriceInfo }, 'getBuyOrderPrice result');
+    cache.hset(
+      'simple-stop-chaser-symbols',
+      `${symbol}-place-buy-order-result`,
+      JSON.stringify(orderPriceInfo)
+    );
     return orderPriceInfo;
   }
   logger.info({ orderPriceInfo }, 'getBuyOrderPrice result');
+
+  // 5. Check trading enabled
+  if (simpleStopChaserConfig.buy.enabled === false) {
+    // Trading is disabled. So do not place an order.
+
+    returnValue = {
+      result: false,
+      message: 'Trading for this symbol is disabled. Do not place an order.'
+    };
+
+    logger.warn(returnValue);
+
+    cache.hset(
+      'simple-stop-chaser-symbols',
+      `${symbol}-place-buy-order-result`,
+      JSON.stringify(returnValue)
+    );
+    return returnValue;
+  }
 
   // 6. Place order
   const orderParams = {
@@ -729,10 +845,13 @@ const placeBuyOrder = async (logger, indicators) => {
   const orderResult = await binance.client.order(orderParams);
 
   logger.info({ orderResult }, 'Buy order result');
-  await cache.hset(
+  cache.hset(
     'simple-stop-chaser-symbols',
-    `${symbol}-last-placed-order`,
-    JSON.stringify({ ...orderParams, timeUTC: moment().utc() })
+    `${symbol}-place-buy-order-result`,
+    JSON.stringify({
+      result: true,
+      message: `Placed buy order at the price of ${orderPriceInfo.orderPrice}.`
+    })
   );
 
   await mongo.upsertOne(
@@ -765,11 +884,11 @@ const placeBuyOrder = async (logger, indicators) => {
 const chaseStopLossLimitOrder = async (logger, indicators) => {
   logger.info('Start chaseStopLossLimitOrder');
 
-  const simpleStopChaserConfig = await getConfiguration(logger);
+  const { symbol, symbolInfo } = indicators;
+
+  const simpleStopChaserConfig = await getConfiguration(logger, symbol);
 
   let returnValue;
-
-  const { symbol, symbolInfo } = indicators;
 
   const { stopLossLimit: stopLossLimitConfig } = simpleStopChaserConfig;
 
@@ -895,6 +1014,21 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
       `Last buy price is higher than the expected price. Let's check the balance.`
     );
 
+    // 0. Check trading enabled
+    if (simpleStopChaserConfig.sell.enabled === false) {
+      // Trading is disabled. So do not place an order.
+      returnValue = {
+        result: false,
+        message: 'Selling for this symbol is disabled. Do not place an order.'
+      };
+      cache.hset(
+        'simple-stop-chaser-symbols',
+        `${symbol}-chase-stop-loss-limit-order-sell-signal-result`,
+        JSON.stringify(returnValue)
+      );
+
+      return returnValue;
+    }
     //  2-3. Place stop loss order
     const stopLossLimitOrderInfo = await placeStopLossLimitOrder(
       logger,
@@ -978,6 +1112,10 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
 };
 
 module.exports = {
+  getGlobalConfiguration,
+  getSymbolConfiguration,
+  saveGlobalConfiguration,
+  saveSymbolConfiguration,
   getConfiguration,
   getAccountInfo,
   getExchangeSymbols,

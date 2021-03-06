@@ -3,12 +3,21 @@
 /* eslint-disable no-undef */
 class CoinWrapperBuy extends React.Component {
   render() {
-    const { symbolInfo } = this.props;
+    const { symbolInfo, symbolConfiguration } = this.props;
 
     return (
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title'>
-          <span className='coin-info-label'>Buy Signal</span>
+          <div className='coin-info-label'>
+            Buy Signal{' '}
+            <span className='coin-info-value'>
+              {symbolConfiguration.buy.enabled ? (
+                <i className='fa fa-toggle-on'></i>
+              ) : (
+                <i className='fa fa-toggle-off'></i>
+              )}
+            </span>
+          </div>
           <HightlightChange
             className='coin-info-value'
             title={symbolInfo.buy.updatedAt}
@@ -16,6 +25,16 @@ class CoinWrapperBuy extends React.Component {
             {moment(symbolInfo.buy.updatedAt).format('HH:mm:ss')}
           </HightlightChange>
         </div>
+        {symbolConfiguration.buy.enabled === false ? (
+          <div className='coin-info-column coin-info-column-buy-enabled'>
+            <HightlightChange className='coin-info-message text-muted'>
+              Trading is disabled.
+            </HightlightChange>
+          </div>
+        ) : (
+          ''
+        )}
+
         <div className='coin-info-column coin-info-column-buy-action'>
           <span className='coin-info-label'>Action:</span>
           <HightlightChange className='coin-info-value coin-info-value-hold'>
@@ -48,6 +67,19 @@ class CoinWrapperBuy extends React.Component {
             <HightlightChange className='coin-info-value' id='buy-difference'>
               {symbolInfo.buy.difference.toFixed(2)}%
             </HightlightChange>
+          </div>
+        ) : (
+          ''
+        )}
+        {symbolInfo.buy.processMessage ? (
+          <div>
+            <div className='coin-info-column coin-info-column-price divider'></div>
+
+            <div className='coin-info-column coin-info-column-message'>
+              <HightlightChange className='coin-info-message'>
+                {symbolInfo.buy.processMessage}
+              </HightlightChange>
+            </div>
           </div>
         ) : (
           ''

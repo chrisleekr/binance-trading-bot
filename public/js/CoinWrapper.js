@@ -7,6 +7,11 @@ class CoinWrapper extends React.Component {
 
     const className = 'coin-wrapper ' + this.props.extraClassName;
 
+    const symbolConfiguration = {
+      ...configuration,
+      ...symbolInfo.configuration
+    };
+
     return (
       <div className={className} data-symbol={symbolInfo.symbol}>
         <div className='coin-info-wrapper'>
@@ -16,9 +21,25 @@ class CoinWrapper extends React.Component {
             sendWebSocket={sendWebSocket}
           />
           <CoinWrapperBalance symbolInfo={symbolInfo} />
-          <CoinWrapperBuy symbolInfo={symbolInfo} />
-          <CoinWrapperSell symbolInfo={symbolInfo} />
-          <CoinWrapperOpenOrder symbolInfo={symbolInfo} />
+          <CoinWrapperSetting
+            symbolInfo={symbolInfo}
+            configuration={configuration}
+            symbolConfiguration={symbolConfiguration}
+            sendWebSocket={sendWebSocket}
+          />
+          <CoinWrapperBuy
+            symbolInfo={symbolInfo}
+            symbolConfiguration={symbolConfiguration}
+          />
+          <CoinWrapperSell
+            symbolInfo={symbolInfo}
+            symbolConfiguration={symbolConfiguration}
+            sendWebSocket={sendWebSocket}
+          />
+          <CoinWrapperOpenOrder
+            symbolInfo={symbolInfo}
+            symbolConfiguration={symbolConfiguration}
+          />
         </div>
       </div>
     );

@@ -27,7 +27,9 @@ const handleSettingUpdate = async (logger, ws, payload) => {
       'supportFIATs',
       'candles',
       'maxPurchaseAmount',
-      'stopLossLimit'
+      'stopLossLimit',
+      'buy',
+      'sell'
     ])
   };
   logger.info({ newConfiguration }, 'New configuration');

@@ -8,9 +8,7 @@ describe('binance', () => {
     jest.clearAllMocks().resetModules();
 
     jest.mock('binance-api-node', () => ({
-      default: jest.fn().mockImplementation(() => {
-        return { some: 'method' };
-      })
+      default: jest.fn().mockImplementation(() => ({ some: 'method' }))
     }));
     jest.mock('config');
     config = require('config');

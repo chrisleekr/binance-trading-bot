@@ -14,6 +14,194 @@ describe('helper', () => {
     slack.sendMessage = jest.fn().mockResolvedValue(true);
   });
 
+  describe('getGlobalConfiguration', () => {
+    describe('when cannot find from mongodb', () => {
+      beforeEach(async () => {
+        mongo.findOne = jest.fn((_logger, _collection, _filter) => null);
+
+        result = await simpleStopChaserHelper.getGlobalConfiguration(logger);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({});
+      });
+    });
+
+    describe('when found from mongodb and configuration contains buy/sell', () => {
+      beforeEach(async () => {
+        mongo.findOne = jest.fn((_logger, collection, filter) => {
+          if (
+            collection === 'simple-stop-chaser-common' &&
+            _.isEqual(filter, { key: 'configuration' })
+          ) {
+            return {
+              myConfig: 'value',
+              buy: {
+                enabled: false
+              },
+              sell: {
+                enabled: false
+              }
+            };
+          }
+          return null;
+        });
+
+        result = await simpleStopChaserHelper.getGlobalConfiguration(logger);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          myConfig: 'value',
+          buy: {
+            enabled: false
+          },
+          sell: {
+            enabled: false
+          }
+        });
+      });
+    });
+
+    describe('when found from mongodb and configuration does not contain buy/sell', () => {
+      beforeEach(async () => {
+        mongo.findOne = jest.fn((_logger, collection, filter) => {
+          if (
+            collection === 'simple-stop-chaser-common' &&
+            _.isEqual(filter, { key: 'configuration' })
+          ) {
+            return {
+              myConfig: 'value'
+            };
+          }
+          return null;
+        });
+
+        result = await simpleStopChaserHelper.getGlobalConfiguration(logger);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          myConfig: 'value',
+          buy: {
+            enabled: true
+          },
+          sell: {
+            enabled: true
+          }
+        });
+      });
+    });
+  });
+
+  describe('getSymbolConfiguration', () => {
+    describe('when symbol is not provided', () => {
+      beforeEach(async () => {
+        result = await simpleStopChaserHelper.getSymbolConfiguration(logger);
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({});
+      });
+    });
+
+    describe('when cannot find from mongodb', () => {
+      beforeEach(async () => {
+        mongo.findOne = jest.fn((_logger, _collection, _filter) => null);
+
+        result = await simpleStopChaserHelper.getSymbolConfiguration(
+          logger,
+          'BTCUSDT'
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({});
+      });
+    });
+
+    describe('when found from mongodb', () => {
+      beforeEach(async () => {
+        mongo.findOne = jest.fn((_logger, collection, filter) => {
+          if (
+            collection === 'simple-stop-chaser-symbols' &&
+            _.isEqual(filter, { key: 'BTCUSDT-configuration' })
+          ) {
+            return {
+              myConfig: 'value'
+            };
+          }
+          return null;
+        });
+
+        result = await simpleStopChaserHelper.getSymbolConfiguration(
+          logger,
+          'BTCUSDT'
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({ myConfig: 'value' });
+      });
+    });
+  });
+
+  describe('saveGlobalConfiguration', () => {
+    beforeEach(async () => {
+      mongo.upsertOne = jest.fn().mockResolvedValue(true);
+
+      result = await simpleStopChaserHelper.saveGlobalConfiguration(logger, {
+        myKey: 'value'
+      });
+    });
+
+    it('triggers mongo.upsertOne with expected value', () => {
+      expect(mongo.upsertOne).toHaveBeenCalledWith(
+        logger,
+        'simple-stop-chaser-common',
+        { key: 'configuration' },
+        { key: 'configuration', myKey: 'value' }
+      );
+    });
+  });
+
+  describe('saveSymbolConfiguration', () => {
+    describe('when symbol is not provided', () => {
+      beforeEach(async () => {
+        mongo.upsertOne = jest.fn().mockResolvedValue(true);
+
+        result = await simpleStopChaserHelper.saveSymbolConfiguration(logger);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({});
+      });
+    });
+
+    describe('when symbol is provided', () => {
+      beforeEach(async () => {
+        mongo.upsertOne = jest.fn().mockResolvedValue(true);
+
+        result = await simpleStopChaserHelper.saveSymbolConfiguration(
+          logger,
+          'BTCUSDT',
+          {
+            myKey: 'value'
+          }
+        );
+      });
+
+      it('triggers mongo.upsertOne', () => {
+        expect(mongo.upsertOne).toHaveBeenCalledWith(
+          logger,
+          'simple-stop-chaser-symbols',
+          { key: 'BTCUSDT-configuration' },
+          { key: 'BTCUSDT-configuration', myKey: 'value' }
+        );
+      });
+    });
+  });
+
   describe('getConfiguration', () => {
     beforeEach(() => {
       mongo.upsertOne = jest.fn().mockResolvedValue(true);
@@ -21,21 +209,30 @@ describe('helper', () => {
       config.get = jest.fn(key => {
         if (key === 'jobs.simpleStopChaser') {
           return {
-            enabled: true
+            enabled: true,
+            buy: {
+              enabled: true
+            },
+            sell: {
+              enabled: false
+            }
           };
         }
         return null;
       });
     });
 
-    describe('when cache value is not found', () => {
+    describe('when cannot find global/symbol configurations', () => {
       beforeEach(async () => {
         mongo.findOne = jest.fn().mockResolvedValue(undefined);
 
-        result = await simpleStopChaserHelper.getConfiguration(logger);
+        result = await simpleStopChaserHelper.getConfiguration(
+          logger,
+          'BTCUSDT'
+        );
       });
 
-      it('triggers mongo.findOne', () => {
+      it('triggers mongo.findOne for global configuration', () => {
         expect(mongo.findOne).toHaveBeenCalledWith(
           logger,
           'simple-stop-chaser-common',
@@ -43,53 +240,60 @@ describe('helper', () => {
         );
       });
 
+      it('triggers mongo.findOne for symbol configuration', () => {
+        expect(mongo.findOne).toHaveBeenCalledWith(
+          logger,
+          'simple-stop-chaser-symbols',
+          { key: 'BTCUSDT-configuration' }
+        );
+      });
+
       it('triggers config.get', () => {
         expect(config.get).toHaveBeenCalledWith('jobs.simpleStopChaser');
       });
 
-      it('triggers mongo.upsertOne', () => {
+      it('triggers mongo.upsertOne for global configuration', () => {
         expect(mongo.upsertOne).toHaveBeenCalledWith(
           logger,
           'simple-stop-chaser-common',
           { key: 'configuration' },
-          { key: 'configuration', enabled: true }
+          {
+            key: 'configuration',
+            enabled: true,
+            buy: { enabled: true },
+            sell: { enabled: false }
+          }
         );
       });
 
-      it('returns expected value', () => {
-        expect(result).toStrictEqual({ enabled: true });
-      });
-    });
-
-    describe('when cache value is found, but it is null', () => {
-      beforeEach(async () => {
-        mongo.findOne = jest.fn().mockResolvedValue(null);
-
-        result = await simpleStopChaserHelper.getConfiguration(logger);
-      });
-
-      it('triggers mongo.upsertOne', () => {
-        expect(mongo.upsertOne).toHaveBeenCalledWith(
-          logger,
-          'simple-stop-chaser-common',
-          { key: 'configuration' },
-          { key: 'configuration', enabled: true }
-        );
-      });
-
-      it('returns expected value', () => {
-        expect(result).toStrictEqual({ enabled: true });
-      });
-    });
-
-    describe('when cache value is found', () => {
-      beforeEach(async () => {
-        mongo.findOne = jest.fn().mockResolvedValue({
+      it('returns epxected value', () => {
+        expect(result).toStrictEqual({
           enabled: true,
-          some: 'value'
+          buy: { enabled: true },
+          sell: { enabled: false }
+        });
+      });
+    });
+
+    describe('when found global configuration, but not symbol configuration', () => {
+      beforeEach(async () => {
+        mongo.findOne = jest.fn((_logger, collection, filter) => {
+          if (
+            collection === 'simple-stop-chaser-common' &&
+            _.isEqual(filter, { key: 'configuration' })
+          ) {
+            return {
+              enabled: true,
+              some: 'value'
+            };
+          }
+          return null;
         });
 
-        result = await simpleStopChaserHelper.getConfiguration(logger);
+        result = await simpleStopChaserHelper.getConfiguration(
+          logger,
+          'BTCUSDT'
+        );
       });
 
       it('does not triggers config.get', () => {
@@ -101,7 +305,65 @@ describe('helper', () => {
       });
 
       it('returns expected value', () => {
-        expect(result).toStrictEqual({ enabled: true, some: 'value' });
+        expect(result).toStrictEqual({
+          enabled: true,
+          some: 'value',
+          buy: { enabled: true },
+          sell: { enabled: true }
+        });
+      });
+    });
+
+    describe('when found global/symbol configuration', () => {
+      beforeEach(async () => {
+        mongo.findOne = jest.fn((_logger, collection, filter) => {
+          if (
+            collection === 'simple-stop-chaser-common' &&
+            _.isEqual(filter, { key: 'configuration' })
+          ) {
+            return {
+              enabled: true,
+              some: 'value',
+              buy: { enabled: true },
+              sell: { enabled: true }
+            };
+          }
+
+          if (
+            collection === 'simple-stop-chaser-symbols' &&
+            _.isEqual(filter, { key: 'BTCUSDT-configuration' })
+          ) {
+            return {
+              enabled: true,
+              some: 'symbol-value',
+              buy: { enabled: false },
+              sell: { enabled: false }
+            };
+          }
+          return null;
+        });
+
+        result = await simpleStopChaserHelper.getConfiguration(
+          logger,
+          'BTCUSDT'
+        );
+      });
+
+      it('does not triggers config.get', () => {
+        expect(config.get).not.toHaveBeenCalled();
+      });
+
+      it('does not triggers mongo.upsertOne', () => {
+        expect(mongo.upsertOne).not.toHaveBeenCalled();
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          enabled: true,
+          some: 'symbol-value',
+          buy: { enabled: false },
+          sell: { enabled: false }
+        });
       });
     });
   });
@@ -226,7 +488,7 @@ describe('helper', () => {
       it('returns expected value', () => {
         expect(result).toStrictEqual({
           result: false,
-          message: 'Balance is not found. Cannot place an order.',
+          message: 'Balance is not found. Do not place an order.',
           quoteAssetBalance: {},
           baseAssetBalance: {}
         });
@@ -258,7 +520,7 @@ describe('helper', () => {
         expect(result).toStrictEqual({
           result: false,
           message:
-            'The base asset has enough balance to place a stop-loss limit order. Cannot place a buy order.',
+            'The base asset has enough balance to place a stop-loss limit order. Do not place a buy order.',
           baseAsset: 'BTC',
           baseAssetTotalBalance: 0.01,
           currentBalanceInQuoteAsset: 117.6474,
@@ -295,7 +557,7 @@ describe('helper', () => {
         expect(result).toStrictEqual({
           result: false,
           message:
-            'Balance is less than the minimum notional. Cannot place an order.',
+            'Balance is less than the minimum notional. Do not place an order.',
           freeBalance: 9
         });
       });
@@ -403,7 +665,7 @@ describe('helper', () => {
       it('returns expected value', () => {
         expect(result).toStrictEqual({
           result: false,
-          message: 'Balance is not found. Cannot place an order.',
+          message: 'Balance is not found. Do not place an order.',
           baseAssetBalance: {}
         });
       });
@@ -1056,9 +1318,7 @@ describe('helper', () => {
 
     describe('when cache is null and have two FIATs in the configuration', () => {
       beforeEach(async () => {
-        cache.hget = jest.fn(() => {
-          return null;
-        });
+        cache.hget = jest.fn(() => null);
 
         result = await simpleStopChaserHelper.getExchangeSymbols(logger);
       });
@@ -1094,9 +1354,7 @@ describe('helper', () => {
 
     describe('when cache is empty string, but no supportFIATs not in the configuration', () => {
       beforeEach(async () => {
-        cache.hget = jest.fn(() => {
-          return '';
-        });
+        cache.hget = jest.fn(() => '');
 
         mongo.findOne = jest.fn((_logger, collection, filter) => {
           if (
@@ -1143,9 +1401,9 @@ describe('helper', () => {
 
     describe('when cache is valid json', () => {
       beforeEach(async () => {
-        cache.hget = jest.fn(() => {
-          return JSON.stringify(['BNBUSDT', 'BTCUSDT', 'BNBUPUSDT']);
-        });
+        cache.hget = jest.fn(() =>
+          JSON.stringify(['BNBUSDT', 'BTCUSDT', 'BNBUPUSDT'])
+        );
 
         result = await simpleStopChaserHelper.getExchangeSymbols(logger);
       });
@@ -1183,6 +1441,12 @@ describe('helper', () => {
               lastBuyPercentage: 1.06,
               stopPercentage: 0.97,
               limitPercentage: 0.96
+            },
+            buy: {
+              enabled: true
+            },
+            sell: {
+              enabled: true
             }
           };
         }
@@ -1268,6 +1532,12 @@ describe('helper', () => {
               lastBuyPercentage: 1.06,
               stopPercentage: 0.97,
               limitPercentage: 0.96
+            },
+            buy: {
+              enabled: true
+            },
+            sell: {
+              enabled: true
             }
           };
         }
@@ -1300,7 +1570,7 @@ describe('helper', () => {
       it('returns expected result', () => {
         expect(result).toStrictEqual({
           result: false,
-          message: 'Balance is not found. Cannot place an order.',
+          message: 'Balance is not found. Do not place an order.',
           baseAssetBalance: {},
           quoteAssetBalance: {}
         });
@@ -1368,44 +1638,142 @@ describe('helper', () => {
     });
 
     describe('when good to buy order', () => {
-      beforeEach(async () => {
-        const indicators = _.cloneDeep(orgIndicators);
+      describe('when buy is disabled', () => {
+        beforeEach(async () => {
+          mongo.findOne = jest.fn((_logger, collection, filter) => {
+            if (
+              collection === 'simple-stop-chaser-common' &&
+              _.isEqual(filter, { key: 'configuration' })
+            ) {
+              return {
+                enabled: false,
+                cronTime: '* * * * * *',
+                symbols: ['BTCUSDT'],
+                candles: {
+                  interval: '4h',
+                  limit: 100
+                },
+                stopLossLimit: {
+                  lastBuyPercentage: 1.06,
+                  stopPercentage: 0.97,
+                  limitPercentage: 0.96
+                },
+                buy: {
+                  enabled: false
+                },
+                sell: {
+                  enabled: true
+                }
+              };
+            }
+            return null;
+          });
+          const indicators = _.cloneDeep(orgIndicators);
 
-        const accountInfo = _.cloneDeep(orgAccountInfo);
-        accountInfo.balances = _.map(accountInfo.balances, b => {
-          const balance = b;
-          if (balance.asset === 'USDT') {
-            balance.free = '11';
-          }
-          return balance;
+          const accountInfo = _.cloneDeep(orgAccountInfo);
+          accountInfo.balances = _.map(accountInfo.balances, b => {
+            const balance = b;
+            if (balance.asset === 'USDT') {
+              balance.free = '11';
+            }
+            return balance;
+          });
+          binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
+
+          result = await simpleStopChaserHelper.placeBuyOrder(
+            logger,
+            indicators
+          );
         });
-        binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
 
-        result = await simpleStopChaserHelper.placeBuyOrder(logger, indicators);
-      });
+        it('does not triggers binance.client.order', () => {
+          expect(binance.client.order).not.toHaveBeenCalled();
+        });
 
-      it('triggers binance.client.order', () => {
-        expect(binance.client.order).toHaveBeenCalledWith({
-          price: 11764.74,
-          quantity: 0.000934,
-          side: 'buy',
-          symbol: 'BTCUSDT',
-          timeInForce: 'GTC',
-          type: 'LIMIT'
+        it('does not triggers mongo.upsertOne', () => {
+          expect(mongo.upsertOne).not.toHaveBeenCalled();
+        });
+
+        it('returns expected result', () => {
+          expect(result).toStrictEqual({
+            result: false,
+            message:
+              'Trading for this symbol is disabled. Do not place an order.'
+          });
         });
       });
 
-      it('triggers mongo.upsertOne', () => {
-        expect(mongo.upsertOne).toHaveBeenCalledWith(
-          logger,
-          'simple-stop-chaser-symbols',
-          { key: 'BTCUSDT-last-buy-price' },
-          { key: 'BTCUSDT-last-buy-price', lastBuyPrice: 11764.74 }
-        );
-      });
+      describe('when buy is enabled', () => {
+        beforeEach(async () => {
+          mongo.findOne = jest.fn((_logger, collection, filter) => {
+            if (
+              collection === 'simple-stop-chaser-common' &&
+              _.isEqual(filter, { key: 'configuration' })
+            ) {
+              return {
+                enabled: false,
+                cronTime: '* * * * * *',
+                symbols: ['BTCUSDT'],
+                candles: {
+                  interval: '4h',
+                  limit: 100
+                },
+                stopLossLimit: {
+                  lastBuyPercentage: 1.06,
+                  stopPercentage: 0.97,
+                  limitPercentage: 0.96
+                },
+                buy: {
+                  enabled: true
+                },
+                sell: {
+                  enabled: true
+                }
+              };
+            }
+            return null;
+          });
+          const indicators = _.cloneDeep(orgIndicators);
 
-      it('returns expected result', () => {
-        expect(result).toBeTruthy();
+          const accountInfo = _.cloneDeep(orgAccountInfo);
+          accountInfo.balances = _.map(accountInfo.balances, b => {
+            const balance = b;
+            if (balance.asset === 'USDT') {
+              balance.free = '11';
+            }
+            return balance;
+          });
+          binance.client.accountInfo = jest.fn().mockResolvedValue(accountInfo);
+
+          result = await simpleStopChaserHelper.placeBuyOrder(
+            logger,
+            indicators
+          );
+        });
+
+        it('triggers binance.client.order', () => {
+          expect(binance.client.order).toHaveBeenCalledWith({
+            price: 11764.74,
+            quantity: 0.000934,
+            side: 'buy',
+            symbol: 'BTCUSDT',
+            timeInForce: 'GTC',
+            type: 'LIMIT'
+          });
+        });
+
+        it('triggers mongo.upsertOne', () => {
+          expect(mongo.upsertOne).toHaveBeenCalledWith(
+            logger,
+            'simple-stop-chaser-symbols',
+            { key: 'BTCUSDT-last-buy-price' },
+            { key: 'BTCUSDT-last-buy-price', lastBuyPrice: 11764.74 }
+          );
+        });
+
+        it('returns expected result', () => {
+          expect(result).toBeTruthy();
+        });
       });
     });
   });
@@ -1430,6 +1798,12 @@ describe('helper', () => {
           lastBuyPercentage: 1.03,
           stopPercentage: 0.99,
           limitPercentage: 0.98
+        },
+        buy: {
+          enabled: true
+        },
+        sell: {
+          enabled: true
         }
       };
 
@@ -1795,45 +2169,98 @@ describe('helper', () => {
           });
 
           describe('when there is enough balance', () => {
-            beforeEach(async () => {
-              const accountInfo = _.cloneDeep(orgAccountInfo);
-              accountInfo.balances = _.map(accountInfo.balances, b => {
-                const balance = b;
-                if (balance.asset === 'BTC') {
-                  balance.free = '0.00100';
-                }
-                return balance;
+            describe('when selling is disabled', () => {
+              beforeEach(async () => {
+                mongo.findOne = jest.fn((_logger, collection, filter) => {
+                  if (
+                    collection === 'simple-stop-chaser-common' &&
+                    _.isEqual(filter, { key: 'configuration' })
+                  ) {
+                    return { ...configuration, sell: { enabled: false } };
+                  }
+
+                  if (
+                    collection === 'simple-stop-chaser-symbols' &&
+                    _.isEqual(filter, { key: 'BTCUSDT-last-buy-price' })
+                  ) {
+                    return { lastBuyPrice: 11411 };
+                  }
+                  return null;
+                });
+
+                const accountInfo = _.cloneDeep(orgAccountInfo);
+                accountInfo.balances = _.map(accountInfo.balances, b => {
+                  const balance = b;
+                  if (balance.asset === 'BTC') {
+                    balance.free = '0.00100';
+                  }
+                  return balance;
+                });
+                binance.client.accountInfo = jest
+                  .fn()
+                  .mockResolvedValue(accountInfo);
+
+                const indicators = _.cloneDeep(orgIndicators);
+
+                result = await simpleStopChaserHelper.chaseStopLossLimitOrder(
+                  logger,
+                  indicators
+                );
               });
-              binance.client.accountInfo = jest
-                .fn()
-                .mockResolvedValue(accountInfo);
 
-              const indicators = _.cloneDeep(orgIndicators);
+              it('does not trigger binance.client.order', () => {
+                expect(binance.client.order).not.toHaveBeenCalled();
+              });
 
-              result = await simpleStopChaserHelper.chaseStopLossLimitOrder(
-                logger,
-                indicators
-              );
+              it('returns expected result', () => {
+                expect(result).toStrictEqual({
+                  result: false,
+                  message:
+                    'Selling for this symbol is disabled. Do not place an order.'
+                });
+              });
             });
 
-            it('triggers binance.client.order', () => {
-              expect(binance.client.order).toHaveBeenCalledWith({
-                price: 11529.44,
-                quantity: 0.000999,
-                side: 'sell',
-                stopPrice: 11647.09,
-                symbol: 'BTCUSDT',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              });
-            });
+            describe('when selling is enabled', () => {
+              beforeEach(async () => {
+                mongo.findOne = jest.fn((_logger, collection, filter) => {
+                  if (
+                    collection === 'simple-stop-chaser-common' &&
+                    _.isEqual(filter, { key: 'configuration' })
+                  ) {
+                    return { ...configuration, sell: { enabled: true } };
+                  }
 
-            it('returns expected result', () => {
-              expect(result).toStrictEqual({
-                result: true,
-                message: 'Placed stop loss order.',
-                orderResult: true,
-                orderParams: {
+                  if (
+                    collection === 'simple-stop-chaser-symbols' &&
+                    _.isEqual(filter, { key: 'BTCUSDT-last-buy-price' })
+                  ) {
+                    return { lastBuyPrice: 11411 };
+                  }
+                  return null;
+                });
+                const accountInfo = _.cloneDeep(orgAccountInfo);
+                accountInfo.balances = _.map(accountInfo.balances, b => {
+                  const balance = b;
+                  if (balance.asset === 'BTC') {
+                    balance.free = '0.00100';
+                  }
+                  return balance;
+                });
+                binance.client.accountInfo = jest
+                  .fn()
+                  .mockResolvedValue(accountInfo);
+
+                const indicators = _.cloneDeep(orgIndicators);
+
+                result = await simpleStopChaserHelper.chaseStopLossLimitOrder(
+                  logger,
+                  indicators
+                );
+              });
+
+              it('triggers binance.client.order', () => {
+                expect(binance.client.order).toHaveBeenCalledWith({
                   price: 11529.44,
                   quantity: 0.000999,
                   side: 'sell',
@@ -1841,7 +2268,24 @@ describe('helper', () => {
                   symbol: 'BTCUSDT',
                   timeInForce: 'GTC',
                   type: 'STOP_LOSS_LIMIT'
-                }
+                });
+              });
+
+              it('returns expected result', () => {
+                expect(result).toStrictEqual({
+                  result: true,
+                  message: 'Placed stop loss order.',
+                  orderResult: true,
+                  orderParams: {
+                    price: 11529.44,
+                    quantity: 0.000999,
+                    side: 'sell',
+                    stopPrice: 11647.09,
+                    symbol: 'BTCUSDT',
+                    timeInForce: 'GTC',
+                    type: 'STOP_LOSS_LIMIT'
+                  }
+                });
               });
             });
           });

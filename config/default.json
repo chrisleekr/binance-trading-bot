@@ -53,6 +53,12 @@
         "lastBuyPercentage": 1.06,
         "stopPercentage": 0.97,
         "limitPercentage": 0.96
+      },
+      "buy": {
+        "enabled": true
+      },
+      "sell": {
+        "enabled": true
       }
     }
   }

@@ -69,6 +69,38 @@ body.dark-theme {
   font-size: 20px;
 }
 
+.coin-info-label-with-icon {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.coin-info-label-with-icon button {
+  margin: 0;
+  padding: 0;
+  line-height: 15px;
+  margin-left: 5px;
+}
+.coin-info-label-with-icon i {
+  color: #fff;
+  font-size: 15px;
+}
+
+.coin-info-column-price .coin-info-value-with-icon {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.coin-info-column-price .coin-info-value-with-icon button {
+  margin: 0;
+  padding: 0;
+  line-height: 15px;
+  margin-left: 5px;
+}
+.coin-info-column-price .coin-info-value-with-icon i {
+  color: #fff;
+  font-size: 15px;
+}
+
 .account-wrapper {
   margin-bottom: 10px;
 }
@@ -217,7 +249,6 @@ body.dark-theme {
 
 .coin-info-sub-wrapper-symbol .coin-info-column-icon {
   display: flex;
-
   flex-flow: row wrap;
   justify-content: flex-end;
   color: #fff;
@@ -232,6 +263,33 @@ body.dark-theme {
   border-bottom: 1px solid rgb(143, 143, 143);
   margin: 5px 0 5px 0;
   padding: 5px 0 5px 0;
+}
+
+.coin-info-column-title-setting {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.coin-info-column-title-setting i {
+  color: #fff;
+  font-size: 15px;
+}
+
+.coin-info-content-setting {
+  border-top: 1px solid rgb(143, 143, 143);
+  width: 100%;
+  padding-top: 5px;
+  margin-top: 5px;
+}
+
+.coin-info-column-title-setting .coin-info-label {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.coin-info-sub-label {
+  border-bottom: 1px dotted #cfcfcf;
 }
 
 .coin-info-label,
@@ -279,4 +337,16 @@ body.dark-theme {
 
 .form-header {
   font-size: 1rem;
+}
+
+.fa-toggle-on {
+  color: #02c076;
+}
+
+.fa-toggle-off {
+  color: #f84960;
+}
+
+.coin-setting-customised {
+  color: #deb887;
 }
