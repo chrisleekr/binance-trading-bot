@@ -2,6 +2,10 @@ const _ = require('lodash');
 const moment = require('moment');
 
 const { cache, mongo } = require('../../helpers');
+const {
+  getGlobalConfiguration,
+  getSymbolConfiguration
+} = require('../../jobs/simpleStopChaser/helper');
 
 const getSymbolFromKey = key => {
   const fragments = key.split('-');
@@ -29,13 +33,7 @@ const handleLatest = async (logger, ws, _payload) => {
     symbols: {}
   };
 
-  const configuration = await mongo.findOne(
-    logger,
-    'simple-stop-chaser-common',
-    {
-      key: 'configuration'
-    }
-  );
+  const configuration = await getGlobalConfiguration(logger);
   logger.info({ configuration }, 'Configuration from MongoDB');
 
   let common = {};
@@ -70,11 +68,13 @@ const handleLatest = async (logger, ws, _payload) => {
           estimatedValue: 0,
           updatedAt: null
         },
+        configuration: {},
         buy: {
           action: null,
           currentPrice: null,
           lowestPrice: null,
           difference: null,
+          processMessage: null,
           updatedAt: null
         },
         sell: {
@@ -139,6 +139,11 @@ const handleLatest = async (logger, ws, _payload) => {
       finalStat.buy.updatedAt = determineAction.timeUTC;
     }
 
+    if (newKey === 'place-buy-order-result') {
+      const buySignalResult = JSON.parse(value);
+      finalStat.buy.processMessage = buySignalResult.message;
+    }
+
     if (newKey === 'chase-stop-loss-limit-order-sell-signal') {
       const sellSignal = JSON.parse(value);
       finalStat.sell.minimumSellingPrice = sellSignal.calculatedLastBuyPrice;
@@ -193,6 +198,12 @@ const handleLatest = async (logger, ws, _payload) => {
   stats.symbols = await Promise.all(
     _.map(stats.symbols, async symbol => {
       const newSymbol = symbol;
+
+      // Get symbol configuration
+      newSymbol.configuration = await getSymbolConfiguration(
+        logger,
+        newSymbol.symbol
+      );
 
       newSymbol.balance.estimatedValue =
         symbol.buy.currentPrice * symbol.balance.total;

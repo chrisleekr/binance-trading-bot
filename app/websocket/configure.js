@@ -3,7 +3,8 @@ const {
   handleLatest,
   handleSettingUpdate,
   handleSymbolUpdate,
-  handleSymbolDelete
+  handleSymbolDelete,
+  handleSymbolSettingUpdate
 } = require('./handlers');
 
 const handleWarning = (logger, ws, message) => {
@@ -38,18 +39,23 @@ const configureWebSocket = async (server, funcLogger) => {
         return;
       }
 
+      const commandLogger = logger.child({ payload });
+
       switch (payload.command) {
         case 'latest':
-          await handleLatest(logger, ws, payload);
+          await handleLatest(commandLogger, ws, payload);
           break;
         case 'setting-update':
-          await handleSettingUpdate(logger, ws, payload);
+          await handleSettingUpdate(commandLogger, ws, payload);
           break;
         case 'symbol-update':
-          await handleSymbolUpdate(logger, ws, payload);
+          await handleSymbolUpdate(commandLogger, ws, payload);
           break;
         case 'symbol-delete':
-          await handleSymbolDelete(logger, ws, payload);
+          await handleSymbolDelete(commandLogger, ws, payload);
+          break;
+        case 'symbol-setting-update':
+          await handleSymbolSettingUpdate(commandLogger, ws, payload);
           break;
         default:
           handleWarning(logger, ws, 'Command is not recognised.');

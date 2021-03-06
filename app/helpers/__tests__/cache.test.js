@@ -15,11 +15,11 @@ describe('cache', () => {
 
       mockSet = jest.fn(() => true);
       jest.mock('config');
-      jest.mock('ioredis', () => {
-        return jest.fn().mockImplementation(() => ({
+      jest.mock('ioredis', () =>
+        jest.fn().mockImplementation(() => ({
           set: mockSet
-        }));
-      });
+        }))
+      );
 
       cache = require('../cache');
     });
@@ -59,11 +59,11 @@ describe('cache', () => {
 
       mockGet = jest.fn(() => 'my-value');
       jest.mock('config');
-      jest.mock('ioredis', () => {
-        return jest.fn().mockImplementation(() => ({
+      jest.mock('ioredis', () =>
+        jest.fn().mockImplementation(() => ({
           get: mockGet
-        }));
-      });
+        }))
+      );
 
       cache = require('../cache');
 
@@ -85,11 +85,11 @@ describe('cache', () => {
 
       mockHSet = jest.fn(() => true);
       jest.mock('config');
-      jest.mock('ioredis', () => {
-        return jest.fn().mockImplementation(() => ({
+      jest.mock('ioredis', () =>
+        jest.fn().mockImplementation(() => ({
           hset: mockHSet
-        }));
-      });
+        }))
+      );
 
       cache = require('../cache');
     });
@@ -113,11 +113,11 @@ describe('cache', () => {
 
       mockHGet = jest.fn(() => 'my-value');
       jest.mock('config');
-      jest.mock('ioredis', () => {
-        return jest.fn().mockImplementation(() => ({
+      jest.mock('ioredis', () =>
+        jest.fn().mockImplementation(() => ({
           hget: mockHGet
-        }));
-      });
+        }))
+      );
 
       cache = require('../cache');
 
@@ -139,11 +139,11 @@ describe('cache', () => {
 
       mockHGetAll = jest.fn(() => 'my-value');
       jest.mock('config');
-      jest.mock('ioredis', () => {
-        return jest.fn().mockImplementation(() => ({
+      jest.mock('ioredis', () =>
+        jest.fn().mockImplementation(() => ({
           hgetall: mockHGetAll
-        }));
-      });
+        }))
+      );
 
       cache = require('../cache');
 
@@ -165,11 +165,11 @@ describe('cache', () => {
 
       mockHDel = jest.fn(() => 'my-value');
       jest.mock('config');
-      jest.mock('ioredis', () => {
-        return jest.fn().mockImplementation(() => ({
+      jest.mock('ioredis', () =>
+        jest.fn().mockImplementation(() => ({
           hdel: mockHDel
-        }));
-      });
+        }))
+      );
 
       cache = require('../cache');
 

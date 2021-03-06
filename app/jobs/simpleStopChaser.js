@@ -73,6 +73,13 @@ const execute = async logger => {
     } else if (tradeActionResult.action === 'sell') {
       symbolLogger.warn(`Got sell signal, but do nothing. Never lose money.`);
     } else {
+      // Delete cached buy order result
+      cache.hdel(
+        'simple-stop-chaser-symbols',
+        `${symbol}-place-buy-order-result`
+      );
+
+      // Check stop loss limit order
       orderResult = await helper.chaseStopLossLimitOrder(
         symbolLogger,
         indicators

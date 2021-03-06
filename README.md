@@ -10,26 +10,25 @@ you can make money or not.**
 **So use it at your own risk! I have no responsibility for any loss or hardship
 incurred directly or indirectly by using this code.**
 
-**Make sure you record last buy price in your note before you update any
-changes.**
+**Before update any changes, make sure record last buy price in the note. It may
+lose the configuration or last buy price.**
 
 ## How it works
 
-### Simple-Stop-Chaser
+### Trading Bot
 
-This method is buying at the lowest price without any indicator, never sell
-under purchase price. And chase rising money. Stop chaser methodology was the
-idea from [@d0x2f](https://github.com/d0x2f). I have found MACD indicators often
+This bot is buying at the lowest price without any indicator, never sell under
+purchase price. And chase rising money. Stop chaser methodology was the idea
+from [@d0x2f](https://github.com/d0x2f). I have found MACD indicators often
 mislead buying signal. In box pattern market, buy signal with the lowest price
 is effective than using MACD indicators.
 
-#### Note
-
-- The bot can monitor multiple symbols.
+- The bot can monitor multiple symbols. Each symbol will be monitored per
+  second.
 - The bot is only tested and working with USDT pair in the FIAT market such as
-  BTCUSDT, ETHUSDT. You can add more FIAT symbols like BUSD, AUD using
-  `BINANCE_JOBS_SIMPLE_STOP_CHASER_SUPPORT_FIATS` or update from the frontend.
-  However, I didn't test in the live server. So use with your own risk.
+  BTCUSDT, ETHUSDT. You can add more FIAT symbols like BUSD, AUD from the
+  frontend. However, I didn't test in the live server. So use with your own
+  risk.
 - The bot is using MongoDB to provide a persistence database. However, it does
   not use the latest MongoDB to support Raspberry Pi 32bit. Used MongoDB version
   is 3.2.20, which is provided by
@@ -47,6 +46,7 @@ is effective than using MACD indicators.
      - It will only purchase the maximum purchase amount or less.
      - It will not purchase if the base asset, such as BTC, has enough balance
        to place a stop-loss limit order.
+     - If trading is disabled, then the bot won't place an order.
    - If the current price is higher than the lowest closed price, then _do not
      buy._
 
@@ -56,10 +56,21 @@ is effective than using MACD indicators.
      - Get last buy price from the cache
      - If the current price is higher than the minimum profit percentage _last
        buy price_, then **place Stop-Loss-Limit order.**
+       - If trading is disabled, then the bot won't place an order.
      - Otherwise, _do not place Stop-Loss-Limit order._
    - If there is an opened Stop-Loss-Limit order, then check the current price.
      - If the current price is higher than stop price, then cancel the open
        order. Then it will place new Stop-Loss-Limit order in next process.
+
+### Frontend + WebSocket
+
+React.js based frontend communicating via Web Socket:
+
+- List monitoring coins with buy/sell signals/open orders
+- View account balances
+- Manage global/symbol settings
+- Delete caches that are not monitored
+- Link to public URL
 
 ## Environment Parameters
 
@@ -92,43 +103,32 @@ Or use the frontend to adjust configurations after launching the application.
    docker-compose up -d
    ```
 
-   or using the latest build image
+   or using the latest build image from DockerHub
 
    ```bash
    docker-compose -f docker-compose.server.yml up -d
    ```
 
-   or if using Raspberry Pi 32bit
+   or if using Raspberry Pi 32bit. Must build again for Raspberry Pi.
 
    ```bash
+   docker build . --build-arg NODE_ENV=production --target production-stage -t chrisleekr/binance-trading-bot:latest
    docker-compose -f docker-compose.rpi.yml up -d
    ```
-
-   [![asciicast](https://asciinema.org/a/371137.png)](https://asciinema.org/a/371137)
 
 4. Open browser `http://0.0.0.0:8080` to see the frontend
 
    - When launching the application, it will notify public URL to the Slack.
 
-## Frontend + WebSocket
+## Screenshots
 
-React.js based frontend communicating via Web Socket:
-
-- List monitoring coins with buy/sell signals/open orders
-- View account balances
-- Manage settings including symbols
-- Delete caches that are not monitored
-- Link to public URL
-
-| Frontend Mobile                                                                                                       | Setting                                                                                                               |
-| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot1](https://user-images.githubusercontent.com/5715919/109266553-539c2b00-785c-11eb-9c2e-615ad922dd99.jpeg) | ![Screenshot2](https://user-images.githubusercontent.com/5715919/109266543-5139d100-785c-11eb-9076-b704178b3b1a.jpeg) |
+| Frontend Mobile                                                                                                      | Setting                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| ![Screenshot1](https://user-images.githubusercontent.com/5715919/110196331-ea3d9d00-7e97-11eb-8517-c3eaeb0f2698.png) | ![Screenshot2](https://user-images.githubusercontent.com/5715919/110196341-f7f32280-7e97-11eb-9aea-e645f678e185.png) |
 
 | Frontend Desktop                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot](https://user-images.githubusercontent.com/5715919/109266694-7cbcbb80-785c-11eb-862e-5afc83edbcfd.png) |
-
-## Trades
+| ![Screenshot](https://user-images.githubusercontent.com/5715919/110196322-d2feaf80-7e97-11eb-9ee0-a71e7a5c9ed7.png) |
 
 ### First trade
 
@@ -140,9 +140,9 @@ React.js based frontend communicating via Web Socket:
 
 | Trade History                                                                                                        | PNL Analysis                                                                                                         |
 | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot3](https://user-images.githubusercontent.com/5715919/104917671-d4f3d880-59e7-11eb-87ea-b73a8e75f725.jpg) | ![Screenshot4](https://user-images.githubusercontent.com/5715919/104917674-d6250580-59e7-11eb-911f-9d5491fdfdcb.jpg) |
+| ![Screenshot3](https://user-images.githubusercontent.com/5715919/110196375-38eb3700-7e98-11eb-870b-d2d145a6fb97.png) | ![Screenshot4](https://user-images.githubusercontent.com/5715919/110196380-41dc0880-7e98-11eb-98b7-697f5d2f351f.png) |
 
-## Todo
+## Changes & Todo
 
 - [x] Support multiple symbols
 - [x] Remove unused methods - Bollinger Bands, MACD Stop Chaser
@@ -162,6 +162,12 @@ React.js based frontend communicating via Web Socket:
       buy price
 - [x] Display estimated value in the frontend
 - [x] Support other FIAT symbols such as BUSD, AUD
+- [x] Allow entering more decimals for the last buy price
+- [x] Override buy/sell configuration per symbol
+- [x] Support PWA for frontend - now support "Add to Home screen"
+- [x] Enable/Disable symbols trading, but continue to monitor
+- [ ] Apply chase-stop-loss-limit order for buy signal as well
 - [ ] Override the lowest value in the frontend
+- [ ] Re-organise configuration structures
 - [ ] Allow browser notification
 - [ ] Secure frontend with the password

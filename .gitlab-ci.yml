@@ -30,8 +30,13 @@ bump-version-patch:
   script:
     - git config --global user.email "$GIT_CI_EMAIL"
     - git config --global user.name "$GIT_CI_NAME"
-    - npm version patch -m "Update version to %s [skip ci]"
-    - git push https://$GIT_CI_USERNAME:$GIT_CI_PASSWORD@$GIT_REPO_DOMAIN/chrisleekr/binance-trading-bot.git HEAD:master
+    - PACKAGE_VERSION=$(npm version patch -m "Update version to %s [skip ci]")
+    - git push
+      https://$GIT_CI_USERNAME:$GIT_CI_PASSWORD@$GIT_REPO_DOMAIN/chrisleekr/binance-trading-bot.git
+      HEAD:master
+    - git push
+      https://$GIT_CI_USERNAME:$GIT_CI_PASSWORD@$GIT_REPO_DOMAIN/chrisleekr/binance-trading-bot.git
+      "$PACKAGE_VERSION"
 
 production:
   stage: build production
@@ -40,7 +45,12 @@ production:
     - master
   <<: *before-script
   script:
-    - PACKAGE_VERSION=$(grep version package.json | cut -c 15- | rev | cut -c 3- | rev)
-    - docker build . --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg NODE_ENV=production --target production-stage -t $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:latest -t $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
-    - docker push $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
+    - PACKAGE_VERSION=$(grep version package.json | cut -c 15- | rev | cut -c 3-
+      | rev)
+    - docker build . --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg
+      NODE_ENV=production --target production-stage -t
+      $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:latest -t
+      $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
+    - docker push
+      $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
     - docker push $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:latest

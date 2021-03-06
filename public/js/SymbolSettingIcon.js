@@ -1,13 +1,13 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable react/jsx-no-undef */
 /* eslint-disable no-undef */
-class SettingIcon extends React.Component {
+class SymbolSettingIcon extends React.Component {
   constructor(props) {
     super(props);
 
     this.state = {
       showModal: false,
-      configuration: {}
+      symbolConfiguration: {}
     };
 
     this.handleModalShow = this.handleModalShow.bind(this);
@@ -15,17 +15,23 @@ class SettingIcon extends React.Component {
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
 
     this.handleInputChange = this.handleInputChange.bind(this);
+    this.resetToGlobalConfiguration = this.resetToGlobalConfiguration.bind(
+      this
+    );
   }
 
   componentDidUpdate(nextProps) {
-    // Only update configuration, when the modal is closed and different.
+    // Only update symbol configuration, when the modal is closed and different.
     if (
       this.state.showModal === false &&
-      _.isEmpty(nextProps.configuration) === false &&
-      _.isEqual(nextProps.configuration, this.state.configuration) === false
+      _.isEmpty(nextProps.symbolConfiguration) === false &&
+      _.isEqual(
+        nextProps.symbolConfiguration,
+        this.state.symbolConfiguration
+      ) === false
     ) {
       this.setState({
-        configuration: nextProps.configuration
+        symbolConfiguration: nextProps.symbolConfiguration
       });
     }
   }
@@ -33,11 +39,16 @@ class SettingIcon extends React.Component {
   handleFormSubmit(e) {
     e.preventDefault();
     console.log(
-      'handleFormSubmit this.state.configuration ',
-      this.state.configuration
+      'handleFormSubmit this.state.symbolConfiguration ',
+      this.state.symbolConfiguration
     );
 
-    this.props.sendWebSocket('setting-update', this.state.configuration);
+    // Send with symbolInfo
+    const { symbolInfo } = this.props;
+    const newSymbolInfo = symbolInfo;
+    newSymbolInfo.configuration = this.state.symbolConfiguration;
+
+    this.props.sendWebSocket('symbol-setting-update', newSymbolInfo);
     this.handleModalClose();
   }
 
@@ -63,28 +74,32 @@ class SettingIcon extends React.Component {
         : target.value;
     const stateKey = target.getAttribute('data-state-key');
 
-    const { configuration } = this.state;
+    const { symbolConfiguration } = this.state;
 
     this.setState({
-      configuration: _.set(configuration, stateKey, value)
+      symbolConfiguration: _.set(symbolConfiguration, stateKey, value)
+    });
+  }
+
+  resetToGlobalConfiguration(_e) {
+    this.setState({
+      symbolConfiguration: this.props.globalConfiguration
     });
   }
 
   render() {
-    const { configuration } = this.state;
-    const { symbols: selectedSymbols, supportFIATs } = configuration;
+    const { symbolInfo } = this.props;
+    const { symbolConfiguration } = this.state;
 
-    const selectedFIATs = supportFIATs || ['USDT'];
-
-    if (_.isEmpty(configuration)) {
+    if (_.isEmpty(symbolConfiguration)) {
       return '';
     }
 
     return (
-      <div className='header-column-icon-wrapper setting-wrapper'>
+      <div className='symbol-setting-icon-wrapper'>
         <button
           type='button'
-          className='btn btn-sm btn-link p-0 pl-1 pr-1'
+          className='btn btn-sm btn-link p-0'
           onClick={this.handleModalShow}>
           <i className='fa fa-cog'></i>
         </button>
@@ -94,49 +109,15 @@ class SettingIcon extends React.Component {
           size='md'>
           <Form onSubmit={this.handleFormSubmit}>
             <Modal.Header className='pt-1 pb-1'>
-              <Modal.Title>Global Settings</Modal.Title>
+              <Modal.Title>Customise {symbolInfo.symbol} Settings</Modal.Title>
             </Modal.Header>
             <Modal.Body>
               <span className='text-muted'>
-                In this modal, you can configure the global configuration. If
-                the symbol has the specific configuration, the change won't
-                impact the symbol.
+                In this modal, you can override the global configuration for the
+                specific symbol. Note that these are symbol specific settings,
+                which means only this symbol will be applied to settings.
               </span>
               <hr />
-              <h2 className='form-header'>Symbols</h2>
-              <Form.Group>
-                <Typeahead
-                  multiple
-                  onChange={selected => {
-                    // Handle selections...
-                    const { configuration } = this.state;
-                    configuration.symbols = selected;
-                    this.setState({ configuration });
-                  }}
-                  size='sm'
-                  options={this.props.exchangeSymbols}
-                  defaultSelected={selectedSymbols}
-                  placeholder='Choose symbols to monitor...'
-                />
-              </Form.Group>
-
-              <h2 className='form-header'>Support FIATs</h2>
-              <Form.Group>
-                <Typeahead
-                  multiple
-                  onChange={selected => {
-                    // Handle selections...
-                    const { configuration } = this.state;
-                    configuration.supportFIATs = selected;
-                    this.setState({ configuration });
-                  }}
-                  size='sm'
-                  options={this.props.exchangeFIATs}
-                  defaultSelected={selectedFIATs}
-                  placeholder='Choose FIAT market...'
-                />
-              </Form.Group>
-
               <h2 className='form-header'>Candles</h2>
               <Form.Group controlId='field-candles-interval'>
                 <Form.Label>Interval</Form.Label>
@@ -145,7 +126,7 @@ class SettingIcon extends React.Component {
                   as='select'
                   required
                   data-state-key='candles.interval'
-                  value={configuration.candles.interval}
+                  value={symbolConfiguration.candles.interval}
                   onChange={this.handleInputChange}>
                   <option value='15m'>15m</option>
                   <option value='30m'>30m</option>
@@ -169,7 +150,7 @@ class SettingIcon extends React.Component {
                   min='0'
                   step='1'
                   data-state-key='candles.limit'
-                  value={configuration.candles.limit}
+                  value={symbolConfiguration.candles.limit}
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
@@ -185,7 +166,7 @@ class SettingIcon extends React.Component {
                   type='checkbox'
                   label='Trading Enabled'
                   data-state-key='buy.enabled'
-                  checked={configuration.buy.enabled}
+                  checked={symbolConfiguration.buy.enabled}
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
@@ -205,7 +186,7 @@ class SettingIcon extends React.Component {
                   min='0'
                   step='1'
                   data-state-key='maxPurchaseAmount'
-                  value={configuration.maxPurchaseAmount}
+                  value={symbolConfiguration.maxPurchaseAmount}
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
@@ -222,7 +203,7 @@ class SettingIcon extends React.Component {
                   type='checkbox'
                   label='Trading Enabled'
                   data-state-key='sell.enabled'
-                  checked={configuration.sell.enabled}
+                  checked={symbolConfiguration.sell.enabled}
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
@@ -242,7 +223,7 @@ class SettingIcon extends React.Component {
                   min='0'
                   step='0.001'
                   data-state-key='stopLossLimit.lastBuyPercentage'
-                  value={configuration.stopLossLimit.lastBuyPercentage}
+                  value={symbolConfiguration.stopLossLimit.lastBuyPercentage}
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
@@ -260,7 +241,7 @@ class SettingIcon extends React.Component {
                   min='0'
                   step='0.001'
                   data-state-key='stopLossLimit.stopPercentage'
-                  value={configuration.stopLossLimit.stopPercentage}
+                  value={symbolConfiguration.stopLossLimit.stopPercentage}
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
@@ -280,7 +261,7 @@ class SettingIcon extends React.Component {
                   min='0'
                   step='0.001'
                   data-state-key='stopLossLimit.limitPercentage'
-                  value={configuration.stopLossLimit.limitPercentage}
+                  value={symbolConfiguration.stopLossLimit.limitPercentage}
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
@@ -292,11 +273,20 @@ class SettingIcon extends React.Component {
             </Modal.Body>
             <Modal.Footer>
               <Button
+                variant='danger'
+                size='sm'
+                type='button'
+                onClick={this.resetToGlobalConfiguration}>
+                Reset to Global Setting
+              </Button>
+              <Button
                 variant='secondary'
                 size='sm'
+                type='button'
                 onClick={this.handleModalClose}>
                 Close
               </Button>
+
               <Button type='submit' variant='primary' size='sm'>
                 Save Changes
               </Button>

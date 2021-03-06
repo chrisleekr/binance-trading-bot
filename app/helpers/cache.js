@@ -26,9 +26,7 @@ const set = async (key, value, ttl = undefined) => {
  *
  * @param {*} key
  */
-const get = async key => {
-  return redis.get(key);
-};
+const get = async key => redis.get(key);
 
 /**
  * Set cache value
@@ -37,9 +35,7 @@ const get = async key => {
  * @param {*} field
  * @param {*} value
  */
-const hset = async (key, field, value) => {
-  return redis.hset(key, field, value);
-};
+const hset = async (key, field, value) => redis.hset(key, field, value);
 
 /**
  * Get value from key
@@ -47,18 +43,14 @@ const hset = async (key, field, value) => {
  * @param {*} key
  * @param {*} field
  */
-const hget = async (key, field) => {
-  return redis.hget(key, field);
-};
+const hget = async (key, field) => redis.hget(key, field);
 
 /**
  * Get value from key
  *
  * @param {*} key
  */
-const hgetall = async key => {
-  return redis.hgetall(key);
-};
+const hgetall = async key => redis.hgetall(key);
 
 /**
  * Delete key/field
@@ -66,8 +58,6 @@ const hgetall = async key => {
  * @param {*} key
  * @param {*} field
  */
-const hdel = async (key, field) => {
-  return redis.hdel(key, field);
-};
+const hdel = async (key, field) => redis.hdel(key, field);
 
 module.exports = { set, get, hset, hget, hgetall, hdel };

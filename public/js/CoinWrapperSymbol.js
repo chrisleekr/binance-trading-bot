@@ -32,10 +32,6 @@ class CoinWrapperSymbol extends React.Component {
               className='coin-info-spinner'
             />
           )}
-          <SymbolEditIcon
-            symbolInfo={symbolInfo}
-            sendWebSocket={sendWebSocket}
-          />
           <SymbolDeleteIcon
             symbolInfo={symbolInfo}
             sendWebSocket={sendWebSocket}

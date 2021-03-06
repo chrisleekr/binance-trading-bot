@@ -94,6 +94,18 @@
           "__name": "BINANCE_JOBS_SIMPLE_STOP_CHASER_STOP_LOSS_LIMIT_LIMIT_PERCENTAGE",
           "__format": "number"
         }
+      },
+      "buy": {
+        "enabled": {
+          "__name": "BINANCE_JOBS_SIMPLE_STOP_CHASER_BUY_ENABLED",
+          "__format": "boolean"
+        }
+      },
+      "sell": {
+        "enabled": {
+          "__name": "BINANCE_JOBS_SIMPLE_STOP_CHASER_SELL_ENABLED",
+          "__format": "boolean"
+        }
       }
     }
   }
