@@ -24,11 +24,11 @@ const determineNextSymbol = async (symbols, logger) => {
 };
 
 const execute = async logger => {
-  logger.info('Trade: Simple Stop-Chasing');
+  logger.info('Trade: Start simple-stop-chaser process...');
 
-  const simpleStopChaser = await helper.getConfiguration(logger);
+  const globalConfiguration = await helper.getConfiguration(logger);
 
-  const { symbols } = simpleStopChaser;
+  const { symbols } = globalConfiguration;
 
   logger.info({ symbols }, 'Checking symbols...');
 
@@ -45,10 +45,12 @@ const execute = async logger => {
   );
 
   try {
-    // 0. Get exchange symbols
-    await helper.getExchangeSymbols(symbolLogger);
+    // 1. Get exchange symbols
+    await helper.getExchangeSymbols(symbolLogger, globalConfiguration);
 
-    // 0. Get account 9info
+    const symbolConfiguration = await helper.getConfiguration(logger, symbol);
+
+    // 2. Get account info
     const accountInfo = await helper.getAccountInfo(symbolLogger);
     cache.hset(
       'simple-stop-chaser-common',
@@ -56,41 +58,50 @@ const execute = async logger => {
       JSON.stringify(accountInfo)
     );
 
-    // 1. Get indicators
-    const indicators = await helper.getIndicators(symbol, symbolLogger);
+    // 3. Get indicators
+    const indicators = await helper.getIndicators(
+      symbolLogger,
+      symbol,
+      symbolConfiguration
+    );
 
-    // 2. Determine actions
+    // 4. Determine actions
     const tradeActionResult = await helper.determineAction(
       symbolLogger,
-      indicators
+      indicators,
+      symbolConfiguration
     );
     symbolLogger.info({ tradeActionResult }, 'Determined action.');
 
-    // 3. Place order based on lowest value signal
-    let orderResult = {};
+    // 5. Place order based on lowest value signal
+    let buyOrderResult = {};
     if (tradeActionResult.action === 'buy') {
-      orderResult = await helper.placeBuyOrder(symbolLogger, indicators);
-    } else if (tradeActionResult.action === 'sell') {
-      symbolLogger.warn(`Got sell signal, but do nothing. Never lose money.`);
-    } else {
-      // Delete cached buy order result
+      buyOrderResult = await helper.placeBuyOrder(
+        symbolLogger,
+        indicators,
+        symbolConfiguration
+      );
+    }
+
+    // 6. If action is wait, then clean up cache
+    if (tradeActionResult.action === 'wait') {
       cache.hdel(
         'simple-stop-chaser-symbols',
         `${symbol}-place-buy-order-result`
       );
-
-      // Check stop loss limit order
-      orderResult = await helper.chaseStopLossLimitOrder(
-        symbolLogger,
-        indicators
-      );
     }
 
-    if (orderResult.result) {
-      symbolLogger.info({ orderResult }, 'Finish processing symbol...');
-    } else {
-      symbolLogger.warn({ orderResult }, 'Finish processing symbol...');
-    }
+    // 7. Check stop loss limit order
+    const soptLossLimitOrderResult = await helper.chaseStopLossLimitOrder(
+      symbolLogger,
+      indicators,
+      symbolConfiguration
+    );
+
+    symbolLogger.info(
+      { buyOrderResult, soptLossLimitOrderResult },
+      'Trade: Finish simple-stop-chaser process...'
+    );
   } catch (e) {
     symbolLogger.error(e, `${symbol} Execution failed.`);
     if (

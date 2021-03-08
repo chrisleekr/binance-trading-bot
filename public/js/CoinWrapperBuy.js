@@ -61,6 +61,23 @@ class CoinWrapperBuy extends React.Component {
         ) : (
           ''
         )}
+        <div className='coin-info-column coin-info-column-price divider'></div>
+        {symbolInfo.buy.triggerPrice ? (
+          <div className='coin-info-column coin-info-column-price'>
+            <span className='coin-info-label'>
+              Trigger price (
+              {((symbolConfiguration.buy.triggerPercentage - 1) * 100).toFixed(
+                2
+              )}
+              %):
+            </span>
+            <HightlightChange className='coin-info-value'>
+              {symbolInfo.buy.triggerPrice.toFixed(symbolInfo.precision)}
+            </HightlightChange>
+          </div>
+        ) : (
+          ''
+        )}
         {symbolInfo.buy.difference ? (
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>Difference:</span>

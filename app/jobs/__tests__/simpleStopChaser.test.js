@@ -21,10 +21,18 @@ describe('simpleStopChaser', () => {
           lastBuyPercentage: 1.06,
           stopPercentage: 0.97,
           limitPercentage: 0.96
+        },
+        buy: {
+          enabled: true,
+          triggerPercentage: 1
+        },
+        sell: {
+          enabled: true
         }
       };
 
       cache.hset = jest.fn().mockResolvedValue(true);
+      cache.hdel = jest.fn().mockResolvedValue(true);
       mongo.findOne = jest.fn((_logger, collection, filter) => {
         if (
           collection === 'simple-stop-chaser-common' &&
@@ -60,13 +68,31 @@ describe('simpleStopChaser', () => {
           .fn()
           .mockResolvedValue({ result: true });
 
+        simpleStopChaserHelper.chaseStopLossLimitOrder = jest
+          .fn()
+          .mockResolvedValue({ result: true });
+
         await simpleStopChaserExecute(logger);
+      });
+
+      it('triggers getConfiguration for global configuration', () => {
+        expect(simpleStopChaserHelper.getConfiguration).toHaveBeenCalledWith(
+          logger
+        );
+      });
+
+      it('triggers getConfiguration for symbol configuration', () => {
+        expect(simpleStopChaserHelper.getConfiguration).toHaveBeenCalledWith(
+          logger,
+          'BTCUSDT'
+        );
       });
 
       it('triggers getIndicator', () => {
         expect(simpleStopChaserHelper.getIndicators).toHaveBeenCalledWith(
+          logger,
           'BTCUSDT',
-          logger
+          jobConfig
         );
       });
 
@@ -79,9 +105,17 @@ describe('simpleStopChaser', () => {
       });
 
       it('triggers placeBuyOrder', () => {
+        expect(simpleStopChaserHelper.placeBuyOrder).toHaveBeenCalledWith(
+          logger,
+          { some: 'value' },
+          jobConfig
+        );
+      });
+
+      it('triggers chaseStopLossLimitOrder', () => {
         expect(
-          simpleStopChaserHelper.placeBuyOrder
-        ).toHaveBeenCalledWith(logger, { some: 'value' });
+          simpleStopChaserHelper.chaseStopLossLimitOrder
+        ).toHaveBeenCalledWith(logger, { some: 'value' }, jobConfig);
       });
     });
 
@@ -101,13 +135,18 @@ describe('simpleStopChaser', () => {
           .fn()
           .mockResolvedValue({ result: true });
 
+        simpleStopChaserHelper.chaseStopLossLimitOrder = jest
+          .fn()
+          .mockResolvedValue({ result: true });
+
         await simpleStopChaserExecute(logger);
       });
 
       it('triggers getIndicator', () => {
         expect(simpleStopChaserHelper.getIndicators).toHaveBeenCalledWith(
+          logger,
           'ETHUSDT',
-          logger
+          jobConfig
         );
       });
 
@@ -121,6 +160,12 @@ describe('simpleStopChaser', () => {
 
       it('does not trigger placeBuyOrder', () => {
         expect(simpleStopChaserHelper.placeBuyOrder).not.toHaveBeenCalled();
+      });
+
+      it('triggers chaseStopLossLimitOrder', () => {
+        expect(
+          simpleStopChaserHelper.chaseStopLossLimitOrder
+        ).toHaveBeenCalledWith(logger, { some: 'value' }, jobConfig);
       });
     });
 
@@ -151,6 +196,13 @@ describe('simpleStopChaser', () => {
         expect(simpleStopChaserHelper.placeBuyOrder).not.toHaveBeenCalled();
       });
 
+      it('triggers hdel to place-buy-order-result', () => {
+        expect(cache.hdel).toHaveBeenCalledWith(
+          'simple-stop-chaser-symbols',
+          'BTCUSDT-place-buy-order-result'
+        );
+      });
+
       it('caches last processed time and symbol', () => {
         expect(cache.hset).toHaveBeenCalledWith(
           'simple-stop-chaser-common',
@@ -162,7 +214,7 @@ describe('simpleStopChaser', () => {
       it('triggers chaseStopLossLimitOrder', () => {
         expect(
           simpleStopChaserHelper.chaseStopLossLimitOrder
-        ).toHaveBeenCalledWith(logger, { some: 'value' });
+        ).toHaveBeenCalledWith(logger, { some: 'value' }, jobConfig);
       });
     });
 

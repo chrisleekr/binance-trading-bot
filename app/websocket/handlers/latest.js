@@ -73,6 +73,8 @@ const handleLatest = async (logger, ws, _payload) => {
           action: null,
           currentPrice: null,
           lowestPrice: null,
+          triggerPrice: null,
+          triggerPercentage: null,
           difference: null,
           processMessage: null,
           updatedAt: null
@@ -133,8 +135,10 @@ const handleLatest = async (logger, ws, _payload) => {
       finalStat.buy.action = determineAction.action;
       finalStat.buy.currentPrice = determineAction.lastCandleClose;
       finalStat.buy.lowestPrice = determineAction.lowestClosed;
+      finalStat.buy.triggerPrice = determineAction.triggerPrice;
+      finalStat.buy.triggerPercentage = determineAction.triggerPercentage;
       finalStat.buy.difference =
-        (1 - determineAction.lastCandleClose / determineAction.lowestClosed) *
+        (1 - determineAction.lastCandleClose / determineAction.triggerPrice) *
         -100;
       finalStat.buy.updatedAt = determineAction.timeUTC;
     }

@@ -49,13 +49,6 @@
       "priceSymbol": "BINANCE_JOBS_ALIVE_PRICE_SYMBOL",
       "balanceSymbols": "BINANCE_JOBS_ALIVE_BALANCE_SYMBOLS"
     },
-    "cleanup": {
-      "enabled": {
-        "__name": "BINANCE_JOBS_CLEANUP_ENABLED",
-        "__format": "boolean"
-      },
-      "cronTime": "BINANCE_JOBS_CLEANUP_CRONTIME"
-    },
     "simpleStopChaser": {
       "enabled": {
         "__name": "BINANCE_JOBS_SIMPLE_STOP_CHASER_ENABLED",
@@ -99,6 +92,10 @@
         "enabled": {
           "__name": "BINANCE_JOBS_SIMPLE_STOP_CHASER_BUY_ENABLED",
           "__format": "boolean"
+        },
+        "triggerPercentage": {
+          "__name": "BINANCE_JOBS_SIMPLE_STOP_CHASER_BUY_TRIGGER_PERCENTAGE",
+          "__format": "number"
         }
       },
       "sell": {

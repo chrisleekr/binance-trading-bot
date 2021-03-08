@@ -35,10 +35,6 @@
       "enabled": true,
       "cronTime": "0 0 9 * * *"
     },
-    "cleanup": {
-      "enabled": true,
-      "cronTime": "0 0 9 * * *"
-    },
     "simpleStopChaser": {
       "enabled": false,
       "cronTime": "* * * * * *",
@@ -55,7 +51,8 @@
         "limitPercentage": 0.96
       },
       "buy": {
-        "enabled": true
+        "enabled": true,
+        "triggerPercentage": 1.0
       },
       "sell": {
         "enabled": true
