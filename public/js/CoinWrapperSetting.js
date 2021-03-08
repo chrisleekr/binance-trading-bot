@@ -154,6 +154,21 @@ class CoinWrapperSetting extends React.Component {
               ) : (
                 ''
               )}
+
+              {_.get(diffConfiguration, 'buy.triggerPercentage') ? (
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>Trigger percentage:</span>
+                  <HightlightChange className='coin-info-value'>
+                    {(
+                      (symbolConfiguration.buy.triggerPercentage - 1) *
+                      100
+                    ).toFixed(2)}
+                    %
+                  </HightlightChange>
+                </div>
+              ) : (
+                ''
+              )}
             </div>
           ) : (
             ''

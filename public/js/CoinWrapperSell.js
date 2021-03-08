@@ -42,9 +42,6 @@ class CoinWrapperSell extends React.Component {
           ) : (
             ''
           )}
-          <CoinWrapperSellLastBuyPrice
-            symbolInfo={symbolInfo}
-            sendWebSocket={sendWebSocket}></CoinWrapperSellLastBuyPrice>
           {symbolInfo.sell.currentPrice ? (
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Current price:</span>
@@ -55,6 +52,9 @@ class CoinWrapperSell extends React.Component {
           ) : (
             ''
           )}
+          <CoinWrapperSellLastBuyPrice
+            symbolInfo={symbolInfo}
+            sendWebSocket={sendWebSocket}></CoinWrapperSellLastBuyPrice>
           {symbolInfo.sell.currentProfit ? (
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Profit/Loss:</span>
@@ -71,7 +71,14 @@ class CoinWrapperSell extends React.Component {
           <div className='coin-info-column coin-info-column-price divider'></div>
           {symbolInfo.sell.minimumSellingPrice ? (
             <div className='coin-info-column coin-info-column-price'>
-              <span className='coin-info-label'>Minimum selling price:</span>
+              <span className='coin-info-label'>
+                Trigger price (
+                {(
+                  (symbolConfiguration.stopLossLimit.lastBuyPercentage - 1) *
+                  100
+                ).toFixed(2)}
+                %):
+              </span>
               <HightlightChange className='coin-info-value'>
                 {symbolInfo.sell.minimumSellingPrice.toFixed(
                   symbolInfo.precision

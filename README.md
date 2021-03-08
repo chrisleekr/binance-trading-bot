@@ -4,8 +4,11 @@
 [![CodeCov](https://codecov.io/gh/chrisleekr/binance-trading-bot/branch/master/graph/badge.svg)](https://codecov.io/gh/chrisleekr/binance-trading-bot)
 [![MIT License](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
 
-This is a test project. I am just testing my code. **I cannot guarantee whether
-you can make money or not.**
+This is a test project. I am just testing my code.
+
+## Warnings
+
+**I cannot guarantee whether you can make money or not.**
 
 **So use it at your own risk! I have no responsibility for any loss or hardship
 incurred directly or indirectly by using this code.**
@@ -29,6 +32,9 @@ is effective than using MACD indicators.
   BTCUSDT, ETHUSDT. You can add more FIAT symbols like BUSD, AUD from the
   frontend. However, I didn't test in the live server. So use with your own
   risk.
+- Note that if the coin is worth less than $10, then the bot will remove the
+  last buy price because Binance does not allow to place an order of less than
+  $10.
 - The bot is using MongoDB to provide a persistence database. However, it does
   not use the latest MongoDB to support Raspberry Pi 32bit. Used MongoDB version
   is 3.2.20, which is provided by
@@ -124,11 +130,11 @@ Or use the frontend to adjust configurations after launching the application.
 
 | Frontend Mobile                                                                                                      | Setting                                                                                                              |
 | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot1](https://user-images.githubusercontent.com/5715919/110196331-ea3d9d00-7e97-11eb-8517-c3eaeb0f2698.png) | ![Screenshot2](https://user-images.githubusercontent.com/5715919/110196341-f7f32280-7e97-11eb-9aea-e645f678e185.png) |
+| ![Screenshot1](https://user-images.githubusercontent.com/5715919/110298077-421b0600-8048-11eb-9763-94ebc2159745.png) | ![Screenshot2](https://user-images.githubusercontent.com/5715919/110298101-4a734100-8048-11eb-8916-4d4381d3161e.png) |
 
 | Frontend Desktop                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot](https://user-images.githubusercontent.com/5715919/110196322-d2feaf80-7e97-11eb-9ee0-a71e7a5c9ed7.png) |
+| ![Screenshot](https://user-images.githubusercontent.com/5715919/110298003-2b74af00-8048-11eb-81d4-52a4696b11f4.png) |
 
 ### First trade
 
@@ -166,8 +172,17 @@ Or use the frontend to adjust configurations after launching the application.
 - [x] Override buy/sell configuration per symbol
 - [x] Support PWA for frontend - now support "Add to Home screen"
 - [x] Enable/Disable symbols trading, but continue to monitor
+- [x] Add max-size for logging
+- [x] Execute chaseStopLossLimitOrder on every process
+- [x] Support buy trigger percentage
 - [ ] Apply chase-stop-loss-limit order for buy signal as well
 - [ ] Override the lowest value in the frontend
 - [ ] Re-organise configuration structures
 - [ ] Allow browser notification
 - [ ] Secure frontend with the password
+
+## Acknowledgments
+
+- [@d0x2f](https://github.com/d0x2f)
+- [@Maxoos](https://github.com/Maxoos)
+- [@OOtta](https://github.com/OOtta)

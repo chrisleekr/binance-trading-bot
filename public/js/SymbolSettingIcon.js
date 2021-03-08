@@ -136,7 +136,7 @@ class SymbolSettingIcon extends React.Component {
                   <option value='1d'>1d</option>
                 </Form.Control>
                 <Form.Text className='text-muted'>
-                  Set candle interval for calculating lowest price.
+                  Set candle interval for calculating the lowest price.
                 </Form.Text>
               </Form.Group>
 
@@ -154,8 +154,8 @@ class SymbolSettingIcon extends React.Component {
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
-                  Set number of candles to retrieve for calculating lowest
-                  price.
+                  Set the number of candles to retrieve for calculating the
+                  lowest price.
                 </Form.Text>
               </Form.Group>
 
@@ -192,7 +192,31 @@ class SymbolSettingIcon extends React.Component {
                 <Form.Text className='text-muted'>
                   Set maximum purchase amount. i.e. if account has 200 USDT and
                   set as <code>100</code>, then when reach buy price, it will
-                  only buy <code>100</code> worth of the coin.
+                  only buy <code>100</code> worth of the coin. Note that the bot
+                  will remove the last buy price if the coin is less worth than
+                  $10.
+                </Form.Text>
+              </Form.Group>
+              <Form.Group controlId='field-buy-trigger-percentage'>
+                <Form.Label>Trigger percentage</Form.Label>
+                <Form.Control
+                  size='sm'
+                  type='number'
+                  placeholder='Enter trigger percentage'
+                  required
+                  min='0'
+                  step='0.001'
+                  data-state-key='buy.triggerPercentage'
+                  value={symbolConfiguration.buy.triggerPercentage}
+                  onChange={this.handleInputChange}
+                />
+                <Form.Text className='text-muted'>
+                  Set the trigger percentage for buying. i.e. if set{' '}
+                  <code>1.01</code> and the lowest price is <code>$100</code>,
+                  then the bot will buy the coin when the current price reaches{' '}
+                  <code>$101</code>. You cannot set less than <code>1</code>,
+                  because it will never reach the trigger price unless there is
+                  a deep decline before the next process.
                 </Form.Text>
               </Form.Group>
 
@@ -227,8 +251,11 @@ class SymbolSettingIcon extends React.Component {
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
-                  Set minimum profit percentage for selling. i.e. if set{' '}
-                  <code>1.06</code>, minimum profit will be <code>6%</code>.
+                  Set the minimum profit percentage for selling. i.e. if set{' '}
+                  <code>1.06</code>, minimum profit will be <code>6%</code>. So
+                  if the last buy price is <code>$100</code>, then the bot will
+                  sell the coin when the current price reaches <code>$106</code>
+                  .
                 </Form.Text>
               </Form.Group>
               <Form.Group controlId='field-stop-loss-limit-stop-percentage'>
@@ -245,7 +272,7 @@ class SymbolSettingIcon extends React.Component {
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
-                  Set percentage to calculate stop price. i.e. if set{' '}
+                  Set the percentage to calculate stop price. i.e. if set{' '}
                   <code>0.99</code> and current price <code>$106</code>, stop
                   price will be <code>$104.94</code> for stop limit order.
                 </Form.Text>
@@ -265,7 +292,7 @@ class SymbolSettingIcon extends React.Component {
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
-                  Set percentage to calculate limit price. i.e. if set{' '}
+                  Set the percentage to calculate limit price. i.e. if set{' '}
                   <code>0.98</code> and current price <code>$106</code>, limit
                   price will be <code>$103.88</code> for stop limit order.
                 </Form.Text>

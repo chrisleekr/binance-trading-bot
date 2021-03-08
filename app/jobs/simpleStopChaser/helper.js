@@ -13,13 +13,15 @@ const getGlobalConfiguration = async logger => {
     return {};
   }
 
-  logger.info('Found global configuration.');
-
   // To avoid undefined, little housekeeping here.
   if (!configValue.buy) {
     configValue.buy = {
       enabled: true
     };
+  }
+
+  if (!configValue.buy.triggerPercentage) {
+    configValue.buy.triggerPercentage = 1.0;
   }
 
   if (!configValue.sell) {
@@ -49,8 +51,6 @@ const getSymbolConfiguration = async (logger, symbol = null) => {
     logger.info('Could not find symbol configuration.');
     return {};
   }
-
-  logger.info({ configValue }, 'Found symbol configuration.');
 
   return configValue;
 };
@@ -97,7 +97,7 @@ const getConfiguration = async (logger, symbol = null) => {
   const symbolConfigValue = await getSymbolConfiguration(logger, symbol);
 
   // Merge global and symbol configuration
-  const configValue = { ...globalConfigValue, ...symbolConfigValue };
+  const configValue = _.defaultsDeep(symbolConfigValue, globalConfigValue);
 
   let simpleStopChaserConfig = {};
   if (_.isEmpty(configValue) === false) {
@@ -218,7 +218,7 @@ const getBuyBalance = async (logger, indicators, options) => {
   if (_.isEmpty(quoteAssetBalance) || _.isEmpty(baseAssetBalance)) {
     return {
       result: false,
-      message: 'Balance is not found. Do not place an order.',
+      message: 'Do not place a buy order as cannot find a balance.',
       quoteAssetBalance,
       baseAssetBalance
     };
@@ -237,8 +237,7 @@ const getBuyBalance = async (logger, indicators, options) => {
   ) {
     return {
       result: false,
-      message:
-        'The base asset has enough balance to place a stop-loss limit order. Do not place a buy order.',
+      message: `Do not place a buy order as enough ${baseAsset} to sell.`,
       baseAsset,
       baseAssetTotalBalance,
       lastCandleClose,
@@ -263,8 +262,7 @@ const getBuyBalance = async (logger, indicators, options) => {
   if (freeBalance < +symbolInfo.filterMinNotional.minNotional) {
     return {
       result: false,
-      message:
-        'Balance is less than the minimum notional. Do not place an order.',
+      message: `Do not place a buy order as not enough ${quoteAsset} to buy ${baseAsset}.`,
       freeBalance
     };
   }
@@ -304,7 +302,7 @@ const getSellBalance = async (
   if (_.isEmpty(baseAssetBalance)) {
     return {
       result: false,
-      message: 'Balance is not found. Do not place an order.',
+      message: 'Do not place a sell order as cannot find a balance.',
       baseAssetBalance
     };
   }
@@ -395,7 +393,7 @@ const getBuyOrderQuantity = (logger, symbolInfo, balanceInfo, indicators) => {
   if (orderQuantity <= 0) {
     return {
       result: false,
-      message: 'Order quantity is less or equal to 0. Do not place an order.',
+      message: 'Do not place an order as quantity is less or equal to 0.',
       baseAssetPrice,
       orderQuantity,
       freeBalance
@@ -433,7 +431,7 @@ const getBuyOrderPrice = (logger, symbolInfo, orderQuantityInfo) => {
   ) {
     return {
       result: false,
-      message: `Notional value is less than the minimum notional value. Do not place an order.`,
+      message: `Notional value is less than the minimum notional value. Do not place a buy order.`,
       orderPrice
     };
   }
@@ -587,10 +585,9 @@ const getAccountInfo = async logger => {
  * Get exchange info from Binance
  *
  * @param {*} logger
+ * @param {*} globalConfiguration
  */
-const getExchangeSymbols = async logger => {
-  const simpleStopChaserConfig = await getConfiguration(logger);
-
+const getExchangeSymbols = async (logger, globalConfiguration) => {
   const cachedExchangeInfo = await cache.hget(
     'simple-stop-chaser-common',
     'exchange-symbols'
@@ -606,7 +603,7 @@ const getExchangeSymbols = async logger => {
 
   const exchangeInfo = await binance.client.exchangeInfo();
 
-  let { supportFIATs } = simpleStopChaserConfig;
+  let { supportFIATs } = globalConfiguration;
   if (!supportFIATs) {
     supportFIATs = config.get('jobs.simpleStopChaser.supportFIATs');
   }
@@ -655,14 +652,19 @@ const flattenCandlesData = candles => {
  * Get candles from Binance and determine buy signal with lowest price
  *
  * @param {*} logger
+ * @param {*} symbol
+ * @param {*} symbolConfiguration
+ *
  */
-const getIndicators = async (symbol, logger) => {
-  const simpleStopChaserConfig = await getConfiguration(logger, symbol);
+const getIndicators = async (logger, symbol, symbolConfiguration) => {
+  const {
+    candles: { interval, limit }
+  } = symbolConfiguration;
 
   const candles = await binance.client.candles({
     symbol,
-    interval: simpleStopChaserConfig.candles.interval,
-    limit: simpleStopChaserConfig.candles.limit
+    interval,
+    limit
   });
 
   const [lastCandle] = candles.slice(-1);
@@ -693,22 +695,40 @@ const getIndicators = async (symbol, logger) => {
  *
  * @param {*} logger
  * @param {*} indicators
+ * @param {*} symbolConfiguration
  */
-const determineAction = async (logger, indicators) => {
+const determineAction = async (logger, indicators, symbolConfiguration) => {
   let action = 'wait';
 
   const { symbol, lowestClosed, lastCandle } = indicators;
+  const {
+    buy: { triggerPercentage: buyTriggerPercentage }
+  } = symbolConfiguration;
 
-  if (lastCandle.close <= lowestClosed) {
+  const triggerPrice = lowestClosed * buyTriggerPercentage;
+
+  if (lastCandle.close <= triggerPrice) {
     action = 'buy';
     logger.info(
-      { symbol, lowestClosed, close: lastCandle.close },
-      "Current price is less than the lowest minimum price. Let's buy it."
+      {
+        symbol,
+        lowestClosed,
+        close: lastCandle.close,
+        buyTriggerPercentage,
+        triggerPrice
+      },
+      "Current price is less than the trigger price. Let's buy it."
     );
   } else {
     logger.warn(
-      { symbol, lowestClosed, close: lastCandle.close },
-      'Current price is higher than the lowest minimum price. Do not buy.'
+      {
+        symbol,
+        lowestClosed,
+        close: lastCandle.close,
+        buyTriggerPercentage,
+        triggerPrice
+      },
+      'Current price is higher than the trigger price. Do not buy.'
     );
   }
 
@@ -718,6 +738,8 @@ const determineAction = async (logger, indicators) => {
     action,
     lastCandleClose: lastCandle.close,
     lowestClosed,
+    triggerPrice,
+    triggerPercentage: buyTriggerPercentage,
     timeUTC: moment().utc()
   };
 
@@ -736,21 +758,41 @@ const determineAction = async (logger, indicators) => {
  *
  * @param {*} logger
  * @param {*} indicators
+ * @param {*} symbolConfiguration
  */
-const placeBuyOrder = async (logger, indicators) => {
+const placeBuyOrder = async (logger, indicators, symbolConfiguration) => {
   logger.info('Start placing buy order');
   const { symbol, symbolInfo } = indicators;
 
-  const simpleStopChaserConfig = await getConfiguration(logger, symbol);
+  const {
+    maxPurchaseAmount,
+    buy: { enabled: tradingEnabled }
+  } = symbolConfiguration;
 
   let returnValue;
 
-  // 1. Cancel all orders
+  // 1. Check trading enabled
+  if (tradingEnabled === false) {
+    // Trading is disabled. So do not place an order.
+    returnValue = {
+      result: false,
+      message: `Trading for ${symbol} is disabled. Do not place an order.`
+    };
+
+    logger.warn(returnValue);
+
+    cache.hset(
+      'simple-stop-chaser-symbols',
+      `${symbol}-place-buy-order-result`,
+      JSON.stringify(returnValue)
+    );
+    return returnValue;
+  }
+
+  // 2. Cancel all orders only if trading is enabled. In case there is manual open order.
   await cancelOpenOrders(logger, symbol);
 
-  // 2. Get balance for trade asset
-  const { maxPurchaseAmount } = simpleStopChaserConfig;
-
+  // 3. Get balance for trade asset
   const balanceInfo = await getBuyBalance(logger, indicators, {
     maxPurchaseAmount
   });
@@ -768,7 +810,7 @@ const placeBuyOrder = async (logger, indicators) => {
   }
   logger.info({ balanceInfo }, 'getBuyBalance result');
 
-  // 3. Get order quantity
+  // 4. Get order quantity
   const orderQuantityInfo = getBuyOrderQuantity(
     logger,
     symbolInfo,
@@ -788,7 +830,7 @@ const placeBuyOrder = async (logger, indicators) => {
   }
   logger.info({ orderQuantityInfo }, 'getBuyOrderQuantity result');
 
-  // 4. Get order price
+  // 5. Get order price
   const orderPriceInfo = getBuyOrderPrice(
     logger,
     symbolInfo,
@@ -805,25 +847,6 @@ const placeBuyOrder = async (logger, indicators) => {
     return orderPriceInfo;
   }
   logger.info({ orderPriceInfo }, 'getBuyOrderPrice result');
-
-  // 5. Check trading enabled
-  if (simpleStopChaserConfig.buy.enabled === false) {
-    // Trading is disabled. So do not place an order.
-
-    returnValue = {
-      result: false,
-      message: 'Trading for this symbol is disabled. Do not place an order.'
-    };
-
-    logger.warn(returnValue);
-
-    cache.hset(
-      'simple-stop-chaser-symbols',
-      `${symbol}-place-buy-order-result`,
-      JSON.stringify(returnValue)
-    );
-    return returnValue;
-  }
 
   // 6. Place order
   const orderParams = {
@@ -850,7 +873,7 @@ const placeBuyOrder = async (logger, indicators) => {
     `${symbol}-place-buy-order-result`,
     JSON.stringify({
       result: true,
-      message: `Placed buy order at the price of ${orderPriceInfo.orderPrice}.`
+      message: `Placed a buy order at the price of ${orderPriceInfo.orderPrice}.`
     })
   );
 
@@ -880,17 +903,23 @@ const placeBuyOrder = async (logger, indicators) => {
  *
  * @param {*} logger
  * @param {*} indicators
+ * @param {*} symbolConfiguration
  */
-const chaseStopLossLimitOrder = async (logger, indicators) => {
+const chaseStopLossLimitOrder = async (
+  logger,
+  indicators,
+  symbolConfiguration
+) => {
   logger.info('Start chaseStopLossLimitOrder');
 
   const { symbol, symbolInfo } = indicators;
 
-  const simpleStopChaserConfig = await getConfiguration(logger, symbol);
-
   let returnValue;
 
-  const { stopLossLimit: stopLossLimitConfig } = simpleStopChaserConfig;
+  const {
+    stopLossLimit: stopLossLimitConfig,
+    sell: { enabled: tradingEnabled }
+  } = symbolConfiguration;
 
   // 1. Get open orders
   const openOrders = await getOpenOrders(logger, symbol);
@@ -1015,7 +1044,7 @@ const chaseStopLossLimitOrder = async (logger, indicators) => {
     );
 
     // 0. Check trading enabled
-    if (simpleStopChaserConfig.sell.enabled === false) {
+    if (tradingEnabled === false) {
       // Trading is disabled. So do not place an order.
       returnValue = {
         result: false,

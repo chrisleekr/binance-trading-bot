@@ -4,14 +4,14 @@
   "configuration": {
     "enabled": true,
     "candles": { "interval": "15m" },
-    "buy": { "enabled": true },
+    "buy": { "enabled": true, "triggerPercentage": 1 },
     "sell": { "enabled": true }
   },
   "common": {
     "configuration": {
       "enabled": true,
       "candles": { "interval": "15m" },
-      "buy": { "enabled": true },
+      "buy": { "enabled": true, "triggerPercentage": 1 },
       "sell": { "enabled": true }
     },
     "accountInfo": {
@@ -68,6 +68,8 @@
           "action": "buy",
           "currentPrice": 11091.39,
           "lowestPrice": 1000,
+          "triggerPrice": 1000,
+          "triggerPercentage": 1,
           "difference": 1009.1389999999999,
           "processMessage": "The base asset has enough balance to place a stop-loss limit order. Do not place a buy order.",
           "updatedAt": "2021-02-04T22:37:37.346Z"
@@ -116,7 +118,9 @@
           "action": "wait",
           "currentPrice": 200,
           "lowestPrice": 130.56,
-          "difference": 53.18627450980391,
+          "triggerPrice": 131.8656,
+          "triggerPercentage": 1.01,
+          "difference": 51.66957872257814,
           "processMessage": null,
           "updatedAt": "2021-02-04T22:37:38.347Z"
         },
@@ -164,6 +168,8 @@
           "action": "wait",
           "currentPrice": 55.4394,
           "lowestPrice": 23.9916,
+          "triggerPrice": 23.9916,
+          "triggerPercentage": 1,
           "difference": 131.07837743210123,
           "processMessage": null,
           "updatedAt": "2021-02-04T22:37:35.363Z"
@@ -212,6 +218,8 @@
           "action": "wait",
           "currentPrice": 43351.35,
           "lowestPrice": 6000,
+          "triggerPrice": 6000,
+          "triggerPercentage": 1,
           "difference": 622.5225,
           "processMessage": null,
           "updatedAt": "2021-02-04T22:37:36.351Z"
@@ -260,6 +268,8 @@
           "action": "wait",
           "currentPrice": 156.998,
           "lowestPrice": 154.201,
+          "triggerPrice": 154.201,
+          "triggerPercentage": 1,
           "difference": 1.8138663173390634,
           "processMessage": null,
           "updatedAt": "2021-02-07T01:55:33.427Z"

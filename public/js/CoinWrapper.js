@@ -7,10 +7,10 @@ class CoinWrapper extends React.Component {
 
     const className = 'coin-wrapper ' + this.props.extraClassName;
 
-    const symbolConfiguration = {
-      ...configuration,
-      ...symbolInfo.configuration
-    };
+    const symbolConfiguration = _.defaultsDeep(
+      symbolInfo.configuration,
+      configuration
+    );
 
     return (
       <div className={className} data-symbol={symbolInfo.symbol}>
