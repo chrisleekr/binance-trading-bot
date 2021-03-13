@@ -73,7 +73,8 @@ class CoinWrapperSetting extends React.Component {
         <div className='coin-info-column coin-info-column-title coin-info-column-title-setting'>
           <div className='coin-info-label'>
             <div className='mr-1'>
-              Setting - <span class='coin-setting-customised'>Customised</span>
+              Setting -{' '}
+              <span className='coin-setting-customised'>Customised</span>
             </div>
             <SymbolSettingIcon
               symbolInfo={symbolInfo}

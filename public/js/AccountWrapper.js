@@ -19,7 +19,7 @@ class AccountWrapper extends React.Component {
               className='px-2 py-1'>
               <button
                 type='button'
-                class='btn btn-sm btn-link btn-account-balance'>
+                className='btn btn-sm btn-link btn-account-balance'>
                 Account Balance
               </button>
             </Accordion.Toggle>
