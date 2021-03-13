@@ -109,7 +109,7 @@ class CoinWrapperSell extends React.Component {
     }
 
     return (
-      <div class='coin-info-sub-wrapper'>
+      <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title'>
           <div className='coin-info-label'>
             Sell Signal{' '}

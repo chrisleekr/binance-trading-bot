@@ -138,7 +138,7 @@ class CoinWrapperOpenOrder extends React.Component {
     }
 
     return (
-      <div class='coin-info-sub-wrapper'>
+      <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title'>
           <span className='coin-info-label'>Open Order</span>
           <span className='coin-info-value'></span>
