@@ -12,7 +12,7 @@ const handleSymbolUpdate = async (logger, ws, payload) => {
 
   await mongo.upsertOne(
     logger,
-    'simple-stop-chaser-symbols',
+    'trailing-trade-symbols',
     { key: `${symbol}-last-buy-price` },
     {
       key: `${symbol}-last-buy-price`,

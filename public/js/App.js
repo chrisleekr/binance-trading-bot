@@ -78,9 +78,6 @@ class App extends React.Component {
       if (response.type === 'latest') {
         self.setState({
           symbols: _.sortBy(response.stats.symbols, s => {
-            if (s.openOrder.difference) {
-              return (s.openOrder.difference + 300) * -10;
-            }
             if (s.sell.difference) {
               return (s.sell.difference + 300) * -10;
             }

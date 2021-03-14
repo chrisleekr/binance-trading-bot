@@ -147,6 +147,9 @@ class SettingIcon extends React.Component {
                   data-state-key='candles.interval'
                   value={configuration.candles.interval}
                   onChange={this.handleInputChange}>
+                  <option value='1m'>1m</option>
+                  <option value='3m'>3m</option>
+                  <option value='5m'>5m</option>
                   <option value='15m'>15m</option>
                   <option value='30m'>30m</option>
                   <option value='1h'>1h</option>
@@ -195,7 +198,7 @@ class SettingIcon extends React.Component {
                   can disable it temporarily.
                 </Form.Text>
               </Form.Group>
-              <Form.Group controlId='field-maximum-purchase-amount'>
+              <Form.Group controlId='field-buy-maximum-purchase-amount'>
                 <Form.Label>Maximum purchase amount</Form.Label>
                 <Form.Control
                   size='sm'
@@ -204,8 +207,8 @@ class SettingIcon extends React.Component {
                   required
                   min='0'
                   step='1'
-                  data-state-key='maxPurchaseAmount'
-                  value={configuration.maxPurchaseAmount}
+                  data-state-key='buy.maxPurchaseAmount'
+                  value={configuration.buy.maxPurchaseAmount}
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
@@ -238,6 +241,45 @@ class SettingIcon extends React.Component {
                   a deep decline before the next process.
                 </Form.Text>
               </Form.Group>
+              <Form.Group controlId='field-buy-stop-percentage'>
+                <Form.Label>Stop price percentage</Form.Label>
+                <Form.Control
+                  size='sm'
+                  type='number'
+                  placeholder='Enter stop price percentage'
+                  required
+                  min='0'
+                  step='0.001'
+                  data-state-key='buy.stopPercentage'
+                  value={configuration.buy.stopPercentage}
+                  onChange={this.handleInputChange}
+                />
+                <Form.Text className='text-muted'>
+                  Set the percentage to calculate stop price. i.e. if set{' '}
+                  <code>1.01</code> and current price <code>$100</code>, stop
+                  price will be <code>$101</code> for stop limit order.
+                </Form.Text>
+              </Form.Group>
+
+              <Form.Group controlId='field-buy-limit-percentage'>
+                <Form.Label>Limit price percentage</Form.Label>
+                <Form.Control
+                  size='sm'
+                  type='number'
+                  placeholder='Enter limit price percentage'
+                  required
+                  min='0'
+                  step='0.001'
+                  data-state-key='buy.limitPercentage'
+                  value={configuration.buy.limitPercentage}
+                  onChange={this.handleInputChange}
+                />
+                <Form.Text className='text-muted'>
+                  Set the percentage to calculate limit price. i.e. if set{' '}
+                  <code>1.011</code> and current price <code>$100</code>, limit
+                  price will be <code>$101.10</code> for stop limit order.
+                </Form.Text>
+              </Form.Group>
 
               <h2 className='form-header'>Sell</h2>
               <Form.Group controlId='field-sell-enabled'>
@@ -256,28 +298,28 @@ class SettingIcon extends React.Component {
                   disable it temporarily.
                 </Form.Text>
               </Form.Group>
-              <Form.Group controlId='field-stop-loss-limit-last-buy-percentage'>
-                <Form.Label>Minimum profit percentage</Form.Label>
+              <Form.Group controlId='field-sell-last-buy-percentage'>
+                <Form.Label>Trigger percentage</Form.Label>
                 <Form.Control
                   size='sm'
                   type='number'
-                  placeholder='Enter minimum profit percentage'
+                  placeholder='Enter trigger percentage'
                   required
                   min='0'
                   step='0.001'
-                  data-state-key='stopLossLimit.lastBuyPercentage'
-                  value={configuration.stopLossLimit.lastBuyPercentage}
+                  data-state-key='sell.triggerPercentage'
+                  value={configuration.sell.triggerPercentage}
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
-                  Set the minimum profit percentage for selling. i.e. if set{' '}
+                  Set the trigger percentage for minimum profit. i.e. if set{' '}
                   <code>1.06</code>, minimum profit will be <code>6%</code>. So
                   if the last buy price is <code>$100</code>, then the bot will
                   sell the coin when the current price reaches <code>$106</code>
                   .
                 </Form.Text>
               </Form.Group>
-              <Form.Group controlId='field-stop-loss-limit-stop-percentage'>
+              <Form.Group controlId='field-sell-stop-percentage'>
                 <Form.Label>Stop price percentage</Form.Label>
                 <Form.Control
                   size='sm'
@@ -286,8 +328,8 @@ class SettingIcon extends React.Component {
                   required
                   min='0'
                   step='0.001'
-                  data-state-key='stopLossLimit.stopPercentage'
-                  value={configuration.stopLossLimit.stopPercentage}
+                  data-state-key='sell.stopPercentage'
+                  value={configuration.sell.stopPercentage}
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
@@ -297,7 +339,7 @@ class SettingIcon extends React.Component {
                 </Form.Text>
               </Form.Group>
 
-              <Form.Group controlId='field-stop-loss-limit-stop-percentage'>
+              <Form.Group controlId='field-sell-stop-percentage'>
                 <Form.Label>Limit price percentage</Form.Label>
                 <Form.Control
                   size='sm'
@@ -306,8 +348,8 @@ class SettingIcon extends React.Component {
                   required
                   min='0'
                   step='0.001'
-                  data-state-key='stopLossLimit.limitPercentage'
-                  value={configuration.stopLossLimit.limitPercentage}
+                  data-state-key='sell.limitPercentage'
+                  value={configuration.sell.limitPercentage}
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
@@ -318,6 +360,10 @@ class SettingIcon extends React.Component {
               </Form.Group>
             </Modal.Body>
             <Modal.Footer>
+              <div className='w-100'>
+                Note that the changes will be displayed in the frontend in the
+                next tick.
+              </div>
               <Button
                 variant='secondary'
                 size='sm'

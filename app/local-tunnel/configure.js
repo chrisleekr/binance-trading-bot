@@ -3,6 +3,12 @@ const config = require('config');
 const { slack, cache } = require('../helpers');
 
 const connect = async logger => {
+  if (config.get('localTunnel.enabled') !== true) {
+    logger.info('Local tunnel is disabled');
+    await cache.hdel('trailing-trade-common', 'local-tunnel-url');
+    return false;
+  }
+
   logger.info('Attempt connecting local tunnel');
   const tunnel = await localtunnel({
     port: 80,
@@ -13,18 +19,14 @@ const connect = async logger => {
 
   // Get config for local tunnel url
   const cachedLocalTunnelURL = await cache.hget(
-    'simple-stop-chaser-common',
+    'trailing-trade-common',
     'local-tunnel-url'
   );
 
   // If new url is different, then notify slack
   if (cachedLocalTunnelURL !== tunnel.url) {
     // Save config with local tunnel url
-    await cache.hset(
-      'simple-stop-chaser-common',
-      'local-tunnel-url',
-      tunnel.url
-    );
+    await cache.hset('trailing-trade-common', 'local-tunnel-url', tunnel.url);
 
     slack.sendMessage(`*Public URL:* ${tunnel.url}`);
     logger.info(

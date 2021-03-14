@@ -39,7 +39,7 @@
     "lodash-webpack-plugin": "^0.11.6",
     "moment": "^2.29.1",
     "moment-timezone": "^0.5.33",
-    "mongodb": "3.6.4",
+    "mongodb": "3.6.3",
     "uuid": "^8.3.2",
     "ws": "^7.4.3"
   },

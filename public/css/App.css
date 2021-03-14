@@ -216,6 +216,12 @@ body.dark-theme {
   flex-flow: row wrap;
 }
 
+.coin-info-sub-open-order-wrapper {
+  width: 100%;
+  display: flex;
+  flex-flow: row wrap;
+}
+
 .coin-info-column {
   flex: 1 100%;
   display: flex;
@@ -265,6 +271,12 @@ body.dark-theme {
   padding: 5px 0 5px 0;
 }
 
+.coin-info-sub-open-order-wrapper:first .coin-info-column-title {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
 .coin-info-column-title-setting {
   border-bottom: none;
   margin-bottom: 0;
@@ -309,6 +321,10 @@ body.dark-theme {
 
 .coin-info-value {
   text-align: right;
+}
+
+.coin-info-sub-open-order-wrapper .coin-info-column-title .coin-info-label {
+  font-weight: normal;
 }
 
 .coin-info-value-up,

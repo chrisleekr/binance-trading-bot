@@ -31,8 +31,9 @@ class SymbolDeleteIcon extends React.Component {
     const { symbolInfo } = this.props;
 
     if (
+      symbolInfo.buy.openOrders.length === 0 &&
       symbolInfo.sell.lastBuyPrice <= 0 &&
-      symbolInfo.openOrder.type === null
+      symbolInfo.sell.openOrders.length === 0
     ) {
       return true;
     }

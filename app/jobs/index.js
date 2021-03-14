@@ -1,7 +1,7 @@
 const { execute: executeAlive } = require('./alive');
-const { execute: executeSimpleStopChaser } = require('./simpleStopChaser');
+const { execute: executeTrailingTrade } = require('./trailingTrade');
 
 module.exports = {
   executeAlive,
-  executeSimpleStopChaser
+  executeTrailingTrade
 };

@@ -1,9 +1,4 @@
 {
   "mode": "test",
-  "slack": { "enabled": false },
-  "jobs": {
-    "macdStopChaser": {
-      "symbol": "BTCUSDT"
-    }
-  }
+  "slack": { "enabled": false }
 }

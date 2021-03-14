@@ -42,11 +42,11 @@
   <body class="dark-theme dark-mode">
     <div id="app"></div>
     <script
-      src="https://unpkg.com/react@17/umd/react.production.min.js"
+      src="https://unpkg.com/react@17/umd/react.development.js"
       crossorigin
     ></script>
     <script
-      src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"
+      src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"
       crossorigin
     ></script>
     <script
@@ -78,14 +78,17 @@
 
     <script type="text/babel" src="./js/Config.js"></script>
     <script type="text/babel" src="./js/HighlightChange.js"></script>
-    <script type="text/babel" src="./js/CoinWrapperOpenOrder.js"></script>
     <script
       type="text/babel"
       src="./js/CoinWrapperSellLastBuyPrice.js"
     ></script>
     <script type="text/babel" src="./js/CoinWrapperSetting.js"></script>
-    <script type="text/babel" src="./js/CoinWrapperSell.js"></script>
-    <script type="text/babel" src="./js/CoinWrapperBuy.js"></script>
+
+    <script type="text/babel" src="./js/CoinWrapperSellOrders.js"></script>
+    <script type="text/babel" src="./js/CoinWrapperSellSignal.js"></script>
+    <script type="text/babel" src="./js/CoinWrapperBuyOrders.js"></script>
+    <script type="text/babel" src="./js/CoinWrapperBuySignal.js"></script>
+    <script type="text/babel" src="./js/CoinWrapperAction.js"></script>
     <script type="text/babel" src="./js/CoinWrapperBalance.js"></script>
     <script type="text/babel" src="./js/SymbolDeleteIcon.js"></script>
     <script type="text/babel" src="./js/SymbolEditLastBuyPriceIcon.js"></script>

@@ -2,11 +2,9 @@
 const _ = require('lodash');
 
 describe('latest.test.js', () => {
-  const simpleStopChaserCommonJson = require('./fixtures/latest-simple-stop-chaser-common.json');
-
-  // eslint-disable-next-line max-len
-  const simpleStopChaserSymbols = require('./fixtures/latest-simple-stop-chaser-symbols.json');
-  const simpleStopChaserStats = require('./fixtures/latest-stats.json');
+  const trailingTradeCommonJson = require('./fixtures/latest-trailing-trade-common.json');
+  const trailingTradeSymbols = require('./fixtures/latest-trailing-trade-symbols.json');
+  const trailingTradeStats = require('./fixtures/latest-stats.json');
 
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
@@ -34,7 +32,7 @@ describe('latest.test.js', () => {
         .fn()
         .mockImplementation((_logger, collection, filter) => {
           if (
-            collection === 'simple-stop-chaser-common' &&
+            collection === 'trailing-trade-common' &&
             _.isEqual(filter, { key: 'configuration' })
           ) {
             return { enabled: true };
@@ -59,12 +57,12 @@ describe('latest.test.js', () => {
       mongoMock = mongo;
 
       cacheMock.hgetall = jest.fn().mockImplementation(key => {
-        if (key === 'simple-stop-chaser-common') {
-          return simpleStopChaserCommonJson;
+        if (key === 'trailing-trade-common') {
+          return trailingTradeCommonJson;
         }
 
-        if (key === 'simple-stop-chaser-symbols') {
-          return simpleStopChaserSymbols;
+        if (key === 'trailing-trade-symbols') {
+          return trailingTradeSymbols;
         }
 
         return '';
@@ -74,32 +72,12 @@ describe('latest.test.js', () => {
         .fn()
         .mockImplementation((_logger, collection, filter) => {
           if (
-            collection === 'simple-stop-chaser-common' &&
+            collection === 'trailing-trade-common' &&
             _.isEqual(filter, { key: 'configuration' })
           ) {
             return { enabled: true, candles: { interval: '15m' } };
           }
 
-          if (
-            collection === 'simple-stop-chaser-symbols' &&
-            _.isEqual(filter, { key: 'ETHUSDT-configuration' })
-          ) {
-            return { enabled: true, candles: { interval: '1h' } };
-          }
-
-          if (
-            collection === 'simple-stop-chaser-symbols' &&
-            _.isEqual(filter, { key: 'LTCUSDT-last-buy-price' })
-          ) {
-            return { lastBuyPrice: 135.555 };
-          }
-
-          if (
-            collection === 'simple-stop-chaser-symbols' &&
-            _.isEqual(filter, { key: 'BTCUSDT-last-buy-price' })
-          ) {
-            return { lastBuyPrice: 43300.35 };
-          }
           return null;
         });
 
@@ -109,7 +87,7 @@ describe('latest.test.js', () => {
 
     it('triggers ws.send with latest', () => {
       expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
-        JSON.stringify(simpleStopChaserStats)
+        JSON.stringify(trailingTradeStats)
       );
     });
   });

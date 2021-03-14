@@ -6,7 +6,11 @@ class AccountWrapper extends React.Component {
     const { accountInfo } = this.props;
 
     const assets = accountInfo.balances.map((balance, index) => {
-      return <AccountWrapperAsset key={index} balance={balance} />;
+      return (
+        <AccountWrapperAsset
+          key={index}
+          balance={balance}></AccountWrapperAsset>
+      );
     });
 
     return (

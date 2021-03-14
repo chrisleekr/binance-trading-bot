@@ -5,9 +5,14 @@ class CoinWrapperSellLastBuyPrice extends React.Component {
   render() {
     const { symbolInfo, sendWebSocket } = this.props;
 
-    if (symbolInfo.openOrder.type !== null) {
-      return null;
-    }
+    const {
+      symbolInfo: {
+        filterPrice: { tickSize }
+      },
+      sell
+    } = symbolInfo;
+
+    const precision = tickSize.indexOf(1) - 1;
 
     return (
       <div className='coin-info-column coin-info-column-price'>
@@ -18,10 +23,10 @@ class CoinWrapperSellLastBuyPrice extends React.Component {
             sendWebSocket={sendWebSocket}
           />
         </span>
-        {symbolInfo.sell.lastBuyPrice > 0 ? (
+        {sell.lastBuyPrice > 0 ? (
           <div className='coin-info-value  coin-info-value-with-icon'>
-            <HightlightChange className='coin-info-value  coin-info-value-with-icon'>
-              {symbolInfo.sell.lastBuyPrice.toFixed(symbolInfo.precision)}
+            <HightlightChange className='coin-info-value coin-info-value-with-icon'>
+              {sell.lastBuyPrice.toFixed(precision)}
             </HightlightChange>
           </div>
         ) : (
