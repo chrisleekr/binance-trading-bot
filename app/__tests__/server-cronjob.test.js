@@ -8,7 +8,7 @@ describe('server-cronjob', () => {
   let mockTaskRunning = false;
 
   let mockExecuteAlive;
-  let mockExecuteSimpleStopChaser;
+  let mockExecuteTrailingTrade;
 
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
@@ -17,11 +17,11 @@ describe('server-cronjob', () => {
     cache.hset = jest.fn().mockResolvedValue(true);
 
     mockExecuteAlive = jest.fn().mockResolvedValue(true);
-    mockExecuteSimpleStopChaser = jest.fn().mockResolvedValue(true);
+    mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
 
     jest.mock('../jobs', () => ({
       executeAlive: mockExecuteAlive,
-      executeSimpleStopChaser: mockExecuteSimpleStopChaser
+      executeTrailingTrade: mockExecuteTrailingTrade
     }));
 
     mockCronJob = jest
@@ -100,13 +100,13 @@ describe('server-cronjob', () => {
     });
   });
 
-  describe('simpleStopChaser', () => {
+  describe('trailingTrade', () => {
     beforeEach(async () => {
       config.get = jest.fn(key => {
         switch (key) {
-          case 'jobs.simpleStopChaser.enabled':
+          case 'jobs.trailingTrade.enabled':
             return true;
-          case 'jobs.simpleStopChaser.cronTime':
+          case 'jobs.trailingTrade.cronTime':
             return '* * * * * *';
           case 'tz':
             return 'Australia/Melbourne';
@@ -133,8 +133,8 @@ describe('server-cronjob', () => {
         );
       });
 
-      it('does not trigger executeSimpleStopChaser', () => {
-        expect(mockExecuteSimpleStopChaser).not.toHaveBeenCalled();
+      it('does not trigger executeTrailingTrade', () => {
+        expect(mockExecuteTrailingTrade).not.toHaveBeenCalled();
       });
     });
 
@@ -155,8 +155,8 @@ describe('server-cronjob', () => {
         );
       });
 
-      it('triggers executeSimpleStopChaser', () => {
-        expect(mockExecuteSimpleStopChaser).toHaveBeenCalled();
+      it('triggers executeTrailingTrade', () => {
+        expect(mockExecuteTrailingTrade).toHaveBeenCalled();
       });
     });
   });
@@ -182,8 +182,8 @@ describe('server-cronjob', () => {
       expect(mockExecuteAlive).not.toHaveBeenCalled();
     });
 
-    it('does not trigger executeSimpleStopChaser', () => {
-      expect(mockExecuteSimpleStopChaser).not.toHaveBeenCalled();
+    it('does not trigger executeTrailingTrade', () => {
+      expect(mockExecuteTrailingTrade).not.toHaveBeenCalled();
     });
   });
 });

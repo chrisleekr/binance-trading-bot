@@ -1,19 +1,9 @@
 {
   "result": true,
   "type": "latest",
-  "configuration": {
-    "enabled": true,
-    "candles": { "interval": "15m" },
-    "buy": { "enabled": true, "triggerPercentage": 1 },
-    "sell": { "enabled": true }
-  },
+  "configuration": { "enabled": true, "candles": { "interval": "15m" } },
   "common": {
-    "configuration": {
-      "enabled": true,
-      "candles": { "interval": "15m" },
-      "buy": { "enabled": true, "triggerPercentage": 1 },
-      "sell": { "enabled": true }
-    },
+    "configuration": { "enabled": true, "candles": { "interval": "15m" } },
     "accountInfo": {
       "makerCommission": 0,
       "takerCommission": 0,
@@ -35,10 +25,6 @@
       ],
       "permissions": ["SPOT"]
     },
-    "lastProcessed": {
-      "timeUTC": "2021-02-04T22:37:39.002Z",
-      "symbol": "BTCUSDT"
-    },
     "exchangeSymbols": [
       "BNBUSDT",
       "BTCUSDT",
@@ -50,257 +36,405 @@
     "publicURL": "https://chatty-robin-84.loca.lt"
   },
   "stats": {
-    "symbols": [
-      {
-        "symbol": "ETHUSDT",
-        "baseAsset": "ETH",
-        "quoteAsset": "USDT",
-        "precision": 2,
-        "balance": {
-          "total": 95.7573,
-          "free": 0.09648,
-          "locked": 95.66082,
-          "estimatedValue": 1062081.559647,
-          "updatedAt": "2021-02-04T22:29:05.287Z"
+    "symbols": {
+      "BNBUSDT": {
+        "globalConfiguration": {
+          "_id": "604d5e1b485f808080e07b7d",
+          "key": "configuration",
+          "enabled": true,
+          "cronTime": "* * * * * *",
+          "symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+          "supportFIATs": ["USDT"],
+          "candles": { "interval": "1m", "limit": 10 },
+          "buy": {
+            "enabled": true,
+            "maxPurchaseAmount": 100,
+            "triggerPercentage": 1,
+            "stopPercentage": 1.01,
+            "limitPercentage": 1.011
+          },
+          "sell": {
+            "enabled": true,
+            "triggerPercentage": 1.01,
+            "stopPercentage": 0.99,
+            "limitPercentage": 0.989
+          }
         },
-        "configuration": { "enabled": true, "candles": { "interval": "1h" } },
-        "buy": {
-          "action": "buy",
-          "currentPrice": 11091.39,
-          "lowestPrice": 1000,
-          "triggerPrice": 1000,
-          "triggerPercentage": 1,
-          "difference": 1009.1389999999999,
-          "processMessage": "The base asset has enough balance to place a stop-loss limit order. Do not place a buy order.",
-          "updatedAt": "2021-02-04T22:37:37.346Z"
-        },
-        "sell": {
-          "lastBuyPrice": null,
-          "minimumSellingPrice": 0,
-          "currentPrice": 11091.39,
-          "difference": 100,
-          "currentProfit": null,
-          "currentProfitPercentage": null,
-          "processMessage": null,
-          "updatedAt": "2021-02-04T22:37:37.514Z"
-        },
-        "openOrder": {
-          "type": null,
-          "side": null,
-          "qty": null,
-          "stopPrice": null,
-          "createdAt": null,
-          "processMessage": null,
-          "currentPrice": null,
-          "limitPercentage": null,
-          "limitPrice": null,
-          "difference": null,
-          "lastBuyPrice": null,
-          "minimumProfit": null,
-          "minimumProfitPercentage": null,
-          "updatedAt": null
-        }
-      },
-      {
-        "symbol": "LTCUSDT",
-        "baseAsset": "LTC",
-        "quoteAsset": "USDT",
-        "precision": 2,
-        "balance": {
-          "total": 500,
-          "free": 0.5,
-          "locked": 499.5,
-          "estimatedValue": 100000,
-          "updatedAt": "2021-02-04T22:29:05.287Z"
-        },
-        "configuration": {},
-        "buy": {
-          "action": "wait",
-          "currentPrice": 200,
-          "lowestPrice": 130.56,
-          "triggerPrice": 131.8656,
-          "triggerPercentage": 1.01,
-          "difference": 51.66957872257814,
-          "processMessage": null,
-          "updatedAt": "2021-02-04T22:37:38.347Z"
-        },
-        "sell": {
-          "lastBuyPrice": 135.555,
-          "minimumSellingPrice": 136.91055,
-          "currentPrice": 200,
-          "difference": 31.544724999999996,
-          "currentProfit": 32222.499999999996,
-          "currentProfitPercentage": 32.2225,
-          "processMessage": "Placed stop loss order.",
-          "updatedAt": "2021-02-04T22:37:38.517Z"
-        },
-        "openOrder": {
-          "type": "STOP_LOSS_LIMIT",
-          "side": "SELL",
-          "qty": 499.5,
-          "stopPrice": 198,
-          "createdAt": "2021-02-04T21:07:44.244Z",
-          "processMessage": "Stop price is higher than limit price. Wait.",
-          "currentPrice": 200,
-          "limitPercentage": 0.98,
-          "limitPrice": 196,
-          "difference": -1.0204081632652962,
-          "lastBuyPrice": 135.555,
-          "minimumProfit": 31191.277499999997,
-          "minimumProfitPercentage": 31.537878787878782,
-          "updatedAt": "2021-02-04T22:37:38.517Z"
-        }
-      },
-      {
         "symbol": "BNBUSDT",
-        "baseAsset": "BNB",
-        "quoteAsset": "USDT",
-        "precision": 4,
-        "balance": {
-          "total": 0,
-          "free": 0,
-          "locked": 0,
-          "estimatedValue": 0,
-          "updatedAt": null
+        "symbolConfiguration": {
+          "_id": "604d5e1b485f808080e07b7d",
+          "key": "configuration",
+          "enabled": true,
+          "cronTime": "* * * * * *",
+          "symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+          "supportFIATs": ["USDT"],
+          "candles": { "interval": "1m", "limit": 10 },
+          "buy": {
+            "enabled": true,
+            "maxPurchaseAmount": 100,
+            "triggerPercentage": 1,
+            "stopPercentage": 1.01,
+            "limitPercentage": 1.011
+          },
+          "sell": {
+            "enabled": true,
+            "triggerPercentage": 1.01,
+            "stopPercentage": 0.99,
+            "limitPercentage": 0.989
+          }
         },
-        "configuration": {},
+        "accountInfo": {
+          "makerCommission": 0,
+          "takerCommission": 0,
+          "buyerCommission": 0,
+          "sellerCommission": 0,
+          "canTrade": true,
+          "canWithdraw": false,
+          "canDeposit": false,
+          "updateTime": 1615682742244,
+          "accountType": "SPOT",
+          "balances": [
+            {
+              "asset": "BNB",
+              "free": "0.38000000",
+              "locked": "0.00000000",
+              "total": 0.38,
+              "estimatedValue": 103.846476,
+              "updatedAt": "2021-03-14T00:45:42.244Z"
+            },
+            { "asset": "BTC", "free": "0.00001300", "locked": "0.00000000" },
+            {
+              "asset": "BUSD",
+              "free": "26041.99570820",
+              "locked": "0.00000000"
+            },
+            { "asset": "ETH", "free": "0.10050000", "locked": "66.02869000" },
+            { "asset": "LTC", "free": "467.43271000", "locked": "0.00000000" },
+            {
+              "asset": "TRX",
+              "free": "500000.00000000",
+              "locked": "0.00000000"
+            },
+            {
+              "asset": "USDT",
+              "free": "361984.64662290",
+              "locked": "0.00000000"
+            },
+            {
+              "asset": "XRP",
+              "free": "50.10000000",
+              "locked": "35868.30000000"
+            }
+          ],
+          "permissions": ["SPOT"]
+        },
+        "indicators": {
+          "lowestPrice": 265.1512,
+          "lastCandle": {
+            "openTime": 1615683060000,
+            "open": "272.62040000",
+            "high": "273.31840000",
+            "low": "272.62040000",
+            "close": "273.28020000",
+            "volume": "14.97000000",
+            "closeTime": 1615683119999,
+            "quoteVolume": "4087.54499400",
+            "trades": 15,
+            "baseAssetVolume": "14.97000000",
+            "quoteAssetVolume": "4087.54499400"
+          }
+        },
+        "symbolInfo": {
+          "symbol": "BNBUSDT",
+          "status": "TRADING",
+          "baseAsset": "BNB",
+          "baseAssetPrecision": 8,
+          "quoteAsset": "USDT",
+          "quotePrecision": 8,
+          "filterLotSize": {
+            "filterType": "LOT_SIZE",
+            "minQty": "0.01000000",
+            "maxQty": "9000.00000000",
+            "stepSize": "0.01000000"
+          },
+          "filterPrice": {
+            "filterType": "PRICE_FILTER",
+            "minPrice": "0.00010000",
+            "maxPrice": "10000.00000000",
+            "tickSize": "0.00010000"
+          },
+          "filterMinNotional": {
+            "filterType": "MIN_NOTIONAL",
+            "minNotional": "10.00000000",
+            "applyToMarket": true,
+            "avgPriceMins": 1
+          }
+        },
+        "openOrders": [],
+        "action": "not-determined",
+        "baseAssetBalance": {
+          "asset": "BNB",
+          "free": "0.38000000",
+          "locked": "0.00000000",
+          "total": 0.38,
+          "estimatedValue": 103.846476,
+          "updatedAt": "2021-03-14T00:45:42.244Z"
+        },
+        "quoteAssetBalance": {
+          "asset": "USDT",
+          "free": "361984.64662290",
+          "locked": "0.00000000"
+        },
         "buy": {
-          "action": "wait",
-          "currentPrice": 55.4394,
-          "lowestPrice": 23.9916,
-          "triggerPrice": 23.9916,
-          "triggerPercentage": 1,
-          "difference": 131.07837743210123,
-          "processMessage": null,
-          "updatedAt": "2021-02-04T22:37:35.363Z"
+          "currentPrice": 273.2802,
+          "limitPrice": 276.28628219999996,
+          "lowestPrice": 265.1512,
+          "triggerPrice": 265.1512,
+          "difference": 3.0657979296341065,
+          "openOrders": [],
+          "processMesage": "",
+          "updatedAt": "2021-03-14T00:51:53.577Z"
         },
         "sell": {
+          "currentPrice": 273.2802,
+          "limitPrice": 270.2741178,
           "lastBuyPrice": null,
-          "minimumSellingPrice": 0,
-          "currentPrice": 55.4394,
-          "difference": 100,
+          "triggerPrice": null,
+          "difference": null,
           "currentProfit": null,
           "currentProfitPercentage": null,
-          "processMessage": "Order quantity is less or equal than minimum quantity - 0.01000000. Do not place an order.",
-          "updatedAt": "2021-02-04T22:37:35.538Z"
+          "openOrders": [],
+          "processMessage": "",
+          "updatedAt": "2021-03-14T00:51:53.577Z"
+        }
+      },
+      "ETHUSDT": {
+        "globalConfiguration": {
+          "_id": "604d5e1b485f808080e07b7d",
+          "key": "configuration",
+          "enabled": true,
+          "cronTime": "* * * * * *",
+          "symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+          "supportFIATs": ["USDT"],
+          "candles": { "interval": "1m", "limit": 10 },
+          "buy": {
+            "enabled": true,
+            "maxPurchaseAmount": 100,
+            "triggerPercentage": 1,
+            "stopPercentage": 1.01,
+            "limitPercentage": 1.011
+          },
+          "sell": {
+            "enabled": true,
+            "triggerPercentage": 1.01,
+            "stopPercentage": 0.99,
+            "limitPercentage": 0.989
+          }
         },
-        "openOrder": {
-          "type": null,
-          "side": null,
-          "qty": null,
-          "stopPrice": null,
-          "createdAt": null,
-          "processMessage": null,
-          "currentPrice": null,
-          "limitPercentage": null,
-          "limitPrice": null,
+        "symbol": "ETHUSDT",
+        "symbolConfiguration": {
+          "_id": "604d5e1b485f808080e07b7d",
+          "key": "configuration",
+          "enabled": true,
+          "cronTime": "* * * * * *",
+          "symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+          "supportFIATs": ["USDT"],
+          "candles": { "interval": "1m", "limit": 10 },
+          "buy": {
+            "enabled": true,
+            "maxPurchaseAmount": 100,
+            "triggerPercentage": 1,
+            "stopPercentage": 1.01,
+            "limitPercentage": 1.011
+          },
+          "sell": {
+            "enabled": true,
+            "triggerPercentage": 1.01,
+            "stopPercentage": 0.99,
+            "limitPercentage": 0.989
+          }
+        },
+        "accountInfo": {
+          "makerCommission": 0,
+          "takerCommission": 0,
+          "buyerCommission": 0,
+          "sellerCommission": 0,
+          "canTrade": true,
+          "canWithdraw": false,
+          "canDeposit": false,
+          "updateTime": 1615682742244,
+          "accountType": "SPOT",
+          "balances": [
+            { "asset": "BNB", "free": "0.38000000", "locked": "0.00000000" },
+            { "asset": "BTC", "free": "0.00001300", "locked": "0.00000000" },
+            {
+              "asset": "BUSD",
+              "free": "26041.99570820",
+              "locked": "0.00000000"
+            },
+            {
+              "asset": "ETH",
+              "free": "0.10050000",
+              "locked": "66.02869000",
+              "total": 66.12919,
+              "estimatedValue": 109017.27617449999,
+              "updatedAt": "2021-03-14T00:45:42.244Z"
+            },
+            { "asset": "LTC", "free": "467.43271000", "locked": "0.00000000" },
+            {
+              "asset": "TRX",
+              "free": "500000.00000000",
+              "locked": "0.00000000"
+            },
+            {
+              "asset": "USDT",
+              "free": "361984.64662290",
+              "locked": "0.00000000"
+            },
+            {
+              "asset": "XRP",
+              "free": "50.10000000",
+              "locked": "35868.30000000"
+            }
+          ],
+          "permissions": ["SPOT"]
+        },
+        "indicators": {
+          "lowestPrice": 1648.55,
+          "lastCandle": {
+            "openTime": 1615683060000,
+            "open": "1648.55000000",
+            "high": "1648.55000000",
+            "low": "1648.55000000",
+            "close": "1648.55000000",
+            "volume": "0.00000000",
+            "closeTime": 1615683119999,
+            "quoteVolume": "0.00000000",
+            "trades": 0,
+            "baseAssetVolume": "0.00000000",
+            "quoteAssetVolume": "0.00000000"
+          }
+        },
+        "symbolInfo": {
+          "symbol": "ETHUSDT",
+          "status": "TRADING",
+          "baseAsset": "ETH",
+          "baseAssetPrecision": 8,
+          "quoteAsset": "USDT",
+          "quotePrecision": 8,
+          "filterLotSize": {
+            "filterType": "LOT_SIZE",
+            "minQty": "0.00001000",
+            "maxQty": "9000.00000000",
+            "stepSize": "0.00001000"
+          },
+          "filterPrice": {
+            "filterType": "PRICE_FILTER",
+            "minPrice": "0.01000000",
+            "maxPrice": "100000.00000000",
+            "tickSize": "0.01000000"
+          },
+          "filterMinNotional": {
+            "filterType": "MIN_NOTIONAL",
+            "minNotional": "10.00000000",
+            "applyToMarket": true,
+            "avgPriceMins": 1
+          }
+        },
+        "openOrders": [
+          {
+            "symbol": "ETHUSDT",
+            "orderId": 49523,
+            "orderListId": -1,
+            "clientOrderId": "RI6jVXz6OYb4fUIdQHaslk",
+            "price": "1648.55000000",
+            "origQty": "100.39950000",
+            "executedQty": "34.37081000",
+            "cummulativeQuoteQty": "56661.99882550",
+            "status": "PARTIALLY_FILLED",
+            "timeInForce": "GTC",
+            "type": "STOP_LOSS_LIMIT",
+            "side": "SELL",
+            "stopPrice": "1650.22000000",
+            "icebergQty": "0.00000000",
+            "time": 1615558388605,
+            "updateTime": 1615682742244,
+            "isWorking": true,
+            "origQuoteOrderQty": "0.00000000",
+            "currentPrice": 1648.55,
+            "updatedAt": "2021-03-12T14:13:08.605Z",
+            "limitPrice": 1630.4159499999998,
+            "limitPercentage": 0.989,
+            "difference": -1.2146624301608622,
+            "minimumProfit": null,
+            "minimumProfitPercentage": null
+          }
+        ],
+        "action": "sell-order-wait",
+        "baseAssetBalance": {
+          "asset": "ETH",
+          "free": "0.10050000",
+          "locked": "66.02869000",
+          "total": 66.12919,
+          "estimatedValue": 109017.27617449999,
+          "updatedAt": "2021-03-14T00:45:42.244Z"
+        },
+        "quoteAssetBalance": {
+          "asset": "USDT",
+          "free": "361984.64662290",
+          "locked": "0.00000000"
+        },
+        "buy": {
+          "currentPrice": 1648.55,
+          "limitPrice": 1666.6840499999998,
+          "lowestPrice": 1648.55,
+          "triggerPrice": 1648.55,
+          "difference": 0,
+          "openOrders": [],
+          "processMesage": "",
+          "updatedAt": "2021-03-14T00:51:52.864Z"
+        },
+        "sell": {
+          "currentPrice": 1648.55,
+          "limitPrice": 1630.4159499999998,
+          "lastBuyPrice": null,
+          "triggerPrice": null,
           "difference": null,
-          "lastBuyPrice": null,
-          "minimumProfit": null,
-          "minimumProfitPercentage": null,
-          "updatedAt": null
-        }
-      },
-      {
-        "symbol": "BTCUSDT",
-        "baseAsset": "BTC",
-        "quoteAsset": "USDT",
-        "precision": 2,
-        "balance": {
-          "total": 0.7950149999999999,
-          "free": 0.000898,
-          "locked": 0.794117,
-          "estimatedValue": 34464.973520249994,
-          "updatedAt": "2021-02-04T22:29:05.287Z"
-        },
-        "configuration": {},
-        "buy": {
-          "action": "wait",
-          "currentPrice": 43351.35,
-          "lowestPrice": 6000,
-          "triggerPrice": 6000,
-          "triggerPercentage": 1,
-          "difference": 622.5225,
-          "processMessage": null,
-          "updatedAt": "2021-02-04T22:37:36.351Z"
-        },
-        "sell": {
-          "lastBuyPrice": 43300.35,
-          "minimumSellingPrice": 0,
-          "currentPrice": 43351.35,
-          "difference": 100,
-          "currentProfit": 40.545764999999996,
-          "currentProfitPercentage": 0.11764339518838263,
-          "processMessage": "Placed stop loss order.",
-          "updatedAt": "2021-02-04T22:37:36.531Z"
-        },
-        "openOrder": {
-          "type": "STOP_LOSS_LIMIT",
-          "side": "SELL",
-          "qty": 0.897576,
-          "stopPrice": 43793.71,
-          "createdAt": "2021-02-04T21:05:32.255Z",
-          "processMessage": "Stop price is higher than limit price. Wait.",
-          "currentPrice": 43351.35,
-          "limitPercentage": 0.98,
-          "limitPrice": 42484.323,
-          "difference": -3.0820474648966423,
-          "lastBuyPrice": 43300.35,
-          "minimumProfit": 442.82809536000053,
-          "minimumProfitPercentage": 1.1265544755171497,
-          "updatedAt": "2021-02-04T22:37:36.531Z"
-        }
-      },
-      {
-        "symbol": "ETHUPUSDT",
-        "baseAsset": "ETHUP",
-        "quoteAsset": "USDT",
-        "precision": 3,
-        "balance": {
-          "total": 0,
-          "free": 0,
-          "locked": 0,
-          "estimatedValue": 0,
-          "updatedAt": null
-        },
-        "configuration": {},
-        "buy": {
-          "action": "wait",
-          "currentPrice": 156.998,
-          "lowestPrice": 154.201,
-          "triggerPrice": 154.201,
-          "triggerPercentage": 1,
-          "difference": 1.8138663173390634,
-          "processMessage": null,
-          "updatedAt": "2021-02-07T01:55:33.427Z"
-        },
-        "sell": {
-          "lastBuyPrice": null,
-          "minimumSellingPrice": 163.91098000000002,
-          "currentPrice": 156.998,
-          "difference": -4.403228066599585,
           "currentProfit": null,
           "currentProfitPercentage": null,
-          "processMessage": "Balance found, but not enough to sell. Delete last buy price.",
-          "updatedAt": "2021-02-07T01:55:33.639Z"
-        },
-        "openOrder": {
-          "type": "LIMIT",
-          "side": "BUY",
-          "qty": 0.65,
-          "stopPrice": 0,
-          "createdAt": "2021-02-07T01:53:31.011Z",
-          "processMessage": null,
-          "currentPrice": null,
-          "limitPercentage": null,
-          "limitPrice": null,
-          "difference": null,
-          "lastBuyPrice": null,
-          "minimumProfit": null,
-          "minimumProfitPercentage": null,
-          "updatedAt": null
+          "openOrders": [
+            {
+              "symbol": "ETHUSDT",
+              "orderId": 49523,
+              "orderListId": -1,
+              "clientOrderId": "RI6jVXz6OYb4fUIdQHaslk",
+              "price": "1648.55000000",
+              "origQty": "100.39950000",
+              "executedQty": "34.37081000",
+              "cummulativeQuoteQty": "56661.99882550",
+              "status": "PARTIALLY_FILLED",
+              "timeInForce": "GTC",
+              "type": "STOP_LOSS_LIMIT",
+              "side": "SELL",
+              "stopPrice": "1650.22000000",
+              "icebergQty": "0.00000000",
+              "time": 1615558388605,
+              "updateTime": 1615682742244,
+              "isWorking": true,
+              "origQuoteOrderQty": "0.00000000",
+              "currentPrice": 1648.55,
+              "updatedAt": "2021-03-12T14:13:08.605Z",
+              "limitPrice": 1630.4159499999998,
+              "limitPercentage": 0.989,
+              "difference": -1.2146624301608622,
+              "minimumProfit": null,
+              "minimumProfitPercentage": null
+            }
+          ],
+          "processMessage": "",
+          "updatedAt": "2021-03-14T00:51:52.864Z"
         }
       }
-    ]
+    }
   }
 }

@@ -31,7 +31,7 @@ class Header extends React.Component {
                 target='_blank'
                 className='btn btn-sm p-0 pl-1 pr-1'
                 rel='noreferrer'>
-                <i class='fa fa-github'></i>
+                <i className='fa fa-github'></i>
               </a>
             </div>
 

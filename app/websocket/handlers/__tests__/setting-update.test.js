@@ -32,7 +32,7 @@ describe('setting-update.test.js', () => {
         .fn()
         .mockImplementation((_logger, collection, filter) => {
           if (
-            collection === 'simple-stop-chaser-common' &&
+            collection === 'trailing-trade-common' &&
             _.isEqual(filter, { key: 'configuration' })
           ) {
             return '';
@@ -49,7 +49,7 @@ describe('setting-update.test.js', () => {
     it('triggers mongo.findOne', () => {
       expect(mongoMock.findOne).toHaveBeenCalledWith(
         mockLogger,
-        'simple-stop-chaser-common',
+        'trailing-trade-common',
         { key: 'configuration' }
       );
     });
@@ -81,7 +81,7 @@ describe('setting-update.test.js', () => {
         .fn()
         .mockImplementation((_logger, collection, filter) => {
           if (
-            collection === 'simple-stop-chaser-common' &&
+            collection === 'trailing-trade-common' &&
             _.isEqual(filter, { key: 'configuration' })
           ) {
             return {
@@ -92,8 +92,12 @@ describe('setting-update.test.js', () => {
                 interval: '1d',
                 limit: '10'
               },
-              maxPurchaseAmount: 100,
-              stopLossLimit: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 100
+              },
+              sell: {
+                enabled: true,
                 lastbuyPercentage: 1.06,
                 stopPercentage: 0.99,
                 limitPercentage: 0.98
@@ -113,8 +117,12 @@ describe('setting-update.test.js', () => {
             interval: '1h',
             limit: '100'
           },
-          maxPurchaseAmount: 150,
-          stopLossLimit: {
+          buy: {
+            enabled: true,
+            maxPurchaseAmount: 150
+          },
+          sell: {
+            enabled: true,
             lastbuyPercentage: 1.07,
             stopPercentage: 0.98,
             limitPercentage: 0.97
@@ -126,7 +134,7 @@ describe('setting-update.test.js', () => {
     it('triggers mongo.findOne', () => {
       expect(mongoMock.findOne).toHaveBeenCalledWith(
         mockLogger,
-        'simple-stop-chaser-common',
+        'trailing-trade-common',
         { key: 'configuration' }
       );
     });
@@ -134,7 +142,7 @@ describe('setting-update.test.js', () => {
     it('triggers mongo.upsertOne', () => {
       expect(mongoMock.upsertOne).toHaveBeenCalledWith(
         mockLogger,
-        'simple-stop-chaser-common',
+        'trailing-trade-common',
         { key: 'configuration' },
         {
           key: 'configuration',
@@ -145,8 +153,12 @@ describe('setting-update.test.js', () => {
             interval: '1h',
             limit: '100'
           },
-          maxPurchaseAmount: 150,
-          stopLossLimit: {
+          buy: {
+            enabled: true,
+            maxPurchaseAmount: 150
+          },
+          sell: {
+            enabled: true,
             lastbuyPercentage: 1.07,
             stopPercentage: 0.98,
             limitPercentage: 0.97
@@ -157,7 +169,7 @@ describe('setting-update.test.js', () => {
 
     it('triggersd cache.hdel', () => {
       expect(cacheMock.hdel).toHaveBeenCalledWith(
-        'simple-stop-chaser-common',
+        'trailing-trade-common',
         'exchange-symbols'
       );
     });
@@ -172,8 +184,12 @@ describe('setting-update.test.js', () => {
             symbols: ['BTCUSDT', 'LTCUSDT'],
             supportFIATs: ['USDT', 'BUSD'],
             candles: { interval: '1h', limit: '100' },
-            maxPurchaseAmount: 150,
-            stopLossLimit: {
+            buy: {
+              enabled: true,
+              maxPurchaseAmount: 150
+            },
+            sell: {
+              enabled: true,
               lastbuyPercentage: 1.07,
               stopPercentage: 0.98,
               limitPercentage: 0.97

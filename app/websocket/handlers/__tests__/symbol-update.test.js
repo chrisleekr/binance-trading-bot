@@ -39,7 +39,7 @@ describe('symbol-update.test.js', () => {
     it('triggers mongo.upsertOne', () => {
       expect(mongoMock.upsertOne).toHaveBeenCalledWith(
         loggerMock,
-        'simple-stop-chaser-symbols',
+        'trailing-trade-symbols',
         { key: 'BTCUSDT-last-buy-price' },
         { key: 'BTCUSDT-last-buy-price', lastBuyPrice: 12000 }
       );

@@ -6,7 +6,11 @@ class AccountWrapper extends React.Component {
     const { accountInfo } = this.props;
 
     const assets = accountInfo.balances.map((balance, index) => {
-      return <AccountWrapperAsset key={index} balance={balance} />;
+      return (
+        <AccountWrapperAsset
+          key={index}
+          balance={balance}></AccountWrapperAsset>
+      );
     });
 
     return (
@@ -19,7 +23,7 @@ class AccountWrapper extends React.Component {
               className='px-2 py-1'>
               <button
                 type='button'
-                class='btn btn-sm btn-link btn-account-balance'>
+                className='btn btn-sm btn-link btn-account-balance'>
                 Account Balance
               </button>
             </Accordion.Toggle>

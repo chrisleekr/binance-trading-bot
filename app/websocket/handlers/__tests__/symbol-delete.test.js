@@ -28,7 +28,7 @@ describe('symbol-delete.test.js', () => {
       cacheMock.hdel = jest.fn().mockResolvedValue(true);
       mongoMock.deleteOne = jest.fn().mockResolvedValue(true);
       cacheMock.hgetall = jest.fn().mockImplementation(key => {
-        if (key === 'simple-stop-chaser-symbols') {
+        if (key === 'trailing-trade-symbols') {
           return {
             'BTCUSDT-key-1': 'value1',
             'LTCUSDT-key-1': 'value3',
@@ -51,7 +51,7 @@ describe('symbol-delete.test.js', () => {
 
     it('triggers cache.hdel', () => {
       expect(cacheMock.hdel).toHaveBeenCalledWith(
-        'simple-stop-chaser-symbols',
+        'trailing-trade-symbols',
         'BTCUSDT-key-1'
       );
     });
@@ -59,18 +59,18 @@ describe('symbol-delete.test.js', () => {
     it('triggers mongo.mock', () => {
       expect(mongoMock.deleteOne).toHaveBeenCalledWith(
         loggerMock,
-        'simple-stop-chaser-symbols',
+        'trailing-trade-symbols',
         { key: 'BTCUSDT-last-buy-price' }
       );
     });
 
     it('does not trigger cache.hdel with other symbols', () => {
       expect(cacheMock.hdel).not.toHaveBeenCalledWith(
-        'simple-stop-chaser-symbols',
+        'trailing-trade-symbols',
         'LTCUSDT-key-1'
       );
       expect(cacheMock.hdel).not.toHaveBeenCalledWith(
-        'simple-stop-chaser-symbols',
+        'trailing-trade-symbols',
         'LTCUSDT-key-2'
       );
     });

@@ -28,6 +28,7 @@
     "username": ""
   },
   "localTunnel": {
+    "enabled": true,
     "subdomain": "default"
   },
   "jobs": {
@@ -35,27 +36,27 @@
       "enabled": true,
       "cronTime": "0 0 9 * * *"
     },
-    "simpleStopChaser": {
-      "enabled": false,
+    "trailingTrade": {
+      "enabled": true,
       "cronTime": "* * * * * *",
       "symbols": ["BTCUSDT", "ETHUSDT"],
       "supportFIATs": ["USDT"],
       "candles": {
-        "interval": "1d",
-        "limit": 5
-      },
-      "maxPurchaseAmount": 100,
-      "stopLossLimit": {
-        "lastBuyPercentage": 1.06,
-        "stopPercentage": 0.97,
-        "limitPercentage": 0.96
+        "interval": "1h",
+        "limit": 100
       },
       "buy": {
         "enabled": true,
-        "triggerPercentage": 1.0
+        "maxPurchaseAmount": 100,
+        "triggerPercentage": 1.0,
+        "stopPercentage": 1.02,
+        "limitPercentage": 1.021
       },
       "sell": {
-        "enabled": true
+        "enabled": true,
+        "triggerPercentage": 1.06,
+        "stopPercentage": 0.98,
+        "limitPercentage": 0.979
       }
     }
   }

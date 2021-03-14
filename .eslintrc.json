@@ -11,5 +11,8 @@
     "react": {
       "version": "999.999.999"
     }
+  },
+  "parserOptions": {
+    "ecmaVersion": 2020
   }
 }

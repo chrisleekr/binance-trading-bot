@@ -1,7 +1,7 @@
 const {
   getSymbolConfiguration,
   saveSymbolConfiguration
-} = require('../../jobs/simpleStopChaser/helper');
+} = require('../../jobs/trailingTrade/configuration');
 
 const handleSymbolSettingUpdate = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol setting update');
@@ -15,16 +15,8 @@ const handleSymbolSettingUpdate = async (logger, ws, payload) => {
   logger.info({ symbolConfiguration }, 'Current symbol configuration');
 
   // Get only editable params
-  const {
-    candles,
-    maxPurchaseAmount,
-    stopLossLimit,
-    buy,
-    sell
-  } = newSymbolConfiguration;
+  const { candles, buy, sell } = newSymbolConfiguration;
   symbolConfiguration.candles = candles;
-  symbolConfiguration.maxPurchaseAmount = maxPurchaseAmount;
-  symbolConfiguration.stopLossLimit = stopLossLimit;
   symbolConfiguration.buy = buy;
   symbolConfiguration.sell = sell;
 

@@ -28,6 +28,8 @@ describe('local-tunnel/configure.js', () => {
       switch (key) {
         case 'mode':
           return 'test';
+        case 'localTunnel.enabled':
+          return true;
         case 'localTunnel.subdomain':
           return 'my-domain';
         default:
@@ -44,13 +46,51 @@ describe('local-tunnel/configure.js', () => {
     });
   });
 
+  describe('when local tunnel is disabled', () => {
+    beforeEach(async () => {
+      config.get = jest.fn(key => {
+        switch (key) {
+          case 'mode':
+            return 'test';
+          case 'localTunnel.enabled':
+            return false;
+          case 'localTunnel.subdomain':
+            return 'my-domain';
+          default:
+            return `value-${key}`;
+        }
+      });
+      mockCache.hget = jest.fn().mockImplementation((key, field) => {
+        if (key === 'trailing-trade-common' && field === 'local-tunnel-url') {
+          return undefined;
+        }
+
+        return '';
+      });
+
+      jest.mock('localtunnel', () =>
+        jest.fn().mockImplementation(() => ({
+          url: 'my-domain.loca.lt',
+          on: mockLocalTunnelOnClose
+        }))
+      );
+
+      localTunnel = require('localtunnel');
+
+      const { configureLocalTunnel } = require('../configure');
+
+      await configureLocalTunnel(mockLogger);
+    });
+
+    it('does not initalise', () => {
+      expect(localTunnel).not.toHaveBeenCalled();
+    });
+  });
+
   describe('when local tunnel url is not cached', () => {
     beforeEach(async () => {
       mockCache.hget = jest.fn().mockImplementation((key, field) => {
-        if (
-          key === 'simple-stop-chaser-common' &&
-          field === 'local-tunnel-url'
-        ) {
+        if (key === 'trailing-trade-common' && field === 'local-tunnel-url') {
           return undefined;
         }
 
@@ -80,14 +120,14 @@ describe('local-tunnel/configure.js', () => {
 
     it('triggers cache.hget', () => {
       expect(mockCache.hget).toHaveBeenCalledWith(
-        'simple-stop-chaser-common',
+        'trailing-trade-common',
         'local-tunnel-url'
       );
     });
 
     it('triggers cache.hset', () => {
       expect(mockCache.hset).toHaveBeenCalledWith(
-        'simple-stop-chaser-common',
+        'trailing-trade-common',
         'local-tunnel-url',
         'my-domain.loca.lt'
       );
@@ -97,10 +137,7 @@ describe('local-tunnel/configure.js', () => {
   describe('when local tunnel url is cached, but new url is different', () => {
     beforeEach(async () => {
       mockCache.hget = jest.fn().mockImplementation((key, field) => {
-        if (
-          key === 'simple-stop-chaser-common' &&
-          field === 'local-tunnel-url'
-        ) {
+        if (key === 'trailing-trade-common' && field === 'local-tunnel-url') {
           return 'old-domain.loca.lt';
         }
 
@@ -130,14 +167,14 @@ describe('local-tunnel/configure.js', () => {
 
     it('triggers cache.hget', () => {
       expect(mockCache.hget).toHaveBeenCalledWith(
-        'simple-stop-chaser-common',
+        'trailing-trade-common',
         'local-tunnel-url'
       );
     });
 
     it('triggers cache.hset', () => {
       expect(mockCache.hset).toHaveBeenCalledWith(
-        'simple-stop-chaser-common',
+        'trailing-trade-common',
         'local-tunnel-url',
         'different-domain.loca.lt'
       );
@@ -147,10 +184,7 @@ describe('local-tunnel/configure.js', () => {
   describe('when local tunnel url is cached and new url is same', () => {
     beforeEach(async () => {
       mockCache.hget = jest.fn().mockImplementation((key, field) => {
-        if (
-          key === 'simple-stop-chaser-common' &&
-          field === 'local-tunnel-url'
-        ) {
+        if (key === 'trailing-trade-common' && field === 'local-tunnel-url') {
           return 'old-domain.loca.lt';
         }
 
@@ -193,7 +227,7 @@ describe('local-tunnel/configure.js', () => {
 
     it('triggers cache.hget', () => {
       expect(mockCache.hget).toHaveBeenCalledWith(
-        'simple-stop-chaser-common',
+        'trailing-trade-common',
         'local-tunnel-url'
       );
     });

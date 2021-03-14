@@ -8,7 +8,7 @@ const handleSettingUpdate = async (logger, ws, payload) => {
 
   const cachedConfiguration = await mongo.findOne(
     logger,
-    'simple-stop-chaser-common',
+    'trailing-trade-common',
     {
       key: 'configuration'
     }
@@ -22,28 +22,20 @@ const handleSettingUpdate = async (logger, ws, payload) => {
 
   const newConfiguration = {
     ...cachedConfiguration,
-    ..._.pick(data, [
-      'symbols',
-      'supportFIATs',
-      'candles',
-      'maxPurchaseAmount',
-      'stopLossLimit',
-      'buy',
-      'sell'
-    ])
+    ..._.pick(data, ['symbols', 'supportFIATs', 'candles', 'buy', 'sell'])
   };
   logger.info({ newConfiguration }, 'New configuration');
 
   await mongo.upsertOne(
     logger,
-    'simple-stop-chaser-common',
+    'trailing-trade-common',
     { key: 'configuration' },
     {
       key: 'configuration',
       ...newConfiguration
     }
   );
-  await cache.hdel('simple-stop-chaser-common', 'exchange-symbols');
+  await cache.hdel('trailing-trade-common', 'exchange-symbols');
 
   ws.send(
     JSON.stringify({

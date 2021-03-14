@@ -25,15 +25,14 @@ class CoinWrapperSetting extends React.Component {
     const {
       symbolInfo,
       configuration: globalConfiguration,
-      symbolConfiguration: modalSymbolConfiguration,
       sendWebSocket
     } = this.props;
-    const { configuration: symbolConfiguration } = symbolInfo;
+    const { symbolConfiguration } = symbolInfo;
 
     // Find out difference between global and symbol configuration. Using this to show overriden values.
     const diffConfiguration = _.pick(
       this.objectDiff(symbolConfiguration, globalConfiguration),
-      ['candles', 'maxPurchaseAmount', 'stopLossLimit', 'buy', 'sell']
+      ['candles', 'buy', 'sell']
     );
 
     if (_.isEmpty(diffConfiguration)) {
@@ -45,7 +44,6 @@ class CoinWrapperSetting extends React.Component {
               <SymbolSettingIcon
                 symbolInfo={symbolInfo}
                 globalConfiguration={globalConfiguration}
-                symbolConfiguration={modalSymbolConfiguration}
                 sendWebSocket={sendWebSocket}
               />
             </div>
@@ -73,12 +71,12 @@ class CoinWrapperSetting extends React.Component {
         <div className='coin-info-column coin-info-column-title coin-info-column-title-setting'>
           <div className='coin-info-label'>
             <div className='mr-1'>
-              Setting - <span class='coin-setting-customised'>Customised</span>
+              Setting -{' '}
+              <span className='coin-setting-customised'>Customised</span>
             </div>
             <SymbolSettingIcon
               symbolInfo={symbolInfo}
               globalConfiguration={globalConfiguration}
-              symbolConfiguration={modalSymbolConfiguration}
               sendWebSocket={sendWebSocket}
             />
           </div>
@@ -123,8 +121,7 @@ class CoinWrapperSetting extends React.Component {
             ''
           )}
 
-          {_.get(diffConfiguration, 'maxPurchaseAmount') ||
-          _.get(diffConfiguration, 'buy') ? (
+          {_.get(diffConfiguration, 'buy') ? (
             <div className='coin-info-sub-wrapper'>
               <span className='coin-info-sub-label'>Buy</span>
               {_.get(diffConfiguration, 'buy.enabled') !== undefined ? (
@@ -142,13 +139,13 @@ class CoinWrapperSetting extends React.Component {
                 ''
               )}
 
-              {_.get(diffConfiguration, 'maxPurchaseAmount') ? (
+              {_.get(diffConfiguration, 'buy.maxPurchaseAmount') ? (
                 <div className='coin-info-column coin-info-column-order'>
                   <span className='coin-info-label'>
                     Maximum purchase amount:
                   </span>
                   <HightlightChange className='coin-info-value'>
-                    {diffConfiguration.maxPurchaseAmount}
+                    {diffConfiguration.buy.maxPurchaseAmount}
                   </HightlightChange>
                 </div>
               ) : (
@@ -169,13 +166,42 @@ class CoinWrapperSetting extends React.Component {
               ) : (
                 ''
               )}
+
+              {_.get(diffConfiguration, 'buy.stopPercentage') ? (
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>Stop percentage:</span>
+                  <HightlightChange className='coin-info-value'>
+                    {(
+                      (symbolConfiguration.buy.stopPercentage - 1) *
+                      100
+                    ).toFixed(2)}
+                    %
+                  </HightlightChange>
+                </div>
+              ) : (
+                ''
+              )}
+
+              {_.get(diffConfiguration, 'buy.limitPercentage') ? (
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>Limit percentage:</span>
+                  <HightlightChange className='coin-info-value'>
+                    {(
+                      (symbolConfiguration.buy.limitPercentage - 1) *
+                      100
+                    ).toFixed(2)}
+                    %
+                  </HightlightChange>
+                </div>
+              ) : (
+                ''
+              )}
             </div>
           ) : (
             ''
           )}
 
-          {_.get(diffConfiguration, 'stopLossLimit') ||
-          _.get(diffConfiguration, 'sell') ? (
+          {_.get(diffConfiguration, 'sell') ? (
             <div className='coin-info-sub-wrapper'>
               <span className='coin-info-sub-label'>Sell</span>
               {_.get(diffConfiguration, 'sell.enabled') !== undefined ? (
@@ -192,37 +218,35 @@ class CoinWrapperSetting extends React.Component {
               ) : (
                 ''
               )}
-              {_.get(diffConfiguration, 'stopLossLimit.lastBuyPercentage') ? (
+              {_.get(diffConfiguration, 'sell.triggerPercentage') ? (
                 <div className='coin-info-column coin-info-column-order'>
-                  <span className='coin-info-label'>
-                    Minimum profit percentage:
-                  </span>
+                  <span className='coin-info-label'>Trigger percentage:</span>
                   <HightlightChange className='coin-info-value'>
-                    {diffConfiguration.stopLossLimit.lastBuyPercentage}
+                    {diffConfiguration.sell.triggerPercentage}
                   </HightlightChange>
                 </div>
               ) : (
                 ''
               )}
-              {_.get(diffConfiguration, 'stopLossLimit.stopPercentage') ? (
+              {_.get(diffConfiguration, 'sell.stopPercentage') ? (
                 <div className='coin-info-column coin-info-column-order'>
                   <span className='coin-info-label'>
                     Stop price percentage:
                   </span>
                   <HightlightChange className='coin-info-value'>
-                    {diffConfiguration.stopLossLimit.stopPercentage}
+                    {diffConfiguration.sell.stopPercentage}
                   </HightlightChange>
                 </div>
               ) : (
                 ''
               )}
-              {_.get(diffConfiguration, 'stopLossLimit.limitPercentage') ? (
+              {_.get(diffConfiguration, 'sell.limitPercentage') ? (
                 <div className='coin-info-column coin-info-column-order'>
                   <span className='coin-info-label'>
                     Limit price percentage:
                   </span>
                   <HightlightChange className='coin-info-value'>
-                    {diffConfiguration.stopLossLimit.limitPercentage}
+                    {diffConfiguration.sell.limitPercentage}
                   </HightlightChange>
                 </div>
               ) : (

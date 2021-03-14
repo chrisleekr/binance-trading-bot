@@ -29,23 +29,21 @@ describe('symbol-setting-update.test.js', () => {
           interval: '1d',
           limit: '10'
         },
-        maxPurchaseAmount: 100,
-        stopLossLimit: {
+        buy: {
+          enabled: true,
+          maxPurchaseAmount: 100
+        },
+        sell: {
+          enabled: true,
           lastbuyPercentage: 1.06,
           stopPercentage: 0.99,
           limitPercentage: 0.98
-        },
-        buy: {
-          enabled: true
-        },
-        sell: {
-          enabled: true
         }
       });
 
       mockSaveSymbolConfiguration = jest.fn().mockResolvedValue(true);
 
-      jest.mock('../../../jobs/simpleStopChaser/helper', () => ({
+      jest.mock('../../../jobs/trailingTrade/configuration', () => ({
         getSymbolConfiguration: mockGetSymbolConfiguration,
         saveSymbolConfiguration: mockSaveSymbolConfiguration
       }));
@@ -59,17 +57,15 @@ describe('symbol-setting-update.test.js', () => {
               interval: '15m',
               limit: '200'
             },
-            maxPurchaseAmount: 200,
-            stopLossLimit: {
+            buy: {
+              enabled: false,
+              maxPurchaseAmount: 200
+            },
+            sell: {
+              enabled: false,
               lastbuyPercentage: 1.08,
               stopPercentage: 0.97,
               limitPercentage: 0.96
-            },
-            buy: {
-              enabled: false
-            },
-            sell: {
-              enabled: false
             },
             some: 'other value'
           }
@@ -93,17 +89,15 @@ describe('symbol-setting-update.test.js', () => {
             interval: '15m',
             limit: '200'
           },
-          maxPurchaseAmount: 200,
-          stopLossLimit: {
+          buy: {
+            enabled: false,
+            maxPurchaseAmount: 200
+          },
+          sell: {
+            enabled: false,
             lastbuyPercentage: 1.08,
             stopPercentage: 0.97,
             limitPercentage: 0.96
-          },
-          buy: {
-            enabled: false
-          },
-          sell: {
-            enabled: false
           }
         }
       );

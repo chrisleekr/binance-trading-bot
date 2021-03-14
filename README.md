@@ -1,8 +1,11 @@
-# Binance Auto Trading Bot
+# Binance Trading Bot
 
+[![GitHub package.json version](https://img.shields.io/github/package-json/v/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/releases)
 [![Build](https://github.com/chrisleekr/binance-trading-bot/workflows/main/badge.svg)](https://github.com/chrisleekr/binance-trading-bot/actions?query=workflow%3Amain)
 [![CodeCov](https://codecov.io/gh/chrisleekr/binance-trading-bot/branch/master/graph/badge.svg)](https://codecov.io/gh/chrisleekr/binance-trading-bot)
 [![MIT License](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
+
+> Automated Binance trading bot with trailing buy/sell strategy
 
 This is a test project. I am just testing my code.
 
@@ -13,18 +16,25 @@ This is a test project. I am just testing my code.
 **So use it at your own risk! I have no responsibility for any loss or hardship
 incurred directly or indirectly by using this code.**
 
-**Before update any changes, make sure record last buy price in the note. It may
-lose the configuration or last buy price.**
+**Before updating the bot, make sure to record the last buy price in the note.
+It may lose the configuration or last buy price records.**
+
+## Breaking Changes
+
+As I introduce a new feature, I did lots of refactoring the code including
+settings. If the bot version is lower than the version `0.0.57`, then the update
+will cause lost your settings and the last buy price records. You must write
+down settings and the last buy price records and re-configure after the upgrade.
+
+If experiences any issue, simply delete all docker volumes/images and re-launch
+the bot.
 
 ## How it works
 
-### Trading Bot
+### Trailing Buy/Sell Bot
 
-This bot is buying at the lowest price without any indicator, never sell under
-purchase price. And chase rising money. Stop chaser methodology was the idea
-from [@d0x2f](https://github.com/d0x2f). I have found MACD indicators often
-mislead buying signal. In box pattern market, buy signal with the lowest price
-is effective than using MACD indicators.
+This bot is using the concept of trailing buy/sell order which allows following
+the price fall/rise.
 
 - The bot can monitor multiple symbols. Each symbol will be monitored per
   second.
@@ -32,41 +42,151 @@ is effective than using MACD indicators.
   BTCUSDT, ETHUSDT. You can add more FIAT symbols like BUSD, AUD from the
   frontend. However, I didn't test in the live server. So use with your own
   risk.
-- Note that if the coin is worth less than $10, then the bot will remove the
-  last buy price because Binance does not allow to place an order of less than
-  $10.
 - The bot is using MongoDB to provide a persistence database. However, it does
   not use the latest MongoDB to support Raspberry Pi 32bit. Used MongoDB version
   is 3.2.20, which is provided by
   [apcheamitru](https://hub.docker.com/r/apcheamitru/arm32v7-mongo).
 
-#### Process
+#### Buy Signal
 
-1. Get the next symbol to process
+The bot will continuously monitor the lowest value for the period of the
+candles. Once the current price reaches the lowest price, then the bot will
+place a STOP-LOSS-LIMIT order to buy. If the current price continuously falls,
+then the bot will cancel the previous order and re-place the new STOP-LOSS-LIMIT
+order with the new price.
 
-2. Process buy signal
+- The bot will not place a buy order if has enough coin (typically over $10
+  worth) to sell when reaches the trigger price for selling.
 
-   - Get lowest closed price with period
-   - If the current price is lower than the lowest closed price, then **buy
-     NOW.**
-     - It will only purchase the maximum purchase amount or less.
-     - It will not purchase if the base asset, such as BTC, has enough balance
-       to place a stop-loss limit order.
-     - If trading is disabled, then the bot won't place an order.
-   - If the current price is higher than the lowest closed price, then _do not
-     buy._
+##### Buy Scenario
 
-3. Process Stop-Loss-Limit order
+Let say, if the buy configurations are set as below:
 
-   - If there is no open order but have coins enough to sell, then check
-     - Get last buy price from the cache
-     - If the current price is higher than the minimum profit percentage _last
-       buy price_, then **place Stop-Loss-Limit order.**
-       - If trading is disabled, then the bot won't place an order.
-     - Otherwise, _do not place Stop-Loss-Limit order._
-   - If there is an opened Stop-Loss-Limit order, then check the current price.
-     - If the current price is higher than stop price, then cancel the open
-       order. Then it will place new Stop-Loss-Limit order in next process.
+- Maximum purchase amount: $50
+- Trigger percentage: 1.005 (0.5%)
+- Stop price percentage: 1.01 (1.0%)
+- Limit price percentage: 1.011 (1.1%)
+
+And the market is as below:
+
+- Current price: $101
+- Lowest price: $100
+- Trigger price: $100.5
+
+Then the bot will not place an order because the trigger price ($100.5) is less
+than the current price ($101).
+
+In the next tick, the market changes as below:
+
+- Current price: $100
+- Lowest price: $100
+- Trigger price: $100.5
+
+The bot will place new STOP-LOSS-LIMIT order for buying because the current
+price ($100) is less than the trigger price ($100.5). For the simple
+calculation, I do not take an account for the commission. In real trading, the
+quantity may be different. The new buy order will be placed as below:
+
+- Stop price: $100 \* 1.01 = $101
+- Limit price: $100 \* 1.011 = $101.1
+- Quantity: 0.49
+
+In the next tick, the market changes as below:
+
+- Current price: $99
+- Current limit price: $99 \* 1.011 = 100.089
+- Open order stop price: $101
+
+As the open order's stop price ($101) is higher than the current limit price
+($100.089), the bot will cancel the open order and place new STOP-LOSS-LIMIT
+order as below:
+
+- Stop price: $99 \* 1.01 = $99.99
+- Limit price: $99 \* 1.011 = $100.089
+- Quantity: 0.49
+
+If the price continuously falls, then the new buy order will be placed with the
+new price.
+
+And if the market changes as below in the next tick:
+
+- Current price: $100
+
+Then the current price reaches the stop price ($99.99); hence, the order will be
+executed with the limit price ($100.089).
+
+### Sell Signal
+
+If there is enough balance for selling and the last buy price is recorded in the
+bot, then the bot will start monitoring the sell signal. Once the current price
+reaches the trigger price, then the bot will place a STOP-LOSS-LIMIT order to
+sell. If the current price continuously rises, then the bot will cancel the
+previous order and re-place the new STOP-LOSS-LIMIT order with the new price.
+
+- If the coin is worth less than typically $10 (minimum notional value), then
+  the bot will remove the last buy price because Binance does not allow to place
+  an order of less than $10.
+- If the bot does not have a record for the last buy price, the bot will not
+  sell the coin.
+
+#### Sell Scenario
+
+Let say, if the sell configurations are set as below:
+
+- Trigger percentage: 1.05 (5.0%)
+- Stop price percentage: 0.98 (-2.0%)
+- Limit price percentage: 0.979 (-2.1%)
+
+And the market is as below:
+
+- Coin owned: 0.5
+- Current price: $100
+- Last buy price: $100
+- Trigger price: $100 \* 1.05 = $105
+
+Then the bot will not place an order because the trigger price ($105) is higher
+than the current price ($100).
+
+If the price is continuously falling, then the bot will keep monitoring until
+the price reaches the trigger price.
+
+In the next tick, the market changes as below:
+
+- Current price: $105
+- Trigger price: $105
+
+The bot will place new STOP-LOSS-LIMIT order for selling because the current
+price ($105) is higher or equal than the trigger price ($105). For the simple
+calculation, I do not take an account for the commission. In real trading, the
+quantity may be different. The new sell order will be placed as below:
+
+- Stop price: $105 \* 0.98 = $102.9
+- Limit price: $105 \* 0.979 = $102.795
+- Quantity: 0.5
+
+In the next tick, the market changes as below:
+
+- Current price: $106
+- Current limit price: $103.774
+- Open order stop price: $102.29
+
+As the open order's stop price ($102.29) is less than the current limit price
+($103.774), the bot will cancel the open order and place new STOP-LOSS-LIMIT
+order as below:
+
+- Stop price: $106 \* 0.98 = $103.88
+- Limit price: $106 \* 0.979 = $103.774
+- Quantity: 0.5
+
+If the price continuously rises, then the new sell order will be placed with the
+new price.
+
+And if the market changes as below in the next tick:
+
+- Current price: $103
+
+The the current price reaches the stop price ($103.88); hence, the order will be
+executed with the limit price ($103.774).
 
 ### Frontend + WebSocket
 
@@ -106,18 +226,22 @@ Or use the frontend to adjust configurations after launching the application.
 3. Launch the application with docker-compose
 
    ```bash
+   git pull
    docker-compose up -d
    ```
 
    or using the latest build image from DockerHub
 
    ```bash
+   git pull
+   docker-compose -f docker-compose.server.yml pull
    docker-compose -f docker-compose.server.yml up -d
    ```
 
    or if using Raspberry Pi 32bit. Must build again for Raspberry Pi.
 
    ```bash
+   git pull
    docker build . --build-arg NODE_ENV=production --target production-stage -t chrisleekr/binance-trading-bot:latest
    docker-compose -f docker-compose.rpi.yml up -d
    ```
@@ -128,25 +252,25 @@ Or use the frontend to adjust configurations after launching the application.
 
 ## Screenshots
 
-| Frontend Mobile                                                                                                      | Setting                                                                                                              |
-| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot1](https://user-images.githubusercontent.com/5715919/110298077-421b0600-8048-11eb-9763-94ebc2159745.png) | ![Screenshot2](https://user-images.githubusercontent.com/5715919/110298101-4a734100-8048-11eb-8916-4d4381d3161e.png) |
+| Frontend Mobile                                                                                                          | Setting                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/111026709-d79b0900-843f-11eb-8655-e23199d98237.png) | ![Setting](https://user-images.githubusercontent.com/5715919/111027223-f2bb4800-8442-11eb-9f5d-95f77298f4c0.png) |
 
-| Frontend Desktop                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot](https://user-images.githubusercontent.com/5715919/110298003-2b74af00-8048-11eb-81d4-52a4696b11f4.png) |
+| Frontend Desktop                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------- |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/111020919-3bf8a100-841d-11eb-8009-9f7c07054572.png) |
 
-### First trade
+### Sample Trade
 
-| Chart                                                                                                                | Order History                                                                                                        |
-| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot1](https://user-images.githubusercontent.com/5715919/99874214-f7f94a80-2c39-11eb-9f6d-92fa7b4cb000.jpeg) | ![Screenshot2](https://user-images.githubusercontent.com/5715919/99874212-f465c380-2c39-11eb-8185-dce0d6d21e27.jpeg) |
+| Chart                                                                                                          | Buy Orders                                                                                                          | Sell Orders                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| ![Chart](https://user-images.githubusercontent.com/5715919/111027391-192db300-8444-11eb-8df4-91c98d0c835b.png) | ![Buy Orders](https://user-images.githubusercontent.com/5715919/111027403-36628180-8444-11eb-91dc-f3cdabc5a79e.png) | ![Sell Orders](https://user-images.githubusercontent.com/5715919/111027411-4b3f1500-8444-11eb-8525-37f02a63de25.png) |
 
 ### Last 30 days trade
 
-| Trade History                                                                                                        | PNL Analysis                                                                                                         |
-| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| ![Screenshot3](https://user-images.githubusercontent.com/5715919/110196375-38eb3700-7e98-11eb-870b-d2d145a6fb97.png) | ![Screenshot4](https://user-images.githubusercontent.com/5715919/110196380-41dc0880-7e98-11eb-98b7-697f5d2f351f.png) |
+| Trade History                                                                                                          | PNL Analysis                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| ![Trade History](https://user-images.githubusercontent.com/5715919/111020672-c0e2bb00-841b-11eb-9b51-584325c8ef68.png) | ![Profit & Loss](https://user-images.githubusercontent.com/5715919/111020784-6eee6500-841c-11eb-8f7b-4d9e3718f5bc.png) |
 
 ## Changes & Todo
 
@@ -175,9 +299,11 @@ Or use the frontend to adjust configurations after launching the application.
 - [x] Add max-size for logging
 - [x] Execute chaseStopLossLimitOrder on every process
 - [x] Support buy trigger percentage
-- [ ] Apply chase-stop-loss-limit order for buy signal as well
+- [x] **Breaking changes** Re-organise configuration structures
+- [x] Apply chase-stop-loss-limit order for buy signal as well
+- [x] Added more candle periods - 1m, 3m and 5m
+- [x] Allow to disable local tunnel
 - [ ] Override the lowest value in the frontend
-- [ ] Re-organise configuration structures
 - [ ] Allow browser notification
 - [ ] Secure frontend with the password
 

@@ -2,7 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const config = require('config');
 const { CronJob } = require('cron');
 
-const { executeAlive, executeSimpleStopChaser } = require('./jobs');
+const { executeAlive, executeTrailingTrade } = require('./jobs');
 
 const runCronjob = async serverLogger => {
   const logger = serverLogger.child({ server: 'cronjob' });
@@ -13,7 +13,7 @@ const runCronjob = async serverLogger => {
   // Execute jobs
   [
     { jobName: 'alive', executeJob: executeAlive },
-    { jobName: 'simpleStopChaser', executeJob: executeSimpleStopChaser }
+    { jobName: 'trailingTrade', executeJob: executeTrailingTrade }
   ].forEach(job => {
     const { jobName, executeJob } = job;
     if (config.get(`jobs.${jobName}.enabled`)) {
