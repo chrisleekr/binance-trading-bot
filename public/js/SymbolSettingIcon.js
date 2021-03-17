@@ -250,7 +250,7 @@ class SymbolSettingIcon extends React.Component {
                   placeholder='Enter limit price percentage'
                   required
                   min='0'
-                  step='0.001'
+                  step='0.0001'
                   data-state-key='buy.limitPercentage'
                   value={symbolConfiguration.buy.limitPercentage}
                   onChange={this.handleInputChange}
