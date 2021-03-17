@@ -1,7 +1,7 @@
 /* eslint-disable prefer-destructuring */
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, cache, mongo } = require('../../../helpers');
+const { binance, mongo } = require('../../../helpers');
 
 /**
  * Flatten candle data
@@ -21,69 +21,6 @@ const flattenCandlesData = candles => {
     openTime,
     low
   };
-};
-
-/**
- * Get symbol information
- *
- * @param {*} logger
- * @param {*} symbol
- */
-const getSymbolInfo = async (logger, symbol) => {
-  const cachedSymbolInfo = await cache.hget(
-    'trailing-trade-symbols',
-    `${symbol}-symbol-info`
-  );
-
-  if (cachedSymbolInfo) {
-    logger.info({ cachedSymbolInfo }, 'Retrieved symbol info from the cache.');
-    return JSON.parse(cachedSymbolInfo);
-  }
-
-  logger.info({}, 'Request exchange info from Binance.');
-
-  const exchangeInfo = await binance.client.exchangeInfo();
-
-  logger.info({}, 'Retrieved exchange info from Binance.');
-  const symbolInfo = _.filter(
-    exchangeInfo.symbols,
-    s => s.symbol === symbol
-  )[0];
-
-  symbolInfo.filterLotSize = _.filter(
-    symbolInfo.filters,
-    f => f.filterType === 'LOT_SIZE'
-  )[0];
-  symbolInfo.filterPrice = _.filter(
-    symbolInfo.filters,
-    f => f.filterType === 'PRICE_FILTER'
-  )[0];
-  symbolInfo.filterMinNotional = _.filter(
-    symbolInfo.filters,
-    f => f.filterType === 'MIN_NOTIONAL'
-  )[0];
-
-  logger.info({ symbolInfo }, 'Retrieved symbol info from Binance.');
-
-  const finalSymbolInfo = _.pick(symbolInfo, [
-    'symbol',
-    'status',
-    'baseAsset',
-    'baseAssetPrecision',
-    'quoteAsset',
-    'quotePrecision',
-    'filterLotSize',
-    'filterPrice',
-    'filterMinNotional'
-  ]);
-
-  cache.hset(
-    'trailing-trade-symbols',
-    `${symbol}-symbol-info`,
-    JSON.stringify(finalSymbolInfo)
-  );
-
-  return finalSymbolInfo;
 };
 
 /**
@@ -129,14 +66,9 @@ const execute = async (logger, rawData) => {
         limitPercentage: sellLimitPercentage
       }
     },
-    accountInfo: { balances, updateTime },
+    baseAssetBalance: { total: baseAssetTotalBalance },
     openOrders
   } = data;
-
-  // Retrieve symbol info
-  const symbolInfo = await getSymbolInfo(logger, symbol);
-
-  const { quoteAsset, baseAsset } = symbolInfo;
 
   // Retrieve candles
   const candles = await binance.client.candles({
@@ -171,21 +103,7 @@ const execute = async (logger, rawData) => {
     lastBuyPrice > 0 ? (1 - sellTriggerPrice / currentPrice) * 100 : null;
   const sellLimitPrice = currentPrice * sellLimitPercentage;
 
-  // Get asset balances
-  const baseAssetBalance = balances.filter(b => b.asset === baseAsset)[0] || {
-    asset: baseAsset,
-    free: 0,
-    locked: 0
-  };
-  const quoteAssetBalance = balances.filter(b => b.asset === quoteAsset)[0] || {
-    asset: quoteAsset,
-    free: 0,
-    locked: 0
-  };
-
-  const baseAssetTotalBalance =
-    parseFloat(baseAssetBalance.free) + parseFloat(baseAssetBalance.locked);
-
+  // Estimate value
   const baseAssetEstimatedValue = baseAssetTotalBalance * currentPrice;
 
   const sellCurrentProfit =
@@ -237,14 +155,7 @@ const execute = async (logger, rawData) => {
     lastCandle
   };
 
-  data.symbolInfo = symbolInfo;
-
-  data.baseAssetBalance = baseAssetBalance;
-  data.baseAssetBalance.total = baseAssetTotalBalance;
   data.baseAssetBalance.estimatedValue = baseAssetEstimatedValue;
-  data.baseAssetBalance.updatedAt = moment(updateTime).utc();
-
-  data.quoteAssetBalance = quoteAssetBalance;
 
   data.buy = {
     currentPrice,
