@@ -13,6 +13,7 @@ describe('trailingTrade', () => {
   let mockGetNextSymbol;
   let mockGetExchangeSymbols;
   let mockGetSymbolConfiguration;
+  let mockGetSymbolInfo;
   let mockGetAccountInfo;
   let mockGetIndicators;
   let mockGetOpenOrders;
@@ -52,18 +53,18 @@ describe('trailingTrade', () => {
           global: 'value'
         }
       };
-      mockGetGlobalConfiguration = jest.fn().mockResolvedValueOnce(data);
+      mockGetGlobalConfiguration = jest.fn().mockResolvedValue(data);
 
       data = {
         ...data,
         symbol: 'BTCUSDT'
       };
-      mockGetNextSymbol = jest.fn().mockResolvedValueOnce(data);
+      mockGetNextSymbol = jest.fn().mockResolvedValue(data);
 
       data = {
         ...data
       };
-      mockGetExchangeSymbols = jest.fn().mockResolvedValueOnce(data);
+      mockGetExchangeSymbols = jest.fn().mockResolvedValue(data);
 
       data = {
         ...data,
@@ -71,7 +72,15 @@ describe('trailingTrade', () => {
           symbol: 'value'
         }
       };
-      mockGetSymbolConfiguration = jest.fn().mockResolvedValueOnce(data);
+      mockGetSymbolConfiguration = jest.fn().mockResolvedValue(data);
+
+      data = {
+        ...data,
+        symbolInfo: {
+          symbol: 'value'
+        }
+      };
+      mockGetSymbolInfo = jest.fn().mockResolvedValue(data);
 
       data = {
         ...data,
@@ -79,7 +88,7 @@ describe('trailingTrade', () => {
           account: 'value'
         }
       };
-      mockGetAccountInfo = jest.fn().mockResolvedValueOnce(data);
+      mockGetAccountInfo = jest.fn().mockResolvedValue(data);
 
       data = {
         ...data,
@@ -91,12 +100,9 @@ describe('trailingTrade', () => {
         },
         quoteAssetBalance: {
           quoteAsset: 'value'
-        },
-        symbolInfo: {
-          symbol: 'value'
         }
       };
-      mockGetIndicators = jest.fn().mockResolvedValueOnce(data);
+      mockGetIndicators = jest.fn().mockResolvedValue(data);
 
       data = {
         ...data,
@@ -104,15 +110,15 @@ describe('trailingTrade', () => {
           order: 'value'
         }
       };
-      mockGetOpenOrders = jest.fn().mockResolvedValueOnce(data);
+      mockGetOpenOrders = jest.fn().mockResolvedValue(data);
 
-      mockHandleOpenOrders = jest.fn().mockResolvedValueOnce(data);
+      mockHandleOpenOrders = jest.fn().mockResolvedValue(data);
 
       data = {
         ...data,
         action: 'value'
       };
-      mockDetermineAction = jest.fn().mockResolvedValueOnce(data);
+      mockDetermineAction = jest.fn().mockResolvedValue(data);
 
       data = {
         ...data,
@@ -120,7 +126,7 @@ describe('trailingTrade', () => {
           buy: 'value'
         }
       };
-      mockPlaceBuyOrder = jest.fn().mockResolvedValueOnce(data);
+      mockPlaceBuyOrder = jest.fn().mockResolvedValue(data);
 
       data = {
         ...data,
@@ -128,15 +134,16 @@ describe('trailingTrade', () => {
           sell: 'value'
         }
       };
-      mockPlaceSellOrder = jest.fn().mockResolvedValueOnce(data);
-      mockRemoveLastBuyPrice = jest.fn().mockResolvedValueOnce(data);
-      mockSaveDataToCache = jest.fn().mockResolvedValueOnce(data);
+      mockPlaceSellOrder = jest.fn().mockResolvedValue(data);
+      mockRemoveLastBuyPrice = jest.fn().mockResolvedValue(data);
+      mockSaveDataToCache = jest.fn().mockResolvedValue(data);
 
       jest.mock('../trailingTrade/steps', () => ({
         getGlobalConfiguration: mockGetGlobalConfiguration,
         getNextSymbol: mockGetNextSymbol,
         getExchangeSymbols: mockGetExchangeSymbols,
         getSymbolConfiguration: mockGetSymbolConfiguration,
+        getSymbolInfo: mockGetSymbolInfo,
         getAccountInfo: mockGetAccountInfo,
         getIndicators: mockGetIndicators,
         getOpenOrders: mockGetOpenOrders,
@@ -203,19 +210,19 @@ describe('trailingTrade', () => {
         ...data,
         symbol: 'BTCUSDT'
       };
-      mockGetGlobalConfiguration = jest.fn().mockResolvedValueOnce(data);
-      mockGetNextSymbol = jest.fn().mockResolvedValueOnce(data);
-      mockGetExchangeSymbols = jest.fn().mockResolvedValueOnce(data);
-      mockGetSymbolConfiguration = jest.fn().mockResolvedValueOnce(data);
-      mockGetAccountInfo = jest.fn().mockResolvedValueOnce(data);
-      mockGetIndicators = jest.fn().mockResolvedValueOnce(data);
-      mockGetOpenOrders = jest.fn().mockResolvedValueOnce(data);
-      mockHandleOpenOrders = jest.fn().mockResolvedValueOnce(data);
-      mockDetermineAction = jest.fn().mockResolvedValueOnce(data);
-      mockPlaceBuyOrder = jest.fn().mockResolvedValueOnce(data);
-      mockPlaceSellOrder = jest.fn().mockResolvedValueOnce(data);
-      mockRemoveLastBuyPrice = jest.fn().mockResolvedValueOnce(data);
-      mockSaveDataToCache = jest.fn().mockResolvedValueOnce(data);
+      mockGetGlobalConfiguration = jest.fn().mockResolvedValue(data);
+      mockGetNextSymbol = jest.fn().mockResolvedValue(data);
+      mockGetExchangeSymbols = jest.fn().mockResolvedValue(data);
+      mockGetSymbolConfiguration = jest.fn().mockResolvedValue(data);
+      mockGetAccountInfo = jest.fn().mockResolvedValue(data);
+      mockGetIndicators = jest.fn().mockResolvedValue(data);
+      mockGetOpenOrders = jest.fn().mockResolvedValue(data);
+      mockHandleOpenOrders = jest.fn().mockResolvedValue(data);
+      mockDetermineAction = jest.fn().mockResolvedValue(data);
+      mockPlaceBuyOrder = jest.fn().mockResolvedValue(data);
+      mockPlaceSellOrder = jest.fn().mockResolvedValue(data);
+      mockRemoveLastBuyPrice = jest.fn().mockResolvedValue(data);
+      mockSaveDataToCache = jest.fn().mockResolvedValue(data);
 
       jest.mock('../trailingTrade/steps', () => ({
         getGlobalConfiguration: mockGetGlobalConfiguration,

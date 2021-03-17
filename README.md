@@ -3,6 +3,7 @@
 [![GitHub package.json version](https://img.shields.io/github/package-json/v/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/releases)
 [![Build](https://github.com/chrisleekr/binance-trading-bot/workflows/main/badge.svg)](https://github.com/chrisleekr/binance-trading-bot/actions?query=workflow%3Amain)
 [![CodeCov](https://codecov.io/gh/chrisleekr/binance-trading-bot/branch/master/graph/badge.svg)](https://codecov.io/gh/chrisleekr/binance-trading-bot)
+[![Docker pull](https://img.shields.io/docker/pulls/chrisleekr/binance-trading-bot)](https://hub.docker.com/repository/docker/chrisleekr/binance-trading-bot)
 [![MIT License](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
 
 > Automated Binance trading bot with trailing buy/sell strategy
@@ -197,6 +198,7 @@ React.js based frontend communicating via Web Socket:
 - Manage global/symbol settings
 - Delete caches that are not monitored
 - Link to public URL
+- Support Add to Home Screen
 
 ## Environment Parameters
 
@@ -254,11 +256,11 @@ Or use the frontend to adjust configurations after launching the application.
 
 | Frontend Mobile                                                                                                          | Setting                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/111026709-d79b0900-843f-11eb-8655-e23199d98237.png) | ![Setting](https://user-images.githubusercontent.com/5715919/111027223-f2bb4800-8442-11eb-9f5d-95f77298f4c0.png) |
+| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/111430413-72e8f280-874e-11eb-9870-6603282fde8e.png) | ![Setting](https://user-images.githubusercontent.com/5715919/111027223-f2bb4800-8442-11eb-9f5d-95f77298f4c0.png) |
 
 | Frontend Desktop                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/111020919-3bf8a100-841d-11eb-8009-9f7c07054572.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/111430212-28677600-874e-11eb-9314-1d617e25fd06.png) |
 
 ### Sample Trade
 
@@ -270,7 +272,7 @@ Or use the frontend to adjust configurations after launching the application.
 
 | Trade History                                                                                                          | PNL Analysis                                                                                                           |
 | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| ![Trade History](https://user-images.githubusercontent.com/5715919/111020672-c0e2bb00-841b-11eb-9b51-584325c8ef68.png) | ![Profit & Loss](https://user-images.githubusercontent.com/5715919/111020784-6eee6500-841c-11eb-8f7b-4d9e3718f5bc.png) |
+| ![Trade History](https://user-images.githubusercontent.com/5715919/111430291-4503ae00-874e-11eb-9e68-aefa4bca19b2.png) | ![Profit & Loss](https://user-images.githubusercontent.com/5715919/111430313-4df47f80-874e-11eb-9f3d-e85cf3027d74.png) |
 
 ## Changes & Todo
 
@@ -294,7 +296,7 @@ Or use the frontend to adjust configurations after launching the application.
 - [x] Support other FIAT symbols such as BUSD, AUD
 - [x] Allow entering more decimals for the last buy price
 - [x] Override buy/sell configuration per symbol
-- [x] Support PWA for frontend - now support "Add to Home screen"
+- [x] Support PWA for frontend - **now support "Add to Home screen"**
 - [x] Enable/Disable symbols trading, but continue to monitor
 - [x] Add max-size for logging
 - [x] Execute chaseStopLossLimitOrder on every process
@@ -303,8 +305,8 @@ Or use the frontend to adjust configurations after launching the application.
 - [x] Apply chase-stop-loss-limit order for buy signal as well
 - [x] Added more candle periods - 1m, 3m and 5m
 - [x] Allow to disable local tunnel
-- [ ] Override the lowest value in the frontend
-- [ ] Allow browser notification
+- [x] Fix the bug with handling open orders
+- [ ] Allow browser notification in the frontend
 - [ ] Secure frontend with the password
 
 ## Acknowledgments

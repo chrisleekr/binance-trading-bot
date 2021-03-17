@@ -15,6 +15,7 @@ describe('handle-open-orders.js', () => {
       beforeEach(async () => {
         rawData = {
           symbol: 'BTCUSDT',
+          action: 'not-determined',
           openOrders: [
             {
               symbol: 'BTCUSDT',
@@ -25,10 +26,20 @@ describe('handle-open-orders.js', () => {
             }
           ],
           buy: {
-            limitPrice: 1800
+            limitPrice: 1800,
+            openOrders: [
+              {
+                symbol: 'BTCUSDT',
+                orderId: 46838,
+                price: '1799.58000000',
+                type: 'LIMIT',
+                side: 'BUY'
+              }
+            ]
           },
           sell: {
-            limitPrice: 1800
+            limitPrice: 1800,
+            openOrders: []
           }
         };
 
@@ -36,7 +47,32 @@ describe('handle-open-orders.js', () => {
       });
 
       it('returns expected value', () => {
-        expect(result).toStrictEqual(rawData);
+        expect(result).toStrictEqual({
+          symbol: 'BTCUSDT',
+          action: 'not-determined',
+          openOrders: [
+            {
+              symbol: 'BTCUSDT',
+              orderId: 46838,
+              price: '1799.58000000',
+              type: 'LIMIT',
+              side: 'BUY'
+            }
+          ],
+          buy: {
+            limitPrice: 1800,
+            openOrders: [
+              {
+                symbol: 'BTCUSDT',
+                orderId: 46838,
+                price: '1799.58000000',
+                type: 'LIMIT',
+                side: 'BUY'
+              }
+            ]
+          },
+          sell: { limitPrice: 1800, openOrders: [] }
+        });
       });
     });
 
@@ -45,6 +81,7 @@ describe('handle-open-orders.js', () => {
         beforeEach(async () => {
           rawData = {
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             openOrders: [
               {
                 symbol: 'BTCUSDT',
@@ -56,10 +93,21 @@ describe('handle-open-orders.js', () => {
               }
             ],
             buy: {
-              limitPrice: 1800
+              limitPrice: 1800,
+              openOrders: [
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46838,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'BUY'
+                }
+              ]
             },
             sell: {
-              limitPrice: 1800
+              limitPrice: 1800,
+              openOrders: []
             }
           };
 
@@ -75,8 +123,21 @@ describe('handle-open-orders.js', () => {
 
         it('returns expected value', () => {
           expect(result).toStrictEqual({
-            ...rawData,
-            action: 'buy'
+            symbol: 'BTCUSDT',
+            action: 'buy',
+            refreshAccountInfo: true,
+            openOrders: [
+              {
+                symbol: 'BTCUSDT',
+                orderId: 46838,
+                price: '1799.58000000',
+                stopPrice: '1800.1000',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'BUY'
+              }
+            ],
+            buy: { limitPrice: 1800, openOrders: [] },
+            sell: { limitPrice: 1800, openOrders: [] }
           });
         });
       });
@@ -85,6 +146,7 @@ describe('handle-open-orders.js', () => {
         beforeEach(async () => {
           rawData = {
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             openOrders: [
               {
                 symbol: 'BTCUSDT',
@@ -96,10 +158,21 @@ describe('handle-open-orders.js', () => {
               }
             ],
             buy: {
-              limitPrice: 1810
+              limitPrice: 1810,
+              openOrders: [
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46838,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'BUY'
+                }
+              ]
             },
             sell: {
-              limitPrice: 1800
+              limitPrice: 1800,
+              openOrders: []
             }
           };
 
@@ -112,8 +185,32 @@ describe('handle-open-orders.js', () => {
 
         it('returns expected value', () => {
           expect(result).toStrictEqual({
-            ...rawData,
-            action: 'buy-order-wait'
+            symbol: 'BTCUSDT',
+            action: 'buy-order-wait',
+            openOrders: [
+              {
+                symbol: 'BTCUSDT',
+                orderId: 46838,
+                price: '1799.58000000',
+                stopPrice: '1800.1000',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'BUY'
+              }
+            ],
+            buy: {
+              limitPrice: 1810,
+              openOrders: [
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46838,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'BUY'
+                }
+              ]
+            },
+            sell: { limitPrice: 1800, openOrders: [] }
           });
         });
       });
@@ -124,6 +221,7 @@ describe('handle-open-orders.js', () => {
         beforeEach(async () => {
           rawData = {
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             openOrders: [
               {
                 symbol: 'BTCUSDT',
@@ -135,10 +233,21 @@ describe('handle-open-orders.js', () => {
               }
             ],
             buy: {
-              limitPrice: 1800
+              limitPrice: 1800,
+              openOrders: []
             },
             sell: {
-              limitPrice: 1801
+              limitPrice: 1801,
+              openOrders: [
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46838,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'SELL'
+                }
+              ]
             }
           };
 
@@ -154,8 +263,21 @@ describe('handle-open-orders.js', () => {
 
         it('returns expected value', () => {
           expect(result).toStrictEqual({
-            ...rawData,
-            action: 'sell'
+            symbol: 'BTCUSDT',
+            action: 'sell',
+            refreshAccountInfo: true,
+            openOrders: [
+              {
+                symbol: 'BTCUSDT',
+                orderId: 46838,
+                price: '1799.58000000',
+                stopPrice: '1800.1000',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'SELL'
+              }
+            ],
+            buy: { limitPrice: 1800, openOrders: [] },
+            sell: { limitPrice: 1801, openOrders: [] }
           });
         });
       });
@@ -164,6 +286,7 @@ describe('handle-open-orders.js', () => {
         beforeEach(async () => {
           rawData = {
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             openOrders: [
               {
                 symbol: 'BTCUSDT',
@@ -175,10 +298,21 @@ describe('handle-open-orders.js', () => {
               }
             ],
             buy: {
-              limitPrice: 1800
+              limitPrice: 1800,
+              openOrders: []
             },
             sell: {
-              limitPrice: 1799
+              limitPrice: 1799,
+              openOrders: [
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46838,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'SELL'
+                }
+              ]
             }
           };
 
@@ -191,8 +325,32 @@ describe('handle-open-orders.js', () => {
 
         it('returns expected value', () => {
           expect(result).toStrictEqual({
-            ...rawData,
-            action: 'sell-order-wait'
+            symbol: 'BTCUSDT',
+            action: 'sell-order-wait',
+            openOrders: [
+              {
+                symbol: 'BTCUSDT',
+                orderId: 46838,
+                price: '1799.58000000',
+                stopPrice: '1800.1000',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'SELL'
+              }
+            ],
+            buy: { limitPrice: 1800, openOrders: [] },
+            sell: {
+              limitPrice: 1799,
+              openOrders: [
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46838,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'SELL'
+                }
+              ]
+            }
           });
         });
       });
