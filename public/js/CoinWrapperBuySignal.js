@@ -13,10 +13,6 @@ class CoinWrapperBuySignal extends React.Component {
       }
     } = this.props;
 
-    if (buy.openOrders.length > 0) {
-      return '';
-    }
-
     const precision = tickSize.indexOf(1) - 1;
 
     return (
@@ -97,9 +93,8 @@ class CoinWrapperBuySignal extends React.Component {
           ''
         )}
         {buy.processMessage ? (
-          <div>
+          <div className='d-flex flex-column flex-grow-1'>
             <div className='coin-info-column coin-info-column-price divider'></div>
-
             <div className='coin-info-column coin-info-column-message'>
               <HightlightChange className='coin-info-message'>
                 {buy.processMessage}

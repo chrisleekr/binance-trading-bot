@@ -208,7 +208,7 @@ class SymbolSettingIcon extends React.Component {
                   placeholder='Enter trigger percentage'
                   required
                   min='0'
-                  step='0.001'
+                  step='0.0001'
                   data-state-key='buy.triggerPercentage'
                   value={symbolConfiguration.buy.triggerPercentage}
                   onChange={this.handleInputChange}
@@ -230,7 +230,7 @@ class SymbolSettingIcon extends React.Component {
                   placeholder='Enter stop price percentage'
                   required
                   min='0'
-                  step='0.001'
+                  step='0.0001'
                   data-state-key='buy.stopPercentage'
                   value={symbolConfiguration.buy.stopPercentage}
                   onChange={this.handleInputChange}
@@ -287,7 +287,7 @@ class SymbolSettingIcon extends React.Component {
                   placeholder='Enter trigger percentage'
                   required
                   min='0'
-                  step='0.001'
+                  step='0.0001'
                   data-state-key='sell.triggerPercentage'
                   value={symbolConfiguration.sell.triggerPercentage}
                   onChange={this.handleInputChange}
@@ -308,7 +308,7 @@ class SymbolSettingIcon extends React.Component {
                   placeholder='Enter stop price percentage'
                   required
                   min='0'
-                  step='0.001'
+                  step='0.0001'
                   data-state-key='sell.stopPercentage'
                   value={symbolConfiguration.sell.stopPercentage}
                   onChange={this.handleInputChange}
@@ -328,7 +328,7 @@ class SymbolSettingIcon extends React.Component {
                   placeholder='Enter limit price percentage'
                   required
                   min='0'
-                  step='0.001'
+                  step='0.0001'
                   data-state-key='sell.limitPercentage'
                   value={symbolConfiguration.sell.limitPercentage}
                   onChange={this.handleInputChange}

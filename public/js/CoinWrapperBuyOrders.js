@@ -73,12 +73,7 @@ class CoinWrapperBuyOrders extends React.Component {
             ''
           )}
           <div className='coin-info-column coin-info-column-price divider'></div>
-          <div className='coin-info-column coin-info-column-price'>
-            <span className='coin-info-label'>Current price:</span>
-            <HightlightChange className='coin-info-value'>
-              {openOrder.currentPrice.toFixed(precision)}
-            </HightlightChange>
-          </div>
+
           {openOrder.limitPrice ? (
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>Current limit Price:</span>
@@ -89,11 +84,27 @@ class CoinWrapperBuyOrders extends React.Component {
           ) : (
             ''
           )}
-          {openOrder.difference ? (
+          {openOrder.differenceToCancel ? (
             <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>Difference to buy:</span>
+              <span className='coin-info-label'>Difference to cancel:</span>
               <HightlightChange className='coin-info-value'>
-                {openOrder.difference.toFixed(2)}%
+                {openOrder.differenceToCancel.toFixed(2)}%
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
+          <div className='coin-info-column coin-info-column-price'>
+            <span className='coin-info-label'>Current price:</span>
+            <HightlightChange className='coin-info-value'>
+              {openOrder.currentPrice.toFixed(precision)}
+            </HightlightChange>
+          </div>
+          {openOrder.differenceToExecute ? (
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>Difference to execute:</span>
+              <HightlightChange className='coin-info-value'>
+                {openOrder.differenceToExecute.toFixed(2)}%
               </HightlightChange>
             </div>
           ) : (
