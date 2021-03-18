@@ -127,14 +127,19 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'buy') {
       newOrder.limitPrice = buyLimitPrice;
       newOrder.limitPercentage = buyLimitPercentage;
-      newOrder.difference =
-        (1 - parseFloat(order.stopPrice / buyLimitPrice)) * -100;
+      newOrder.differenceToExecute =
+        (1 - parseFloat(order.stopPrice / currentPrice)) * 100;
+
+      newOrder.differenceToCancel =
+        (1 - parseFloat(order.stopPrice / buyLimitPrice)) * 100;
     }
 
     if (order.side.toLowerCase() === 'sell') {
       newOrder.limitPrice = sellLimitPrice;
       newOrder.limitPercentage = sellLimitPercentage;
-      newOrder.difference =
+      newOrder.differenceToExecute =
+        (1 - parseFloat(order.stopPrice / currentPrice)) * 100;
+      newOrder.differenceToCancel =
         (1 - parseFloat(order.stopPrice / sellLimitPrice)) * 100;
 
       newOrder.minimumProfit = null;

@@ -3,7 +3,7 @@
 [![GitHub package.json version](https://img.shields.io/github/package-json/v/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/releases)
 [![Build](https://github.com/chrisleekr/binance-trading-bot/workflows/main/badge.svg)](https://github.com/chrisleekr/binance-trading-bot/actions?query=workflow%3Amain)
 [![CodeCov](https://codecov.io/gh/chrisleekr/binance-trading-bot/branch/master/graph/badge.svg)](https://codecov.io/gh/chrisleekr/binance-trading-bot)
-[![Docker pull](https://img.shields.io/docker/pulls/chrisleekr/binance-trading-bot)](https://hub.docker.com/repository/docker/chrisleekr/binance-trading-bot)
+[![Docker pull](https://img.shields.io/docker/pulls/chrisleekr/binance-trading-bot)](https://hub.docker.com/r/chrisleekr/binance-trading-bot)
 [![MIT License](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
 
 > Automated Binance trading bot with trailing buy/sell strategy
@@ -306,6 +306,8 @@ Or use the frontend to adjust configurations after launching the application.
 - [x] Added more candle periods - 1m, 3m and 5m
 - [x] Allow to disable local tunnel
 - [x] Fix the bug with handling open orders
+- [x] Fix the bug with limit step in the frontend
+- [x] Updated the frontend to display buy open orders with the buy signal
 - [ ] Allow browser notification in the frontend
 - [ ] Secure frontend with the password
 
@@ -314,3 +316,4 @@ Or use the frontend to adjust configurations after launching the application.
 - [@d0x2f](https://github.com/d0x2f)
 - [@Maxoos](https://github.com/Maxoos)
 - [@OOtta](https://github.com/OOtta)
+- [@thamlth](https://github.com/thamlth)

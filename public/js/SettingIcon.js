@@ -227,7 +227,7 @@ class SettingIcon extends React.Component {
                   placeholder='Enter trigger percentage'
                   required
                   min='0'
-                  step='0.001'
+                  step='0.0001'
                   data-state-key='buy.triggerPercentage'
                   value={configuration.buy.triggerPercentage}
                   onChange={this.handleInputChange}
@@ -249,7 +249,7 @@ class SettingIcon extends React.Component {
                   placeholder='Enter stop price percentage'
                   required
                   min='0'
-                  step='0.001'
+                  step='0.0001'
                   data-state-key='buy.stopPercentage'
                   value={configuration.buy.stopPercentage}
                   onChange={this.handleInputChange}
@@ -306,7 +306,7 @@ class SettingIcon extends React.Component {
                   placeholder='Enter trigger percentage'
                   required
                   min='0'
-                  step='0.001'
+                  step='0.0001'
                   data-state-key='sell.triggerPercentage'
                   value={configuration.sell.triggerPercentage}
                   onChange={this.handleInputChange}
@@ -327,7 +327,7 @@ class SettingIcon extends React.Component {
                   placeholder='Enter stop price percentage'
                   required
                   min='0'
-                  step='0.001'
+                  step='0.0001'
                   data-state-key='sell.stopPercentage'
                   value={configuration.sell.stopPercentage}
                   onChange={this.handleInputChange}
@@ -347,7 +347,7 @@ class SettingIcon extends React.Component {
                   placeholder='Enter limit price percentage'
                   required
                   min='0'
-                  step='0.001'
+                  step='0.0001'
                   data-state-key='sell.limitPercentage'
                   value={configuration.sell.limitPercentage}
                   onChange={this.handleInputChange}

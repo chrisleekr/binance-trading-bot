@@ -30,11 +30,11 @@ describe('get-indicators.js', () => {
             candles: { interval: '1h', limit: 50 },
             buy: {
               triggerPercentage: 1.01,
-              limitPercentage: 1.011
+              limitPercentage: 1.021
             },
             sell: {
-              triggerPercentage: 0.99,
-              limitPercentage: 0.98
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979
             }
           },
           baseAssetBalance: { total: 0.1 },
@@ -57,9 +57,10 @@ describe('get-indicators.js', () => {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
             candles: { interval: '1h', limit: 50 },
-            buy: { triggerPercentage: 1.01, limitPercentage: 1.011 },
-            sell: { triggerPercentage: 0.99, limitPercentage: 0.98 }
+            buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
+            sell: { triggerPercentage: 1.06, limitPercentage: 0.979 }
           },
+          baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
           openOrders: [],
           indicators: {
             lowestPrice: 8893.03,
@@ -77,13 +78,9 @@ describe('get-indicators.js', () => {
               quoteAssetVolume: '59899003.79417636'
             }
           },
-          baseAssetBalance: {
-            total: 0.1,
-            estimatedValue: 1555.509
-          },
           buy: {
             currentPrice: 15555.09,
-            limitPrice: 15726.195989999998,
+            limitPrice: 15881.746889999999,
             lowestPrice: 8893.03,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
@@ -93,7 +90,7 @@ describe('get-indicators.js', () => {
           },
           sell: {
             currentPrice: 15555.09,
-            limitPrice: 15243.9882,
+            limitPrice: 15228.43311,
             lastBuyPrice: null,
             triggerPrice: null,
             difference: null,
@@ -123,11 +120,11 @@ describe('get-indicators.js', () => {
             candles: { interval: '1h', limit: 50 },
             buy: {
               triggerPercentage: 1.01,
-              limitPercentage: 1.011
+              limitPercentage: 1.021
             },
             sell: {
-              triggerPercentage: 0.99,
-              limitPercentage: 0.98
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979
             }
           },
           baseAssetBalance: { total: 0.1 },
@@ -180,8 +177,8 @@ describe('get-indicators.js', () => {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
             candles: { interval: '1h', limit: 50 },
-            buy: { triggerPercentage: 1.01, limitPercentage: 1.011 },
-            sell: { triggerPercentage: 0.99, limitPercentage: 0.98 }
+            buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
+            sell: { triggerPercentage: 1.06, limitPercentage: 0.979 }
           },
           baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
           openOrders: [
@@ -206,9 +203,10 @@ describe('get-indicators.js', () => {
               stopPrice: '16100.000',
               time: 1615465601162,
               currentPrice: 15555.09,
-              limitPrice: 15726.195989999998,
-              limitPercentage: 1.011,
-              difference: 2.3769512362538103,
+              limitPrice: 15881.746889999999,
+              limitPercentage: 1.021,
+              differenceToExecute: -3.5030976998525976,
+              differenceToCancel: -1.37423868741684,
               updatedAt: expect.any(Object)
             },
             {
@@ -221,9 +219,10 @@ describe('get-indicators.js', () => {
               stopPrice: '15900.000',
               time: 1615465601162,
               currentPrice: 15555.09,
-              limitPrice: 15243.9882,
-              limitPercentage: 0.98,
-              difference: -4.303413197341621,
+              limitPrice: 15228.43311,
+              limitPercentage: 0.979,
+              differenceToExecute: -2.2173449333947826,
+              differenceToCancel: -4.40995396669539,
               minimumProfit: 35,
               minimumProfitPercentage: 43.75,
               updatedAt: expect.any(Object)
@@ -247,7 +246,7 @@ describe('get-indicators.js', () => {
           },
           buy: {
             currentPrice: 15555.09,
-            limitPrice: 15726.195989999998,
+            limitPrice: 15881.746889999999,
             lowestPrice: 8893.03,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
@@ -273,9 +272,10 @@ describe('get-indicators.js', () => {
                 stopPrice: '16100.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
-                limitPrice: 15726.195989999998,
-                limitPercentage: 1.011,
-                difference: 2.3769512362538103,
+                limitPrice: 15881.746889999999,
+                limitPercentage: 1.021,
+                differenceToExecute: -3.5030976998525976,
+                differenceToCancel: -1.37423868741684,
                 updatedAt: expect.any(Object)
               }
             ],
@@ -284,10 +284,10 @@ describe('get-indicators.js', () => {
           },
           sell: {
             currentPrice: 15555.09,
-            limitPrice: 15243.9882,
+            limitPrice: 15228.43311,
             lastBuyPrice: 9000,
-            triggerPrice: 8910,
-            difference: 42.71971425430519,
+            triggerPrice: 9540,
+            difference: 38.669593039963125,
             currentProfit: 655.509,
             currentProfitPercentage: 42.14112550939918,
             openOrders: [
@@ -301,9 +301,10 @@ describe('get-indicators.js', () => {
                 stopPrice: '15900.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
-                limitPrice: 15243.9882,
-                limitPercentage: 0.98,
-                difference: -4.303413197341621,
+                limitPrice: 15228.43311,
+                limitPercentage: 0.979,
+                differenceToExecute: -2.2173449333947826,
+                differenceToCancel: -4.40995396669539,
                 minimumProfit: 35,
                 minimumProfitPercentage: 43.75,
                 updatedAt: expect.any(Object)
@@ -330,11 +331,11 @@ describe('get-indicators.js', () => {
             candles: { interval: '1h', limit: 50 },
             buy: {
               triggerPercentage: 1.01,
-              limitPercentage: 1.011
+              limitPercentage: 1.021
             },
             sell: {
-              triggerPercentage: 0.99,
-              limitPercentage: 0.98
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979
             }
           },
           baseAssetBalance: {
@@ -381,13 +382,10 @@ describe('get-indicators.js', () => {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
             candles: { interval: '1h', limit: 50 },
-            buy: { triggerPercentage: 1.01, limitPercentage: 1.011 },
-            sell: { triggerPercentage: 0.99, limitPercentage: 0.98 }
+            buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
+            sell: { triggerPercentage: 1.06, limitPercentage: 0.979 }
           },
-          baseAssetBalance: {
-            total: 0.1,
-            estimatedValue: 1555.509
-          },
+          baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
           openOrders: [
             {
               orderId: 1,
@@ -410,9 +408,10 @@ describe('get-indicators.js', () => {
               stopPrice: '16100.000',
               time: 1615465601162,
               currentPrice: 15555.09,
-              limitPrice: 15726.195989999998,
-              limitPercentage: 1.011,
-              difference: 2.3769512362538103,
+              limitPrice: 15881.746889999999,
+              limitPercentage: 1.021,
+              differenceToExecute: -3.5030976998525976,
+              differenceToCancel: -1.37423868741684,
               updatedAt: expect.any(Object)
             },
             {
@@ -425,9 +424,10 @@ describe('get-indicators.js', () => {
               stopPrice: '15900.000',
               time: 1615465601162,
               currentPrice: 15555.09,
-              limitPrice: 15243.9882,
-              limitPercentage: 0.98,
-              difference: -4.303413197341621,
+              limitPrice: 15228.43311,
+              limitPercentage: 0.979,
+              differenceToExecute: -2.2173449333947826,
+              differenceToCancel: -4.40995396669539,
               minimumProfit: null,
               minimumProfitPercentage: null,
               updatedAt: expect.any(Object)
@@ -451,7 +451,7 @@ describe('get-indicators.js', () => {
           },
           buy: {
             currentPrice: 15555.09,
-            limitPrice: 15726.195989999998,
+            limitPrice: 15881.746889999999,
             lowestPrice: 8893.03,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
@@ -477,9 +477,10 @@ describe('get-indicators.js', () => {
                 stopPrice: '16100.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
-                limitPrice: 15726.195989999998,
-                limitPercentage: 1.011,
-                difference: 2.3769512362538103,
+                limitPrice: 15881.746889999999,
+                limitPercentage: 1.021,
+                differenceToExecute: -3.5030976998525976,
+                differenceToCancel: -1.37423868741684,
                 updatedAt: expect.any(Object)
               }
             ],
@@ -488,7 +489,7 @@ describe('get-indicators.js', () => {
           },
           sell: {
             currentPrice: 15555.09,
-            limitPrice: 15243.9882,
+            limitPrice: 15228.43311,
             lastBuyPrice: null,
             triggerPrice: null,
             difference: null,
@@ -505,9 +506,10 @@ describe('get-indicators.js', () => {
                 stopPrice: '15900.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
-                limitPrice: 15243.9882,
-                limitPercentage: 0.98,
-                difference: -4.303413197341621,
+                limitPrice: 15228.43311,
+                limitPercentage: 0.979,
+                differenceToExecute: -2.2173449333947826,
+                differenceToCancel: -4.40995396669539,
                 minimumProfit: null,
                 minimumProfitPercentage: null,
                 updatedAt: expect.any(Object)

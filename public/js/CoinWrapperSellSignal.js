@@ -20,7 +20,7 @@ class CoinWrapperSellSignal extends React.Component {
 
     const precision = tickSize.indexOf(1) - 1;
 
-    if (sell.lastBuyPrice > 0 && buy.openOrders.length === 0) {
+    if (sell.lastBuyPrice > 0) {
       return (
         <div className='coin-info-sub-wrapper'>
           <div className='coin-info-column coin-info-column-title'>
@@ -106,12 +106,18 @@ class CoinWrapperSellSignal extends React.Component {
           ) : (
             ''
           )}
-          <div className='coin-info-column coin-info-column-price divider'></div>
-          <div className='coin-info-column coin-info-column-message'>
-            <HightlightChange className='coin-info-message'>
-              {sell.processMessage}
-            </HightlightChange>
-          </div>
+          {sell.processMessage ? (
+            <div className='d-flex flex-column flex-grow-1'>
+              <div className='coin-info-column coin-info-column-price divider'></div>
+              <div className='coin-info-column coin-info-column-message'>
+                <HightlightChange className='coin-info-message'>
+                  {sell.processMessage}
+                </HightlightChange>
+              </div>
+            </div>
+          ) : (
+            ''
+          )}
         </div>
       );
     }
