@@ -1,9 +1,8 @@
 name: 3. Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  repository_dispatch:
+    types: [Release]
 
 jobs:
   create-release:
@@ -12,14 +11,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.client_payload.ref }}
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ github.ref }}
+          tag_name: ${{ github.event.client_payload.ref }}
+          release_name:
+            '<Update release name for ${{ github.event.client_payload.ref }}>'
           draft: true
           prerelease: false
       - name: Build/Push production docker image

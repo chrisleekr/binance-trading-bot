@@ -9,19 +9,22 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
-        with:
-          # NOTE @v2 uses the token as an auth http header. Set it to
-          # a Personal Access Token instead of secrets.GITHUB_TOKEN
-          # so that tag pushes trigger repo push events.
-          token: ${{ secrets.MY_GITHUB_ACCESS_TOKEN }}
-      - name: Bump Version (Patch)
+      - id: bump-version
+        name: Bump Version (Patch)
         if:
           github.repository == 'chrisleekr/binance-trading-bot' && github.ref ==
           'refs/heads/master'
         run: |
           git config --global user.email "${{ secrets.GIT_CI_EMAIL }}"
-          git config --global user.name "${{ secrets.GIT_CI_NAME }}"
+          git config --global user.name "$GITHUB_ACTOR"
           PACKAGE_VERSION=$(npm version patch -m "Update version to %s [skip ci]")
-          git status
-          git push https://${{ secrets.GIT_CI_USERNAME }}:${{ secrets.GIT_CI_PASSWORD }}@${{ secrets.GIT_REPO_DOMAIN }}/chrisleekr/binance-trading-bot.git HEAD:$GITHUB_REF
-          git push https://${{ secrets.GIT_CI_USERNAME }}:${{ secrets.GIT_CI_PASSWORD }}@${{ secrets.GIT_REPO_DOMAIN }}/chrisleekr/binance-trading-bot.git $PACKAGE_VERSION
+          git push https://$GITHUB_ACTOR:${{ secrets.GIT_CI_PASSWORD }}@${{ secrets.GIT_REPO_DOMAIN }}/chrisleekr/binance-trading-bot HEAD:$GITHUB_REF
+          git push https://$GITHUB_ACTOR:${{ secrets.GIT_CI_PASSWORD }}@${{ secrets.GIT_REPO_DOMAIN }}/chrisleekr/binance-trading-bot $PACKAGE_VERSION
+          echo "::set-output name=PACKAGE_VERSION::$PACKAGE_VERSION"
+      - name: Trigger release workflow
+        uses: peter-evans/repository-dispatch@v1
+        with:
+          token: ${{ secrets.GIT_CI_PASSWORD }}
+          event-type: Release
+          client-payload:
+            '{"ref": "${{ steps.bump-version.outputs.PACKAGE_VERSION }}"}'
