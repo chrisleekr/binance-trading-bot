@@ -312,10 +312,10 @@ Or use the frontend to adjust configurations after launching the application.
 - [ ] Allow browser notification in the frontend
 - [ ] Secure frontend with the password
 
+## Contributors
+
 ## Acknowledgments
 
 - [@d0x2f](https://github.com/d0x2f)
 - [@Maxoos](https://github.com/Maxoos)
 - [@OOtta](https://github.com/OOtta)
-
-## Contributors
