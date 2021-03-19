@@ -9,6 +9,11 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v2
+        with:
+          # NOTE @v2 uses the token as an auth http header. Set it to
+          # a Personal Access Token instead of secrets.GITHUB_TOKEN
+          # so that tag pushes trigger repo push events.
+          token: ${{ secrets.MY_GITHUB_ACCESS_TOKEN }}
       - name: Bump Version (Patch)
         if:
           github.repository == 'chrisleekr/binance-trading-bot' && github.ref ==
