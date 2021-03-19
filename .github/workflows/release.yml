@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    # Sequence of patterns matched against refs/tags
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          draft: true
+          prerelease: false
+      - name: Build/Push production docker image
+        run: |
+          echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin ${{ secrets.REGISTRY_DOMAIN }}
+          PACKAGE_VERSION=$(grep version package.json | cut -c 15- | rev | cut -c 3- | rev)
+          docker build . --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg NODE_ENV=production --target production-stage -t ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:latest -t ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
+          docker push ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
+          docker push ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:latest

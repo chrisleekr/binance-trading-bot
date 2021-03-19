@@ -1,9 +1,10 @@
 # Binance Trading Bot
 
-[![GitHub package.json version](https://img.shields.io/github/package-json/v/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/releases)
+[![GitHub version](https://img.shields.io/github/package-json/v/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/releases)
 [![Build](https://github.com/chrisleekr/binance-trading-bot/workflows/main/badge.svg)](https://github.com/chrisleekr/binance-trading-bot/actions?query=workflow%3Amain)
 [![CodeCov](https://codecov.io/gh/chrisleekr/binance-trading-bot/branch/master/graph/badge.svg)](https://codecov.io/gh/chrisleekr/binance-trading-bot)
 [![Docker pull](https://img.shields.io/docker/pulls/chrisleekr/binance-trading-bot)](https://hub.docker.com/r/chrisleekr/binance-trading-bot)
+[![GitHub contributors](https://img.shields.io/github/contributors/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
 [![MIT License](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
 
 > Automated Binance trading bot with trailing buy/sell strategy
@@ -316,4 +317,5 @@ Or use the frontend to adjust configurations after launching the application.
 - [@d0x2f](https://github.com/d0x2f)
 - [@Maxoos](https://github.com/Maxoos)
 - [@OOtta](https://github.com/OOtta)
-- [@thamlth](https://github.com/thamlth)
+
+## Contributors
