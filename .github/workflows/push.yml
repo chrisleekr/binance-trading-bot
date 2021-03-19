@@ -7,7 +7,7 @@ env:
 
 jobs:
   lint-and-test:
-    name: Test
+    name: Lint & Test
     if: "!contains(github.event.head_commit.message, 'skip ci')"
     runs-on: ubuntu-latest
     steps:
@@ -21,9 +21,9 @@ jobs:
           bash <(curl -s https://codecov.io/bash)
   add-contributors:
     name: Add contributors
-    # if:
-    #   github.repository == 'chrisleekr/binance-trading-bot' && github.ref ==
-    # 'refs/heads/master'
+    if:
+      github.repository == 'chrisleekr/binance-trading-bot' && github.ref ==
+      'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source code
