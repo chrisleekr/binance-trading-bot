@@ -14,8 +14,8 @@ jobs:
           github.repository == 'chrisleekr/binance-trading-bot' && github.ref ==
           'refs/heads/master'
         run: |
-          git config --global user.email ${{ secrets.GIT_CI_EMAIL }}
-          git config --global user.name ${{ secrets.GIT_CI_NAME }}
+          git config --global user.email "${{ secrets.GIT_CI_EMAIL }}"
+          git config --global user.name "${{ secrets.GIT_CI_NAME }}"
           PACKAGE_VERSION=$(npm version patch -m "Update version to %s [skip ci]")
           git status
           git push https://${{ secrets.GIT_CI_USERNAME }}:${{ secrets.GIT_CI_PASSWORD }}@${{ secrets.GIT_REPO_DOMAIN }}/chrisleekr/binance-trading-bot.git HEAD:$GITHUB_REF
