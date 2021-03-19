@@ -1,4 +1,4 @@
-name: Push
+name: 1. Push
 
 on: [push, workflow_dispatch]
 
