@@ -1,18 +1,14 @@
-name: 3. Release
+name: Release & Docker
 
 on:
   repository_dispatch:
-    types: [Release]
+    types: [Release & Docker]
 
 jobs:
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-        with:
-          ref: ${{ github.event.client_payload.ref }}
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -24,6 +20,14 @@ jobs:
             '<Update release name for ${{ github.event.client_payload.ref }}>'
           draft: true
           prerelease: false
+  docker-images:
+    name: Build/Push production docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.client_payload.ref }}
       - name: Build/Push production docker image
         run: |
           echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin ${{ secrets.REGISTRY_DOMAIN }}

@@ -1,4 +1,4 @@
-name: 2. Bump versions
+name: Bump versions
 
 on: [workflow_dispatch]
 
@@ -25,6 +25,6 @@ jobs:
         uses: peter-evans/repository-dispatch@v1
         with:
           token: ${{ secrets.GIT_CI_PASSWORD }}
-          event-type: Release
+          event-type: Release & Docker
           client-payload:
             '{"ref": "${{ steps.bump-version.outputs.PACKAGE_VERSION }}"}'
