@@ -311,6 +311,7 @@ Or use the frontend to adjust configurations after launching the application.
 - [x] Updated the frontend to display buy open orders with the buy signal
 - [ ] Allow browser notification in the frontend
 - [ ] Secure frontend with the password
+- [ ] Allow to disable sorting in the frontend
 
 ## Acknowledgments
 
