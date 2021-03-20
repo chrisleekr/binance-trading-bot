@@ -201,6 +201,17 @@ React.js based frontend communicating via Web Socket:
 - Link to public URL
 - Support Add to Home Screen
 
+#### Frontend authentication
+
+You can have a basic login/password authentication by defining the environment variables `AUTH_USERNAME` and `AUTH_PASSWORD`.
+
+If you prefer to enable 2FA login method provided by a 2FA authentication app of your choice (Google Authenticator, Authy, etc...) please define the environment variable `AUTH_OTP` to `true` and run _generate-2fa-secret.js_ to configure your 2FA code.
+
+After configuring the 2FA code, at the login window you will need to inform at the password field your password concatenated with the 2FA code. Example, if your password is *sUperS3cret* and the generated 2FA code for the time is *123456*  you will inform *sUperS3cret123456* as password.
+
+Exemple for generating a 2FA secret:
+`docker run -e AUTH_USERNAME=your_user_name  binance-trading-bot_binance-bot ./generate-2fa-secret.js`
+
 ## Environment Parameters
 
 Use environment parameters to adjust parameters. Check
