@@ -24,6 +24,10 @@ const execute = async (logger, rawData) => {
   } = data;
 
   if (action !== 'not-determined') {
+    logger.info(
+      { action },
+      'Action is already defined, do not try to determine action.'
+    );
     return data;
   }
 

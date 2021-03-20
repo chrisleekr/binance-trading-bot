@@ -3,6 +3,7 @@ const {
   getNextSymbol,
   getExchangeSymbols,
   getSymbolConfiguration,
+  getSymbolInfo,
   getAccountInfo,
   getIndicators,
   getOpenOrders,
@@ -22,6 +23,7 @@ const execute = async logger => {
     symbol: null,
     symbolConfiguration: {},
     accountInfo: {},
+    refreshAccountInfo: true,
     indicators: {},
     symbolInfo: {},
     openOrders: [],
@@ -44,6 +46,10 @@ const execute = async logger => {
         stepFunc: getSymbolConfiguration
       },
       {
+        stepName: 'get-symbol-info',
+        stepFunc: getSymbolInfo
+      },
+      {
         stepName: 'get-account-info',
         stepFunc: getAccountInfo
       },
@@ -58,6 +64,10 @@ const execute = async logger => {
       {
         stepName: 'handle-open-orders',
         stepFunc: handleOpenOrders
+      },
+      {
+        stepName: 'get-account-info',
+        stepFunc: getAccountInfo
       },
       {
         stepName: 'determine-action',

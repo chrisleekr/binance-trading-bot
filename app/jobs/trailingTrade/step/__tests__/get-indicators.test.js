@@ -16,13 +16,8 @@ describe('get-indicators.js', () => {
       binance.client.exchangeInfo = jest.fn().mockResolvedValue();
     });
 
-    describe('with no cached symbol info, no open orders and no last buy price', () => {
+    describe('wit no open orders and no last buy price', () => {
       beforeEach(async () => {
-        cache.hget = jest.fn().mockResolvedValue(undefined);
-        binance.client.exchangeInfo = jest
-          .fn()
-          .mockResolvedValue(require('./fixtures/binance-exchange-info.json'));
-
         mongo.findOne = jest.fn().mockResolvedValue(undefined);
 
         binance.client.candles = jest
@@ -35,53 +30,18 @@ describe('get-indicators.js', () => {
             candles: { interval: '1h', limit: 50 },
             buy: {
               triggerPercentage: 1.01,
-              limitPercentage: 1.011
+              limitPercentage: 1.021
             },
             sell: {
-              triggerPercentage: 0.99,
-              limitPercentage: 0.98
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979
             }
           },
-          accountInfo: {
-            balances: [
-              {
-                asset: 'BTC',
-                free: '0.1000000',
-                locked: '0.00000000'
-              },
-              {
-                asset: 'USDT',
-                free: '100.0000000',
-                locked: '0.00000000'
-              }
-            ],
-            updateTime: 1615602880892
-          },
+          baseAssetBalance: { total: 0.1 },
           openOrders: []
         };
 
         result = await step.execute(logger, rawData);
-      });
-
-      it('triggers cache.hget', () => {
-        expect(cache.hget).toHaveBeenCalledWith(
-          'trailing-trade-symbols',
-          'BTCUSDT-symbol-info'
-        );
-      });
-
-      it('triggers binance.client.exchangeInfo', () => {
-        expect(binance.client.exchangeInfo).toHaveBeenCalled();
-      });
-
-      it('triggers cache.hset', () => {
-        expect(cache.hset).toHaveBeenCalledWith(
-          'trailing-trade-symbols',
-          'BTCUSDT-symbol-info',
-          JSON.stringify(
-            require('./fixtures/binance-cached-exchange-info.json')
-          )
-        );
       });
 
       it('triggers mongo.findOne', () => {
@@ -97,23 +57,10 @@ describe('get-indicators.js', () => {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
             candles: { interval: '1h', limit: 50 },
-            buy: { triggerPercentage: 1.01, limitPercentage: 1.011 },
-            sell: { triggerPercentage: 0.99, limitPercentage: 0.98 }
+            buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
+            sell: { triggerPercentage: 1.06, limitPercentage: 0.979 }
           },
-          accountInfo: {
-            balances: [
-              {
-                asset: 'BTC',
-                free: '0.1000000',
-                locked: '0.00000000',
-                total: 0.1,
-                estimatedValue: 1555.509,
-                updatedAt: expect.any(Object)
-              },
-              { asset: 'USDT', free: '100.0000000', locked: '0.00000000' }
-            ],
-            updateTime: 1615602880892
-          },
+          baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
           openOrders: [],
           indicators: {
             lowestPrice: 8893.03,
@@ -131,48 +78,9 @@ describe('get-indicators.js', () => {
               quoteAssetVolume: '59899003.79417636'
             }
           },
-          symbolInfo: {
-            symbol: 'BTCUSDT',
-            status: 'TRADING',
-            baseAsset: 'BTC',
-            baseAssetPrecision: 8,
-            quoteAsset: 'USDT',
-            quotePrecision: 8,
-            filterLotSize: {
-              filterType: 'LOT_SIZE',
-              minQty: '0.00000100',
-              maxQty: '900.00000000',
-              stepSize: '0.00000100'
-            },
-            filterPrice: {
-              filterType: 'PRICE_FILTER',
-              minPrice: '0.01000000',
-              maxPrice: '1000000.00000000',
-              tickSize: '0.01000000'
-            },
-            filterMinNotional: {
-              filterType: 'MIN_NOTIONAL',
-              minNotional: '10.00000000',
-              applyToMarket: true,
-              avgPriceMins: 1
-            }
-          },
-          baseAssetBalance: {
-            asset: 'BTC',
-            free: '0.1000000',
-            locked: '0.00000000',
-            total: 0.1,
-            estimatedValue: 1555.509,
-            updatedAt: expect.any(Object)
-          },
-          quoteAssetBalance: {
-            asset: 'USDT',
-            free: '100.0000000',
-            locked: '0.00000000'
-          },
           buy: {
             currentPrice: 15555.09,
-            limitPrice: 15726.195989999998,
+            limitPrice: 15881.746889999999,
             lowestPrice: 8893.03,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
@@ -182,7 +90,7 @@ describe('get-indicators.js', () => {
           },
           sell: {
             currentPrice: 15555.09,
-            limitPrice: 15243.9882,
+            limitPrice: 15228.43311,
             lastBuyPrice: null,
             triggerPrice: null,
             difference: null,
@@ -196,17 +104,8 @@ describe('get-indicators.js', () => {
       });
     });
 
-    describe('with cached symbol info, no open orders and last buy price', () => {
+    describe('with no open orders and last buy price', () => {
       beforeEach(async () => {
-        cache.hget = jest
-          .fn()
-          .mockResolvedValue(
-            JSON.stringify(
-              require('./fixtures/binance-cached-exchange-info.json')
-            )
-          );
-        binance.client.exchangeInfo = jest.fn().mockResolvedValue();
-
         mongo.findOne = jest.fn().mockResolvedValue({
           lastBuyPrice: 9000
         });
@@ -221,28 +120,14 @@ describe('get-indicators.js', () => {
             candles: { interval: '1h', limit: 50 },
             buy: {
               triggerPercentage: 1.01,
-              limitPercentage: 1.011
+              limitPercentage: 1.021
             },
             sell: {
-              triggerPercentage: 0.99,
-              limitPercentage: 0.98
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979
             }
           },
-          accountInfo: {
-            balances: [
-              {
-                asset: 'BTC',
-                free: '0.1000000',
-                locked: '0.00000000'
-              },
-              {
-                asset: 'USDT',
-                free: '100.0000000',
-                locked: '0.00000000'
-              }
-            ],
-            updateTime: 1615602880892
-          },
+          baseAssetBalance: { total: 0.1 },
           openOrders: [
             {
               orderId: 1,
@@ -279,21 +164,6 @@ describe('get-indicators.js', () => {
         result = await step.execute(logger, rawData);
       });
 
-      it('triggers cache.hget', () => {
-        expect(cache.hget).toHaveBeenCalledWith(
-          'trailing-trade-symbols',
-          'BTCUSDT-symbol-info'
-        );
-      });
-
-      it('does not trigger binance.client.exchangeInfo', () => {
-        expect(binance.client.exchangeInfo).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger cache.hset', () => {
-        expect(cache.hset).not.toHaveBeenCalled();
-      });
-
       it('triggers mongo.findOne', () => {
         expect(mongo.findOne).toHaveBeenCalledWith(
           logger,
@@ -307,23 +177,10 @@ describe('get-indicators.js', () => {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
             candles: { interval: '1h', limit: 50 },
-            buy: { triggerPercentage: 1.01, limitPercentage: 1.011 },
-            sell: { triggerPercentage: 0.99, limitPercentage: 0.98 }
+            buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
+            sell: { triggerPercentage: 1.06, limitPercentage: 0.979 }
           },
-          accountInfo: {
-            balances: [
-              {
-                asset: 'BTC',
-                free: '0.1000000',
-                locked: '0.00000000',
-                total: 0.1,
-                estimatedValue: 1555.509,
-                updatedAt: expect.any(Object)
-              },
-              { asset: 'USDT', free: '100.0000000', locked: '0.00000000' }
-            ],
-            updateTime: 1615602880892
-          },
+          baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
           openOrders: [
             {
               orderId: 1,
@@ -346,9 +203,10 @@ describe('get-indicators.js', () => {
               stopPrice: '16100.000',
               time: 1615465601162,
               currentPrice: 15555.09,
-              limitPrice: 15726.195989999998,
-              limitPercentage: 1.011,
-              difference: 2.3769512362538103,
+              limitPrice: 15881.746889999999,
+              limitPercentage: 1.021,
+              differenceToExecute: -3.5030976998525976,
+              differenceToCancel: -1.37423868741684,
               updatedAt: expect.any(Object)
             },
             {
@@ -361,9 +219,10 @@ describe('get-indicators.js', () => {
               stopPrice: '15900.000',
               time: 1615465601162,
               currentPrice: 15555.09,
-              limitPrice: 15243.9882,
-              limitPercentage: 0.98,
-              difference: -4.303413197341621,
+              limitPrice: 15228.43311,
+              limitPercentage: 0.979,
+              differenceToExecute: -2.2173449333947826,
+              differenceToCancel: -4.40995396669539,
               minimumProfit: 35,
               minimumProfitPercentage: 43.75,
               updatedAt: expect.any(Object)
@@ -385,48 +244,9 @@ describe('get-indicators.js', () => {
               quoteAssetVolume: '59899003.79417636'
             }
           },
-          symbolInfo: {
-            symbol: 'BTCUSDT',
-            status: 'TRADING',
-            baseAsset: 'BTC',
-            baseAssetPrecision: 8,
-            quoteAsset: 'USDT',
-            quotePrecision: 8,
-            filterLotSize: {
-              filterType: 'LOT_SIZE',
-              minQty: '0.00000100',
-              maxQty: '900.00000000',
-              stepSize: '0.00000100'
-            },
-            filterPrice: {
-              filterType: 'PRICE_FILTER',
-              minPrice: '0.01000000',
-              maxPrice: '1000000.00000000',
-              tickSize: '0.01000000'
-            },
-            filterMinNotional: {
-              filterType: 'MIN_NOTIONAL',
-              minNotional: '10.00000000',
-              applyToMarket: true,
-              avgPriceMins: 1
-            }
-          },
-          baseAssetBalance: {
-            asset: 'BTC',
-            free: '0.1000000',
-            locked: '0.00000000',
-            total: 0.1,
-            estimatedValue: 1555.509,
-            updatedAt: expect.any(Object)
-          },
-          quoteAssetBalance: {
-            asset: 'USDT',
-            free: '100.0000000',
-            locked: '0.00000000'
-          },
           buy: {
             currentPrice: 15555.09,
-            limitPrice: 15726.195989999998,
+            limitPrice: 15881.746889999999,
             lowestPrice: 8893.03,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
@@ -452,9 +272,10 @@ describe('get-indicators.js', () => {
                 stopPrice: '16100.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
-                limitPrice: 15726.195989999998,
-                limitPercentage: 1.011,
-                difference: 2.3769512362538103,
+                limitPrice: 15881.746889999999,
+                limitPercentage: 1.021,
+                differenceToExecute: -3.5030976998525976,
+                differenceToCancel: -1.37423868741684,
                 updatedAt: expect.any(Object)
               }
             ],
@@ -463,10 +284,10 @@ describe('get-indicators.js', () => {
           },
           sell: {
             currentPrice: 15555.09,
-            limitPrice: 15243.9882,
+            limitPrice: 15228.43311,
             lastBuyPrice: 9000,
-            triggerPrice: 8910,
-            difference: 42.71971425430519,
+            triggerPrice: 9540,
+            difference: 38.669593039963125,
             currentProfit: 655.509,
             currentProfitPercentage: 42.14112550939918,
             openOrders: [
@@ -480,9 +301,10 @@ describe('get-indicators.js', () => {
                 stopPrice: '15900.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
-                limitPrice: 15243.9882,
-                limitPercentage: 0.98,
-                difference: -4.303413197341621,
+                limitPrice: 15228.43311,
+                limitPercentage: 0.979,
+                differenceToExecute: -2.2173449333947826,
+                differenceToCancel: -4.40995396669539,
                 minimumProfit: 35,
                 minimumProfitPercentage: 43.75,
                 updatedAt: expect.any(Object)
@@ -495,17 +317,8 @@ describe('get-indicators.js', () => {
       });
     });
 
-    describe('with cached symbol info, open orders and no last buy price', () => {
+    describe('with open orders and no last buy price', () => {
       beforeEach(async () => {
-        cache.hget = jest
-          .fn()
-          .mockResolvedValue(
-            JSON.stringify(
-              require('./fixtures/binance-cached-exchange-info.json')
-            )
-          );
-        binance.client.exchangeInfo = jest.fn().mockResolvedValue();
-
         mongo.findOne = jest.fn().mockResolvedValue(undefined);
 
         binance.client.candles = jest
@@ -518,27 +331,15 @@ describe('get-indicators.js', () => {
             candles: { interval: '1h', limit: 50 },
             buy: {
               triggerPercentage: 1.01,
-              limitPercentage: 1.011
+              limitPercentage: 1.021
             },
             sell: {
-              triggerPercentage: 0.99,
-              limitPercentage: 0.98
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979
             }
           },
-          accountInfo: {
-            balances: [
-              {
-                asset: 'BTC',
-                free: '0.1000000',
-                locked: '0.00000000'
-              },
-              {
-                asset: 'USDT',
-                free: '100.0000000',
-                locked: '0.00000000'
-              }
-            ],
-            updateTime: 1615602880892
+          baseAssetBalance: {
+            total: 0.1
           },
           openOrders: [
             {
@@ -581,23 +382,10 @@ describe('get-indicators.js', () => {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
             candles: { interval: '1h', limit: 50 },
-            buy: { triggerPercentage: 1.01, limitPercentage: 1.011 },
-            sell: { triggerPercentage: 0.99, limitPercentage: 0.98 }
+            buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
+            sell: { triggerPercentage: 1.06, limitPercentage: 0.979 }
           },
-          accountInfo: {
-            balances: [
-              {
-                asset: 'BTC',
-                free: '0.1000000',
-                locked: '0.00000000',
-                total: 0.1,
-                estimatedValue: 1555.509,
-                updatedAt: expect.any(Object)
-              },
-              { asset: 'USDT', free: '100.0000000', locked: '0.00000000' }
-            ],
-            updateTime: 1615602880892
-          },
+          baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
           openOrders: [
             {
               orderId: 1,
@@ -620,9 +408,10 @@ describe('get-indicators.js', () => {
               stopPrice: '16100.000',
               time: 1615465601162,
               currentPrice: 15555.09,
-              limitPrice: 15726.195989999998,
-              limitPercentage: 1.011,
-              difference: 2.3769512362538103,
+              limitPrice: 15881.746889999999,
+              limitPercentage: 1.021,
+              differenceToExecute: -3.5030976998525976,
+              differenceToCancel: -1.37423868741684,
               updatedAt: expect.any(Object)
             },
             {
@@ -635,9 +424,10 @@ describe('get-indicators.js', () => {
               stopPrice: '15900.000',
               time: 1615465601162,
               currentPrice: 15555.09,
-              limitPrice: 15243.9882,
-              limitPercentage: 0.98,
-              difference: -4.303413197341621,
+              limitPrice: 15228.43311,
+              limitPercentage: 0.979,
+              differenceToExecute: -2.2173449333947826,
+              differenceToCancel: -4.40995396669539,
               minimumProfit: null,
               minimumProfitPercentage: null,
               updatedAt: expect.any(Object)
@@ -659,48 +449,9 @@ describe('get-indicators.js', () => {
               quoteAssetVolume: '59899003.79417636'
             }
           },
-          symbolInfo: {
-            symbol: 'BTCUSDT',
-            status: 'TRADING',
-            baseAsset: 'BTC',
-            baseAssetPrecision: 8,
-            quoteAsset: 'USDT',
-            quotePrecision: 8,
-            filterLotSize: {
-              filterType: 'LOT_SIZE',
-              minQty: '0.00000100',
-              maxQty: '900.00000000',
-              stepSize: '0.00000100'
-            },
-            filterPrice: {
-              filterType: 'PRICE_FILTER',
-              minPrice: '0.01000000',
-              maxPrice: '1000000.00000000',
-              tickSize: '0.01000000'
-            },
-            filterMinNotional: {
-              filterType: 'MIN_NOTIONAL',
-              minNotional: '10.00000000',
-              applyToMarket: true,
-              avgPriceMins: 1
-            }
-          },
-          baseAssetBalance: {
-            asset: 'BTC',
-            free: '0.1000000',
-            locked: '0.00000000',
-            total: 0.1,
-            estimatedValue: 1555.509,
-            updatedAt: expect.any(Object)
-          },
-          quoteAssetBalance: {
-            asset: 'USDT',
-            free: '100.0000000',
-            locked: '0.00000000'
-          },
           buy: {
             currentPrice: 15555.09,
-            limitPrice: 15726.195989999998,
+            limitPrice: 15881.746889999999,
             lowestPrice: 8893.03,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
@@ -726,9 +477,10 @@ describe('get-indicators.js', () => {
                 stopPrice: '16100.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
-                limitPrice: 15726.195989999998,
-                limitPercentage: 1.011,
-                difference: 2.3769512362538103,
+                limitPrice: 15881.746889999999,
+                limitPercentage: 1.021,
+                differenceToExecute: -3.5030976998525976,
+                differenceToCancel: -1.37423868741684,
                 updatedAt: expect.any(Object)
               }
             ],
@@ -737,7 +489,7 @@ describe('get-indicators.js', () => {
           },
           sell: {
             currentPrice: 15555.09,
-            limitPrice: 15243.9882,
+            limitPrice: 15228.43311,
             lastBuyPrice: null,
             triggerPrice: null,
             difference: null,
@@ -754,9 +506,10 @@ describe('get-indicators.js', () => {
                 stopPrice: '15900.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
-                limitPrice: 15243.9882,
-                limitPercentage: 0.98,
-                difference: -4.303413197341621,
+                limitPrice: 15228.43311,
+                limitPercentage: 0.979,
+                differenceToExecute: -2.2173449333947826,
+                differenceToCancel: -4.40995396669539,
                 minimumProfit: null,
                 minimumProfitPercentage: null,
                 updatedAt: expect.any(Object)
@@ -771,15 +524,6 @@ describe('get-indicators.js', () => {
 
     describe('with balance is not found', () => {
       beforeEach(async () => {
-        cache.hget = jest
-          .fn()
-          .mockResolvedValue(
-            JSON.stringify(
-              require('./fixtures/binance-cached-exchange-info.json')
-            )
-          );
-        binance.client.exchangeInfo = jest.fn().mockResolvedValue(undefined);
-
         mongo.findOne = jest.fn().mockResolvedValue(undefined);
 
         binance.client.candles = jest
@@ -799,20 +543,8 @@ describe('get-indicators.js', () => {
               limitPercentage: 0.98
             }
           },
-          accountInfo: {
-            balances: [
-              {
-                asset: 'BNB',
-                free: '0.1000000',
-                locked: '0.00000000'
-              },
-              {
-                asset: 'LTC',
-                free: '100.0000000',
-                locked: '0.00000000'
-              }
-            ],
-            updateTime: 1615602880892
+          baseAssetBalance: {
+            total: 0.1
           },
           openOrders: []
         };
@@ -828,16 +560,9 @@ describe('get-indicators.js', () => {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.011 },
             sell: { triggerPercentage: 0.99, limitPercentage: 0.98 }
           },
-          accountInfo: {
-            balances: [
-              {
-                asset: 'BNB',
-                free: '0.1000000',
-                locked: '0.00000000'
-              },
-              { asset: 'LTC', free: '100.0000000', locked: '0.00000000' }
-            ],
-            updateTime: 1615602880892
+          baseAssetBalance: {
+            total: 0.1,
+            estimatedValue: 1555.509
           },
           openOrders: [],
           indicators: {
@@ -855,45 +580,6 @@ describe('get-indicators.js', () => {
               baseAssetVolume: '3869.62434400',
               quoteAssetVolume: '59899003.79417636'
             }
-          },
-          symbolInfo: {
-            symbol: 'BTCUSDT',
-            status: 'TRADING',
-            baseAsset: 'BTC',
-            baseAssetPrecision: 8,
-            quoteAsset: 'USDT',
-            quotePrecision: 8,
-            filterLotSize: {
-              filterType: 'LOT_SIZE',
-              minQty: '0.00000100',
-              maxQty: '900.00000000',
-              stepSize: '0.00000100'
-            },
-            filterPrice: {
-              filterType: 'PRICE_FILTER',
-              minPrice: '0.01000000',
-              maxPrice: '1000000.00000000',
-              tickSize: '0.01000000'
-            },
-            filterMinNotional: {
-              filterType: 'MIN_NOTIONAL',
-              minNotional: '10.00000000',
-              applyToMarket: true,
-              avgPriceMins: 1
-            }
-          },
-          baseAssetBalance: {
-            asset: 'BTC',
-            free: 0,
-            locked: 0,
-            total: 0,
-            estimatedValue: 0,
-            updatedAt: expect.any(Object)
-          },
-          quoteAssetBalance: {
-            asset: 'USDT',
-            free: 0,
-            locked: 0
           },
           buy: {
             currentPrice: 15555.09,

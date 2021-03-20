@@ -1,0 +1,42 @@
+name: Push
+
+on: [push, workflow_dispatch]
+
+env:
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    if: "!contains(github.event.head_commit.message, 'skip ci')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+      - name: Testing
+        run: |
+          npm install
+          npm run lint
+          npm run test
+          bash <(curl -s https://codecov.io/bash)
+  add-contributors:
+    name: Add contributors
+    if:
+      github.repository == 'chrisleekr/binance-trading-bot' && github.ref ==
+      'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+      - name: Run add-contributors action
+        uses: BobAnkh/add-contributors@master
+        with:
+          REPO_NAME: 'chrisleekr/binance-trading-bot'
+          CONTRIBUTOR: '## Contributors'
+          COLUMN_PER_ROW: '6'
+          ACCESS_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          IMG_WIDTH: '100'
+          FONT_SIZE: '14'
+          PATH: '/README.md'
+          COMMIT_MESSAGE: 'Update contributors to README.md [skip ci]'
+          AVATAR_SHAPE: 'round'

@@ -1,0 +1,37 @@
+name: Release & Docker
+
+on:
+  repository_dispatch:
+    types: [Release & Docker]
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.client_payload.ref }}
+          release_name:
+            '<Update release name for ${{ github.event.client_payload.ref }}>'
+          draft: true
+          prerelease: false
+  docker-images:
+    name: Build/Push production docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.client_payload.ref }}
+      - name: Build/Push production docker image
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin ${{ secrets.REGISTRY_DOMAIN }}
+          PACKAGE_VERSION=$(grep version package.json | cut -c 15- | rev | cut -c 3- | rev)
+          docker build . --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg NODE_ENV=production --target production-stage -t ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:latest -t ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
+          docker push ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
+          docker push ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:latest
