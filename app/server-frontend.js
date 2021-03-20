@@ -1,4 +1,5 @@
 const express = require('express');
+const basicAuth = require('express-basic-auth');
 const path = require('path');
 const config = require('config');
 
@@ -10,6 +11,15 @@ const runFrontend = async serverLogger => {
   logger.info({ config }, `API ${config.get('mode')} frontend started on`);
 
   const app = express();
+  const usersData = {};
+  usersData[config.frontend_auth.username] = config.frontend_auth.password;
+  app.use(
+    basicAuth({
+      users: usersData,
+      challenge: true,
+      realm: 'Binance Trading Bot'
+    })
+  );
   app.use(express.static(path.join(__dirname, '/../public')));
 
   const server = app.listen(80);

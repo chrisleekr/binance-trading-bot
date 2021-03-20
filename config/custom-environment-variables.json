@@ -1,6 +1,10 @@
 {
   "mode": "BINANCE_MODE",
   "tz": "BINANCE_TZ",
+  "frontend_auth": {
+    "username": "AUTH_USERNAME",
+    "password": "AUTH_PASSWORD"
+  },
   "binance": {
     "live": {
       "apiKey": "BINANCE_LIVE_API_KEY",

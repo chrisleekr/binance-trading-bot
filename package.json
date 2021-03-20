@@ -33,6 +33,7 @@
     "cron": "^1.8.2",
     "cross-env": "^7.0.3",
     "express": "^4.17.1",
+    "express-basic-auth": "^1.2.0",
     "ioredis": "^4.23.0",
     "localtunnel": "^2.0.1",
     "lodash": "^4.17.21",

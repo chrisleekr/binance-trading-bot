@@ -310,7 +310,7 @@ Or use the frontend to adjust configurations after launching the application.
 - [x] Fix the bug with limit step in the frontend
 - [x] Updated the frontend to display buy open orders with the buy signal
 - [ ] Allow browser notification in the frontend
-- [ ] Secure frontend with the password
+- [x] Secure frontend with the password
 
 ## Acknowledgments
 
