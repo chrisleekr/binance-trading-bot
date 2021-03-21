@@ -8,32 +8,40 @@ const fs = require('fs');
 const { configureWebSocket } = require('./websocket/configure');
 const { configureLocalTunnel } = require('./local-tunnel/configure');
 
-let OTP_SECRET = false;
+let SECRET_2FA = false;
 if (fs.existsSync('./.2fa_secret')) {
-  OTP_SECRET = fs.readFileSync('./.2fa_secret', { encoding: 'utf8' });
+  SECRET_2FA = fs.readFileSync('./.2fa_secret', { encoding: 'utf8' });
 }
 
 const basicAuthChallenge = (username, password) => {
-  if (!config.frontend_auth) {
+  if (!config.frontendAuth.enabled) {
     return true;
   }
 
   const usernameOk = basicAuth.safeCompare(
     username,
-    config.frontend_auth.username
+    config.frontendAuth.username
   );
 
   let passwordOk = false;
-  if (config.frontend_auth.mode_otp && OTP_SECRET) {
-    const passwordPlain = basicAuth.safeCompare(password.slice(0, -6), config.frontend_auth.password);
-    const password2fa = Boolean(otp.verifyToken(OTP_SECRET, password.replace(config.frontend_auth.password, '')))
+  if (config.frontendAuth.mode2fa && SECRET_2FA) {
+    const passwordPlain = basicAuth.safeCompare(
+      password.slice(0, -6),
+      config.frontendAuth.password
+    );
+    const password2fa = Boolean(
+      otp.verifyToken(
+        SECRET_2FA,
+        password.replace(config.frontendAuth.password, '')
+      )
+    );
 
     passwordOk = passwordPlain && password2fa;
   } else {
-    passwordOk = basicAuth.safeCompare(password, config.frontend_auth.password);
+    passwordOk = basicAuth.safeCompare(password, config.frontendAuth.password);
   }
 
-  return usernameOk & passwordOk;
+  return usernameOk && passwordOk;
 };
 
 const runFrontend = async serverLogger => {
@@ -41,13 +49,13 @@ const runFrontend = async serverLogger => {
   logger.info({ config }, `API ${config.get('mode')} frontend started on`);
 
   const app = express();
-  if (config.frontend_auth) {
+  if (config.frontendAuth.enabled) {
     const baOptions = {
       authorizer: basicAuthChallenge,
       challenge: true,
       realm: 'Binance Trading Bot'
     };
-    if (config.frontend_auth.mode_otp) {
+    if (config.frontendAuth.mode2fa) {
       baOptions.realm += ' - 2FA';
     }
 

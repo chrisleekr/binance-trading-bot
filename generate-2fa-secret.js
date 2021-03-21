@@ -6,7 +6,7 @@ const qrcode = require('qrcode-terminal');
 
 const twoFAData = {
   name: 'Binance Trading Bot',
-  account: config.frontend_auth.username
+  account: config.frontendAuth.username
 };
 const secret = otp.generateSecret(twoFAData);
 

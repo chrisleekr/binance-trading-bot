@@ -1,9 +1,13 @@
 {
   "mode": "BINANCE_MODE",
   "tz": "BINANCE_TZ",
-  "frontend_auth": {
-    "mode_otp": {
-      "__name": "AUTH_OTP",
+  "frontendAuth": {
+    "enabled": {
+      "__name": "AUTH_ENABLED",
+      "__format": "boolean"
+    },
+    "mode2fa": {
+      "__name": "AUTH_2FA",
       "__format": "boolean"
     },
     "username": "AUTH_USERNAME",
