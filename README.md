@@ -9,6 +9,10 @@
 
 > Automated Binance trading bot with trailing buy/sell strategy
 
+---
+
+[![ko](https://img.shields.io/badge/lang-한국어-brightgreen.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.ko.md)
+
 This is a test project. I am just testing my code.
 
 ## Warnings
@@ -322,6 +326,7 @@ Or use the frontend to adjust configurations after launching the application.
 - [x] Updated the frontend to display buy open orders with the buy signal
 - [ ] Allow browser notification in the frontend
 - [x] Secure frontend with the password
+- [ ] Allow to disable sorting in the frontend
 
 ## Acknowledgments
 
