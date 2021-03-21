@@ -17,7 +17,7 @@
 이 프로젝트는 제 코드를 테스트 하기 위한 단순한 테스트 프로젝트 입니다.
 
 **최신 업데이트 정보는
-[README.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.md)에
+[README.md](https://github.com/chrisleekr/binance-trading-bot#binance-trading-bot)에
 서 확인 가능합니다. 이 페이지는 한국어로 프로그램에 대한 설명만 적혀있습니다.**
 
 ## 경고
@@ -253,5 +253,5 @@ STOP-LOSS-LIMIT 주문을 넣습니다. 간단한 계산을 위해 커미션은 
 ## 스크린샷
 
 **스크린샷 정보는
-[README.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.md)에
-서 참고하시기 바랍니다.**
+[README.md](https://github.com/chrisleekr/binance-trading-bot#screenshots)에서참
+고하시기 바랍니다.**
