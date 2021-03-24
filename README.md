@@ -341,8 +341,8 @@ Or use the frontend to adjust configurations after launching the application.
 - [x] Fix the bug with limit step in the frontend
 - [x] Updated the frontend to display buy open orders with the buy signal
 - [x] Secure frontend with the password with basic authentication
-- [ ] Enhance frontend authentication - only configuration requires
-      authentication
+- [ ] Enhance frontend authentication - only requires authentication for
+      changing configurations
 - [ ] Allow browser notification in the frontend
 - [ ] Allow to disable sorting in the frontend
 
