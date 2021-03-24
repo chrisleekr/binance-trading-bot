@@ -3,16 +3,10 @@ const otp = require('node-2fa');
 const fs = require('fs');
 const config = require('config');
 
-const basicAuthChallenge = (usernamePlain, passwordPlain) => {
-  const {
-    frontend: {
-      auth: {
-        twoFAEnabled: auth2FAEnabled,
-        username: authUsername,
-        password: authPassword
-      }
-    }
-  } = config;
+const basicAuthChallenge = (plainUsername, plainPassword) => {
+  const auth2FAEnabled = config.get('frontend.auth.twoFAEnabled');
+  const authUsername = config.get('frontend.auth.username');
+  const authPassword = config.get('frontend.auth.password');
 
   let SECRET_2FA = false;
   if (fs.existsSync(`${__dirname}/../../.2fa_secret`)) {
@@ -21,25 +15,22 @@ const basicAuthChallenge = (usernamePlain, passwordPlain) => {
     });
   }
 
-  const validUsername = basicAuth.safeCompare(usernamePlain, authUsername);
+  const validUsername = basicAuth.safeCompare(plainUsername, authUsername);
 
   let validPassword = false;
   if (auth2FAEnabled && SECRET_2FA) {
-    const validPasswordPlain = basicAuth.safeCompare(
-      passwordPlain.slice(0, -6),
-      config.frontend.auth.password
+    const validPlainPassword = basicAuth.safeCompare(
+      plainPassword.slice(0, -6), // Remove last 6 digits for OTP code
+      authPassword
     );
 
     const validPassword2FA = Boolean(
-      otp.verifyToken(SECRET_2FA, passwordPlain.replace(authPassword, ''))
+      otp.verifyToken(SECRET_2FA, plainPassword.replace(authPassword, ''))
     );
 
-    validPassword = validPasswordPlain && validPassword2FA;
+    validPassword = validPlainPassword && validPassword2FA;
   } else {
-    validPassword = basicAuth.safeCompare(
-      passwordPlain,
-      config.frontend.auth.password
-    );
+    validPassword = basicAuth.safeCompare(plainPassword, authPassword);
   }
 
   return validUsername && validPassword;
@@ -48,11 +39,8 @@ const basicAuthChallenge = (usernamePlain, passwordPlain) => {
 const setBasicAuth = (app, funcLogger) => {
   const logger = funcLogger.child({ func: 'basic-auth' });
 
-  const {
-    frontend: {
-      auth: { enabled: authEnabled, twoFAEnabled: auth2FAEnabled }
-    }
-  } = config;
+  const authEnabled = config.get('frontend.auth.enabled');
+  const auth2FAEnabled = config.get('frontend.auth.twoFAEnabled');
 
   if (authEnabled) {
     logger.info(
@@ -69,7 +57,7 @@ const setBasicAuth = (app, funcLogger) => {
       logger.info('2FA authentication is enabled. Add 2FA option.');
       basicAuthOptions.realm += ' - 2FA';
     }
-
+    console.log('basicAuthOptions => ', basicAuthOptions);
     app.use(basicAuth(basicAuthOptions));
   }
 };
