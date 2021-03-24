@@ -1,17 +1,19 @@
 {
   "mode": "BINANCE_MODE",
   "tz": "BINANCE_TZ",
-  "frontendAuth": {
-    "enabled": {
-      "__name": "AUTH_ENABLED",
-      "__format": "boolean"
-    },
-    "mode2fa": {
-      "__name": "AUTH_2FA",
-      "__format": "boolean"
-    },
-    "username": "AUTH_USERNAME",
-    "password": "AUTH_PASSWORD"
+  "frontend": {
+    "auth": {
+      "enabled": {
+        "__name": "FRONTEND_AUTH_ENABLED",
+        "__format": "boolean"
+      },
+      "twoFAEnabled": {
+        "__name": "FRONTEND_AUTH_2FA_ENABLED",
+        "__format": "boolean"
+      },
+      "username": "FRONTEND_AUTH_USERNAME",
+      "password": "FRONTEND_AUTH_PASSWORD"
+    }
   },
   "binance": {
     "live": {

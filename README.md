@@ -204,24 +204,28 @@ React.js based frontend communicating via Web Socket:
 - Delete caches that are not monitored
 - Link to public URL
 - Support Add to Home Screen
+- Support basic authentication
 
-#### Frontend authentication
+#### Frontend Authentication
 
 You can have a basic login/password authentication by defining the environment
-variables `AUTH_USERNAME` and `AUTH_PASSWORD`.
+variables `FRONTEND_AUTH_USERNAME` and `FRONTEND_AUTH_PASSWORD`.
 
 If you prefer to enable 2FA login method provided by a 2FA authentication app of
 your choice (Google Authenticator, Authy, etc...) please define the environment
-variable `AUTH_2FA` to `true` and run _generate-2fa-secret.js_ to configure your
-2FA code.
+variable `FRONTEND_AUTH_2FA` to `true` and run _generate-2fa-secret.js_ to
+configure your 2FA code.
 
 After configuring the 2FA code, at the login window you will need to inform at
 the password field your password concatenated with the 2FA code. Example, if
 your password is _sUperS3cret_ and the generated 2FA code for the time is
 _123456_ you will inform _sUperS3cret123456_ as password.
 
-Exemple for generating a 2FA secret:
-`docker run -e AUTH_USERNAME=your_user_name binance-trading-bot_binance-bot ./generate-2fa-secret.js`
+Example for generating a 2FA secret:
+
+```bash
+docker exec -it binance-bot /srv/script/generate-2fa-secret.js
+```
 
 ## Environment Parameters
 
@@ -235,16 +239,21 @@ Or use the frontend to adjust configurations after launching the application.
 
 1. Create `.env` file based on `.env.dist`.
 
-   | Environment Key                | Description                       | Sample Value   |
-   | ------------------------------ | --------------------------------- | -------------- |
-   | BINANCE_LIVE_API_KEY           | Binance API key for live          | (from Binance) |
-   | BINANCE_LIVE_SECRET_KEY        | Binance API secret for live       | (from Binance) |
-   | BINANCE_TEST_API_KEY           | Binance API key for test          | (from Binance) |
-   | BINANCE_TEST_SECRET_KEY        | Binance API secret for test       | (from Binance) |
-   | BINANCE_SLACK_WEBHOOK_URL      | Slack webhook URL                 | (from Slack)   |
-   | BINANCE_SLACK_CHANNEL          | Slack channel                     | "#binance"     |
-   | BINANCE_SLACK_USERNAME         | Slack username                    | Chris          |
-   | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain | binance        |
+   | Environment Key                | Description                                | Sample Value   |
+   | ------------------------------ | ------------------------------------------ | -------------- |
+   | BINANCE_LIVE_API_KEY           | Binance API key for live                   | (from Binance) |
+   | BINANCE_LIVE_SECRET_KEY        | Binance API secret for live                | (from Binance) |
+   | BINANCE_TEST_API_KEY           | Binance API key for test                   | (from Binance) |
+   | BINANCE_TEST_SECRET_KEY        | Binance API secret for test                | (from Binance) |
+   | BINANCE_SLACK_WEBHOOK_URL      | Slack webhook URL                          | (from Slack)   |
+   | BINANCE_SLACK_CHANNEL          | Slack channel                              | "#binance"     |
+   | BINANCE_SLACK_USERNAME         | Slack username                             | Chris          |
+   | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable Local tunnel                | true           |
+   | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain          | binance        |
+   | FRONTEND_AUTH_ENABLED          | Enable/Disable frontend authentication     | true           |
+   | FRONTEND_AUTH_2FA_ENABLED      | Enable/Disable frontend 2FA authentication | true           |
+   | FRONTEND_AUTH_USERNAME         | Set username for the frontend              | my-username    |
+   | FRONTEND_AUTH_PASSWORD         | Set password for the frontend              | my-password    |
 
 2. Check `docker-compose.yml` for `BINANCE_MODE` environment parameter
 
@@ -331,8 +340,10 @@ Or use the frontend to adjust configurations after launching the application.
 - [x] Fix the bug with handling open orders
 - [x] Fix the bug with limit step in the frontend
 - [x] Updated the frontend to display buy open orders with the buy signal
+- [x] Secure frontend with the password with basic authentication
+- [ ] Enhance frontend authentication - only configuration requires
+      authentication
 - [ ] Allow browser notification in the frontend
-- [x] Secure frontend with the password
 - [ ] Allow to disable sorting in the frontend
 
 ## Acknowledgments

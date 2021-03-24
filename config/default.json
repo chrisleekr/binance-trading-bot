@@ -1,6 +1,14 @@
 {
   "mode": "test",
   "tz": "Australia/Melbourne",
+  "frontend": {
+    "auth": {
+      "enabled": false,
+      "twoFAEnabled": false,
+      "username": "my-username",
+      "password": "my-password"
+    }
+  },
   "binance": {
     "live": {
       "apiKey": "",

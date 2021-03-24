@@ -12,6 +12,7 @@ services:
     volumes:
       - ./config:/srv/config
       - ./app:/srv/app
+      - ./script:/srv/script
       - ./public:/srv/public
     env_file:
       - .env
