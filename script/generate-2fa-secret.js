@@ -1,28 +1,21 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
-const _ = require('lodash');
 const otp = require('node-2fa');
 const config = require('config');
 const fs = require('fs');
 const qrcode = require('qrcode-terminal');
 
-if (
-  _.get(config, 'frontend.auth.username', null) === null ||
-  _.get(config, 'frontend.auth.password', null) === null
-) {
+const username = config.get('frontend.auth.username');
+const password = config.get('fonrtend.auth.password');
+
+if (!username || !password) {
   console.log('Please configure your frontend username/password in .env file');
   process.exit(1);
 }
 
-const {
-  frontend: {
-    auth: { username, password }
-  }
-} = config;
-
 const twoFAData = {
   name: 'Binance Trading Bot',
-  account: config.frontend.auth.username
+  account: username
 };
 const secret = otp.generateSecret(twoFAData);
 
