@@ -24,10 +24,9 @@ const basicAuthChallenge = (plainUsername, plainPassword) => {
       authPassword
     );
 
-    const validPassword2FA = Boolean(
-      otp.verifyToken(SECRET_2FA, plainPassword.replace(authPassword, ''))
-    );
-
+    const validPassword2FA =
+      otp.verifyToken(SECRET_2FA, plainPassword.replace(authPassword, '')) !==
+      null;
     validPassword = validPlainPassword && validPassword2FA;
   } else {
     validPassword = basicAuth.safeCompare(plainPassword, authPassword);
@@ -57,7 +56,6 @@ const setBasicAuth = (app, funcLogger) => {
       logger.info('2FA authentication is enabled. Add 2FA option.');
       basicAuthOptions.realm += ' - 2FA';
     }
-    console.log('basicAuthOptions => ', basicAuthOptions);
     app.use(basicAuth(basicAuthOptions));
   }
 };
