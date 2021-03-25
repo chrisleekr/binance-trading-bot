@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "shakram02.bash-beautify",
+    "streetsidesoftware.code-spell-checker",
+    "editorconfig.editorconfig",
+    "dbaeumer.vscode-eslint",
+    "christian-kohler.npm-intellisense",
+    "esbenp.prettier-vscode"
+  ]
+}
