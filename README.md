@@ -319,7 +319,6 @@ Or use the frontend to adjust configurations after launching the application.
 - [ ] Add minimum required order amount
 - [ ] Allow browser notification in the frontend
 - [ ] Secure frontend with the password
-- [ ] Allow to disable sorting in the frontend
 - [ ] Develop simple setup screen for secrets
 
 ## Acknowledgments
