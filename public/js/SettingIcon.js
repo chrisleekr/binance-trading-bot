@@ -419,15 +419,17 @@ class SettingIcon extends React.Component {
             <Button
               variant='primary'
               size='sm'
-              onClick={this.handleFormSubmit({ action: 'apply-to-all' })}>
+              onClick={() => this.handleFormSubmit({ action: 'apply-to-all' })}>
               Apply to all symbols
             </Button>
             <Button
               variant='secondary'
               size='sm'
-              onClick={this.handleFormSubmit({
-                action: 'apply-to-global-only'
-              })}>
+              onClick={() =>
+                this.handleFormSubmit({
+                  action: 'apply-to-global-only'
+                })
+              }>
               Apply to global only
             </Button>
           </Modal.Footer>
