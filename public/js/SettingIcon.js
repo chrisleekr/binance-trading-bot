@@ -5,6 +5,11 @@ class SettingIcon extends React.Component {
   constructor(props) {
     super(props);
 
+    this.modalToStateMap = {
+      setting: 'showSettingModal',
+      confirm: 'showConfirmModal'
+    };
+
     this.state = {
       showSettingModal: false,
       showConfirmModal: false,
@@ -13,8 +18,6 @@ class SettingIcon extends React.Component {
 
     this.handleModalShow = this.handleModalShow.bind(this);
     this.handleModalClose = this.handleModalClose.bind(this);
-    this.handleConfirmModalShow = this.handleConfirmModalShow.bind(this);
-    this.handleConfirmModalClose = this.handleConfirmModalClose.bind(this);
 
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
     this.handleInputChange = this.handleInputChange.bind(this);
@@ -39,34 +42,23 @@ class SettingIcon extends React.Component {
       this.state.configuration
     );
 
-    this.handleModalClose();
+    this.handleModalClose('setting');
+    this.handleModalClose('confirm');
     this.props.sendWebSocket('setting-update', {
       ...this.state.configuration,
       ...extraConfiguration
     });
   }
 
-  handleModalShow() {
+  handleModalShow(modal) {
     this.setState({
-      showSettingModal: true
+      [this.modalToStateMap[modal]]: true
     });
   }
 
-  handleModalClose() {
+  handleModalClose(modal) {
     this.setState({
-      showSettingModal: false
-    });
-  }
-
-  handleConfirmModalShow() {
-    this.setState({
-      showConfirmModal: true
-    });
-  }
-
-  handleConfirmModalClose() {
-    this.setState({
-      showConfirmModal: false
+      [this.modalToStateMap[modal]]: false
     });
   }
 
@@ -102,12 +94,12 @@ class SettingIcon extends React.Component {
         <button
           type='button'
           className='btn btn-sm btn-link p-0 pl-1 pr-1'
-          onClick={this.handleModalShow}>
+          onClick={() => this.handleModalShow('setting')}>
           <i className='fa fa-cog'></i>
         </button>
         <Modal
           show={this.state.showSettingModal}
-          onHide={this.handleModalClose}
+          onHide={() => this.handleModalClose('setting)')}
           size='md'>
           <Form>
             <Modal.Header className='pt-1 pb-1'>
@@ -384,13 +376,13 @@ class SettingIcon extends React.Component {
               <Button
                 variant='secondary'
                 size='sm'
-                onClick={this.handleModalClose}>
+                onClick={() => this.handleModalClose('setting')}>
                 Close
               </Button>
               <Button
                 variant='primary'
                 size='sm'
-                onClick={this.handleConfirmModalShow}>
+                onClick={() => this.handleModalShow('confirm')}>
                 Save Changes
               </Button>
             </Modal.Footer>
@@ -398,7 +390,7 @@ class SettingIcon extends React.Component {
         </Modal>
         <Modal
           show={this.state.showConfirmModal}
-          onHide={this.handleConfirmModalClose}
+          onHide={() => this.handleModalClose('confirm')}
           size='md'>
           <Modal.Header className='pt-1 pb-1'>
             <Modal.Title>⚠ Save Changes</Modal.Title>
@@ -417,13 +409,19 @@ class SettingIcon extends React.Component {
 
           <Modal.Footer>
             <Button
-              variant='primary'
+              variant='secondary'
+              size='sm'
+              onClick={() => this.handleModalClose('confirm')}>
+              Cancel
+            </Button>
+            <Button
+              variant='success'
               size='sm'
               onClick={() => this.handleFormSubmit({ action: 'apply-to-all' })}>
               Apply to all symbols
             </Button>
             <Button
-              variant='secondary'
+              variant='primary'
               size='sm'
               onClick={() =>
                 this.handleFormSubmit({
