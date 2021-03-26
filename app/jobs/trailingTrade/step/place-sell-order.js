@@ -20,7 +20,7 @@ const execute = async (logger, rawData) => {
       filterMinNotional: { minNotional }
     },
     symbolConfiguration: {
-      sell: { enabed: tradingEnabled, stopPercentage, limitPercentage }
+      sell: { enabled: tradingEnabled, stopPercentage, limitPercentage }
     },
     action,
     baseAssetBalance: { free: baseAssetFreeBalance },

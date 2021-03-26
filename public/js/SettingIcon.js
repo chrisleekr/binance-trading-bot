@@ -6,21 +6,24 @@ class SettingIcon extends React.Component {
     super(props);
 
     this.state = {
-      showModal: false,
+      showSettingModal: false,
+      showConfirmModal: false,
       configuration: {}
     };
 
     this.handleModalShow = this.handleModalShow.bind(this);
     this.handleModalClose = this.handleModalClose.bind(this);
-    this.handleFormSubmit = this.handleFormSubmit.bind(this);
+    this.handleConfirmModalShow = this.handleConfirmModalShow.bind(this);
+    this.handleConfirmModalClose = this.handleConfirmModalClose.bind(this);
 
+    this.handleFormSubmit = this.handleFormSubmit.bind(this);
     this.handleInputChange = this.handleInputChange.bind(this);
   }
 
   componentDidUpdate(nextProps) {
     // Only update configuration, when the modal is closed and different.
     if (
-      this.state.showModal === false &&
+      this.state.showSettingModal === false &&
       _.isEmpty(nextProps.configuration) === false &&
       _.isEqual(nextProps.configuration, this.state.configuration) === false
     ) {
@@ -30,26 +33,40 @@ class SettingIcon extends React.Component {
     }
   }
 
-  handleFormSubmit(e) {
-    e.preventDefault();
+  handleFormSubmit(extraConfiguration = {}) {
     console.log(
       'handleFormSubmit this.state.configuration ',
       this.state.configuration
     );
 
-    this.props.sendWebSocket('setting-update', this.state.configuration);
     this.handleModalClose();
+    this.props.sendWebSocket('setting-update', {
+      ...this.state.configuration,
+      ...extraConfiguration
+    });
   }
 
   handleModalShow() {
     this.setState({
-      showModal: true
+      showSettingModal: true
     });
   }
 
   handleModalClose() {
     this.setState({
-      showModal: false
+      showSettingModal: false
+    });
+  }
+
+  handleConfirmModalShow() {
+    this.setState({
+      showConfirmModal: true
+    });
+  }
+
+  handleConfirmModalClose() {
+    this.setState({
+      showConfirmModal: false
     });
   }
 
@@ -89,10 +106,10 @@ class SettingIcon extends React.Component {
           <i className='fa fa-cog'></i>
         </button>
         <Modal
-          show={this.state.showModal}
+          show={this.state.showSettingModal}
           onHide={this.handleModalClose}
           size='md'>
-          <Form onSubmit={this.handleFormSubmit}>
+          <Form>
             <Modal.Header className='pt-1 pb-1'>
               <Modal.Title>Global Settings</Modal.Title>
             </Modal.Header>
@@ -370,11 +387,50 @@ class SettingIcon extends React.Component {
                 onClick={this.handleModalClose}>
                 Close
               </Button>
-              <Button type='submit' variant='primary' size='sm'>
+              <Button
+                variant='primary'
+                size='sm'
+                onClick={this.handleConfirmModalShow}>
                 Save Changes
               </Button>
             </Modal.Footer>
           </Form>
+        </Modal>
+        <Modal
+          show={this.state.showConfirmModal}
+          onHide={this.handleConfirmModalClose}
+          size='md'>
+          <Modal.Header className='pt-1 pb-1'>
+            <Modal.Title>⚠ Save Changes</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            Warning: You are about to save the global configuration.
+            <br />
+            <br />
+            Do you want to apply the changes for all symbols or just global
+            configuration?
+            <br />
+            <br />
+            If you choose to apply for all symbols, then customised symbol
+            configurations will be removed.
+          </Modal.Body>
+
+          <Modal.Footer>
+            <Button
+              variant='primary'
+              size='sm'
+              onClick={this.handleFormSubmit({ action: 'apply-to-all' })}>
+              Apply to all symbols
+            </Button>
+            <Button
+              variant='secondary'
+              size='sm'
+              onClick={this.handleFormSubmit({
+                action: 'apply-to-global-only'
+              })}>
+              Apply to global only
+            </Button>
+          </Modal.Footer>
         </Modal>
       </div>
     );

@@ -22,7 +22,11 @@ describe('place-sell-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
-            sell: { enabed: true, stopPercentage: 0.99, limitPercentage: 0.989 }
+            sell: {
+              enabled: true,
+              stopPercentage: 0.99,
+              limitPercentage: 0.989
+            }
           },
           action: 'not-determined',
           baseAssetBalance: { free: 0.5 },
@@ -51,7 +55,11 @@ describe('place-sell-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
-            sell: { enabed: true, stopPercentage: 0.99, limitPercentage: 0.989 }
+            sell: {
+              enabled: true,
+              stopPercentage: 0.99,
+              limitPercentage: 0.989
+            }
           },
           action: 'sell',
           baseAssetBalance: { free: 0.5 },
@@ -112,7 +120,11 @@ describe('place-sell-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
-            sell: { enabed: true, stopPercentage: 0.99, limitPercentage: 0.989 }
+            sell: {
+              enabled: true,
+              stopPercentage: 0.99,
+              limitPercentage: 0.989
+            }
           },
           action: 'sell',
           baseAssetBalance: { free: 0.01 },
@@ -155,7 +167,11 @@ describe('place-sell-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
-            sell: { enabed: true, stopPercentage: 0.99, limitPercentage: 0.989 }
+            sell: {
+              enabled: true,
+              stopPercentage: 0.99,
+              limitPercentage: 0.989
+            }
           },
           action: 'sell',
           baseAssetBalance: { free: 0.05 },
@@ -199,7 +215,7 @@ describe('place-sell-order.js', () => {
           },
           symbolConfiguration: {
             sell: {
-              enabed: false,
+              enabled: false,
               stopPercentage: 0.99,
               limitPercentage: 0.989
             }
@@ -246,7 +262,7 @@ describe('place-sell-order.js', () => {
           },
           symbolConfiguration: {
             sell: {
-              enabed: true,
+              enabled: true,
               stopPercentage: 0.99,
               limitPercentage: 0.989
             }

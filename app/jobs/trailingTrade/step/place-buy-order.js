@@ -23,7 +23,7 @@ const execute = async (logger, rawData) => {
     },
     symbolConfiguration: {
       buy: {
-        enabed: tradingEnabled,
+        enabled: tradingEnabled,
         maxPurchaseAmount,
         stopPercentage,
         limitPercentage
