@@ -32,13 +32,13 @@ const handleLatest = async (logger, ws, _payload) => {
     symbols: {}
   };
 
-  const configuration = await getGlobalConfiguration(logger);
-  logger.info({ configuration }, 'Configuration from MongoDB');
+  const globalConfiguration = await getGlobalConfiguration(logger);
+  logger.info({ globalConfiguration }, 'Configuration from MongoDB');
 
   let common = {};
   try {
     common = {
-      configuration,
+      configuration: globalConfiguration,
       accountInfo: JSON.parse(cacheTrailingTradeCommon['account-info']),
       exchangeSymbols: JSON.parse(cacheTrailingTradeCommon['exchange-symbols']),
       publicURL: cacheTrailingTradeCommon['local-tunnel-url']
@@ -60,6 +60,8 @@ const handleLatest = async (logger, ws, _payload) => {
   stats.symbols = await Promise.all(
     _.map(stats.symbols, async symbol => {
       const newSymbol = symbol;
+      // Set latest global configuration
+      newSymbol.globalConfiguration = globalConfiguration;
       // Retrieve latest symbol configuration
       newSymbol.symbolConfiguration = await getConfiguration(
         logger,
@@ -79,7 +81,7 @@ const handleLatest = async (logger, ws, _payload) => {
       account: common.accountInfo,
       publicURL: common.publicURL,
       stats,
-      configuration
+      configuration: globalConfiguration
     },
     'stats'
   );
@@ -88,7 +90,7 @@ const handleLatest = async (logger, ws, _payload) => {
     JSON.stringify({
       result: true,
       type: 'latest',
-      configuration,
+      configuration: globalConfiguration,
       common,
       stats
     })

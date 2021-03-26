@@ -7,7 +7,8 @@ describe('index', () => {
       handleSettingUpdate: expect.any(Function),
       handleSymbolUpdate: expect.any(Function),
       handleSymbolDelete: expect.any(Function),
-      handleSymbolSettingUpdate: expect.any(Function)
+      handleSymbolSettingUpdate: expect.any(Function),
+      handleSymbolSettingDelete: expect.any(Function)
     });
   });
 });
