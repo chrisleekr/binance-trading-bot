@@ -2,8 +2,11 @@ const _ = require('lodash');
 
 const { cache } = require('../../helpers');
 const {
-  getGlobalConfiguration
+  getGlobalConfiguration,
+  getConfiguration
 } = require('../../jobs/trailingTrade/configuration');
+
+const { getLastBuyPrice } = require('../../jobs/trailingTrade/symbol');
 
 const getSymbolFromKey = key => {
   const fragments = key.split('-');
@@ -53,6 +56,23 @@ const handleLatest = async (logger, ws, _payload) => {
       stats.symbols[symbol] = JSON.parse(value);
     }
   });
+
+  stats.symbols = await Promise.all(
+    _.map(stats.symbols, async symbol => {
+      const newSymbol = symbol;
+      // Retrieve latest symbol configuration
+      newSymbol.symbolConfiguration = await getConfiguration(
+        logger,
+        newSymbol.symbol
+      );
+      // Retrieve latest last buy price
+      newSymbol.sell.lastBuyPrice = await getLastBuyPrice(
+        logger,
+        newSymbol.symbol
+      );
+      return newSymbol;
+    })
+  );
 
   logger.info(
     {

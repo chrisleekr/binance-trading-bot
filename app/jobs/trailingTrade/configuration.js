@@ -93,6 +93,16 @@ const saveSymbolConfiguration = async (
   );
 };
 
+const deleteAllSymbolConfiguration = async logger =>
+  mongo.deleteAll(logger, 'trailing-trade-symbols', {
+    key: { $regex: /^(.+)-configuration/ }
+  });
+
+const deleteSymbolConfiguration = async (logger, symbol) =>
+  mongo.deleteOne(logger, 'trailing-trade-symbols', {
+    key: `${symbol}-configuration`
+  });
+
 /**
  * Get global/symbol configuration
  *
@@ -131,5 +141,7 @@ module.exports = {
   getSymbolConfiguration,
   saveGlobalConfiguration,
   saveSymbolConfiguration,
+  deleteAllSymbolConfiguration,
+  deleteSymbolConfiguration,
   getConfiguration
 };

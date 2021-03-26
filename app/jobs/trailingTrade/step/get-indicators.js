@@ -1,7 +1,8 @@
 /* eslint-disable prefer-destructuring */
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, mongo } = require('../../../helpers');
+const { binance } = require('../../../helpers');
+const { getLastBuyPrice } = require('../symbol');
 
 /**
  * Flatten candle data
@@ -21,27 +22,6 @@ const flattenCandlesData = candles => {
     openTime,
     low
   };
-};
-
-/**
- * Get last buy price from mongodb
- *
- * @param {*} logger
- * @param {*} symbol
- */
-const getLastBuyPrice = async (logger, symbol) => {
-  const lastBuyPriceDoc = await mongo.findOne(
-    logger,
-    'trailing-trade-symbols',
-    {
-      key: `${symbol}-last-buy-price`
-    }
-  );
-
-  const cachedLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
-  logger.debug({ cachedLastBuyPrice }, 'Last buy price');
-
-  return cachedLastBuyPrice;
 };
 
 /**

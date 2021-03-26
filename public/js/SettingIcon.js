@@ -42,8 +42,8 @@ class SettingIcon extends React.Component {
       this.state.configuration
     );
 
-    this.handleModalClose('setting');
     this.handleModalClose('confirm');
+    this.handleModalClose('setting');
     this.props.sendWebSocket('setting-update', {
       ...this.state.configuration,
       ...extraConfiguration
@@ -388,12 +388,15 @@ class SettingIcon extends React.Component {
             </Modal.Footer>
           </Form>
         </Modal>
+
         <Modal
           show={this.state.showConfirmModal}
           onHide={() => this.handleModalClose('confirm')}
           size='md'>
           <Modal.Header className='pt-1 pb-1'>
-            <Modal.Title>⚠ Save Changes</Modal.Title>
+            <Modal.Title>
+              <span className='text-danger'>⚠ Save Changes</span>
+            </Modal.Title>
           </Modal.Header>
           <Modal.Body>
             Warning: You are about to save the global configuration.
@@ -405,6 +408,11 @@ class SettingIcon extends React.Component {
             <br />
             If you choose to apply for all symbols, then customised symbol
             configurations will be removed.
+            <br />
+            <br />
+            If you choose to apply the global configuration only, then the
+            symbols that are different from the global configuration will be
+            displayed as customised.
           </Modal.Body>
 
           <Modal.Footer>

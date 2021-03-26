@@ -38,12 +38,12 @@ class App extends React.Component {
       accountInfo: {},
       publicURL: ''
     };
-    this.requestWebSocket = this.requestWebSocket.bind(this);
+    this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
     this.sendWebSocket = this.sendWebSocket.bind(this);
   }
 
-  requestWebSocket() {
+  requestLatest() {
     this.sendWebSocket('latest');
   }
 
@@ -118,7 +118,7 @@ class App extends React.Component {
   componentDidMount() {
     this.connectWebSocket();
 
-    this.timerID = setInterval(() => this.requestWebSocket(), 1000);
+    this.timerID = setInterval(() => this.requestLatest(), 1000);
   }
 
   componentWillUnmount() {
