@@ -1,5 +1,4 @@
 /* eslint-disable global-require */
-// const { binance, mongo, cache, logger } = require();
 
 describe('get-indicators.js', () => {
   let result;
