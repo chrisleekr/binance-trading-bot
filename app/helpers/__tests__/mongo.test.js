@@ -13,6 +13,7 @@ describe('mongo.js', () => {
   let mockFindOne;
   let mockInsertOne;
   let mockUpdateOne;
+  let mockDeleteMany;
   let mockDeleteOne;
 
   beforeEach(() => {
@@ -121,13 +122,13 @@ describe('mongo.js', () => {
 
       await mongo.connect(logger);
 
-      result = await mongo.findOne(logger, 'simple-stop-chaser-common', {
+      result = await mongo.findOne(logger, 'trailing-stop-common', {
         key: 'configuration'
       });
     });
 
     it('triggers database.collection', () => {
-      expect(mockCollection).toHaveBeenCalledWith('simple-stop-chaser-common');
+      expect(mockCollection).toHaveBeenCalledWith('trailing-stop-common');
     });
 
     it('triggers collection.findOne', () => {
@@ -172,14 +173,14 @@ describe('mongo.js', () => {
 
       await mongo.connect(logger);
 
-      result = await mongo.insertOne(logger, 'simple-stop-chaser-common', {
+      result = await mongo.insertOne(logger, 'trailing-stop-common', {
         key: 'configuration',
         my: 'value'
       });
     });
 
     it('triggers database.collection', () => {
-      expect(mockCollection).toHaveBeenCalledWith('simple-stop-chaser-common');
+      expect(mockCollection).toHaveBeenCalledWith('trailing-stop-common');
     });
 
     it('triggers collection.insertOne', () => {
@@ -224,7 +225,7 @@ describe('mongo.js', () => {
 
       result = await mongo.upsertOne(
         logger,
-        'simple-stop-chaser-common',
+        'trailing-stop-common',
         {
           key: 'configuration'
         },
@@ -236,7 +237,7 @@ describe('mongo.js', () => {
     });
 
     it('triggers database.collection', () => {
-      expect(mockCollection).toHaveBeenCalledWith('simple-stop-chaser-common');
+      expect(mockCollection).toHaveBeenCalledWith('trailing-stop-common');
     });
 
     it('triggers collection.upsertOne', () => {
@@ -254,6 +255,54 @@ describe('mongo.js', () => {
           upsert: true
         }
       );
+    });
+
+    it('returns expected result', () => {
+      expect(result).toStrictEqual(true);
+    });
+  });
+
+  describe('deleteAll', () => {
+    beforeEach(async () => {
+      mockDeleteMany = jest.fn().mockResolvedValue(true);
+      mockCollection = jest.fn(() => ({
+        deleteMany: mockDeleteMany
+      }));
+
+      mockDBCommand = jest.fn().mockResolvedValue(true);
+      mockDB = jest.fn(() => ({
+        command: mockDBCommand,
+        collection: mockCollection
+      }));
+
+      mockMongoClient = jest.fn(() => ({
+        connect: jest.fn().mockResolvedValue(true),
+        db: mockDB
+      }));
+
+      jest.mock('mongodb', () => ({
+        MongoClient: mockMongoClient
+      }));
+
+      require('mongodb');
+
+      mongo = require('../mongo');
+
+      await mongo.connect(logger);
+
+      result = await mongo.deleteAll(logger, 'trailing-stop-common', {
+        key: 'configuration'
+      });
+    });
+
+    it('triggers database.collection', () => {
+      expect(mockCollection).toHaveBeenCalledWith('trailing-stop-common');
+    });
+
+    it('triggers collection.deleteMany', () => {
+      expect(mockDeleteMany).toHaveBeenCalledWith({
+        key: 'configuration'
+      });
     });
 
     it('returns expected result', () => {
@@ -289,13 +338,13 @@ describe('mongo.js', () => {
 
       await mongo.connect(logger);
 
-      result = await mongo.deleteOne(logger, 'simple-stop-chaser-common', {
+      result = await mongo.deleteOne(logger, 'trailing-stop-common', {
         key: 'configuration'
       });
     });
 
     it('triggers database.collection', () => {
-      expect(mockCollection).toHaveBeenCalledWith('simple-stop-chaser-common');
+      expect(mockCollection).toHaveBeenCalledWith('trailing-stop-common');
     });
 
     it('triggers collection.deleteOne', () => {
