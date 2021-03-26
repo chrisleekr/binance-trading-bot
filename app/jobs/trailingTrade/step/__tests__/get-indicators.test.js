@@ -7,18 +7,23 @@ describe('get-indicators.js', () => {
   let result;
   let rawData;
 
+  let mockGetLastBuyPrice;
+
   describe('execute', () => {
     beforeEach(() => {
       cache.hget = jest.fn().mockResolvedValue(undefined);
       cache.hset = jest.fn().mockResolvedValue(true);
-      mongo.findOne = jest.fn().mockResolvedValue(undefined);
+      mockGetLastBuyPrice = jest.fn().mockResolvedValue(undefined);
       binance.client.candles = jest.fn().mockResolvedValue();
       binance.client.exchangeInfo = jest.fn().mockResolvedValue();
     });
 
-    describe('wit no open orders and no last buy price', () => {
+    fdescribe('wit no open orders and no last buy price', () => {
       beforeEach(async () => {
-        mongo.findOne = jest.fn().mockResolvedValue(undefined);
+        mockGetLastBuyPrice = jest.fn().mockResolvedValue(undefined);
+        jest.mock('../symbol', () => ({
+          getLastBuyPrice: mockGetLastBuyPrice
+        }));
 
         binance.client.candles = jest
           .fn()
@@ -44,12 +49,8 @@ describe('get-indicators.js', () => {
         result = await step.execute(logger, rawData);
       });
 
-      it('triggers mongo.findOne', () => {
-        expect(mongo.findOne).toHaveBeenCalledWith(
-          logger,
-          'trailing-trade-symbols',
-          { key: 'BTCUSDT-last-buy-price' }
-        );
+      it('triggers mockGetLastBuyPrice', () => {
+        expect(mockGetLastBuyPrice).toHaveBeenCalledWith(logger, 'BTCUSDT');
       });
 
       it('triggers expected value', () => {
