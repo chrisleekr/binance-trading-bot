@@ -290,6 +290,7 @@ to view the past changes.
 - [ ] Add frontend option to disable sorting
 - [ ] Add minimum required order amount
 - [ ] Allow browser notification in the frontend
+- [ ] Support multilingual frontend
 - [ ] Secure frontend with the password
 - [ ] Develop simple setup screen for secrets
 
