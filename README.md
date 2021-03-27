@@ -328,6 +328,7 @@ Or use the frontend to adjust configurations after launching the application.
 - [@OOtta](https://github.com/OOtta)
 - [@ienthach](https://github.com/ienthach)
 - [@PlayeTT](https://github.com/PlayeTT)
+- [@chopeta](https://github.com/chopeta)
 
 ## Contributors
 
