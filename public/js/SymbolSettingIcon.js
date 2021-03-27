@@ -5,8 +5,14 @@ class SymbolSettingIcon extends React.Component {
   constructor(props) {
     super(props);
 
+    this.modalToStateMap = {
+      setting: 'showSettingModal',
+      confirm: 'showConfirmModal'
+    };
+
     this.state = {
-      showModal: false,
+      showSettingModal: false,
+      showConfirmModal: false,
       symbolConfiguration: {}
     };
 
@@ -23,7 +29,7 @@ class SymbolSettingIcon extends React.Component {
   componentDidUpdate(nextProps) {
     // Only update symbol configuration, when the modal is closed and different.
     if (
-      this.state.showModal === false &&
+      this.state.showSettingModal === false &&
       _.get(nextProps, 'symbolInfo.symbolConfiguration', null) !== null &&
       _.isEqual(
         _.get(nextProps, 'symbolInfo.symbolConfiguration', null),
@@ -43,24 +49,25 @@ class SymbolSettingIcon extends React.Component {
       this.state.symbolConfiguration
     );
 
+    this.handleModalClose('setting');
+
     // Send with symbolInfo
     const { symbolInfo } = this.props;
     const newSymbolInfo = symbolInfo;
     newSymbolInfo.configuration = this.state.symbolConfiguration;
 
     this.props.sendWebSocket('symbol-setting-update', newSymbolInfo);
-    this.handleModalClose();
   }
 
-  handleModalShow() {
+  handleModalShow(modal) {
     this.setState({
-      showModal: true
+      [this.modalToStateMap[modal]]: true
     });
   }
 
-  handleModalClose() {
+  handleModalClose(modal) {
     this.setState({
-      showModal: false
+      [this.modalToStateMap[modal]]: false
     });
   }
 
@@ -81,10 +88,12 @@ class SymbolSettingIcon extends React.Component {
     });
   }
 
-  resetToGlobalConfiguration(_e) {
-    this.setState({
-      symbolConfiguration: this.props.globalConfiguration
-    });
+  resetToGlobalConfiguration() {
+    const { symbolInfo } = this.props;
+
+    this.handleModalClose('confirm');
+    this.handleModalClose('setting');
+    this.props.sendWebSocket('symbol-setting-delete', symbolInfo);
   }
 
   render() {
@@ -100,12 +109,12 @@ class SymbolSettingIcon extends React.Component {
         <button
           type='button'
           className='btn btn-sm btn-link p-0'
-          onClick={this.handleModalShow}>
+          onClick={() => this.handleModalShow('setting')}>
           <i className='fa fa-cog'></i>
         </button>
         <Modal
-          show={this.state.showModal}
-          onHide={this.handleModalClose}
+          show={this.state.showSettingModal}
+          onHide={() => this.handleModalClose('setting')}
           size='md'>
           <Form onSubmit={this.handleFormSubmit}>
             <Modal.Header className='pt-1 pb-1'>
@@ -349,14 +358,14 @@ class SymbolSettingIcon extends React.Component {
                 variant='danger'
                 size='sm'
                 type='button'
-                onClick={this.resetToGlobalConfiguration}>
+                onClick={() => this.handleModalShow('confirm')}>
                 Reset to Global Setting
               </Button>
               <Button
                 variant='secondary'
                 size='sm'
                 type='button'
-                onClick={this.handleModalClose}>
+                onClick={() => this.handleModalClose('setting')}>
                 Close
               </Button>
               <Button type='submit' variant='primary' size='sm'>
@@ -364,6 +373,39 @@ class SymbolSettingIcon extends React.Component {
               </Button>
             </Modal.Footer>
           </Form>
+        </Modal>
+
+        <Modal
+          show={this.state.showConfirmModal}
+          onHide={() => this.handleModalClose('confirm')}
+          size='md'>
+          <Modal.Header className='pt-1 pb-1'>
+            <Modal.Title>
+              <span className='text-danger'>⚠ Reset to Global Setting</span>
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            Warning: You are about to reset the symbol setting to the global
+            setting.
+            <br />
+            <br />
+            Do you want to delete current symbol setting?
+          </Modal.Body>
+
+          <Modal.Footer>
+            <Button
+              variant='secondary'
+              size='sm'
+              onClick={() => this.handleModalClose('confirm')}>
+              Cancel
+            </Button>
+            <Button
+              variant='success'
+              size='sm'
+              onClick={() => this.resetToGlobalConfiguration()}>
+              Yes
+            </Button>
+          </Modal.Footer>
         </Modal>
       </div>
     );

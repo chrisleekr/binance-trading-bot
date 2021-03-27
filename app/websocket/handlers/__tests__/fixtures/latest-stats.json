@@ -1,9 +1,17 @@
 {
   "result": true,
   "type": "latest",
-  "configuration": { "enabled": true, "candles": { "interval": "15m" } },
+  "configuration": {
+    "enabled": true,
+    "type": "i-am-global",
+    "candles": { "interval": "15m" }
+  },
   "common": {
-    "configuration": { "enabled": true, "candles": { "interval": "15m" } },
+    "configuration": {
+      "enabled": true,
+      "type": "i-am-global",
+      "candles": { "interval": "15m" }
+    },
     "accountInfo": {
       "makerCommission": 0,
       "takerCommission": 0,
@@ -36,52 +44,19 @@
     "publicURL": "https://chatty-robin-84.loca.lt"
   },
   "stats": {
-    "symbols": {
-      "BNBUSDT": {
+    "symbols": [
+      {
         "globalConfiguration": {
-          "_id": "604d5e1b485f808080e07b7d",
-          "key": "configuration",
           "enabled": true,
-          "cronTime": "* * * * * *",
-          "symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
-          "supportFIATs": ["USDT"],
-          "candles": { "interval": "1m", "limit": 10 },
-          "buy": {
-            "enabled": true,
-            "maxPurchaseAmount": 100,
-            "triggerPercentage": 1,
-            "stopPercentage": 1.01,
-            "limitPercentage": 1.011
-          },
-          "sell": {
-            "enabled": true,
-            "triggerPercentage": 1.01,
-            "stopPercentage": 0.99,
-            "limitPercentage": 0.989
-          }
+          "type": "i-am-global",
+          "candles": { "interval": "15m" }
         },
         "symbol": "BNBUSDT",
         "symbolConfiguration": {
-          "_id": "604d5e1b485f808080e07b7d",
-          "key": "configuration",
           "enabled": true,
-          "cronTime": "* * * * * *",
-          "symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
-          "supportFIATs": ["USDT"],
-          "candles": { "interval": "1m", "limit": 10 },
-          "buy": {
-            "enabled": true,
-            "maxPurchaseAmount": 100,
-            "triggerPercentage": 1,
-            "stopPercentage": 1.01,
-            "limitPercentage": 1.011
-          },
-          "sell": {
-            "enabled": true,
-            "triggerPercentage": 1.01,
-            "stopPercentage": 0.99,
-            "limitPercentage": 0.989
-          }
+          "symbol": "BNBUSDT",
+          "type": "i-am-symbol",
+          "candles": { "interval": "15m" }
         },
         "accountInfo": {
           "makerCommission": 0,
@@ -208,51 +183,18 @@
           "updatedAt": "2021-03-14T00:51:53.577Z"
         }
       },
-      "ETHUSDT": {
+      {
         "globalConfiguration": {
-          "_id": "604d5e1b485f808080e07b7d",
-          "key": "configuration",
           "enabled": true,
-          "cronTime": "* * * * * *",
-          "symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
-          "supportFIATs": ["USDT"],
-          "candles": { "interval": "1m", "limit": 10 },
-          "buy": {
-            "enabled": true,
-            "maxPurchaseAmount": 100,
-            "triggerPercentage": 1,
-            "stopPercentage": 1.01,
-            "limitPercentage": 1.011
-          },
-          "sell": {
-            "enabled": true,
-            "triggerPercentage": 1.01,
-            "stopPercentage": 0.99,
-            "limitPercentage": 0.989
-          }
+          "type": "i-am-global",
+          "candles": { "interval": "15m" }
         },
         "symbol": "ETHUSDT",
         "symbolConfiguration": {
-          "_id": "604d5e1b485f808080e07b7d",
-          "key": "configuration",
           "enabled": true,
-          "cronTime": "* * * * * *",
-          "symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
-          "supportFIATs": ["USDT"],
-          "candles": { "interval": "1m", "limit": 10 },
-          "buy": {
-            "enabled": true,
-            "maxPurchaseAmount": 100,
-            "triggerPercentage": 1,
-            "stopPercentage": 1.01,
-            "limitPercentage": 1.011
-          },
-          "sell": {
-            "enabled": true,
-            "triggerPercentage": 1.01,
-            "stopPercentage": 0.99,
-            "limitPercentage": 0.989
-          }
+          "symbol": "ETHUSDT",
+          "type": "i-am-symbol",
+          "candles": { "interval": "15m" }
         },
         "accountInfo": {
           "makerCommission": 0,
@@ -435,6 +377,6 @@
           "updatedAt": "2021-03-14T00:51:52.864Z"
         }
       }
-    }
+    ]
   }
 }

@@ -23,7 +23,7 @@ const execute = async (logger, rawData) => {
     },
     symbolConfiguration: {
       buy: {
-        enabed: tradingEnabled,
+        enabled: tradingEnabled,
         maxPurchaseAmount,
         stopPercentage,
         limitPercentage
@@ -92,7 +92,7 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  if (tradingEnabled === false) {
+  if (tradingEnabled !== true) {
     data.buy.processMessage = `Trading for ${symbol} is disabled. Do not place an order.`;
     data.buy.updatedAt = moment().utc();
 

@@ -38,6 +38,33 @@ describe('latest.test.js', () => {
             return { enabled: true };
           }
 
+          if (
+            collection === 'trailing-trade-symbols' &&
+            _.isEqual(filter, { key: 'BNBUSDT-configuration' })
+          ) {
+            return { enabled: true, symbol: 'BNBUSDT' };
+          }
+          if (
+            collection === 'trailing-trade-symbols' &&
+            _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
+          ) {
+            return { lastBuyPrice: null };
+          }
+
+          if (
+            collection === 'trailing-trade-symbols' &&
+            _.isEqual(filter, { key: 'ETHUSDT-configuration' })
+          ) {
+            return { enabled: true, symbol: 'ETHUSDT' };
+          }
+
+          if (
+            collection === 'trailing-trade-symbols' &&
+            _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
+          ) {
+            return { lastBuyPrice: null };
+          }
+
           return null;
         });
 
@@ -75,7 +102,38 @@ describe('latest.test.js', () => {
             collection === 'trailing-trade-common' &&
             _.isEqual(filter, { key: 'configuration' })
           ) {
-            return { enabled: true, candles: { interval: '15m' } };
+            return {
+              enabled: true,
+              type: 'i-am-global',
+              candles: { interval: '15m' }
+            };
+          }
+
+          if (
+            collection === 'trailing-trade-symbols' &&
+            _.isEqual(filter, { key: 'BNBUSDT-configuration' })
+          ) {
+            return { enabled: true, symbol: 'BNBUSDT', type: 'i-am-symbol' };
+          }
+          if (
+            collection === 'trailing-trade-symbols' &&
+            _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
+          ) {
+            return { lastBuyPrice: null, type: 'i-am-symbol' };
+          }
+
+          if (
+            collection === 'trailing-trade-symbols' &&
+            _.isEqual(filter, { key: 'ETHUSDT-configuration' })
+          ) {
+            return { enabled: true, symbol: 'ETHUSDT', type: 'i-am-symbol' };
+          }
+
+          if (
+            collection === 'trailing-trade-symbols' &&
+            _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
+          ) {
+            return { lastBuyPrice: null, type: 'i-am-symbol' };
           }
 
           return null;

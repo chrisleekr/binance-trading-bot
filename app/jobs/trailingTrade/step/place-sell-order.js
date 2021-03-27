@@ -20,7 +20,7 @@ const execute = async (logger, rawData) => {
       filterMinNotional: { minNotional }
     },
     symbolConfiguration: {
-      sell: { enabed: tradingEnabled, stopPercentage, limitPercentage }
+      sell: { enabled: tradingEnabled, stopPercentage, limitPercentage }
     },
     action,
     baseAssetBalance: { free: baseAssetFreeBalance },
@@ -68,7 +68,7 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  if (tradingEnabled === false) {
+  if (tradingEnabled !== true) {
     data.sell.processMessage = `Trading for ${symbol} is disabled. Do not place an order.`;
     data.sell.updatedAt = moment().utc();
 

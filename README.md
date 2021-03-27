@@ -313,8 +313,8 @@ Or use the frontend to adjust configurations after launching the application.
 - [x] Fix the bug with handling open orders
 - [x] Fix the bug with limit step in the frontend
 - [x] Updated the frontend to display buy open orders with the buy signal
+- [x] Add frontend option to update all symbol configurations
 - [ ] Update the bot to monitor all coins every second
-- [ ] Add frontend option to update all symbol configurations
 - [ ] Add frontend option to disable sorting
 - [ ] Add minimum required order amount
 - [ ] Allow browser notification in the frontend
@@ -328,6 +328,7 @@ Or use the frontend to adjust configurations after launching the application.
 - [@OOtta](https://github.com/OOtta)
 - [@ienthach](https://github.com/ienthach)
 - [@PlayeTT](https://github.com/PlayeTT)
+- [@chopeta](https://github.com/chopeta)
 
 ## Contributors
 
