@@ -281,39 +281,10 @@ Or use the frontend to adjust configurations after launching the application.
 
 ## Changes & Todo
 
-- [x] Support multiple symbols
-- [x] Remove unused methods - Bollinger Bands, MACD Stop Chaser
-- [x] Support a maximum purchase amount per symbol
-- [x] Develop backend to send cache values for frontend
-- [x] Develop a simple frontend to see statistics
-- [x] Fix the issue with the configuration
-- [x] Update frontend to remove cache
-- [x] Fix the issue with rounding when places an order
-- [x] Fix the issue with persistent Redis
-- [x] Fix the bug last buy price not removed
-- [x] Update frontend to be exposed to the public using the local tunnel
-- [x] Display account balances in the frontend
-- [x] Update frontend to change symbols in the configuration
-- [x] Update frontend to change last buy price per symbol
-- [x] Change to more persistence database - MongoDB - for configuration and last
-      buy price
-- [x] Display estimated value in the frontend
-- [x] Support other FIAT symbols such as BUSD, AUD
-- [x] Allow entering more decimals for the last buy price
-- [x] Override buy/sell configuration per symbol
-- [x] Support PWA for frontend - **now support "Add to Home screen"**
-- [x] Enable/Disable symbols trading, but continue to monitor
-- [x] Add max-size for logging
-- [x] Execute chaseStopLossLimitOrder on every process
-- [x] Support buy trigger percentage
-- [x] **Breaking changes** Re-organise configuration structures
-- [x] Apply chase-stop-loss-limit order for buy signal as well
-- [x] Added more candle periods - 1m, 3m and 5m
-- [x] Allow to disable local tunnel
-- [x] Fix the bug with handling open orders
-- [x] Fix the bug with limit step in the frontend
-- [x] Updated the frontend to display buy open orders with the buy signal
-- [x] Add frontend option to update all symbol configurations
+Please refer
+[CHANGELOG.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/CHANGELOG.md)
+to view the past changes.
+
 - [ ] Update the bot to monitor all coins every second
 - [ ] Add frontend option to disable sorting
 - [ ] Add minimum required order amount
