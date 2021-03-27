@@ -285,6 +285,7 @@ Please refer
 [CHANGELOG.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/CHANGELOG.md)
 to view the past changes.
 
+- [ ] Display release version to the frontend
 - [ ] Update the bot to monitor all coins every second
 - [ ] Add frontend option to disable sorting
 - [ ] Add minimum required order amount
