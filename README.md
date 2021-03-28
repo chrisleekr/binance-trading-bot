@@ -257,6 +257,18 @@ Or use the frontend to adjust configurations after launching the application.
 
    - When launching the application, it will notify public URL to the Slack.
 
+### Install via Stackfile
+
+ 1. In Portainer create new Stack
+
+ 2. Copy content of docker-stack.yml or Upload file 
+ 
+ 3. Set the Environment Keys
+ 
+ 4. Open browser `http://0.0.0.0:8080` to see the frontend
+
+
+
 ## Screenshots
 
 | Frontend Mobile                                                                                                          | Setting                                                                                                          |
