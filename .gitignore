@@ -25,3 +25,4 @@ data
 log
 
 .env
+.2fa_secret

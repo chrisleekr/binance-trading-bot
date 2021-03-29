@@ -1,6 +1,20 @@
 {
   "mode": "BINANCE_MODE",
   "tz": "BINANCE_TZ",
+  "frontend": {
+    "auth": {
+      "enabled": {
+        "__name": "FRONTEND_AUTH_ENABLED",
+        "__format": "boolean"
+      },
+      "twoFAEnabled": {
+        "__name": "FRONTEND_AUTH_2FA_ENABLED",
+        "__format": "boolean"
+      },
+      "username": "FRONTEND_AUTH_USERNAME",
+      "password": "FRONTEND_AUTH_PASSWORD"
+    }
+  },
   "binance": {
     "live": {
       "apiKey": "BINANCE_LIVE_API_KEY",
