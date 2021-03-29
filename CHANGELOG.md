@@ -4,7 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-- Added `docker-stack.yml` for the Portainer
+- Added `docker-stack.yml` for the Portainer -
+  [@hipposen](https://github.com/hipposen)
 
 ## [0.0.65] - 2021-03-27
 
@@ -28,6 +29,8 @@ All notable changes to this project will be documented in this file.
 - Updated Github issue templates
 - Updated Github actions
 - Added contributors to README.md
+- Updated index.html to support use of behind a protected reverse proxy -
+  [@romualdr](https://github.com/romualdr)
 
 ## [0.0.60] - 2021-03-19
 
@@ -36,7 +39,8 @@ All notable changes to this project will be documented in this file.
 
 ## [0.0.59] - 2021-03-18
 
-- Fixed the bug with limit step in the frontend
+- Fixed the bug with limit step in the frontend -
+  [@thamlth](https://github.com/thamlth)
 
 ## [0.0.58] - 2021-03-17
 
