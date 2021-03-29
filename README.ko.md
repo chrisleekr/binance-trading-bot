@@ -7,8 +7,8 @@
 [![GitHub contributors](https://img.shields.io/github/contributors/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
 [![MIT License](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
 
-> 추적 손절매 기법(Trailing buy/sell strategy)을 이용한 자동화된 바이낸스 자동
-> 매매 프로그램
+> 추적 매수/매도 기법(Trailing buy/sell strategy)을 이용한 자동화된 바이낸스 자
+> 동매매 프로그램
 
 ---
 

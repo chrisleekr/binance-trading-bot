@@ -6,16 +6,19 @@ class HightlightChange extends React.Component {
     super(props);
 
     this.state = {
-      changed: false
+      changed: false,
+      children: null
     };
   }
 
-  componentWillReceiveProps(newProps) {
-    if (_.isEqual(this.props.children, newProps.children) === false) {
-      this.setState({
-        changed: true
-      });
+  static getDerivedStateFromProps(newProps, state) {
+    if (_.isEqual(state.children, newProps.children) === false) {
+      return {
+        changed: true,
+        children: newProps.children
+      };
     }
+    return null;
   }
 
   render() {

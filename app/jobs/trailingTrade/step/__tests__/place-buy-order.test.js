@@ -26,7 +26,7 @@ describe('place-buy-order.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              enabed: true,
+              enabled: true,
               maxPurchaseAmount: 50,
               stopPercentage: 1.01,
               limitPercentage: 1.011
@@ -62,7 +62,7 @@ describe('place-buy-order.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              enabed: true,
+              enabled: true,
               maxPurchaseAmount: 50,
               stopPercentage: 1.01,
               limitPercentage: 1.011
@@ -130,7 +130,7 @@ describe('place-buy-order.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              enabed: true,
+              enabled: true,
               maxPurchaseAmount: 50,
               stopPercentage: 1.01,
               limitPercentage: 1.011
@@ -180,7 +180,7 @@ describe('place-buy-order.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              enabed: true,
+              enabled: true,
               maxPurchaseAmount: 50,
               stopPercentage: 1.01,
               limitPercentage: 1.011
@@ -230,7 +230,7 @@ describe('place-buy-order.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              enabed: false,
+              enabled: false,
               maxPurchaseAmount: 50,
               stopPercentage: 1.01,
               limitPercentage: 1.011
@@ -280,7 +280,7 @@ describe('place-buy-order.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              enabed: true,
+              enabled: true,
               maxPurchaseAmount: 50,
               stopPercentage: 1.01,
               limitPercentage: 1.011

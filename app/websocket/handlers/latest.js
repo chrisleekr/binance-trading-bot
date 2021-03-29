@@ -2,8 +2,11 @@ const _ = require('lodash');
 
 const { cache } = require('../../helpers');
 const {
-  getGlobalConfiguration
+  getGlobalConfiguration,
+  getConfiguration
 } = require('../../jobs/trailingTrade/configuration');
+
+const { getLastBuyPrice } = require('../../jobs/trailingTrade/symbol');
 
 const getSymbolFromKey = key => {
   const fragments = key.split('-');
@@ -29,13 +32,13 @@ const handleLatest = async (logger, ws, _payload) => {
     symbols: {}
   };
 
-  const configuration = await getGlobalConfiguration(logger);
-  logger.info({ configuration }, 'Configuration from MongoDB');
+  const globalConfiguration = await getGlobalConfiguration(logger);
+  logger.info({ globalConfiguration }, 'Configuration from MongoDB');
 
   let common = {};
   try {
     common = {
-      configuration,
+      configuration: globalConfiguration,
       accountInfo: JSON.parse(cacheTrailingTradeCommon['account-info']),
       exchangeSymbols: JSON.parse(cacheTrailingTradeCommon['exchange-symbols']),
       publicURL: cacheTrailingTradeCommon['local-tunnel-url']
@@ -54,12 +57,31 @@ const handleLatest = async (logger, ws, _payload) => {
     }
   });
 
+  stats.symbols = await Promise.all(
+    _.map(stats.symbols, async symbol => {
+      const newSymbol = symbol;
+      // Set latest global configuration
+      newSymbol.globalConfiguration = globalConfiguration;
+      // Retrieve latest symbol configuration
+      newSymbol.symbolConfiguration = await getConfiguration(
+        logger,
+        newSymbol.symbol
+      );
+      // Retrieve latest last buy price
+      newSymbol.sell.lastBuyPrice = await getLastBuyPrice(
+        logger,
+        newSymbol.symbol
+      );
+      return newSymbol;
+    })
+  );
+
   logger.info(
     {
       account: common.accountInfo,
       publicURL: common.publicURL,
       stats,
-      configuration
+      configuration: globalConfiguration
     },
     'stats'
   );
@@ -68,7 +90,7 @@ const handleLatest = async (logger, ws, _payload) => {
     JSON.stringify({
       result: true,
       type: 'latest',
-      configuration,
+      configuration: globalConfiguration,
       common,
       stats
     })

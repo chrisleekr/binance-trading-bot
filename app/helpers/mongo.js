@@ -69,6 +69,17 @@ const upsertOne = async (funcLogger, collectionName, filter, document) => {
   return result;
 };
 
+const deleteAll = async (funcLogger, collectionName, filter) => {
+  const logger = funcLogger.child({ helper: 'mongo', funcName: 'deleteAll' });
+
+  logger.info({ collectionName, filter }, 'Deleting documents from MongoDB');
+  const collection = database.collection(collectionName);
+  const result = collection.deleteMany(filter);
+  logger.info({ result }, 'Deleted documents from MongoDB');
+
+  return result;
+};
+
 const deleteOne = async (funcLogger, collectionName, filter) => {
   const logger = funcLogger.child({ helper: 'mongo', funcName: 'deleteOne' });
 
@@ -80,4 +91,11 @@ const deleteOne = async (funcLogger, collectionName, filter) => {
   return result;
 };
 
-module.exports = { connect, findOne, insertOne, upsertOne, deleteOne };
+module.exports = {
+  connect,
+  findOne,
+  insertOne,
+  upsertOne,
+  deleteAll,
+  deleteOne
+};

@@ -159,6 +159,42 @@ describe('configuration.js', () => {
     });
   });
 
+  describe('deleteAllSymbolConfiguration', () => {
+    beforeEach(async () => {
+      mongo.deleteAll = jest.fn().mockResolvedValue(true);
+
+      result = await configuration.deleteAllSymbolConfiguration(logger);
+    });
+
+    it('trigger mongo.deleteAll', () => {
+      expect(mongo.deleteAll).toHaveBeenCalledWith(
+        logger,
+        'trailing-trade-symbols',
+        {
+          key: { $regex: /^(.+)-configuration/ }
+        }
+      );
+    });
+  });
+
+  describe('deleteSymbolConfiguration', () => {
+    beforeEach(async () => {
+      mongo.deleteOne = jest.fn().mockResolvedValue(true);
+
+      result = await configuration.deleteSymbolConfiguration(logger, 'BTCUSDT');
+    });
+
+    it('trigger mongo.deleteOne', () => {
+      expect(mongo.deleteOne).toHaveBeenCalledWith(
+        logger,
+        'trailing-trade-symbols',
+        {
+          key: `BTCUSDT-configuration`
+        }
+      );
+    });
+  });
+
   describe('getConfiguration', () => {
     beforeEach(() => {
       mongo.upsertOne = jest.fn().mockResolvedValue(true);
