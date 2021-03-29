@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Added `docker-stack.yml` for the Portainer
+
 ## [0.0.65] - 2021-03-27
 
 - Added frontend option to update all symbol configurations
