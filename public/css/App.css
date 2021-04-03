@@ -338,7 +338,7 @@ body.dark-theme {
 }
 
 .blink {
-  animation: blinker 1s normal;
+  animation: blinker 0.5s normal;
 }
 
 @keyframes blinker {

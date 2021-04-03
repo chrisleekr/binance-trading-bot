@@ -60,4 +60,11 @@ const hgetall = async key => redis.hgetall(key);
  */
 const hdel = async (key, field) => redis.hdel(key, field);
 
-module.exports = { set, get, hset, hget, hgetall, hdel };
+module.exports = {
+  set,
+  get,
+  hset,
+  hget,
+  hgetall,
+  hdel
+};

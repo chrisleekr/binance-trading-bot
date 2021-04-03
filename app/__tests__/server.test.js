@@ -2,6 +2,7 @@
 describe('server', () => {
   let mockMongo;
   let mockMongoConnect;
+  let mockRunBinance;
   let mockRunCronJob;
   let mockRunFrontend;
 
@@ -13,6 +14,7 @@ describe('server', () => {
       connect: mockMongoConnect
     };
 
+    mockRunBinance = jest.fn().mockResolvedValue(true);
     mockRunCronJob = jest.fn().mockResolvedValue(true);
     mockRunFrontend = jest.fn().mockResolvedValue(true);
 
@@ -21,6 +23,7 @@ describe('server', () => {
       mongo: mockMongo
     }));
 
+    jest.mock('../server-binance', () => ({ runBinance: mockRunBinance }));
     jest.mock('../server-cronjob', () => ({ runCronjob: mockRunCronJob }));
     jest.mock('../server-frontend', () => ({ runFrontend: mockRunFrontend }));
 
@@ -31,7 +34,7 @@ describe('server', () => {
     expect(mockMongoConnect).toHaveBeenCalled();
   });
 
-  it('triggers runCronjob', () => {
-    expect(mockRunCronJob).toHaveBeenCalled();
+  it('triggers runBinance', () => {
+    expect(mockRunBinance).toHaveBeenCalled();
   });
 });

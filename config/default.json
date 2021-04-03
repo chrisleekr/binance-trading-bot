@@ -58,6 +58,10 @@
         "stopPercentage": 0.98,
         "limitPercentage": 0.979
       }
+    },
+    "trailingTradeIndicator": {
+      "enabled": true,
+      "cronTime": "* * * * * *"
     }
   }
 }

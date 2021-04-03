@@ -28,23 +28,14 @@ class CoinWrapperBuySignal extends React.Component {
               )}
             </span>
           </div>
-          <HightlightChange
-            className='coin-info-value'
-            title={buy.updatedAt}
-            id='buy-updated-at'>
-            {moment(buy.updatedAt).format('HH:mm:ss')}
-          </HightlightChange>
-        </div>
-        {symbolConfiguration.buy.enabled === false ? (
-          <div className='coin-info-column coin-info-column-buy-enabled'>
+          {symbolConfiguration.buy.enabled === false ? (
             <HightlightChange className='coin-info-message text-muted'>
               Trading is disabled.
             </HightlightChange>
-          </div>
-        ) : (
-          ''
-        )}
-
+          ) : (
+            ''
+          )}
+        </div>
         {buy.currentPrice ? (
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>Current price:</span>

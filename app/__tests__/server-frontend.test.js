@@ -50,11 +50,11 @@ describe('server-frontend', () => {
       }
     });
 
-    jest.mock('../websocket/configure', () => ({
+    jest.mock('../frontend/websocket/configure', () => ({
       configureWebSocket: mockConfigureWebSocket
     }));
 
-    jest.mock('../local-tunnel/configure', () => ({
+    jest.mock('../frontend/local-tunnel/configure', () => ({
       configureLocalTunnel: mockConfigureLocalTunnel
     }));
   });

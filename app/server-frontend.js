@@ -2,8 +2,8 @@ const express = require('express');
 const path = require('path');
 const config = require('config');
 
-const { configureWebSocket } = require('./websocket/configure');
-const { configureLocalTunnel } = require('./local-tunnel/configure');
+const { configureWebSocket } = require('./frontend/websocket/configure');
+const { configureLocalTunnel } = require('./frontend/local-tunnel/configure');
 
 const runFrontend = async serverLogger => {
   const logger = serverLogger.child({ server: 'frontend' });

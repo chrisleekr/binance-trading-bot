@@ -76,6 +76,9 @@ class App extends React.Component {
       } catch (_e) {}
 
       if (response.type === 'latest') {
+        if (_.isEmpty(response.common.accountInfo)) {
+          return;
+        }
         self.setState({
           symbols: _.sortBy(response.stats.symbols, s => {
             if (s.sell.difference) {

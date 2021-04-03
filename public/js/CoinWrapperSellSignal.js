@@ -34,25 +34,15 @@ class CoinWrapperSellSignal extends React.Component {
                 )}
               </span>
             </div>
-            {moment(sell.updatedAt).isValid() ? (
-              <HightlightChange
-                className='coin-info-value'
-                title={sell.updatedAt}>
-                {moment(sell.updatedAt).format('HH:mm:ss')}
+            {symbolConfiguration.sell.enabled === false ? (
+              <HightlightChange className='coin-info-message text-muted'>
+                Trading is disabled.
               </HightlightChange>
             ) : (
               ''
             )}
           </div>
-          {symbolConfiguration.sell.enabled === false ? (
-            <div className='coin-info-column coin-info-column-sell-enabled'>
-              <HightlightChange className='coin-info-message text-muted'>
-                Trading is disabled.
-              </HightlightChange>
-            </div>
-          ) : (
-            ''
-          )}
+
           {sell.currentPrice ? (
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Current price:</span>
@@ -135,17 +125,15 @@ class CoinWrapperSellSignal extends React.Component {
               )}
             </span>
           </div>
-          <span className='coin-info-value'></span>
-        </div>
-        {symbolConfiguration.sell.enabled === false ? (
-          <div className='coin-info-column coin-info-column-sell-enabled'>
+          {symbolConfiguration.sell.enabled === false ? (
             <HightlightChange className='coin-info-message text-muted'>
               Trading is disabled.
             </HightlightChange>
-          </div>
-        ) : (
-          ''
-        )}
+          ) : (
+            ''
+          )}
+        </div>
+
         <CoinWrapperSellLastBuyPrice
           symbolInfo={symbolInfo}
           sendWebSocket={sendWebSocket}></CoinWrapperSellLastBuyPrice>

@@ -114,6 +114,13 @@
           "__format": "number"
         }
       }
+    },
+    "trailingTradeIndicator": {
+      "enabled": {
+        "__name": "BINANCE_JOBS_TRAILING_TRADE_ENABLED",
+        "__format": "boolean"
+      },
+      "cronTime": "BINANCE_JOBS_TRAILING_TRADE_INDICATOR_CRON_TIME"
     }
   }
 }

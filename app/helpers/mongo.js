@@ -5,7 +5,10 @@ const clusterUrl = `${config.get('mongo.host')}:${config.get('mongo.port')}`;
 
 const uri = `mongodb://${clusterUrl}/?poolSize=20&retryWrites=true&writeConcern=majority`;
 
-const client = new MongoClient(uri, { useUnifiedTopology: true });
+const client = new MongoClient(uri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+});
 
 let database;
 
