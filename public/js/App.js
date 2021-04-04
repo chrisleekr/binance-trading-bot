@@ -10,7 +10,7 @@ class App extends React.Component {
         instance: null,
         connected: false
       },
-      version: '',
+      packageVersion: '',
       configuration: {},
       exchangeSymbols: [],
       // This list is from binance FIAT markets. Dosn't need to be dynamic.
