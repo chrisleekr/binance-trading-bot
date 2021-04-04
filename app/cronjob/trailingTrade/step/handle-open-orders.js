@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 const { binance } = require('../../../helpers');
 const {
   refreshOpenOrdersWithSymbol,
@@ -66,20 +67,23 @@ const execute = async (logger, rawData) => {
           { stopPrice: order.stopPrice, buyLimitPrice },
           'Stop price is higher than buy limit price, cancel current buy order'
         );
+
         // Cancel current order
-        // eslint-disable-next-line no-await-in-loop
         const cancelResult = await cancelOrder(logger, symbol, order);
         if (cancelResult === false) {
           // If cancelling the order is failed, it means the order may already be executed or does not exist anymore.
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
-          // eslint-disable-next-line no-await-in-loop
-          data.openOrders = (await refreshOpenOrdersWithSymbol(logger, symbol)).filter(o => o.symbol === symbol);
 
-          data.buy.openOrders = data.openOrders.filter(o => o.side.toLowerCase() === 'buy')
+          data.openOrders = (
+            await refreshOpenOrdersWithSymbol(logger, symbol)
+          ).filter(o => o.symbol === symbol);
+
+          data.buy.openOrders = data.openOrders.filter(
+            o => o.side.toLowerCase() === 'buy'
+          );
 
           // Refresh account info
-          // eslint-disable-next-line no-await-in-loop
           data.accountInfo = await getAccountInfoFromAPI(logger);
 
           data.action = 'buy-order-checking';
@@ -93,7 +97,6 @@ const execute = async (logger, rawData) => {
         data.action = 'buy';
 
         // Get account information again because the order is cancelled
-        // eslint-disable-next-line no-await-in-loop
         data.accountInfo = await getAccountInfoFromAPI(logger);
       } else {
         logger.info(
@@ -114,19 +117,21 @@ const execute = async (logger, rawData) => {
         );
 
         // Cancel current order
-        // eslint-disable-next-line no-await-in-loop
         const cancelResult = await cancelOrder(logger, symbol, order);
         if (cancelResult === false) {
           // If cancelling the order is failed, it means the order may already be executed or does not exist anymore.
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
-          // eslint-disable-next-line no-await-in-loop
-          data.openOrders = (await refreshOpenOrdersWithSymbol(logger, symbol)).filter(o => o.symbol === symbol);
 
-          data.sell.openOrders = data.openOrders.filter(o => o.side.toLowerCase() === 'sell')
+          data.openOrders = (
+            await refreshOpenOrdersWithSymbol(logger, symbol)
+          ).filter(o => o.symbol === symbol);
+
+          data.sell.openOrders = data.openOrders.filter(
+            o => o.side.toLowerCase() === 'sell'
+          );
 
           // Refresh account info
-          // eslint-disable-next-line no-await-in-loop
           data.accountInfo = await getAccountInfoFromAPI(logger);
 
           data.action = 'sell-order-checking';
@@ -140,7 +145,6 @@ const execute = async (logger, rawData) => {
         data.action = 'sell';
 
         // Get account information again because the order is cancelled
-        // eslint-disable-next-line no-await-in-loop
         data.accountInfo = await getAccountInfoFromAPI(logger);
       } else {
         logger.info(
