@@ -144,6 +144,7 @@ describe('latest.test.js', () => {
     });
 
     it('triggers ws.send with latest', () => {
+      trailingTradeStats.common.version = require('../../../../../package.json').version;
       expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
         JSON.stringify(trailingTradeStats)
       );

@@ -7,6 +7,7 @@
     "candles": { "interval": "15m" }
   },
   "common": {
+    "version": "",
     "configuration": {
       "enabled": true,
       "type": "i-am-global",
