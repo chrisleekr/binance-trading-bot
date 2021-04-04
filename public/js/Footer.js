@@ -40,7 +40,7 @@ class Footer extends React.Component {
             Running Version: <span className='ml-1'>v{packageVersion}</span>
           </div>
           <div className='footer-column'>
-            Current Version:
+            Latest Version:
             <a
               href='https://github.com/chrisleekr/binance-trading-bot'
               target='_blank'
