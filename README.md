@@ -226,6 +226,7 @@ Or use the frontend to adjust configurations after launching the application.
    | BINANCE_SLACK_WEBHOOK_URL      | Slack webhook URL                 | (from Slack)   |
    | BINANCE_SLACK_CHANNEL          | Slack channel                     | "#binance"     |
    | BINANCE_SLACK_USERNAME         | Slack username                    | Chris          |
+   | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable local tunnel       | true           |
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain | binance        |
 
 2. Check `docker-compose.yml` for `BINANCE_MODE` environment parameter
@@ -271,11 +272,11 @@ Or use the frontend to adjust configurations after launching the application.
 
 | Frontend Mobile                                                                                                          | Setting                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/111430413-72e8f280-874e-11eb-9870-6603282fde8e.png) | ![Setting](https://user-images.githubusercontent.com/5715919/111027223-f2bb4800-8442-11eb-9f5d-95f77298f4c0.png) |
+| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/113497528-6c2cee80-9548-11eb-913d-ec3bf9b887be.png) | ![Setting](https://user-images.githubusercontent.com/5715919/113497530-764eed00-9548-11eb-9eea-222a9a1ad791.png) |
 
 | Frontend Desktop                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/111430212-28677600-874e-11eb-9314-1d617e25fd06.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/113497538-82d34580-9548-11eb-8c1e-bac03a83356c.png) |
 
 ### Sample Trade
 
@@ -287,7 +288,7 @@ Or use the frontend to adjust configurations after launching the application.
 
 | Trade History                                                                                                          | PNL Analysis                                                                                                           |
 | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| ![Trade History](https://user-images.githubusercontent.com/5715919/111430291-4503ae00-874e-11eb-9e68-aefa4bca19b2.png) | ![Profit & Loss](https://user-images.githubusercontent.com/5715919/111430313-4df47f80-874e-11eb-9f3d-e85cf3027d74.png) |
+| ![Trade History](https://user-images.githubusercontent.com/5715919/113497541-8b2b8080-9548-11eb-9931-da15cde72e4b.png) | ![Profit & Loss](https://user-images.githubusercontent.com/5715919/113497545-92eb2500-9548-11eb-9d1d-8298273a7bf8.png) |
 
 ## Changes & Todo
 
