@@ -10,6 +10,7 @@ class App extends React.Component {
         instance: null,
         connected: false
       },
+      version: '',
       configuration: {},
       exchangeSymbols: [],
       // This list is from binance FIAT markets. Dosn't need to be dynamic.
@@ -86,6 +87,7 @@ class App extends React.Component {
             }
             return s.buy.difference;
           }),
+          packageVersion: response.common.version,
           exchangeSymbols: response.common.exchangeSymbols,
           configuration: response.common.configuration,
           accountInfo: response.common.accountInfo,
@@ -130,6 +132,7 @@ class App extends React.Component {
 
   render() {
     const {
+      packageVersion,
       exchangeSymbols,
       exchangeFIATs,
       symbols,
@@ -175,6 +178,7 @@ class App extends React.Component {
             </Spinner>
           </div>
         )}
+        <Footer packageVersion={packageVersion} />
       </div>
     );
   }

@@ -1,4 +1,5 @@
 const _ = require('lodash');
+const { version } = require('../../../../package.json');
 
 const { cache } = require('../../../helpers');
 const {
@@ -36,6 +37,7 @@ const handleLatest = async (logger, ws, _payload) => {
   let common = {};
   try {
     common = {
+      version,
       configuration: globalConfiguration,
       accountInfo: JSON.parse(cacheTrailingTradeCommon['account-info']),
       exchangeSymbols: JSON.parse(cacheTrailingTradeCommon['exchange-symbols']),

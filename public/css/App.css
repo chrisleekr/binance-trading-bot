@@ -69,6 +69,18 @@ body.dark-theme {
   font-size: 20px;
 }
 
+.footer-wrapper {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: center;
+}
+
+.footer-wrapper .footer-column {
+  text-align: center;
+  display: flex;
+  flex-flow: row wrap;
+}
+
 .coin-info-label-with-icon {
   display: flex;
   justify-content: flex-start;
