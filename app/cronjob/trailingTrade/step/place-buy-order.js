@@ -140,10 +140,16 @@ const execute = async (logger, rawData) => {
   );
 
   // Get open orders and update cache
-  await refreshOpenOrdersWithSymbol(logger, symbol);
+
+  data.openOrders = (await refreshOpenOrdersWithSymbol(logger, symbol)).filter(
+    o => o.symbol === symbol
+  );
+  data.buy.openOrders = data.openOrders.filter(
+    o => o.side.toLowerCase() === 'buy'
+  );
 
   // Refresh account info
-  await getAccountInfoFromAPI(logger);
+  data.accountInfo = await getAccountInfoFromAPI(logger);
 
   await slack.sendMessage(
     `Buy Action Result: *STOP_LOSS_LIMIT*

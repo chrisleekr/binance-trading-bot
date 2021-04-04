@@ -29,7 +29,7 @@ describe('handle-open-orders.js', () => {
           .fn()
           .mockResolvedValue(accountInfoJSON);
 
-        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue(true);
+        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
@@ -128,7 +128,32 @@ describe('handle-open-orders.js', () => {
               .fn()
               .mockResolvedValue(accountInfoJSON);
 
-            mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue(true);
+            mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([
+              {
+                symbol: 'BTCUSDT',
+                orderId: 46839,
+                price: '1799.58000000',
+                stopPrice: '1800.1000',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'BUY'
+              },
+              {
+                symbol: 'BTCUSDT',
+                orderId: 46841,
+                price: '1799.58000000',
+                stopPrice: '1800.1000',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'SELL'
+              },
+              {
+                symbol: 'ETHUSDT',
+                orderId: 46840,
+                price: '1799.58000000',
+                stopPrice: '1800.1000',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'BUY'
+              }
+            ]);
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
@@ -194,11 +219,19 @@ describe('handle-open-orders.js', () => {
               openOrders: [
                 {
                   symbol: 'BTCUSDT',
-                  orderId: 46838,
+                  orderId: 46839,
                   price: '1799.58000000',
                   stopPrice: '1800.1000',
                   type: 'STOP_LOSS_LIMIT',
                   side: 'BUY'
+                },
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46841,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'SELL'
                 }
               ],
               buy: {
@@ -206,7 +239,7 @@ describe('handle-open-orders.js', () => {
                 openOrders: [
                   {
                     symbol: 'BTCUSDT',
-                    orderId: 46838,
+                    orderId: 46839,
                     price: '1799.58000000',
                     stopPrice: '1800.1000',
                     type: 'STOP_LOSS_LIMIT',
@@ -231,7 +264,7 @@ describe('handle-open-orders.js', () => {
               .fn()
               .mockResolvedValue(accountInfoJSON);
 
-            mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue(true);
+            mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
@@ -322,9 +355,11 @@ describe('handle-open-orders.js', () => {
           mockGetAccountInfoFromAPI = jest
             .fn()
             .mockResolvedValue(accountInfoJSON);
+          mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol
           }));
 
           step = require('../handle-open-orders');
@@ -420,7 +455,32 @@ describe('handle-open-orders.js', () => {
               .fn()
               .mockRejectedValue(new Error('something happened'));
 
-            mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue(true);
+            mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([
+              {
+                symbol: 'BTCUSDT',
+                orderId: 46840,
+                price: '1799.58000000',
+                stopPrice: '1800.1000',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'SELL'
+              },
+              {
+                symbol: 'BTCUSDT',
+                orderId: 46841,
+                price: '1799.58000000',
+                stopPrice: '1800.1000',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'BUY'
+              },
+              {
+                symbol: 'ETHUSDT',
+                orderId: 46842,
+                price: '1799.58000000',
+                stopPrice: '1800.1000',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'SELL'
+              }
+            ]);
 
             mockGetAccountInfoFromAPI = jest
               .fn()
@@ -490,11 +550,19 @@ describe('handle-open-orders.js', () => {
               openOrders: [
                 {
                   symbol: 'BTCUSDT',
-                  orderId: 46838,
+                  orderId: 46840,
                   price: '1799.58000000',
                   stopPrice: '1800.1000',
                   type: 'STOP_LOSS_LIMIT',
                   side: 'SELL'
+                },
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46841,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'BUY'
                 }
               ],
               buy: { limitPrice: 1800, openOrders: [] },
@@ -503,7 +571,7 @@ describe('handle-open-orders.js', () => {
                 openOrders: [
                   {
                     symbol: 'BTCUSDT',
-                    orderId: 46838,
+                    orderId: 46840,
                     price: '1799.58000000',
                     stopPrice: '1800.1000',
                     type: 'STOP_LOSS_LIMIT',
@@ -523,7 +591,7 @@ describe('handle-open-orders.js', () => {
             loggerMock = logger;
             binanceMock.client.cancelOrder = jest.fn().mockResolvedValue(true);
 
-            mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue(true);
+            mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
 
             mockGetAccountInfoFromAPI = jest
               .fn()

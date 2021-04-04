@@ -25,6 +25,7 @@ describe('remove-last-buy-price.js', () => {
               minNotional: '10.00000000'
             }
           },
+          openOrders: [],
           baseAssetBalance: {
             free: 0,
             locked: 0
@@ -61,6 +62,7 @@ describe('remove-last-buy-price.js', () => {
               minNotional: '10.00000000'
             }
           },
+          openOrders: [],
           baseAssetBalance: {
             free: 0,
             locked: 0
@@ -68,6 +70,54 @@ describe('remove-last-buy-price.js', () => {
           sell: {
             currentPrice: 200,
             lastBuyPrice: null
+          }
+        };
+
+        result = await step.execute(logger, rawData);
+      });
+
+      it('does not trigger mongo.deleteOne', () => {
+        expect(mongo.deleteOne).not.toHaveBeenCalled();
+      });
+
+      it('returns expected data', () => {
+        expect(result).toStrictEqual(rawData);
+      });
+    });
+
+    describe('when open orders exist', () => {
+      beforeEach(async () => {
+        rawData = {
+          action: 'not-determined',
+          symbol: 'BTCUPUSDT',
+          symbolInfo: {
+            filterLotSize: {
+              stepSize: '0.01000000',
+              minQty: '0.01000000'
+            },
+            filterMinNotional: {
+              minNotional: '10.00000000'
+            }
+          },
+          openOrders: [
+            {
+              orderId: 123,
+              price: 197.8,
+              quantity: 0.09,
+              side: 'sell',
+              stopPrice: 198,
+              symbol: 'BTCUPUSDT',
+              timeInForce: 'GTC',
+              type: 'STOP_LOSS_LIMIT'
+            }
+          ],
+          baseAssetBalance: {
+            free: 0,
+            locked: 0
+          },
+          sell: {
+            currentPrice: 200,
+            lastBuyPrice: 190
           }
         };
 
@@ -97,6 +147,7 @@ describe('remove-last-buy-price.js', () => {
               minNotional: '10.00000000'
             }
           },
+          openOrders: [],
           baseAssetBalance: {
             free: 0,
             locked: 0
@@ -148,6 +199,7 @@ describe('remove-last-buy-price.js', () => {
               minNotional: '10.00000000'
             }
           },
+          openOrders: [],
           baseAssetBalance: {
             free: 0,
             locked: 0.04
@@ -199,6 +251,7 @@ describe('remove-last-buy-price.js', () => {
               minNotional: '10.00000000'
             }
           },
+          openOrders: [],
           baseAssetBalance: {
             free: 0,
             locked: 0.2

@@ -1,28 +1,47 @@
-const { binance, slack, logger, mongo } = require('../../../../helpers');
-
-const mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue(true);
-const mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue(true);
-
-jest.mock('../../../trailingTradeHelper/common', () => ({
-  refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
-  getAccountInfoFromAPI: mockGetAccountInfoFromAPI
-}));
-
-const step = require('../place-buy-order');
-
+/* eslint-disable global-require */
 describe('place-buy-order.js', () => {
   let result;
   let rawData;
 
+  let binanceMock;
+  let slackMock;
+  let loggerMock;
+  let mongoMock;
+
+  let mockRefreshOpenOrdersWithSymbol;
+  let mockGetAccountInfoFromAPI;
+
   describe('execute', () => {
+    beforeEach(() => {
+      jest.clearAllMocks().resetModules();
+    });
+
     beforeEach(async () => {
-      slack.sendMessage = jest.fn().mockResolvedValue(true);
-      binance.client.order = jest.fn().mockResolvedValue(true);
-      mongo.upsertOne = jest.fn().mockResolvedValue(true);
+      const { binance, slack, logger, mongo } = require('../../../../helpers');
+      binanceMock = binance;
+      slackMock = slack;
+      loggerMock = logger;
+      mongoMock = mongo;
+
+      slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+      binanceMock.client.order = jest.fn().mockResolvedValue(true);
+      mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
     });
 
     describe('when action is not buy', () => {
       beforeEach(async () => {
+        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          account: 'info'
+        });
+
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+        }));
+
+        const step = require('../place-buy-order');
+
         rawData = {
           symbol: 'BTCUPUSDT',
           symbolInfo: {
@@ -45,11 +64,11 @@ describe('place-buy-order.js', () => {
           buy: { currentPrice: 200, openOrders: [] }
         };
 
-        result = await step.execute(logger, rawData);
+        result = await step.execute(loggerMock, rawData);
       });
 
       it('does not trigger binance.client.order', () => {
-        expect(binance.client.order).not.toHaveBeenCalled();
+        expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
       it('does not trigger refreshOpenOrdersWithSymbol', () => {
@@ -67,6 +86,18 @@ describe('place-buy-order.js', () => {
 
     describe('when open orders exist', () => {
       beforeEach(async () => {
+        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          account: 'info'
+        });
+
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+        }));
+
+        const step = require('../place-buy-order');
+
         rawData = {
           symbol: 'BTCUPUSDT',
           symbolInfo: {
@@ -101,11 +132,11 @@ describe('place-buy-order.js', () => {
           }
         };
 
-        result = await step.execute(logger, rawData);
+        result = await step.execute(loggerMock, rawData);
       });
 
       it('does not trigger binance.client.order', () => {
-        expect(binance.client.order).not.toHaveBeenCalled();
+        expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
       it('does not trigger refreshOpenOrdersWithSymbol', () => {
@@ -143,6 +174,18 @@ describe('place-buy-order.js', () => {
 
     describe('when balance is less than minimum notional value', () => {
       beforeEach(async () => {
+        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          account: 'info'
+        });
+
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+        }));
+
+        const step = require('../place-buy-order');
+
         rawData = {
           symbol: 'BTCUPUSDT',
           symbolInfo: {
@@ -168,11 +211,11 @@ describe('place-buy-order.js', () => {
           }
         };
 
-        result = await step.execute(logger, rawData);
+        result = await step.execute(loggerMock, rawData);
       });
 
       it('does not trigger binance.client.order', () => {
-        expect(binance.client.order).not.toHaveBeenCalled();
+        expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
       it('does not trigger refreshOpenOrdersWithSymbol', () => {
@@ -201,6 +244,18 @@ describe('place-buy-order.js', () => {
 
     describe('when balance is not enough after calculation', () => {
       beforeEach(async () => {
+        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          account: 'info'
+        });
+
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+        }));
+
+        const step = require('../place-buy-order');
+
         rawData = {
           symbol: 'BTCUPUSDT',
           symbolInfo: {
@@ -226,11 +281,11 @@ describe('place-buy-order.js', () => {
           }
         };
 
-        result = await step.execute(logger, rawData);
+        result = await step.execute(loggerMock, rawData);
       });
 
       it('does not trigger binance.client.order', () => {
-        expect(binance.client.order).not.toHaveBeenCalled();
+        expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
       it('does not trigger refreshOpenOrdersWithSymbol', () => {
@@ -259,6 +314,17 @@ describe('place-buy-order.js', () => {
 
     describe('when trading is disabled', () => {
       beforeEach(async () => {
+        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          account: 'info'
+        });
+
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+        }));
+
+        const step = require('../place-buy-order');
         rawData = {
           symbol: 'BTCUPUSDT',
           symbolInfo: {
@@ -284,11 +350,11 @@ describe('place-buy-order.js', () => {
           }
         };
 
-        result = await step.execute(logger, rawData);
+        result = await step.execute(loggerMock, rawData);
       });
 
       it('does not trigger binance.client.order', () => {
-        expect(binance.client.order).not.toHaveBeenCalled();
+        expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
       it('does not trigger refreshOpenOrdersWithSymbol', () => {
@@ -317,6 +383,29 @@ describe('place-buy-order.js', () => {
 
     describe('when has enough balance', () => {
       beforeEach(async () => {
+        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([
+          {
+            orderId: 123,
+            price: 202.2,
+            quantity: 0.24,
+            side: 'buy',
+            stopPrice: 202,
+            symbol: 'BTCUPUSDT',
+            timeInForce: 'GTC',
+            type: 'STOP_LOSS_LIMIT'
+          }
+        ]);
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          account: 'info'
+        });
+
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+        }));
+
+        const step = require('../place-buy-order');
+
         rawData = {
           symbol: 'BTCUPUSDT',
           symbolInfo: {
@@ -342,11 +431,11 @@ describe('place-buy-order.js', () => {
           }
         };
 
-        result = await step.execute(logger, rawData);
+        result = await step.execute(loggerMock, rawData);
       });
 
       it('triggers binance.client.order', () => {
-        expect(binance.client.order).toHaveBeenCalledWith({
+        expect(binanceMock.client.order).toHaveBeenCalledWith({
           price: 202.2,
           quantity: 0.24,
           side: 'buy',
@@ -369,9 +458,32 @@ describe('place-buy-order.js', () => {
         expect(result).toStrictEqual({
           ...rawData,
           ...{
+            openOrders: [
+              {
+                orderId: 123,
+                price: 202.2,
+                quantity: 0.24,
+                side: 'buy',
+                stopPrice: 202,
+                symbol: 'BTCUPUSDT',
+                timeInForce: 'GTC',
+                type: 'STOP_LOSS_LIMIT'
+              }
+            ],
             buy: {
               currentPrice: 200,
-              openOrders: [],
+              openOrders: [
+                {
+                  orderId: 123,
+                  price: 202.2,
+                  quantity: 0.24,
+                  side: 'buy',
+                  stopPrice: 202,
+                  symbol: 'BTCUPUSDT',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ],
               processMessage: 'Placed new stop loss limit order for buying.',
               updatedAt: expect.any(Object)
             }

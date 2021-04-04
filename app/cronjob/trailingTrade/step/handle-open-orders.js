@@ -74,7 +74,9 @@ const execute = async (logger, rawData) => {
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
           // eslint-disable-next-line no-await-in-loop
-          await refreshOpenOrdersWithSymbol(logger, symbol);
+          data.openOrders = (await refreshOpenOrdersWithSymbol(logger, symbol)).filter(o => o.symbol === symbol);
+
+          data.buy.openOrders = data.openOrders.filter(o => o.side.toLowerCase() === 'buy')
 
           // Refresh account info
           // eslint-disable-next-line no-await-in-loop
@@ -119,7 +121,9 @@ const execute = async (logger, rawData) => {
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
           // eslint-disable-next-line no-await-in-loop
-          await refreshOpenOrdersWithSymbol(logger, symbol);
+          data.openOrders = (await refreshOpenOrdersWithSymbol(logger, symbol)).filter(o => o.symbol === symbol);
+
+          data.sell.openOrders = data.openOrders.filter(o => o.side.toLowerCase() === 'sell')
 
           // Refresh account info
           // eslint-disable-next-line no-await-in-loop

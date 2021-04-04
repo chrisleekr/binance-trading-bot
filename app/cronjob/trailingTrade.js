@@ -94,6 +94,11 @@ const execute = async logger => {
             stepName: 'place-sell-order',
             stepFunc: placeSellOrder
           },
+          // In case account information is updated, get balance again.
+          {
+            stepName: 'get-balances',
+            stepFunc: getBalances
+          },
           {
             stepName: 'remove-last-buy-price',
             stepFunc: removeLastBuyPrice

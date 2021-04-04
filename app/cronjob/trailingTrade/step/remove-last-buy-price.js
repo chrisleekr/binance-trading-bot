@@ -17,6 +17,7 @@ const execute = async (logger, rawData) => {
       filterLotSize: { stepSize, minQty },
       filterMinNotional: { minNotional }
     },
+    openOrders,
     baseAssetBalance: {
       free: baseAssetFreeBalance,
       locked: baseAssetLockedBalance
@@ -31,6 +32,11 @@ const execute = async (logger, rawData) => {
 
   if (lastBuyPrice <= 0) {
     logger.info('Do not process because last buy price does not exist.');
+    return data;
+  }
+
+  if (_.isEmpty(openOrders) === false) {
+    logger.info('Do not remove last buy price in case the order is related.');
     return data;
   }
 
