@@ -11,6 +11,7 @@ const execute = async (logger, rawData) => {
 
   const {
     action,
+    isLocked,
     symbolInfo: {
       filterMinNotional: { minNotional }
     },
@@ -22,6 +23,14 @@ const execute = async (logger, rawData) => {
       triggerPrice: sellTriggerPrice
     }
   } = data;
+
+  if (isLocked) {
+    logger.info(
+      { isLocked },
+      'Symbol is locked, do not process determine-action'
+    );
+    return data;
+  }
 
   if (action !== 'not-determined') {
     logger.info(

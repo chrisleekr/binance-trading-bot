@@ -11,6 +11,7 @@ const execute = async (logger, rawData) => {
   const data = rawData;
 
   const {
+    isLocked,
     action,
     symbol,
     symbolInfo: {
@@ -24,6 +25,14 @@ const execute = async (logger, rawData) => {
     },
     sell: { currentPrice, lastBuyPrice }
   } = data;
+
+  if (isLocked) {
+    logger.info(
+      { isLocked },
+      'Symbol is locked, do not process remove-last-buy-price'
+    );
+    return data;
+  }
 
   if (action !== 'not-determined') {
     logger.info('Do not process to remove last buy price.');

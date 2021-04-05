@@ -1,4 +1,10 @@
 const {
+  lockSymbol,
+  isSymbolLocked,
+  unlockSymbol
+} = require('./trailingTradeHelper/common');
+
+const {
   getGlobalConfiguration,
   getNextSymbol,
   getSymbolConfiguration,
@@ -23,6 +29,24 @@ const execute = async logger => {
   try {
     data = await getGlobalConfiguration(logger, data);
     data = await getNextSymbol(logger, data);
+
+    const { symbol } = data;
+    logger.info(
+      { debug: true, symbol },
+      'TrailingTradeIndicator: Start process...'
+    );
+
+    // Check if the symbol is locked, if it is locked, it means the symbol is still trading.
+    if ((await isSymbolLocked(logger, symbol)) === true) {
+      logger.info(
+        { debug: true, symbol },
+        'TrailingTradeIndicator: Skip process as the symbol is currently processing.'
+      );
+      return;
+    }
+
+    // Lock symbol for processing
+    await lockSymbol(logger, symbol);
 
     // eslint-disable-next-line no-restricted-syntax
     for (const { stepName, stepFunc } of [
@@ -59,9 +83,12 @@ const execute = async logger => {
       stepLogger.info({ data }, `Finish step - ${stepName}`);
     }
 
+    // Unlock symbol for processing
+    await unlockSymbol(logger, symbol);
+
     logger.info(
-      { symbol: data.symbol, data },
-      'Trade: Finish trailing trade indicator process...'
+      { debug: true, symbol },
+      'TrailingTradeIndicator: Finish process...'
     );
   } catch (err) {
     logger.error(

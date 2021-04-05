@@ -4,7 +4,7 @@
 class CoinWrapperAction extends React.Component {
   render() {
     const {
-      symbolInfo: { action, buy }
+      symbolInfo: { action, buy, isLocked }
     } = this.props;
 
     let label;
@@ -41,6 +41,7 @@ class CoinWrapperAction extends React.Component {
             <span className='coin-info-value' title={buy.updatedAt}>
               {moment(buy.updatedAt).format('HH:mm:ss')}
             </span>
+            {isLocked === true ? <i className='ml-1 fa fa-lock'></i> : ''}
           </div>
 
           <HightlightChange className='action-label'>{label}</HightlightChange>

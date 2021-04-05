@@ -49,10 +49,19 @@ const execute = async (logger, rawData) => {
 
   const {
     symbol,
+    isLocked,
     openOrders,
     buy: { limitPrice: buyLimitPrice },
     sell: { limitPrice: sellLimitPrice }
   } = data;
+
+  if (isLocked) {
+    logger.info(
+      { isLocked },
+      'Symbol is locked, do not process handle-open-orders'
+    );
+    return data;
+  }
 
   // eslint-disable-next-line no-restricted-syntax
   for (const order of openOrders) {

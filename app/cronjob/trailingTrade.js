@@ -5,7 +5,10 @@ const {
 const {
   cacheExchangeSymbols,
   getAccountInfo,
-  getOpenOrdersFromCache
+  getOpenOrdersFromCache,
+  lockSymbol,
+  isSymbolLocked,
+  unlockSymbol
 } = require('./trailingTradeHelper/common');
 
 const {
@@ -38,9 +41,19 @@ const execute = async logger => {
 
     await Promise.all(
       globalConfiguration.symbols.map(async symbol => {
+        logger.info({ debug: true, symbol }, 'TrailingTrade: Start process...');
+
+        // Check if the symbol is locked, if it is locked, it means the symbol is still trading.
+
+        const isLocked = await isSymbolLocked(logger, symbol);
+
+        // Lock symbol for processing
+        await lockSymbol(logger, symbol);
+
         // Define sekeleton of data structure
         let data = {
           symbol,
+          isLocked,
           lastCandle: {},
           accountInfo,
           symbolConfiguration: {},
@@ -118,9 +131,12 @@ const execute = async logger => {
           stepLogger.info({ data }, `Finish step - ${stepName}`);
         }
 
+        // Unlock symbol for processing
+        await unlockSymbol(logger, symbol);
+
         logger.info(
-          { symbol: data.symbol, data },
-          'Trade: Finish trailing trade process...'
+          { debug: true, symbol },
+          'TrailingTrade: Finish process...'
         );
       })
     );

@@ -18,6 +18,7 @@ const execute = async (logger, rawData) => {
 
   const {
     symbol,
+    isLocked,
     symbolInfo: {
       baseAsset,
       quoteAsset,
@@ -37,6 +38,14 @@ const execute = async (logger, rawData) => {
     quoteAssetBalance: { free: quoteAssetFreeBalance },
     buy: { currentPrice, openOrders }
   } = data;
+
+  if (isLocked) {
+    logger.info(
+      { isLocked },
+      'Symbol is locked, do not process place-buy-order'
+    );
+    return data;
+  }
 
   if (action !== 'buy') {
     logger.info(`Do not process a buy order because action is not 'buy'.`);

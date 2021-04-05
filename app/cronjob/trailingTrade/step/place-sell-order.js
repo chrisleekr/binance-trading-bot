@@ -18,6 +18,7 @@ const execute = async (logger, rawData) => {
 
   const {
     symbol,
+    isLocked,
     symbolInfo: {
       filterLotSize: { stepSize, minQty, maxQty },
       filterPrice: { tickSize },
@@ -30,6 +31,14 @@ const execute = async (logger, rawData) => {
     baseAssetBalance: { free: baseAssetFreeBalance },
     sell: { currentPrice, openOrders }
   } = data;
+
+  if (isLocked) {
+    logger.info(
+      { isLocked },
+      'Symbol is locked, do not process place-sell-order'
+    );
+    return data;
+  }
 
   if (action !== 'sell') {
     logger.info(`Do not process a sell order because action is not 'sell'.`);

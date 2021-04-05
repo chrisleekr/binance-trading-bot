@@ -42,7 +42,7 @@ class Footer extends React.Component {
           <div className='footer-column'>
             Latest Version:
             <a
-              href='https://github.com/chrisleekr/binance-trading-bot'
+              href='https://github.com/chrisleekr/binance-trading-bot/releases'
               target='_blank'
               className='ml-1'
               rel='noreferrer'>

@@ -29,6 +29,13 @@ const set = async (key, value, ttl = undefined) => {
 const get = async key => redis.get(key);
 
 /**
+ * Delete key
+ *
+ * @param {*} key
+ */
+const del = async key => redis.del(key);
+
+/**
  * Set cache value
  *
  * @param {*} key
@@ -63,6 +70,7 @@ const hdel = async (key, field) => redis.hdel(key, field);
 module.exports = {
   set,
   get,
+  del,
   hset,
   hget,
   hgetall,

@@ -3,6 +3,7 @@ describe('cache', () => {
   let result;
   let mockSet;
   let mockGet;
+  let mockDel;
   let mockHSet;
   let mockHGet;
   let mockHGetAll;
@@ -76,6 +77,32 @@ describe('cache', () => {
 
     it('returns expected value', () => {
       expect(result).toBe('my-value');
+    });
+  });
+
+  describe('del', () => {
+    beforeEach(async () => {
+      jest.clearAllMocks().resetModules();
+
+      mockDel = jest.fn(() => true);
+      jest.mock('config');
+      jest.mock('ioredis', () =>
+        jest.fn().mockImplementation(() => ({
+          del: mockDel
+        }))
+      );
+
+      cache = require('../cache');
+
+      result = await cache.del('my-key');
+    });
+
+    it('triggers mockDel', () => {
+      expect(mockDel).toHaveBeenCalledWith('my-key');
+    });
+
+    it('returns expected value', () => {
+      expect(result).toBe(true);
     });
   });
 

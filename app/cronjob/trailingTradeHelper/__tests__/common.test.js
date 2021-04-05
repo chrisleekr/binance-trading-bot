@@ -740,4 +740,118 @@ describe('common.js', () => {
       });
     });
   });
+
+  describe('lockSymbol', () => {
+    describe('without ttl', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+        loggerMock = logger;
+
+        cacheMock.set = jest.fn().mockResolvedValue(true);
+
+        commonHelper = require('../common');
+        result = await commonHelper.lockSymbol(loggerMock, 'BTCUSDT');
+      });
+
+      it('triggers cache.set', () => {
+        expect(cacheMock.set).toHaveBeenCalledWith('lock-BTCUSDT', true, 5);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toBeTruthy();
+      });
+    });
+
+    describe('with ttl', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+        loggerMock = logger;
+
+        cacheMock.set = jest.fn().mockResolvedValue(true);
+
+        commonHelper = require('../common');
+        result = await commonHelper.lockSymbol(loggerMock, 'BTCUSDT', 10);
+      });
+
+      it('triggers cache.set', () => {
+        expect(cacheMock.set).toHaveBeenCalledWith('lock-BTCUSDT', true, 10);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toBeTruthy();
+      });
+    });
+  });
+
+  describe('isSymbolLocked', () => {
+    describe('cache exists', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+        loggerMock = logger;
+
+        cacheMock.get = jest.fn().mockResolvedValue('true');
+
+        commonHelper = require('../common');
+        result = await commonHelper.isSymbolLocked(loggerMock, 'BTCUSDT');
+      });
+
+      it('triggers cache.get', () => {
+        expect(cacheMock.get).toHaveBeenCalledWith('lock-BTCUSDT');
+      });
+
+      it('returns expected value', () => {
+        expect(result).toBeTruthy();
+      });
+    });
+
+    describe('cache does not exist', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+        loggerMock = logger;
+
+        cacheMock.get = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.isSymbolLocked(loggerMock, 'BTCUSDT');
+      });
+
+      it('triggers cache.get', () => {
+        expect(cacheMock.get).toHaveBeenCalledWith('lock-BTCUSDT');
+      });
+
+      it('returns expected value', () => {
+        expect(result).toBeFalsy();
+      });
+    });
+  });
+
+  describe('unlockSymbol', () => {
+    beforeEach(async () => {
+      const { cache, logger } = require('../../../helpers');
+
+      cacheMock = cache;
+      loggerMock = logger;
+
+      cacheMock.del = jest.fn().mockResolvedValue(true);
+
+      commonHelper = require('../common');
+      result = await commonHelper.unlockSymbol(loggerMock, 'BTCUSDT');
+    });
+
+    it('triggers cache.del', () => {
+      expect(cacheMock.del).toHaveBeenCalledWith('lock-BTCUSDT');
+    });
+
+    it('returns expected value', () => {
+      expect(result).toBeTruthy();
+    });
+  });
 });

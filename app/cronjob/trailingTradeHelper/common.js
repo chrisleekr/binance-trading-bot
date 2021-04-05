@@ -226,6 +226,56 @@ const getLastBuyPrice = async (logger, symbol) => {
   return cachedLastBuyPrice;
 };
 
+/**
+ * Lock symbol
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} ttl
+ *
+ * @returns
+ */
+const lockSymbol = async (logger, symbol, ttl = 5) => {
+  logger.info({ symbol }, `Lock ${symbol} for ${ttl} seconds`);
+  return cache.set(`lock-${symbol}`, true, ttl);
+};
+
+/**
+ * Check if symbol is locked
+ *
+ * @param {*} _logger
+ * @param {*} symbol
+ * @returns
+ */
+const isSymbolLocked = async (logger, symbol) => {
+  const isLocked = (await cache.get(`lock-${symbol}`)) === 'true';
+
+  if (isLocked) {
+    logger.info(
+      { debug: true, symbol, isLocked },
+      `Symbol is locked - ${symbol}`
+    );
+  } else {
+    logger.info(
+      { debug: true, symbol, isLocked },
+      `Symbol is not locked - ${symbol} `
+    );
+  }
+  return isLocked;
+};
+
+/**
+ * Unlock symbol
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @returns
+ */
+const unlockSymbol = async (logger, symbol) => {
+  logger.info({ symbol }, `Unlock ${symbol}`);
+  return cache.del(`lock-${symbol}`);
+};
+
 module.exports = {
   cacheExchangeSymbols,
   getAccountInfoFromAPI,
@@ -234,5 +284,8 @@ module.exports = {
   getOpenOrdersFromAPI,
   getOpenOrdersBySymbol,
   refreshOpenOrdersWithSymbol,
-  getLastBuyPrice
+  getLastBuyPrice,
+  lockSymbol,
+  isSymbolLocked,
+  unlockSymbol
 };
