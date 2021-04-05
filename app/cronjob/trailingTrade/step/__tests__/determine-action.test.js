@@ -7,10 +7,71 @@ describe('determine-action.js', () => {
   let rawData;
 
   describe('execute', () => {
+    describe('when symbol is locked', () => {
+      beforeEach(async () => {
+        rawData = {
+          action: 'not-determined',
+          isLocked: true,
+          symbolInfo: {
+            filterMinNotional: {
+              minNotional: '10.00000000'
+            }
+          },
+          baseAssetBalance: { total: '1.4500000' },
+          buy: {
+            currentPrice: 184.099,
+            triggerPrice: 172.375
+          },
+          sell: {
+            currentPrice: 184.099,
+            lastBuyPrice: null,
+            triggerPrice: null
+          }
+        };
+
+        result = await step.execute(logger, rawData);
+      });
+
+      it('returns same data', () => {
+        expect(result).toStrictEqual(rawData);
+      });
+    });
+
+    describe('when action is buy-order-wait', () => {
+      beforeEach(async () => {
+        rawData = {
+          action: 'buy-order-wait',
+          isLocked: false,
+          symbolInfo: {
+            filterMinNotional: {
+              minNotional: '10.00000000'
+            }
+          },
+          baseAssetBalance: { total: '1.4500000' },
+          buy: {
+            currentPrice: 184.099,
+            triggerPrice: 172.375
+          },
+          sell: {
+            currentPrice: 184.099,
+            lastBuyPrice: null,
+            triggerPrice: null
+          }
+        };
+
+        result = await step.execute(logger, rawData);
+      });
+
+      it('returns same data', () => {
+        expect(result).toStrictEqual(rawData);
+      });
+    });
+
     describe('when action is buy', () => {
       beforeEach(async () => {
         rawData = {
           action: 'buy',
+          isLocked: false,
           symbolInfo: {
             filterMinNotional: {
               minNotional: '10.00000000'
@@ -42,6 +103,7 @@ describe('determine-action.js', () => {
           beforeEach(async () => {
             rawData = {
               action: 'not-determined',
+              isLocked: false,
               symbolInfo: {
                 filterMinNotional: {
                   minNotional: '10.00000000'
@@ -65,6 +127,7 @@ describe('determine-action.js', () => {
           it('returns expected result', () => {
             expect(result).toStrictEqual({
               action: 'buy',
+              isLocked: false,
               symbolInfo: {
                 filterMinNotional: {
                   minNotional: '10.00000000'
@@ -91,6 +154,7 @@ describe('determine-action.js', () => {
           beforeEach(async () => {
             rawData = {
               action: 'not-determined',
+              isLocked: false,
               symbolInfo: {
                 filterMinNotional: {
                   minNotional: '10.00000000'
@@ -114,6 +178,7 @@ describe('determine-action.js', () => {
           it('returns expected result', () => {
             expect(result).toStrictEqual({
               action: 'wait',
+              isLocked: false,
               symbolInfo: {
                 filterMinNotional: {
                   minNotional: '10.00000000'
@@ -142,6 +207,7 @@ describe('determine-action.js', () => {
           beforeEach(async () => {
             rawData = {
               action: 'not-determined',
+              isLocked: false,
               symbolInfo: {
                 filterMinNotional: {
                   minNotional: '10.00000000'
@@ -165,6 +231,7 @@ describe('determine-action.js', () => {
           it('returns expected result', () => {
             expect(result).toStrictEqual({
               action: 'sell',
+              isLocked: false,
               symbolInfo: {
                 filterMinNotional: {
                   minNotional: '10.00000000'
@@ -191,6 +258,7 @@ describe('determine-action.js', () => {
           beforeEach(async () => {
             rawData = {
               action: 'not-determined',
+              isLocked: false,
               symbolInfo: {
                 filterMinNotional: {
                   minNotional: '10.00000000'
@@ -214,6 +282,7 @@ describe('determine-action.js', () => {
           it('returns expected result', () => {
             expect(result).toStrictEqual({
               action: 'sell-wait',
+              isLocked: false,
               symbolInfo: {
                 filterMinNotional: {
                   minNotional: '10.00000000'
@@ -241,6 +310,7 @@ describe('determine-action.js', () => {
         beforeEach(async () => {
           rawData = {
             action: 'not-determined',
+            isLocked: false,
             symbolInfo: {
               filterMinNotional: {
                 minNotional: '10.00000000'
@@ -264,6 +334,7 @@ describe('determine-action.js', () => {
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             action: 'not-determined',
+            isLocked: false,
             symbolInfo: {
               filterMinNotional: {
                 minNotional: '10.00000000'

@@ -31,12 +31,10 @@ const execute = async logger => {
     data = await getNextSymbol(logger, data);
 
     const { symbol } = data;
-    logger.info(
-      { debug: true, symbol },
-      'TrailingTradeIndicator: Start process...'
-    );
+    logger.info({ symbol }, 'TrailingTradeIndicator: Start process...');
 
     // Check if the symbol is locked, if it is locked, it means the symbol is still trading.
+
     if ((await isSymbolLocked(logger, symbol)) === true) {
       logger.info(
         { debug: true, symbol },
@@ -44,7 +42,6 @@ const execute = async logger => {
       );
       return;
     }
-
     // Lock symbol for processing
     await lockSymbol(logger, symbol);
 
@@ -86,10 +83,7 @@ const execute = async logger => {
     // Unlock symbol for processing
     await unlockSymbol(logger, symbol);
 
-    logger.info(
-      { debug: true, symbol },
-      'TrailingTradeIndicator: Finish process...'
-    );
+    logger.info({ symbol, data }, 'TrailingTradeIndicator: Finish process...');
   } catch (err) {
     logger.error(
       { symbol: data.symbol, err, debug: true },

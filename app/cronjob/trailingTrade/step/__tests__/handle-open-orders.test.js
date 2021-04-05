@@ -18,7 +18,7 @@ describe('handle-open-orders.js', () => {
       jest.clearAllMocks().resetModules();
     });
 
-    describe('when order is not STOP_LOSS_LIMIT', () => {
+    describe('when symbol is locked', () => {
       beforeEach(async () => {
         const { binance, logger } = require('../../../../helpers');
         binanceMock = binance;
@@ -40,6 +40,7 @@ describe('handle-open-orders.js', () => {
 
         rawData = {
           symbol: 'BTCUSDT',
+          isLocked: true,
           action: 'not-determined',
           openOrders: [
             {
@@ -86,6 +87,104 @@ describe('handle-open-orders.js', () => {
       it('returns expected value', () => {
         expect(result).toStrictEqual({
           symbol: 'BTCUSDT',
+          isLocked: true,
+          action: 'not-determined',
+          openOrders: [
+            {
+              symbol: 'BTCUSDT',
+              orderId: 46838,
+              price: '1799.58000000',
+              type: 'LIMIT',
+              side: 'BUY'
+            }
+          ],
+          buy: {
+            limitPrice: 1800,
+            openOrders: [
+              {
+                symbol: 'BTCUSDT',
+                orderId: 46838,
+                price: '1799.58000000',
+                type: 'LIMIT',
+                side: 'BUY'
+              }
+            ]
+          },
+          sell: { limitPrice: 1800, openOrders: [] }
+        });
+      });
+    });
+
+    describe('when order is not STOP_LOSS_LIMIT', () => {
+      beforeEach(async () => {
+        const { binance, logger } = require('../../../../helpers');
+        binanceMock = binance;
+        loggerMock = logger;
+        binanceMock.client.cancelOrder = jest.fn().mockResolvedValue(true);
+
+        mockGetAccountInfoFromAPI = jest
+          .fn()
+          .mockResolvedValue(accountInfoJSON);
+
+        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol
+        }));
+
+        step = require('../handle-open-orders');
+
+        rawData = {
+          symbol: 'BTCUSDT',
+          isLocked: false,
+          action: 'not-determined',
+          openOrders: [
+            {
+              symbol: 'BTCUSDT',
+              orderId: 46838,
+              price: '1799.58000000',
+              type: 'LIMIT',
+              side: 'BUY'
+            }
+          ],
+          buy: {
+            limitPrice: 1800,
+            openOrders: [
+              {
+                symbol: 'BTCUSDT',
+                orderId: 46838,
+                price: '1799.58000000',
+                type: 'LIMIT',
+                side: 'BUY'
+              }
+            ]
+          },
+          sell: {
+            limitPrice: 1800,
+            openOrders: []
+          }
+        };
+
+        result = await step.execute(logger, rawData);
+      });
+
+      it('does not trigger cancelOrder', () => {
+        expect(binanceMock.client.cancelOrder).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger refreshOpenOrdersWithSymbol', () => {
+        expect(mockRefreshOpenOrdersWithSymbol).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger getAccountInfoFromAPI', () => {
+        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          symbol: 'BTCUSDT',
+          isLocked: false,
           action: 'not-determined',
           openOrders: [
             {
@@ -164,6 +263,7 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
+              isLocked: false,
               action: 'not-determined',
               openOrders: [
                 {
@@ -215,6 +315,7 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
+              isLocked: false,
               action: 'buy-order-checking',
               openOrders: [
                 {
@@ -275,6 +376,7 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
+              isLocked: false,
               action: 'not-determined',
               openOrders: [
                 {
@@ -326,6 +428,7 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
+              isLocked: false,
               action: 'buy',
               openOrders: [
                 {
@@ -366,6 +469,7 @@ describe('handle-open-orders.js', () => {
 
           rawData = {
             symbol: 'BTCUSDT',
+            isLocked: false,
             action: 'not-determined',
             openOrders: [
               {
@@ -414,6 +518,7 @@ describe('handle-open-orders.js', () => {
         it('returns expected value', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
+            isLocked: false,
             action: 'buy-order-wait',
             openOrders: [
               {
@@ -495,6 +600,7 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
+              isLocked: false,
               action: 'not-determined',
               openOrders: [
                 {
@@ -546,6 +652,7 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
+              isLocked: false,
               action: 'sell-order-checking',
               openOrders: [
                 {
@@ -606,6 +713,7 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
+              isLocked: false,
               action: 'not-determined',
               openOrders: [
                 {
@@ -649,6 +757,7 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
+              isLocked: false,
               action: 'sell',
               openOrders: [
                 {
@@ -687,6 +796,7 @@ describe('handle-open-orders.js', () => {
 
           rawData = {
             symbol: 'BTCUSDT',
+            isLocked: false,
             action: 'not-determined',
             openOrders: [
               {
@@ -731,6 +841,7 @@ describe('handle-open-orders.js', () => {
         it('returns expected value', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
+            isLocked: false,
             action: 'sell-order-wait',
             openOrders: [
               {

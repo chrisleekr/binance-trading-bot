@@ -15,6 +15,10 @@ describe('trailingTradeIndicator', () => {
   let mockGetOpenOrders;
   let mockSaveDataToCache;
 
+  let mockLockSymbol;
+  let mockIsSymbolLocked;
+  let mockUnlockSymbol;
+
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
 
@@ -36,7 +40,15 @@ describe('trailingTradeIndicator', () => {
 
   describe('without any error', () => {
     beforeEach(async () => {
-      jest.clearAllMocks().resetModules();
+      mockLockSymbol = jest.fn().mockResolvedValue(true);
+      mockIsSymbolLocked = jest.fn().mockResolvedValue(false);
+      mockUnlockSymbol = jest.fn().mockResolvedValue(true);
+
+      jest.mock('../trailingTradeHelper/common', () => ({
+        lockSymbol: mockLockSymbol,
+        isSymbolLocked: mockIsSymbolLocked,
+        unlockSymbol: mockUnlockSymbol
+      }));
 
       mockGetGlobalConfiguration = jest
         .fn()
@@ -118,6 +130,18 @@ describe('trailingTradeIndicator', () => {
       await trailingTradeIndicatorExecute(logger);
     });
 
+    it('triggers isSymbolLocked', () => {
+      expect(mockIsSymbolLocked).toHaveBeenCalledWith(logger, 'BTCUSDT');
+    });
+
+    it('triggers lockSymbol', () => {
+      expect(mockLockSymbol).toHaveBeenCalledWith(logger, 'BTCUSDT');
+    });
+
+    it('triggers unlockSymbol', () => {
+      expect(mockUnlockSymbol).toHaveBeenCalledWith(logger, 'BTCUSDT');
+    });
+
     it('returns expected result', () => {
       expect(mockLoggerInfo).toHaveBeenCalledWith(
         {
@@ -132,7 +156,122 @@ describe('trailingTradeIndicator', () => {
             saved: 'data-to-cache'
           }
         },
-        'Trade: Finish trailing trade indicator process...'
+        'TrailingTradeIndicator: Finish process...'
+      );
+    });
+  });
+
+  describe('when symbol is locked', () => {
+    beforeEach(async () => {
+      mockLockSymbol = jest.fn().mockResolvedValue(true);
+      mockIsSymbolLocked = jest.fn().mockResolvedValue(true);
+      mockUnlockSymbol = jest.fn().mockResolvedValue(true);
+
+      jest.mock('../trailingTradeHelper/common', () => ({
+        lockSymbol: mockLockSymbol,
+        isSymbolLocked: mockIsSymbolLocked,
+        unlockSymbol: mockUnlockSymbol
+      }));
+
+      mockGetGlobalConfiguration = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            globalConfiguration: {
+              global: 'configuration data'
+            }
+          }
+        }));
+
+      mockGetNextSymbol = jest.fn().mockImplementation((_logger, rawData) => ({
+        ...rawData,
+        ...{
+          symbol: 'BTCUSDT'
+        }
+      }));
+
+      mockGetSymbolConfiguration = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            symbolConfiguration: {
+              symbol: 'configuration data'
+            }
+          }
+        }));
+
+      mockGetAccountInfo = jest.fn().mockImplementation((_logger, rawData) => ({
+        ...rawData,
+        ...{
+          accountInfo: {
+            account: 'information'
+          }
+        }
+      }));
+
+      mockGetIndicators = jest.fn().mockImplementation((_logger, rawData) => ({
+        ...rawData,
+        ...{
+          indicators: {
+            some: 'value'
+          }
+        }
+      }));
+
+      mockGetOpenOrders = jest.fn().mockImplementation((_logger, rawData) => ({
+        ...rawData,
+        ...{
+          openOrders: [{ orderId: 1 }]
+        }
+      }));
+
+      mockSaveDataToCache = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            saved: 'data-to-cache'
+          }
+        }));
+
+      jest.mock('../trailingTradeIndicator/steps', () => ({
+        getGlobalConfiguration: mockGetGlobalConfiguration,
+        getNextSymbol: mockGetNextSymbol,
+        getSymbolConfiguration: mockGetSymbolConfiguration,
+        getAccountInfo: mockGetAccountInfo,
+        getIndicators: mockGetIndicators,
+        getOpenOrders: mockGetOpenOrders,
+        saveDataToCache: mockSaveDataToCache
+      }));
+
+      const {
+        execute: trailingTradeIndicatorExecute
+      } = require('../trailingTradeIndicator');
+
+      await trailingTradeIndicatorExecute(logger);
+    });
+
+    it('triggers isSymbolLocked', () => {
+      expect(mockIsSymbolLocked).toHaveBeenCalledWith(logger, 'BTCUSDT');
+    });
+
+    it('does not trigger lockSymbol', () => {
+      expect(mockLockSymbol).not.toHaveBeenCalled();
+    });
+
+    it('does not trigger unlockSymbol', () => {
+      expect(mockUnlockSymbol).not.toHaveBeenCalled();
+    });
+
+    it('returns expected result', () => {
+      expect(mockLoggerInfo).toHaveBeenCalledWith(
+        {
+          debug: true,
+          symbol: 'BTCUSDT'
+        },
+        'TrailingTradeIndicator: Skip process as the symbol is currently processing.'
       );
     });
   });

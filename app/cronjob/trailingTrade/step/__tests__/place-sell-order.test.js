@@ -26,6 +26,64 @@ describe('place-sell-order.js', () => {
       binanceMock.client.order = jest.fn().mockResolvedValue(true);
     });
 
+    describe('when symbol is locked', () => {
+      beforeEach(async () => {
+        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          account: 'info'
+        });
+
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+        }));
+
+        const step = require('../place-sell-order');
+
+        rawData = {
+          symbol: 'BTCUPUSDT',
+          isLocked: true,
+          symbolInfo: {
+            filterLotSize: {
+              stepSize: '0.01000000',
+              minQty: '0.01000000',
+              maxQty: '100.0000000'
+            },
+            filterPrice: { tickSize: '0.00100000' },
+            filterMinNotional: { minNotional: '10.00000000' }
+          },
+          symbolConfiguration: {
+            sell: {
+              enabled: true,
+              stopPercentage: 0.99,
+              limitPercentage: 0.989
+            }
+          },
+          action: 'not-determined',
+          baseAssetBalance: { free: 0.5 },
+          sell: { currentPrice: 200, openOrders: [] }
+        };
+
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('does not trigger binance.client.order', () => {
+        expect(binanceMock.client.order).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger refreshOpenOrdersWithSymbol', () => {
+        expect(mockRefreshOpenOrdersWithSymbol).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger getAccountInfoFromAPI', () => {
+        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('retruns expected value', () => {
+        expect(result).toStrictEqual(rawData);
+      });
+    });
+
     describe('when action is not sell', () => {
       beforeEach(async () => {
         mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
@@ -42,6 +100,7 @@ describe('place-sell-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
+          isLocked: false,
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -99,6 +158,7 @@ describe('place-sell-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
+          isLocked: false,
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -188,6 +248,7 @@ describe('place-sell-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
+          isLocked: false,
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -259,6 +320,7 @@ describe('place-sell-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
+          isLocked: false,
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -330,6 +392,7 @@ describe('place-sell-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
+          isLocked: false,
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -413,6 +476,7 @@ describe('place-sell-order.js', () => {
 
           rawData = {
             symbol: 'BTCUPUSDT',
+            isLocked: false,
             symbolInfo: {
               filterLotSize: {
                 stepSize: '0.01000000',
@@ -525,6 +589,7 @@ describe('place-sell-order.js', () => {
 
           rawData = {
             symbol: 'BTCUPUSDT',
+            isLocked: false,
             symbolInfo: {
               filterLotSize: {
                 stepSize: '0.01000000',

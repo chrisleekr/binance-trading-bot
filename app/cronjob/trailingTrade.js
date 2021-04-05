@@ -41,14 +41,15 @@ const execute = async logger => {
 
     await Promise.all(
       globalConfiguration.symbols.map(async symbol => {
-        logger.info({ debug: true, symbol }, 'TrailingTrade: Start process...');
+        logger.info({ symbol }, 'TrailingTrade: Start process...');
 
         // Check if the symbol is locked, if it is locked, it means the symbol is still trading.
-
         const isLocked = await isSymbolLocked(logger, symbol);
 
-        // Lock symbol for processing
-        await lockSymbol(logger, symbol);
+        // Lock symbol for processing if it is not locked by another process.
+        if (isLocked === false) {
+          await lockSymbol(logger, symbol);
+        }
 
         // Define sekeleton of data structure
         let data = {
@@ -131,13 +132,12 @@ const execute = async logger => {
           stepLogger.info({ data }, `Finish step - ${stepName}`);
         }
 
-        // Unlock symbol for processing
-        await unlockSymbol(logger, symbol);
+        // Unlock symbol for processing if it is not locked by another process
+        if (isLocked === false) {
+          await unlockSymbol(logger, symbol);
+        }
 
-        logger.info(
-          { debug: true, symbol },
-          'TrailingTrade: Finish process...'
-        );
+        logger.info({ symbol, data }, 'TrailingTrade: Finish process...');
       })
     );
   } catch (err) {

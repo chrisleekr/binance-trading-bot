@@ -11,10 +11,49 @@ describe('remove-last-buy-price.js', () => {
       mongo.deleteOne = jest.fn().mockResolvedValue(true);
     });
 
+    describe('when symbol is locked`', () => {
+      beforeEach(async () => {
+        rawData = {
+          action: 'buy',
+          isLocked: true,
+          symbol: 'BTCUPUSDT',
+          symbolInfo: {
+            filterLotSize: {
+              stepSize: '0.01000000',
+              minQty: '0.01000000'
+            },
+            filterMinNotional: {
+              minNotional: '10.00000000'
+            }
+          },
+          openOrders: [],
+          baseAssetBalance: {
+            free: 0,
+            locked: 0
+          },
+          sell: {
+            currentPrice: 200,
+            lastBuyPrice: null
+          }
+        };
+
+        result = await step.execute(logger, rawData);
+      });
+
+      it('does not trigger mongo.deleteOne', () => {
+        expect(mongo.deleteOne).not.toHaveBeenCalled();
+      });
+
+      it('returns expected data', () => {
+        expect(result).toStrictEqual(rawData);
+      });
+    });
+
     describe('when action is not `not-determined`', () => {
       beforeEach(async () => {
         rawData = {
           action: 'buy',
+          isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolInfo: {
             filterLotSize: {
@@ -52,6 +91,7 @@ describe('remove-last-buy-price.js', () => {
       beforeEach(async () => {
         rawData = {
           action: 'not-determined',
+          isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolInfo: {
             filterLotSize: {
@@ -89,6 +129,7 @@ describe('remove-last-buy-price.js', () => {
       beforeEach(async () => {
         rawData = {
           action: 'not-determined',
+          isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolInfo: {
             filterLotSize: {
@@ -137,6 +178,7 @@ describe('remove-last-buy-price.js', () => {
       beforeEach(async () => {
         rawData = {
           action: 'not-determined',
+          isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolInfo: {
             filterLotSize: {
@@ -189,6 +231,7 @@ describe('remove-last-buy-price.js', () => {
       beforeEach(async () => {
         rawData = {
           action: 'not-determined',
+          isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolInfo: {
             filterLotSize: {
@@ -241,6 +284,7 @@ describe('remove-last-buy-price.js', () => {
       beforeEach(async () => {
         rawData = {
           action: 'not-determined',
+          isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolInfo: {
             filterLotSize: {

@@ -28,6 +28,63 @@ describe('place-buy-order.js', () => {
       mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
     });
 
+    describe('when symbol is locked', () => {
+      beforeEach(async () => {
+        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          account: 'info'
+        });
+
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+        }));
+
+        const step = require('../place-buy-order');
+
+        rawData = {
+          symbol: 'BTCUPUSDT',
+          isLocked: true,
+          symbolInfo: {
+            baseAsset: 'BTCUP',
+            quoteAsset: 'USDT',
+            filterLotSize: { stepSize: '0.01000000' },
+            filterPrice: { tickSize: '0.00100000' },
+            filterMinNotional: { minNotional: '10.00000000' }
+          },
+          symbolConfiguration: {
+            buy: {
+              enabled: true,
+              maxPurchaseAmount: 50,
+              stopPercentage: 1.01,
+              limitPercentage: 1.011
+            }
+          },
+          action: 'not-determined',
+          quoteAssetBalance: { free: 0 },
+          buy: { currentPrice: 200, openOrders: [] }
+        };
+
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('does not trigger binance.client.order', () => {
+        expect(binanceMock.client.order).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger refreshOpenOrdersWithSymbol', () => {
+        expect(mockRefreshOpenOrdersWithSymbol).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger getAccountInfoFromAPI', () => {
+        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('retruns expected value', () => {
+        expect(result).toStrictEqual(rawData);
+      });
+    });
+
     describe('when action is not buy', () => {
       beforeEach(async () => {
         mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
@@ -44,6 +101,7 @@ describe('place-buy-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
+          isLocked: false,
           symbolInfo: {
             baseAsset: 'BTCUP',
             quoteAsset: 'USDT',
@@ -100,6 +158,7 @@ describe('place-buy-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
+          isLocked: false,
           symbolInfo: {
             baseAsset: 'BTCUP',
             quoteAsset: 'USDT',
@@ -188,6 +247,7 @@ describe('place-buy-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
+          isLocked: false,
           symbolInfo: {
             baseAsset: 'BTCUP',
             quoteAsset: 'USDT',
@@ -258,6 +318,7 @@ describe('place-buy-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
+          isLocked: false,
           symbolInfo: {
             baseAsset: 'BTCUP',
             quoteAsset: 'USDT',
@@ -327,6 +388,7 @@ describe('place-buy-order.js', () => {
         const step = require('../place-buy-order');
         rawData = {
           symbol: 'BTCUPUSDT',
+          isLocked: false,
           symbolInfo: {
             baseAsset: 'BTCUP',
             quoteAsset: 'USDT',
@@ -408,6 +470,7 @@ describe('place-buy-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
+          isLocked: false,
           symbolInfo: {
             baseAsset: 'BTCUP',
             quoteAsset: 'USDT',
