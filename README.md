@@ -314,6 +314,8 @@ to view the past changes.
 - [@ienthach](https://github.com/ienthach)
 - [@PlayeTT](https://github.com/PlayeTT)
 - [@chopeta](https://github.com/chopeta)
+- [@santoshbmath](https://github.com/santoshbmath)
+- [@BramFr](https://github.com/BramFr)
 
 ## Contributors
 
