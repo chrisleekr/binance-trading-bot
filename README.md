@@ -295,12 +295,14 @@ Please refer
 [CHANGELOG.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/CHANGELOG.md)
 to view the past changes.
 
-- [ ] Display release version to the frontend
-- [ ] Update the bot to monitor all coins every second
+- [ ] Update the bot to monitor all coins every second - [#52](https://github.com/chrisleekr/binance-trading-bot/issues/52)
+- [ ] Display release version to the frontend - [#59](https://github.com/chrisleekr/binance-trading-bot/issues/59)
+- [ ] Improve settings UI - [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
+- [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
+- [ ] Add minimum required order amount - [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)
+- [ ] Support multilingual frontend - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
 - [ ] Add frontend option to disable sorting
-- [ ] Add minimum required order amount
 - [ ] Allow browser notification in the frontend
-- [ ] Support multilingual frontend
 - [ ] Secure frontend with the password
 - [ ] Develop simple setup screen for secrets
 
