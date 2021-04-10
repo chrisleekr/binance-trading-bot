@@ -37,6 +37,7 @@ const handleSettingUpdate = async (logger, ws, payload) => {
 
   // Delete cached exchange symbols to retrieve again.
   await cache.hdel('trailing-trade-common', 'exchange-symbols');
+  await cache.hdel('trailing-trade-common', 'exchange-info');
 
   if (action === 'apply-to-all') {
     // In this case delete all symbol configuration

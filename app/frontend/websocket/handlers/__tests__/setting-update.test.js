@@ -265,10 +265,17 @@ describe('setting-update.test.js', () => {
         });
       });
 
-      it('triggers cache.hdel', () => {
+      it('triggers cache.hdel for exchange-symbols', () => {
         expect(cacheMock.hdel).toHaveBeenCalledWith(
           'trailing-trade-common',
           'exchange-symbols'
+        );
+      });
+
+      it('triggers cache.hdel for exchange-info', () => {
+        expect(cacheMock.hdel).toHaveBeenCalledWith(
+          'trailing-trade-common',
+          'exchange-info'
         );
       });
 
