@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
   [#77](https://github.com/chrisleekr/binance-trading-bot/pull/77)
 - Added `docker-stack.yml` for the Portainer -
   [@hipposen](https://github.com/hipposen)
+- Fixed precision issues for some FIAT
+  [#90](https://github.com/chrisleekr/binance-trading-bot/issues/90)
 
 ## [0.0.65] - 2021-03-27
 
