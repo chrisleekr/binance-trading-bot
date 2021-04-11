@@ -18,7 +18,7 @@ class CoinWrapperSellOrders extends React.Component {
       return '';
     }
 
-    const precision = tickSize.indexOf(1) - 1;
+    const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
     const renderOpenOrders = openOrders.map((openOrder, index) => {
       return (

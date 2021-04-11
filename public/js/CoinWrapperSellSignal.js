@@ -10,7 +10,6 @@ class CoinWrapperSellSignal extends React.Component {
       },
       symbolConfiguration,
       quoteAssetBalance: { asset: quoteAsset },
-      buy,
       sell
     } = symbolInfo;
 
@@ -18,7 +17,7 @@ class CoinWrapperSellSignal extends React.Component {
       return '';
     }
 
-    const precision = tickSize.indexOf(1) - 1;
+    const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
     if (sell.lastBuyPrice > 0) {
       return (

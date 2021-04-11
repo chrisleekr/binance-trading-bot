@@ -13,7 +13,7 @@ class CoinWrapperBalance extends React.Component {
       quoteAssetBalance: { asset: quoteAsset }
     } = symbolInfo;
 
-    const precision = tickSize.indexOf(1) - 1;
+    const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
     return (
       <div className='coin-info-sub-wrapper'>
