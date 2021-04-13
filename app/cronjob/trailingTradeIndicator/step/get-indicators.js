@@ -9,15 +9,18 @@ const { binance } = require('../../../helpers');
  */
 const flattenCandlesData = candles => {
   const openTime = [];
+  const high = [];
   const low = [];
 
   candles.forEach(candle => {
     openTime.push(+candle.openTime);
+    high.push(+candle.high);
     low.push(+candle.low);
   });
 
   return {
     openTime,
+    high,
     low
   };
 };
@@ -54,9 +57,12 @@ const execute = async (logger, rawData) => {
 
   // Get lowest price
   const lowestPrice = _.min(candlesData.low);
-  logger.info({ lowestPrice }, 'Retrieved lowest price');
+
+  const highestPrice = _.max(candlesData.high);
+  logger.info({ lowestPrice, highestPrice }, 'Retrieved lowest/highest price');
 
   data.indicators = {
+    highestPrice,
     lowestPrice
   };
 

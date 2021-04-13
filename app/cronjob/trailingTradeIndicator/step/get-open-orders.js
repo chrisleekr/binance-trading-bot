@@ -1,6 +1,4 @@
-const {
-  refreshOpenOrdersWithSymbol
-} = require('../../trailingTradeHelper/common');
+const { getOpenOrdersForSymbol } = require('../../trailingTradeHelper/common');
 
 /**
  * Get open orders
@@ -18,7 +16,7 @@ const execute = async (logger, rawData) => {
   // To avoid exceeding API limit, retrieve open orders for each symbol per second.
   // When there is new order placed by the bot, it will update immediately after placing the order.
 
-  data.openOrders = await refreshOpenOrdersWithSymbol(logger, symbol);
+  data.openOrders = await getOpenOrdersForSymbol(logger, symbol);
 
   return data;
 };

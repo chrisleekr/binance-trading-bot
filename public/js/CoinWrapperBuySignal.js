@@ -36,6 +36,16 @@ class CoinWrapperBuySignal extends React.Component {
             ''
           )}
         </div>
+        {buy.highestPrice ? (
+          <div className='coin-info-column coin-info-column-price'>
+            <span className='coin-info-label'>Highest price:</span>
+            <HightlightChange className='coin-info-value'>
+              {(+buy.highestPrice).toFixed(precision)}
+            </HightlightChange>
+          </div>
+        ) : (
+          ''
+        )}
         {buy.currentPrice ? (
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>Current price:</span>

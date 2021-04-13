@@ -5,7 +5,6 @@ const {
 const {
   cacheExchangeSymbols,
   getAccountInfo,
-  getOpenOrdersFromCache,
   lockSymbol,
   isSymbolLocked,
   unlockSymbol
@@ -15,6 +14,7 @@ const {
   getSymbolConfiguration,
   getSymbolInfo,
   getBalances,
+  getOpenOrders,
   getIndicators,
   handleOpenOrders,
   determineAction,
@@ -36,17 +36,13 @@ const execute = async logger => {
     // Retrieve account info from cache
     const accountInfo = await getAccountInfo(logger);
 
-    // Get open orders
-    const openOrders = await getOpenOrdersFromCache(logger);
-
     await Promise.all(
       globalConfiguration.symbols.map(async symbol => {
-        logger.info({ symbol }, 'TrailingTrade: Start process...');
+        logger.info({ debug: true, symbol }, 'TrailingTrade: Start process...');
 
-        // Check if the symbol is locked, if it is locked, it means the symbol is still trading.
+        // Check if the symbol is locked, if it is locked, it means the symbol is still processing.
         const isLocked = await isSymbolLocked(logger, symbol);
 
-        // Lock symbol for processing if it is not locked by another process.
         if (isLocked === false) {
           await lockSymbol(logger, symbol);
         }
@@ -60,7 +56,7 @@ const execute = async logger => {
           symbolConfiguration: {},
           indicators: {},
           symbolInfo: {},
-          openOrders: openOrders?.filter(o => o.symbol === symbol),
+          openOrders: [],
           action: 'not-determined',
           baseAssetBalance: {},
           quoteAssetBalance: {},
@@ -82,6 +78,10 @@ const execute = async logger => {
           {
             stepName: 'get-balances',
             stepFunc: getBalances
+          },
+          {
+            stepName: 'get-open-orders',
+            stepFunc: getOpenOrders
           },
           {
             stepName: 'get-indicators',
@@ -137,16 +137,24 @@ const execute = async logger => {
           await unlockSymbol(logger, symbol);
         }
 
+        logger.info(
+          { debug: true, symbol },
+          'TrailingTrade: Finish process (Debug)...'
+        );
         logger.info({ symbol, data }, 'TrailingTrade: Finish process...');
       })
     );
   } catch (err) {
-    logger.error({ err, debug: true }, `Execution failed.`);
+    logger.error(
+      { err, errorCode: err.code, debug: true },
+      `Execution failed.`
+    );
     if (
       err.code === -1001 ||
       err.code === -1021 || // Timestamp for this request is outside of the recvWindow
       err.code === 'ECONNRESET' ||
-      err.code === 'ECONNREFUSED'
+      err.code === 'ECONNREFUSED' ||
+      err.message.includes('redlock') // For the redlock fail
     ) {
       // Let's silent for internal server error or assumed temporary errors
     } else {

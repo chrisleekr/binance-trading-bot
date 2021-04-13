@@ -3,7 +3,7 @@ const moment = require('moment');
 const { binance, slack, mongo } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 const {
-  refreshOpenOrdersWithSymbol,
+  getOpenOrdersForSymbol,
   getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
 
@@ -150,9 +150,7 @@ const execute = async (logger, rawData) => {
 
   // Get open orders and update cache
 
-  data.openOrders = (await refreshOpenOrdersWithSymbol(logger, symbol)).filter(
-    o => o.symbol === symbol
-  );
+  data.openOrders = await getOpenOrdersForSymbol(logger, symbol);
   data.buy.openOrders = data.openOrders.filter(
     o => o.side.toLowerCase() === 'buy'
   );

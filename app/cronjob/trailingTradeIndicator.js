@@ -31,14 +31,16 @@ const execute = async logger => {
     data = await getNextSymbol(logger, data);
 
     const { symbol } = data;
-    logger.info({ symbol }, 'TrailingTradeIndicator: Start process...');
+    logger.info(
+      { debug: true, symbol },
+      'TrailingTradeIndicator: Start process...'
+    );
 
     // Check if the symbol is locked, if it is locked, it means the symbol is still trading.
-
     if ((await isSymbolLocked(logger, symbol)) === true) {
       logger.info(
         { debug: true, symbol },
-        'TrailingTradeIndicator: Skip process as the symbol is currently processing.'
+        'TrailingTradeIndicator: Skip process as the symbol is currently locked.'
       );
       return;
     }
@@ -83,6 +85,11 @@ const execute = async logger => {
     // Unlock symbol for processing
     await unlockSymbol(logger, symbol);
 
+    logger.info(
+      { debug: true, symbol },
+      'TrailingTradeIndicator: Finish process (Debug)...'
+    );
+
     logger.info({ symbol, data }, 'TrailingTradeIndicator: Finish process...');
   } catch (err) {
     logger.error(
@@ -93,7 +100,8 @@ const execute = async logger => {
       err.code === -1001 ||
       err.code === -1021 || // Timestamp for this request is outside of the recvWindow
       err.code === 'ECONNRESET' ||
-      err.code === 'ECONNREFUSED'
+      err.code === 'ECONNREFUSED' ||
+      err.message.includes('redlock') // For the redlock fail
     ) {
       // Let's silent for internal server error or assumed temporary errors
     } else {

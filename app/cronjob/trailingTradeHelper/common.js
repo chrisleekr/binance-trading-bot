@@ -139,10 +139,16 @@ const getOpenOrdersFromAPI = async logger => {
  * @param {*} logger
  */
 const getOpenOrdersFromCache = async logger => {
-  const openOrders =
-    JSON.parse(await cache.hget('trailing-trade-common', 'open-orders')) || [];
+  const cachedOpenOrders =
+    JSON.parse(await cache.hgetall('trailing-trade-orders')) || [];
 
-  logger.info({ openOrders }, 'Retrieved open orders from cache');
+  logger.info({ cachedOpenOrders }, 'Retrieved open orders from cache');
+
+  const openOrders = [];
+  _.forIn(cachedOpenOrders, value => {
+    openOrders.push(value);
+  });
+
   return openOrders;
 };
 
@@ -175,34 +181,25 @@ const getOpenOrdersBySymbol = async (logger, symbol) => {
  * @param {*} logger
  * @param {*} symbol
  */
-const refreshOpenOrdersWithSymbol = async (logger, symbol) => {
-  const currentOpenOrders =
-    JSON.parse(await cache.hget('trailing-trade-common', 'open-orders')) || [];
-
+const getOpenOrdersForSymbol = async (logger, symbol) => {
+  // Retrieve open orders from API first
   const symbolOpenOrders = await getOpenOrdersBySymbol(logger, symbol);
 
   logger.info(
     {
       symbol,
-      currentOpenOrders,
       symbolOpenOrders
     },
-    'Current open orders from cache'
+    'Open orders from API'
   );
 
-  const mergedOpenOrders = _.concat(
-    currentOpenOrders.filter(o => o.symbol !== symbol),
-    symbolOpenOrders
-  );
-
-  logger.info({ symbol, mergedOpenOrders }, 'Merged open orders');
   await cache.hset(
-    'trailing-trade-common',
-    'open-orders',
-    JSON.stringify(mergedOpenOrders)
+    'trailing-trade-orders',
+    symbol,
+    JSON.stringify(symbolOpenOrders)
   );
 
-  return mergedOpenOrders;
+  return symbolOpenOrders;
 };
 
 /**
@@ -236,7 +233,7 @@ const getLastBuyPrice = async (logger, symbol) => {
  * @returns
  */
 const lockSymbol = async (logger, symbol, ttl = 5) => {
-  logger.info({ symbol }, `Lock ${symbol} for ${ttl} seconds`);
+  logger.info({ debug: true, symbol }, `Lock ${symbol} for ${ttl} seconds`);
   return cache.set(`lock-${symbol}`, true, ttl);
 };
 
@@ -250,7 +247,7 @@ const lockSymbol = async (logger, symbol, ttl = 5) => {
 const isSymbolLocked = async (logger, symbol) => {
   const isLocked = (await cache.get(`lock-${symbol}`)) === 'true';
 
-  if (isLocked) {
+  if (isLocked === true) {
     logger.info(
       { debug: true, symbol, isLocked },
       `Symbol is locked - ${symbol}`
@@ -272,7 +269,7 @@ const isSymbolLocked = async (logger, symbol) => {
  * @returns
  */
 const unlockSymbol = async (logger, symbol) => {
-  logger.info({ symbol }, `Unlock ${symbol}`);
+  logger.info({ debug: true, symbol }, `Unlock ${symbol}`);
   return cache.del(`lock-${symbol}`);
 };
 
@@ -283,7 +280,7 @@ module.exports = {
   getOpenOrdersFromCache,
   getOpenOrdersFromAPI,
   getOpenOrdersBySymbol,
-  refreshOpenOrdersWithSymbol,
+  getOpenOrdersForSymbol,
   getLastBuyPrice,
   lockSymbol,
   isSymbolLocked,

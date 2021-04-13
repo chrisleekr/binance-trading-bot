@@ -60,7 +60,7 @@ const execute = async (logger, rawData) => {
   };
 
   // Cast string to number
-  const lowestPrice = data.indicators.lowestPrice;
+  const { highestPrice, lowestPrice } = data.indicators;
   const currentPrice = parseFloat(cachedLatestCandle.close);
   const buyTriggerPrice = lowestPrice * buyTriggerPercentage;
   const buyDifference = (1 - currentPrice / buyTriggerPrice) * -100;
@@ -131,6 +131,7 @@ const execute = async (logger, rawData) => {
   data.buy = {
     currentPrice,
     limitPrice: buyLimitPrice,
+    highestPrice,
     lowestPrice,
     triggerPrice: buyTriggerPrice,
     difference: buyDifference,
