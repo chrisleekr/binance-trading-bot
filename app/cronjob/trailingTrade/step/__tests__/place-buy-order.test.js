@@ -8,7 +8,7 @@ describe('place-buy-order.js', () => {
   let loggerMock;
   let mongoMock;
 
-  let mockRefreshOpenOrdersWithSymbol;
+  let mockGetAndCacheOpenOrdersForSymbol;
   let mockGetAccountInfoFromAPI;
 
   describe('execute', () => {
@@ -30,13 +30,13 @@ describe('place-buy-order.js', () => {
 
     describe('when symbol is locked', () => {
       beforeEach(async () => {
-        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
         mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
           account: 'info'
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI
         }));
 
@@ -72,8 +72,8 @@ describe('place-buy-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger refreshOpenOrdersWithSymbol', () => {
-        expect(mockRefreshOpenOrdersWithSymbol).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger getAccountInfoFromAPI', () => {
@@ -87,13 +87,13 @@ describe('place-buy-order.js', () => {
 
     describe('when action is not buy', () => {
       beforeEach(async () => {
-        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
         mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
           account: 'info'
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI
         }));
 
@@ -129,8 +129,8 @@ describe('place-buy-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger refreshOpenOrdersWithSymbol', () => {
-        expect(mockRefreshOpenOrdersWithSymbol).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger getAccountInfoFromAPI', () => {
@@ -144,13 +144,13 @@ describe('place-buy-order.js', () => {
 
     describe('when open orders exist', () => {
       beforeEach(async () => {
-        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
         mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
           account: 'info'
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI
         }));
 
@@ -198,8 +198,8 @@ describe('place-buy-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger refreshOpenOrdersWithSymbol', () => {
-        expect(mockRefreshOpenOrdersWithSymbol).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger getAccountInfoFromAPI', () => {
@@ -233,13 +233,13 @@ describe('place-buy-order.js', () => {
 
     describe('when balance is less than minimum notional value', () => {
       beforeEach(async () => {
-        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
         mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
           account: 'info'
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI
         }));
 
@@ -278,8 +278,8 @@ describe('place-buy-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger refreshOpenOrdersWithSymbol', () => {
-        expect(mockRefreshOpenOrdersWithSymbol).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger getAccountInfoFromAPI', () => {
@@ -304,13 +304,13 @@ describe('place-buy-order.js', () => {
 
     describe('when balance is not enough after calculation', () => {
       beforeEach(async () => {
-        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
         mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
           account: 'info'
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI
         }));
 
@@ -349,8 +349,8 @@ describe('place-buy-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger refreshOpenOrdersWithSymbol', () => {
-        expect(mockRefreshOpenOrdersWithSymbol).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger getAccountInfoFromAPI', () => {
@@ -375,13 +375,13 @@ describe('place-buy-order.js', () => {
 
     describe('when trading is disabled', () => {
       beforeEach(async () => {
-        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
         mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
           account: 'info'
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI
         }));
 
@@ -419,8 +419,8 @@ describe('place-buy-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger refreshOpenOrdersWithSymbol', () => {
-        expect(mockRefreshOpenOrdersWithSymbol).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger getAccountInfoFromAPI', () => {
@@ -445,7 +445,7 @@ describe('place-buy-order.js', () => {
 
     describe('when has enough balance', () => {
       beforeEach(async () => {
-        mockRefreshOpenOrdersWithSymbol = jest.fn().mockResolvedValue([
+        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
           {
             orderId: 123,
             price: 202.2,
@@ -462,7 +462,7 @@ describe('place-buy-order.js', () => {
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI
         }));
 
@@ -509,8 +509,8 @@ describe('place-buy-order.js', () => {
         });
       });
 
-      it('triggers refreshOpenOrdersWithSymbol', () => {
-        expect(mockRefreshOpenOrdersWithSymbol).toHaveBeenCalled();
+      it('triggers getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
       });
 
       it('triggers getAccountInfoFromAPI', () => {

@@ -43,6 +43,7 @@ describe('get-indicators.js', () => {
           }
         },
         indicators: {
+          highestPrice: 15960,
           lowestPrice: 8893.03
         }
       });

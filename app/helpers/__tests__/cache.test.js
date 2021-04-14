@@ -2,6 +2,7 @@
 describe('cache', () => {
   let result;
   let mockSet;
+  let mockSetEx;
   let mockGet;
   let mockDel;
   let mockHSet;
@@ -10,15 +11,31 @@ describe('cache', () => {
   let mockHDel;
   let cache;
 
+  let mockLock;
+  let mockUnlock;
+
   describe('set', () => {
     beforeEach(() => {
       jest.clearAllMocks().resetModules();
 
-      mockSet = jest.fn(() => true);
       jest.mock('config');
+
+      mockSet = jest.fn(() => true);
+      mockSetEx = jest.fn(() => true);
       jest.mock('ioredis', () =>
         jest.fn().mockImplementation(() => ({
-          set: mockSet
+          set: mockSet,
+          setex: mockSetEx
+        }))
+      );
+
+      mockUnlock = jest.fn(() => true);
+      mockLock = jest.fn(() => ({
+        unlock: mockUnlock
+      }));
+      jest.mock('redlock', () =>
+        jest.fn().mockImplementation(() => ({
+          lock: mockLock
         }))
       );
 
@@ -30,8 +47,20 @@ describe('cache', () => {
         result = await cache.set('my-key', 'my-value');
       });
 
-      it('triggers mockSet', () => {
+      it('triggers lock', () => {
+        expect(mockLock).toHaveBeenCalledWith('redlock-my-key', 500);
+      });
+
+      it('does not trigger setex', () => {
+        expect(mockSetEx).not.toHaveBeenCalled();
+      });
+
+      it('triggers set', () => {
         expect(mockSet).toHaveBeenCalledWith('my-key', 'my-value');
+      });
+
+      it('triggers unlock', () => {
+        expect(mockUnlock).toHaveBeenCalled();
       });
 
       it('returns', () => {
@@ -44,8 +73,20 @@ describe('cache', () => {
         result = await cache.set('my-key', 'my-value', 3600);
       });
 
-      it('triggers mockSet', () => {
-        expect(mockSet).toHaveBeenCalledWith('my-key', 'my-value', 'EX', 3600);
+      it('triggers lock', () => {
+        expect(mockLock).toHaveBeenCalledWith('redlock-my-key', 500);
+      });
+
+      it('triggers setex', () => {
+        expect(mockSetEx).toHaveBeenCalledWith('my-key', 3600, 'my-value');
+      });
+
+      it('does not trigger set', () => {
+        expect(mockSet).not.toHaveBeenCalled();
+      });
+
+      it('triggers unlock', () => {
+        expect(mockUnlock).toHaveBeenCalled();
       });
 
       it('returns', () => {
@@ -59,10 +100,21 @@ describe('cache', () => {
       jest.clearAllMocks().resetModules();
 
       mockGet = jest.fn(() => 'my-value');
+
       jest.mock('config');
       jest.mock('ioredis', () =>
         jest.fn().mockImplementation(() => ({
           get: mockGet
+        }))
+      );
+
+      mockUnlock = jest.fn(() => true);
+      mockLock = jest.fn(() => ({
+        unlock: mockUnlock
+      }));
+      jest.mock('redlock', () =>
+        jest.fn().mockImplementation(() => ({
+          lock: mockLock
         }))
       );
 
@@ -71,8 +123,16 @@ describe('cache', () => {
       result = await cache.get('my-key');
     });
 
-    it('triggers mockGet', () => {
+    it('triggers lock', () => {
+      expect(mockLock).toHaveBeenCalledWith('redlock-my-key', 500);
+    });
+
+    it('triggers get', () => {
       expect(mockGet).toHaveBeenCalledWith('my-key');
+    });
+
+    it('triggers unlock', () => {
+      expect(mockUnlock).toHaveBeenCalled();
     });
 
     it('returns expected value', () => {
@@ -84,11 +144,22 @@ describe('cache', () => {
     beforeEach(async () => {
       jest.clearAllMocks().resetModules();
 
-      mockDel = jest.fn(() => true);
       jest.mock('config');
+
+      mockDel = jest.fn(() => true);
       jest.mock('ioredis', () =>
         jest.fn().mockImplementation(() => ({
           del: mockDel
+        }))
+      );
+
+      mockUnlock = jest.fn(() => true);
+      mockLock = jest.fn(() => ({
+        unlock: mockUnlock
+      }));
+      jest.mock('redlock', () =>
+        jest.fn().mockImplementation(() => ({
+          lock: mockLock
         }))
       );
 
@@ -97,8 +168,16 @@ describe('cache', () => {
       result = await cache.del('my-key');
     });
 
-    it('triggers mockDel', () => {
+    it('triggers lock', () => {
+      expect(mockLock).toHaveBeenCalledWith('redlock-my-key', 500);
+    });
+
+    it('triggers del', () => {
       expect(mockDel).toHaveBeenCalledWith('my-key');
+    });
+
+    it('triggers unlock', () => {
+      expect(mockUnlock).toHaveBeenCalled();
     });
 
     it('returns expected value', () => {

@@ -6,6 +6,7 @@ describe('steps.js', () => {
       getSymbolConfiguration: expect.any(Function),
       getSymbolInfo: expect.any(Function),
       getBalances: expect.any(Function),
+      getOpenOrders: expect.any(Function),
       getIndicators: expect.any(Function),
       handleOpenOrders: expect.any(Function),
       determineAction: expect.any(Function),

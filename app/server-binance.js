@@ -71,6 +71,7 @@ const setupTest = async logger => {
   _.forEach(currentPrices, (currentPrice, currentSymbol) => {
     if (symbols.includes(currentSymbol)) {
       logger.info({ currentSymbol, currentPrice }, 'Received new price');
+
       cache.hset(
         'trailing-trade-symbols',
         `${currentSymbol}-latest-candle`,
@@ -83,6 +84,8 @@ const setupTest = async logger => {
     }
   });
 
+  // It's impossible to test async function in the setTimeout.
+  /* istanbul ignore next */
   setTimeout(() => setupTest(logger), 1000);
 };
 
@@ -101,9 +104,9 @@ const runBinance = async serverLogger => {
   logger.info({ config }, `Binance ${config.get('mode')} started on`);
 
   if (mode === 'live') {
-    setupLive(logger);
+    await setupLive(logger);
   } else {
-    setupTest(logger);
+    await setupTest(logger);
   }
 };
 

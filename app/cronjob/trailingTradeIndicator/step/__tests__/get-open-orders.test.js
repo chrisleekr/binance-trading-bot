@@ -2,6 +2,7 @@
 
 describe('get-open-orders.js', () => {
   let loggerMock;
+
   let rawData;
 
   let step;
@@ -12,17 +13,17 @@ describe('get-open-orders.js', () => {
   });
 
   describe('execute', () => {
-    let mockRefreshOpenOrdersWithSymbol;
+    let mockGetAndCacheOpenOrdersForSymbol;
     beforeEach(async () => {
       const { logger } = require('../../../../helpers');
 
       loggerMock = logger;
-      mockRefreshOpenOrdersWithSymbol = jest
+      mockGetAndCacheOpenOrdersForSymbol = jest
         .fn()
         .mockResolvedValue([{ orderId: 1 }]);
 
       jest.mock('../../../trailingTradeHelper/common', () => ({
-        refreshOpenOrdersWithSymbol: mockRefreshOpenOrdersWithSymbol
+        getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
       }));
 
       step = require('../get-open-orders');
@@ -34,8 +35,8 @@ describe('get-open-orders.js', () => {
       result = await step.execute(loggerMock, rawData);
     });
 
-    it('triggers refreshOpenOrdersWithSymbol', () => {
-      expect(mockRefreshOpenOrdersWithSymbol).toHaveBeenCalledWith(
+    it('triggers getAndCacheOpenOrdersForSymbol', () => {
+      expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
         loggerMock,
         'BTCUSDT'
       );

@@ -1,7 +1,7 @@
 /* eslint-disable no-await-in-loop */
 const { binance } = require('../../../helpers');
 const {
-  getOpenOrdersForSymbol,
+  getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
 
@@ -84,7 +84,10 @@ const execute = async (logger, rawData) => {
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
 
-          data.openOrders = await getOpenOrdersForSymbol(logger, symbol);
+          data.openOrders = await getAndCacheOpenOrdersForSymbol(
+            logger,
+            symbol
+          );
 
           data.buy.openOrders = data.openOrders.filter(
             o => o.side.toLowerCase() === 'buy'
@@ -130,7 +133,10 @@ const execute = async (logger, rawData) => {
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
 
-          data.openOrders = await getOpenOrdersForSymbol(logger, symbol);
+          data.openOrders = await getAndCacheOpenOrdersForSymbol(
+            logger,
+            symbol
+          );
 
           data.sell.openOrders = data.openOrders.filter(
             o => o.side.toLowerCase() === 'sell'

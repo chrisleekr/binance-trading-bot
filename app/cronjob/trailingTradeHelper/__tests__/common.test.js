@@ -356,67 +356,7 @@ describe('common.js', () => {
     });
   });
 
-  describe('getOpenOrdersFromCache', () => {
-    describe('when there is cached open orders', () => {
-      beforeEach(async () => {
-        const { cache, logger } = require('../../../helpers');
-
-        cacheMock = cache;
-
-        cacheMock.hget = jest.fn().mockResolvedValue(
-          JSON.stringify([
-            {
-              symbol: 'BTCUSDT'
-            }
-          ])
-        );
-
-        commonHelper = require('../common');
-        result = await commonHelper.getOpenOrdersFromCache(logger);
-      });
-
-      it('triggers cache.hget for open orders', () => {
-        expect(cacheMock.hget).toHaveBeenCalledWith(
-          'trailing-trade-common',
-          'open-orders'
-        );
-      });
-
-      it('returns expected result', () => {
-        expect(result).toStrictEqual([
-          {
-            symbol: 'BTCUSDT'
-          }
-        ]);
-      });
-    });
-
-    describe('when there is no cached open orders', () => {
-      beforeEach(async () => {
-        const { cache, logger } = require('../../../helpers');
-
-        cacheMock = cache;
-
-        cacheMock.hget = jest.fn().mockResolvedValue(null);
-
-        commonHelper = require('../common');
-        result = await commonHelper.getOpenOrdersFromCache(logger);
-      });
-
-      it('triggers cache.hget for open orders', () => {
-        expect(cacheMock.hget).toHaveBeenCalledWith(
-          'trailing-trade-common',
-          'open-orders'
-        );
-      });
-
-      it('returns expected result', () => {
-        expect(result).toStrictEqual([]);
-      });
-    });
-  });
-
-  describe('getOpenOrdersBySymbol', () => {
+  describe('getOpenOrdersBySymbolFromAPI', () => {
     beforeEach(async () => {
       const { binance, logger } = require('../../../helpers');
 
@@ -428,7 +368,10 @@ describe('common.js', () => {
       ]);
 
       commonHelper = require('../common');
-      result = await commonHelper.getOpenOrdersBySymbol(logger, 'BTCUSDT');
+      result = await commonHelper.getOpenOrdersBySymbolFromAPI(
+        logger,
+        'BTCUSDT'
+      );
     });
 
     it('triggers binance.client.openOrders', () => {
@@ -443,241 +386,50 @@ describe('common.js', () => {
     });
   });
 
-  describe('refreshOpenOrdersWithSymbol', () => {
-    describe('when cached open orders exists and has open orders from api', () => {
-      beforeEach(async () => {
-        const { cache, binance, logger } = require('../../../helpers');
+  describe('getAndCacheOpenOrdersForSymbol', () => {
+    beforeEach(async () => {
+      const { binance, cache, logger } = require('../../../helpers');
 
-        binanceMock = binance;
-        cacheMock = cache;
+      binanceMock = binance;
+      binanceMock.client.openOrders = jest.fn().mockResolvedValue([
+        {
+          symbol: 'BTCUSDT'
+        }
+      ]);
 
-        cacheMock.hget = jest.fn().mockResolvedValue(
-          JSON.stringify([
-            {
-              orderId: 1,
-              symbol: 'BTCUSDT'
-            },
-            {
-              orderId: 2,
-              symbol: 'BTCUSDT'
-            },
-            {
-              orderId: 3,
-              symbol: 'ETHUSDT'
-            }
-          ])
-        );
+      cacheMock = cache;
+      loggerMock = logger;
 
-        cacheMock.hset = jest.fn().mockResolvedValue(true);
+      cacheMock.hset = jest.fn().mockResolvedValue(true);
 
-        binanceMock.client.openOrders = jest.fn().mockResolvedValue([
-          {
-            orderId: 4,
-            symbol: 'BTCUSDT'
-          },
-          {
-            orderId: 5,
-            symbol: 'BTCUSDT'
-          }
-        ]);
+      commonHelper = require('../common');
+      result = await commonHelper.getAndCacheOpenOrdersForSymbol(
+        logger,
+        'BTCUSDT'
+      );
+    });
 
-        commonHelper = require('../common');
-        result = await commonHelper.refreshOpenOrdersWithSymbol(
-          logger,
-          'BTCUSDT'
-        );
-      });
-
-      it('triggers cache.hget for open orders', () => {
-        expect(cacheMock.hget).toHaveBeenCalledWith(
-          'trailing-trade-common',
-          'open-orders'
-        );
-      });
-
-      it('triggers binance.client.openOrders', () => {
-        expect(binanceMock.client.openOrders).toHaveBeenCalled();
-      });
-
-      it('triggers cache.hset with merged open orders', () => {
-        expect(cacheMock.hset).toHaveBeenCalledWith(
-          'trailing-trade-common',
-          'open-orders',
-          JSON.stringify([
-            {
-              orderId: 3,
-              symbol: 'ETHUSDT'
-            },
-            {
-              orderId: 4,
-              symbol: 'BTCUSDT'
-            },
-            {
-              orderId: 5,
-              symbol: 'BTCUSDT'
-            }
-          ])
-        );
-      });
-
-      it('returns expected result', () => {
-        expect(result).toStrictEqual([
-          {
-            orderId: 3,
-            symbol: 'ETHUSDT'
-          },
-          {
-            orderId: 4,
-            symbol: 'BTCUSDT'
-          },
-          {
-            orderId: 5,
-            symbol: 'BTCUSDT'
-          }
-        ]);
+    it('triggers binance.client.openOrders', () => {
+      expect(binanceMock.client.openOrders).toHaveBeenCalledWith({
+        symbol: 'BTCUSDT',
+        recvWindow: 10000
       });
     });
 
-    describe('when cached open orders does not exist', () => {
-      beforeEach(async () => {
-        const { cache, binance, logger } = require('../../../helpers');
-
-        binanceMock = binance;
-        cacheMock = cache;
-
-        cacheMock.hget = jest.fn().mockResolvedValue(null);
-
-        cacheMock.hset = jest.fn().mockResolvedValue(true);
-
-        binanceMock.client.openOrders = jest.fn().mockResolvedValue([
+    it('triggers cache.hset', () => {
+      expect(cacheMock.hset).toHaveBeenCalledWith(
+        'trailing-trade-orders',
+        'BTCUSDT',
+        JSON.stringify([
           {
-            orderId: 4,
-            symbol: 'BTCUSDT'
-          },
-          {
-            orderId: 5,
             symbol: 'BTCUSDT'
           }
-        ]);
-
-        commonHelper = require('../common');
-        result = await commonHelper.refreshOpenOrdersWithSymbol(
-          logger,
-          'BTCUSDT'
-        );
-      });
-
-      it('triggers cache.hget for open orders', () => {
-        expect(cacheMock.hget).toHaveBeenCalledWith(
-          'trailing-trade-common',
-          'open-orders'
-        );
-      });
-
-      it('triggers binance.client.openOrders', () => {
-        expect(binanceMock.client.openOrders).toHaveBeenCalled();
-      });
-
-      it('triggers cache.hset with merged open orders', () => {
-        expect(cacheMock.hset).toHaveBeenCalledWith(
-          'trailing-trade-common',
-          'open-orders',
-          JSON.stringify([
-            {
-              orderId: 4,
-              symbol: 'BTCUSDT'
-            },
-            {
-              orderId: 5,
-              symbol: 'BTCUSDT'
-            }
-          ])
-        );
-      });
-
-      it('returns expected result', () => {
-        expect(result).toStrictEqual([
-          {
-            orderId: 4,
-            symbol: 'BTCUSDT'
-          },
-          {
-            orderId: 5,
-            symbol: 'BTCUSDT'
-          }
-        ]);
-      });
+        ])
+      );
     });
 
-    describe('when cached open orders exists but empty', () => {
-      beforeEach(async () => {
-        const { cache, binance, logger } = require('../../../helpers');
-
-        binanceMock = binance;
-        cacheMock = cache;
-
-        cacheMock.hget = jest.fn().mockResolvedValue(JSON.stringify([]));
-
-        cacheMock.hset = jest.fn().mockResolvedValue(true);
-
-        binanceMock.client.openOrders = jest.fn().mockResolvedValue([
-          {
-            orderId: 4,
-            symbol: 'BTCUSDT'
-          },
-          {
-            orderId: 5,
-            symbol: 'BTCUSDT'
-          }
-        ]);
-
-        commonHelper = require('../common');
-        result = await commonHelper.refreshOpenOrdersWithSymbol(
-          logger,
-          'BTCUSDT'
-        );
-      });
-
-      it('triggers cache.hget for open orders', () => {
-        expect(cacheMock.hget).toHaveBeenCalledWith(
-          'trailing-trade-common',
-          'open-orders'
-        );
-      });
-
-      it('triggers binance.client.openOrders', () => {
-        expect(binanceMock.client.openOrders).toHaveBeenCalled();
-      });
-
-      it('triggers cache.hset with merged open orders', () => {
-        expect(cacheMock.hset).toHaveBeenCalledWith(
-          'trailing-trade-common',
-          'open-orders',
-          JSON.stringify([
-            {
-              orderId: 4,
-              symbol: 'BTCUSDT'
-            },
-            {
-              orderId: 5,
-              symbol: 'BTCUSDT'
-            }
-          ])
-        );
-      });
-
-      it('returns expected result', () => {
-        expect(result).toStrictEqual([
-          {
-            orderId: 4,
-            symbol: 'BTCUSDT'
-          },
-          {
-            orderId: 5,
-            symbol: 'BTCUSDT'
-          }
-        ]);
-      });
+    it('returns expected result', () => {
+      expect(result).toStrictEqual([{ symbol: 'BTCUSDT' }]);
     });
   });
 

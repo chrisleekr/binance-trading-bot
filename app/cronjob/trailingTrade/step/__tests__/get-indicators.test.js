@@ -32,6 +32,7 @@ describe('get-indicators.js', () => {
             key === 'BTCUSDT-indicator-data'
           ) {
             return JSON.stringify({
+              highestPrice: 10000,
               lowestPrice: 8893.03
             });
           }
@@ -84,6 +85,7 @@ describe('get-indicators.js', () => {
           baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
           openOrders: [],
           indicators: {
+            highestPrice: 10000,
             lowestPrice: 8893.03
           },
           lastCandle: {
@@ -93,6 +95,7 @@ describe('get-indicators.js', () => {
           buy: {
             currentPrice: 15555.09,
             limitPrice: 15881.746889999999,
+            highestPrice: 10000,
             lowestPrice: 8893.03,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
@@ -133,6 +136,7 @@ describe('get-indicators.js', () => {
             key === 'BTCUSDT-indicator-data'
           ) {
             return JSON.stringify({
+              highestPrice: 10000,
               lowestPrice: 8893.03
             });
           }
@@ -261,6 +265,7 @@ describe('get-indicators.js', () => {
             }
           ],
           indicators: {
+            highestPrice: 10000,
             lowestPrice: 8893.03
           },
           lastCandle: {
@@ -270,6 +275,7 @@ describe('get-indicators.js', () => {
           buy: {
             currentPrice: 15555.09,
             limitPrice: 15881.746889999999,
+            highestPrice: 10000,
             lowestPrice: 8893.03,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
@@ -357,6 +363,7 @@ describe('get-indicators.js', () => {
             key === 'BTCUSDT-indicator-data'
           ) {
             return JSON.stringify({
+              highestPrice: 10000,
               lowestPrice: 8893.03
             });
           }
@@ -482,6 +489,7 @@ describe('get-indicators.js', () => {
             }
           ],
           indicators: {
+            highestPrice: 10000,
             lowestPrice: 8893.03
           },
           lastCandle: {
@@ -491,6 +499,7 @@ describe('get-indicators.js', () => {
           buy: {
             currentPrice: 15555.09,
             limitPrice: 15881.746889999999,
+            highestPrice: 10000,
             lowestPrice: 8893.03,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
@@ -578,6 +587,7 @@ describe('get-indicators.js', () => {
             key === 'BTCUSDT-indicator-data'
           ) {
             return JSON.stringify({
+              highestPrice: 10000,
               lowestPrice: 8893.03
             });
           }
@@ -631,6 +641,7 @@ describe('get-indicators.js', () => {
           },
           openOrders: [],
           indicators: {
+            highestPrice: 10000,
             lowestPrice: 8893.03
           },
           lastCandle: {
@@ -640,6 +651,7 @@ describe('get-indicators.js', () => {
           buy: {
             currentPrice: 15555.09,
             limitPrice: 15726.195989999998,
+            highestPrice: 10000,
             lowestPrice: 8893.03,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,

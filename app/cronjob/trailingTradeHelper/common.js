@@ -134,31 +134,12 @@ const getOpenOrdersFromAPI = async logger => {
 };
 
 /**
- * Retrieve open orders from cache
- *
- * @param {*} logger
- */
-const getOpenOrdersFromCache = async logger => {
-  const cachedOpenOrders =
-    JSON.parse(await cache.hgetall('trailing-trade-orders')) || [];
-
-  logger.info({ cachedOpenOrders }, 'Retrieved open orders from cache');
-
-  const openOrders = [];
-  _.forIn(cachedOpenOrders, value => {
-    openOrders.push(value);
-  });
-
-  return openOrders;
-};
-
-/**
  * Get open orders
  *
  * @param {*} logger
  * @param {*} symbol
  */
-const getOpenOrdersBySymbol = async (logger, symbol) => {
+const getOpenOrdersBySymbolFromAPI = async (logger, symbol) => {
   logger.info(
     { debug: true, function: 'openOrders' },
     'Retrieving open orders by symbol from API'
@@ -181,9 +162,9 @@ const getOpenOrdersBySymbol = async (logger, symbol) => {
  * @param {*} logger
  * @param {*} symbol
  */
-const getOpenOrdersForSymbol = async (logger, symbol) => {
+const getAndCacheOpenOrdersForSymbol = async (logger, symbol) => {
   // Retrieve open orders from API first
-  const symbolOpenOrders = await getOpenOrdersBySymbol(logger, symbol);
+  const symbolOpenOrders = await getOpenOrdersBySymbolFromAPI(logger, symbol);
 
   logger.info(
     {
@@ -277,10 +258,9 @@ module.exports = {
   cacheExchangeSymbols,
   getAccountInfoFromAPI,
   getAccountInfo,
-  getOpenOrdersFromCache,
   getOpenOrdersFromAPI,
-  getOpenOrdersBySymbol,
-  getOpenOrdersForSymbol,
+  getOpenOrdersBySymbolFromAPI,
+  getAndCacheOpenOrdersForSymbol,
   getLastBuyPrice,
   lockSymbol,
   isSymbolLocked,

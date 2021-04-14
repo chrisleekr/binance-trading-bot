@@ -13,7 +13,6 @@ describe('trailingTrade', () => {
 
   let mockCacheExchangeSymbols;
   let mockGetAccountInfo;
-  let mockGetOpenOrdersFromCache;
   let mockLockSymbol;
   let mockIsSymbolLocked;
   let mockUnlockSymbol;
@@ -21,6 +20,7 @@ describe('trailingTrade', () => {
   let mockGetSymbolConfiguration;
   let mockGetSymbolInfo;
   let mockGetBalances;
+  let mockGetOpenOrders;
   let mockGetIndicators;
   let mockHandleOpenOrders;
   let mockDetermineAction;
@@ -66,17 +66,6 @@ describe('trailingTrade', () => {
         account: 'info'
       });
 
-      mockGetOpenOrdersFromCache = jest.fn().mockResolvedValue([
-        {
-          orderId: 1,
-          symbol: 'BTCUSDT'
-        },
-        {
-          orderId: 2,
-          symbol: 'LTCUSDT'
-        }
-      ]);
-
       mockGetSymbolConfiguration = jest
         .fn()
         .mockImplementation((_logger, rawData) => ({
@@ -102,6 +91,18 @@ describe('trailingTrade', () => {
         ...{
           baseAssetBalance: { baseAsset: 'balance' },
           quoteAssetBalance: { quoteAsset: 'balance' }
+        }
+      }));
+
+      mockGetOpenOrders = jest.fn().mockImplementation((_logger, rawData) => ({
+        ...rawData,
+        ...{
+          openOrders: [
+            {
+              orderId: `order-id-${rawData.symbol}`,
+              symbol: rawData.symbol
+            }
+          ]
         }
       }));
 
@@ -184,7 +185,6 @@ describe('trailingTrade', () => {
       jest.mock('../trailingTradeHelper/common', () => ({
         cacheExchangeSymbols: mockCacheExchangeSymbols,
         getAccountInfo: mockGetAccountInfo,
-        getOpenOrdersFromCache: mockGetOpenOrdersFromCache,
         lockSymbol: mockLockSymbol,
         isSymbolLocked: mockIsSymbolLocked,
         unlockSymbol: mockUnlockSymbol
@@ -194,6 +194,7 @@ describe('trailingTrade', () => {
         getSymbolConfiguration: mockGetSymbolConfiguration,
         getSymbolInfo: mockGetSymbolInfo,
         getBalances: mockGetBalances,
+        getOpenOrders: mockGetOpenOrders,
         getIndicators: mockGetIndicators,
         handleOpenOrders: mockHandleOpenOrders,
         determineAction: mockDetermineAction,
@@ -234,7 +235,7 @@ describe('trailingTrade', () => {
             symbolConfiguration: { symbol: 'configuration data' },
             indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            openOrders: [{ orderId: 1, symbol: 'BTCUSDT' }],
+            openOrders: [{ orderId: 'order-id-BTCUSDT', symbol: 'BTCUSDT' }],
             action: 'determined',
             baseAssetBalance: { baseAsset: 'balance' },
             quoteAssetBalance: { quoteAsset: 'balance' },
@@ -262,7 +263,7 @@ describe('trailingTrade', () => {
             symbolConfiguration: { symbol: 'configuration data' },
             indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            openOrders: [],
+            openOrders: [{ orderId: 'order-id-ETHUSDT', symbol: 'ETHUSDT' }],
             action: 'determined',
             baseAssetBalance: { baseAsset: 'balance' },
             quoteAssetBalance: { quoteAsset: 'balance' },
@@ -290,7 +291,7 @@ describe('trailingTrade', () => {
             symbolConfiguration: { symbol: 'configuration data' },
             indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            openOrders: [{ orderId: 2, symbol: 'LTCUSDT' }],
+            openOrders: [{ orderId: 'order-id-LTCUSDT', symbol: 'LTCUSDT' }],
             action: 'determined',
             baseAssetBalance: { baseAsset: 'balance' },
             quoteAssetBalance: { quoteAsset: 'balance' },
@@ -325,17 +326,6 @@ describe('trailingTrade', () => {
         account: 'info'
       });
 
-      mockGetOpenOrdersFromCache = jest.fn().mockResolvedValue([
-        {
-          orderId: 1,
-          symbol: 'BTCUSDT'
-        },
-        {
-          orderId: 2,
-          symbol: 'LTCUSDT'
-        }
-      ]);
-
       mockGetSymbolConfiguration = jest
         .fn()
         .mockImplementation((_logger, rawData) => ({
@@ -361,6 +351,18 @@ describe('trailingTrade', () => {
         ...{
           baseAssetBalance: { baseAsset: 'balance' },
           quoteAssetBalance: { quoteAsset: 'balance' }
+        }
+      }));
+
+      mockGetOpenOrders = jest.fn().mockImplementation((_logger, rawData) => ({
+        ...rawData,
+        ...{
+          openOrders: [
+            {
+              orderId: `order-id-${rawData.symbol}`,
+              symbol: rawData.symbol
+            }
+          ]
         }
       }));
 
@@ -443,7 +445,6 @@ describe('trailingTrade', () => {
       jest.mock('../trailingTradeHelper/common', () => ({
         cacheExchangeSymbols: mockCacheExchangeSymbols,
         getAccountInfo: mockGetAccountInfo,
-        getOpenOrdersFromCache: mockGetOpenOrdersFromCache,
         lockSymbol: mockLockSymbol,
         isSymbolLocked: mockIsSymbolLocked,
         unlockSymbol: mockUnlockSymbol
@@ -453,6 +454,7 @@ describe('trailingTrade', () => {
         getSymbolConfiguration: mockGetSymbolConfiguration,
         getSymbolInfo: mockGetSymbolInfo,
         getBalances: mockGetBalances,
+        getOpenOrders: mockGetOpenOrders,
         getIndicators: mockGetIndicators,
         handleOpenOrders: mockHandleOpenOrders,
         determineAction: mockDetermineAction,
@@ -493,7 +495,7 @@ describe('trailingTrade', () => {
             symbolConfiguration: { symbol: 'configuration data' },
             indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            openOrders: [{ orderId: 1, symbol: 'BTCUSDT' }],
+            openOrders: [{ orderId: 'order-id-BTCUSDT', symbol: 'BTCUSDT' }],
             action: 'determined',
             baseAssetBalance: { baseAsset: 'balance' },
             quoteAssetBalance: { quoteAsset: 'balance' },
@@ -521,7 +523,7 @@ describe('trailingTrade', () => {
             symbolConfiguration: { symbol: 'configuration data' },
             indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            openOrders: [],
+            openOrders: [{ orderId: 'order-id-ETHUSDT', symbol: 'ETHUSDT' }],
             action: 'determined',
             baseAssetBalance: { baseAsset: 'balance' },
             quoteAssetBalance: { quoteAsset: 'balance' },
@@ -549,7 +551,7 @@ describe('trailingTrade', () => {
             symbolConfiguration: { symbol: 'configuration data' },
             indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            openOrders: [{ orderId: 2, symbol: 'LTCUSDT' }],
+            openOrders: [{ orderId: 'order-id-LTCUSDT', symbol: 'LTCUSDT' }],
             action: 'determined',
             baseAssetBalance: { baseAsset: 'balance' },
             quoteAssetBalance: { quoteAsset: 'balance' },
@@ -579,10 +581,10 @@ describe('trailingTrade', () => {
       mockGetGlobalConfiguration = jest.fn().mockResolvedValue(true);
       mockCacheExchangeSymbols = jest.fn().mockResolvedValue(true);
       mockGetAccountInfo = jest.fn().mockResolvedValue(true);
-      mockGetOpenOrdersFromCache = jest.fn().mockResolvedValue(true);
       mockGetSymbolConfiguration = jest.fn().mockResolvedValue(true);
       mockGetSymbolInfo = jest.fn().mockResolvedValue(true);
       mockGetBalances = jest.fn().mockResolvedValue(true);
+      mockGetOpenOrders = jest.fn().mockResolvedValue(true);
       mockGetIndicators = jest.fn().mockResolvedValue(true);
       mockHandleOpenOrders = jest.fn().mockResolvedValue(true);
       mockDetermineAction = jest.fn().mockResolvedValue(true);
@@ -598,7 +600,6 @@ describe('trailingTrade', () => {
       jest.mock('../trailingTradeHelper/common', () => ({
         cacheExchangeSymbols: mockCacheExchangeSymbols,
         getAccountInfo: mockGetAccountInfo,
-        getOpenOrdersFromCache: mockGetOpenOrdersFromCache,
         lockSymbol: mockLockSymbol,
         isSymbolLocked: mockIsSymbolLocked,
         unlockSymbol: mockUnlockSymbol
@@ -608,6 +609,7 @@ describe('trailingTrade', () => {
         getSymbolConfiguration: mockGetSymbolConfiguration,
         getSymbolInfo: mockGetSymbolInfo,
         getBalances: mockGetBalances,
+        getOpenOrders: mockGetOpenOrders,
         getIndicators: mockGetIndicators,
         handleOpenOrders: mockHandleOpenOrders,
         determineAction: mockDetermineAction,
