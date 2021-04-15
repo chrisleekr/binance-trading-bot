@@ -34,7 +34,7 @@ const redlock = new Redlock([redis], {
  * @param {*} ttl seconds
  */
 const set = async (key, value, ttl = undefined) => {
-  const lock = await redlock.lock(`redlock-${key}`, 500);
+  const lock = await redlock.lock(`redlock:${key}`, 500);
 
   let result;
   if (ttl) {
@@ -54,10 +54,8 @@ const set = async (key, value, ttl = undefined) => {
  * @param {*} key
  */
 const get = async key => {
-  const lock = await redlock.lock(`redlock-${key}`, 500);
-
+  const lock = await redlock.lock(`redlock:${key}`, 500);
   const result = await redis.get(key);
-
   await lock.unlock();
 
   return result;
@@ -69,9 +67,8 @@ const get = async key => {
  * @param {*} key
  */
 const del = async key => {
-  const lock = await redlock.lock(`redlock-${key}`, 500);
+  const lock = await redlock.lock(`redlock:${key}`, 500);
   const result = await redis.del(key);
-
   await lock.unlock();
   return result;
 };
@@ -83,7 +80,12 @@ const del = async key => {
  * @param {*} field
  * @param {*} value
  */
-const hset = async (key, field, value) => redis.hset(key, field, value);
+const hset = async (key, field, value) => {
+  const lock = await redlock.lock(`redlock:${key}:${field}`, 500);
+  const result = await redis.hset(key, field, value);
+  await lock.unlock();
+  return result;
+};
 
 /**
  * Get value from key
@@ -91,7 +93,12 @@ const hset = async (key, field, value) => redis.hset(key, field, value);
  * @param {*} key
  * @param {*} field
  */
-const hget = async (key, field) => redis.hget(key, field);
+const hget = async (key, field) => {
+  const lock = await redlock.lock(`redlock:${key}:${field}`, 500);
+  const result = await redis.hget(key, field);
+  await lock.unlock();
+  return result;
+};
 
 /**
  * Get value from key
@@ -106,7 +113,12 @@ const hgetall = async key => redis.hgetall(key);
  * @param {*} key
  * @param {*} field
  */
-const hdel = async (key, field) => redis.hdel(key, field);
+const hdel = async (key, field) => {
+  const lock = await redlock.lock(`redlock:${key}:${field}`, 500);
+  const result = await redis.hdel(key, field);
+  await lock.unlock();
+  return result;
+};
 
 module.exports = {
   set,

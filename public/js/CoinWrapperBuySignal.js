@@ -40,7 +40,7 @@ class CoinWrapperBuySignal extends React.Component {
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>Highest price:</span>
             <HightlightChange className='coin-info-value'>
-              {(+buy.highestPrice).toFixed(precision)}
+              {parseFloat(buy.highestPrice).toFixed(precision)}
             </HightlightChange>
           </div>
         ) : (
@@ -50,7 +50,7 @@ class CoinWrapperBuySignal extends React.Component {
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>Current price:</span>
             <HightlightChange className='coin-info-value'>
-              {(+buy.currentPrice).toFixed(precision)}
+              {parseFloat(buy.currentPrice).toFixed(precision)}
             </HightlightChange>
           </div>
         ) : (
@@ -60,7 +60,7 @@ class CoinWrapperBuySignal extends React.Component {
           <div className='coin-info-column coin-info-column-lowest-price'>
             <span className='coin-info-label'>Lowest price:</span>
             <HightlightChange className='coin-info-value'>
-              {(+buy.lowestPrice).toFixed(precision)}
+              {parseFloat(buy.lowestPrice).toFixed(precision)}
             </HightlightChange>
           </div>
         ) : (
@@ -71,13 +71,13 @@ class CoinWrapperBuySignal extends React.Component {
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>
               Trigger price (
-              {((+symbolConfiguration.buy.triggerPercentage - 1) * 100).toFixed(
-                2
-              )}
+              {(
+                parseFloat(symbolConfiguration.buy.triggerPercentage - 1) * 100
+              ).toFixed(2)}
               %):
             </span>
             <HightlightChange className='coin-info-value'>
-              {(+buy.triggerPrice).toFixed(precision)}
+              {parseFloat(buy.triggerPrice).toFixed(precision)}
             </HightlightChange>
           </div>
         ) : (
@@ -87,7 +87,7 @@ class CoinWrapperBuySignal extends React.Component {
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>Difference to buy:</span>
             <HightlightChange className='coin-info-value' id='buy-difference'>
-              {(+buy.difference).toFixed(2)}%
+              {parseFloat(buy.difference).toFixed(2)}%
             </HightlightChange>
           </div>
         ) : (

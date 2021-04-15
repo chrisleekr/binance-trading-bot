@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { mongo } = require('../../../helpers');
+const { mongo, slack } = require('../../../helpers');
 /**
  * Remove last buy price if applicable
  *
@@ -75,6 +75,19 @@ const execute = async (logger, rawData) => {
       'Balance is found; however, not enough to sell. Delete last buy price.';
     data.sell.updatedAt = moment().utc();
 
+    slack.sendMessage(
+      `Action: Removed last buy price\nSymbol: ${symbol}\nMessage: ${
+        data.sell.processMessage
+      }\n\`\`\`${JSON.stringify(
+        {
+          baseAssetQuantity,
+          minQty
+        },
+        undefined,
+        2
+      )}\`\`\``
+    );
+
     return data;
   }
 
@@ -89,6 +102,20 @@ const execute = async (logger, rawData) => {
     data.sell.processMessage =
       'Balance is found; however, the balance is less than the notional value. Delete last buy price.';
     data.sell.updatedAt = moment().utc();
+
+    slack.sendMessage(
+      `Action: Removed last buy price\nSymbol: ${symbol}\nMessage: ${
+        data.sell.processMessage
+      }\n\`\`\`${JSON.stringify(
+        {
+          baseAssetQuantity,
+          currentPrice,
+          minNotional
+        },
+        undefined,
+        2
+      )}\`\`\``
+    );
 
     return data;
   }

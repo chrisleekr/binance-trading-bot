@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, slack } = require('../../../helpers');
+const { binance, mongo, cache, slack } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 const {
   getAndCacheOpenOrdersForSymbol,
@@ -112,6 +112,8 @@ const execute = async (logger, rawData) => {
   const orderResult = await binance.client.order(orderParams);
 
   logger.info({ orderResult }, 'Order result');
+
+  await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult), 10);
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

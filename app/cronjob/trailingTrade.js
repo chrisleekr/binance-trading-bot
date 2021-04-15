@@ -14,6 +14,7 @@ const {
   getSymbolConfiguration,
   getSymbolInfo,
   getBalances,
+  ensureOrderPlaced,
   getOpenOrders,
   getIndicators,
   handleOpenOrders,
@@ -74,6 +75,10 @@ const execute = async logger => {
           {
             stepName: 'get-symbol-info',
             stepFunc: getSymbolInfo
+          },
+          {
+            stepName: 'ensure-open-placed',
+            stepFunc: ensureOrderPlaced
           },
           {
             stepName: 'get-balances',

@@ -46,7 +46,7 @@ class CoinWrapperSellSignal extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Current price:</span>
               <HightlightChange className='coin-info-value'>
-                {(+sell.currentPrice).toFixed(precision)}
+                {parseFloat(sell.currentPrice).toFixed(precision)}
               </HightlightChange>
             </div>
           ) : (
@@ -59,8 +59,8 @@ class CoinWrapperSellSignal extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Profit/Loss:</span>
               <HightlightChange className='coin-info-value'>
-                {(+sell.currentProfit).toFixed(2)} {quoteAsset} (
-                {(+sell.currentProfitPercentage).toFixed(2)}
+                {parseFloat(sell.currentProfit).toFixed(2)} {quoteAsset} (
+                {parseFloat(sell.currentProfitPercentage).toFixed(2)}
                 %)
               </HightlightChange>
             </div>
@@ -79,7 +79,7 @@ class CoinWrapperSellSignal extends React.Component {
                 %):
               </span>
               <HightlightChange className='coin-info-value'>
-                {(+sell.triggerPrice).toFixed(precision)}
+                {parseFloat(sell.triggerPrice).toFixed(precision)}
               </HightlightChange>
             </div>
           ) : (
@@ -89,7 +89,7 @@ class CoinWrapperSellSignal extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Difference to sell:</span>
               <HightlightChange className='coin-info-value'>
-                {(+sell.difference).toFixed(2)}%
+                {parseFloat(sell.difference).toFixed(2)}%
               </HightlightChange>
             </div>
           ) : (

@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, slack, mongo } = require('../../../helpers');
+const { binance, slack, mongo, cache } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 const {
   getAndCacheOpenOrdersForSymbol,
@@ -59,7 +59,10 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  logger.info({ debug: true, currentPrice, openOrders }, 'place-buy-order');
+  logger.info(
+    { debug: true, currentPrice, openOrders },
+    'Attempting to place buy order'
+  );
 
   const lotPrecision = stepSize.indexOf(1) - 1;
   const pricePrecision = tickSize.indexOf(1) - 1;
@@ -135,6 +138,8 @@ const execute = async (logger, rawData) => {
   const orderResult = await binance.client.order(orderParams);
 
   logger.info({ orderResult }, 'Order result');
+
+  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 10);
 
   await mongo.upsertOne(
     logger,

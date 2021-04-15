@@ -24,19 +24,20 @@ class CoinWrapperBalance extends React.Component {
         <div className='coin-info-column coin-info-column-right coin-info-column-balance'>
           <span className='coin-info-label'>Free:</span>
           <HightlightChange className='coin-info-value'>
-            {(+baseAssetBalance.free).toFixed(precision)}
+            {parseFloat(baseAssetBalance.free).toFixed(precision)}
           </HightlightChange>
         </div>
         <div className='coin-info-column coin-info-column-right coin-info-column-balance'>
           <span className='coin-info-label'>Locked:</span>
           <HightlightChange className='coin-info-value'>
-            {(+baseAssetBalance.locked).toFixed(precision)}
+            {parseFloat(baseAssetBalance.locked).toFixed(precision)}
           </HightlightChange>
         </div>
         <div className='coin-info-column coin-info-column-right coin-info-column-balance'>
           <span className='coin-info-label'>Estimated Value:</span>
           <HightlightChange className='coin-info-value'>
-            {(+baseAssetBalance.estimatedValue).toFixed(2)} {quoteAsset}
+            {parseFloat(baseAssetBalance.estimatedValue).toFixed(2)}{' '}
+            {quoteAsset}
           </HightlightChange>
         </div>
       </div>

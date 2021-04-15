@@ -36,7 +36,7 @@ const execute = async (logger, rawData) => {
     parseFloat(baseAssetBalance.free) + parseFloat(baseAssetBalance.locked);
 
   // If this step is executed, after current price retrieved, then estimate value again.
-  let baseAssetEstimatedValue = null;
+  let baseAssetEstimatedValue = 0;
   if (currentPrice) {
     baseAssetEstimatedValue = baseAssetTotalBalance * currentPrice;
   }
@@ -45,11 +45,7 @@ const execute = async (logger, rawData) => {
 
   data.baseAssetBalance = baseAssetBalance;
   data.baseAssetBalance.total = baseAssetTotalBalance;
-  if (baseAssetEstimatedValue) {
-    data.baseAssetBalance.estimatedValue = baseAssetEstimatedValue;
-  } else {
-    data.baseAssetBalance.estimatedValue = null;
-  }
+  data.baseAssetBalance.estimatedValue = baseAssetEstimatedValue;
   data.baseAssetBalance.updatedAt = moment(accountInfo.updateTime).utc();
 
   data.quoteAssetBalance = quoteAssetBalance;

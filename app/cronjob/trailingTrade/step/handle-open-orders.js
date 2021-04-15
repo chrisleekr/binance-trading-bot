@@ -49,6 +49,7 @@ const execute = async (logger, rawData) => {
 
   const {
     symbol,
+    action,
     isLocked,
     openOrders,
     buy: { limitPrice: buyLimitPrice },
@@ -59,6 +60,14 @@ const execute = async (logger, rawData) => {
     logger.info(
       { isLocked },
       'Symbol is locked, do not process handle-open-orders'
+    );
+    return data;
+  }
+
+  if (action !== 'not-determined') {
+    logger.info(
+      { action },
+      'Action is already defined, do not try to handle open orders.'
     );
     return data;
   }
@@ -97,17 +106,16 @@ const execute = async (logger, rawData) => {
           data.accountInfo = await getAccountInfoFromAPI(logger);
 
           data.action = 'buy-order-checking';
-          return data;
+        } else {
+          // Reset buy open orders
+          data.buy.openOrders = [];
+
+          // Set action as buy
+          data.action = 'buy';
+
+          // Get account information again because the order is cancelled
+          data.accountInfo = await getAccountInfoFromAPI(logger);
         }
-
-        // Reset buy open orders
-        data.buy.openOrders = [];
-
-        // Set action as buy
-        data.action = 'buy';
-
-        // Get account information again because the order is cancelled
-        data.accountInfo = await getAccountInfoFromAPI(logger);
       } else {
         logger.info(
           { stopPrice: order.stopPrice, buyLimitPrice },
@@ -146,17 +154,16 @@ const execute = async (logger, rawData) => {
           data.accountInfo = await getAccountInfoFromAPI(logger);
 
           data.action = 'sell-order-checking';
-          return data;
+        } else {
+          // Reset sell open orders
+          data.sell.openOrders = [];
+
+          // Set action as sell
+          data.action = 'sell';
+
+          // Get account information again because the order is cancelled
+          data.accountInfo = await getAccountInfoFromAPI(logger);
         }
-
-        // Reset sell open orders
-        data.sell.openOrders = [];
-
-        // Set action as sell
-        data.action = 'sell';
-
-        // Get account information again because the order is cancelled
-        data.accountInfo = await getAccountInfoFromAPI(logger);
       } else {
         logger.info(
           { stopPrice: order.stopPrice, sellLimitPrice },
@@ -166,6 +173,11 @@ const execute = async (logger, rawData) => {
       }
     }
     logger.info({ action: data.action }, 'Determined action');
+
+    // If the action is determined, then exit the loop
+    if (data.action !== 'not-determined') {
+      break;
+    }
   }
 
   return data;

@@ -1,4 +1,3 @@
-/* eslint-disable no-await-in-loop */
 const { cache } = require('../../../helpers');
 
 /*
@@ -15,6 +14,8 @@ const execute = async (logger, rawData) => {
 
   data.openOrders =
     JSON.parse(await cache.hget('trailing-trade-orders', symbol)) || [];
+
+  logger.info({ openOrders: data.openOrders }, 'Retrieved open orders');
 
   return data;
 };

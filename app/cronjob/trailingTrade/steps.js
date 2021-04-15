@@ -3,6 +3,7 @@ const {
 } = require('./step/get-symbol-configuration');
 const { execute: getSymbolInfo } = require('./step/get-symbol-info');
 const { execute: getBalances } = require('./step/get-balances');
+const { execute: ensureOrderPlaced } = require('./step/ensure-order-placed');
 const { execute: getOpenOrders } = require('./step/get-open-orders');
 const { execute: getIndicators } = require('./step/get-indicators');
 const { execute: handleOpenOrders } = require('./step/handle-open-orders');
@@ -16,6 +17,7 @@ module.exports = {
   getSymbolConfiguration,
   getSymbolInfo,
   getBalances,
+  ensureOrderPlaced,
   getOpenOrders,
   getIndicators,
   handleOpenOrders,
