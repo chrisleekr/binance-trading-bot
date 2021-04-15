@@ -20,6 +20,7 @@ describe('trailingTrade', () => {
   let mockGetSymbolConfiguration;
   let mockGetSymbolInfo;
   let mockGetBalances;
+  let mockEnsureOrderPlaced;
   let mockGetOpenOrders;
   let mockGetIndicators;
   let mockHandleOpenOrders;
@@ -94,6 +95,13 @@ describe('trailingTrade', () => {
         }
       }));
 
+      mockEnsureOrderPlaced = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ensure: 'order-placed'
+        }));
+
       mockGetOpenOrders = jest.fn().mockImplementation((_logger, rawData) => ({
         ...rawData,
         ...{
@@ -194,6 +202,7 @@ describe('trailingTrade', () => {
         getSymbolConfiguration: mockGetSymbolConfiguration,
         getSymbolInfo: mockGetSymbolInfo,
         getBalances: mockGetBalances,
+        ensureOrderPlaced: mockEnsureOrderPlaced,
         getOpenOrders: mockGetOpenOrders,
         getIndicators: mockGetIndicators,
         handleOpenOrders: mockHandleOpenOrders,
@@ -242,6 +251,7 @@ describe('trailingTrade', () => {
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
             saveToCache: true,
+            ensure: 'order-placed',
             handled: 'open-orders',
             removed: 'last-buy-price',
             saved: 'data-to-cache'
@@ -270,6 +280,7 @@ describe('trailingTrade', () => {
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
             saveToCache: true,
+            ensure: 'order-placed',
             handled: 'open-orders',
             removed: 'last-buy-price',
             saved: 'data-to-cache'
@@ -298,6 +309,7 @@ describe('trailingTrade', () => {
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
             saveToCache: true,
+            ensure: 'order-placed',
             handled: 'open-orders',
             removed: 'last-buy-price',
             saved: 'data-to-cache'
@@ -354,6 +366,13 @@ describe('trailingTrade', () => {
         }
       }));
 
+      mockEnsureOrderPlaced = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ensure: 'order-placed'
+        }));
+
       mockGetOpenOrders = jest.fn().mockImplementation((_logger, rawData) => ({
         ...rawData,
         ...{
@@ -454,6 +473,7 @@ describe('trailingTrade', () => {
         getSymbolConfiguration: mockGetSymbolConfiguration,
         getSymbolInfo: mockGetSymbolInfo,
         getBalances: mockGetBalances,
+        ensureOrderPlaced: mockEnsureOrderPlaced,
         getOpenOrders: mockGetOpenOrders,
         getIndicators: mockGetIndicators,
         handleOpenOrders: mockHandleOpenOrders,
@@ -502,6 +522,7 @@ describe('trailingTrade', () => {
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
             saveToCache: true,
+            ensure: 'order-placed',
             handled: 'open-orders',
             removed: 'last-buy-price',
             saved: 'data-to-cache'
@@ -530,6 +551,7 @@ describe('trailingTrade', () => {
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
             saveToCache: true,
+            ensure: 'order-placed',
             handled: 'open-orders',
             removed: 'last-buy-price',
             saved: 'data-to-cache'
@@ -558,6 +580,7 @@ describe('trailingTrade', () => {
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
             saveToCache: true,
+            ensure: 'order-placed',
             handled: 'open-orders',
             removed: 'last-buy-price',
             saved: 'data-to-cache'
@@ -584,6 +607,7 @@ describe('trailingTrade', () => {
       mockGetSymbolConfiguration = jest.fn().mockResolvedValue(true);
       mockGetSymbolInfo = jest.fn().mockResolvedValue(true);
       mockGetBalances = jest.fn().mockResolvedValue(true);
+      mockEnsureOrderPlaced = jest.fn().mockResolvedValue(true);
       mockGetOpenOrders = jest.fn().mockResolvedValue(true);
       mockGetIndicators = jest.fn().mockResolvedValue(true);
       mockHandleOpenOrders = jest.fn().mockResolvedValue(true);
@@ -609,6 +633,7 @@ describe('trailingTrade', () => {
         getSymbolConfiguration: mockGetSymbolConfiguration,
         getSymbolInfo: mockGetSymbolInfo,
         getBalances: mockGetBalances,
+        ensureOrderPlaced: mockEnsureOrderPlaced,
         getOpenOrders: mockGetOpenOrders,
         getIndicators: mockGetIndicators,
         handleOpenOrders: mockHandleOpenOrders,

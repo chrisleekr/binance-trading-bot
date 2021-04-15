@@ -7,6 +7,7 @@ describe('place-sell-order.js', () => {
   let binanceMock;
   let slackMock;
   let loggerMock;
+  let cacheMock;
 
   let mockGetAndCacheOpenOrdersForSymbol;
   let mockGetAccountInfoFromAPI;
@@ -16,12 +17,14 @@ describe('place-sell-order.js', () => {
       jest.clearAllMocks().resetModules();
     });
     beforeEach(async () => {
-      const { binance, slack, logger } = require('../../../../helpers');
+      const { binance, slack, cache, logger } = require('../../../../helpers');
 
       binanceMock = binance;
       slackMock = slack;
       loggerMock = logger;
+      cacheMock = cache;
 
+      cacheMock.set = jest.fn().mockResolvedValue(true);
       slackMock.sendMessage = jest.fn().mockResolvedValue(true);
       binanceMock.client.order = jest.fn().mockResolvedValue(true);
     });
@@ -516,6 +519,14 @@ describe('place-sell-order.js', () => {
           });
         });
 
+        it('triggers cache.set', () => {
+          expect(cacheMock.set).toHaveBeenCalledWith(
+            'BTCUPUSDT-last-sell-order',
+            'true',
+            10
+          );
+        });
+
         it('triggers getAndCacheOpenOrdersForSymbol', () => {
           expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
         });
@@ -627,6 +638,14 @@ describe('place-sell-order.js', () => {
             timeInForce: 'GTC',
             type: 'STOP_LOSS_LIMIT'
           });
+        });
+
+        it('triggers cache.set', () => {
+          expect(cacheMock.set).toHaveBeenCalledWith(
+            'BTCUPUSDT-last-sell-order',
+            'true',
+            10
+          );
         });
 
         it('triggers getAndCacheOpenOrdersForSymbol', () => {

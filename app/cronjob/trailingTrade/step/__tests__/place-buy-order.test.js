@@ -7,6 +7,7 @@ describe('place-buy-order.js', () => {
   let slackMock;
   let loggerMock;
   let mongoMock;
+  let cacheMock;
 
   let mockGetAndCacheOpenOrdersForSymbol;
   let mockGetAccountInfoFromAPI;
@@ -17,12 +18,20 @@ describe('place-buy-order.js', () => {
     });
 
     beforeEach(async () => {
-      const { binance, slack, logger, mongo } = require('../../../../helpers');
+      const {
+        binance,
+        slack,
+        cache,
+        logger,
+        mongo
+      } = require('../../../../helpers');
       binanceMock = binance;
       slackMock = slack;
       loggerMock = logger;
       mongoMock = mongo;
+      cacheMock = cache;
 
+      cacheMock.set = jest.fn().mockResolvedValue(true);
       slackMock.sendMessage = jest.fn().mockResolvedValue(true);
       binanceMock.client.order = jest.fn().mockResolvedValue(true);
       mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
@@ -507,6 +516,14 @@ describe('place-buy-order.js', () => {
           timeInForce: 'GTC',
           type: 'STOP_LOSS_LIMIT'
         });
+      });
+
+      it('triggers cache.set', () => {
+        expect(cacheMock.set).toHaveBeenCalledWith(
+          'BTCUPUSDT-last-buy-order',
+          'true',
+          10
+        );
       });
 
       it('triggers getAndCacheOpenOrdersForSymbol', () => {

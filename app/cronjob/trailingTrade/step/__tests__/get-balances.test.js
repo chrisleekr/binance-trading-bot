@@ -75,7 +75,7 @@ describe('determine-action.js', () => {
               free: '0.10050000',
               locked: '0.00000000',
               total: 0.1005,
-              estimatedValue: null,
+              estimatedValue: 0,
               updatedAt: expect.any(Object)
             },
             quoteAssetBalance: {
@@ -114,7 +114,7 @@ describe('determine-action.js', () => {
             free: 0,
             locked: 0,
             total: 0,
-            estimatedValue: null,
+            estimatedValue: 0,
             updatedAt: expect.any(Object)
           },
           quoteAssetBalance: {

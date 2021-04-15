@@ -40,6 +40,7 @@ describe('local-tunnel/configure.js', () => {
     mockSlack.sendMessage = jest.fn();
 
     mockCache.hset = jest.fn().mockResolvedValue(true);
+    mockCache.hdel = jest.fn().mockResolvedValue(true);
 
     mockLocalTunnelOnClose = jest.fn().mockImplementation((_event, cb) => {
       cb();
