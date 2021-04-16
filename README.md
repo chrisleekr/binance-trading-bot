@@ -297,7 +297,7 @@ to view the past changes.
 
 - [ ] Update the bot to monitor all coins every second - [#52](https://github.com/chrisleekr/binance-trading-bot/issues/52)
 - [ ] Display release version to the frontend - [#59](https://github.com/chrisleekr/binance-trading-bot/issues/59)
-- [ ] Improve settings UI - [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
+- [ ] Improve frontend & settings UI - [#93](https://github.com/chrisleekr/binance-trading-bot/issues/93) [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
 - [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
 - [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
 - [ ] Add minimum required order amount - [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)
