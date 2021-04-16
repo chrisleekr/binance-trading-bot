@@ -118,12 +118,16 @@ class CoinWrapperSellOrders extends React.Component {
           ) : (
             ''
           )}
-          <div className='coin-info-column coin-info-column-price'>
-            <span className='coin-info-label'>Current price:</span>
-            <HightlightChange className='coin-info-value'>
-              {openOrder.currentPrice.toFixed(precision)}
-            </HightlightChange>
-          </div>
+          {openOrder.currentPrice ? (
+            <div className='coin-info-column coin-info-column-price'>
+              <span className='coin-info-label'>Current price:</span>
+              <HightlightChange className='coin-info-value'>
+                {openOrder.currentPrice.toFixed(precision)}
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
           {openOrder.differenceToExecute ? (
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>Difference to execute:</span>
