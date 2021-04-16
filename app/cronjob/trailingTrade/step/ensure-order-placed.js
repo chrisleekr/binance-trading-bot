@@ -132,8 +132,9 @@ const execute = async (logger, rawData) => {
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);
   if (_.isEmpty(lastBuyOrder) === false) {
     logger.info({ lastBuyOrder }, 'Last buy order found');
+
     // If the order exists in the Binance, then
-    if (isOrderExistingInBinance(logger, lastBuyOrder)) {
+    if (await isOrderExistingInBinance(logger, lastBuyOrder)) {
       logger.info('Order found from binance, remove last buy order');
 
       // Remove last buy order from cache
@@ -153,7 +154,7 @@ const execute = async (logger, rawData) => {
       return setBuyActionAndMessage(
         logger,
         data,
-        'buy-order-wait',
+        'buy-order-checking',
         'The buy order seems placed; however, cannot find from Binance. ' +
           'Wait for the buy order to appear in the Binance.'
       );
@@ -164,8 +165,9 @@ const execute = async (logger, rawData) => {
   const lastSellOrder = await getLastSellOrder(logger, symbol);
   if (_.isEmpty(lastSellOrder) === false) {
     logger.info({ lastSellOrder }, 'Last sell order found');
+
     // If the order exists in the Binance, then
-    if (isOrderExistingInBinance(logger, lastSellOrder)) {
+    if (await isOrderExistingInBinance(logger, lastSellOrder)) {
       logger.info('Order found from binance, remove last sell order');
 
       // Remove last buy order from cache
@@ -186,7 +188,7 @@ const execute = async (logger, rawData) => {
       return setSellActionAndMessage(
         logger,
         data,
-        'sell-order-wait',
+        'sell-order-checking',
         'The sell order seems placed; however, cannot find from Binance. ' +
           'Wait for the sell order to appear in the Binance.'
       );

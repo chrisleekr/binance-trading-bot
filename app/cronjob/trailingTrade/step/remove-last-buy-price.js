@@ -1,6 +1,22 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { mongo, slack } = require('../../../helpers');
+const { mongo, cache, slack } = require('../../../helpers');
+
+/**
+ * Retrieve last buy order from cache
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @returns
+ */
+const getLastBuyOrder = async (logger, symbol) => {
+  const cachedLastBuyOrder =
+    JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
+
+  logger.info({ cachedLastBuyOrder }, 'Retrieved last buy order from cache');
+
+  return cachedLastBuyOrder;
+};
 /**
  * Remove last buy price if applicable
  *
@@ -36,6 +52,14 @@ const execute = async (logger, rawData) => {
 
   if (action !== 'not-determined') {
     logger.info('Do not process to remove last buy price.');
+    return data;
+  }
+
+  const lastBuyOrder = await getLastBuyOrder(logger, symbol);
+  if (_.isEmpty(lastBuyOrder) === false) {
+    logger.info(
+      'Do not process to remove last buy price because there is a buy order to be confirmed.'
+    );
     return data;
   }
 
@@ -76,12 +100,17 @@ const execute = async (logger, rawData) => {
     data.sell.updatedAt = moment().utc();
 
     slack.sendMessage(
-      `Action: Removed last buy price\nSymbol: ${symbol}\nMessage: ${
+      `Action (${moment().format(
+        'HH:mm:ss.SSS'
+      )}): Removed last buy price\n- Symbol: ${symbol}\n- Message: ${
         data.sell.processMessage
       }\n\`\`\`${JSON.stringify(
         {
           baseAssetQuantity,
-          minQty
+          minQty,
+          baseAssetFreeBalance,
+          baseAssetLockedBalance,
+          totalBaseAssetBalance
         },
         undefined,
         2
@@ -104,7 +133,9 @@ const execute = async (logger, rawData) => {
     data.sell.updatedAt = moment().utc();
 
     slack.sendMessage(
-      `Action: Removed last buy price\nSymbol: ${symbol}\nMessage: ${
+      `Action (${moment().format(
+        'HH:mm:ss.SSS'
+      )}): Removed last buy price\nSymbol: ${symbol}\nMessage: ${
         data.sell.processMessage
       }\n\`\`\`${JSON.stringify(
         {

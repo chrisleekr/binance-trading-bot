@@ -173,11 +173,6 @@ const execute = async (logger, rawData) => {
       }
     }
     logger.info({ action: data.action }, 'Determined action');
-
-    // If the action is determined, then exit the loop
-    if (data.action !== 'not-determined') {
-      break;
-    }
   }
 
   return data;

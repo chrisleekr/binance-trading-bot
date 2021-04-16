@@ -1,3 +1,4 @@
+const moment = require('moment');
 const {
   getGlobalConfiguration
 } = require('./trailingTradeHelper/configuration');
@@ -164,7 +165,9 @@ const execute = async logger => {
       // Let's silent for internal server error or assumed temporary errors
     } else {
       slack.sendMessage(
-        `Execution failed\nCode: ${err.code}\nMessage:\`\`\`${err.message}\`\`\`Stack:\`\`\`${err.stack}\`\`\``
+        `Execution failed (${moment().format('HH:mm:ss.SSS')})\nCode: ${
+          err.code
+        }\nMessage:\`\`\`${err.message}\`\`\`Stack:\`\`\`${err.stack}\`\`\``
       );
     }
   }
