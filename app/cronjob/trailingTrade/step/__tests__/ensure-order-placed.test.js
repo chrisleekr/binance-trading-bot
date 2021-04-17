@@ -24,7 +24,7 @@ describe('ensure-order-placed.js', () => {
 
       cacheMock.get = jest.fn().mockResolvedValue(null);
       cacheMock.del = jest.fn().mockResolvedValue(true);
-      binanceMock.client.getOrder = jest.fn().mockResolvedValue({});
+      binanceMock.client.getOrder = jest.fn().mockRejectedValue({});
 
       mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
       mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
@@ -217,9 +217,9 @@ describe('ensure-order-placed.js', () => {
           return null;
         });
         cacheMock.del = jest.fn().mockResolvedValue(true);
-        binanceMock.client.getOrder = jest.fn().mockResolvedValue({
-          err: 'not-found'
-        });
+        binanceMock.client.getOrder = jest
+          .fn()
+          .mockRejectedValue(new Error('Order does not exist'));
 
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
         mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({

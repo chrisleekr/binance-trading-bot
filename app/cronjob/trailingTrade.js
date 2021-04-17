@@ -40,7 +40,10 @@ const execute = async logger => {
 
     await Promise.all(
       globalConfiguration.symbols.map(async symbol => {
-        logger.info({ debug: true, symbol }, 'TrailingTrade: Start process...');
+        logger.info(
+          { debug: true, symbol },
+          '▶ TrailingTrade: Start process...'
+        );
 
         // Check if the symbol is locked, if it is locked, it means the symbol is still processing.
         const isLocked = await isSymbolLocked(logger, symbol);
@@ -145,7 +148,7 @@ const execute = async logger => {
 
         logger.info(
           { debug: true, symbol },
-          'TrailingTrade: Finish process (Debug)...'
+          '⏹ TrailingTrade: Finish process (Debug)...'
         );
         logger.info({ symbol, data }, 'TrailingTrade: Finish process...');
       })
@@ -153,7 +156,7 @@ const execute = async logger => {
   } catch (err) {
     logger.error(
       { err, errorCode: err.code, debug: true },
-      `Execution failed.`
+      `⚠ Execution failed.`
     );
     if (
       err.code === -1001 ||

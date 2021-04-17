@@ -77,14 +77,18 @@ const getLastSellOrder = async (logger, symbol) => {
  * @returns
  */
 const isOrderExistingInBinance = async (logger, lastOrder) => {
-  const order = await binance.client.getOrder({
-    symbol: lastOrder.symbol,
-    orderId: lastOrder.orderId,
-    recvWindow: 10000
-  });
-
-  logger.info({ order }, 'Checking order in the Binance');
-  return _.get(order, 'status', null) !== null;
+  try {
+    const order = await binance.client.getOrder({
+      symbol: lastOrder.symbol,
+      orderId: lastOrder.orderId,
+      recvWindow: 10000
+    });
+    logger.info({ debug: true, order }, 'Order exists in the Binance');
+    return _.get(order, 'status', null) !== null;
+  } catch (err) {
+    logger.info({ debug: true, err }, 'Order does not exist in the Binance');
+    return false;
+  }
 };
 
 /**

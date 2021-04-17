@@ -34,14 +34,14 @@ const execute = async logger => {
     const { symbol } = data;
     logger.info(
       { debug: true, symbol },
-      'TrailingTradeIndicator: Start process...'
+      '▶ TrailingTradeIndicator: Start process...'
     );
 
     // Check if the symbol is locked, if it is locked, it means the symbol is still trading.
     if ((await isSymbolLocked(logger, symbol)) === true) {
       logger.info(
         { debug: true, symbol },
-        'TrailingTradeIndicator: Skip process as the symbol is currently locked.'
+        '⏯ TrailingTradeIndicator: Skip process as the symbol is currently locked.'
       );
       return;
     }
@@ -88,14 +88,14 @@ const execute = async logger => {
 
     logger.info(
       { debug: true, symbol },
-      'TrailingTradeIndicator: Finish process (Debug)...'
+      '⏹ TrailingTradeIndicator: Finish process (Debug)...'
     );
 
     logger.info({ symbol, data }, 'TrailingTradeIndicator: Finish process...');
   } catch (err) {
     logger.error(
       { symbol: data.symbol, err, debug: true },
-      `Execution failed.`
+      `⚠ Execution failed.`
     );
     if (
       err.code === -1001 ||

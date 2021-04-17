@@ -231,12 +231,12 @@ const isSymbolLocked = async (logger, symbol) => {
   if (isLocked === true) {
     logger.info(
       { debug: true, symbol, isLocked },
-      `Symbol is locked - ${symbol}`
+      `🔒 Symbol is locked - ${symbol}`
     );
   } else {
     logger.info(
       { debug: true, symbol, isLocked },
-      `Symbol is not locked - ${symbol} `
+      `🔓 Symbol is not locked - ${symbol} `
     );
   }
   return isLocked;

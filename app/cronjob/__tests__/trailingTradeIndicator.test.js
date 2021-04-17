@@ -271,7 +271,7 @@ describe('trailingTradeIndicator', () => {
           debug: true,
           symbol: 'BTCUSDT'
         },
-        'TrailingTradeIndicator: Skip process as the symbol is currently locked.'
+        '⏯ TrailingTradeIndicator: Skip process as the symbol is currently locked.'
       );
     });
   });
