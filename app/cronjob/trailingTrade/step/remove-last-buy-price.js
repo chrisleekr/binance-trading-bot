@@ -63,7 +63,8 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  if (lastBuyPrice <= 0) {
+  // If last buy price is null, undefined, 0, NaN or less than 0
+  if (!lastBuyPrice || lastBuyPrice <= 0) {
     logger.info('Do not process because last buy price does not exist.');
     return data;
   }
@@ -99,13 +100,14 @@ const execute = async (logger, rawData) => {
       'Balance is found; however, not enough to sell. Delete last buy price.';
     data.sell.updatedAt = moment().utc();
 
-    slack.sendMessage(
+    await slack.sendMessage(
       `Action (${moment().format(
         'HH:mm:ss.SSS'
       )}): Removed last buy price\n- Symbol: ${symbol}\n- Message: ${
         data.sell.processMessage
       }\n\`\`\`${JSON.stringify(
         {
+          lastBuyPrice,
           baseAssetQuantity,
           minQty,
           baseAssetFreeBalance,
@@ -132,13 +134,14 @@ const execute = async (logger, rawData) => {
       'Balance is found; however, the balance is less than the notional value. Delete last buy price.';
     data.sell.updatedAt = moment().utc();
 
-    slack.sendMessage(
+    await slack.sendMessage(
       `Action (${moment().format(
         'HH:mm:ss.SSS'
-      )}): Removed last buy price\nSymbol: ${symbol}\nMessage: ${
+      )}): Removed last buy price\n- Symbol: ${symbol}\n- Message: ${
         data.sell.processMessage
       }\n\`\`\`${JSON.stringify(
         {
+          lastBuyPrice,
           baseAssetQuantity,
           currentPrice,
           minNotional
