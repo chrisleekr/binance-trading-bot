@@ -622,7 +622,13 @@ describe('get-indicators.js', () => {
           baseAssetBalance: {
             total: 0.1
           },
-          openOrders: []
+          openOrders: [],
+          buy: {
+            processMessage: 'Hello'
+          },
+          sell: {
+            processMessage: 'World'
+          }
         };
 
         result = await step.execute(logger, rawData);
@@ -656,7 +662,7 @@ describe('get-indicators.js', () => {
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
             openOrders: [],
-            processMessage: '',
+            processMessage: 'Hello',
             updatedAt: expect.any(Object)
           },
           sell: {
@@ -668,7 +674,7 @@ describe('get-indicators.js', () => {
             currentProfit: null,
             currentProfitPercentage: null,
             openOrders: [],
-            processMessage: '',
+            processMessage: 'World',
             updatedAt: expect.any(Object)
           }
         });
