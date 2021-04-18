@@ -136,7 +136,7 @@ const execute = async (logger, rawData) => {
     triggerPrice: buyTriggerPrice,
     difference: buyDifference,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'buy'),
-    processMesage: '',
+    processMessage: _.get(data, 'buy.processMessage', ''),
     updatedAt: moment().utc()
   };
 
@@ -149,7 +149,7 @@ const execute = async (logger, rawData) => {
     currentProfit: sellCurrentProfit,
     currentProfitPercentage: sellCurrentProfitPercentage,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'sell'),
-    processMessage: '',
+    processMessage: _.get(data, 'sell.processMessage', ''),
     updatedAt: moment().utc()
   };
 

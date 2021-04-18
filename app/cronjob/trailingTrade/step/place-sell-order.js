@@ -115,7 +115,7 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Order result');
 
-  await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult), 10);
+  await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult), 15);
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

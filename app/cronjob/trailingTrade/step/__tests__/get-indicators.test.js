@@ -100,7 +100,7 @@ describe('get-indicators.js', () => {
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
             openOrders: [],
-            processMesage: '',
+            processMessage: '',
             updatedAt: expect.any(Object)
           },
           sell: {
@@ -308,7 +308,7 @@ describe('get-indicators.js', () => {
                 updatedAt: expect.any(Object)
               }
             ],
-            processMesage: '',
+            processMessage: '',
             updatedAt: expect.any(Object)
           },
           sell: {
@@ -532,7 +532,7 @@ describe('get-indicators.js', () => {
                 updatedAt: expect.any(Object)
               }
             ],
-            processMesage: '',
+            processMessage: '',
             updatedAt: expect.any(Object)
           },
           sell: {
@@ -656,7 +656,7 @@ describe('get-indicators.js', () => {
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
             openOrders: [],
-            processMesage: '',
+            processMessage: '',
             updatedAt: expect.any(Object)
           },
           sell: {

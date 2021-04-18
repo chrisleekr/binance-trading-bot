@@ -523,7 +523,7 @@ describe('place-sell-order.js', () => {
           expect(cacheMock.set).toHaveBeenCalledWith(
             'BTCUPUSDT-last-sell-order',
             'true',
-            10
+            15
           );
         });
 
@@ -644,7 +644,7 @@ describe('place-sell-order.js', () => {
           expect(cacheMock.set).toHaveBeenCalledWith(
             'BTCUPUSDT-last-sell-order',
             'true',
-            10
+            15
           );
         });
 

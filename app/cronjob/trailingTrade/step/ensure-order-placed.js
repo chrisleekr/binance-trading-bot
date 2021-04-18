@@ -1,7 +1,7 @@
 const moment = require('moment');
 const _ = require('lodash');
 
-const { cache, binance } = require('../../../helpers');
+const { cache } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI
@@ -70,28 +70,6 @@ const getLastSellOrder = async (logger, symbol) => {
 };
 
 /**
- * Is order existing in Binance?
- *
- * @param {*} logger
- * @param {*} lastOrder
- * @returns
- */
-const isOrderExistingInBinance = async (logger, lastOrder) => {
-  try {
-    const order = await binance.client.getOrder({
-      symbol: lastOrder.symbol,
-      orderId: lastOrder.orderId,
-      recvWindow: 10000
-    });
-    logger.info({ debug: true, order }, 'Order exists in the Binance');
-    return _.get(order, 'status', null) !== null;
-  } catch (err) {
-    logger.info({ debug: true, err }, 'Order does not exist in the Binance');
-    return false;
-  }
-};
-
-/**
  * Remove last sell order from cache
  *
  * @param {*} logger
@@ -122,6 +100,17 @@ const setSellActionAndMessage = (logger, rawData, action, processMessage) => {
 };
 
 /**
+ * Check whether the order existing in the open orders
+ *
+ * @param {*} _logger
+ * @param {*} order
+ * @param {*} openOrders
+ * @returns
+ */
+const isOrderExistingInOpenOrders = (_logger, order, openOrders) =>
+  _.findIndex(openOrders, o => o.orderId === order.orderId) !== -1;
+
+/**
  * Ensure order is placed
  *
  * @param {*} logger
@@ -135,17 +124,22 @@ const execute = async (logger, rawData) => {
   // Ensure buy order placed
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);
   if (_.isEmpty(lastBuyOrder) === false) {
-    logger.info({ lastBuyOrder }, 'Last buy order found');
+    logger.info({ debug: true, lastBuyOrder }, 'Last buy order found');
 
-    // If the order exists in the Binance, then
-    if (await isOrderExistingInBinance(logger, lastBuyOrder)) {
-      logger.info('Order found from binance, remove last buy order');
+    // Refresh open orders
+    const openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
 
+    // Assume open order is not executed, make sure the order is in the open orders.
+    // If executed that is ok, after some seconds later, the cached last order will be expired anyway and sell.
+    if (isOrderExistingInOpenOrders(logger, lastBuyOrder, openOrders)) {
+      logger.info(
+        { debug: true },
+        'Order is existing in the open orders. All good, remove last buy order.'
+      );
       // Remove last buy order from cache
       await removeLastBuyOrder(logger, symbol);
 
-      // Refresh open orders
-      data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+      data.openOrders = openOrders;
 
       data.buy.openOrders = data.openOrders.filter(
         o => o.side.toLowerCase() === 'buy'
@@ -154,13 +148,16 @@ const execute = async (logger, rawData) => {
       // Get account info
       data.accountInfo = await getAccountInfoFromAPI(logger);
     } else {
-      // If the order does not exist in the Binance, then wait for appearing.
+      logger.info(
+        { debug: true },
+        'Order does not exist in the open orders. Wait until it appears.'
+      );
       return setBuyActionAndMessage(
         logger,
         data,
         'buy-order-checking',
-        'The buy order seems placed; however, cannot find from Binance. ' +
-          'Wait for the buy order to appear in the Binance.'
+        'The buy order seems placed and can query to Binance; however, it does not appear in the open orders. ' +
+          'Wait for the buy order to appear in open orders.'
       );
     }
   }
@@ -168,17 +165,21 @@ const execute = async (logger, rawData) => {
   // Ensure sell order placed
   const lastSellOrder = await getLastSellOrder(logger, symbol);
   if (_.isEmpty(lastSellOrder) === false) {
-    logger.info({ lastSellOrder }, 'Last sell order found');
+    logger.info({ debug: true, lastSellOrder }, 'Last sell order found');
 
-    // If the order exists in the Binance, then
-    if (await isOrderExistingInBinance(logger, lastSellOrder)) {
-      logger.info('Order found from binance, remove last sell order');
+    // Refresh open orders
+    const openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
 
+    // Assume open order is not executed, make sure the order is in the open orders.
+    // If executed that is ok, after some seconds later, the cached last order will be expired anyway and sell.
+    if (isOrderExistingInOpenOrders(logger, lastSellOrder, openOrders)) {
+      logger.info(
+        { debug: true },
+        'Order is existing in the open orders. All good, remove last buy order.'
+      );
       // Remove last buy order from cache
       await removeLastSellOrder(logger, symbol);
-
-      // Refresh open orders
-      data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+      data.openOrders = openOrders;
 
       data.sell.openOrders = data.openOrders.filter(
         o => o.side.toLowerCase() === 'sell'
@@ -187,14 +188,16 @@ const execute = async (logger, rawData) => {
       // Get account info
       data.accountInfo = await getAccountInfoFromAPI(logger);
     } else {
-      // If the order does not exist in the Binance, then wait for appearing.
-      // If the order does not exist in the Binance, then wait for appearing.
+      logger.info(
+        { debug: true },
+        'Order does not exist in the open orders. Wait until it appears.'
+      );
       return setSellActionAndMessage(
         logger,
         data,
         'sell-order-checking',
-        'The sell order seems placed; however, cannot find from Binance. ' +
-          'Wait for the sell order to appear in the Binance.'
+        'The sell order seems placed and can query to Binance; however, it does not appear in the open orders. ' +
+          'Wait for the sell order to appear in open orders.'
       );
     }
   }

@@ -112,7 +112,8 @@ const execute = async (logger, rawData) => {
           minQty,
           baseAssetFreeBalance,
           baseAssetLockedBalance,
-          totalBaseAssetBalance
+          totalBaseAssetBalance,
+          openOrders
         },
         undefined,
         2
@@ -144,7 +145,8 @@ const execute = async (logger, rawData) => {
           lastBuyPrice,
           baseAssetQuantity,
           currentPrice,
-          minNotional
+          minNotional,
+          openOrders
         },
         undefined,
         2

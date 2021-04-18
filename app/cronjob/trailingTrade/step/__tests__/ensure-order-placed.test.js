@@ -103,12 +103,6 @@ describe('ensure-order-placed.js', () => {
           return null;
         });
         cacheMock.del = jest.fn().mockResolvedValue(true);
-        binanceMock.client.getOrder = jest.fn().mockResolvedValue({
-          orderId: 123,
-          symbol: 'BTCUSDT',
-          side: 'BUY',
-          status: 'NEW'
-        });
 
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
           {
@@ -145,14 +139,6 @@ describe('ensure-order-placed.js', () => {
 
       it('triggers cache.get for sell order', () => {
         expect(cacheMock.get).toHaveBeenCalledWith('BTCUSDT-last-sell-order');
-      });
-
-      it('triggers binance.client.getOrder', () => {
-        expect(binanceMock.client.getOrder).toHaveBeenCalledWith({
-          symbol: 'BTCUSDT',
-          orderId: 123,
-          recvWindow: 10000
-        });
       });
 
       it('triggers cache.del', () => {
@@ -217,9 +203,6 @@ describe('ensure-order-placed.js', () => {
           return null;
         });
         cacheMock.del = jest.fn().mockResolvedValue(true);
-        binanceMock.client.getOrder = jest
-          .fn()
-          .mockRejectedValue(new Error('Order does not exist'));
 
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
         mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
@@ -253,20 +236,15 @@ describe('ensure-order-placed.js', () => {
         );
       });
 
-      it('triggers binance.client.getOrder', () => {
-        expect(binanceMock.client.getOrder).toHaveBeenCalledWith({
-          symbol: 'BTCUSDT',
-          orderId: 123,
-          recvWindow: 10000
-        });
+      it('triggers getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+          loggerMock,
+          'BTCUSDT'
+        );
       });
 
       it('does not trigger cache.del', () => {
         expect(cacheMock.del).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not triggers getAccountInfoFromAPI', () => {
@@ -281,8 +259,8 @@ describe('ensure-order-placed.js', () => {
           buy: {
             openOrders: [],
             processMessage:
-              'The buy order seems placed; however, cannot find from Binance.' +
-              ' Wait for the buy order to appear in the Binance.',
+              'The buy order seems placed and can query to Binance; however, it does not appear in the open orders. ' +
+              'Wait for the buy order to appear in open orders.',
             updatedAt: expect.any(Object)
           }
         });
@@ -310,12 +288,6 @@ describe('ensure-order-placed.js', () => {
           return null;
         });
         cacheMock.del = jest.fn().mockResolvedValue(true);
-        binanceMock.client.getOrder = jest.fn().mockResolvedValue({
-          orderId: 123,
-          symbol: 'BTCUSDT',
-          side: 'SELL',
-          status: 'NEW'
-        });
 
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
           {
@@ -352,14 +324,6 @@ describe('ensure-order-placed.js', () => {
 
       it('triggers cache.get for sell order', () => {
         expect(cacheMock.get).toHaveBeenCalledWith('BTCUSDT-last-sell-order');
-      });
-
-      it('triggers binance.client.getOrder', () => {
-        expect(binanceMock.client.getOrder).toHaveBeenCalledWith({
-          symbol: 'BTCUSDT',
-          orderId: 123,
-          recvWindow: 10000
-        });
       });
 
       it('does not triggers cache.del for buy order', () => {
@@ -430,9 +394,6 @@ describe('ensure-order-placed.js', () => {
           return null;
         });
         cacheMock.del = jest.fn().mockResolvedValue(true);
-        binanceMock.client.getOrder = jest.fn().mockResolvedValue({
-          err: 'not-found'
-        });
 
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
         mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
@@ -464,20 +425,14 @@ describe('ensure-order-placed.js', () => {
         expect(cacheMock.get).toHaveBeenCalledWith('BTCUSDT-last-sell-order');
       });
 
-      it('triggers binance.client.getOrder', () => {
-        expect(binanceMock.client.getOrder).toHaveBeenCalledWith({
-          symbol: 'BTCUSDT',
-          orderId: 123,
-          recvWindow: 10000
-        });
+      it('triggers getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+          loggerMock,
+          'BTCUSDT'
+        );
       });
-
       it('does not trigger cache.del', () => {
         expect(cacheMock.del).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not triggers getAccountInfoFromAPI', () => {
@@ -492,8 +447,8 @@ describe('ensure-order-placed.js', () => {
           sell: {
             openOrders: [],
             processMessage:
-              'The sell order seems placed; however, cannot find from Binance.' +
-              ' Wait for the sell order to appear in the Binance.',
+              'The sell order seems placed and can query to Binance; however, it does not appear in the open orders. ' +
+              'Wait for the sell order to appear in open orders.',
             updatedAt: expect.any(Object)
           }
         });

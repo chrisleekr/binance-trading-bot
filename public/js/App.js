@@ -82,6 +82,9 @@ class App extends React.Component {
         }
         self.setState({
           symbols: _.sortBy(response.stats.symbols, s => {
+            if (s.buy.difference) {
+              return (s.buy.difference + 2000) * -10;
+            }
             if (s.sell.difference) {
               return (s.sell.difference + 1000) * -10;
             }

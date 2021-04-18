@@ -141,7 +141,7 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Order result');
 
-  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 10);
+  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 15);
 
   await mongo.upsertOne(
     logger,

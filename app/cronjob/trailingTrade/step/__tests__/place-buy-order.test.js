@@ -522,7 +522,7 @@ describe('place-buy-order.js', () => {
         expect(cacheMock.set).toHaveBeenCalledWith(
           'BTCUPUSDT-last-buy-order',
           'true',
-          10
+          15
         );
       });
 
