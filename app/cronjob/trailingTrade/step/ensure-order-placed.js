@@ -175,9 +175,9 @@ const execute = async (logger, rawData) => {
     if (isOrderExistingInOpenOrders(logger, lastSellOrder, openOrders)) {
       logger.info(
         { debug: true },
-        'Order is existing in the open orders. All good, remove last buy order.'
+        'Order is existing in the open orders. All good, remove last sell order.'
       );
-      // Remove last buy order from cache
+      // Remove last sell order from cache
       await removeLastSellOrder(logger, symbol);
       data.openOrders = openOrders;
 
