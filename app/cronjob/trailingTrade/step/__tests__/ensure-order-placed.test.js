@@ -259,7 +259,7 @@ describe('ensure-order-placed.js', () => {
           buy: {
             openOrders: [],
             processMessage:
-              'The buy order seems placed and can query to Binance; however, it does not appear in the open orders. ' +
+              'The buy order seems placed; however, it does not appear in the open orders. ' +
               'Wait for the buy order to appear in open orders.',
             updatedAt: expect.any(Object)
           }
@@ -447,7 +447,7 @@ describe('ensure-order-placed.js', () => {
           sell: {
             openOrders: [],
             processMessage:
-              'The sell order seems placed and can query to Binance; however, it does not appear in the open orders. ' +
+              'The sell order seems placed; however, it does not appear in the open orders. ' +
               'Wait for the sell order to appear in open orders.',
             updatedAt: expect.any(Object)
           }
