@@ -156,7 +156,7 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'buy-order-checking',
-        'The buy order seems placed and can query to Binance; however, it does not appear in the open orders. ' +
+        'The buy order seems placed; however, it does not appear in the open orders. ' +
           'Wait for the buy order to appear in open orders.'
       );
     }
@@ -196,7 +196,7 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'sell-order-checking',
-        'The sell order seems placed and can query to Binance; however, it does not appear in the open orders. ' +
+        'The sell order seems placed; however, it does not appear in the open orders. ' +
           'Wait for the sell order to appear in open orders.'
       );
     }
