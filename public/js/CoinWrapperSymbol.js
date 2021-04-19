@@ -11,7 +11,11 @@ class CoinWrapperSymbol extends React.Component {
   }
 
   render() {
-    const { symbolInfo, sendWebSocket } = this.props;
+    const {
+      symbolInfo,
+      configuration: globalConfiguration,
+      sendWebSocket
+    } = this.props;
 
     return (
       <div className='coin-info-sub-wrapper coin-info-sub-wrapper-symbol'>
@@ -32,6 +36,11 @@ class CoinWrapperSymbol extends React.Component {
               className='coin-info-spinner'
             />
           )}
+          <SymbolSettingIcon
+            symbolInfo={symbolInfo}
+            globalConfiguration={globalConfiguration}
+            sendWebSocket={sendWebSocket}
+          />
           <SymbolDeleteIcon
             symbolInfo={symbolInfo}
             sendWebSocket={sendWebSocket}

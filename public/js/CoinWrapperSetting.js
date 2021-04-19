@@ -22,11 +22,7 @@ class CoinWrapperSetting extends React.Component {
 
   render() {
     const { collapsed } = this.state;
-    const {
-      symbolInfo,
-      configuration: globalConfiguration,
-      sendWebSocket
-    } = this.props;
+    const { symbolInfo, configuration: globalConfiguration } = this.props;
     const { symbolConfiguration } = symbolInfo;
 
     // Find out difference between global and symbol configuration. Using this to show overriden values.
@@ -41,11 +37,6 @@ class CoinWrapperSetting extends React.Component {
           <div className='coin-info-column coin-info-column-title coin-info-column-title-setting'>
             <div className='coin-info-label'>
               <div className='mr-1'>Setting - Global</div>
-              <SymbolSettingIcon
-                symbolInfo={symbolInfo}
-                globalConfiguration={globalConfiguration}
-                sendWebSocket={sendWebSocket}
-              />
             </div>
             <button
               type='button'
@@ -74,11 +65,6 @@ class CoinWrapperSetting extends React.Component {
               Setting -{' '}
               <span className='coin-setting-customised'>Customised</span>
             </div>
-            <SymbolSettingIcon
-              symbolInfo={symbolInfo}
-              globalConfiguration={globalConfiguration}
-              sendWebSocket={sendWebSocket}
-            />
           </div>
 
           <button
