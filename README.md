@@ -299,10 +299,15 @@ to view the past changes.
 - [x] Update the bot to monitor all coins every second - [#52](https://github.com/chrisleekr/binance-trading-bot/issues/52)
 - [x] Display release version to the frontend - [#59](https://github.com/chrisleekr/binance-trading-bot/issues/59)
 - [ ] Improve frontend & settings UI - [#93](https://github.com/chrisleekr/binance-trading-bot/issues/93) [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
+- [ ] Support all symbols - [#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
 - [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
 - [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
+- [ ] Improve buy strategy with restricting purchase if the price is close to ATH - [#82](https://github.com/chrisleekr/binance-trading-bot/issues/82)
 - [ ] Add minimum required order amount - [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)
+- [ ] Add manual buy/sell feature -[#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
+- [ ] Add stop loss feature - [#99](https://github.com/chrisleekr/binance-trading-bot/issues/99)
 - [ ] Support multilingual frontend - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
+- [ ] Reset global configuration to initial configuration - [#97](https://github.com/chrisleekr/binance-trading-bot/issues/97)
 - [ ] Add frontend option to disable sorting
 - [ ] Allow browser notification in the frontend
 - [ ] Secure frontend with the password
