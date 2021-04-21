@@ -13,6 +13,48 @@ body.dark-theme {
   border-top: 1px dashed #585858;
 }
 
+/* Disable scrolling */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+.accordion-body.in {
+  overflow: visible;
+}
+
+.fs-1 {
+  font-size: 2.5rem !important;
+}
+
+.fs-2 {
+  font-size: 2rem !important;
+}
+
+.fs-3 {
+  font-size: 1.75rem !important;
+}
+
+.fs-4 {
+  font-size: 1.5rem !important;
+}
+
+.fs-5 {
+  font-size: 1.25rem !important;
+}
+
+.fs-6 {
+  font-size: 1rem !important;
+}
+
+.fs-7 {
+  font-size: 0.8rem !important;
+}
+
 .app {
   padding: 10px;
 }
@@ -364,7 +406,8 @@ body.dark-theme {
 }
 
 .form-header {
-  font-size: 1rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
 }
 
 .fa-toggle-on {
