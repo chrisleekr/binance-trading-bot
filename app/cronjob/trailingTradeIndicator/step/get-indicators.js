@@ -43,7 +43,7 @@ const execute = async (logger, rawData) => {
 
   // Retrieve candles
   logger.info(
-    { debug: true, function: 'candles' },
+    { debug: true, function: 'candles', interval, limit },
     'Retrieving candles from API'
   );
   const candles = await binance.client.candles({
