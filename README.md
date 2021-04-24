@@ -303,7 +303,7 @@ to view the past changes.
 - [x] Improve frontend & settings UI -
       [#93](https://github.com/chrisleekr/binance-trading-bot/issues/93)
       [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
-- [ ] Support all symbols -
+- [x] Support all symbols -
       [#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
 - [ ] Improve sell strategy with conditional stop price percentage based on the
       profit percentage -

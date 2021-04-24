@@ -15,6 +15,8 @@ All notable changes to this project will be documented in this file.
 - Improve frontend & settings UI -
   [#93](https://github.com/chrisleekr/binance-trading-bot/issues/93)
   [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
+- Support all symbols -
+  [#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
 
 ## [0.0.65] - 2021-03-27
 
