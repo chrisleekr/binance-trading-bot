@@ -240,7 +240,7 @@ describe('place-buy-order.js', () => {
       });
     });
 
-    describe('when balance is less than minimum notional value', () => {
+    describe('when max purchase amount is not configured for some reason', () => {
       beforeEach(async () => {
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
         mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
@@ -260,20 +260,20 @@ describe('place-buy-order.js', () => {
           symbolInfo: {
             baseAsset: 'BTCUP',
             quoteAsset: 'USDT',
-            filterLotSize: { stepSize: '0.01000000', minQty: '0.01000000' },
+            filterLotSize: { stepSize: '0.01000000' },
             filterPrice: { tickSize: '0.00100000' },
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
             buy: {
               enabled: true,
-              maxPurchaseAmount: 50,
+              maxPurchaseAmount: -1,
               stopPercentage: 1.01,
               limitPercentage: 1.011
             }
           },
           action: 'buy',
-          quoteAssetBalance: { free: 9 },
+          quoteAssetBalance: { free: 0 },
           buy: {
             currentPrice: 200,
             openOrders: []
@@ -303,7 +303,7 @@ describe('place-buy-order.js', () => {
               currentPrice: 200,
               openOrders: [],
               processMessage:
-                'Do not place a buy order as not enough USDT to buy BTCUP.',
+                'Max purchase amount must be configured. Please configure symbol settings.',
               updatedAt: expect.any(Object)
             }
           }
@@ -311,73 +311,290 @@ describe('place-buy-order.js', () => {
       });
     });
 
-    describe('when balance is not enough after calculation', () => {
-      beforeEach(async () => {
-        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
-          account: 'info'
-        });
+    describe('when balance is less than minimum notional value', () => {
+      describe('BTCUPUSDT', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+            account: 'info'
+          });
 
-        jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
-        }));
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          }));
 
-        const step = require('../place-buy-order');
+          const step = require('../place-buy-order');
 
-        rawData = {
-          symbol: 'BTCUPUSDT',
-          isLocked: false,
-          symbolInfo: {
-            baseAsset: 'BTCUP',
-            quoteAsset: 'USDT',
-            filterLotSize: { stepSize: '0.01000000', minQty: '0.01000000' },
-            filterPrice: { tickSize: '0.00100000' },
-            filterMinNotional: { minNotional: '10.00000000' }
-          },
-          symbolConfiguration: {
-            buy: {
-              enabled: true,
-              maxPurchaseAmount: 50,
-              stopPercentage: 1.01,
-              limitPercentage: 1.011
-            }
-          },
-          action: 'buy',
-          quoteAssetBalance: { free: 10.01 },
-          buy: {
-            currentPrice: 200,
-            openOrders: []
-          }
-        };
-
-        result = await step.execute(loggerMock, rawData);
-      });
-
-      it('does not trigger binance.client.order', () => {
-        expect(binanceMock.client.order).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger getAccountInfoFromAPI', () => {
-        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
-      });
-
-      it('retruns expected value', () => {
-        expect(result).toStrictEqual({
-          ...rawData,
-          ...{
+          rawData = {
+            symbol: 'BTCUPUSDT',
+            isLocked: false,
+            symbolInfo: {
+              baseAsset: 'BTCUP',
+              quoteAsset: 'USDT',
+              filterLotSize: { stepSize: '0.01000000', minQty: '0.01000000' },
+              filterPrice: { tickSize: '0.00100000' },
+              filterMinNotional: { minNotional: '10.00000000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 50,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 9 },
             buy: {
               currentPrice: 200,
-              openOrders: [],
-              processMessage:
-                'Do not place a buy order as not enough USDT to buy BTCUP after calculation.',
-              updatedAt: expect.any(Object)
+              openOrders: []
             }
-          }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('does not trigger binance.client.order', () => {
+          expect(binanceMock.client.order).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              buy: {
+                currentPrice: 200,
+                openOrders: [],
+                processMessage:
+                  'Do not place a buy order as not enough USDT to buy BTCUP.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
+        });
+      });
+
+      describe('ETHBTC', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+            account: 'info'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = {
+            symbol: 'ETHBTC',
+            isLocked: false,
+            symbolInfo: {
+              baseAsset: 'ETH',
+              quoteAsset: 'BTC',
+              filterLotSize: { stepSize: '0.00100000', minQty: '0.00100000' },
+              filterPrice: { tickSize: '0.00000100' },
+              filterMinNotional: { minNotional: '0.00010000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 0.001,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 0.00009 },
+            buy: {
+              currentPrice: 0.044866,
+              openOrders: []
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('does not trigger binance.client.order', () => {
+          expect(binanceMock.client.order).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              buy: {
+                currentPrice: 0.044866,
+                openOrders: [],
+                processMessage:
+                  'Do not place a buy order as not enough BTC to buy ETH.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
+        });
+      });
+    });
+
+    describe('when balance is not enough after calculation', () => {
+      describe('BTCUPUSDT', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+            account: 'info'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = {
+            symbol: 'BTCUPUSDT',
+            isLocked: false,
+            symbolInfo: {
+              baseAsset: 'BTCUP',
+              quoteAsset: 'USDT',
+              filterLotSize: { stepSize: '0.01000000', minQty: '0.01000000' },
+              filterPrice: { tickSize: '0.00100000' },
+              filterMinNotional: { minNotional: '10.00000000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 50,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 10.01 },
+            buy: {
+              currentPrice: 200,
+              openOrders: []
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('does not trigger binance.client.order', () => {
+          expect(binanceMock.client.order).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              buy: {
+                currentPrice: 200,
+                openOrders: [],
+                processMessage:
+                  'Do not place a buy order as not enough USDT to buy BTCUP after calculation.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
+        });
+      });
+
+      describe('ETHBTC', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+            account: 'info'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = {
+            symbol: 'ETHBTC',
+            isLocked: false,
+            symbolInfo: {
+              baseAsset: 'ETH',
+              quoteAsset: 'BTC',
+              filterLotSize: { stepSize: '0.00100000', minQty: '0.00100000' },
+              filterPrice: { tickSize: '0.00000100' },
+              filterMinNotional: { minNotional: '0.00010000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 0.001,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 0.0001 },
+            buy: {
+              currentPrice: 0.044866,
+              openOrders: []
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('does not trigger binance.client.order', () => {
+          expect(binanceMock.client.order).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              buy: {
+                currentPrice: 0.044866,
+                openOrders: [],
+                processMessage:
+                  'Do not place a buy order as not enough BTC to buy ETH after calculation.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
         });
       });
     });
@@ -453,10 +670,62 @@ describe('place-buy-order.js', () => {
     });
 
     describe('when has enough balance', () => {
-      beforeEach(async () => {
-        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
-          {
-            orderId: 123,
+      describe('BTCUPUSDT', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+            {
+              orderId: 123,
+              price: 202.2,
+              quantity: 0.24,
+              side: 'buy',
+              stopPrice: 202,
+              symbol: 'BTCUPUSDT',
+              timeInForce: 'GTC',
+              type: 'STOP_LOSS_LIMIT'
+            }
+          ]);
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+            account: 'info'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = {
+            symbol: 'BTCUPUSDT',
+            isLocked: false,
+            symbolInfo: {
+              baseAsset: 'BTCUP',
+              quoteAsset: 'USDT',
+              filterLotSize: { stepSize: '0.01000000', minQty: '0.01000000' },
+              filterPrice: { tickSize: '0.00100000' },
+              filterMinNotional: { minNotional: '10.00000000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 50,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 101 },
+            buy: {
+              currentPrice: 200,
+              openOrders: []
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers binance.client.order', () => {
+          expect(binanceMock.client.order).toHaveBeenCalledWith({
             price: 202.2,
             quantity: 0.24,
             side: 'buy',
@@ -464,94 +733,29 @@ describe('place-buy-order.js', () => {
             symbol: 'BTCUPUSDT',
             timeInForce: 'GTC',
             type: 'STOP_LOSS_LIMIT'
-          }
-        ]);
-        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
-          account: 'info'
+          });
         });
 
-        jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
-        }));
-
-        const step = require('../place-buy-order');
-
-        rawData = {
-          symbol: 'BTCUPUSDT',
-          isLocked: false,
-          symbolInfo: {
-            baseAsset: 'BTCUP',
-            quoteAsset: 'USDT',
-            filterLotSize: { stepSize: '0.01000000', minQty: '0.01000000' },
-            filterPrice: { tickSize: '0.00100000' },
-            filterMinNotional: { minNotional: '10.00000000' }
-          },
-          symbolConfiguration: {
-            buy: {
-              enabled: true,
-              maxPurchaseAmount: 50,
-              stopPercentage: 1.01,
-              limitPercentage: 1.011
-            }
-          },
-          action: 'buy',
-          quoteAssetBalance: { free: 101 },
-          buy: {
-            currentPrice: 200,
-            openOrders: []
-          }
-        };
-
-        result = await step.execute(loggerMock, rawData);
-      });
-
-      it('triggers binance.client.order', () => {
-        expect(binanceMock.client.order).toHaveBeenCalledWith({
-          price: 202.2,
-          quantity: 0.24,
-          side: 'buy',
-          stopPrice: 202,
-          symbol: 'BTCUPUSDT',
-          timeInForce: 'GTC',
-          type: 'STOP_LOSS_LIMIT'
+        it('triggers cache.set', () => {
+          expect(cacheMock.set).toHaveBeenCalledWith(
+            'BTCUPUSDT-last-buy-order',
+            'true',
+            120
+          );
         });
-      });
 
-      it('triggers cache.set', () => {
-        expect(cacheMock.set).toHaveBeenCalledWith(
-          'BTCUPUSDT-last-buy-order',
-          'true',
-          15
-        );
-      });
+        it('triggers getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
+        });
 
-      it('triggers getAndCacheOpenOrdersForSymbol', () => {
-        expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
-      });
+        it('triggers getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+        });
 
-      it('triggers getAccountInfoFromAPI', () => {
-        expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
-      });
-
-      it('retruns expected value', () => {
-        expect(result).toStrictEqual({
-          ...rawData,
-          ...{
-            openOrders: [
-              {
-                orderId: 123,
-                price: 202.2,
-                quantity: 0.24,
-                side: 'buy',
-                stopPrice: 202,
-                symbol: 'BTCUPUSDT',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              }
-            ],
-            buy: {
-              currentPrice: 200,
+        it('retruns expected value', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
               openOrders: [
                 {
                   orderId: 123,
@@ -564,10 +768,145 @@ describe('place-buy-order.js', () => {
                   type: 'STOP_LOSS_LIMIT'
                 }
               ],
-              processMessage: 'Placed new stop loss limit order for buying.',
-              updatedAt: expect.any(Object)
+              buy: {
+                currentPrice: 200,
+                openOrders: [
+                  {
+                    orderId: 123,
+                    price: 202.2,
+                    quantity: 0.24,
+                    side: 'buy',
+                    stopPrice: 202,
+                    symbol: 'BTCUPUSDT',
+                    timeInForce: 'GTC',
+                    type: 'STOP_LOSS_LIMIT'
+                  }
+                ],
+                processMessage: 'Placed new stop loss limit order for buying.',
+                updatedAt: expect.any(Object)
+              }
             }
-          }
+          });
+        });
+      });
+
+      describe('ETHBTC', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+            {
+              orderId: 456,
+              price: 0.045359,
+              quantity: 0.022,
+              side: 'buy',
+              stopPrice: 0.045314,
+              symbol: 'ETHBTC',
+              timeInForce: 'GTC',
+              type: 'STOP_LOSS_LIMIT'
+            }
+          ]);
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+            account: 'info'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = {
+            symbol: 'ETHBTC',
+            isLocked: false,
+            symbolInfo: {
+              baseAsset: 'ETH',
+              quoteAsset: 'BTC',
+              filterLotSize: { stepSize: '0.00100000', minQty: '0.00100000' },
+              filterPrice: { tickSize: '0.00000100' },
+              filterMinNotional: { minNotional: '0.00010000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 0.001,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 0.002 },
+            buy: {
+              currentPrice: 0.044866,
+              openOrders: []
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers binance.client.order', () => {
+          expect(binanceMock.client.order).toHaveBeenCalledWith({
+            price: 0.045359,
+            quantity: 0.022,
+            side: 'buy',
+            stopPrice: 0.045314,
+            symbol: 'ETHBTC',
+            timeInForce: 'GTC',
+            type: 'STOP_LOSS_LIMIT'
+          });
+        });
+
+        it('triggers cache.set', () => {
+          expect(cacheMock.set).toHaveBeenCalledWith(
+            'ETHBTC-last-buy-order',
+            'true',
+            120
+          );
+        });
+
+        it('triggers getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
+        });
+
+        it('triggers getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              openOrders: [
+                {
+                  orderId: 456,
+                  price: 0.045359,
+                  quantity: 0.022,
+                  side: 'buy',
+                  stopPrice: 0.045314,
+                  symbol: 'ETHBTC',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ],
+              buy: {
+                currentPrice: 0.044866,
+                openOrders: [
+                  {
+                    orderId: 456,
+                    price: 0.045359,
+                    quantity: 0.022,
+                    side: 'buy',
+                    stopPrice: 0.045314,
+                    symbol: 'ETHBTC',
+                    timeInForce: 'GTC',
+                    type: 'STOP_LOSS_LIMIT'
+                  }
+                ],
+                processMessage: 'Placed new stop loss limit order for buying.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
         });
       });
     });

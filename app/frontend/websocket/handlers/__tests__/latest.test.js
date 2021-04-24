@@ -95,6 +95,28 @@ describe('latest.test.js', () => {
         return '';
       });
 
+      cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+        if (
+          hash === 'trailing-trade-symbols' &&
+          key === 'BNBUSDT-symbol-info'
+        ) {
+          return JSON.stringify({
+            filterMinNotional: { minNotional: '10.00000000' }
+          });
+        }
+
+        if (
+          hash === 'trailing-trade-symbols' &&
+          key === 'ETHUSDT-symbol-info'
+        ) {
+          return JSON.stringify({
+            filterMinNotional: { minNotional: '10.00000000' }
+          });
+        }
+
+        return null;
+      });
+
       mongoMock.findOne = jest
         .fn()
         .mockImplementation((_logger, collection, filter) => {

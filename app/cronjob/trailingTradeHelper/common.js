@@ -8,10 +8,7 @@ const { cache, binance, mongo } = require('../../helpers');
  * @param {*} logger
  * @param {*} globalConfiguration
  */
-const cacheExchangeSymbols = async (logger, globalConfiguration) => {
-  const { supportFIATs } = globalConfiguration;
-  logger.info({ supportFIATs }, 'Support FIATs');
-
+const cacheExchangeSymbols = async (logger, _globalConfiguration) => {
   const cachedExchangeSymbols =
     JSON.parse(await cache.hget('trailing-trade-common', 'exchange-symbols')) ||
     {};
@@ -45,9 +42,7 @@ const cacheExchangeSymbols = async (logger, globalConfiguration) => {
   const { symbols } = exchangeInfo;
 
   const exchangeSymbols = symbols.reduce((acc, symbol) => {
-    if (new RegExp(supportFIATs.join('|')).test(symbol.symbol)) {
-      acc.push(symbol.symbol);
-    }
+    acc.push(symbol.symbol);
 
     return acc;
   }, []);

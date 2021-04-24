@@ -30,9 +30,7 @@ describe('common.js', () => {
           .mockResolvedValue(require('./fixtures/binance-exchange-info.json'));
 
         commonHelper = require('../common');
-        await commonHelper.cacheExchangeSymbols(logger, {
-          supportFIATs: ['USDT', 'BUSD']
-        });
+        await commonHelper.cacheExchangeSymbols(logger, {});
       });
 
       it('triggers cache.hget for exchange symbols', () => {

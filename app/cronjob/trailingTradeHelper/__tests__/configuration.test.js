@@ -1,7 +1,7 @@
 const _ = require('lodash');
 const config = require('config');
 const configuration = require('../configuration');
-const { logger, mongo, PubSub } = require('../../../helpers');
+const { logger, mongo, cache, PubSub } = require('../../../helpers');
 
 jest.mock('config');
 describe('configuration.js', () => {
@@ -110,36 +110,204 @@ describe('configuration.js', () => {
     });
 
     describe('when cannot find from mongodb', () => {
-      beforeEach(async () => {
-        mongo.findOne = jest.fn((_logger, _collection, _filter) => null);
+      describe('when minimum notional value can be found from the symbol info', () => {
+        beforeEach(async () => {
+          cache.hget = jest.fn().mockResolvedValue(
+            JSON.stringify({
+              filterMinNotional: {
+                minNotional: '0.00010000'
+              }
+            })
+          );
 
-        result = await configuration.getSymbolConfiguration(logger, 'BTCUSDT');
+          mongo.findOne = jest.fn((_logger, _collection, _filter) => null);
+
+          result = await configuration.getSymbolConfiguration(
+            logger,
+            'BTCUSDT'
+          );
+        });
+
+        it('returns expected result', () => {
+          expect(result).toStrictEqual({
+            buy: {
+              maxPurchaseAmount: 0.001
+            }
+          });
+        });
       });
 
-      it('returns expected result', () => {
-        expect(result).toStrictEqual({});
+      describe('when minimum notional value cannot be found from the symbol info', () => {
+        beforeEach(async () => {
+          cache.hget = jest.fn().mockResolvedValue(JSON.stringify({}));
+
+          mongo.findOne = jest.fn((_logger, _collection, _filter) => null);
+
+          result = await configuration.getSymbolConfiguration(
+            logger,
+            'BTCUSDT'
+          );
+        });
+
+        it('returns expected result', () => {
+          expect(result).toStrictEqual({});
+        });
       });
     });
 
     describe('when found from mongodb', () => {
-      beforeEach(async () => {
-        mongo.findOne = jest.fn((_logger, collection, filter) => {
-          if (
-            collection === 'trailing-trade-symbols' &&
-            _.isEqual(filter, { key: 'BTCUSDT-configuration' })
-          ) {
-            return {
-              myConfig: 'value'
-            };
-          }
-          return null;
+      describe('when max purchase amount is -1, which requires for calculation', () => {
+        describe('when minimum notional value can be found from the symbol info', () => {
+          describe('when minimum notional value is 0.00010000', () => {
+            beforeEach(async () => {
+              cache.hget = jest.fn().mockResolvedValue(
+                JSON.stringify({
+                  filterMinNotional: {
+                    minNotional: '0.00010000'
+                  }
+                })
+              );
+
+              mongo.findOne = jest.fn((_logger, collection, filter) => {
+                if (
+                  collection === 'trailing-trade-symbols' &&
+                  _.isEqual(filter, { key: 'BTCUSDT-configuration' })
+                ) {
+                  return {
+                    myConfig: 'value',
+                    buy: {
+                      maxPurchaseAmount: -1
+                    }
+                  };
+                }
+                return null;
+              });
+
+              result = await configuration.getSymbolConfiguration(
+                logger,
+                'BTCUSDT'
+              );
+            });
+
+            it('returns expected result', () => {
+              expect(result).toStrictEqual({
+                myConfig: 'value',
+                buy: {
+                  maxPurchaseAmount: 0.001
+                }
+              });
+            });
+          });
+
+          describe('when minimum notional value is 10.00000000', () => {
+            beforeEach(async () => {
+              cache.hget = jest.fn().mockResolvedValue(
+                JSON.stringify({
+                  filterMinNotional: {
+                    minNotional: '10.00000000'
+                  }
+                })
+              );
+
+              mongo.findOne = jest.fn((_logger, collection, filter) => {
+                if (
+                  collection === 'trailing-trade-symbols' &&
+                  _.isEqual(filter, { key: 'BTCUSDT-configuration' })
+                ) {
+                  return {
+                    myConfig: 'value',
+                    buy: {
+                      maxPurchaseAmount: -1
+                    }
+                  };
+                }
+                return null;
+              });
+
+              result = await configuration.getSymbolConfiguration(
+                logger,
+                'BTCUSDT'
+              );
+            });
+
+            it('returns expected result', () => {
+              expect(result).toStrictEqual({
+                myConfig: 'value',
+                buy: {
+                  maxPurchaseAmount: 100
+                }
+              });
+            });
+          });
         });
 
-        result = await configuration.getSymbolConfiguration(logger, 'BTCUSDT');
+        describe('when minimum notional value cannot be found from the symbol info', () => {
+          beforeEach(async () => {
+            cache.hget = jest.fn().mockResolvedValue(null);
+
+            mongo.findOne = jest.fn((_logger, collection, filter) => {
+              if (
+                collection === 'trailing-trade-symbols' &&
+                _.isEqual(filter, { key: 'BTCUSDT-configuration' })
+              ) {
+                return {
+                  myConfig: 'value',
+                  buy: {
+                    maxPurchaseAmount: -1
+                  }
+                };
+              }
+              return null;
+            });
+
+            result = await configuration.getSymbolConfiguration(
+              logger,
+              'BTCUSDT'
+            );
+          });
+
+          it('returns expected result', () => {
+            expect(result).toStrictEqual({
+              myConfig: 'value',
+              buy: {
+                maxPurchaseAmount: -1
+              }
+            });
+          });
+        });
       });
 
-      it('returns expected result', () => {
-        expect(result).toStrictEqual({ myConfig: 'value' });
+      describe('when max purchase amount is configured', () => {
+        beforeEach(async () => {
+          mongo.findOne = jest.fn((_logger, collection, filter) => {
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'BTCUSDT-configuration' })
+            ) {
+              return {
+                myConfig: 'value',
+                buy: {
+                  maxPurchaseAmount: 150
+                }
+              };
+            }
+            return null;
+          });
+
+          result = await configuration.getSymbolConfiguration(
+            logger,
+            'BTCUSDT'
+          );
+        });
+
+        it('returns expected result', () => {
+          expect(result).toStrictEqual({
+            myConfig: 'value',
+            buy: {
+              maxPurchaseAmount: 150
+            }
+          });
+        });
       });
     });
   });
@@ -220,6 +388,14 @@ describe('configuration.js', () => {
   describe('getConfiguration', () => {
     beforeEach(() => {
       mongo.upsertOne = jest.fn().mockResolvedValue(true);
+
+      cache.hget = jest.fn().mockResolvedValue(
+        JSON.stringify({
+          filterMinNotional: {
+            minNotional: '10.00000000'
+          }
+        })
+      );
 
       config.get = jest.fn(key => {
         if (key === 'jobs.trailingTrade') {
@@ -330,7 +506,8 @@ describe('configuration.js', () => {
           expect(result).toStrictEqual({
             enabled: true,
             buy: {
-              enabled: true
+              enabled: true,
+              maxPurchaseAmount: 100
             },
             sell: {
               enabled: false
@@ -368,7 +545,10 @@ describe('configuration.js', () => {
         it('returns expected value', () => {
           expect(result).toStrictEqual({
             enabled: true,
-            some: 'value'
+            some: 'value',
+            buy: {
+              maxPurchaseAmount: 100
+            }
           });
         });
       });
@@ -417,7 +597,7 @@ describe('configuration.js', () => {
           expect(result).toStrictEqual({
             enabled: true,
             some: 'symbol-value',
-            buy: { enabled: false },
+            buy: { enabled: false, maxPurchaseAmount: 100 },
             sell: { enabled: false }
           });
         });

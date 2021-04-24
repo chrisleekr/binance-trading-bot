@@ -23,14 +23,13 @@ const handleSettingUpdate = async (logger, ws, payload) => {
 
   const mergedConfiguration = {
     ...cachedConfiguration,
-    ..._.pick(newConfiguration, [
-      'symbols',
-      'supportFIATs',
-      'candles',
-      'buy',
-      'sell'
-    ])
+    ..._.pick(newConfiguration, ['symbols', 'candles', 'buy', 'sell'])
   };
+
+  // Set max purchase amount to be -1, which mean max purchase amount
+  // will be automatically calculate based on the notional amount.
+  mergedConfiguration.buy.maxPurchaseAmount = -1;
+
   logger.info({ mergedConfiguration }, 'New merged configuration');
 
   await saveGlobalConfiguration(logger, mergedConfiguration);
@@ -48,7 +47,7 @@ const handleSettingUpdate = async (logger, ws, payload) => {
     JSON.stringify({
       result: true,
       type: 'setting-update-result',
-      newConfiguration
+      newConfiguration: mergedConfiguration
     })
   );
 };

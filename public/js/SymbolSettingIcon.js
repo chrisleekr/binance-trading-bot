@@ -318,7 +318,7 @@ class SymbolSettingIcon extends React.Component {
                               placeholder='Enter maximum purchase amount'
                               required
                               min='0'
-                              step='1'
+                              step='0.0001'
                               data-state-key='buy.maxPurchaseAmount'
                               value={symbolConfiguration.buy.maxPurchaseAmount}
                               onChange={this.handleInputChange}

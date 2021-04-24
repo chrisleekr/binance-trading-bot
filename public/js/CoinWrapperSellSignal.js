@@ -59,8 +59,8 @@ class CoinWrapperSellSignal extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Profit/Loss:</span>
               <HightlightChange className='coin-info-value'>
-                {parseFloat(sell.currentProfit).toFixed(2)} {quoteAsset} (
-                {parseFloat(sell.currentProfitPercentage).toFixed(2)}
+                {parseFloat(sell.currentProfit).toFixed(precision)} {quoteAsset}{' '}
+                ({parseFloat(sell.currentProfitPercentage).toFixed(2)}
                 %)
               </HightlightChange>
             </div>

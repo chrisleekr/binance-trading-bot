@@ -10,5 +10,13 @@
   "ETHUSDT",
   "LTCUSDT",
   "TRXUSDT",
-  "XRPUSDT"
+  "XRPUSDT",
+  "BNBBTC",
+  "ETHBTC",
+  "LTCBTC",
+  "TRXBTC",
+  "XRPBTC",
+  "LTCBNB",
+  "TRXBNB",
+  "XRPBNB"
 ]

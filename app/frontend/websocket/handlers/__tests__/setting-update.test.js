@@ -74,7 +74,6 @@ describe('setting-update.test.js', () => {
         mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
           enabled: true,
           symbols: ['BTCUSDT'],
-          supportFIATs: ['USDT'],
           candles: {
             interval: '1d',
             limit: '10'
@@ -98,7 +97,7 @@ describe('setting-update.test.js', () => {
           data: {
             action: 'apply-to-all',
             enabled: true,
-            symbols: ['BTCUSDT', 'LTCUSDT'],
+            symbols: ['BTCUSDT', 'LTCUSDT', 'ETHBTC'],
             supportFIATs: ['USDT', 'BUSD'],
             candles: {
               interval: '1h',
@@ -125,15 +124,14 @@ describe('setting-update.test.js', () => {
       it('triggers saveGlobalConfiguration', () => {
         expect(mockSaveGlobalConfiguration).toHaveBeenCalledWith(mockLogger, {
           enabled: true,
-          symbols: ['BTCUSDT', 'LTCUSDT'],
-          supportFIATs: ['USDT', 'BUSD'],
+          symbols: ['BTCUSDT', 'LTCUSDT', 'ETHBTC'],
           candles: {
             interval: '1h',
             limit: '100'
           },
           buy: {
             enabled: true,
-            maxPurchaseAmount: 150
+            maxPurchaseAmount: -1
           },
           sell: {
             enabled: true,
@@ -163,14 +161,12 @@ describe('setting-update.test.js', () => {
             result: true,
             type: 'setting-update-result',
             newConfiguration: {
-              action: 'apply-to-all',
               enabled: true,
-              symbols: ['BTCUSDT', 'LTCUSDT'],
-              supportFIATs: ['USDT', 'BUSD'],
+              symbols: ['BTCUSDT', 'LTCUSDT', 'ETHBTC'],
               candles: { interval: '1h', limit: '100' },
               buy: {
                 enabled: true,
-                maxPurchaseAmount: 150
+                maxPurchaseAmount: -1
               },
               sell: {
                 enabled: true,
@@ -195,7 +191,6 @@ describe('setting-update.test.js', () => {
         mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
           enabled: true,
           symbols: ['BTCUSDT'],
-          supportFIATs: ['USDT'],
           candles: {
             interval: '1d',
             limit: '10'
@@ -219,7 +214,7 @@ describe('setting-update.test.js', () => {
           data: {
             action: 'apply-to-global-only',
             enabled: true,
-            symbols: ['BTCUSDT', 'LTCUSDT'],
+            symbols: ['BTCUSDT', 'LTCUSDT', 'ETHBTC'],
             supportFIATs: ['USDT', 'BUSD'],
             candles: {
               interval: '1h',
@@ -246,15 +241,14 @@ describe('setting-update.test.js', () => {
       it('triggers saveGlobalConfiguration', () => {
         expect(mockSaveGlobalConfiguration).toHaveBeenCalledWith(mockLogger, {
           enabled: true,
-          symbols: ['BTCUSDT', 'LTCUSDT'],
-          supportFIATs: ['USDT', 'BUSD'],
+          symbols: ['BTCUSDT', 'LTCUSDT', 'ETHBTC'],
           candles: {
             interval: '1h',
             limit: '100'
           },
           buy: {
             enabled: true,
-            maxPurchaseAmount: 150
+            maxPurchaseAmount: -1
           },
           sell: {
             enabled: true,
@@ -291,14 +285,12 @@ describe('setting-update.test.js', () => {
             result: true,
             type: 'setting-update-result',
             newConfiguration: {
-              action: 'apply-to-global-only',
               enabled: true,
-              symbols: ['BTCUSDT', 'LTCUSDT'],
-              supportFIATs: ['USDT', 'BUSD'],
+              symbols: ['BTCUSDT', 'LTCUSDT', 'ETHBTC'],
               candles: { interval: '1h', limit: '100' },
               buy: {
                 enabled: true,
-                maxPurchaseAmount: 150
+                maxPurchaseAmount: -1
               },
               sell: {
                 enabled: true,

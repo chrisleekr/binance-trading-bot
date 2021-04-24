@@ -57,6 +57,7 @@
           "enabled": true,
           "symbol": "BNBUSDT",
           "type": "i-am-symbol",
+          "buy": { "maxPurchaseAmount": 100 },
           "candles": { "interval": "15m" }
         },
         "accountInfo": {
@@ -195,6 +196,7 @@
           "enabled": true,
           "symbol": "ETHUSDT",
           "type": "i-am-symbol",
+          "buy": { "maxPurchaseAmount": 100 },
           "candles": { "interval": "15m" }
         },
         "accountInfo": {

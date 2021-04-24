@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const config = require('config');
-const { mongo, PubSub } = require('../../helpers');
+const { mongo, cache, PubSub } = require('../../helpers');
 
 /**
  * Save global configuration to mongodb
@@ -63,9 +63,51 @@ const getSymbolConfiguration = async (logger, symbol = null) => {
     return {};
   }
 
-  const configValue = await mongo.findOne(logger, 'trailing-trade-symbols', {
-    key: `${symbol}-configuration`
-  });
+  const configValue =
+    (await mongo.findOne(logger, 'trailing-trade-symbols', {
+      key: `${symbol}-configuration`
+    })) || {};
+
+  // Handle max purchase amount
+  const maxPurchaseAmount = _.get(configValue, 'buy.maxPurchaseAmount', -1);
+  if (maxPurchaseAmount === -1) {
+    logger.info(
+      { maxPurchaseAmount },
+      'Max purchase amount is set as -1. Need to calculate and override it'
+    );
+    // If old max purchase maount is -1, then should calculate maximum purchase amount based on the notional amount.
+    const cachedSymbolInfo =
+      JSON.parse(
+        await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
+      ) || {};
+    const minNotional = _.get(
+      cachedSymbolInfo,
+      'filterMinNotional.minNotional',
+      null
+    );
+
+    if (minNotional) {
+      if (configValue.buy === undefined) {
+        configValue.buy = {};
+      }
+
+      configValue.buy.maxPurchaseAmount = parseFloat(minNotional) * 10;
+      logger.info(
+        {
+          configValue,
+          cachedSymbolInfo,
+          minNotional,
+          newMaxPurchaseAmount: configValue.buy.maxPurchaseAmount
+        },
+        'New maximum purchase amount calculated'
+      );
+    } else {
+      logger.info(
+        { cachedSymbolInfo },
+        'Could not find symbol info, wait to be cached.'
+      );
+    }
+  }
 
   if (_.isEmpty(configValue)) {
     logger.info('Could not find symbol configuration.');

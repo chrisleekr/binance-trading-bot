@@ -120,7 +120,7 @@ class SettingIcon extends React.Component {
                       variant='link'
                       eventKey='0'
                       className='p-0 fs-7 text-uppercase'>
-                      Symbols &amp; Fiats
+                      Symbols
                     </Accordion.Toggle>
                   </Card.Header>
                   <Accordion.Collapse eventKey='0'>
@@ -128,7 +128,6 @@ class SettingIcon extends React.Component {
                       <div className='row'>
                         <div className='col-12'>
                           <Form.Group className='mb-2'>
-                            <Form.Label className='mb-1'>Symbols</Form.Label>
                             <Typeahead
                               multiple
                               onChange={selected => {
@@ -141,28 +140,6 @@ class SettingIcon extends React.Component {
                               options={this.props.exchangeSymbols}
                               defaultSelected={selectedSymbols}
                               placeholder='Choose symbols to monitor...'
-                            />
-                          </Form.Group>
-                        </div>
-                      </div>
-                      <div className='row'>
-                        <div className='col-12'>
-                          <Form.Group className='mb-2'>
-                            <Form.Label className='mb-1'>
-                              Support FIATs
-                            </Form.Label>
-                            <Typeahead
-                              multiple
-                              onChange={selected => {
-                                // Handle selections...
-                                const { configuration } = this.state;
-                                configuration.supportFIATs = selected;
-                                this.setState({ configuration });
-                              }}
-                              size='sm'
-                              options={this.props.exchangeFIATs}
-                              defaultSelected={selectedFIATs}
-                              placeholder='Choose FIAT market...'
                             />
                           </Form.Group>
                         </div>
@@ -326,47 +303,6 @@ class SettingIcon extends React.Component {
                                 </OverlayTrigger>
                               </Form.Check.Label>
                             </Form.Check>
-                          </Form.Group>
-                          <Form.Group
-                            controlId='field-buy-maximum-purchase-amount'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Maximum purchase amount
-                              <OverlayTrigger
-                                trigger='click'
-                                key='buy-maximum-purchase-amount-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='buy-maximum-purchase-amount-overlay-right'>
-                                    <Popover.Content>
-                                      Set maximum purchase amount. i.e. if
-                                      account has 200 USDT and set as{' '}
-                                      <code>100</code>, then when reach buy
-                                      price, it will only buy <code>100</code>{' '}
-                                      worth of the coin. Note that the bot will
-                                      remove the last buy price if the coin is
-                                      less worth than $10.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter maximum purchase amount'
-                              required
-                              min='0'
-                              step='1'
-                              data-state-key='buy.maxPurchaseAmount'
-                              value={configuration.buy.maxPurchaseAmount}
-                              onChange={this.handleInputChange}
-                            />
                           </Form.Group>
                           <Form.Group
                             controlId='field-buy-trigger-percentage'

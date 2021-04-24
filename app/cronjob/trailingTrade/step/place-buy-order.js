@@ -59,6 +59,14 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
+  if (maxPurchaseAmount <= 0) {
+    data.buy.processMessage =
+      'Max purchase amount must be configured. Please configure symbol settings.';
+    data.buy.updatedAt = moment().utc();
+
+    return data;
+  }
+
   logger.info(
     { debug: true, currentPrice, openOrders },
     'Attempting to place buy order'
@@ -67,7 +75,8 @@ const execute = async (logger, rawData) => {
   const lotPrecision = stepSize.indexOf(1) - 1;
   const pricePrecision = tickSize.indexOf(1) - 1;
 
-  let freeBalance = parseFloat(_.floor(quoteAssetFreeBalance, lotPrecision));
+  let freeBalance = parseFloat(_.floor(quoteAssetFreeBalance, pricePrecision));
+
   logger.info({ freeBalance }, 'Free balance');
   if (freeBalance > maxPurchaseAmount) {
     freeBalance = maxPurchaseAmount;
@@ -141,7 +150,8 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Order result');
 
-  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 15);
+  // Set last buy order to be checked over 2 minutes
+  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 120);
 
   await mongo.upsertOne(
     logger,
