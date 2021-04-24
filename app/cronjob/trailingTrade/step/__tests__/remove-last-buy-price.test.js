@@ -264,7 +264,7 @@ describe('remove-last-buy-price.js', () => {
               currentPrice: 200,
               lastBuyPrice: 160,
               processMessage:
-                'Balance is found; however, not enough to sell. Delete last buy price.',
+                'Balance is not enough to sell. Delete last buy price.',
               updatedAt: expect.any(Object)
             }
           }
@@ -317,7 +317,7 @@ describe('remove-last-buy-price.js', () => {
               currentPrice: 200,
               lastBuyPrice: 160,
               processMessage:
-                'Balance is found; however, the balance is less than the notional value. Delete last buy price.',
+                'Balance is less than the notional value. Delete last buy price.',
               updatedAt: expect.any(Object)
             }
           }

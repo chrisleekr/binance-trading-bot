@@ -90,14 +90,14 @@ const execute = async (logger, rawData) => {
     logger.error(
       { baseAssetQuantity },
 
-      'Balance is found; however, not enough to sell. Delete last buy price.'
+      'Balance is not enough to sell. Delete last buy price.'
     );
     await mongo.deleteOne(logger, 'trailing-trade-symbols', {
       key: `${symbol}-last-buy-price`
     });
 
     data.sell.processMessage =
-      'Balance is found; however, not enough to sell. Delete last buy price.';
+      'Balance is not enough to sell. Delete last buy price.';
     data.sell.updatedAt = moment().utc();
 
     await slack.sendMessage(
@@ -126,13 +126,13 @@ const execute = async (logger, rawData) => {
   if (baseAssetQuantity * currentPrice < parseFloat(minNotional)) {
     logger.error(
       { baseAssetQuantity },
-      'Balance is found; however, the balance is less than the notional value. Delete last buy price.'
+      'Balance is less than the notional value. Delete last buy price.'
     );
     await mongo.deleteOne(logger, 'trailing-trade-symbols', {
       key: `${symbol}-last-buy-price`
     });
     data.sell.processMessage =
-      'Balance is found; however, the balance is less than the notional value. Delete last buy price.';
+      'Balance is less than the notional value. Delete last buy price.';
     data.sell.updatedAt = moment().utc();
 
     await slack.sendMessage(
