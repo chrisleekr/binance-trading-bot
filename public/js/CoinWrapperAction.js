@@ -33,6 +33,10 @@ class CoinWrapperAction extends React.Component {
       default:
         label = 'Wait';
     }
+
+    if (isLocked) {
+      label = 'Locked';
+    }
     return (
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title border-bottom-0 mb-0 pb-0'>

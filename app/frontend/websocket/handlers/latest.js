@@ -38,6 +38,7 @@ const handleLatest = async (logger, ws, _payload) => {
   try {
     common = {
       version,
+      gitHash: process.env.GIT_HASH || 'unspecified',
       configuration: globalConfiguration,
       accountInfo: JSON.parse(cacheTrailingTradeCommon['account-info']),
       exchangeSymbols: JSON.parse(cacheTrailingTradeCommon['exchange-symbols']),

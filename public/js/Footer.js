@@ -26,7 +26,7 @@ class Footer extends React.Component {
   }
 
   render() {
-    const { packageVersion } = this.props;
+    const { packageVersion, gitHash } = this.props;
     const { currentVersion } = this.state;
 
     if (!packageVersion) {
@@ -37,7 +37,8 @@ class Footer extends React.Component {
       <div className='app-footer'>
         <div className='footer-wrapper'>
           <div className='footer-column mr-1'>
-            Running Version: <span className='ml-1'>v{packageVersion}</span>
+            Running Version: <span className='ml-1'>v{packageVersion}</span> (
+            {gitHash})
           </div>
           <div className='footer-column'>
             Latest Version:

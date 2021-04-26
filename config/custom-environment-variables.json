@@ -63,10 +63,6 @@
         "__name": "BINANCE_JOBS_TRAILING_TRADE_SYMBOLS",
         "__format": "json"
       },
-      "supportFIATs": {
-        "__name": "BINANCE_JOBS_TRAILING_TRADE_SUPPORT_FIATS",
-        "__format": "json"
-      },
       "candles": {
         "interval": "BINANCE_JOBS_TRAILING_TRADE_CANDLES_INTERVAL",
         "limit": {
@@ -78,10 +74,6 @@
         "enabled": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_ENABLED",
           "__format": "boolean"
-        },
-        "maxPurchaseAmount": {
-          "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_MAX_PURCHASE_AMOUNT",
-          "__format": "number"
         },
         "triggerPercentage": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_TRIGGER_PERCENTAGE",

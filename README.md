@@ -25,15 +25,32 @@ incurred directly or indirectly by using this code.**
 **Before updating the bot, make sure to record the last buy price in the note.
 It may lose the configuration or last buy price records.**
 
-## Breaking Changes
+## Latest changes
 
-As I introduce a new feature, I did lots of refactoring the code including
-settings. If the bot version is lower than the version `0.0.57`, then the update
-will cause lost your settings and the last buy price records. You must write
-down settings and the last buy price records and re-configure after the upgrade.
+### Support all symbols
 
-If experiences any issue, simply delete all docker volumes/images and re-launch
-the bot.
+The bot is now supporting all symbols such as ETHBTC, XRPBTC. As a result, the
+maximum purchase amount configuration has been removed from the global
+configuration. Any newly added symbol would be dynamically calculated maximum
+purchase amount based on the symbol's minimum notional value.
+
+- i.e. XRPBNB minimum notional (0.1) \* 10 = max purchase amount (1)
+- i.e. BNBBTC minimum notional (0.0001) \* 10 = max purchase amount (0.001)
+- i.e. BNBUSDT minimum notional (10) \* 10 = max purchase amount (100)
+
+If you can still customise the maximum purchase amount in the symbol setting.
+[#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
+
+### Support monitoring multiple coins simultaneously
+
+The bot is now monitoring all coins every second. However, updating the
+indicators for the symbol cannot update every second because of the API limit.
+As a result, I had to introduce the lock mechanism for the symbol. The frontend
+will display the lock icon when the symbol is updating the indicators in the
+background. During updating the indicators, the bot will not process the order.
+
+If interested, take a look this PR
+[#77](https://github.com/chrisleekr/binance-trading-bot/pull/77)
 
 ## How it works
 
@@ -217,17 +234,17 @@ Or use the frontend to adjust configurations after launching the application.
 
 1. Create `.env` file based on `.env.dist`.
 
-   | Environment Key                | Description                       | Sample Value   |
-   | ------------------------------ | --------------------------------- | -------------- |
-   | BINANCE_LIVE_API_KEY           | Binance API key for live          | (from Binance) |
-   | BINANCE_LIVE_SECRET_KEY        | Binance API secret for live       | (from Binance) |
-   | BINANCE_TEST_API_KEY           | Binance API key for test          | (from Binance) |
-   | BINANCE_TEST_SECRET_KEY        | Binance API secret for test       | (from Binance) |
-   | BINANCE_SLACK_WEBHOOK_URL      | Slack webhook URL                 | (from Slack)   |
-   | BINANCE_SLACK_CHANNEL          | Slack channel                     | "#binance"     |
-   | BINANCE_SLACK_USERNAME         | Slack username                    | Chris          |
-   | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable local tunnel       | true           |
-   | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain | binance        |
+   | Environment Key                | Description                       | Sample Value                                                                                   |
+   | ------------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------- |
+   | BINANCE_LIVE_API_KEY           | Binance API key for live          | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API)) |
+   | BINANCE_LIVE_SECRET_KEY        | Binance API secret for live       | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API)) |
+   | BINANCE_TEST_API_KEY           | Binance API key for test          | (from [Binance Spot Test Network](https://testnet.binance.vision/))                            |
+   | BINANCE_TEST_SECRET_KEY        | Binance API secret for test       | (from [Binance Spot Test Network](https://testnet.binance.vision/))                            |
+   | BINANCE_SLACK_WEBHOOK_URL      | Slack webhook URL                 | (from Slack)                                                                                   |
+   | BINANCE_SLACK_CHANNEL          | Slack channel                     | "#binance"                                                                                     |
+   | BINANCE_SLACK_USERNAME         | Slack username                    | Chris                                                                                          |
+   | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable local tunnel       | true                                                                                           |
+   | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain | binance                                                                                        |
 
 2. Check `docker-compose.yml` for `BINANCE_MODE` environment parameter
 
@@ -257,6 +274,10 @@ Or use the frontend to adjust configurations after launching the application.
 4. Open browser `http://0.0.0.0:8080` to see the frontend
 
    - When launching the application, it will notify public URL to the Slack.
+
+If you have any issue with the bot, you can check the log to find out what
+happened with the bot. Take a look
+[How to get the logs by installing bunyan npm package](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting#how-to-get-the-logs-by-installing-bunyan-npm-package)
 
 ### Install via Stackfile
 
@@ -337,6 +358,7 @@ to view the past changes.
 - [@chopeta](https://github.com/chopeta)
 - [@santoshbmath](https://github.com/santoshbmath)
 - [@BramFr](https://github.com/BramFr)
+- [@Lavyk](https://github.com/Lavyk)
 
 ## Contributors
 

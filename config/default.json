@@ -40,14 +40,13 @@
       "enabled": true,
       "cronTime": "* * * * * *",
       "symbols": ["BTCUSDT", "ETHUSDT"],
-      "supportFIATs": ["USDT"],
       "candles": {
         "interval": "1h",
         "limit": 100
       },
       "buy": {
         "enabled": true,
-        "maxPurchaseAmount": 100,
+        "maxPurchaseAmount": -1,
         "triggerPercentage": 1.0,
         "stopPercentage": 1.02,
         "limitPercentage": 1.021

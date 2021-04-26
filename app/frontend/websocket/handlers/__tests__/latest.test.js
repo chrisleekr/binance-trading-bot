@@ -79,6 +79,7 @@ describe('latest.test.js', () => {
 
   describe('with valid cache', () => {
     beforeEach(async () => {
+      process.env.GIT_HASH = 'some-hash';
       const { cache, logger, mongo } = require('../../../../helpers');
       cacheMock = cache;
       mongoMock = mongo;
@@ -167,6 +168,7 @@ describe('latest.test.js', () => {
 
     it('triggers ws.send with latest', () => {
       trailingTradeStats.common.version = require('../../../../../package.json').version;
+      trailingTradeStats.common.gitHash = 'some-hash';
       expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
         JSON.stringify(trailingTradeStats)
       );

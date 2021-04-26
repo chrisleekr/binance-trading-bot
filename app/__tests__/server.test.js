@@ -6,6 +6,8 @@ describe('server', () => {
   let mockRunCronJob;
   let mockRunFrontend;
 
+  let mockLoggerChild;
+
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
 
@@ -18,8 +20,9 @@ describe('server', () => {
     mockRunCronJob = jest.fn().mockResolvedValue(true);
     mockRunFrontend = jest.fn().mockResolvedValue(true);
 
+    mockLoggerChild = jest.fn().mockResolvedValue({ child: 'logger' });
     jest.mock('../helpers', () => ({
-      logger: { me: 'logger' },
+      logger: { me: 'logger', child: mockLoggerChild },
       mongo: mockMongo
     }));
 

@@ -90,7 +90,8 @@ class CoinWrapperSellOrders extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Minimum profit:</span>
               <HightlightChange className='coin-info-value'>
-                {parseFloat(openOrder.minimumProfit).toFixed(0)} {quoteAsset} (
+                {parseFloat(openOrder.minimumProfit).toFixed(precision)}{' '}
+                {quoteAsset} (
                 {parseFloat(openOrder.minimumProfitPercentage).toFixed(2)}%)
               </HightlightChange>
             </div>
