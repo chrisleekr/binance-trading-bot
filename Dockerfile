@@ -9,6 +9,8 @@ COPY package*.json ./
 
 RUN npm install
 
+COPY . .
+
 ARG PACKAGE_VERSION=untagged
 ENV PACKAGE_VERSION=${PACKAGE_VERSION}
 LABEL com.chrisleekr.binance-trading-bot.package-version=${PACKAGE_VERSION}
@@ -20,8 +22,6 @@ LABEL com.chrisleekr.binance-trading-bot.git-hash=${GIT_HASH}
 ARG NODE_ENV=development
 ENV NODE_ENV=${NODE_ENV}
 LABEL com.chrisleekr.binance-trading-bot.node-env=${NODE_ENV}
-
-COPY . .
 
 CMD [ "npm", "run", "dev" ]
 

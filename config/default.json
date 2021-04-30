@@ -47,6 +47,7 @@
       "buy": {
         "enabled": true,
         "maxPurchaseAmount": -1,
+        "maxPurchaseAmounts": {},
         "triggerPercentage": 1.0,
         "stopPercentage": 1.02,
         "limitPercentage": 1.021

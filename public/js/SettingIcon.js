@@ -13,6 +13,8 @@ class SettingIcon extends React.Component {
     this.state = {
       showSettingModal: false,
       showConfirmModal: false,
+      availableSymbols: [],
+      quoteAssets: [],
       configuration: {}
     };
 
@@ -21,6 +23,29 @@ class SettingIcon extends React.Component {
 
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
     this.handleInputChange = this.handleInputChange.bind(this);
+    this.handleMaxPurchaeAmountChange = this.handleMaxPurchaeAmountChange.bind(
+      this
+    );
+  }
+
+  getQuoteAssets(exchangeSymbols, selectedSymbols, maxPurchaseAmounts) {
+    const quoteAssets = [];
+
+    selectedSymbols.forEach(symbol => {
+      const symbolInfo = exchangeSymbols[symbol];
+      if (symbolInfo === undefined) {
+        return;
+      }
+      const { quoteAsset, minNotional } = symbolInfo;
+      if (quoteAssets.includes(quoteAsset) === false) {
+        quoteAssets.push(quoteAsset);
+      }
+      if (maxPurchaseAmounts[quoteAsset] === undefined) {
+        maxPurchaseAmounts[quoteAsset] = minNotional * 10;
+      }
+    });
+
+    return { quoteAssets, maxPurchaseAmounts };
   }
 
   componentDidUpdate(nextProps) {
@@ -30,8 +55,35 @@ class SettingIcon extends React.Component {
       _.isEmpty(nextProps.configuration) === false &&
       _.isEqual(nextProps.configuration, this.state.configuration) === false
     ) {
+      const { exchangeSymbols, configuration } = nextProps;
+      const { symbols: selectedSymbols } = configuration;
+
+      const availableSymbols = _.reduce(
+        exchangeSymbols,
+        (acc, symbol) => {
+          acc.push(symbol.symbol);
+          return acc;
+        },
+        []
+      );
+
+      if (configuration.buy.maxPurchaseAmounts === undefined) {
+        configuration.buy.maxPurchaseAmounts = {};
+      }
+
+      // Set max purchase amount
+      const { quoteAssets, maxPurchaseAmounts } = this.getQuoteAssets(
+        exchangeSymbols,
+        selectedSymbols,
+        configuration.buy.maxPurchaseAmounts
+      );
+
+      configuration.buy.maxPurchaseAmounts = maxPurchaseAmounts;
+
       this.setState({
-        configuration: nextProps.configuration
+        availableSymbols,
+        quoteAssets,
+        configuration
       });
     }
   }
@@ -79,11 +131,23 @@ class SettingIcon extends React.Component {
     });
   }
 
-  render() {
-    const { configuration } = this.state;
-    const { symbols: selectedSymbols, supportFIATs } = configuration;
+  handleMaxPurchaeAmountChange(newMaxPurchaseAmounts) {
+    console.log('handleMaxPurchaeAmountChange => ', newMaxPurchaseAmounts);
 
-    const selectedFIATs = supportFIATs || ['USDT'];
+    const { configuration } = this.state;
+
+    this.setState({
+      configuration: _.set(
+        configuration,
+        'buy.maxPurchaseAmounts',
+        newMaxPurchaseAmounts
+      )
+    });
+  }
+
+  render() {
+    const { configuration, availableSymbols, quoteAssets } = this.state;
+    const { symbols: selectedSymbols } = configuration;
 
     if (_.isEmpty(configuration)) {
       return '';
@@ -133,11 +197,24 @@ class SettingIcon extends React.Component {
                               onChange={selected => {
                                 // Handle selections...
                                 const { configuration } = this.state;
+                                const { exchangeSymbols } = this.props;
+
                                 configuration.symbols = selected;
-                                this.setState({ configuration });
+
+                                const {
+                                  quoteAssets,
+                                  maxPurchaseAmounts
+                                } = this.getQuoteAssets(
+                                  exchangeSymbols,
+                                  selected,
+                                  configuration.buy.maxPurchaseAmounts
+                                );
+
+                                configuration.buy.maxPurchaseAmounts = maxPurchaseAmounts;
+                                this.setState({ configuration, quoteAssets });
                               }}
                               size='sm'
-                              options={this.props.exchangeSymbols}
+                              options={availableSymbols}
                               defaultSelected={selectedSymbols}
                               placeholder='Choose symbols to monitor...'
                             />
@@ -304,6 +381,15 @@ class SettingIcon extends React.Component {
                               </Form.Check.Label>
                             </Form.Check>
                           </Form.Group>
+                          <SettingIconMaxPurchaseAmount
+                            quoteAssets={quoteAssets}
+                            maxPurchaseAmounts={
+                              configuration.buy.maxPurchaseAmounts
+                            }
+                            handleMaxPurchaeAmountChange={
+                              this.handleMaxPurchaeAmountChange
+                            }
+                          />
                           <Form.Group
                             controlId='field-buy-trigger-percentage'
                             className='mb-2'>

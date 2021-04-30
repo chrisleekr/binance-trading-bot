@@ -71,56 +71,146 @@ describe('common.js', () => {
     });
 
     describe('when there is cached exchange info', () => {
-      beforeEach(async () => {
-        const { cache, binance, logger } = require('../../../helpers');
+      describe('when cached exchange symbol is not valid', () => {
+        beforeEach(async () => {
+          const { cache, binance, logger } = require('../../../helpers');
 
-        cacheMock = cache;
-        binanceMock = binance;
+          cacheMock = cache;
+          binanceMock = binance;
 
-        cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
-          if (hash === 'trailing-trade-common' && key === 'exchange-symbols') {
-            return JSON.stringify(
+          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+            if (
+              hash === 'trailing-trade-common' &&
+              key === 'exchange-symbols'
+            ) {
+              return JSON.stringify(
+                require('./fixtures/binance-cached-not-valid-exchange-symbols.json')
+              );
+            }
+            if (hash === 'trailing-trade-common' && key === 'exchange-info') {
+              return JSON.stringify(
+                require('./fixtures/binance-exchange-info.json')
+              );
+            }
+
+            return null;
+          });
+          cacheMock.hset = jest.fn().mockResolvedValue(true);
+
+          binanceMock.client.exchangeInfo = jest.fn().mockResolvedValue(null);
+
+          commonHelper = require('../common');
+          await commonHelper.cacheExchangeSymbols(logger, {
+            supportFIATs: ['USDT', 'BUSD']
+          });
+        });
+
+        it('triggers cache.hget for exchange symbols', () => {
+          expect(cacheMock.hget).toHaveBeenCalledWith(
+            'trailing-trade-common',
+            'exchange-symbols'
+          );
+        });
+
+        it('triggers cache.hget for exchange info', () => {
+          expect(cacheMock.hget).toHaveBeenCalledWith(
+            'trailing-trade-common',
+            'exchange-info'
+          );
+        });
+
+        it('does not trigger binance exchange info', () => {
+          expect(binanceMock.client.exchangeInfo).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger cache.hset for exchange info', () => {
+          expect(cacheMock.hset).not.toHaveBeenCalledWith(
+            'trailing-trade-common',
+            'exchange-info',
+            JSON.stringify(require('./fixtures/binance-exchange-info.json'))
+          );
+        });
+
+        it('triggers cache.hset for exchange symbols', () => {
+          expect(cacheMock.hset).toHaveBeenCalledWith(
+            'trailing-trade-common',
+            'exchange-symbols',
+            JSON.stringify(
               require('./fixtures/binance-cached-exchange-symbols.json')
-            );
-          }
-          if (hash === 'trailing-trade-common' && key === 'exchange-info') {
-            return JSON.stringify(
-              require('./fixtures/binance-exchange-info.json')
-            );
-          }
-
-          return null;
-        });
-        cacheMock.hset = jest.fn().mockResolvedValue(true);
-
-        binanceMock.client.exchangeInfo = jest.fn().mockResolvedValue(null);
-
-        commonHelper = require('../common');
-        await commonHelper.cacheExchangeSymbols(logger, {
-          supportFIATs: ['USDT', 'BUSD']
+            )
+          );
         });
       });
 
-      it('triggers cache.hget for exchange symbols', () => {
-        expect(cacheMock.hget).toHaveBeenCalledWith(
-          'trailing-trade-common',
-          'exchange-symbols'
-        );
-      });
+      describe('when cached exchange symbol is valid', () => {
+        beforeEach(async () => {
+          const { cache, binance, logger } = require('../../../helpers');
 
-      it('does not trigger cache.hget for exchange info', () => {
-        expect(cacheMock.hget).not.toHaveBeenCalledWith(
-          'trailing-trade-common',
-          'exchange-info'
-        );
-      });
+          cacheMock = cache;
+          binanceMock = binance;
 
-      it('does not trigger binance exchange info', () => {
-        expect(binanceMock.client.exchangeInfo).not.toHaveBeenCalled();
-      });
+          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+            if (
+              hash === 'trailing-trade-common' &&
+              key === 'exchange-symbols'
+            ) {
+              return JSON.stringify(
+                require('./fixtures/binance-cached-exchange-symbols.json')
+              );
+            }
+            if (hash === 'trailing-trade-common' && key === 'exchange-info') {
+              return JSON.stringify(
+                require('./fixtures/binance-exchange-info.json')
+              );
+            }
 
-      it('does not trigger cache.hset', () => {
-        expect(cacheMock.hset).not.toHaveBeenCalled();
+            return null;
+          });
+          cacheMock.hset = jest.fn().mockResolvedValue(true);
+
+          binanceMock.client.exchangeInfo = jest.fn().mockResolvedValue(null);
+
+          commonHelper = require('../common');
+          await commonHelper.cacheExchangeSymbols(logger, {
+            supportFIATs: ['USDT', 'BUSD']
+          });
+        });
+
+        it('triggers cache.hget for exchange symbols', () => {
+          expect(cacheMock.hget).toHaveBeenCalledWith(
+            'trailing-trade-common',
+            'exchange-symbols'
+          );
+        });
+
+        it('does not trigger cache.hget for exchange info', () => {
+          expect(cacheMock.hget).not.toHaveBeenCalledWith(
+            'trailing-trade-common',
+            'exchange-info'
+          );
+        });
+
+        it('does not trigger binance exchange info', () => {
+          expect(binanceMock.client.exchangeInfo).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger cache.hset for exchange info', () => {
+          expect(cacheMock.hset).not.toHaveBeenCalledWith(
+            'trailing-trade-common',
+            'exchange-info',
+            JSON.stringify(require('./fixtures/binance-exchange-info.json'))
+          );
+        });
+
+        it('does not trigger cache.hset for exchange symbols', () => {
+          expect(cacheMock.hset).not.toHaveBeenCalledWith(
+            'trailing-trade-common',
+            'exchange-symbols',
+            JSON.stringify(
+              require('./fixtures/binance-cached-exchange-symbols.json')
+            )
+          );
+        });
       });
     });
 

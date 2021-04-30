@@ -1,6 +1,13 @@
 const _ = require('lodash');
 const { cache, binance, mongo } = require('../../helpers');
 
+const isValidCachedExchangeSymbols = exchangeSymbols =>
+  _.get(
+    exchangeSymbols,
+    [Object.keys(exchangeSymbols)[0], 'minNotional'],
+    null
+  ) !== null;
+
 /**
  * Retreive cached exhcnage symbols.
  *  If not cached, retrieve exchange info from API and cache it.
@@ -12,9 +19,12 @@ const cacheExchangeSymbols = async (logger, _globalConfiguration) => {
   const cachedExchangeSymbols =
     JSON.parse(await cache.hget('trailing-trade-common', 'exchange-symbols')) ||
     {};
-
   // If there is already cached exchange symbols, don't need to cache again.
-  if (_.isEmpty(cachedExchangeSymbols) === false) {
+  if (
+    _.isEmpty(cachedExchangeSymbols) === false &&
+    // For backward compatibility, verify the cached value is valid.
+    isValidCachedExchangeSymbols(cachedExchangeSymbols) === true
+  ) {
     return;
   }
 
@@ -42,16 +52,24 @@ const cacheExchangeSymbols = async (logger, _globalConfiguration) => {
   const { symbols } = exchangeInfo;
 
   const exchangeSymbols = symbols.reduce((acc, symbol) => {
-    acc.push(symbol.symbol);
+    const minNotionalFilter = _.find(symbol.filters, {
+      filterType: 'MIN_NOTIONAL'
+    });
+    acc[symbol.symbol] = {
+      symbol: symbol.symbol,
+      quoteAsset: symbol.quoteAsset,
+      minNotional: parseFloat(minNotionalFilter.minNotional)
+    };
 
     return acc;
-  }, []);
+  }, {});
 
   await cache.hset(
     'trailing-trade-common',
     'exchange-symbols',
     JSON.stringify(exchangeSymbols)
   );
+
   logger.info({ exchangeSymbols }, 'Saved exchange symbols to cache');
 };
 

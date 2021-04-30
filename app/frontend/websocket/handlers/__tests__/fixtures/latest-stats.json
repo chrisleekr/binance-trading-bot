@@ -58,8 +58,8 @@
           "enabled": true,
           "symbol": "BNBUSDT",
           "type": "i-am-symbol",
-          "buy": { "maxPurchaseAmount": 100 },
-          "candles": { "interval": "15m" }
+          "candles": { "interval": "15m" },
+          "buy": { "maxPurchaseAmount": 100 }
         },
         "accountInfo": {
           "makerCommission": 0,
@@ -197,8 +197,8 @@
           "enabled": true,
           "symbol": "ETHUSDT",
           "type": "i-am-symbol",
-          "buy": { "maxPurchaseAmount": 100 },
-          "candles": { "interval": "15m" }
+          "candles": { "interval": "15m" },
+          "buy": { "maxPurchaseAmount": 100 }
         },
         "accountInfo": {
           "makerCommission": 0,

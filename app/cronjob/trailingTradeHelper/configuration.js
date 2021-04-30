@@ -68,47 +68,6 @@ const getSymbolConfiguration = async (logger, symbol = null) => {
       key: `${symbol}-configuration`
     })) || {};
 
-  // Handle max purchase amount
-  const maxPurchaseAmount = _.get(configValue, 'buy.maxPurchaseAmount', -1);
-  if (maxPurchaseAmount === -1) {
-    logger.info(
-      { maxPurchaseAmount },
-      'Max purchase amount is set as -1. Need to calculate and override it'
-    );
-    // If old max purchase maount is -1, then should calculate maximum purchase amount based on the notional amount.
-    const cachedSymbolInfo =
-      JSON.parse(
-        await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
-      ) || {};
-    const minNotional = _.get(
-      cachedSymbolInfo,
-      'filterMinNotional.minNotional',
-      null
-    );
-
-    if (minNotional) {
-      if (configValue.buy === undefined) {
-        configValue.buy = {};
-      }
-
-      configValue.buy.maxPurchaseAmount = parseFloat(minNotional) * 10;
-      logger.info(
-        {
-          configValue,
-          cachedSymbolInfo,
-          minNotional,
-          newMaxPurchaseAmount: configValue.buy.maxPurchaseAmount
-        },
-        'New maximum purchase amount calculated'
-      );
-    } else {
-      logger.info(
-        { cachedSymbolInfo },
-        'Could not find symbol info, wait to be cached.'
-      );
-    }
-  }
-
   if (_.isEmpty(configValue)) {
     logger.info('Could not find symbol configuration.');
     return {};
@@ -157,6 +116,73 @@ const deleteSymbolConfiguration = async (logger, symbol) =>
     key: `${symbol}-configuration`
   });
 
+const getMaxPurchaseAmount = async (
+  logger,
+  symbol,
+  globalConfiguration,
+  symbolConfiguration
+) => {
+  const symbolBuyMaxPurchaseAmount = _.get(
+    symbolConfiguration,
+    'buy.maxPurchaseAmount',
+    -1
+  );
+
+  if (symbolBuyMaxPurchaseAmount !== -1) {
+    logger.info(
+      { symbolBuyMaxPurchaseAmount },
+      'Max purchase amount is found from symbol configuration.'
+    );
+    return symbolBuyMaxPurchaseAmount;
+  }
+
+  logger.info(
+    { symbolBuyMaxPurchaseAmount },
+    'Max purchase amount is set as -1. Need to calculate and override it'
+  );
+
+  let newBuyMaxPurchaseAmount = -1;
+
+  // If old max purchase maount is -1, then should calculate maximum purchase amount based on the notional amount.
+  const cachedSymbolInfo =
+    JSON.parse(
+      await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
+    ) || {};
+
+  if (_.isEmpty(cachedSymbolInfo) === false) {
+    const {
+      quoteAsset,
+      filterMinNotional: { minNotional }
+    } = cachedSymbolInfo;
+
+    newBuyMaxPurchaseAmount = _.get(
+      globalConfiguration,
+      `buy.maxPurchaseAmounts.${quoteAsset}`,
+      -1
+    );
+
+    logger.info(
+      { quoteAsset, newBuyMaxPurchaseAmount },
+      'Retreived max purchase amount from global configuration'
+    );
+
+    if (newBuyMaxPurchaseAmount === -1) {
+      newBuyMaxPurchaseAmount = parseFloat(minNotional) * 10;
+
+      logger.info(
+        { newBuyMaxPurchaseAmount, minNotional },
+        'Could not get max purchase amount from global configuration. Use minimum notional from symbol info'
+      );
+    }
+  } else {
+    logger.info(
+      { cachedSymbolInfo },
+      'Could not find symbol info, wait to be cached.'
+    );
+  }
+
+  return newBuyMaxPurchaseAmount;
+};
 /**
  * Get global/symbol configuration
  *
@@ -169,7 +195,28 @@ const getConfiguration = async (logger, symbol = null) => {
   const symbolConfigValue = await getSymbolConfiguration(logger, symbol);
 
   // Merge global and symbol configuration
-  return _.defaultsDeep(symbolConfigValue, globalConfigValue);
+  const mergedConfigValue = _.defaultsDeep(
+    symbolConfigValue,
+    globalConfigValue
+  );
+  if (symbol !== null) {
+    _.set(
+      mergedConfigValue,
+      'buy.maxPurchaseAmount',
+      await getMaxPurchaseAmount(
+        logger,
+        symbol,
+        globalConfigValue,
+        symbolConfigValue
+      )
+    );
+
+    // For symbol configuration, remove maxPurchaseAmounts
+    _.unset(mergedConfigValue, 'buy.maxPurchaseAmounts');
+  }
+
+  // Merge global and symbol configuration
+  return mergedConfigValue;
 };
 
 module.exports = {

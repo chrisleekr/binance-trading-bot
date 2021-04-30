@@ -234,41 +234,46 @@ Or use the frontend to adjust configurations after launching the application.
 
 1. Create `.env` file based on `.env.dist`.
 
-   | Environment Key                | Description                       | Sample Value                                                                                   |
-   | ------------------------------ | --------------------------------- | ---------------------------------------------------------------------------------------------- |
-   | BINANCE_LIVE_API_KEY           | Binance API key for live          | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API)) |
-   | BINANCE_LIVE_SECRET_KEY        | Binance API secret for live       | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API)) |
-   | BINANCE_TEST_API_KEY           | Binance API key for test          | (from [Binance Spot Test Network](https://testnet.binance.vision/))                            |
-   | BINANCE_TEST_SECRET_KEY        | Binance API secret for test       | (from [Binance Spot Test Network](https://testnet.binance.vision/))                            |
-   | BINANCE_SLACK_WEBHOOK_URL      | Slack webhook URL                 | (from Slack)                                                                                   |
-   | BINANCE_SLACK_CHANNEL          | Slack channel                     | "#binance"                                                                                     |
-   | BINANCE_SLACK_USERNAME         | Slack username                    | Chris                                                                                          |
-   | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable local tunnel       | true                                                                                           |
-   | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain | binance                                                                                        |
+   | Environment Key                | Description                                                               | Sample Value                                                                                        |
+   | ------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+   | BINANCE_LIVE_API_KEY           | Binance API key for live                                                  | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API))      |
+   | BINANCE_LIVE_SECRET_KEY        | Binance API secret for live                                               | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API))      |
+   | BINANCE_TEST_API_KEY           | Binance API key for test                                                  | (from [Binance Spot Test Network](https://testnet.binance.vision/))                                 |
+   | BINANCE_TEST_SECRET_KEY        | Binance API secret for test                                               | (from [Binance Spot Test Network](https://testnet.binance.vision/))                                 |
+   | BINANCE_SLACK_WEBHOOK_URL      | Slack webhook URL                                                         | (from [Slack](https://slack.com/intl/en-au/help/articles/115005265063-Incoming-webhooks-for-Slack)) |
+   | BINANCE_SLACK_CHANNEL          | Slack channel                                                             | "#binance"                                                                                          |
+   | BINANCE_SLACK_USERNAME         | Slack username                                                            | Chris                                                                                               |
+   | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable [local tunnel](https://github.com/localtunnel/localtunnel) | true                                                                                                |
+   | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain                                         | binance                                                                                             |
 
 2. Check `docker-compose.yml` for `BINANCE_MODE` environment parameter
 
-3. Launch the application with docker-compose
+3. Launch/Update the bot with docker-compose
+
+   Pull latest code first:
 
    ```bash
    git pull
-   docker-compose up -d
    ```
 
-   or using the latest build image from DockerHub
+   If want production mode, then use the latest build image from DockerHub:
 
    ```bash
-   git pull
    docker-compose -f docker-compose.server.yml pull
    docker-compose -f docker-compose.server.yml up -d
    ```
 
-   or if using Raspberry Pi 32bit. Must build again for Raspberry Pi.
+   Or if using Raspberry Pi 32bit, must build again for Raspberry Pi:
 
    ```bash
-   git pull
-   docker build . --build-arg NODE_ENV=production --target production-stage -t chrisleekr/binance-trading-bot:latest
+   npm run docker:build
    docker-compose -f docker-compose.rpi.yml up -d
+   ```
+
+   Or if want development mode, then run below commands:
+
+   ```bash
+   docker-compose up -d
    ```
 
 4. Open browser `http://0.0.0.0:8080` to see the frontend

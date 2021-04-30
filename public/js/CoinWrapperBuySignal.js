@@ -26,7 +26,9 @@ class CoinWrapperBuySignal extends React.Component {
               ) : (
                 <i className='fa fa-toggle-off'></i>
               )}
-            </span>
+            </span>{' '}
+            ({symbolConfiguration.candles.interval}/
+            {symbolConfiguration.candles.limit})
           </div>
           {symbolConfiguration.buy.enabled === false ? (
             <HightlightChange className='coin-info-message text-muted'>

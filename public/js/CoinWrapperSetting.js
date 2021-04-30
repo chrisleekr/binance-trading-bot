@@ -93,9 +93,7 @@ class CoinWrapperSetting extends React.Component {
 
               {_.get(symbolConfiguration, 'buy.maxPurchaseAmount') ? (
                 <div className='coin-info-column coin-info-column-order'>
-                  <span className='coin-info-label'>
-                    Maximum purchase amount:
-                  </span>
+                  <span className='coin-info-label'>Max purchase amount:</span>
                   <HightlightChange className='coin-info-value'>
                     {symbolConfiguration.buy.maxPurchaseAmount} {quoteAsset}
                   </HightlightChange>
