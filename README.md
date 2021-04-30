@@ -30,16 +30,21 @@ It may lose the configuration or last buy price records.**
 ### Support all symbols
 
 The bot is now supporting all symbols such as ETHBTC, XRPBTC. As a result, the
-maximum purchase amount configuration has been removed from the global
-configuration. Any newly added symbol would be dynamically calculated maximum
-purchase amount based on the symbol's minimum notional value.
+maximum purchase amount configuration has been updated in the global
+configuration.
 
-- i.e. XRPBNB minimum notional (0.1) \* 10 = max purchase amount (1)
-- i.e. BNBBTC minimum notional (0.0001) \* 10 = max purchase amount (0.001)
-- i.e. BNBUSDT minimum notional (10) \* 10 = max purchase amount (100)
+The max purchase amount now can be configured for the quote asset. The quote
+asset is the coin you use to buy the base asset. For example, for BTCUSDT, BTC
+is the base asset, USDT is the quote asset.
+
+In the global configuration, you would see a field for "Maximum purchase amount
+for USDT". If you configure this, any newly added symbols, which uses USDT would
+be applied for the configured maximum purchase amount.
+
+A default value will be dynamically calculated based on the symbol's minimum
+notional value.
 
 If you can still customise the maximum purchase amount in the symbol setting.
-[#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
 
 ### Support monitoring multiple coins simultaneously
 
@@ -59,12 +64,8 @@ If interested, take a look this PR
 This bot is using the concept of trailing buy/sell order which allows following
 the price fall/rise.
 
-- The bot can monitor multiple symbols. Each symbol will be monitored per
+- The bot can monitor multiple symbols. All symbols will be monitored per
   second.
-- The bot is only tested and working with USDT pair in the FIAT market such as
-  BTCUSDT, ETHUSDT. You can add more FIAT symbols like BUSD, AUD from the
-  frontend. However, I didn't test in the live server. So use with your own
-  risk.
 - The bot is using MongoDB to provide a persistence database. However, it does
   not use the latest MongoDB to support Raspberry Pi 32bit. Used MongoDB version
   is 3.2.20, which is provided by
