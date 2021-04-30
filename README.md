@@ -312,6 +312,10 @@ to view the past changes.
 - [ ] Secure frontend with the password
 - [ ] Develop simple setup screen for secrets
 
+## Join the Chat
+
+-   **Discord**: [Invite Link](https://discord.gg/Cqy35XnppA)
+
 ## Acknowledgments
 
 - [@d0x2f](https://github.com/d0x2f)
