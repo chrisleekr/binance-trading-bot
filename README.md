@@ -70,6 +70,8 @@ the price fall/rise.
   not use the latest MongoDB to support Raspberry Pi 32bit. Used MongoDB version
   is 3.2.20, which is provided by
   [apcheamitru](https://hub.docker.com/r/apcheamitru/arm32v7-mongo).
+- The bot is tested/working with Linux and Raspberry Pi 4 32bit. Other platforms
+  are not tested.
 
 #### Buy Signal
 
@@ -241,6 +243,7 @@ Or use the frontend to adjust configurations after launching the application.
    | BINANCE_LIVE_SECRET_KEY        | Binance API secret for live                                               | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API))      |
    | BINANCE_TEST_API_KEY           | Binance API key for test                                                  | (from [Binance Spot Test Network](https://testnet.binance.vision/))                                 |
    | BINANCE_TEST_SECRET_KEY        | Binance API secret for test                                               | (from [Binance Spot Test Network](https://testnet.binance.vision/))                                 |
+   | BINANCE_SLACK_ENABLED          | Slack enable/disable                                                      | true                                                                                                |
    | BINANCE_SLACK_WEBHOOK_URL      | Slack webhook URL                                                         | (from [Slack](https://slack.com/intl/en-au/help/articles/115005265063-Incoming-webhooks-for-Slack)) |
    | BINANCE_SLACK_CHANNEL          | Slack channel                                                             | "#binance"                                                                                          |
    | BINANCE_SLACK_USERNAME         | Slack username                                                            | Chris                                                                                               |
@@ -299,11 +302,11 @@ happened with the bot. Please take a look
 
 | Frontend Mobile                                                                                                          | Setting                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/113497528-6c2cee80-9548-11eb-913d-ec3bf9b887be.png) | ![Setting](https://user-images.githubusercontent.com/5715919/113497530-764eed00-9548-11eb-9eea-222a9a1ad791.png) |
+| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/116782164-eeb6b880-aaca-11eb-8ad5-ad95e675eed1.png) | ![Setting](https://user-images.githubusercontent.com/5715919/116782053-4a347680-aaca-11eb-9dfd-eb0bfca69381.png) |
 
 | Frontend Desktop                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/113497538-82d34580-9548-11eb-8c1e-bac03a83356c.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/116782123-b911cf80-aaca-11eb-99eb-6e824181bdce.png) |
 
 ### Sample Trade
 
