@@ -221,9 +221,7 @@ STOP-LOSS-LIMIT 주문을 넣습니다. 간단한 계산을 위해 커미션은 
    | BINANCE_LOCAL_TUNNEL_ENABLED   | 로컬터널([local tunnel](https://github.com/localtunnel/localtunnel)) 활성화/비활성화 | true                                                                                           |
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | 외부 링크를 위한 로컬터널(local tunnel) 서브도메인                                   | binance                                                                                        |
 
-2. `docker-compose.yml`에 있는 `BINANCE_MODE` 환경 변수를 확인하시기 바랍니다.
-
-3. docker-compose를 이용하여 프로그램을 실행하시기 바랍니다.
+2. docker-compose를 이용하여 프로그램을 실행하시기 바랍니다.
 
    먼저 최신 코드를 Pull합니다:
 
@@ -246,13 +244,13 @@ STOP-LOSS-LIMIT 주문을 넣습니다. 간단한 계산을 위해 커미션은 
    docker-compose -f docker-compose.rpi.yml up -d
    ```
 
-   개발 모드를 사용하실려면, 아래 명령어를 실행하시면 됩니다:
+   테스트 모드를 사용하실려면, 아래 명령어를 실행하시면 됩니다:
 
    ```bash
    docker-compose up -d
    ```
 
-4. 브라우저를 열어 `http://0.0.0.0:8080`에 접근하시면 프론트엔드에 접근하실 수있
+3. 브라우저를 열어 `http://0.0.0.0:8080`에 접근하시면 프론트엔드에 접근하실 수있
    습니다.
 
    - 프로그램 실행시, 외부 URL은 슬랙(Slack)에 공지 됩니다.

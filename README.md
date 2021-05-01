@@ -250,9 +250,7 @@ Or use the frontend to adjust configurations after launching the application.
    | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable [local tunnel](https://github.com/localtunnel/localtunnel) | true                                                                                                |
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain                                         | binance                                                                                             |
 
-2. Check `docker-compose.yml` for `BINANCE_MODE` environment parameter
-
-3. Launch/Update the bot with docker-compose
+2. Launch/Update the bot with docker-compose
 
    Pull latest code first:
 
@@ -260,7 +258,7 @@ Or use the frontend to adjust configurations after launching the application.
    git pull
    ```
 
-   If want production mode, then use the latest build image from DockerHub:
+   If want production/live mode, then use the latest build image from DockerHub:
 
    ```bash
    docker-compose -f docker-compose.server.yml pull
@@ -274,13 +272,13 @@ Or use the frontend to adjust configurations after launching the application.
    docker-compose -f docker-compose.rpi.yml up -d
    ```
 
-   Or if want development mode, then run below commands:
+   Or if want development/test mode, then run below commands:
 
    ```bash
    docker-compose up -d
    ```
 
-4. Open browser `http://0.0.0.0:8080` to see the frontend
+3. Open browser `http://0.0.0.0:8080` to see the frontend
 
    - When launching the application, it will notify public URL to the Slack.
    - If you have any issue with the bot, you can check the log to find out what
