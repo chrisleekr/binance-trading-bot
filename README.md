@@ -287,10 +287,6 @@ Or use the frontend to adjust configurations after launching the application.
      happened with the bot. Please take a look
      [Troubleshooting](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting)
 
-If you have any issue with the bot, you can check the log to find out what
-happened with the bot. Please take a look
-[Troubleshooting](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting)
-
 ### Install via Stackfile
 
 1. In [Portainer](https://www.portainer.io/) create new Stack
