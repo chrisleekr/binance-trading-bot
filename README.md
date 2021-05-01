@@ -283,6 +283,9 @@ Or use the frontend to adjust configurations after launching the application.
 4. Open browser `http://0.0.0.0:8080` to see the frontend
 
    - When launching the application, it will notify public URL to the Slack.
+   - If you have any issue with the bot, you can check the log to find out what
+     happened with the bot. Please take a look
+     [Troubleshooting](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting)
 
 If you have any issue with the bot, you can check the log to find out what
 happened with the bot. Please take a look

@@ -208,47 +208,56 @@ STOP-LOSS-LIMIT 주문을 넣습니다. 간단한 계산을 위해 커미션은 
 
 1. 먼저 `.env.dist` 파일을 `.env` 파일로 복사합니다
 
-   | 환경 변수명                    | 설명                                               | 예시           |
-   | ------------------------------ | -------------------------------------------------- | -------------- |
-   | BINANCE_LIVE_API_KEY           | 실서버 Binance API key                             | (from Binance) |
-   | BINANCE_LIVE_SECRET_KEY        | 실서버 Binance API secret                          | (from Binance) |
-   | BINANCE_TEST_API_KEY           | 테스트서버 Binance API key                         | (from Binance) |
-   | BINANCE_TEST_SECRET_KEY        | 테스트서버 Binance API secret                      | (from Binance) |
-   | BINANCE_SLACK_WEBHOOK_URL      | 슬랙(Slack) 웹훅(webhook) URL                      | (from Slack)   |
-   | BINANCE_SLACK_CHANNEL          | 슬랙(Slack) 채널(channel)명                        | "#binance"     |
-   | BINANCE_SLACK_USERNAME         | 슬랙(Slack) username                               | Chris          |
-   | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | 외부 링크를 위한 로컬터널(Local tunnel) 서브도메인 | binance        |
+   | 환경 변수명                    | 설명                                                                                 | 예시                                                                                           |
+   | ------------------------------ | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+   | BINANCE_LIVE_API_KEY           | 실서버 Binance API key                                                               | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API)) |
+   | BINANCE_LIVE_SECRET_KEY        | 실서버 Binance API secret                                                            | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API)) |
+   | BINANCE_TEST_API_KEY           | 테스트서버 Binance API key                                                           | (from [Binance Spot Test Network](https://testnet.binance.vision/))                            |
+   | BINANCE_TEST_SECRET_KEY        | 테스트서버 Binance API secret                                                        | (from [Binance Spot Test Network](https://testnet.binance.vision/))                            |
+   | BINANCE_SLACK_ENABLED          | 슬랙(Slack) 활성화/비활성화                                                          | true                                                                                           |
+   | BINANCE_SLACK_WEBHOOK_URL      | 슬랙(Slack) 웹훅(webhook) URL                                                        | (from Slack)                                                                                   |
+   | BINANCE_SLACK_CHANNEL          | 슬랙(Slack) 채널(channel)명                                                          | "#binance"                                                                                     |
+   | BINANCE_SLACK_USERNAME         | 슬랙(Slack) username                                                                 | Chris                                                                                          |
+   | BINANCE_LOCAL_TUNNEL_ENABLED   | 로컬터널([local tunnel](https://github.com/localtunnel/localtunnel)) 활성화/비활성화 | true                                                                                           |
+   | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | 외부 링크를 위한 로컬터널(local tunnel) 서브도메인                                   | binance                                                                                        |
 
 2. `docker-compose.yml`에 있는 `BINANCE_MODE` 환경 변수를 확인하시기 바랍니다.
 
 3. docker-compose를 이용하여 프로그램을 실행하시기 바랍니다.
 
+   먼저 최신 코드를 Pull합니다:
+
    ```bash
    git pull
-   docker-compose up -d
    ```
 
-   만약 DockerHub에 올라온 최신 이미지를 이용하실려면 다음 명령을 실행하시면 됩
-   니다.
+   실서버 모드를 사용하실려면, DockerHub에서 최근에 빌드된 이미지를 사용하실 수
+   있습니다:
 
    ```bash
-   git pull
    docker-compose -f docker-compose.server.yml pull
    docker-compose -f docker-compose.server.yml up -d
    ```
 
-   만약 라즈베리 파이 32bit를 사용하실려면 다음 명령을 실행하시면 됩니다.
+   라즈베리 파이 4 32bit를 사용하실 경우, 이미지를 다시 빌드하시기 바랍니다:
 
    ```bash
-   git pull
-   docker build . --build-arg NODE_ENV=production --target production-stage -t chrisleekr/binance-trading-bot:latest
+   npm run docker:build
    docker-compose -f docker-compose.rpi.yml up -d
+   ```
+
+   개발 모드를 사용하실려면, 아래 명령어를 실행하시면 됩니다:
+
+   ```bash
+   docker-compose up -d
    ```
 
 4. 브라우저를 열어 `http://0.0.0.0:8080`에 접근하시면 프론트엔드에 접근하실 수있
    습니다.
 
    - 프로그램 실행시, 외부 URL은 슬랙(Slack)에 공지 됩니다.
+   - 봇을 사용시 문제가 발생할 경우, 먼저 로그를 확인하시기 바랍니다. 참조:
+     [Troubleshooting](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting)
 
 ## 스크린샷
 
