@@ -217,45 +217,55 @@ Or use the frontend to adjust configurations after launching the application.
 
 1. Create `.env` file based on `.env.dist`.
 
-   | Environment Key                | Description                       | Sample Value   |
-   | ------------------------------ | --------------------------------- | -------------- |
-   | BINANCE_LIVE_API_KEY           | Binance API key for live          | (from Binance) |
-   | BINANCE_LIVE_SECRET_KEY        | Binance API secret for live       | (from Binance) |
-   | BINANCE_TEST_API_KEY           | Binance API key for test          | (from Binance) |
-   | BINANCE_TEST_SECRET_KEY        | Binance API secret for test       | (from Binance) |
-   | BINANCE_SLACK_WEBHOOK_URL      | Slack webhook URL                 | (from Slack)   |
-   | BINANCE_SLACK_CHANNEL          | Slack channel                     | "#binance"     |
-   | BINANCE_SLACK_USERNAME         | Slack username                    | Chris          |
-   | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain | binance        |
+   | Environment Key                | Description                                                               | Sample Value                                                                                        |
+   | ------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+   | BINANCE_LIVE_API_KEY           | Binance API key for live                                                  | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API))      |
+   | BINANCE_LIVE_SECRET_KEY        | Binance API secret for live                                               | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API))      |
+   | BINANCE_TEST_API_KEY           | Binance API key for test                                                  | (from [Binance Spot Test Network](https://testnet.binance.vision/))                                 |
+   | BINANCE_TEST_SECRET_KEY        | Binance API secret for test                                               | (from [Binance Spot Test Network](https://testnet.binance.vision/))                                 |
+   | BINANCE_SLACK_ENABLED          | Slack enable/disable                                                      | true                                                                                                |
+   | BINANCE_SLACK_WEBHOOK_URL      | Slack webhook URL                                                         | (from [Slack](https://slack.com/intl/en-au/help/articles/115005265063-Incoming-webhooks-for-Slack)) |
+   | BINANCE_SLACK_CHANNEL          | Slack channel                                                             | "#binance"                                                                                          |
+   | BINANCE_SLACK_USERNAME         | Slack username                                                            | Chris                                                                                               |
+   | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable [local tunnel](https://github.com/localtunnel/localtunnel) | true                                                                                                |
+   | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain                                         | binance                                                                                             |
 
 2. Check `docker-compose.yml` for `BINANCE_MODE` environment parameter
 
-3. Launch the application with docker-compose
+3. Launch/Update the bot with docker-compose
+
+   Pull latest code first:
 
    ```bash
    git pull
-   docker-compose up -d
    ```
 
-   or using the latest build image from DockerHub
+   If want production mode, then use the latest build image from DockerHub:
 
    ```bash
-   git pull
    docker-compose -f docker-compose.server.yml pull
    docker-compose -f docker-compose.server.yml up -d
    ```
 
-   or if using Raspberry Pi 32bit. Must build again for Raspberry Pi.
+   Or if using Raspberry Pi 4 32bit, must build again for Raspberry Pi:
 
    ```bash
-   git pull
-   docker build . --build-arg NODE_ENV=production --target production-stage -t chrisleekr/binance-trading-bot:latest
+   npm run docker:build
    docker-compose -f docker-compose.rpi.yml up -d
+   ```
+
+   Or if want development mode, then run below commands:
+
+   ```bash
+   docker-compose up -d
    ```
 
 4. Open browser `http://0.0.0.0:8080` to see the frontend
 
    - When launching the application, it will notify public URL to the Slack.
+   - If you have any issue with the bot, you can check the log to find out what
+     happened with the bot. Please take a look
+     [Troubleshooting](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting)
 
 ### Install via Stackfile
 
@@ -295,18 +305,32 @@ Please refer
 [CHANGELOG.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/CHANGELOG.md)
 to view the past changes.
 
-- [ ] Update the bot to monitor all coins every second - [#52](https://github.com/chrisleekr/binance-trading-bot/issues/52)
-- [ ] Display release version to the frontend - [#59](https://github.com/chrisleekr/binance-trading-bot/issues/59)
-- [ ] Improve frontend & settings UI - [#93](https://github.com/chrisleekr/binance-trading-bot/issues/93) [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
-- [ ] Support all symbols - [#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
-- [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
-- [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
-- [ ] Improve buy strategy with restricting purchase if the price is close to ATH - [#82](https://github.com/chrisleekr/binance-trading-bot/issues/82)
-- [ ] Add minimum required order amount - [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)
-- [ ] Add manual buy/sell feature -[#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
-- [ ] Add stop loss feature - [#99](https://github.com/chrisleekr/binance-trading-bot/issues/99)
-- [ ] Support multilingual frontend - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
-- [ ] Reset global configuration to initial configuration - [#97](https://github.com/chrisleekr/binance-trading-bot/issues/97)
+- [ ] Update the bot to monitor all coins every second -
+      [#52](https://github.com/chrisleekr/binance-trading-bot/issues/52)
+- [ ] Display release version to the frontend -
+      [#59](https://github.com/chrisleekr/binance-trading-bot/issues/59)
+- [ ] Improve frontend & settings UI -
+      [#93](https://github.com/chrisleekr/binance-trading-bot/issues/93)
+      [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
+- [ ] Support all symbols -
+      [#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
+- [ ] Improve sell strategy with conditional stop price percentage based on the
+      profit percentage -
+      [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
+- [ ] Add sudden drop buy strategy -
+      [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
+- [ ] Improve buy strategy with restricting purchase if the price is close to
+      ATH - [#82](https://github.com/chrisleekr/binance-trading-bot/issues/82)
+- [ ] Add minimum required order amount -
+      [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)
+- [ ] Add manual buy/sell
+      feature -[#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
+- [ ] Add stop loss feature -
+      [#99](https://github.com/chrisleekr/binance-trading-bot/issues/99)
+- [ ] Support multilingual frontend -
+      [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
+- [ ] Reset global configuration to initial configuration -
+      [#97](https://github.com/chrisleekr/binance-trading-bot/issues/97)
 - [ ] Add frontend option to disable sorting
 - [ ] Allow browser notification in the frontend
 - [ ] Secure frontend with the password
