@@ -1,4 +1,5 @@
 const moment = require('moment');
+const config = require('config');
 const {
   getGlobalConfiguration
 } = require('./trailingTradeHelper/configuration');
@@ -38,6 +39,9 @@ const execute = async logger => {
     // Retrieve account info from cache
     const accountInfo = await getAccountInfo(logger);
 
+    // Retrieve feature toggles
+    const featureToggle = config.get('featureToggle');
+
     await Promise.all(
       globalConfiguration.symbols.map(async symbol => {
         logger.info(
@@ -56,6 +60,7 @@ const execute = async logger => {
         let data = {
           symbol,
           isLocked,
+          featureToggle,
           lastCandle: {},
           accountInfo,
           symbolConfiguration: {},

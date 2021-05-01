@@ -1,13 +1,12 @@
 /* eslint-disable global-require */
 const { logger } = require('../../helpers');
 
-jest.mock('config');
-
 describe('trailingTrade', () => {
   let data;
 
   let mockLoggerInfo;
   let mockSlackSendMessage;
+  let mockConfigGet;
 
   let mockGetGlobalConfiguration;
 
@@ -52,6 +51,19 @@ describe('trailingTrade', () => {
   describe('without any error', () => {
     beforeEach(async () => {
       jest.clearAllMocks().resetModules();
+
+      mockConfigGet = jest.fn(key => {
+        if (key === 'featureToggle') {
+          return {
+            feature1Enabled: true
+          };
+        }
+        return null;
+      });
+
+      jest.mock('config', () => ({
+        get: mockConfigGet
+      }));
 
       mockLockSymbol = jest.fn().mockResolvedValue(true);
       mockIsSymbolLocked = jest.fn().mockResolvedValue(false);
@@ -239,6 +251,7 @@ describe('trailingTrade', () => {
           data: {
             symbol: 'BTCUSDT',
             isLocked: false,
+            featureToggle: { feature1Enabled: true },
             lastCandle: { got: 'lowest value' },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
@@ -268,6 +281,7 @@ describe('trailingTrade', () => {
           data: {
             symbol: 'ETHUSDT',
             isLocked: false,
+            featureToggle: { feature1Enabled: true },
             lastCandle: { got: 'lowest value' },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
@@ -297,6 +311,7 @@ describe('trailingTrade', () => {
           data: {
             symbol: 'LTCUSDT',
             isLocked: false,
+            featureToggle: { feature1Enabled: true },
             lastCandle: { got: 'lowest value' },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
@@ -323,6 +338,19 @@ describe('trailingTrade', () => {
   describe('when symbol is locked', () => {
     beforeEach(async () => {
       jest.clearAllMocks().resetModules();
+
+      mockConfigGet = jest.fn(key => {
+        if (key === 'featureToggle') {
+          return {
+            feature1Enabled: false
+          };
+        }
+        return null;
+      });
+
+      jest.mock('config', () => ({
+        get: mockConfigGet
+      }));
 
       mockLockSymbol = jest.fn().mockResolvedValue(true);
       mockIsSymbolLocked = jest.fn().mockResolvedValue(true);
@@ -510,6 +538,9 @@ describe('trailingTrade', () => {
           data: {
             symbol: 'BTCUSDT',
             isLocked: true,
+            featureToggle: {
+              feature1Enabled: false
+            },
             lastCandle: { got: 'lowest value' },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
@@ -539,6 +570,9 @@ describe('trailingTrade', () => {
           data: {
             symbol: 'ETHUSDT',
             isLocked: true,
+            featureToggle: {
+              feature1Enabled: false
+            },
             lastCandle: { got: 'lowest value' },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
@@ -568,6 +602,9 @@ describe('trailingTrade', () => {
           data: {
             symbol: 'LTCUSDT',
             isLocked: true,
+            featureToggle: {
+              feature1Enabled: false
+            },
             lastCandle: { got: 'lowest value' },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },

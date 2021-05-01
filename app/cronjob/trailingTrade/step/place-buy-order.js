@@ -174,7 +174,7 @@ const execute = async (logger, rawData) => {
   // Refresh account info
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
-  await slack.sendMessage(
+  slack.sendMessage(
     `Buy Action Result (${moment().format('HH:mm:ss.SSS')}): *STOP_LOSS_LIMIT*
     - Order Result: \`\`\`${JSON.stringify(orderResult, undefined, 2)}\`\`\``
   );

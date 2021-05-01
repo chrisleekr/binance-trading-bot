@@ -119,7 +119,7 @@ const isOrderExistingInOpenOrders = (_logger, order, openOrders) =>
 const execute = async (logger, rawData) => {
   const data = rawData;
 
-  const { symbol } = data;
+  const { symbol, featureToggle } = data;
 
   // Ensure buy order placed
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);
@@ -149,43 +149,45 @@ const execute = async (logger, rawData) => {
       // Get account info
       data.accountInfo = await getAccountInfoFromAPI(logger);
 
-      // TODO: This message is for debugging purpose. Must remove when release.
-      slack.sendMessage(
-        `Action (${moment().format(
-          'HH:mm:ss.SSS'
-        )}): Confirmed buy order\n- Symbol: ${symbol}\n` +
-          `- Message: The buy order found in the open orders.\n` +
-          `\`\`\`${JSON.stringify(
-            {
-              lastBuyOrder,
-              openOrders,
-              accountInfo: data.accountInfo
-            },
-            undefined,
-            2
-          )}\`\`\``
-      );
+      if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+        slack.sendMessage(
+          `Action (${moment().format(
+            'HH:mm:ss.SSS'
+          )}): Confirmed buy order\n- Symbol: ${symbol}\n` +
+            `- Message: The buy order found in the open orders.\n` +
+            `\`\`\`${JSON.stringify(
+              {
+                lastBuyOrder,
+                openOrders,
+                accountInfo: data.accountInfo
+              },
+              undefined,
+              2
+            )}\`\`\``
+        );
+      }
     } else {
       logger.info(
         { debug: true },
         'Order does not exist in the open orders. Wait until it appears.'
       );
 
-      // TODO: This message is for debugging purpose. Must remove when release.
-      slack.sendMessage(
-        `Action (${moment().format(
-          'HH:mm:ss.SSS'
-        )}): Checking for buy order\n- Symbol: ${symbol}\n` +
-          `- Message: The buy order cannot be found in the open orders.\n` +
-          `\`\`\`${JSON.stringify(
-            {
-              lastBuyOrder,
-              openOrders
-            },
-            undefined,
-            2
-          )}\`\`\``
-      );
+      if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+        slack.sendMessage(
+          `Action (${moment().format(
+            'HH:mm:ss.SSS'
+          )}): Checking for buy order\n- Symbol: ${symbol}\n` +
+            `- Message: The buy order cannot be found in the open orders.\n` +
+            `\`\`\`${JSON.stringify(
+              {
+                lastBuyOrder,
+                openOrders
+              },
+              undefined,
+              2
+            )}\`\`\``
+        );
+      }
 
       return setBuyActionAndMessage(
         logger,
@@ -224,43 +226,45 @@ const execute = async (logger, rawData) => {
       // Get account info
       data.accountInfo = await getAccountInfoFromAPI(logger);
 
-      // TODO: This message is for debugging purpose. Must remove when release.
-      slack.sendMessage(
-        `Action (${moment().format(
-          'HH:mm:ss.SSS'
-        )}): Confirmed sell order\n- Symbol: ${symbol}\n` +
-          `- Message: The sell order found in the open orders.\n` +
-          `\`\`\`${JSON.stringify(
-            {
-              lastSellOrder,
-              openOrders,
-              accountInfo: data.accountInfo
-            },
-            undefined,
-            2
-          )}\`\`\``
-      );
+      if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+        slack.sendMessage(
+          `Action (${moment().format(
+            'HH:mm:ss.SSS'
+          )}): Confirmed sell order\n- Symbol: ${symbol}\n` +
+            `- Message: The sell order found in the open orders.\n` +
+            `\`\`\`${JSON.stringify(
+              {
+                lastSellOrder,
+                openOrders,
+                accountInfo: data.accountInfo
+              },
+              undefined,
+              2
+            )}\`\`\``
+        );
+      }
     } else {
       logger.info(
         { debug: true },
         'Order does not exist in the open orders. Wait until it appears.'
       );
 
-      // TODO: This message is for debugging purpose. Must remove when release.
-      slack.sendMessage(
-        `Action (${moment().format(
-          'HH:mm:ss.SSS'
-        )}): Checking for sell order\n- Symbol: ${symbol}\n` +
-          `- Message: The sell order cannot be found in the open orders.\n` +
-          `\`\`\`${JSON.stringify(
-            {
-              lastSellOrder,
-              openOrders
-            },
-            undefined,
-            2
-          )}\`\`\``
-      );
+      if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+        slack.sendMessage(
+          `Action (${moment().format(
+            'HH:mm:ss.SSS'
+          )}): Checking for sell order\n- Symbol: ${symbol}\n` +
+            `- Message: The sell order cannot be found in the open orders.\n` +
+            `\`\`\`${JSON.stringify(
+              {
+                lastSellOrder,
+                openOrders
+              },
+              undefined,
+              2
+            )}\`\`\``
+        );
+      }
 
       return setSellActionAndMessage(
         logger,

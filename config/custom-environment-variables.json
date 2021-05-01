@@ -43,6 +43,12 @@
     },
     "subdomain": "BINANCE_LOCAL_TUNNEL_SUBDOMAIN"
   },
+  "featureToggle": {
+    "notifyOrderConfirm": {
+      "__name": "BINANCE_JOBS_TRAILING_TRADE_FEATURES_NOTIFY_ORDER_CONFIRM",
+      "__format": "boolean"
+    }
+  },
   "jobs": {
     "alive": {
       "enabled": {

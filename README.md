@@ -264,7 +264,7 @@ Or use the frontend to adjust configurations after launching the application.
    docker-compose -f docker-compose.server.yml up -d
    ```
 
-   Or if using Raspberry Pi 32bit, must build again for Raspberry Pi:
+   Or if using Raspberry Pi 4 32bit, must build again for Raspberry Pi:
 
    ```bash
    npm run docker:build
@@ -282,8 +282,8 @@ Or use the frontend to adjust configurations after launching the application.
    - When launching the application, it will notify public URL to the Slack.
 
 If you have any issue with the bot, you can check the log to find out what
-happened with the bot. Take a look
-[How to get the logs by installing bunyan npm package](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting#how-to-get-the-logs-by-installing-bunyan-npm-package)
+happened with the bot. Please take a look
+[Troubleshooting](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting)
 
 ### Install via Stackfile
 
@@ -332,6 +332,8 @@ to view the past changes.
       [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
 - [x] Support all symbols -
       [#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
+- [ ] Add stop loss feature -
+      [#99](https://github.com/chrisleekr/binance-trading-bot/issues/99)
 - [ ] Improve sell strategy with conditional stop price percentage based on the
       profit percentage -
       [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
@@ -343,8 +345,6 @@ to view the past changes.
       [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)
 - [ ] Add manual buy/sell
       feature -[#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
-- [ ] Add stop loss feature -
-      [#99](https://github.com/chrisleekr/binance-trading-bot/issues/99)
 - [ ] Support multilingual frontend -
       [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
 - [ ] Reset global configuration to initial configuration -

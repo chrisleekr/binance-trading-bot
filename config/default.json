@@ -31,6 +31,9 @@
     "enabled": true,
     "subdomain": "default"
   },
+  "featureToggle": {
+    "notifyOrderConfirm": true
+  },
   "jobs": {
     "alive": {
       "enabled": true,
