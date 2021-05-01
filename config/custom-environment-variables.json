@@ -45,7 +45,7 @@
   },
   "featureToggle": {
     "notifyOrderConfirm": {
-      "__name": "BINANCE_JOBS_TRAILING_TRADE_FEATURES_NOTIFY_ORDER_CONFIRM",
+      "__name": "BINANCE_FEATURE_TOGGLE_NOTIFY_ORDER_CONFIRM",
       "__format": "boolean"
     }
   },
