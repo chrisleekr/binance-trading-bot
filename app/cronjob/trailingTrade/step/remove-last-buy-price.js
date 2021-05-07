@@ -1,6 +1,9 @@
 const _ = require('lodash');
 const moment = require('moment');
 const { mongo, cache, slack } = require('../../../helpers');
+const {
+  getAndCacheOpenOrdersForSymbol
+} = require('../../trailingTradeHelper/common');
 
 /**
  * Retrieve last buy order from cache
@@ -17,6 +20,36 @@ const getLastBuyOrder = async (logger, symbol) => {
 
   return cachedLastBuyOrder;
 };
+
+/**
+ * Remove last buy price
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} processMessage
+ * @param {*} extraMessages
+ */
+const removeLastBuyPrice = async (
+  logger,
+  symbol,
+  processMessage,
+  extraMessages
+) => {
+  await mongo.deleteOne(logger, 'trailing-trade-symbols', {
+    key: `${symbol}-last-buy-price`
+  });
+
+  slack.sendMessage(
+    `${symbol} Action (${moment().format(
+      'HH:mm:ss.SSS'
+    )}): Removed last buy price\n- Message: ${processMessage}\n\`\`\`${JSON.stringify(
+      extraMessages,
+      undefined,
+      2
+    )}\`\`\``
+  );
+};
+
 /**
  * Remove last buy price if applicable
  *
@@ -74,6 +107,8 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
+  // Check one last time for open orders to make sure.
+
   const lotPrecision = stepSize.indexOf(1) - 1;
 
   const totalBaseAssetBalance =
@@ -86,72 +121,64 @@ const execute = async (logger, rawData) => {
     )
   );
 
+  let processMessage = '';
+
+  let refreshedOpenOrders = [];
   if (baseAssetQuantity <= parseFloat(minQty)) {
+    // Final check for open orders
+    refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+    if (refreshedOpenOrders.length > 0) {
+      logger.info('Do not remove last buy price. Found open orders.');
+      return data;
+    }
+
+    processMessage = 'Balance is not enough to sell. Delete last buy price.';
+
     logger.error(
       { baseAssetQuantity },
 
-      'Balance is not enough to sell. Delete last buy price.'
+      processMessage
     );
-    await mongo.deleteOne(logger, 'trailing-trade-symbols', {
-      key: `${symbol}-last-buy-price`
-    });
 
-    data.sell.processMessage =
-      'Balance is not enough to sell. Delete last buy price.';
+    data.sell.processMessage = processMessage;
     data.sell.updatedAt = moment().utc();
 
-    await slack.sendMessage(
-      `Action (${moment().format(
-        'HH:mm:ss.SSS'
-      )}): Removed last buy price\n- Symbol: ${symbol}\n- Message: ${
-        data.sell.processMessage
-      }\n\`\`\`${JSON.stringify(
-        {
-          lastBuyPrice,
-          baseAssetQuantity,
-          minQty,
-          baseAssetFreeBalance,
-          baseAssetLockedBalance,
-          totalBaseAssetBalance,
-          openOrders
-        },
-        undefined,
-        2
-      )}\`\`\``
-    );
+    await removeLastBuyPrice(logger, symbol, processMessage, {
+      lastBuyPrice,
+      baseAssetQuantity,
+      minQty,
+      baseAssetFreeBalance,
+      baseAssetLockedBalance,
+      totalBaseAssetBalance,
+      openOrders
+    });
 
     return data;
   }
 
   if (baseAssetQuantity * currentPrice < parseFloat(minNotional)) {
-    logger.error(
-      { baseAssetQuantity },
-      'Balance is less than the notional value. Delete last buy price.'
-    );
-    await mongo.deleteOne(logger, 'trailing-trade-symbols', {
-      key: `${symbol}-last-buy-price`
-    });
-    data.sell.processMessage =
+    // Final check for open orders
+    refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+    if (refreshedOpenOrders.length > 0) {
+      logger.info('Do not remove last buy price. Found open orders.');
+      return data;
+    }
+
+    processMessage =
       'Balance is less than the notional value. Delete last buy price.';
+
+    logger.error({ baseAssetQuantity }, processMessage);
+
+    data.sell.processMessage = processMessage;
     data.sell.updatedAt = moment().utc();
 
-    await slack.sendMessage(
-      `Action (${moment().format(
-        'HH:mm:ss.SSS'
-      )}): Removed last buy price\n- Symbol: ${symbol}\n- Message: ${
-        data.sell.processMessage
-      }\n\`\`\`${JSON.stringify(
-        {
-          lastBuyPrice,
-          baseAssetQuantity,
-          currentPrice,
-          minNotional,
-          openOrders
-        },
-        undefined,
-        2
-      )}\`\`\``
-    );
+    await removeLastBuyPrice(logger, symbol, processMessage, {
+      lastBuyPrice,
+      baseAssetQuantity,
+      currentPrice,
+      minNotional,
+      openOrders
+    });
 
     return data;
   }

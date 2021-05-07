@@ -26,6 +26,7 @@ describe('trailingTrade', () => {
   let mockDetermineAction;
   let mockPlaceBuyOrder;
   let mockPlaceSellOrder;
+  let mockPlaceSellStopLossOrder;
   let mockRemoveLastBuyPrice;
   let mockSaveDataToCache;
 
@@ -180,6 +181,15 @@ describe('trailingTrade', () => {
         }
       }));
 
+      mockPlaceSellStopLossOrder = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            stopLoss: 'processed'
+          }
+        }));
+
       mockRemoveLastBuyPrice = jest
         .fn()
         .mockImplementation((_logger, rawData) => ({
@@ -221,6 +231,7 @@ describe('trailingTrade', () => {
         determineAction: mockDetermineAction,
         placeBuyOrder: mockPlaceBuyOrder,
         placeSellOrder: mockPlaceSellOrder,
+        placeSellStopLossOrder: mockPlaceSellStopLossOrder,
         removeLastBuyPrice: mockRemoveLastBuyPrice,
         saveDataToCache: mockSaveDataToCache
       }));
@@ -263,6 +274,7 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
+            stopLoss: 'processed',
             saveToCache: true,
             ensure: 'order-placed',
             handled: 'open-orders',
@@ -293,6 +305,7 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
+            stopLoss: 'processed',
             saveToCache: true,
             ensure: 'order-placed',
             handled: 'open-orders',
@@ -323,6 +336,7 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
+            stopLoss: 'processed',
             saveToCache: true,
             ensure: 'order-placed',
             handled: 'open-orders',
@@ -467,6 +481,15 @@ describe('trailingTrade', () => {
         }
       }));
 
+      mockPlaceSellStopLossOrder = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            stopLoss: 'processed'
+          }
+        }));
+
       mockRemoveLastBuyPrice = jest
         .fn()
         .mockImplementation((_logger, rawData) => ({
@@ -508,6 +531,7 @@ describe('trailingTrade', () => {
         determineAction: mockDetermineAction,
         placeBuyOrder: mockPlaceBuyOrder,
         placeSellOrder: mockPlaceSellOrder,
+        placeSellStopLossOrder: mockPlaceSellStopLossOrder,
         removeLastBuyPrice: mockRemoveLastBuyPrice,
         saveDataToCache: mockSaveDataToCache
       }));
@@ -552,6 +576,7 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
+            stopLoss: 'processed',
             saveToCache: true,
             ensure: 'order-placed',
             handled: 'open-orders',
@@ -584,6 +609,7 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
+            stopLoss: 'processed',
             saveToCache: true,
             ensure: 'order-placed',
             handled: 'open-orders',
@@ -616,6 +642,7 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
+            stopLoss: 'processed',
             saveToCache: true,
             ensure: 'order-placed',
             handled: 'open-orders',

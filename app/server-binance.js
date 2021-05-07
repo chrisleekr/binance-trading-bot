@@ -1,12 +1,15 @@
 const _ = require('lodash');
+const moment = require('moment-timezone');
 const config = require('config');
-const { PubSub, binance, cache } = require('./helpers');
+const { PubSub, binance, cache, slack } = require('./helpers');
 
 const {
   getGlobalConfiguration
 } = require('./cronjob/trailingTradeHelper/configuration');
 
 let websocketCandlesClean;
+
+let lastReceivedAt = moment();
 
 /**
  * Setup web socket for retrieving candles
@@ -29,6 +32,11 @@ const setWebSocketCandles = async logger => {
   websocketCandlesClean = binance.client.ws.candles(symbols, '1m', candle => {
     logger.info({ candle }, 'Received new candle');
 
+    // Record last received date/time
+
+    lastReceivedAt = moment();
+
+    // Save latest candle for the symbol
     cache.hset(
       'trailing-trade-symbols',
       `${candle.symbol}-latest-candle`,
@@ -52,6 +60,31 @@ const setupLive = async logger => {
   );
 
   await setWebSocketCandles(logger);
+};
+
+const loopToCheckLastReceivedAt = async logger => {
+  const currentTime = moment();
+
+  // If last received candle time is more than a mintues, then it means something went wrong. Reconnect websocket.
+  if (lastReceivedAt.diff(currentTime) / 1000 < -60) {
+    logger.warn(
+      { debug: true },
+      'Binance candle is not received in last mintues. Reconfigure websocket'
+    );
+
+    if (config.get('featureToggle.notifyDebug')) {
+      slack.sendMessage(
+        `Binance Websocket (${moment().format(
+          'HH:mm:ss.SSS'
+        )}): The bot didn't receive new candle from Binance Websocket since ${lastReceivedAt.fromNow()}.` +
+          ` Reset Websocket connection.`
+      );
+    }
+
+    await setupLive(logger);
+  }
+
+  setTimeout(() => loopToCheckLastReceivedAt(logger), 1000);
 };
 
 /**
@@ -105,6 +138,7 @@ const runBinance = async serverLogger => {
 
   if (mode === 'live') {
     await setupLive(logger);
+    await loopToCheckLastReceivedAt(logger);
   } else {
     await setupTest(logger);
   }

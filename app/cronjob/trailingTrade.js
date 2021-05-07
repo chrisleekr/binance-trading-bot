@@ -23,6 +23,7 @@ const {
   determineAction,
   placeBuyOrder,
   placeSellOrder,
+  placeSellStopLossOrder,
   removeLastBuyPrice,
   saveDataToCache
 } = require('./trailingTrade/steps');
@@ -121,6 +122,10 @@ const execute = async logger => {
           {
             stepName: 'place-sell-order',
             stepFunc: placeSellOrder
+          },
+          {
+            stepName: 'place-sell-stop-lossorder',
+            stepFunc: placeSellStopLossOrder
           },
           // In case account information is updated, get balance again.
           {

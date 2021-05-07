@@ -19,7 +19,8 @@ class CoinWrapperBuySignal extends React.Component {
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title'>
           <div className='coin-info-label'>
-            Buy Signal{' '}
+            Buy Signal ({symbolConfiguration.candles.interval}/
+            {symbolConfiguration.candles.limit}){' '}
             <span className='coin-info-value'>
               {symbolConfiguration.buy.enabled ? (
                 <i className='fa fa-toggle-on'></i>
@@ -27,8 +28,6 @@ class CoinWrapperBuySignal extends React.Component {
                 <i className='fa fa-toggle-off'></i>
               )}
             </span>{' '}
-            ({symbolConfiguration.candles.interval}/
-            {symbolConfiguration.candles.limit})
           </div>
           {symbolConfiguration.buy.enabled === false ? (
             <HightlightChange className='coin-info-message text-muted'>
@@ -96,7 +95,7 @@ class CoinWrapperBuySignal extends React.Component {
           ''
         )}
         {buy.processMessage ? (
-          <div className='d-flex flex-column flex-grow-1'>
+          <div className='d-flex flex-column w-100'>
             <div className='coin-info-column coin-info-column-price divider'></div>
             <div className='coin-info-column coin-info-column-message'>
               <HightlightChange className='coin-info-message'>

@@ -61,7 +61,8 @@ describe('get-indicators.js', () => {
             },
             sell: {
               triggerPercentage: 1.06,
-              limitPercentage: 0.979
+              limitPercentage: 0.979,
+              stopLoss: { maxLossPercentage: 0.8 }
             }
           },
           baseAssetBalance: { total: 0.1 },
@@ -80,7 +81,13 @@ describe('get-indicators.js', () => {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
-            sell: { triggerPercentage: 1.06, limitPercentage: 0.979 }
+            sell: {
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979,
+              stopLoss: {
+                maxLossPercentage: 0.8
+              }
+            }
           },
           baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
           openOrders: [],
@@ -112,6 +119,8 @@ describe('get-indicators.js', () => {
             currentProfit: null,
             currentProfitPercentage: null,
             openOrders: [],
+            stopLossDifference: null,
+            stopLossTriggerPrice: null,
             processMessage: '',
             updatedAt: expect.any(Object)
           }
@@ -165,7 +174,8 @@ describe('get-indicators.js', () => {
             },
             sell: {
               triggerPercentage: 1.06,
-              limitPercentage: 0.979
+              limitPercentage: 0.979,
+              stopLoss: { maxLossPercentage: 0.8 }
             }
           },
           baseAssetBalance: { total: 0.1 },
@@ -214,7 +224,13 @@ describe('get-indicators.js', () => {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
-            sell: { triggerPercentage: 1.06, limitPercentage: 0.979 }
+            sell: {
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979,
+              stopLoss: {
+                maxLossPercentage: 0.8
+              }
+            }
           },
           baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
           openOrders: [
@@ -319,6 +335,8 @@ describe('get-indicators.js', () => {
             difference: 38.669593039963125,
             currentProfit: 655.509,
             currentProfitPercentage: 42.14112550939918,
+            stopLossDifference: 53.712900407519335,
+            stopLossTriggerPrice: 7200,
             openOrders: [
               {
                 orderId: 3,
@@ -391,7 +409,8 @@ describe('get-indicators.js', () => {
             },
             sell: {
               triggerPercentage: 1.06,
-              limitPercentage: 0.979
+              limitPercentage: 0.979,
+              stopLoss: { maxLossPercentage: 0.8 }
             }
           },
           baseAssetBalance: {
@@ -438,7 +457,13 @@ describe('get-indicators.js', () => {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
-            sell: { triggerPercentage: 1.06, limitPercentage: 0.979 }
+            sell: {
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979,
+              stopLoss: {
+                maxLossPercentage: 0.8
+              }
+            }
           },
           baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
           openOrders: [
@@ -543,6 +568,8 @@ describe('get-indicators.js', () => {
             difference: null,
             currentProfit: null,
             currentProfitPercentage: null,
+            stopLossDifference: null,
+            stopLossTriggerPrice: null,
             openOrders: [
               {
                 orderId: 3,
@@ -616,7 +643,8 @@ describe('get-indicators.js', () => {
             },
             sell: {
               triggerPercentage: 0.99,
-              limitPercentage: 0.98
+              limitPercentage: 0.98,
+              stopLoss: { maxLossPercentage: 0.8 }
             }
           },
           baseAssetBalance: {
@@ -639,7 +667,13 @@ describe('get-indicators.js', () => {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.011 },
-            sell: { triggerPercentage: 0.99, limitPercentage: 0.98 }
+            sell: {
+              triggerPercentage: 0.99,
+              limitPercentage: 0.98,
+              stopLoss: {
+                maxLossPercentage: 0.8
+              }
+            }
           },
           baseAssetBalance: {
             total: 0.1,
@@ -673,6 +707,8 @@ describe('get-indicators.js', () => {
             difference: null,
             currentProfit: null,
             currentProfitPercentage: null,
+            stopLossDifference: null,
+            stopLossTriggerPrice: null,
             openOrders: [],
             processMessage: 'World',
             updatedAt: expect.any(Object)
@@ -717,7 +753,8 @@ describe('get-indicators.js', () => {
             },
             sell: {
               triggerPercentage: 1.06,
-              limitPercentage: 0.979
+              limitPercentage: 0.979,
+              stopLoss: { maxLossPercentage: 0.8 }
             }
           },
           baseAssetBalance: { total: 0.1 },
@@ -732,7 +769,11 @@ describe('get-indicators.js', () => {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
-            sell: { triggerPercentage: 1.06, limitPercentage: 0.979 }
+            sell: {
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979,
+              stopLoss: { maxLossPercentage: 0.8 }
+            }
           },
           baseAssetBalance: { total: 0.1 },
           openOrders: [],
@@ -776,7 +817,8 @@ describe('get-indicators.js', () => {
             },
             sell: {
               triggerPercentage: 1.06,
-              limitPercentage: 0.979
+              limitPercentage: 0.979,
+              stopLoss: { maxLossPercentage: 0.8 }
             }
           },
           baseAssetBalance: { total: 0.1 },
@@ -791,7 +833,11 @@ describe('get-indicators.js', () => {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
-            sell: { triggerPercentage: 1.06, limitPercentage: 0.979 }
+            sell: {
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979,
+              stopLoss: { maxLossPercentage: 0.8 }
+            }
           },
           baseAssetBalance: { total: 0.1 },
           openOrders: [],

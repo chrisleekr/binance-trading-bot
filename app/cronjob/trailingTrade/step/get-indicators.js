@@ -22,7 +22,8 @@ const execute = async (logger, rawData) => {
       },
       sell: {
         triggerPercentage: sellTriggerPercentage,
-        limitPercentage: sellLimitPercentage
+        limitPercentage: sellLimitPercentage,
+        stopLoss: { maxLossPercentage: sellMaxLossPercentage }
       }
     },
     baseAssetBalance: { total: baseAssetTotalBalance },
@@ -73,6 +74,14 @@ const execute = async (logger, rawData) => {
   const sellDifference =
     lastBuyPrice > 0 ? (1 - sellTriggerPrice / currentPrice) * 100 : null;
   const sellLimitPrice = currentPrice * sellLimitPercentage;
+
+  // Get stop loss trigger price
+  const sellStopLossTriggerPrice =
+    lastBuyPrice > 0 ? lastBuyPrice * sellMaxLossPercentage : null;
+  const sellStopLossDifference =
+    lastBuyPrice > 0
+      ? (1 - sellStopLossTriggerPrice / currentPrice) * 100
+      : null;
 
   // Estimate value
   const baseAssetEstimatedValue = baseAssetTotalBalance * currentPrice;
@@ -146,6 +155,8 @@ const execute = async (logger, rawData) => {
     lastBuyPrice,
     triggerPrice: sellTriggerPrice,
     difference: sellDifference,
+    stopLossTriggerPrice: sellStopLossTriggerPrice,
+    stopLossDifference: sellStopLossDifference,
     currentProfit: sellCurrentProfit,
     currentProfitPercentage: sellCurrentProfitPercentage,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'sell'),

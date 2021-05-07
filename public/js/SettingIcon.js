@@ -529,10 +529,10 @@ class SettingIcon extends React.Component {
                                 Trading Enabled{' '}
                                 <OverlayTrigger
                                   trigger='click'
-                                  key='buy-enabled-overlay'
+                                  key='sell-enabled-overlay'
                                   placement='bottom'
                                   overlay={
-                                    <Popover id='buy-enabled-overlay-right'>
+                                    <Popover id='sell-enabled-overlay-right'>
                                       <Popover.Content>
                                         If enabled, the bot will sell the coin
                                         when it detects the sell signal. If
@@ -667,6 +667,131 @@ class SettingIcon extends React.Component {
                               step='0.0001'
                               data-state-key='sell.limitPercentage'
                               value={configuration.sell.limitPercentage}
+                              onChange={this.handleInputChange}
+                            />
+                          </Form.Group>
+                          <p className='form-header mb-1'>Sell - Stop-Loss</p>
+                          <Form.Group
+                            controlId='field-sell-stop-loss-enabled'
+                            className='mb-2'>
+                            <Form.Check size='sm'>
+                              <Form.Check.Input
+                                type='checkbox'
+                                data-state-key='sell.stopLoss.enabled'
+                                checked={configuration.sell.stopLoss.enabled}
+                                onChange={this.handleInputChange}
+                              />
+                              <Form.Check.Label>
+                                Stop-Loss Enabled{' '}
+                                <OverlayTrigger
+                                  trigger='click'
+                                  key='sell-stop-loss-enabled-overlay'
+                                  placement='bottom'
+                                  overlay={
+                                    <Popover id='sell-stop-loss-enabled-overlay-right'>
+                                      <Popover.Content>
+                                        If enabled, the bot will sell the coin
+                                        when it reaches the configured amount of
+                                        the loss from the last buy price. You
+                                        can enable this feature to prevent the
+                                        loss more than expected.
+                                      </Popover.Content>
+                                    </Popover>
+                                  }>
+                                  <Button
+                                    variant='link'
+                                    className='p-0 m-0 ml-1 text-info'>
+                                    <i className='fa fa-question-circle'></i>
+                                  </Button>
+                                </OverlayTrigger>
+                              </Form.Check.Label>
+                            </Form.Check>
+                          </Form.Group>
+                          <Form.Group
+                            controlId='field-sell-stop-loss-max-loss-percentage'
+                            className='mb-2'>
+                            <Form.Label className='mb-0'>
+                              Max loss percentage{' '}
+                              <OverlayTrigger
+                                trigger='click'
+                                key='sell-stop-loss-max-loss-percentage-overlay'
+                                placement='bottom'
+                                overlay={
+                                  <Popover id='sell-stop-loss-max-loss-percentage-overlay-right'>
+                                    <Popover.Content>
+                                      Set maximum loss percentage for stop-loss.
+                                      i.e. if set <code>0.80</code>, it means
+                                      you won't lose than <code>-20%</code> of
+                                      the last buy price. When you purchased the
+                                      coin at <code>$100</code>, the last price
+                                      will be set as <code>$100</code>. And then
+                                      when the current price reaches{' '}
+                                      <code>$80</code>, the bot will place the{' '}
+                                      <strong>market order</strong> to sell all
+                                      available balance.
+                                    </Popover.Content>
+                                  </Popover>
+                                }>
+                                <Button
+                                  variant='link'
+                                  className='p-0 m-0 ml-1 text-info'>
+                                  <i className='fa fa-question-circle'></i>
+                                </Button>
+                              </OverlayTrigger>
+                            </Form.Label>
+                            <Form.Control
+                              size='sm'
+                              type='number'
+                              placeholder='Enter maximum loss percentage'
+                              required
+                              max='1'
+                              min='0'
+                              step='0.0001'
+                              data-state-key='sell.stopLoss.maxLossPercentage'
+                              value={
+                                configuration.sell.stopLoss.maxLossPercentage
+                              }
+                              onChange={this.handleInputChange}
+                            />
+                          </Form.Group>
+                          <Form.Group
+                            controlId='field-sell-stop-loss-disable-buy-minutes'
+                            className='mb-2'>
+                            <Form.Label className='mb-0'>
+                              Temporary disable for buying (minutes){' '}
+                              <OverlayTrigger
+                                trigger='click'
+                                key='sell-stop-loss-disable-buy-minutes-overlay'
+                                placement='bottom'
+                                overlay={
+                                  <Popover id='sell-stop-loss-disable-buy-minutes-overlay-right'>
+                                    <Popover.Content>
+                                      Set for how long to disable buying in
+                                      minutes after placing a stop-loss order.
+                                      i.e. if set <code>360</code>, the bot will
+                                      temporarily disable buying for 6 hours.
+                                    </Popover.Content>
+                                  </Popover>
+                                }>
+                                <Button
+                                  variant='link'
+                                  className='p-0 m-0 ml-1 text-info'>
+                                  <i className='fa fa-question-circle'></i>
+                                </Button>
+                              </OverlayTrigger>
+                            </Form.Label>
+                            <Form.Control
+                              size='sm'
+                              type='number'
+                              placeholder='Enter minutes for disabling buy'
+                              required
+                              max='99999999'
+                              min='1'
+                              step='1'
+                              data-state-key='sell.stopLoss.disableBuyMinutes'
+                              value={
+                                configuration.sell.stopLoss.disableBuyMinutes
+                              }
                               onChange={this.handleInputChange}
                             />
                           </Form.Group>

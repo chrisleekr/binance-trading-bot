@@ -28,6 +28,14 @@ const saveGlobalConfiguration = async (logger, configuration) => {
 };
 
 /**
+ * Backward compatibility function to check stop loss configuration
+ *
+ * @param {*} globalConfiguration
+ */
+const hasSellStopLoss = globalConfiguration =>
+  _.get(globalConfiguration, 'sell.stopLoss.enabled', null) !== null;
+
+/**
  * Get global configuration from mongodb
  *
  * @param {*} logger
@@ -45,6 +53,17 @@ const getGlobalConfiguration = async logger => {
     // If it is empty, then global configuration is not stored in the
     configValue = config.get('jobs.trailingTrade');
 
+    await saveGlobalConfiguration(logger, configValue);
+  }
+
+  // Backward compatibility to check stopLoss config
+  if (hasSellStopLoss(configValue) === false) {
+    // If stop loss configuration does not exist, then get from config.
+    const initialConfigValue = config.get('jobs.trailingTrade');
+
+    configValue.sell.stopLoss = _.get(initialConfigValue, 'sell.stopLoss');
+
+    // Save one more time. This code block should not happen once saved.
     await saveGlobalConfiguration(logger, configValue);
   }
 

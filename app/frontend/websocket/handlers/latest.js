@@ -8,7 +8,8 @@ const {
 } = require('../../../cronjob/trailingTradeHelper/configuration');
 
 const {
-  getLastBuyPrice
+  getLastBuyPrice,
+  isActionDisabledByStopLoss
 } = require('../../../cronjob/trailingTradeHelper/common');
 
 const getSymbolFromKey = key => {
@@ -71,6 +72,10 @@ const handleLatest = async (logger, ws, _payload) => {
       // Retrieve latest last buy price
       newSymbol.sell.lastBuyPrice = await getLastBuyPrice(
         logger,
+        newSymbol.symbol
+      );
+      // Retreive action disabled by stop loss
+      newSymbol.isActionDisabledByStopLoss = await isActionDisabledByStopLoss(
         newSymbol.symbol
       );
       return newSymbol;

@@ -4,15 +4,31 @@
   "configuration": {
     "enabled": true,
     "type": "i-am-global",
-    "candles": { "interval": "15m" }
+    "candles": { "interval": "15m" },
+    "sell": {
+      "stopLoss": {
+        "enabled": false,
+        "maxLossPercentage": 0.8,
+        "disableBuyMinutes": 360,
+        "orderType": "market"
+      }
+    }
   },
   "common": {
-    "version": "",
-    "gitHash": "",
+    "version": "0.0.65",
+    "gitHash": "some-hash",
     "configuration": {
       "enabled": true,
       "type": "i-am-global",
-      "candles": { "interval": "15m" }
+      "candles": { "interval": "15m" },
+      "sell": {
+        "stopLoss": {
+          "enabled": false,
+          "maxLossPercentage": 0.8,
+          "disableBuyMinutes": 360,
+          "orderType": "market"
+        }
+      }
     },
     "accountInfo": {
       "makerCommission": 0,
@@ -51,7 +67,15 @@
         "globalConfiguration": {
           "enabled": true,
           "type": "i-am-global",
-          "candles": { "interval": "15m" }
+          "candles": { "interval": "15m" },
+          "sell": {
+            "stopLoss": {
+              "enabled": false,
+              "maxLossPercentage": 0.8,
+              "disableBuyMinutes": 360,
+              "orderType": "market"
+            }
+          }
         },
         "symbol": "BNBUSDT",
         "symbolConfiguration": {
@@ -59,6 +83,14 @@
           "symbol": "BNBUSDT",
           "type": "i-am-symbol",
           "candles": { "interval": "15m" },
+          "sell": {
+            "stopLoss": {
+              "enabled": false,
+              "maxLossPercentage": 0.8,
+              "disableBuyMinutes": 360,
+              "orderType": "market"
+            }
+          },
           "buy": { "maxPurchaseAmount": 100 }
         },
         "accountInfo": {
@@ -184,13 +216,22 @@
           "openOrders": [],
           "processMessage": "",
           "updatedAt": "2021-03-14T00:51:53.577Z"
-        }
+        },
+        "isActionDisabledByStopLoss": { "isDisabled": true, "ttl": 330 }
       },
       {
         "globalConfiguration": {
           "enabled": true,
           "type": "i-am-global",
-          "candles": { "interval": "15m" }
+          "candles": { "interval": "15m" },
+          "sell": {
+            "stopLoss": {
+              "enabled": false,
+              "maxLossPercentage": 0.8,
+              "disableBuyMinutes": 360,
+              "orderType": "market"
+            }
+          }
         },
         "symbol": "ETHUSDT",
         "symbolConfiguration": {
@@ -198,6 +239,14 @@
           "symbol": "ETHUSDT",
           "type": "i-am-symbol",
           "candles": { "interval": "15m" },
+          "sell": {
+            "stopLoss": {
+              "enabled": false,
+              "maxLossPercentage": 0.8,
+              "disableBuyMinutes": 360,
+              "orderType": "market"
+            }
+          },
           "buy": { "maxPurchaseAmount": 100 }
         },
         "accountInfo": {
@@ -379,7 +428,8 @@
           ],
           "processMessage": "",
           "updatedAt": "2021-03-14T00:51:52.864Z"
-        }
+        },
+        "isActionDisabledByStopLoss": { "isDisabled": false, "ttl": -2 }
       }
     ]
   }

@@ -45,7 +45,12 @@ describe('configuration.js', () => {
           if (key === 'jobs.trailingTrade') {
             return {
               enabled: true,
-              trailingTrade: 'config'
+              sell: {
+                stopLoss: {
+                  enabled: true,
+                  key: 'value'
+                }
+              }
             };
           }
           return null;
@@ -59,19 +64,37 @@ describe('configuration.js', () => {
           logger,
           'trailing-trade-common',
           { key: 'configuration' },
-          { key: 'configuration', enabled: true, trailingTrade: 'config' }
+          {
+            key: 'configuration',
+            enabled: true,
+            sell: {
+              stopLoss: {
+                enabled: true,
+                key: 'value'
+              }
+            }
+          }
         );
       });
 
       it('returns expected value', () => {
         expect(result).toStrictEqual({
           enabled: true,
-          trailingTrade: 'config'
+          sell: {
+            stopLoss: {
+              enabled: true,
+              key: 'value'
+            }
+          }
         });
+      });
+
+      it('triggers mongo.upsertOne once', () => {
+        expect(mongo.upsertOne).toHaveBeenCalledTimes(1);
       });
     });
 
-    describe('when found from mongodb and configuration contains buy/sell', () => {
+    describe('when found from mongodb and configuration with stopLoss', () => {
       beforeEach(async () => {
         mongo.findOne = jest.fn((_logger, collection, filter) => {
           if (
@@ -79,8 +102,12 @@ describe('configuration.js', () => {
             _.isEqual(filter, { key: 'configuration' })
           ) {
             return {
-              myConfig: 'value',
-              trailingTrade: 'config'
+              sell: {
+                stopLoss: {
+                  enabled: true,
+                  key: 'value'
+                }
+              }
             };
           }
           return null;
@@ -91,8 +118,56 @@ describe('configuration.js', () => {
 
       it('returns expected value', () => {
         expect(result).toStrictEqual({
-          myConfig: 'value',
-          trailingTrade: 'config'
+          sell: {
+            stopLoss: {
+              enabled: true,
+              key: 'value'
+            }
+          }
+        });
+      });
+    });
+
+    describe('when found from mongodb and configuration without stopLoss', () => {
+      beforeEach(async () => {
+        config.get = jest.fn(key => {
+          if (key === 'jobs.trailingTrade') {
+            return {
+              enabled: true,
+              sell: {
+                stopLoss: {
+                  enabled: true,
+                  key: 'value'
+                }
+              }
+            };
+          }
+          return null;
+        });
+
+        mongo.findOne = jest.fn((_logger, collection, filter) => {
+          if (
+            collection === 'trailing-trade-common' &&
+            _.isEqual(filter, { key: 'configuration' })
+          ) {
+            return {
+              sell: {}
+            };
+          }
+          return null;
+        });
+
+        result = await configuration.getGlobalConfiguration(logger);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          sell: {
+            stopLoss: {
+              enabled: true,
+              key: 'value'
+            }
+          }
         });
       });
     });
@@ -245,7 +320,8 @@ describe('configuration.js', () => {
               enabled: true
             },
             sell: {
-              enabled: false
+              enabled: false,
+              stopLoss: { enabled: true }
             }
           };
         }
@@ -262,7 +338,8 @@ describe('configuration.js', () => {
           ) {
             return {
               enabled: true,
-              some: 'value'
+              some: 'value',
+              sell: {}
             };
           }
           if (
@@ -280,18 +357,21 @@ describe('configuration.js', () => {
         result = await configuration.getConfiguration(logger);
       });
 
-      it('does not triggers config.get', () => {
-        expect(config.get).not.toHaveBeenCalled();
+      it('triggers config.get', () => {
+        expect(config.get).toHaveBeenCalled();
       });
 
-      it('does not triggers mongo.upsertOne', () => {
-        expect(mongo.upsertOne).not.toHaveBeenCalled();
+      it('triggers mongo.upsertOne', () => {
+        expect(mongo.upsertOne).toHaveBeenCalled();
       });
 
       it('returns expected value', () => {
         expect(result).toStrictEqual({
           enabled: true,
-          some: 'value'
+          some: 'value',
+          sell: {
+            stopLoss: { enabled: true }
+          }
         });
       });
     });
@@ -336,7 +416,10 @@ describe('configuration.js', () => {
                 enabled: true
               },
               sell: {
-                enabled: false
+                enabled: false,
+                stopLoss: {
+                  enabled: true
+                }
               }
             }
           );
@@ -350,7 +433,10 @@ describe('configuration.js', () => {
               maxPurchaseAmount: 100
             },
             sell: {
-              enabled: false
+              enabled: false,
+              stopLoss: {
+                enabled: true
+              }
             }
           });
         });
@@ -365,7 +451,8 @@ describe('configuration.js', () => {
             ) {
               return {
                 enabled: true,
-                some: 'value'
+                some: 'value',
+                sell: {}
               };
             }
             return null;
@@ -374,12 +461,12 @@ describe('configuration.js', () => {
           result = await configuration.getConfiguration(logger, 'BTCUSDT');
         });
 
-        it('does not triggers config.get', () => {
-          expect(config.get).not.toHaveBeenCalled();
+        it('triggers config.get', () => {
+          expect(config.get).toHaveBeenCalled();
         });
 
-        it('does not triggers mongo.upsertOne', () => {
-          expect(mongo.upsertOne).not.toHaveBeenCalled();
+        it('triggers mongo.upsertOne', () => {
+          expect(mongo.upsertOne).toHaveBeenCalled();
         });
 
         it('returns expected value', () => {
@@ -388,6 +475,11 @@ describe('configuration.js', () => {
             some: 'value',
             buy: {
               maxPurchaseAmount: 100
+            },
+            sell: {
+              stopLoss: {
+                enabled: true
+              }
             }
           });
         });
@@ -426,12 +518,12 @@ describe('configuration.js', () => {
             result = await configuration.getConfiguration(logger, 'BTCUSDT');
           });
 
-          it('does not triggers config.get', () => {
-            expect(config.get).not.toHaveBeenCalled();
+          it('triggers config.get', () => {
+            expect(config.get).toHaveBeenCalled();
           });
 
-          it('does not triggers mongo.upsertOne', () => {
-            expect(mongo.upsertOne).not.toHaveBeenCalled();
+          it('triggers mongo.upsertOne', () => {
+            expect(mongo.upsertOne).toHaveBeenCalled();
           });
 
           it('returns expected value', () => {
@@ -439,7 +531,12 @@ describe('configuration.js', () => {
               enabled: true,
               some: 'symbol-value',
               buy: { enabled: false, maxPurchaseAmount: 100 },
-              sell: { enabled: false }
+              sell: {
+                enabled: false,
+                stopLoss: {
+                  enabled: true
+                }
+              }
             });
           });
         });
@@ -489,7 +586,12 @@ describe('configuration.js', () => {
               enabled: true,
               some: 'symbol-value',
               buy: { enabled: false, maxPurchaseAmount: 80 },
-              sell: { enabled: false }
+              sell: {
+                enabled: false,
+                stopLoss: {
+                  enabled: true
+                }
+              }
             });
           });
         });
@@ -539,7 +641,12 @@ describe('configuration.js', () => {
               enabled: true,
               some: 'symbol-value',
               buy: { enabled: false, maxPurchaseAmount: 100 },
-              sell: { enabled: false }
+              sell: {
+                enabled: false,
+                stopLoss: {
+                  enabled: true
+                }
+              }
             });
           });
         });
@@ -582,7 +689,12 @@ describe('configuration.js', () => {
               enabled: true,
               some: 'symbol-value',
               buy: { enabled: false, maxPurchaseAmount: -1 },
-              sell: { enabled: false }
+              sell: {
+                enabled: false,
+                stopLoss: {
+                  enabled: true
+                }
+              }
             });
           });
         });

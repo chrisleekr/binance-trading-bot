@@ -267,6 +267,22 @@ const unlockSymbol = async (logger, symbol) => {
   return cache.del(`lock-${symbol}`);
 };
 
+const isActionDisabledByStopLoss = async symbol => {
+  const result = await cache.getWithTTL(
+    `${symbol}-disable-action-by-stop-loss`
+  );
+
+  return { isDisabled: result[1][1] === 'true', ttl: result[0][1] };
+};
+
+const deleteDisableActionByStopLoss = async (logger, symbol) => {
+  logger.info(
+    { debug: true, symbol },
+    `Enable action that disabled due to stop loss for ${symbol}`
+  );
+  return cache.del(`${symbol}-disable-action-by-stop-loss`);
+};
+
 module.exports = {
   cacheExchangeSymbols,
   getAccountInfoFromAPI,
@@ -277,5 +293,7 @@ module.exports = {
   getLastBuyPrice,
   lockSymbol,
   isSymbolLocked,
-  unlockSymbol
+  unlockSymbol,
+  isActionDisabledByStopLoss,
+  deleteDisableActionByStopLoss
 };

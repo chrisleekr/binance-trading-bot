@@ -13,6 +13,7 @@ describe('steps.js', () => {
       determineAction: expect.any(Function),
       placeBuyOrder: expect.any(Function),
       placeSellOrder: expect.any(Function),
+      placeSellStopLossOrder: expect.any(Function),
       removeLastBuyPrice: expect.any(Function),
       saveDataToCache: expect.any(Function)
     });

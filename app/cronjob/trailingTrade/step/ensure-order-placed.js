@@ -151,15 +151,15 @@ const execute = async (logger, rawData) => {
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
         slack.sendMessage(
-          `Action (${moment().format(
+          `${symbol} Action (${moment().format(
             'HH:mm:ss.SSS'
-          )}): Confirmed buy order\n- Symbol: ${symbol}\n` +
+          )}): Confirmed buy order\n` +
             `- Message: The buy order found in the open orders.\n` +
             `\`\`\`${JSON.stringify(
               {
                 lastBuyOrder,
-                openOrders,
-                accountInfo: data.accountInfo
+                openOrders
+                // accountInfo: data.accountInfo
               },
               undefined,
               2
@@ -174,9 +174,9 @@ const execute = async (logger, rawData) => {
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
         slack.sendMessage(
-          `Action (${moment().format(
+          `${symbol} Action (${moment().format(
             'HH:mm:ss.SSS'
-          )}): Checking for buy order\n- Symbol: ${symbol}\n` +
+          )}): Checking for buy order\n` +
             `- Message: The buy order cannot be found in the open orders.\n` +
             `\`\`\`${JSON.stringify(
               {
@@ -228,9 +228,9 @@ const execute = async (logger, rawData) => {
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
         slack.sendMessage(
-          `Action (${moment().format(
+          `${symbol} Action (${moment().format(
             'HH:mm:ss.SSS'
-          )}): Confirmed sell order\n- Symbol: ${symbol}\n` +
+          )}): Confirmed sell order\n` +
             `- Message: The sell order found in the open orders.\n` +
             `\`\`\`${JSON.stringify(
               {
@@ -251,9 +251,9 @@ const execute = async (logger, rawData) => {
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
         slack.sendMessage(
-          `Action (${moment().format(
+          `${symbol} Action (${moment().format(
             'HH:mm:ss.SSS'
-          )}): Checking for sell order\n- Symbol: ${symbol}\n` +
+          )}): Checking for sell order\n` +
             `- Message: The sell order cannot be found in the open orders.\n` +
             `\`\`\`${JSON.stringify(
               {

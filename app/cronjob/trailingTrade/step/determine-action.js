@@ -1,5 +1,9 @@
 const moment = require('moment');
 
+const {
+  isActionDisabledByStopLoss
+} = require('../../trailingTradeHelper/common');
+
 /**
  * Check whether can buy or not
  *
@@ -33,6 +37,12 @@ const hasBalanceToSell = data => {
   return baseAssetTotalBalance * buyCurrentPrice >= parseFloat(minNotional);
 };
 
+const isTemporaryDisabled = async data => {
+  const { symbol } = data;
+
+  return isActionDisabledByStopLoss(symbol);
+};
+
 /**
  * Set buy action and message
  *
@@ -45,7 +55,7 @@ const hasBalanceToSell = data => {
 const setBuyActionAndMessage = (logger, rawData, action, processMessage) => {
   const data = rawData;
 
-  logger.info({ data }, processMessage);
+  logger.info({ tag: 'set-buy-action-and-message', data }, processMessage);
   data.action = action;
   data.buy.processMessage = processMessage;
   data.buy.updatedAt = moment().utc();
@@ -88,6 +98,30 @@ const isHigherThanSellTriggerPrice = data => {
 };
 
 /**
+ * Check whether current price is lower or equal than stop loss trigger price
+ *
+ * @param {*} data
+ * @returns
+ */
+const isLowerThanStopLossTriggerPrice = data => {
+  const {
+    symbolConfiguration: {
+      sell: {
+        stopLoss: { enabled: sellStopLossEnabled }
+      }
+    },
+    sell: {
+      currentPrice: sellCurrentPrice,
+      stopLossTriggerPrice: sellStopLossTriggerPrice
+    }
+  } = data;
+
+  return (
+    sellStopLossEnabled === true && sellCurrentPrice <= sellStopLossTriggerPrice
+  );
+};
+
+/**
  * Set sell action and message
  *
  * @param {*} logger
@@ -115,7 +149,11 @@ const setSellActionAndMessage = (logger, rawData, action, processMessage) => {
 const execute = async (logger, rawData) => {
   const data = rawData;
 
-  const { action, isLocked } = data;
+  const {
+    action,
+    isLocked,
+    symbolInfo: { baseAsset }
+  } = data;
 
   if (isLocked) {
     logger.info(
@@ -144,7 +182,22 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'wait',
-        'The current price reached the trigger price. But has enough to sell. Hence, do not buy it.'
+        `The current price reached the trigger price. But has enough ${baseAsset} to sell. Do not process buy.`
+      );
+    }
+
+    const checkDisable = await isTemporaryDisabled(data);
+    logger.info(
+      { tag: 'check-disable', checkDisable },
+      'Checked whether symbol is disabled or not.'
+    );
+    if (checkDisable.isDisabled) {
+      return setBuyActionAndMessage(
+        logger,
+        data,
+        'buy-temporary-disabled',
+        'The current price reached the trigger price. ' +
+          `However, the coin is temporarily disabled to buy. Resume buy process after ${checkDisable.ttl}s.`
       );
     }
 
@@ -160,14 +213,53 @@ const execute = async (logger, rawData) => {
   //  last buy price has a value
   //  and total balance is enough to sell
   if (canSell(data)) {
-    // And if current price is higher or equal than trigger price,
+    // And if current price is higher or equal than trigger price
     if (isHigherThanSellTriggerPrice(data)) {
+      const checkDisable = await isTemporaryDisabled(data);
+      logger.info(
+        { tag: 'check-disable', checkDisable },
+        'Checked whether symbol is disabled or not.'
+      );
+      if (checkDisable.isDisabled) {
+        return setSellActionAndMessage(
+          logger,
+          data,
+          'sell-temporary-disabled',
+          'The current price is reached the sell trigger price. ' +
+            `However, the coin is temporarily disabled to sell because already placed the market sell order.` +
+            ` Resume sell process after ${checkDisable.ttl}s.`
+        );
+      }
       // Then sell
       return setSellActionAndMessage(
         logger,
         data,
         'sell',
         "The current price is more than the trigger price. Let's sell."
+      );
+    }
+    if (isLowerThanStopLossTriggerPrice(data)) {
+      const checkDisable = await isTemporaryDisabled(data);
+      logger.info(
+        { tag: 'check-disable', checkDisable },
+        'Checked whether symbol is disabled or not.'
+      );
+      if (checkDisable.isDisabled) {
+        return setSellActionAndMessage(
+          logger,
+          data,
+          'sell-temporary-disabled',
+          'The current price is reached the stop-loss price. ' +
+            `However, the coin is temporarily disabled to sell because already placed the market sell order.` +
+            ` Resume sell process after ${checkDisable.ttl}s.`
+        );
+      }
+      // Then sell market order
+      return setSellActionAndMessage(
+        logger,
+        data,
+        'sell-stop-loss',
+        'The current price is reached the stop-loss price. Place market sell order.'
       );
     }
 

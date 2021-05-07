@@ -48,7 +48,7 @@ const set = async (key, value, ttl = undefined) => {
 };
 
 /**
- * _Get value from key
+ * Get value from key
  *
  * return true;
  * @param {*} key
@@ -62,7 +62,16 @@ const get = async key => {
 };
 
 /**
- * multi().Delete key
+ *
+ * Get value with TTL
+ *
+ * @param {*} key
+ * @returns
+ */
+const getWithTTL = async key => redis.multi().ttl(key).get(key).exec();
+
+/**
+ * Delete key
  *
  * @param {*} key
  */
@@ -123,6 +132,7 @@ const hdel = async (key, field) => {
 module.exports = {
   set,
   get,
+  getWithTTL,
   del,
   hset,
   hget,

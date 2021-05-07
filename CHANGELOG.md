@@ -17,6 +17,9 @@ All notable changes to this project will be documented in this file.
   [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
 - Support all symbols -
   [#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
+- Support Stop-Loss -
+  [#99](https://github.com/chrisleekr/binance-trading-bot/issues/99)
+- Stabilised Local Tunnel, cronjob and Binance WebSocket
 
 ## [0.0.65] - 2021-03-27
 

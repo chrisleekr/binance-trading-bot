@@ -4,6 +4,7 @@ const { handleSymbolUpdate } = require('./symbol-update');
 const { handleSymbolDelete } = require('./symbol-delete');
 const { handleSymbolSettingUpdate } = require('./symbol-setting-update');
 const { handleSymbolSettingDelete } = require('./symbol-setting-delete');
+const { handleSymbolEnableAction } = require('./symbol-enable-action');
 
 module.exports = {
   handleLatest,
@@ -11,5 +12,6 @@ module.exports = {
   handleSymbolUpdate,
   handleSymbolDelete,
   handleSymbolSettingUpdate,
-  handleSymbolSettingDelete
+  handleSymbolSettingDelete,
+  handleSymbolEnableAction
 };

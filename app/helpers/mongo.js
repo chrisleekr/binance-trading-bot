@@ -15,7 +15,6 @@ let database;
 const connect = async funcLogger => {
   const logger = funcLogger.child({ helper: 'mongo' });
   logger.info({ uri }, 'Connecting mongodb');
-
   try {
     await client.connect();
 

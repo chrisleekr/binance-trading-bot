@@ -22,7 +22,10 @@ class CoinWrapper extends React.Component {
             sendWebSocket={sendWebSocket}
           />
 
-          <CoinWrapperAction symbolInfo={symbolInfo} />
+          <CoinWrapperAction
+            symbolInfo={symbolInfo}
+            sendWebSocket={sendWebSocket}
+          />
 
           <CoinWrapperBuySignal symbolInfo={symbolInfo} />
           <CoinWrapperBuyOrders symbolInfo={symbolInfo} />

@@ -694,4 +694,93 @@ describe('common.js', () => {
       expect(result).toBeTruthy();
     });
   });
+
+  describe('isActionDisabledByStopLoss', () => {
+    describe('with disabled', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+        loggerMock = logger;
+
+        cacheMock.getWithTTL = jest.fn().mockResolvedValue([
+          [null, -2],
+          [null, 'false']
+        ]);
+
+        commonHelper = require('../common');
+        result = await commonHelper.isActionDisabledByStopLoss('BTCUSDT');
+      });
+
+      it('triggers cache.getWithTTL', () => {
+        expect(cacheMock.getWithTTL).toHaveBeenCalledWith(
+          'BTCUSDT-disable-action-by-stop-loss'
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          isDisabled: false,
+          ttl: -2
+        });
+      });
+    });
+
+    describe('with enabled', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+        loggerMock = logger;
+
+        cacheMock.getWithTTL = jest.fn().mockResolvedValue([
+          [null, 300],
+          [null, 'true']
+        ]);
+
+        commonHelper = require('../common');
+        result = await commonHelper.isActionDisabledByStopLoss('BTCUSDT');
+      });
+
+      it('triggers cache.getWithTTL', () => {
+        expect(cacheMock.getWithTTL).toHaveBeenCalledWith(
+          'BTCUSDT-disable-action-by-stop-loss'
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          isDisabled: true,
+          ttl: 300
+        });
+      });
+    });
+  });
+
+  describe('deleteDisableActionByStopLoss', () => {
+    beforeEach(async () => {
+      const { cache, logger } = require('../../../helpers');
+
+      cacheMock = cache;
+      loggerMock = logger;
+
+      cacheMock.del = jest.fn().mockResolvedValue(true);
+
+      commonHelper = require('../common');
+      result = await commonHelper.deleteDisableActionByStopLoss(
+        loggerMock,
+        'BTCUSDT'
+      );
+    });
+
+    it('triggers cache.del', () => {
+      expect(cacheMock.del).toHaveBeenCalledWith(
+        'BTCUSDT-disable-action-by-stop-loss'
+      );
+    });
+
+    it('returns expected value', () => {
+      expect(result).toBeTruthy();
+    });
+  });
 });

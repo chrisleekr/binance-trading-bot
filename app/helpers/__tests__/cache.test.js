@@ -4,6 +4,9 @@ describe('cache', () => {
   let mockSet;
   let mockSetEx;
   let mockGet;
+  let mockMulti;
+  let mockTTL;
+  let mockExec;
   let mockDel;
   let mockHSet;
   let mockHGet;
@@ -137,6 +140,49 @@ describe('cache', () => {
 
     it('returns expected value', () => {
       expect(result).toBe('my-value');
+    });
+  });
+
+  describe('getWithTTL', () => {
+    beforeEach(async () => {
+      jest.clearAllMocks().resetModules();
+
+      mockExec = jest.fn(() => 'test');
+
+      mockGet = jest.fn(() => ({
+        exec: mockExec
+      }));
+
+      mockTTL = jest.fn(() => ({
+        get: mockGet
+      }));
+
+      mockMulti = jest.fn(() => ({
+        ttl: mockTTL
+      }));
+
+      jest.mock('config');
+      jest.mock('ioredis', () =>
+        jest.fn().mockImplementation(() => ({
+          multi: mockMulti
+        }))
+      );
+
+      cache = require('../cache');
+
+      result = await cache.getWithTTL('my-key');
+    });
+
+    it('triggers ttl', () => {
+      expect(mockTTL).toHaveBeenCalledWith('my-key');
+    });
+
+    it('triggers get', () => {
+      expect(mockGet).toHaveBeenCalledWith('my-key');
+    });
+
+    it('returns expected value', () => {
+      expect(result).toBe('test');
     });
   });
 

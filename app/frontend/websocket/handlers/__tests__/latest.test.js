@@ -6,67 +6,130 @@ describe('latest.test.js', () => {
   const trailingTradeSymbols = require('./fixtures/latest-trailing-trade-symbols.json');
   const trailingTradeStats = require('./fixtures/latest-stats.json');
 
+  let mockFindOne;
+
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
-  let cacheMock;
-  let mongoMock;
+  let mockConfigGet;
+  let mockCacheHGetAll;
+  let mockCacheHGet;
+  let mockCacheGetWithTTL;
+  let mockMongoUpsertOne;
+  let mockPubSubPublish;
 
   beforeEach(() => {
+    jest.clearAllMocks().resetModules();
+
     mockWebSocketServerWebSocketSend = jest.fn().mockResolvedValue(true);
 
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockConfigGet = jest.fn(key => {
+      if (key === 'mongo.host') {
+        return 'binance-mongo';
+      }
+
+      if (key === 'mongo.port') {
+        return 27017;
+      }
+
+      if (key === 'mongo.database') {
+        return 'binance-bot';
+      }
+
+      if (key === 'jobs.trailingTrade') {
+        return {
+          sell: {
+            stopLoss: {
+              enabled: false,
+              maxLossPercentage: 0.8,
+              disableBuyMinutes: 360,
+              orderType: 'market'
+            }
+          }
+        };
+      }
+
+      return null;
+    });
+
+    mockFindOne = jest.fn((_logger, collection, filter) => {
+      if (
+        collection === 'trailing-trade-common' &&
+        _.isEqual(filter, { key: 'configuration' })
+      ) {
+        return {
+          enabled: true,
+          sell: {}
+        };
+      }
+
+      if (
+        collection === 'trailing-trade-symbols' &&
+        _.isEqual(filter, { key: 'BNBUSDT-configuration' })
+      ) {
+        return { enabled: true, symbol: 'BNBUSDT' };
+      }
+      if (
+        collection === 'trailing-trade-symbols' &&
+        _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
+      ) {
+        return { lastBuyPrice: null };
+      }
+
+      if (
+        collection === 'trailing-trade-symbols' &&
+        _.isEqual(filter, { key: 'ETHUSDT-configuration' })
+      ) {
+        return { enabled: true, symbol: 'ETHUSDT' };
+      }
+
+      if (
+        collection === 'trailing-trade-symbols' &&
+        _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
+      ) {
+        return { lastBuyPrice: null };
+      }
+
+      return null;
+    });
+
+    mockMongoUpsertOne = jest.fn();
+
+    mockPubSubPublish = jest.fn();
   });
 
   describe('when some cache is invalid', () => {
     beforeEach(async () => {
-      const { cache, logger, mongo } = require('../../../../helpers');
-      cacheMock = cache;
-      mongoMock = mongo;
+      mockCacheHGetAll = jest.fn().mockImplementation(_key => '');
 
-      cacheMock.hgetall = jest.fn().mockImplementation(_key => '');
+      jest.mock('../../../../helpers', () => ({
+        logger: {
+          info: jest.fn(),
+          error: jest.fn(),
+          warn: jest.fn(),
+          debug: jest.fn(),
+          child: jest.fn()
+        },
+        mongo: {
+          findOne: mockFindOne,
+          upsertOne: mockMongoUpsertOne
+        },
+        cache: {
+          hgetall: mockCacheHGetAll
+        },
+        config: {
+          get: mockConfigGet
+        },
+        PubSub: {
+          publish: mockPubSubPublish
+        }
+      }));
 
-      mongoMock.findOne = jest
-        .fn()
-        .mockImplementation((_logger, collection, filter) => {
-          if (
-            collection === 'trailing-trade-common' &&
-            _.isEqual(filter, { key: 'configuration' })
-          ) {
-            return { enabled: true };
-          }
-
-          if (
-            collection === 'trailing-trade-symbols' &&
-            _.isEqual(filter, { key: 'BNBUSDT-configuration' })
-          ) {
-            return { enabled: true, symbol: 'BNBUSDT' };
-          }
-          if (
-            collection === 'trailing-trade-symbols' &&
-            _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
-          ) {
-            return { lastBuyPrice: null };
-          }
-
-          if (
-            collection === 'trailing-trade-symbols' &&
-            _.isEqual(filter, { key: 'ETHUSDT-configuration' })
-          ) {
-            return { enabled: true, symbol: 'ETHUSDT' };
-          }
-
-          if (
-            collection === 'trailing-trade-symbols' &&
-            _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
-          ) {
-            return { lastBuyPrice: null };
-          }
-
-          return null;
-        });
+      const { logger } = require('../../../../helpers');
 
       const { handleLatest } = require('../latest');
       await handleLatest(logger, mockWebSocketServer, {});
@@ -80,11 +143,8 @@ describe('latest.test.js', () => {
   describe('with valid cache', () => {
     beforeEach(async () => {
       process.env.GIT_HASH = 'some-hash';
-      const { cache, logger, mongo } = require('../../../../helpers');
-      cacheMock = cache;
-      mongoMock = mongo;
 
-      cacheMock.hgetall = jest.fn().mockImplementation(key => {
+      mockCacheHGetAll = jest.fn().mockImplementation(key => {
         if (key === 'trailing-trade-common') {
           return trailingTradeCommonJson;
         }
@@ -96,7 +156,7 @@ describe('latest.test.js', () => {
         return '';
       });
 
-      cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+      mockCacheHGet = jest.fn().mockImplementation((hash, key) => {
         if (
           hash === 'trailing-trade-symbols' &&
           key === 'BNBUSDT-symbol-info'
@@ -118,7 +178,25 @@ describe('latest.test.js', () => {
         return null;
       });
 
-      mongoMock.findOne = jest
+      mockCacheGetWithTTL = jest.fn().mockImplementation(key => {
+        if (key === 'BNBUSDT-disable-action-by-stop-loss') {
+          return [
+            [null, 330],
+            [null, 'true']
+          ];
+        }
+
+        if (key === 'ETHUSDT-disable-action-by-stop-loss') {
+          return [
+            [null, -2],
+            [null, 'false']
+          ];
+        }
+
+        return null;
+      });
+
+      mockFindOne = jest
         .fn()
         .mockImplementation((_logger, collection, filter) => {
           if (
@@ -128,7 +206,8 @@ describe('latest.test.js', () => {
             return {
               enabled: true,
               type: 'i-am-global',
-              candles: { interval: '15m' }
+              candles: { interval: '15m' },
+              sell: {}
             };
           }
 
@@ -162,6 +241,32 @@ describe('latest.test.js', () => {
           return null;
         });
 
+      jest.mock('../../../../helpers', () => ({
+        logger: {
+          info: jest.fn(),
+          error: jest.fn(),
+          warn: jest.fn(),
+          debug: jest.fn(),
+          child: jest.fn()
+        },
+        mongo: {
+          findOne: mockFindOne,
+          upsertOne: mockMongoUpsertOne
+        },
+        cache: {
+          hgetall: mockCacheHGetAll,
+          hget: mockCacheHGet,
+          getWithTTL: mockCacheGetWithTTL
+        },
+        config: {
+          get: mockConfigGet
+        },
+        PubSub: {
+          publish: mockPubSubPublish
+        }
+      }));
+
+      const { logger } = require('../../../../helpers');
       const { handleLatest } = require('../latest');
       await handleLatest(logger, mockWebSocketServer, {});
     });

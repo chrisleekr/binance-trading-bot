@@ -136,7 +136,7 @@ const execute = async (logger, rawData) => {
     timeInForce: 'GTC'
   };
 
-  slack.sendMessage(`Buy Action (${moment().format(
+  slack.sendMessage(`${symbol} Buy Action (${moment().format(
     'HH:mm:ss.SSS'
   )}): *STOP_LOSS_LIMIT*
   - Order Params: \`\`\`${JSON.stringify(orderParams, undefined, 2)}\`\`\`
@@ -175,7 +175,9 @@ const execute = async (logger, rawData) => {
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
   slack.sendMessage(
-    `Buy Action Result (${moment().format('HH:mm:ss.SSS')}): *STOP_LOSS_LIMIT*
+    `${symbol} Buy Action Result (${moment().format(
+      'HH:mm:ss.SSS'
+    )}): *STOP_LOSS_LIMIT*
     - Order Result: \`\`\`${JSON.stringify(orderResult, undefined, 2)}\`\`\``
   );
   data.buy.processMessage = `Placed new stop loss limit order for buying.`;

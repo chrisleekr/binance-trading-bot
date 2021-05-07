@@ -1,14 +1,13 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, cache, slack } = require('../../../helpers');
-const { roundDown } = require('../../trailingTradeHelper/util');
+const { binance, slack, cache } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
 
 /**
- * Place a sell order if has enough balance
+ * Place a sell stop-loss order when the current price reached stop-loss trigger price
  *
  * @param {*} logger
  * @param {*} rawData
@@ -21,11 +20,16 @@ const execute = async (logger, rawData) => {
     isLocked,
     symbolInfo: {
       filterLotSize: { stepSize, minQty, maxQty },
-      filterPrice: { tickSize },
       filterMinNotional: { minNotional }
     },
     symbolConfiguration: {
-      sell: { enabled: tradingEnabled, stopPercentage, limitPercentage }
+      sell: {
+        enabled: tradingEnabled,
+        stopLoss: {
+          orderType: sellStopLossOrderType,
+          disableBuyMinutes: sellStopLossDisableBuyMinutes
+        }
+      }
     },
     action,
     baseAssetBalance: { free: baseAssetFreeBalance },
@@ -35,13 +39,15 @@ const execute = async (logger, rawData) => {
   if (isLocked) {
     logger.info(
       { isLocked },
-      'Symbol is locked, do not process place-sell-order'
+      'Symbol is locked, do not process place-sell-stop-loss-order'
     );
     return data;
   }
 
-  if (action !== 'sell') {
-    logger.info(`Do not process a sell order because action is not 'sell'.`);
+  if (action !== 'sell-stop-loss') {
+    logger.info(
+      `Do not process a sell order because action is not 'sell-stop-loss'.`
+    );
     return data;
   }
 
@@ -53,10 +59,6 @@ const execute = async (logger, rawData) => {
   }
 
   const lotPrecision = stepSize.indexOf(1) - 1;
-  const pricePrecision = tickSize.indexOf(1) - 1;
-
-  const stopPrice = roundDown(currentPrice * stopPercentage, pricePrecision);
-  const limitPrice = roundDown(currentPrice * limitPercentage, pricePrecision);
 
   const freeBalance = parseFloat(_.floor(baseAssetFreeBalance, lotPrecision));
   logger.info({ freeBalance }, 'Free balance');
@@ -68,24 +70,36 @@ const execute = async (logger, rawData) => {
   if (orderQuantity <= parseFloat(minQty)) {
     data.sell.processMessage =
       `Order quantity is less or equal than the minimum quantity - ${minQty}. ` +
-      `Do not place an order.`;
+      `Do not place a stop-loss order.`;
     data.sell.updatedAt = moment().utc();
 
     return data;
   }
+
   if (orderQuantity > parseFloat(maxQty)) {
     orderQuantity = parseFloat(maxQty);
   }
 
-  if (orderQuantity * limitPrice < parseFloat(minNotional)) {
-    data.sell.processMessage = `Notional value is less than the minimum notional value. Do not place an order.`;
+  if (orderQuantity * currentPrice < parseFloat(minNotional)) {
+    data.sell.processMessage =
+      `Notional value is less than the minimum notional value. ` +
+      `Do not place a stop-loss order.`;
     data.sell.updatedAt = moment().utc();
 
     return data;
   }
 
   if (tradingEnabled !== true) {
-    data.sell.processMessage = `Trading for ${symbol} is disabled. Do not place an order.`;
+    data.sell.processMessage = `Trading for ${symbol} is disabled. Do not place a stop-loss order.`;
+    data.sell.updatedAt = moment().utc();
+
+    return data;
+  }
+
+  // Currently, only support market order for stop-loss.
+  const allowedOrderTypes = ['market'];
+  if (allowedOrderTypes.includes(sellStopLossOrderType) === false) {
+    data.sell.processMessage = `Unknown order type ${sellStopLossOrderType}. Do not place a stop-loss order.`;
     data.sell.updatedAt = moment().utc();
 
     return data;
@@ -94,28 +108,30 @@ const execute = async (logger, rawData) => {
   const orderParams = {
     symbol,
     side: 'sell',
-    type: 'STOP_LOSS_LIMIT',
-    quantity: orderQuantity,
-    stopPrice,
-    price: limitPrice,
-    timeInForce: 'GTC'
+    type: 'MARKET',
+    quantity: orderQuantity
   };
 
-  slack.sendMessage(`${symbol} Sell Action (${moment().format(
+  slack.sendMessage(`${symbol} Sell Stop-Loss Action (${moment().format(
     'HH:mm:ss.SSS'
-  )}): *STOP_LOSS_LIMIT*
+  )}): *MARKET*
   - Order Params: \`\`\`${JSON.stringify(orderParams, undefined, 2)}\`\`\`
   `);
 
   logger.info(
     { debug: true, function: 'order', orderParams },
-    'Sell order params'
+    'Sell market order params'
   );
   const orderResult = await binance.client.order(orderParams);
 
-  logger.info({ orderResult }, 'Order result');
+  logger.info({ orderResult }, 'Market order result');
 
-  await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult), 15);
+  // Temporary disable buy order
+  await cache.set(
+    `${symbol}-disable-action-by-stop-loss`,
+    true,
+    sellStopLossDisableBuyMinutes * 60
+  );
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
@@ -127,12 +143,12 @@ const execute = async (logger, rawData) => {
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
   slack.sendMessage(
-    `${symbol} Sell Action Result (${moment().format(
+    `${symbol} Sell Stop-Loss Action Result (${moment().format(
       'HH:mm:ss.SSS'
-    )}): *STOP_LOSS_LIMIT*
+    )}): *MARKET*
     - Order Result: \`\`\`${JSON.stringify(orderResult, undefined, 2)}\`\`\``
   );
-  data.sell.processMessage = `Placed new stop loss limit order for selling.`;
+  data.sell.processMessage = `Placed new market order for selling.`;
   data.sell.updatedAt = moment().utc();
 
   return data;

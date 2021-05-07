@@ -1,5 +1,6 @@
 const axios = require('axios');
 const config = require('config');
+const logger = require('./logger');
 
 /**
  * Send slack message
@@ -7,6 +8,8 @@ const config = require('config');
  * @param {*} text
  */
 const sendMessage = text => {
+  logger.info({ tag: 'slack-send-message', text }, 'Send slack message');
+
   if (config.get('slack.enabled') !== true) {
     return Promise.resolve({});
   }

@@ -10,6 +10,9 @@ const { execute: handleOpenOrders } = require('./step/handle-open-orders');
 const { execute: determineAction } = require('./step/determine-action');
 const { execute: placeBuyOrder } = require('./step/place-buy-order');
 const { execute: placeSellOrder } = require('./step/place-sell-order');
+const {
+  execute: placeSellStopLossOrder
+} = require('./step/place-sell-stop-loss-order');
 const { execute: removeLastBuyPrice } = require('./step/remove-last-buy-price');
 const { execute: saveDataToCache } = require('./step/save-data-to-cache');
 
@@ -24,6 +27,7 @@ module.exports = {
   determineAction,
   placeBuyOrder,
   placeSellOrder,
+  placeSellStopLossOrder,
   removeLastBuyPrice,
   saveDataToCache
 };

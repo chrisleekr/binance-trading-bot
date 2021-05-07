@@ -5,7 +5,8 @@ const {
   handleSymbolUpdate,
   handleSymbolDelete,
   handleSymbolSettingUpdate,
-  handleSymbolSettingDelete
+  handleSymbolSettingDelete,
+  handleSymbolEnableAction
 } = require('./handlers');
 
 const handleWarning = (logger, ws, message) => {
@@ -60,6 +61,9 @@ const configureWebSocket = async (server, funcLogger) => {
           break;
         case 'symbol-setting-delete':
           await handleSymbolSettingDelete(commandLogger, ws, payload);
+          break;
+        case 'symbol-enable-action':
+          await handleSymbolEnableAction(commandLogger, ws, payload);
           break;
         default:
           handleWarning(logger, ws, 'Command is not recognised.');
