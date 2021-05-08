@@ -9,7 +9,7 @@ Please note donating fund does not mean I will work for you or develop the featu
 
 The donated funds will be used for testing the bot or buying gifts for my wife, toys for my daughter and coffee beans for me.
 
-| Cryptocurrencies                                                                                                   | Network   | Address                                      |
-| ------------------------------------------------------------------------------------------------------------------ | --------- | -------------------------------------------- |
-| ![bitcoin:16prydy2syZwSmhEdXh5Yaa4CN9XjnUgBH](https://img.shields.io/badge/Donate-BTC-blue)                        | Bitcoin   | `16prydy2syZwSmhEdXh5Yaa4CN9XjnUgBH`         |
-| ![ethereum:0x3bb3a5dcba339562a32ca104964a4f2bb3c4dfe2](https://img.shields.io/badge/Donate-ETH%2FBUSD%2FUSDT-blue) | **ERC20** | `0x3bb3a5dcba339562a32ca104964a4f2bb3c4dfe2` |
+| Cryptocurrencies                                                                                                                           | Network   | Address                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | --------- | -------------------------------------------- |
+| [![Donate BTC](https://img.shields.io/badge/Donate-BTC-blue)](bitcoin:16prydy2syZwSmhEdXh5Yaa4CN9XjnUgBH)                                  | Bitcoin   | `16prydy2syZwSmhEdXh5Yaa4CN9XjnUgBH`         |
+| [![Donate ETH/BUSD/USDT](https://img.shields.io/badge/Donate-ETH%2FBUSD%2FUSDT-blue)](ethereum:0x3bb3a5dcba339562a32ca104964a4f2bb3c4dfe2) | **ERC20** | `0x3bb3a5dcba339562a32ca104964a4f2bb3c4dfe2` |
