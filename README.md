@@ -19,7 +19,9 @@ This is a test project. I am just testing my code.
 
 **I cannot guarantee whether you can make money or not.**
 
-**So use it at your own risk! I have no responsibility for any loss or hardship incurred directly or indirectly by using this code.**
+**So use it at your own risk! I have no responsibility for any loss or hardship
+incurred directly or indirectly by using this code. Read
+[disclaimer](#disclaimer) before using this code.**
 
 **Before updating the bot, make sure to record the last buy price in the note. It may lose the configuration or last buy price records.**
 
@@ -339,6 +341,12 @@ to view the past changes.
 - [ ] Secure frontend with the password
 - [ ] Develop simple setup screen for secrets
 
+## Donations
+
+If you find this project helpful, feel free to make a small
+[donation](https://github.com/chrisleekr/binance-trading-bot/blob/master/DONATIONS.md)
+to the developer.
+
 ## Acknowledgments
 
 - [@d0x2f](https://github.com/d0x2f)
@@ -385,3 +393,9 @@ to view the past changes.
     </td>
 </tr>
 </table>
+
+## Disclaimer
+
+I give no warranty and accepts no responsibility or liability for the accuracy or the completeness of the information and materials contained in this project. Under no circumstances will I be held responsible or liable in any way for any claims, damages, losses, expenses, costs or liabilities whatsoever (including, without limitation, any direct or indirect damages for loss of profits, business interruption or loss of information) resulting from or arising directly or indirectly from your use of or inability to use this code or any code linked to it, or from your reliance on the information and material on this code, even if I have been advised of the possibility of such damages in advance.
+
+**So use it at your own risk!**
