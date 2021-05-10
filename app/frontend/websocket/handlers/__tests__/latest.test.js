@@ -17,10 +17,17 @@ describe('latest.test.js', () => {
   let mockCacheGetWithTTL;
   let mockMongoUpsertOne;
   let mockPubSubPublish;
+  let mockBinanceClientGetInfo;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
 
+    mockBinanceClientGetInfo = jest.fn().mockReturnValue({
+      spot: {
+        usedWeight1m: '60'
+      },
+      futures: {}
+    });
     mockWebSocketServerWebSocketSend = jest.fn().mockResolvedValue(true);
 
     mockWebSocketServer = {
@@ -126,6 +133,11 @@ describe('latest.test.js', () => {
         },
         PubSub: {
           publish: mockPubSubPublish
+        },
+        binance: {
+          client: {
+            getInfo: mockBinanceClientGetInfo
+          }
         }
       }));
 
@@ -263,6 +275,11 @@ describe('latest.test.js', () => {
         },
         PubSub: {
           publish: mockPubSubPublish
+        },
+        binance: {
+          client: {
+            getInfo: mockBinanceClientGetInfo
+          }
         }
       }));
 

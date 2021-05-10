@@ -59,7 +59,8 @@
       "TRXUSDT",
       "XRPUSDT"
     ],
-    "publicURL": "https://chatty-robin-84.loca.lt"
+    "publicURL": "https://chatty-robin-84.loca.lt",
+    "apiInfo": { "spot": { "usedWeight1m": "60" }, "futures": {} }
   },
   "stats": {
     "symbols": [

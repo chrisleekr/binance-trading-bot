@@ -1,7 +1,7 @@
 const _ = require('lodash');
 const { version } = require('../../../../package.json');
 
-const { cache } = require('../../../helpers');
+const { binance, cache } = require('../../../helpers');
 const {
   getGlobalConfiguration,
   getConfiguration
@@ -43,7 +43,8 @@ const handleLatest = async (logger, ws, _payload) => {
       configuration: globalConfiguration,
       accountInfo: JSON.parse(cacheTrailingTradeCommon['account-info']),
       exchangeSymbols: JSON.parse(cacheTrailingTradeCommon['exchange-symbols']),
-      publicURL: cacheTrailingTradeCommon['local-tunnel-url']
+      publicURL: cacheTrailingTradeCommon['local-tunnel-url'],
+      apiInfo: binance.client.getInfo()
     };
   } catch (e) {
     logger.error({ e }, 'Something wrong with trailing-trade-common cache');

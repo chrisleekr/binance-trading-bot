@@ -155,7 +155,7 @@ input[type='number'] {
   font-size: 15px;
 }
 
-.account-wrapper {
+.accordion-wrapper {
   margin-bottom: 10px;
 }
 
@@ -187,10 +187,6 @@ input[type='number'] {
   }
 }
 
-.btn-account-balance {
-  color: #809fff;
-}
-
 .account-wrapper-body {
   -webkit-border-radius: 10px;
   -moz-border-radius: 10px;
@@ -200,9 +196,10 @@ input[type='number'] {
   background-color: #272b38;
 }
 
-.btn-account-balance {
+.accordion-wrapper .btn-link {
   text-transform: uppercase;
   font-weight: bold;
+  color: #809fff;
 }
 
 .account-asset-coin {
@@ -420,4 +417,9 @@ input[type='number'] {
 
 .coin-setting-customised {
   color: #deb887;
+}
+
+
+.status-wrapper-ul{
+  
 }

@@ -14,7 +14,7 @@ class AccountWrapper extends React.Component {
     });
 
     return (
-      <div className='account-wrapper'>
+      <div className='accordion-wrapper account-wrapper'>
         <Accordion>
           <Card bg='dark'>
             <Accordion.Toggle

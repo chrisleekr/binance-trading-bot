@@ -105,7 +105,8 @@ class App extends React.Component {
           exchangeSymbols: response.common.exchangeSymbols,
           configuration: response.common.configuration,
           accountInfo: response.common.accountInfo,
-          publicURL: response.common.publicURL
+          publicURL: response.common.publicURL,
+          apiInfo: response.common.apiInfo
         });
       }
     };
@@ -153,7 +154,8 @@ class App extends React.Component {
       symbols,
       configuration,
       accountInfo,
-      publicURL
+      publicURL,
+      apiInfo
     } = this.state;
 
     const coinWrappers = symbols.map((symbol, index) => {
@@ -193,6 +195,7 @@ class App extends React.Component {
             </Spinner>
           </div>
         )}
+        <Status apiInfo={apiInfo} />
         <Footer packageVersion={packageVersion} gitHash={gitHash} />
       </div>
     );
