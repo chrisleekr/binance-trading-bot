@@ -342,14 +342,7 @@ to the developer.
 ## Acknowledgments
 
 - [@d0x2f](https://github.com/d0x2f)
-- [@Maxoos](https://github.com/Maxoos)
-- [@OOtta](https://github.com/OOtta)
-- [@ienthach](https://github.com/ienthach)
-- [@PlayeTT](https://github.com/PlayeTT)
-- [@chopeta](https://github.com/chopeta)
-- [@santoshbmath](https://github.com/santoshbmath)
-- [@BramFr](https://github.com/BramFr)
-- [@Lavyk](https://github.com/Lavyk)
+- And many others! Thanks guys!
 
 ## Contributors
 
