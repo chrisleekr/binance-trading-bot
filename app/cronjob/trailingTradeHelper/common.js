@@ -267,6 +267,12 @@ const unlockSymbol = async (logger, symbol) => {
   return cache.del(`lock-${symbol}`);
 };
 
+/**
+ * Check if the action is disabled.
+ *
+ * @param {*} symbol
+ * @returns
+ */
 const isActionDisabledByStopLoss = async symbol => {
   const result = await cache.getWithTTL(
     `${symbol}-disable-action-by-stop-loss`
@@ -275,12 +281,33 @@ const isActionDisabledByStopLoss = async symbol => {
   return { isDisabled: result[1][1] === 'true', ttl: result[0][1] };
 };
 
+/**
+ * Re-enable action stopped by stop loss
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @returns
+ */
 const deleteDisableActionByStopLoss = async (logger, symbol) => {
   logger.info(
     { debug: true, symbol },
     `Enable action that disabled due to stop loss for ${symbol}`
   );
   return cache.del(`${symbol}-disable-action-by-stop-loss`);
+};
+
+/**
+ * Check if API limit is over
+ *
+ * @param {*} logger
+ * @returns
+ */
+const isExceedAPILimit = logger => {
+  const apiInfo = binance.client.getInfo();
+  logger.info({ apiInfo }, 'API info');
+
+  // Maximum 1200 for usedWeight1m. For safety, let's limit as 1180.
+  return parseInt(apiInfo.spot?.usedWeight1m || 0, 10) > 1180;
 };
 
 module.exports = {
@@ -295,5 +322,6 @@ module.exports = {
   isSymbolLocked,
   unlockSymbol,
   isActionDisabledByStopLoss,
-  deleteDisableActionByStopLoss
+  deleteDisableActionByStopLoss,
+  isExceedAPILimit
 };

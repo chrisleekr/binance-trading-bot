@@ -11,7 +11,7 @@ class Status extends React.Component {
 
     return (
       <div className='accordion-wrapper status-wrapper'>
-        <Accordion>
+        <Accordion defaultActiveKey='0'>
           <Card bg='dark'>
             <Accordion.Toggle
               as={Card.Header}

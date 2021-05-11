@@ -783,4 +783,82 @@ describe('common.js', () => {
       expect(result).toBeTruthy();
     });
   });
+
+  describe('isExceedAPILimit', () => {
+    describe('when getInfo returned undefined', () => {
+      beforeEach(() => {
+        const { binance, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        binanceMock = binance;
+
+        binanceMock.client.getInfo = jest.fn().mockReturnValueOnce(undefined);
+
+        result = commonHelper.isExceedAPILimit(loggerMock);
+      });
+
+      it('retruns expected value', () => {
+        expect(result).toBeFalsy();
+      });
+    });
+
+    describe('when getInfo returned without spot', () => {
+      beforeEach(() => {
+        const { binance, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        binanceMock = binance;
+
+        binanceMock.client.getInfo = jest.fn().mockReturnValueOnce({
+          futures: {}
+        });
+
+        result = commonHelper.isExceedAPILimit(loggerMock);
+      });
+
+      it('retruns expected value', () => {
+        expect(result).toBeFalsy();
+      });
+    });
+
+    describe('when getInfo returned with spot', () => {
+      describe('less than 1180', () => {
+        beforeEach(() => {
+          const { binance, logger } = require('../../../helpers');
+
+          loggerMock = logger;
+          binanceMock = binance;
+
+          binanceMock.client.getInfo = jest.fn().mockReturnValueOnce({
+            spot: { usedWeight1m: '100' }
+          });
+
+          result = commonHelper.isExceedAPILimit(loggerMock);
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toBeFalsy();
+        });
+      });
+
+      describe('more than 1180', () => {
+        beforeEach(() => {
+          const { binance, logger } = require('../../../helpers');
+
+          loggerMock = logger;
+          binanceMock = binance;
+
+          binanceMock.client.getInfo = jest.fn().mockReturnValueOnce({
+            spot: { usedWeight1m: '1180' }
+          });
+
+          result = commonHelper.isExceedAPILimit(loggerMock);
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toBeFalsy();
+        });
+      });
+    });
+  });
 });

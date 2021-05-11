@@ -8,8 +8,8 @@
     "build": "cross-env NODE_ENV=production webpack --config webpack.config.prod.js --progress --profile",
     "lint": "eslint ./app --fix",
     "test": "cross-env NODE_ENV=test jest --coverage --detectOpenHandles",
-    "docker:build": "docker build . --build-arg PACKAGE_VERSION=$(grep -m1 version package.json | cut -c 15- | rev | cut -c 3- | rev) --build-arg GIT_HASH=$(git rev-parse --short HEAD) --build-arg NODE_ENV=production --target production-stage -t chrisleekr/binance-trading-bot:latest",
-    "docker:build:dev": "docker build . --build-arg PACKAGE_VERSION=$(grep -m1 version package.json | cut -c 15- | rev | cut -c 3- | rev) --build-arg GIT_HASH=$(git rev-parse --short HEAD) --build-arg NODE_ENV=development --target dev-stage -t chrisleekr/binance-trading-bot:latest"
+    "docker:build": "docker build . --build-arg PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --build-arg GIT_HASH=$(git rev-parse --short HEAD) --build-arg NODE_ENV=production --target production-stage -t chrisleekr/binance-trading-bot:latest",
+    "docker:build:dev": "docker build . --build-arg PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --build-arg GIT_HASH=$(git rev-parse --short HEAD) --build-arg NODE_ENV=development --target dev-stage -t chrisleekr/binance-trading-bot:latest"
   },
   "repository": {
     "type": "git",

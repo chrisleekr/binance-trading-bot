@@ -4,7 +4,8 @@ const { binance, cache, slack } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 const {
   getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI
+  getAccountInfoFromAPI,
+  isExceedAPILimit
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -86,6 +87,13 @@ const execute = async (logger, rawData) => {
 
   if (tradingEnabled !== true) {
     data.sell.processMessage = `Trading for ${symbol} is disabled. Do not place an order.`;
+    data.sell.updatedAt = moment().utc();
+
+    return data;
+  }
+
+  if (isExceedAPILimit(logger)) {
+    data.sell.processMessage = `Binance API limit has been exceeded. Do not place an order.`;
     data.sell.updatedAt = moment().utc();
 
     return data;

@@ -3,7 +3,8 @@ const moment = require('moment');
 const { binance, slack, cache } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI
+  getAccountInfoFromAPI,
+  isExceedAPILimit
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -91,6 +92,13 @@ const execute = async (logger, rawData) => {
 
   if (tradingEnabled !== true) {
     data.sell.processMessage = `Trading for ${symbol} is disabled. Do not place a stop-loss order.`;
+    data.sell.updatedAt = moment().utc();
+
+    return data;
+  }
+
+  if (isExceedAPILimit(logger)) {
+    data.sell.processMessage = `Binance API limit has been exceeded. Do not place a stop-loss order.`;
     data.sell.updatedAt = moment().utc();
 
     return data;

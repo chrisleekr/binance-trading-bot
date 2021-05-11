@@ -11,6 +11,7 @@ describe('place-sell-stop-loss-order.js', () => {
 
   let mockGetAndCacheOpenOrdersForSymbol;
   let mockGetAccountInfoFromAPI;
+  let mockIsExceedAPILimit;
 
   describe('execute', () => {
     beforeEach(() => {
@@ -27,6 +28,8 @@ describe('place-sell-stop-loss-order.js', () => {
       cacheMock.set = jest.fn().mockResolvedValue(true);
       slackMock.sendMessage = jest.fn().mockResolvedValue(true);
       binanceMock.client.order = jest.fn().mockResolvedValue(true);
+
+      mockIsExceedAPILimit = jest.fn().mockReturnValue(false);
     });
 
     describe('when symbol is locked', () => {
@@ -38,7 +41,8 @@ describe('place-sell-stop-loss-order.js', () => {
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          isExceedAPILimit: mockIsExceedAPILimit
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -98,7 +102,8 @@ describe('place-sell-stop-loss-order.js', () => {
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          isExceedAPILimit: mockIsExceedAPILimit
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -158,7 +163,8 @@ describe('place-sell-stop-loss-order.js', () => {
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          isExceedAPILimit: mockIsExceedAPILimit
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -250,7 +256,8 @@ describe('place-sell-stop-loss-order.js', () => {
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          isExceedAPILimit: mockIsExceedAPILimit
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -325,7 +332,8 @@ describe('place-sell-stop-loss-order.js', () => {
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          isExceedAPILimit: mockIsExceedAPILimit
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -399,7 +407,8 @@ describe('place-sell-stop-loss-order.js', () => {
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          isExceedAPILimit: mockIsExceedAPILimit
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -464,6 +473,83 @@ describe('place-sell-stop-loss-order.js', () => {
       });
     });
 
+    describe('when API limit is exceeded', () => {
+      beforeEach(async () => {
+        mockIsExceedAPILimit = jest.fn().mockReturnValue(true);
+
+        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          account: 'info'
+        });
+
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          isExceedAPILimit: mockIsExceedAPILimit
+        }));
+
+        const step = require('../place-sell-stop-loss-order');
+
+        rawData = {
+          symbol: 'BTCUPUSDT',
+          isLocked: false,
+          symbolInfo: {
+            filterLotSize: {
+              stepSize: '0.01000000',
+              minQty: '0.01000000',
+              maxQty: '100.0000000'
+            },
+            filterPrice: { tickSize: '0.00100000' },
+            filterMinNotional: { minNotional: '10.00000000' }
+          },
+          symbolConfiguration: {
+            sell: {
+              enabled: true,
+              stopLoss: {
+                orderType: 'something',
+                disableBuyMinutes: 60
+              }
+            }
+          },
+          action: 'sell-stop-loss',
+          baseAssetBalance: { free: 0.1 },
+          sell: {
+            currentPrice: 200,
+            openOrders: []
+          }
+        };
+
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('does not trigger binance.client.order', () => {
+        expect(binanceMock.client.order).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger getAccountInfoFromAPI', () => {
+        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('retruns expected value', () => {
+        expect(result).toStrictEqual({
+          ...rawData,
+          ...{
+            sell: {
+              currentPrice: 200,
+              openOrders: [],
+              processMessage:
+                'Binance API limit has been exceeded. Do not place a stop-loss order.',
+              updatedAt: expect.any(Object)
+            }
+          }
+        });
+      });
+    });
+
     describe('when stop loss order type is not market', () => {
       beforeEach(async () => {
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
@@ -473,7 +559,8 @@ describe('place-sell-stop-loss-order.js', () => {
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          isExceedAPILimit: mockIsExceedAPILimit
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -556,7 +643,8 @@ describe('place-sell-stop-loss-order.js', () => {
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            isExceedAPILimit: mockIsExceedAPILimit
           }));
 
           const step = require('../place-sell-stop-loss-order');
@@ -667,7 +755,8 @@ describe('place-sell-stop-loss-order.js', () => {
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            isExceedAPILimit: mockIsExceedAPILimit
           }));
 
           const step = require('../place-sell-stop-loss-order');
