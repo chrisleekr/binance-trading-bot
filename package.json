@@ -9,7 +9,8 @@
     "lint": "eslint ./app --fix",
     "test": "cross-env NODE_ENV=test jest --coverage --detectOpenHandles",
     "docker:build": "docker build . --build-arg PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --build-arg GIT_HASH=$(git rev-parse --short HEAD) --build-arg NODE_ENV=production --target production-stage -t chrisleekr/binance-trading-bot:latest",
-    "docker:build:dev": "docker build . --build-arg PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --build-arg GIT_HASH=$(git rev-parse --short HEAD) --build-arg NODE_ENV=development --target dev-stage -t chrisleekr/binance-trading-bot:latest"
+    "docker:build:dev": "docker build . --build-arg PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --build-arg GIT_HASH=$(git rev-parse --short HEAD) --build-arg NODE_ENV=development --target dev-stage -t chrisleekr/binance-trading-bot:latest",
+    "docker:build:win": "powershell -NoProfile -ExecutionPolicy Unrestricted -Command ./scripts/docker-build.ps1"
   },
   "repository": {
     "type": "git",
