@@ -49,6 +49,8 @@ services:
 networks:
   internal:
     driver: bridge
+    # driver_opts:
+    #     com.docker.network.driver.mtu: 1442
 
 volumes:
   redis_data:

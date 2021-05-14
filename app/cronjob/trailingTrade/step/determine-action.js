@@ -1,8 +1,6 @@
 const moment = require('moment');
 
-const {
-  isActionDisabledByStopLoss
-} = require('../../trailingTradeHelper/common');
+const { isActionDisabled } = require('../../trailingTradeHelper/common');
 
 /**
  * Check whether can buy or not
@@ -35,12 +33,6 @@ const hasBalanceToSell = data => {
   } = data;
 
   return baseAssetTotalBalance * buyCurrentPrice >= parseFloat(minNotional);
-};
-
-const isTemporaryDisabled = async data => {
-  const { symbol } = data;
-
-  return isActionDisabledByStopLoss(symbol);
 };
 
 /**
@@ -151,6 +143,7 @@ const execute = async (logger, rawData) => {
 
   const {
     action,
+    symbol,
     isLocked,
     symbolInfo: { baseAsset }
   } = data;
@@ -182,11 +175,14 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'wait',
-        `The current price reached the trigger price. But has enough ${baseAsset} to sell. Do not process buy.`
+        `The current price reached the trigger price. ` +
+          `But you have enough ${baseAsset} to sell. ` +
+          `Set the last buy price to start selling. ` +
+          `Do not process buy.`
       );
     }
 
-    const checkDisable = await isTemporaryDisabled(data);
+    const checkDisable = await isActionDisabled(symbol);
     logger.info(
       { tag: 'check-disable', checkDisable },
       'Checked whether symbol is disabled or not.'
@@ -197,7 +193,8 @@ const execute = async (logger, rawData) => {
         data,
         'buy-temporary-disabled',
         'The current price reached the trigger price. ' +
-          `However, the coin is temporarily disabled to buy. Resume buy process after ${checkDisable.ttl}s.`
+          `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
+          `Resume buy process after ${checkDisable.ttl}s.`
       );
     }
 
@@ -215,7 +212,7 @@ const execute = async (logger, rawData) => {
   if (canSell(data)) {
     // And if current price is higher or equal than trigger price
     if (isHigherThanSellTriggerPrice(data)) {
-      const checkDisable = await isTemporaryDisabled(data);
+      const checkDisable = await isActionDisabled(symbol);
       logger.info(
         { tag: 'check-disable', checkDisable },
         'Checked whether symbol is disabled or not.'
@@ -226,8 +223,8 @@ const execute = async (logger, rawData) => {
           data,
           'sell-temporary-disabled',
           'The current price is reached the sell trigger price. ' +
-            `However, the coin is temporarily disabled to sell because already placed the market sell order.` +
-            ` Resume sell process after ${checkDisable.ttl}s.`
+            `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
+            `Resume sell process after ${checkDisable.ttl}s.`
         );
       }
       // Then sell
@@ -239,7 +236,7 @@ const execute = async (logger, rawData) => {
       );
     }
     if (isLowerThanStopLossTriggerPrice(data)) {
-      const checkDisable = await isTemporaryDisabled(data);
+      const checkDisable = await isActionDisabled(symbol);
       logger.info(
         { tag: 'check-disable', checkDisable },
         'Checked whether symbol is disabled or not.'
@@ -250,8 +247,8 @@ const execute = async (logger, rawData) => {
           data,
           'sell-temporary-disabled',
           'The current price is reached the stop-loss price. ' +
-            `However, the coin is temporarily disabled to sell because already placed the market sell order.` +
-            ` Resume sell process after ${checkDisable.ttl}s.`
+            `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
+            `Resume sell process after ${checkDisable.ttl}s.`
         );
       }
       // Then sell market order

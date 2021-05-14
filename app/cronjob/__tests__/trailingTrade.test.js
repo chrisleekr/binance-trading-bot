@@ -15,6 +15,7 @@ describe('trailingTrade', () => {
   let mockLockSymbol;
   let mockIsSymbolLocked;
   let mockUnlockSymbol;
+  let mockGetAPILimit;
 
   let mockGetSymbolConfiguration;
   let mockGetSymbolInfo;
@@ -35,6 +36,8 @@ describe('trailingTrade', () => {
 
     mockLoggerInfo = jest.fn();
     mockSlackSendMessage = jest.fn().mockResolvedValue(true);
+
+    mockGetAPILimit = jest.fn().mockReturnValue(10);
 
     logger.info = mockLoggerInfo;
     jest.mock('../../helpers', () => ({
@@ -217,7 +220,8 @@ describe('trailingTrade', () => {
         getAccountInfo: mockGetAccountInfo,
         lockSymbol: mockLockSymbol,
         isSymbolLocked: mockIsSymbolLocked,
-        unlockSymbol: mockUnlockSymbol
+        unlockSymbol: mockUnlockSymbol,
+        getAPILimit: mockGetAPILimit
       }));
 
       jest.mock('../trailingTrade/steps', () => ({
@@ -517,7 +521,8 @@ describe('trailingTrade', () => {
         getAccountInfo: mockGetAccountInfo,
         lockSymbol: mockLockSymbol,
         isSymbolLocked: mockIsSymbolLocked,
-        unlockSymbol: mockUnlockSymbol
+        unlockSymbol: mockUnlockSymbol,
+        getAPILimit: mockGetAPILimit
       }));
 
       jest.mock('../trailingTrade/steps', () => ({
@@ -690,7 +695,8 @@ describe('trailingTrade', () => {
         getAccountInfo: mockGetAccountInfo,
         lockSymbol: mockLockSymbol,
         isSymbolLocked: mockIsSymbolLocked,
-        unlockSymbol: mockUnlockSymbol
+        unlockSymbol: mockUnlockSymbol,
+        getAPILimit: mockGetAPILimit
       }));
 
       jest.mock('../trailingTrade/steps', () => ({

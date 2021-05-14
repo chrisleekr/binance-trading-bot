@@ -6,7 +6,7 @@ describe('symbol-enable-action.test.js', () => {
 
   let mockLogger;
 
-  let mockDeleteDisableActionByStopLoss;
+  let mockDeleteDisableAction;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -23,10 +23,10 @@ describe('symbol-enable-action.test.js', () => {
       const { logger } = require('../../../../helpers');
       mockLogger = logger;
 
-      mockDeleteDisableActionByStopLoss = jest.fn().mockResolvedValue(true);
+      mockDeleteDisableAction = jest.fn().mockResolvedValue(true);
 
       jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
-        deleteDisableActionByStopLoss: mockDeleteDisableActionByStopLoss
+        deleteDisableAction: mockDeleteDisableAction
       }));
 
       const { handleSymbolEnableAction } = require('../symbol-enable-action');
@@ -37,8 +37,8 @@ describe('symbol-enable-action.test.js', () => {
       });
     });
 
-    it('triggers deleteDisableActionByStopLoss', () => {
-      expect(mockDeleteDisableActionByStopLoss).toHaveBeenCalledWith(
+    it('triggers deleteDisableAction', () => {
+      expect(mockDeleteDisableAction).toHaveBeenCalledWith(
         mockLogger,
         'BTCUSDT'
       );

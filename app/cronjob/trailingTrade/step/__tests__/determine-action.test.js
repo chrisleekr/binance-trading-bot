@@ -145,7 +145,10 @@ describe('determine-action.js', () => {
                 currentPrice: 184.099,
                 triggerPrice: 185.375,
                 processMessage:
-                  'The current price reached the trigger price. But has enough BTC to sell. Do not process buy.',
+                  `The current price reached the trigger price. ` +
+                  `But you have enough BTC to sell. ` +
+                  `Set the last buy price to start selling. ` +
+                  `Do not process buy.`,
                 updatedAt: expect.any(Object)
               },
               sell: {
@@ -161,7 +164,15 @@ describe('determine-action.js', () => {
           beforeEach(async () => {
             cache.getWithTTL = jest.fn().mockResolvedValue([
               [null, 300],
-              [null, 'true']
+              [
+                null,
+                JSON.stringify({
+                  disabledBy: 'buy order',
+                  message: 'Disabled action after confirming the buy order.',
+                  canResume: false,
+                  canRemoveLastBuyPrice: false
+                })
+              ]
             ]);
 
             rawData = {
@@ -201,7 +212,8 @@ describe('determine-action.js', () => {
                 currentPrice: 184.099,
                 triggerPrice: 185.375,
                 processMessage:
-                  `The current price reached the trigger price. However, the coin is temporarily disabled to buy. ` +
+                  `The current price reached the trigger price. ` +
+                  `However, the action is temporarily disabled by buy order. ` +
                   `Resume buy process after 300s.`,
                 updatedAt: expect.any(Object)
               },
@@ -299,7 +311,15 @@ describe('determine-action.js', () => {
             beforeEach(async () => {
               cache.getWithTTL = jest.fn().mockResolvedValue([
                 [null, 300],
-                [null, 'true']
+                [
+                  null,
+                  JSON.stringify({
+                    disabledBy: 'sell order',
+                    message: 'Disabled action after confirming the sell order.',
+                    canResume: false,
+                    canRemoveLastBuyPrice: false
+                  })
+                ]
               ]);
 
               result = await step.execute(logger, rawData);
@@ -324,8 +344,9 @@ describe('determine-action.js', () => {
                   lastBuyPrice: 175.0,
                   triggerPrice: 183.75,
                   processMessage:
-                    `The current price is reached the sell trigger price. However, the coin is temporarily ` +
-                    `disabled to sell because already placed the market sell order. Resume sell process after 300s.`,
+                    `The current price is reached the sell trigger price. ` +
+                    `However, the action is temporarily disabled by sell order. ` +
+                    `Resume sell process after 300s.`,
                   updatedAt: expect.any(Object)
                 }
               });
@@ -464,7 +485,16 @@ describe('determine-action.js', () => {
               beforeEach(async () => {
                 cache.getWithTTL = jest.fn().mockResolvedValue([
                   [null, 300],
-                  [null, 'true']
+                  [
+                    null,
+                    JSON.stringify({
+                      disabledBy: 'sell order',
+                      message:
+                        'Disabled action after confirming the sell order.',
+                      canResume: false,
+                      canRemoveLastBuyPrice: false
+                    })
+                  ]
                 ]);
 
                 result = await step.execute(logger, rawData);
@@ -495,9 +525,9 @@ describe('determine-action.js', () => {
                     triggerPrice: 170.75,
                     stopLossTriggerPrice: 165,
                     processMessage:
-                      `The current price is reached the stop-loss price. However, the coin is ` +
-                      `temporarily disabled to sell because already placed the market sell order.` +
-                      ` Resume sell process after 300s.`,
+                      `The current price is reached the stop-loss price. ` +
+                      `However, the action is temporarily disabled by sell order. ` +
+                      `Resume sell process after 300s.`,
                     updatedAt: expect.any(Object)
                   }
                 });

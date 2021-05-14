@@ -191,17 +191,24 @@ describe('latest.test.js', () => {
       });
 
       mockCacheGetWithTTL = jest.fn().mockImplementation(key => {
-        if (key === 'BNBUSDT-disable-action-by-stop-loss') {
+        if (key === 'BNBUSDT-disable-action') {
           return [
             [null, 330],
-            [null, 'true']
+            [
+              null,
+              JSON.stringify({
+                disabledBy: 'stop loss',
+                canResume: true,
+                message: 'Temporary disabled by stop loss'
+              })
+            ]
           ];
         }
 
-        if (key === 'ETHUSDT-disable-action-by-stop-loss') {
+        if (key === 'ETHUSDT-disable-action') {
           return [
             [null, -2],
-            [null, 'false']
+            [null, null]
           ];
         }
 

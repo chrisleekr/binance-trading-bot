@@ -1,9 +1,9 @@
 /* eslint-disable global-require */
 const { logger } = require('../../helpers');
 
-jest.mock('config');
-
 describe('trailingTradeIndicator', () => {
+  let config;
+
   let mockLoggerInfo;
   let mockSlackSendMessage;
 
@@ -18,12 +18,17 @@ describe('trailingTradeIndicator', () => {
   let mockLockSymbol;
   let mockIsSymbolLocked;
   let mockUnlockSymbol;
+  let mockGetAPILimit;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
+    jest.mock('config');
+
+    config = require('config');
 
     mockLoggerInfo = jest.fn();
     mockSlackSendMessage = jest.fn().mockResolvedValue(true);
+    mockGetAPILimit = jest.fn().mockReturnValue(10);
 
     logger.info = mockLoggerInfo;
     jest.mock('../../helpers', () => ({
@@ -40,6 +45,18 @@ describe('trailingTradeIndicator', () => {
 
   describe('without any error', () => {
     beforeEach(async () => {
+      config.get = jest.fn(key => {
+        switch (key) {
+          case 'featureToggle':
+            return {
+              notifyOrderConfirm: true,
+              notifyDebug: false
+            };
+          default:
+            return `value-${key}`;
+        }
+      });
+
       mockLockSymbol = jest.fn().mockResolvedValue(true);
       mockIsSymbolLocked = jest.fn().mockResolvedValue(false);
       mockUnlockSymbol = jest.fn().mockResolvedValue(true);
@@ -47,7 +64,8 @@ describe('trailingTradeIndicator', () => {
       jest.mock('../trailingTradeHelper/common', () => ({
         lockSymbol: mockLockSymbol,
         isSymbolLocked: mockIsSymbolLocked,
-        unlockSymbol: mockUnlockSymbol
+        unlockSymbol: mockUnlockSymbol,
+        getAPILimit: mockGetAPILimit
       }));
 
       mockGetGlobalConfiguration = jest
@@ -147,6 +165,10 @@ describe('trailingTradeIndicator', () => {
         {
           symbol: 'BTCUSDT',
           data: {
+            featureToggle: {
+              notifyOrderConfirm: true,
+              notifyDebug: false
+            },
             globalConfiguration: { global: 'configuration data' },
             symbol: 'BTCUSDT',
             symbolConfiguration: { symbol: 'configuration data' },
@@ -170,7 +192,8 @@ describe('trailingTradeIndicator', () => {
       jest.mock('../trailingTradeHelper/common', () => ({
         lockSymbol: mockLockSymbol,
         isSymbolLocked: mockIsSymbolLocked,
-        unlockSymbol: mockUnlockSymbol
+        unlockSymbol: mockUnlockSymbol,
+        getAPILimit: mockGetAPILimit
       }));
 
       mockGetGlobalConfiguration = jest

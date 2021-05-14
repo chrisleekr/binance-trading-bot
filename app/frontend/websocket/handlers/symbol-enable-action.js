@@ -1,5 +1,5 @@
 const {
-  deleteDisableActionByStopLoss
+  deleteDisableAction
 } = require('../../../cronjob/trailingTradeHelper/common');
 
 const handleSymbolEnableAction = async (logger, ws, payload) => {
@@ -9,7 +9,7 @@ const handleSymbolEnableAction = async (logger, ws, payload) => {
 
   const { symbol } = symbolInfo;
 
-  await deleteDisableActionByStopLoss(logger, symbol);
+  await deleteDisableAction(logger, symbol);
 
   ws.send(
     JSON.stringify({ result: true, type: 'symbol-enable-action-result' })

@@ -4,7 +4,9 @@ const _ = require('lodash');
 const { cache, slack } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI
+  getAccountInfoFromAPI,
+  disableAction,
+  getAPILimit
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -163,9 +165,22 @@ const execute = async (logger, rawData) => {
               },
               undefined,
               2
-            )}\`\`\``
+            )}\`\`\`\n` +
+            `- Current API Usage: ${getAPILimit(logger)}`
         );
       }
+
+      // Lock symbol action 20 seconds to avoid API limit
+      await disableAction(
+        symbol,
+        {
+          disabledBy: 'buy order',
+          message: 'Disabled action after confirming the buy order.',
+          canResume: false,
+          canRemoveLastBuyPrice: false
+        },
+        20
+      );
     } else {
       logger.info(
         { debug: true },
@@ -185,7 +200,8 @@ const execute = async (logger, rawData) => {
               },
               undefined,
               2
-            )}\`\`\``
+            )}\`\`\`\n` +
+            `- Current API Usage: ${getAPILimit(logger)}`
         );
       }
 
@@ -235,14 +251,27 @@ const execute = async (logger, rawData) => {
             `\`\`\`${JSON.stringify(
               {
                 lastSellOrder,
-                openOrders,
-                accountInfo: data.accountInfo
+                openOrders
+                // accountInfo: data.accountInfo
               },
               undefined,
               2
-            )}\`\`\``
+            )}\`\`\`\n` +
+            `- Current API Usage: ${getAPILimit(logger)}`
         );
       }
+
+      // Lock symbol action 20 seconds to avoid API limit
+      await disableAction(
+        symbol,
+        {
+          disabledBy: 'sell order',
+          message: 'Disabled action after confirming the sell order.',
+          canResume: false,
+          canRemoveLastBuyPrice: false
+        },
+        20
+      );
     } else {
       logger.info(
         { debug: true },
@@ -262,7 +291,8 @@ const execute = async (logger, rawData) => {
               },
               undefined,
               2
-            )}\`\`\``
+            )}\`\`\`\n` +
+            `- Current API Usage: ${getAPILimit(logger)}`
         );
       }
 

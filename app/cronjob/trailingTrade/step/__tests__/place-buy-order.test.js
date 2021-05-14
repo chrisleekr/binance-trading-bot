@@ -12,6 +12,7 @@ describe('place-buy-order.js', () => {
   let mockGetAndCacheOpenOrdersForSymbol;
   let mockGetAccountInfoFromAPI;
   let mockIsExceedAPILimit;
+  let mockGetAPILimit;
 
   describe('execute', () => {
     beforeEach(() => {
@@ -26,6 +27,7 @@ describe('place-buy-order.js', () => {
         logger,
         mongo
       } = require('../../../../helpers');
+
       binanceMock = binance;
       slackMock = slack;
       loggerMock = logger;
@@ -38,6 +40,7 @@ describe('place-buy-order.js', () => {
       mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
 
       mockIsExceedAPILimit = jest.fn().mockReturnValue(false);
+      mockGetAPILimit = jest.fn().mockResolvedValue(10);
     });
 
     describe('when symbol is locked', () => {
@@ -50,7 +53,8 @@ describe('place-buy-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          isExceedAPILimit: mockIsExceedAPILimit
+          isExceedAPILimit: mockIsExceedAPILimit,
+          getAPILimit: mockGetAPILimit
         }));
 
         const step = require('../place-buy-order');
@@ -108,7 +112,8 @@ describe('place-buy-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          isExceedAPILimit: mockIsExceedAPILimit
+          isExceedAPILimit: mockIsExceedAPILimit,
+          getAPILimit: mockGetAPILimit
         }));
 
         const step = require('../place-buy-order');
@@ -166,7 +171,8 @@ describe('place-buy-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          isExceedAPILimit: mockIsExceedAPILimit
+          isExceedAPILimit: mockIsExceedAPILimit,
+          getAPILimit: mockGetAPILimit
         }));
 
         const step = require('../place-buy-order');
@@ -256,7 +262,8 @@ describe('place-buy-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          isExceedAPILimit: mockIsExceedAPILimit
+          isExceedAPILimit: mockIsExceedAPILimit,
+          getAPILimit: mockGetAPILimit
         }));
 
         const step = require('../place-buy-order');
@@ -329,7 +336,8 @@ describe('place-buy-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-            isExceedAPILimit: mockIsExceedAPILimit
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit
           }));
 
           const step = require('../place-buy-order');
@@ -401,7 +409,8 @@ describe('place-buy-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-            isExceedAPILimit: mockIsExceedAPILimit
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit
           }));
 
           const step = require('../place-buy-order');
@@ -462,6 +471,152 @@ describe('place-buy-order.js', () => {
           });
         });
       });
+
+      describe('ALPHABTC', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+            account: 'info'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = {
+            symbol: 'ALPHABTC',
+            isLocked: false,
+            symbolInfo: {
+              baseAsset: 'ALPHA',
+              quoteAsset: 'BTC',
+              filterLotSize: { stepSize: '1.00000000', minQty: '1.00000000' },
+              filterPrice: { tickSize: '0.00000001' },
+              filterMinNotional: { minNotional: '0.00010000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 0.001,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 0.00009 },
+            buy: {
+              currentPrice: 0.00003771,
+              openOrders: []
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('does not trigger binance.client.order', () => {
+          expect(binanceMock.client.order).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              buy: {
+                currentPrice: 0.00003771,
+                openOrders: [],
+                processMessage:
+                  'Do not place a buy order as not enough BTC to buy ALPHA.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
+        });
+      });
+
+      describe('BTCBRL', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+            account: 'info'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = {
+            symbol: 'BTCBRL',
+            isLocked: false,
+            symbolInfo: {
+              baseAsset: 'BTC',
+              quoteAsset: 'BRL',
+              filterLotSize: { stepSize: '0.00000100', minQty: '0.00000100' },
+              filterPrice: { tickSize: '1.00000000' },
+              filterMinNotional: { minNotional: '10.00000000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 50,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 9 },
+            buy: {
+              currentPrice: 268748,
+              openOrders: []
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('does not trigger binance.client.order', () => {
+          expect(binanceMock.client.order).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              buy: {
+                currentPrice: 268748,
+                openOrders: [],
+                processMessage:
+                  'Do not place a buy order as not enough BRL to buy BTC.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
+        });
+      });
     });
 
     describe('when balance is not enough after calculation', () => {
@@ -475,7 +630,8 @@ describe('place-buy-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-            isExceedAPILimit: mockIsExceedAPILimit
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit
           }));
 
           const step = require('../place-buy-order');
@@ -547,7 +703,8 @@ describe('place-buy-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-            isExceedAPILimit: mockIsExceedAPILimit
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit
           }));
 
           const step = require('../place-buy-order');
@@ -608,6 +765,152 @@ describe('place-buy-order.js', () => {
           });
         });
       });
+
+      describe('ALPHABTC', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+            account: 'info'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = {
+            symbol: 'ALPHABTC',
+            isLocked: false,
+            symbolInfo: {
+              baseAsset: 'ALPHA',
+              quoteAsset: 'BTC',
+              filterLotSize: { stepSize: '1.00000000', minQty: '1.00000000' },
+              filterPrice: { tickSize: '0.00000001' },
+              filterMinNotional: { minNotional: '0.00010000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 0.001,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 0.0001 },
+            buy: {
+              currentPrice: 0.00003771,
+              openOrders: []
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('does not trigger binance.client.order', () => {
+          expect(binanceMock.client.order).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              buy: {
+                currentPrice: 0.00003771,
+                openOrders: [],
+                processMessage:
+                  'Do not place a buy order as not enough BTC to buy ALPHA after calculation.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
+        });
+      });
+
+      describe('BTCBRL', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+            account: 'info'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = {
+            symbol: 'BTCBRL',
+            isLocked: false,
+            symbolInfo: {
+              baseAsset: 'BTC',
+              quoteAsset: 'USDT',
+              filterLotSize: { stepSize: '0.00000100', minQty: '0.00000100' },
+              filterPrice: { tickSize: '1.00000000' },
+              filterMinNotional: { minNotional: '10.00000000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 50,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 10.01 },
+            buy: {
+              currentPrice: 268748,
+              openOrders: []
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('does not trigger binance.client.order', () => {
+          expect(binanceMock.client.order).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              buy: {
+                currentPrice: 268748,
+                openOrders: [],
+                processMessage:
+                  'Do not place a buy order as not enough USDT to buy BTC after calculation.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
+        });
+      });
     });
 
     describe('when trading is disabled', () => {
@@ -620,7 +923,8 @@ describe('place-buy-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          isExceedAPILimit: mockIsExceedAPILimit
+          isExceedAPILimit: mockIsExceedAPILimit,
+          getAPILimit: mockGetAPILimit
         }));
 
         const step = require('../place-buy-order');
@@ -693,7 +997,8 @@ describe('place-buy-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          isExceedAPILimit: mockIsExceedAPILimit
+          isExceedAPILimit: mockIsExceedAPILimit,
+          getAPILimit: mockGetAPILimit
         }));
 
         const step = require('../place-buy-order');
@@ -776,7 +1081,8 @@ describe('place-buy-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-            isExceedAPILimit: mockIsExceedAPILimit
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit
           }));
 
           const step = require('../place-buy-order');
@@ -897,7 +1203,8 @@ describe('place-buy-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-            isExceedAPILimit: mockIsExceedAPILimit
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit
           }));
 
           const step = require('../place-buy-order');
@@ -985,6 +1292,250 @@ describe('place-buy-order.js', () => {
                     side: 'buy',
                     stopPrice: 0.045314,
                     symbol: 'ETHBTC',
+                    timeInForce: 'GTC',
+                    type: 'STOP_LOSS_LIMIT'
+                  }
+                ],
+                processMessage: 'Placed new stop loss limit order for buying.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
+        });
+      });
+
+      describe('ALPHABTC', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+            {
+              orderId: 456,
+              price: 0.00003812,
+              quantity: 26,
+              side: 'buy',
+              stopPrice: 0.00003808,
+              symbol: 'ALPHABTC',
+              timeInForce: 'GTC',
+              type: 'STOP_LOSS_LIMIT'
+            }
+          ]);
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+            account: 'info'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = {
+            symbol: 'ALPHABTC',
+            isLocked: false,
+            symbolInfo: {
+              baseAsset: 'ALPHA',
+              quoteAsset: 'BTC',
+              filterLotSize: { stepSize: '1.00000000', minQty: '1.00000000' },
+              filterPrice: { tickSize: '0.00000001' },
+              filterMinNotional: { minNotional: '0.00010000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 0.001,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 0.002 },
+            buy: {
+              currentPrice: 0.00003771,
+              openOrders: []
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers binance.client.order', () => {
+          expect(binanceMock.client.order).toHaveBeenCalledWith({
+            price: 0.00003812,
+            quantity: 26,
+            side: 'buy',
+            stopPrice: 0.00003808,
+            symbol: 'ALPHABTC',
+            timeInForce: 'GTC',
+            type: 'STOP_LOSS_LIMIT'
+          });
+        });
+
+        it('triggers cache.set', () => {
+          expect(cacheMock.set).toHaveBeenCalledWith(
+            'ALPHABTC-last-buy-order',
+            'true',
+            120
+          );
+        });
+
+        it('triggers getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
+        });
+
+        it('triggers getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              openOrders: [
+                {
+                  orderId: 456,
+                  price: 0.00003812,
+                  quantity: 26,
+                  side: 'buy',
+                  stopPrice: 0.00003808,
+                  symbol: 'ALPHABTC',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ],
+              buy: {
+                currentPrice: 0.00003771,
+                openOrders: [
+                  {
+                    orderId: 456,
+                    price: 0.00003812,
+                    quantity: 26,
+                    side: 'buy',
+                    stopPrice: 0.00003808,
+                    symbol: 'ALPHABTC',
+                    timeInForce: 'GTC',
+                    type: 'STOP_LOSS_LIMIT'
+                  }
+                ],
+                processMessage: 'Placed new stop loss limit order for buying.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
+        });
+      });
+
+      describe('BTCBRL', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+            {
+              orderId: 456,
+              price: 271704,
+              quantity: 0.00004,
+              side: 'buy',
+              stopPrice: 271435,
+              symbol: 'BTCBRL',
+              timeInForce: 'GTC',
+              type: 'STOP_LOSS_LIMIT'
+            }
+          ]);
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+            account: 'info'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = {
+            symbol: 'BTCBRL',
+            isLocked: false,
+            symbolInfo: {
+              baseAsset: 'BTC',
+              quoteAsset: 'BRL',
+              filterLotSize: { stepSize: '0.00000100', minQty: '0.00000100' },
+              filterPrice: { tickSize: '1.00000000' },
+              filterMinNotional: { minNotional: '10.00000000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 100,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 11 },
+            buy: {
+              currentPrice: 268748,
+              openOrders: []
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers binance.client.order', () => {
+          expect(binanceMock.client.order).toHaveBeenCalledWith({
+            price: 271704,
+            quantity: 0.00004,
+            side: 'buy',
+            stopPrice: 271435,
+            symbol: 'BTCBRL',
+            timeInForce: 'GTC',
+            type: 'STOP_LOSS_LIMIT'
+          });
+        });
+
+        it('triggers cache.set', () => {
+          expect(cacheMock.set).toHaveBeenCalledWith(
+            'BTCBRL-last-buy-order',
+            'true',
+            120
+          );
+        });
+
+        it('triggers getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
+        });
+
+        it('triggers getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              openOrders: [
+                {
+                  orderId: 456,
+                  price: 271704,
+                  quantity: 0.00004,
+                  side: 'buy',
+                  stopPrice: 271435,
+                  symbol: 'BTCBRL',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ],
+              buy: {
+                currentPrice: 268748,
+                openOrders: [
+                  {
+                    orderId: 456,
+                    price: 271704,
+                    quantity: 0.00004,
+                    side: 'buy',
+                    stopPrice: 271435,
+                    symbol: 'BTCBRL',
                     timeInForce: 'GTC',
                     type: 'STOP_LOSS_LIMIT'
                   }

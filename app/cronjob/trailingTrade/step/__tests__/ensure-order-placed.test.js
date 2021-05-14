@@ -10,9 +10,14 @@ describe('ensure-order-placed.js', () => {
 
   let mockGetAndCacheOpenOrdersForSymbol;
   let mockGetAccountInfoFromAPI;
+  let mockDisableAction;
+  let mockGetAPILimit;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
+
+    mockDisableAction = jest.fn().mockResolvedValue(true);
+    mockGetAPILimit = jest.fn().mockReturnValue(10);
   });
 
   describe('when there is no order', () => {
@@ -35,7 +40,9 @@ describe('ensure-order-placed.js', () => {
 
       jest.mock('../../../trailingTradeHelper/common', () => ({
         getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-        getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+        getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+        disableAction: mockDisableAction,
+        getAPILimit: mockGetAPILimit
       }));
 
       rawData = {
@@ -134,7 +141,9 @@ describe('ensure-order-placed.js', () => {
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          disableAction: mockDisableAction,
+          getAPILimit: mockGetAPILimit
         }));
       });
 
@@ -180,6 +189,19 @@ describe('ensure-order-placed.js', () => {
 
         it('does not trigger slack.sendMessage', () => {
           expect(slackMock.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('triggers disableAction', () => {
+          expect(mockDisableAction).toHaveBeenCalledWith(
+            'BTCUSDT',
+            {
+              disabledBy: 'buy order',
+              message: 'Disabled action after confirming the buy order.',
+              canResume: false,
+              canRemoveLastBuyPrice: false
+            },
+            20
+          );
         });
 
         it('returns expected result', () => {
@@ -257,6 +279,19 @@ describe('ensure-order-placed.js', () => {
           expect(slackMock.sendMessage).toHaveBeenCalled();
         });
 
+        it('triggers disableAction', () => {
+          expect(mockDisableAction).toHaveBeenCalledWith(
+            'BTCUSDT',
+            {
+              disabledBy: 'buy order',
+              message: 'Disabled action after confirming the buy order.',
+              canResume: false,
+              canRemoveLastBuyPrice: false
+            },
+            20
+          );
+        });
+
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
@@ -324,7 +359,9 @@ describe('ensure-order-placed.js', () => {
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          disableAction: mockDisableAction,
+          getAPILimit: mockGetAPILimit
         }));
       });
 
@@ -504,7 +541,9 @@ describe('ensure-order-placed.js', () => {
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            disableAction: mockDisableAction,
+            getAPILimit: mockGetAPILimit
           }));
 
           rawData = {
@@ -555,6 +594,19 @@ describe('ensure-order-placed.js', () => {
           expect(slackMock.sendMessage).not.toHaveBeenCalled();
         });
 
+        it('triggers disableAction', () => {
+          expect(mockDisableAction).toHaveBeenCalledWith(
+            'BTCUSDT',
+            {
+              disabledBy: 'sell order',
+              message: 'Disabled action after confirming the sell order.',
+              canResume: false,
+              canRemoveLastBuyPrice: false
+            },
+            20
+          );
+        });
+
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
@@ -585,6 +637,7 @@ describe('ensure-order-placed.js', () => {
           });
         });
       });
+
       describe('when notifyOrderConfirm is enabled', () => {
         beforeEach(async () => {
           const {
@@ -627,7 +680,9 @@ describe('ensure-order-placed.js', () => {
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            disableAction: mockDisableAction,
+            getAPILimit: mockGetAPILimit
           }));
 
           rawData = {
@@ -676,6 +731,19 @@ describe('ensure-order-placed.js', () => {
 
         it('triggers slack.sendMessage', () => {
           expect(slackMock.sendMessage).toHaveBeenCalled();
+        });
+
+        it('triggers disableAction', () => {
+          expect(mockDisableAction).toHaveBeenCalledWith(
+            'BTCUSDT',
+            {
+              disabledBy: 'sell order',
+              message: 'Disabled action after confirming the sell order.',
+              canResume: false,
+              canRemoveLastBuyPrice: false
+            },
+            20
+          );
         });
 
         it('returns expected result', () => {
@@ -746,7 +814,9 @@ describe('ensure-order-placed.js', () => {
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            disableAction: mockDisableAction,
+            getAPILimit: mockGetAPILimit
           }));
 
           rawData = {
@@ -843,7 +913,9 @@ describe('ensure-order-placed.js', () => {
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            disableAction: mockDisableAction,
+            getAPILimit: mockGetAPILimit
           }));
 
           rawData = {

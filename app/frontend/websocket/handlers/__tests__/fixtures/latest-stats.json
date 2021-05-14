@@ -218,7 +218,13 @@
           "processMessage": "",
           "updatedAt": "2021-03-14T00:51:53.577Z"
         },
-        "isActionDisabledByStopLoss": { "isDisabled": true, "ttl": 330 }
+        "isActionDisabled": {
+          "isDisabled": true,
+          "ttl": 330,
+          "disabledBy": "stop loss",
+          "canResume": true,
+          "message": "Temporary disabled by stop loss"
+        }
       },
       {
         "globalConfiguration": {
@@ -430,7 +436,7 @@
           "processMessage": "",
           "updatedAt": "2021-03-14T00:51:52.864Z"
         },
-        "isActionDisabledByStopLoss": { "isDisabled": false, "ttl": -2 }
+        "isActionDisabled": { "isDisabled": false, "ttl": -2 }
       }
     ]
   }

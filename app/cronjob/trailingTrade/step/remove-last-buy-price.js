@@ -2,7 +2,9 @@ const _ = require('lodash');
 const moment = require('moment');
 const { mongo, cache, slack } = require('../../../helpers');
 const {
-  getAndCacheOpenOrdersForSymbol
+  getAndCacheOpenOrdersForSymbol,
+  getAPILimit,
+  isActionDisabled
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -42,11 +44,13 @@ const removeLastBuyPrice = async (
   slack.sendMessage(
     `${symbol} Action (${moment().format(
       'HH:mm:ss.SSS'
-    )}): Removed last buy price\n- Message: ${processMessage}\n\`\`\`${JSON.stringify(
-      extraMessages,
-      undefined,
-      2
-    )}\`\`\``
+    )}): Removed last buy price\n` +
+      `- Message: ${processMessage}\n\`\`\`${JSON.stringify(
+        extraMessages,
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
   );
 };
 
@@ -107,9 +111,18 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  // Check one last time for open orders to make sure.
+  const checkDisable = await isActionDisabled(symbol);
+  logger.info(
+    { tag: 'check-disable', checkDisable },
+    'Checked whether symbol is disabled or not.'
+  );
+  if (checkDisable.isDisabled && checkDisable.canRemoveLastBuyPrice === false) {
+    logger.info('Do not remove last buy price because action is disabled.');
+    return data;
+  }
 
-  const lotPrecision = stepSize.indexOf(1) - 1;
+  // Check one last time for open orders to make sure.
+  const lotPrecision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
 
   const totalBaseAssetBalance =
     parseFloat(baseAssetFreeBalance) + parseFloat(baseAssetLockedBalance);

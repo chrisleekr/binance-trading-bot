@@ -268,17 +268,30 @@ const unlockSymbol = async (logger, symbol) => {
 };
 
 /**
+ * Disable action
+ *
+ * @param {*} symbol
+ * @param {*} reason
+ * @param {*} ttl
+ *
+ * @returns
+ */
+const disableAction = async (symbol, reason, ttl) =>
+  cache.set(`${symbol}-disable-action`, JSON.stringify(reason), ttl);
+
+/**
  * Check if the action is disabled.
  *
  * @param {*} symbol
  * @returns
  */
-const isActionDisabledByStopLoss = async symbol => {
-  const result = await cache.getWithTTL(
-    `${symbol}-disable-action-by-stop-loss`
-  );
+const isActionDisabled = async symbol => {
+  const result = await cache.getWithTTL(`${symbol}-disable-action`);
 
-  return { isDisabled: result[1][1] === 'true', ttl: result[0][1] };
+  const ttl = result[0][1];
+  const reason = JSON.parse(result[1][1]) || {};
+
+  return { isDisabled: ttl > 0, ttl, ...reason };
 };
 
 /**
@@ -288,12 +301,22 @@ const isActionDisabledByStopLoss = async symbol => {
  * @param {*} symbol
  * @returns
  */
-const deleteDisableActionByStopLoss = async (logger, symbol) => {
-  logger.info(
-    { debug: true, symbol },
-    `Enable action that disabled due to stop loss for ${symbol}`
-  );
-  return cache.del(`${symbol}-disable-action-by-stop-loss`);
+const deleteDisableAction = async (logger, symbol) => {
+  logger.info({ debug: true, symbol }, `Enable action for ${symbol}`);
+  return cache.del(`${symbol}-disable-action`);
+};
+
+/**
+ * Get API limit
+ *
+ * @param {*} logger
+ * @returns
+ */
+const getAPILimit = logger => {
+  const apiInfo = binance.client.getInfo();
+  logger.info({ apiInfo }, 'API info');
+
+  return parseInt(apiInfo.spot?.usedWeight1m || 0, 10);
 };
 
 /**
@@ -303,11 +326,8 @@ const deleteDisableActionByStopLoss = async (logger, symbol) => {
  * @returns
  */
 const isExceedAPILimit = logger => {
-  const apiInfo = binance.client.getInfo();
-  logger.info({ apiInfo }, 'API info');
-
-  // Maximum 1200 for usedWeight1m. For safety, let's limit as 1180.
-  return parseInt(apiInfo.spot?.usedWeight1m || 0, 10) > 1180;
+  const usedWeight1m = getAPILimit(logger);
+  return usedWeight1m > 1180;
 };
 
 module.exports = {
@@ -321,7 +341,9 @@ module.exports = {
   lockSymbol,
   isSymbolLocked,
   unlockSymbol,
-  isActionDisabledByStopLoss,
-  deleteDisableActionByStopLoss,
+  disableAction,
+  isActionDisabled,
+  deleteDisableAction,
+  getAPILimit,
   isExceedAPILimit
 };

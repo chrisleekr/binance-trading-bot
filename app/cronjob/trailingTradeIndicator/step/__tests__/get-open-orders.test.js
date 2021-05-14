@@ -8,16 +8,18 @@ describe('get-open-orders.js', () => {
   let step;
   let result;
 
+  let mockGetAndCacheOpenOrdersForSymbol;
+
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
   });
 
   describe('execute', () => {
-    let mockGetAndCacheOpenOrdersForSymbol;
     beforeEach(async () => {
       const { logger } = require('../../../../helpers');
 
       loggerMock = logger;
+
       mockGetAndCacheOpenOrdersForSymbol = jest
         .fn()
         .mockResolvedValue([{ orderId: 1 }]);

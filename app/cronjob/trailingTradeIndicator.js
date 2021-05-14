@@ -1,8 +1,11 @@
 const moment = require('moment');
+const config = require('config');
+
 const {
   lockSymbol,
   isSymbolLocked,
-  unlockSymbol
+  unlockSymbol,
+  getAPILimit
 } = require('./trailingTradeHelper/common');
 
 const {
@@ -17,8 +20,12 @@ const {
 const { slack } = require('../helpers');
 
 const execute = async logger => {
+  // Retrieve feature toggles
+  const featureToggle = config.get('featureToggle');
+
   // Define sekeleton of data structure
   let data = {
+    featureToggle,
     globalConfiguration: {},
     symbol: null,
     symbolConfiguration: {},
@@ -107,9 +114,12 @@ const execute = async logger => {
       // Let's silent for internal server error or assumed temporary errors
     } else {
       slack.sendMessage(
-        `Execution failed (${moment().format('HH:mm:ss.SSS')})\nCode: ${
-          err.code
-        }\nMessage:\`\`\`${err.message}\`\`\`Stack:\`\`\`${err.stack}\`\`\``
+        `Execution failed (${moment().format('HH:mm:ss.SSS')})\n` +
+          `Job: Trailing Trade Indicator\n` +
+          `Code: ${err.code}\n` +
+          `Message:\`\`\`${err.message}\`\`\`\n` +
+          `Stack:\`\`\`${err.stack}\`\`\`\n` +
+          `- Current API Usage: ${getAPILimit(logger)}`
       );
     }
   }

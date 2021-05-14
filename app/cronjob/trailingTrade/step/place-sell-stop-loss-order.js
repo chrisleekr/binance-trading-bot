@@ -1,10 +1,12 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, slack, cache } = require('../../../helpers');
+const { binance, slack } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
-  isExceedAPILimit
+  isExceedAPILimit,
+  disableAction,
+  getAPILimit
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -59,7 +61,7 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  const lotPrecision = stepSize.indexOf(1) - 1;
+  const lotPrecision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
 
   const freeBalance = parseFloat(_.floor(baseAssetFreeBalance, lotPrecision));
   logger.info({ freeBalance }, 'Free balance');
@@ -120,11 +122,17 @@ const execute = async (logger, rawData) => {
     quantity: orderQuantity
   };
 
-  slack.sendMessage(`${symbol} Sell Stop-Loss Action (${moment().format(
-    'HH:mm:ss.SSS'
-  )}): *MARKET*
-  - Order Params: \`\`\`${JSON.stringify(orderParams, undefined, 2)}\`\`\`
-  `);
+  slack.sendMessage(
+    `${symbol} Sell Stop-Loss Action (${moment().format(
+      'HH:mm:ss.SSS'
+    )}): *MARKET*` +
+      `- Order Params: \`\`\`${JSON.stringify(
+        orderParams,
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
+  );
 
   logger.info(
     { debug: true, function: 'order', orderParams },
@@ -134,10 +142,15 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Market order result');
 
-  // Temporary disable buy order
-  await cache.set(
-    `${symbol}-disable-action-by-stop-loss`,
-    true,
+  // Temporary disable action
+  await disableAction(
+    symbol,
+    {
+      disabledBy: 'stop loss',
+      message: 'Temporary disabled by stop loss',
+      canResume: true,
+      canRemoveLastBuyPrice: true
+    },
     sellStopLossDisableBuyMinutes * 60
   );
 
@@ -153,8 +166,13 @@ const execute = async (logger, rawData) => {
   slack.sendMessage(
     `${symbol} Sell Stop-Loss Action Result (${moment().format(
       'HH:mm:ss.SSS'
-    )}): *MARKET*
-    - Order Result: \`\`\`${JSON.stringify(orderResult, undefined, 2)}\`\`\``
+    )}): *MARKET*\n` +
+      `- Order Result: \`\`\`${JSON.stringify(
+        orderResult,
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
   );
   data.sell.processMessage = `Placed new market order for selling.`;
   data.sell.updatedAt = moment().utc();

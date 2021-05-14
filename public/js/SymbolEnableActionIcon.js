@@ -38,9 +38,12 @@ class SymbolEnableActionIcon extends React.Component {
   }
 
   render() {
-    const { symbol } = this.props;
+    const { symbol, className } = this.props;
     return (
-      <span className='header-column-icon-wrapper symbol-enable-action-wrapper'>
+      <span
+        className={
+          'header-column-icon-wrapper symbol-enable-action-wrapper ' + className
+        }>
         <button
           type='button'
           className='btn btn-sm btn-link p-0 pl-1'

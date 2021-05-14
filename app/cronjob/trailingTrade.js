@@ -9,7 +9,8 @@ const {
   getAccountInfo,
   lockSymbol,
   isSymbolLocked,
-  unlockSymbol
+  unlockSymbol,
+  getAPILimit
 } = require('./trailingTradeHelper/common');
 
 const {
@@ -178,9 +179,12 @@ const execute = async logger => {
       // Let's silent for internal server error or assumed temporary errors
     } else {
       slack.sendMessage(
-        `Execution failed (${moment().format('HH:mm:ss.SSS')})\nCode: ${
-          err.code
-        }\nMessage:\`\`\`${err.message}\`\`\`Stack:\`\`\`${err.stack}\`\`\``
+        `Execution failed (${moment().format('HH:mm:ss.SSS')})\n` +
+          `Job: Trailing Trade\n` +
+          `Code: ${err.code}\n` +
+          `Message:\`\`\`${err.message}\`\`\`\n` +
+          `Stack:\`\`\`${err.stack}\`\`\`\n` +
+          `- Current API Usage: ${getAPILimit(logger)}`
       );
     }
   }

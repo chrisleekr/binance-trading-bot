@@ -4,7 +4,7 @@
 class CoinWrapperAction extends React.Component {
   render() {
     const {
-      symbolInfo: { symbol, action, buy, isLocked, isActionDisabledByStopLoss },
+      symbolInfo: { symbol, action, buy, isLocked, isActionDisabled },
       sendWebSocket
     } = this.props;
 
@@ -48,8 +48,8 @@ class CoinWrapperAction extends React.Component {
       label = 'Locked';
     }
 
-    if (isActionDisabledByStopLoss.isDisabled) {
-      label = 'Temporary disabled ';
+    if (isActionDisabled.isDisabled) {
+      label = `Disabled by ${isActionDisabled.disabledBy}`;
     }
 
     return (
@@ -61,7 +61,7 @@ class CoinWrapperAction extends React.Component {
               {moment(buy.updatedAt).format('HH:mm:ss')}
             </span>
             {isLocked === true ? <i className='ml-1 fa fa-lock'></i> : ''}
-            {isActionDisabledByStopLoss.isDisabled === true ? (
+            {isActionDisabled.isDisabled === true ? (
               <i className='ml-1 fa fa-pause-circle text-warning'></i>
             ) : (
               ''
@@ -72,15 +72,17 @@ class CoinWrapperAction extends React.Component {
             <HightlightChange className='action-label'>
               {label}
             </HightlightChange>
-            {isActionDisabledByStopLoss.isDisabled === true ? (
-              <div>
-                <SymbolEnableActionIcon
-                  symbol={symbol}
-                  sendWebSocket={sendWebSocket}></SymbolEnableActionIcon>{' '}
-                (
-                {moment
-                  .duration(isActionDisabledByStopLoss.ttl, 'seconds')
-                  .humanize()}{' '}
+            {isActionDisabled.isDisabled === true ? (
+              <div className='ml-1'>
+                {isActionDisabled.canResume === true ? (
+                  <SymbolEnableActionIcon
+                    symbol={symbol}
+                    className='mr-1'
+                    sendWebSocket={sendWebSocket}></SymbolEnableActionIcon>
+                ) : (
+                  ''
+                )}
+                ({moment.duration(isActionDisabled.ttl, 'seconds').humanize()}{' '}
                 left){' '}
               </div>
             ) : (

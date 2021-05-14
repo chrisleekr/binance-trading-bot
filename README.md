@@ -264,7 +264,7 @@ Or use the frontend to adjust configurations after launching the application.
    Or if want development/test mode, then run below commands:
 
    ```bash
-   docker-compose up -d
+   docker-compose up -d --build
    ```
 
 3. Open browser `http://0.0.0.0:8080` to see the frontend

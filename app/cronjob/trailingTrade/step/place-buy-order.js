@@ -5,7 +5,8 @@ const { roundDown } = require('../../trailingTradeHelper/util');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
-  isExceedAPILimit
+  isExceedAPILimit,
+  getAPILimit
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -73,8 +74,9 @@ const execute = async (logger, rawData) => {
     'Attempting to place buy order'
   );
 
-  const lotPrecision = stepSize.indexOf(1) - 1;
-  const pricePrecision = tickSize.indexOf(1) - 1;
+  const lotPrecision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
+  const pricePrecision =
+    parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
   let freeBalance = parseFloat(_.floor(quoteAssetFreeBalance, pricePrecision));
 
@@ -144,11 +146,17 @@ const execute = async (logger, rawData) => {
     timeInForce: 'GTC'
   };
 
-  slack.sendMessage(`${symbol} Buy Action (${moment().format(
-    'HH:mm:ss.SSS'
-  )}): *STOP_LOSS_LIMIT*
-  - Order Params: \`\`\`${JSON.stringify(orderParams, undefined, 2)}\`\`\`
-  `);
+  slack.sendMessage(
+    `${symbol} Buy Action (${moment().format(
+      'HH:mm:ss.SSS'
+    )}): *STOP_LOSS_LIMIT*\n` +
+      `- Order Params: \`\`\`${JSON.stringify(
+        orderParams,
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
+  );
 
   logger.info(
     { debug: true, function: 'order', orderParams },
@@ -185,8 +193,13 @@ const execute = async (logger, rawData) => {
   slack.sendMessage(
     `${symbol} Buy Action Result (${moment().format(
       'HH:mm:ss.SSS'
-    )}): *STOP_LOSS_LIMIT*
-    - Order Result: \`\`\`${JSON.stringify(orderResult, undefined, 2)}\`\`\``
+    )}): *STOP_LOSS_LIMIT*\n` +
+      `- Order Result: \`\`\`${JSON.stringify(
+        orderResult,
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
   );
   data.buy.processMessage = `Placed new stop loss limit order for buying.`;
   data.buy.updatedAt = moment().utc();
