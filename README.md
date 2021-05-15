@@ -298,12 +298,6 @@ Or use the frontend to adjust configurations after launching the application.
 | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | ![Chart](https://user-images.githubusercontent.com/5715919/111027391-192db300-8444-11eb-8df4-91c98d0c835b.png) | ![Buy Orders](https://user-images.githubusercontent.com/5715919/111027403-36628180-8444-11eb-91dc-f3cdabc5a79e.png) | ![Sell Orders](https://user-images.githubusercontent.com/5715919/111027411-4b3f1500-8444-11eb-8525-37f02a63de25.png) |
 
-### Last 30 days trade
-
-| Trade History                                                                                                          | PNL Analysis                                                                                                           |
-| ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| ![Trade History](https://user-images.githubusercontent.com/5715919/113497541-8b2b8080-9548-11eb-9931-da15cde72e4b.png) | ![Profit & Loss](https://user-images.githubusercontent.com/5715919/113497545-92eb2500-9548-11eb-9d1d-8298273a7bf8.png) |
-
 ## Changes & Todo
 
 Please refer
