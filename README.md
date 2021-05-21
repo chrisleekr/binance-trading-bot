@@ -309,23 +309,23 @@ to view the past changes.
 - [x] Improve frontend & settings UI - [#93](https://github.com/chrisleekr/binance-trading-bot/issues/93) [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
 - [x] Support all symbols - [#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
 - [x] Add stop loss feature - [#99](https://github.com/chrisleekr/binance-trading-bot/issues/99)
+- [ ] Add manual buy/sell feature -[#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
 - [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
 - [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
-- [ ] Improve buy strategy with restricting purchase if the price is close to ATH - [#82](https://github.com/chrisleekr/binance-trading-bot/issues/82)
-- [ ] Add minimum required order amount - [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)
-- [ ] Add manual buy/sell feature -[#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
-- [ ] Support multilingual frontend - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
-- [ ] Reset global configuration to initial configuration - [#97](https://github.com/chrisleekr/binance-trading-bot/issues/97)
-- [ ] Display summary of transactions on the frontend - [#160](https://github.com/chrisleekr/binance-trading-bot/issues/160)
 - [ ] Support Grid strategy for buy/sell to mitigate loss/increasing profit - [#158](https://github.com/chrisleekr/binance-trading-bot/issues/158)
+- [ ] Improve buy strategy with restricting purchase if the price is close to ATH - [#82](https://github.com/chrisleekr/binance-trading-bot/issues/82)
+- [ ] Secure frontend with the password authentication
+- [ ] Display summary of transactions on the frontend - [#160](https://github.com/chrisleekr/binance-trading-bot/issues/160)
+- [ ] Add minimum required order amount - [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)
 - [ ] Manage setting profiles (save/change/load?/export?) - [#151](https://github.com/chrisleekr/binance-trading-bot/issues/151)
-- [ ] Support limit for active buy/sell orders - [#147](https://github.com/chrisleekr/binance-trading-bot/issues/147)
 - [ ] Filter symbols in the frontend - [#120](https://github.com/chrisleekr/binance-trading-bot/issues/120)
+- [ ] Improve notifications by supporting Apprise [#106](https://github.com/chrisleekr/binance-trading-bot/issues/106)
 - [ ] Support cool time after hitting the lowest price before buy - [#105](https://github.com/chrisleekr/binance-trading-bot/issues/105)
 - [ ] Add frontend option to disable sorting or improve sorting
-- [ ] Improve notifications by supporting Apprise [#106](https://github.com/chrisleekr/binance-trading-bot/issues/106)
-- [ ] Secure frontend with the password authentication
+- [ ] Reset global configuration to initial configuration - [#97](https://github.com/chrisleekr/binance-trading-bot/issues/97)
+- [ ] Support limit for active buy/sell orders - [#147](https://github.com/chrisleekr/binance-trading-bot/issues/147)
 - [ ] Develop simple setup screen for secrets
+- [ ] Support multilingual frontend - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
 
 ## Donations
 
