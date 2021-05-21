@@ -72,6 +72,7 @@ describe('mongo.js', () => {
         expect(mockMongoClient).toHaveBeenCalledWith(
           'mongodb://binance-mongo:27017/?poolSize=20&retryWrites=true&writeConcern=majority',
           {
+            useNewUrlParser: true,
             useUnifiedTopology: true
           }
         );

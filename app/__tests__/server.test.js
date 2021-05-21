@@ -2,8 +2,11 @@
 describe('server', () => {
   let mockMongo;
   let mockMongoConnect;
+  let mockRunBinance;
   let mockRunCronJob;
   let mockRunFrontend;
+
+  let mockLoggerChild;
 
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
@@ -13,14 +16,17 @@ describe('server', () => {
       connect: mockMongoConnect
     };
 
+    mockRunBinance = jest.fn().mockResolvedValue(true);
     mockRunCronJob = jest.fn().mockResolvedValue(true);
     mockRunFrontend = jest.fn().mockResolvedValue(true);
 
+    mockLoggerChild = jest.fn().mockResolvedValue({ child: 'logger' });
     jest.mock('../helpers', () => ({
-      logger: { me: 'logger' },
+      logger: { me: 'logger', child: mockLoggerChild },
       mongo: mockMongo
     }));
 
+    jest.mock('../server-binance', () => ({ runBinance: mockRunBinance }));
     jest.mock('../server-cronjob', () => ({ runCronjob: mockRunCronJob }));
     jest.mock('../server-frontend', () => ({ runFrontend: mockRunFrontend }));
 
@@ -31,7 +37,7 @@ describe('server', () => {
     expect(mockMongoConnect).toHaveBeenCalled();
   });
 
-  it('triggers runCronjob', () => {
-    expect(mockRunCronJob).toHaveBeenCalled();
+  it('triggers runBinance', () => {
+    expect(mockRunBinance).toHaveBeenCalled();
   });
 });

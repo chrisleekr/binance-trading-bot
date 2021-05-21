@@ -4,8 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-- Added `docker-stack.yml` for the Portainer -
-  [@hipposen](https://github.com/hipposen)
+- Updated frontend to display version - [#59](https://github.com/chrisleekr/binance-trading-bot/issues/59)
+- Support monitoring multiple coins simultaneously - [#77](https://github.com/chrisleekr/binance-trading-bot/pull/77)
+- Added `docker-stack.yml` for the Portainer - [@hipposen](https://github.com/hipposen)
+- Fixed precision issues for some FIAT - [#90](https://github.com/chrisleekr/binance-trading-bot/issues/90)
+- Improved frontend & settings UI - [#93](https://github.com/chrisleekr/binance-trading-bot/issues/93) [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
+- Support all symbols - [#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
+- Added stop loss feature - [#99](https://github.com/chrisleekr/binance-trading-bot/issues/99)
+- Stabilised Local Tunnel, cronjob and Binance WebSocket
+- Prevented to place new order when the API limit reached - [#163](https://github.com/chrisleekr/binance-trading-bot/issues/163)
+- Added NPM task for building docker image on Windows by [@garyng](https://github.com/garyng) - [#175](https://github.com/chrisleekr/binance-trading-bot/pull/175)
 
 ## [0.0.65] - 2021-03-27
 

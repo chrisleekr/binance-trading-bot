@@ -10,6 +10,8 @@ class App extends React.Component {
         instance: null,
         connected: false
       },
+      packageVersion: '',
+      gitHash: '',
       configuration: {},
       exchangeSymbols: [],
       // This list is from binance FIAT markets. Dosn't need to be dynamic.
@@ -76,17 +78,35 @@ class App extends React.Component {
       } catch (_e) {}
 
       if (response.type === 'latest') {
+        if (_.isEmpty(response.common.accountInfo)) {
+          return;
+        }
         self.setState({
           symbols: _.sortBy(response.stats.symbols, s => {
+            if (s.buy.openOrders.length > 0) {
+              const openOrder = s.buy.openOrders[0];
+              if (openOrder.differenceToCancel) {
+                return (openOrder.differenceToCancel + 3000) * -10;
+              }
+            }
+            if (s.sell.openOrders.length > 0) {
+              const openOrder = s.sell.openOrders[0];
+              if (openOrder.differenceToCancel) {
+                return (openOrder.differenceToCancel + 2000) * -10;
+              }
+            }
             if (s.sell.difference) {
-              return (s.sell.difference + 300) * -10;
+              return (s.sell.difference + 1000) * -10;
             }
             return s.buy.difference;
           }),
+          packageVersion: response.common.version,
+          gitHash: response.common.gitHash,
           exchangeSymbols: response.common.exchangeSymbols,
           configuration: response.common.configuration,
           accountInfo: response.common.accountInfo,
-          publicURL: response.common.publicURL
+          publicURL: response.common.publicURL,
+          apiInfo: response.common.apiInfo
         });
       }
     };
@@ -127,12 +147,15 @@ class App extends React.Component {
 
   render() {
     const {
+      packageVersion,
+      gitHash,
       exchangeSymbols,
       exchangeFIATs,
       symbols,
       configuration,
       accountInfo,
-      publicURL
+      publicURL,
+      apiInfo
     } = this.state;
 
     const coinWrappers = symbols.map((symbol, index) => {
@@ -172,6 +195,8 @@ class App extends React.Component {
             </Spinner>
           </div>
         )}
+        <Status apiInfo={apiInfo} />
+        <Footer packageVersion={packageVersion} gitHash={gitHash} />
       </div>
     );
   }

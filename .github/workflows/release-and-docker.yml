@@ -31,7 +31,8 @@ jobs:
       - name: Build/Push production docker image
         run: |
           echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin ${{ secrets.REGISTRY_DOMAIN }}
-          PACKAGE_VERSION=$(grep version package.json | cut -c 15- | rev | cut -c 3- | rev)
-          docker build . --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg NODE_ENV=production --target production-stage -t ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:latest -t ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
+          PACKAGE_VERSION=$(grep -m1 version package.json | cut -c 15- | rev | cut -c 3- | rev)
+          GIT_HASH=$(git rev-parse --short HEAD)
+          docker build . --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg GIT_HASH=$GIT_HASH --build-arg NODE_ENV=production --target production-stage -t ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:latest -t ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
           docker push ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
           docker push ${{ secrets.REGISTRY_DOMAIN }}/chrisleekr/binance-trading-bot:latest

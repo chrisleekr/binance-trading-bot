@@ -23,7 +23,7 @@ class HightlightChange extends React.Component {
 
   render() {
     if (this.state.changed) {
-      setTimeout(() => this.setState({ changed: false }), 1000);
+      setTimeout(() => this.setState({ changed: false }), 500);
     }
 
     return (

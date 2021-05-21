@@ -7,13 +7,17 @@ class CoinWrapperBalance extends React.Component {
 
     const {
       symbolInfo: {
+        filterLotSize: { stepSize },
         filterPrice: { tickSize }
       },
       baseAssetBalance,
       quoteAssetBalance: { asset: quoteAsset }
     } = symbolInfo;
 
-    const precision = tickSize.indexOf(1) - 1;
+    const basePrecision =
+      parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
+    const quotePrecision =
+      parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
     return (
       <div className='coin-info-sub-wrapper'>
@@ -24,19 +28,22 @@ class CoinWrapperBalance extends React.Component {
         <div className='coin-info-column coin-info-column-right coin-info-column-balance'>
           <span className='coin-info-label'>Free:</span>
           <HightlightChange className='coin-info-value'>
-            {(+baseAssetBalance.free).toFixed(precision)}
+            {parseFloat(baseAssetBalance.free).toFixed(basePrecision)}
           </HightlightChange>
         </div>
         <div className='coin-info-column coin-info-column-right coin-info-column-balance'>
           <span className='coin-info-label'>Locked:</span>
           <HightlightChange className='coin-info-value'>
-            {(+baseAssetBalance.locked).toFixed(precision)}
+            {parseFloat(baseAssetBalance.locked).toFixed(basePrecision)}
           </HightlightChange>
         </div>
         <div className='coin-info-column coin-info-column-right coin-info-column-balance'>
           <span className='coin-info-label'>Estimated Value:</span>
           <HightlightChange className='coin-info-value'>
-            {(+baseAssetBalance.estimatedValue).toFixed(2)} {quoteAsset}
+            {parseFloat(baseAssetBalance.estimatedValue).toFixed(
+              quotePrecision
+            )}{' '}
+            {quoteAsset}
           </HightlightChange>
         </div>
       </div>

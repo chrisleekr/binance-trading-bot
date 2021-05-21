@@ -1,16 +1,17 @@
 version: '3.7'
+
 services:
   binance-redis:
     image: redis:6.0
     networks:
       - ingress
     volumes:
-      - "/data/binance/redis:/data/redis"
-      - "/data/binance/redis/redis.conf:/usr/local/etc/redis/redis.conf"
+      - '/data/binance/redis:/data/redis'
+      - '/data/binance/redis/redis.conf:/usr/local/etc/redis/redis.conf'
     deploy:
-        mode: global
+      mode: global
     ports:
-     - 6379:6379
+      - 6379:6379
     command: redis-server /usr/local/etc/redis/redis.conf
 
   binance-mongo:
@@ -18,11 +19,12 @@ services:
     networks:
       - ingress
     volumes:
-      - "/data/binance/db:/data/db"
+      - '/data/binance/db:/data/db'
     deploy:
       mode: global
     ports:
-     - 27017:27017
+      - 27017:27017
+
   binance-mongo-express:
     image: mongo-express:0.54
     restart: unless-stopped
@@ -34,6 +36,7 @@ services:
       ME_CONFIG_MONGODB_SERVER: binance-mongo
     deploy:
       mode: global
+
   binance-redis-commander:
     image: rediscommander/redis-commander:latest
     restart: unless-stopped
@@ -47,29 +50,30 @@ services:
       REDIS_PASSWORD:
     deploy:
       mode: global
+
   binance-bot:
     image: chrisleekr/binance-trading-bot:latest
     networks:
       - ingress
     environment:
-      BINANCE_LIVE_API_KEY: ""
-      BINANCE_LIVE_SECRET_KEY: ""
-      BINANCE_TEST_API_KEY: ""
-      BINANCE_TEST_SECRET_KEY: ""
+      BINANCE_LIVE_API_KEY: ''
+      BINANCE_LIVE_SECRET_KEY: ''
+      BINANCE_TEST_API_KEY: ''
+      BINANCE_TEST_SECRET_KEY: ''
       BINANCE_MODE: 'live'
-      BINANCE_TZ: "Europe/Berlin"
+      BINANCE_TZ: 'Europe/Berlin'
       BINANCE_SLACK_ENABLED: 'false'
       BINANCE_JOBS_ALIVE_ENABLED: 'true'
       BINANCE_JOBS_TRAILING_TRADE_ENABLED: 'true'
-      BINANCE_JOBS_TRAILING_TRADE_SYMBOLS: '["BTCEUR", "BNBBTC", "BNBEUR"]'
-      BINANCE_JOBS_TRAILING_TRADE_SUPPORT_FIATS: '["EUR"]'
-      BINANCE_MONGO_HOST: "binance-mongo"
+      BINANCE_JOBS_TRAILING_TRADE_SYMBOLS:
+        '["BTCEUR", "BNBBTC", "BNBEUR", "ETHBTC", "XRPBTC"]'
+      BINANCE_MONGO_HOST: 'binance-mongo'
       BINANCE_MONGO_PORT: 27017
-      BINANCE_MONGO_DATABASE: "binance-bot"
+      BINANCE_MONGO_DATABASE: 'binance-bot'
       BINANCE_LOCAL_TUNNEL_ENABLED: 'false'
       REDIS_HOST: 'binance-redis'
       REDIS_PORT: 6379
-      REDIS_PASSWORD: 
+      REDIS_PASSWORD:
     ports:
       - 8080:80
     logging:
@@ -77,8 +81,8 @@ services:
       options:
         max-size: '50m'
     deploy:
-       mode: global
-       
+      mode: global
+
 networks:
   ingress:
     driver: bridge
@@ -86,6 +90,7 @@ networks:
   kern-frontend:
     driver: bridge
     attachable: true
+
 volumes:
   redis_data:
     external: true

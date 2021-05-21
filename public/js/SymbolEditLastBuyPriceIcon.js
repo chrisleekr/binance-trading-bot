@@ -103,7 +103,7 @@ class SymbolEditLastBuyPriceIcon extends React.Component {
                   placeholder='Enter last buy price'
                   required
                   min='0'
-                  step='0.000001'
+                  step='0.00000001'
                   data-state-key='sell.lastBuyPrice'
                   defaultValue={symbolInfo.sell.lastBuyPrice}
                   onChange={this.handleInputChange}

@@ -12,11 +12,8 @@ services:
     environment:
       # - BINANCE_MODE=test
       - BINANCE_MODE=live
-      - BINANCE_SLACK_ENABLED=true
       - BINANCE_JOBS_ALIVE_ENABLED=true
       - BINANCE_JOBS_TRAILING_TRADE_ENABLED=true
-      - BINANCE_JOBS_TRAILING_TRADE_SYMBOLS=["BTCUSDT", "ETHUSDT", "BNBUSDT"]
-      - BINANCE_JOBS_TRAILING_TRADE_SUPPORT_FIATS=["USDT"]
       - REDIS_HOST=binance-redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
@@ -52,6 +49,8 @@ services:
 networks:
   internal:
     driver: bridge
+    # driver_opts:
+    #     com.docker.network.driver.mtu: 1442
 
 volumes:
   redis_data:

@@ -13,6 +13,48 @@ body.dark-theme {
   border-top: 1px dashed #585858;
 }
 
+/* Disable scrolling */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+.accordion-body.in {
+  overflow: visible;
+}
+
+.fs-1 {
+  font-size: 2.5rem !important;
+}
+
+.fs-2 {
+  font-size: 2rem !important;
+}
+
+.fs-3 {
+  font-size: 1.75rem !important;
+}
+
+.fs-4 {
+  font-size: 1.5rem !important;
+}
+
+.fs-5 {
+  font-size: 1.25rem !important;
+}
+
+.fs-6 {
+  font-size: 1rem !important;
+}
+
+.fs-7 {
+  font-size: 0.8rem !important;
+}
+
 .app {
   padding: 10px;
 }
@@ -69,6 +111,18 @@ body.dark-theme {
   font-size: 20px;
 }
 
+.footer-wrapper {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: center;
+}
+
+.footer-wrapper .footer-column {
+  text-align: center;
+  display: flex;
+  flex-flow: row wrap;
+}
+
 .coin-info-label-with-icon {
   display: flex;
   justify-content: flex-start;
@@ -101,7 +155,7 @@ body.dark-theme {
   font-size: 15px;
 }
 
-.account-wrapper {
+.accordion-wrapper {
   margin-bottom: 10px;
 }
 
@@ -133,10 +187,6 @@ body.dark-theme {
   }
 }
 
-.btn-account-balance {
-  color: #809fff;
-}
-
 .account-wrapper-body {
   -webkit-border-radius: 10px;
   -moz-border-radius: 10px;
@@ -146,9 +196,10 @@ body.dark-theme {
   background-color: #272b38;
 }
 
-.btn-account-balance {
+.accordion-wrapper .btn-link {
   text-transform: uppercase;
   font-weight: bold;
+  color: #809fff;
 }
 
 .account-asset-coin {
@@ -338,7 +389,7 @@ body.dark-theme {
 }
 
 .blink {
-  animation: blinker 1s normal;
+  animation: blinker 0.5s normal;
 }
 
 @keyframes blinker {
@@ -352,7 +403,8 @@ body.dark-theme {
 }
 
 .form-header {
-  font-size: 1rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
 }
 
 .fa-toggle-on {
@@ -365,4 +417,9 @@ body.dark-theme {
 
 .coin-setting-customised {
   color: #deb887;
+}
+
+
+.status-wrapper-ul{
+  
 }

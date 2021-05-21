@@ -31,6 +31,10 @@
     "enabled": true,
     "subdomain": "default"
   },
+  "featureToggle": {
+    "notifyOrderConfirm": true,
+    "notifyDebug": false
+  },
   "jobs": {
     "alive": {
       "enabled": true,
@@ -39,15 +43,15 @@
     "trailingTrade": {
       "enabled": true,
       "cronTime": "* * * * * *",
-      "symbols": ["BTCUSDT", "ETHUSDT"],
-      "supportFIATs": ["USDT"],
+      "symbols": ["BTCUSDT", "ETHUSDT", "ETHBTC", "XRPBTC"],
       "candles": {
         "interval": "1h",
         "limit": 100
       },
       "buy": {
         "enabled": true,
-        "maxPurchaseAmount": 100,
+        "maxPurchaseAmount": -1,
+        "maxPurchaseAmounts": {},
         "triggerPercentage": 1.0,
         "stopPercentage": 1.02,
         "limitPercentage": 1.021
@@ -56,8 +60,21 @@
         "enabled": true,
         "triggerPercentage": 1.06,
         "stopPercentage": 0.98,
-        "limitPercentage": 0.979
+        "limitPercentage": 0.979,
+        "stopLoss": {
+          "enabled": false,
+          "maxLossPercentage": 0.8,
+          "disableBuyMinutes": 360,
+          "orderType": "market"
+        }
+      },
+      "system": {
+        "temporaryDisableActionAfterConfirmingOrder": 20
       }
+    },
+    "trailingTradeIndicator": {
+      "enabled": true,
+      "cronTime": "* * * * * *"
     }
   }
 }

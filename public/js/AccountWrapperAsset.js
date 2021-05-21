@@ -12,19 +12,21 @@ class AccountWrapperAsset extends React.Component {
           <div className='account-asset-row'>
             <span className='account-asset-label'>Total:</span>
             <span className='account-asset-value'>
-              {(+balance.free + +balance.locked).toFixed(5)}
+              {(parseFloat(balance.free) + parseFloat(balance.locked)).toFixed(
+                5
+              )}
             </span>
           </div>
           <div className='account-asset-row'>
             <span className='account-asset-label'>Free:</span>
             <span className='account-asset-value'>
-              {(+balance.free).toFixed(5)}
+              {parseFloat(balance.free).toFixed(5)}
             </span>
           </div>
           <div className='account-asset-row'>
             <span className='account-asset-label'>Locked:</span>
             <span className='account-asset-value'>
-              {(+balance.locked).toFixed(5)}
+              {parseFloat(balance.locked).toFixed(5)}
             </span>
           </div>
         </div>

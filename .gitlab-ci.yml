@@ -22,35 +22,17 @@ testing:
     - npm run lint
     - npm run test
 
-bump-version-patch:
-  stage: release
-  image: node:14
-  only:
-    - master
-  script:
-    - git config --global user.email "$GIT_CI_EMAIL"
-    - git config --global user.name "$GIT_CI_NAME"
-    - PACKAGE_VERSION=$(npm version patch -m "Update version to %s [skip ci]")
-    - git push
-      https://$GIT_CI_USERNAME:$GIT_CI_PASSWORD@$GIT_REPO_DOMAIN/chrisleekr/binance-trading-bot.git
-      HEAD:master
-    - git push
-      https://$GIT_CI_USERNAME:$GIT_CI_PASSWORD@$GIT_REPO_DOMAIN/chrisleekr/binance-trading-bot.git
-      "$PACKAGE_VERSION"
-
 production:
   stage: build production
-  image: docker:stable
+  image: docker:stable-git
   only:
     - master
   <<: *before-script
   script:
-    - PACKAGE_VERSION=$(grep version package.json | cut -c 15- | rev | cut -c 3-
-      | rev)
+    - PACKAGE_VERSION=$(grep -m1 version package.json | cut -c 15- | rev | cut
+      -c 3- | rev)
+    - GIT_HASH=$(git rev-parse --short HEAD)
     - docker build . --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg
-      NODE_ENV=production --target production-stage -t
-      $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:latest -t
-      $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
-    - docker push
-      $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:$PACKAGE_VERSION
+      GIT_HASH=$GIT_HASH --build-arg NODE_ENV=production --target
+      production-stage -t $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:latest
     - docker push $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:latest

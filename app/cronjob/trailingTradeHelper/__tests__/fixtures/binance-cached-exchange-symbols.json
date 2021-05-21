@@ -1,0 +1,22 @@
+{
+  "BNBBUSD": { "symbol": "BNBBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BTCBUSD": { "symbol": "BTCBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ETHBUSD": { "symbol": "ETHBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "LTCBUSD": { "symbol": "LTCBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "TRXBUSD": { "symbol": "TRXBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "XRPBUSD": { "symbol": "XRPBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BNBUSDT": { "symbol": "BNBUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BTCUSDT": { "symbol": "BTCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ETHUSDT": { "symbol": "ETHUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "LTCUSDT": { "symbol": "LTCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "TRXUSDT": { "symbol": "TRXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "XRPUSDT": { "symbol": "XRPUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BNBBTC": { "symbol": "BNBBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ETHBTC": { "symbol": "ETHBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "LTCBTC": { "symbol": "LTCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "TRXBTC": { "symbol": "TRXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "XRPBTC": { "symbol": "XRPBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "LTCBNB": { "symbol": "LTCBNB", "quoteAsset": "BNB", "minNotional": 0.1 },
+  "TRXBNB": { "symbol": "TRXBNB", "quoteAsset": "BNB", "minNotional": 0.1 },
+  "XRPBNB": { "symbol": "XRPBNB", "quoteAsset": "BNB", "minNotional": 0.1 }
+}

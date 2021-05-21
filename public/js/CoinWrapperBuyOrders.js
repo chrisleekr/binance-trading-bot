@@ -16,7 +16,7 @@ class CoinWrapperBuyOrders extends React.Component {
       return '';
     }
 
-    const precision = tickSize.indexOf(1) - 1;
+    const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
     const renderOpenOrders = openOrders.map((openOrder, index) => {
       return (
@@ -49,14 +49,14 @@ class CoinWrapperBuyOrders extends React.Component {
           <div className='coin-info-column coin-info-column-order'>
             <span className='coin-info-label'>Qty:</span>
             <HightlightChange className='coin-info-value'>
-              {(+openOrder.origQty).toFixed(precision)}
+              {parseFloat(openOrder.origQty).toFixed(precision)}
             </HightlightChange>
           </div>
           {openOrder.price > 0 ? (
             <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'> Price:</span>
+              <span className='coin-info-label'>Price:</span>
               <HightlightChange className='coin-info-value'>
-                {(+openOrder.price).toFixed(precision)}
+                {parseFloat(openOrder.price).toFixed(precision)}
               </HightlightChange>
             </div>
           ) : (
@@ -66,7 +66,7 @@ class CoinWrapperBuyOrders extends React.Component {
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>Stop Price:</span>
               <HightlightChange className='coin-info-value'>
-                {(+openOrder.stopPrice).toFixed(precision)}
+                {parseFloat(openOrder.stopPrice).toFixed(precision)}
               </HightlightChange>
             </div>
           ) : (
@@ -78,7 +78,7 @@ class CoinWrapperBuyOrders extends React.Component {
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>Current limit Price:</span>
               <HightlightChange className='coin-info-value'>
-                {(+openOrder.limitPrice).toFixed(precision)}
+                {parseFloat(openOrder.limitPrice).toFixed(precision)}
               </HightlightChange>
             </div>
           ) : (
@@ -94,12 +94,16 @@ class CoinWrapperBuyOrders extends React.Component {
           ) : (
             ''
           )}
-          <div className='coin-info-column coin-info-column-price'>
-            <span className='coin-info-label'>Current price:</span>
-            <HightlightChange className='coin-info-value'>
-              {openOrder.currentPrice.toFixed(precision)}
-            </HightlightChange>
-          </div>
+          {openOrder.currentPrice ? (
+            <div className='coin-info-column coin-info-column-price'>
+              <span className='coin-info-label'>Current price:</span>
+              <HightlightChange className='coin-info-value'>
+                {openOrder.currentPrice.toFixed(precision)}
+              </HightlightChange>
+            </div>
+          ) : (
+            ''
+          )}
           {openOrder.differenceToExecute ? (
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>Difference to execute:</span>

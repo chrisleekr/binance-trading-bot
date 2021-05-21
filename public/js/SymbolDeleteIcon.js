@@ -58,9 +58,9 @@ class SymbolDeleteIcon extends React.Component {
         <div className='header-column-icon-wrapper symbol-delete-wrapper'>
           <button
             type='button'
-            className='btn btn-sm btn-link p-0 pl-1 pr-1'
+            className='btn btn-sm btn-link p-0 pl-1'
             onClick={this.handleModalShow}>
-            <i className='fa fa-minus-square'></i>
+            <i className='fa fa-times-circle'></i>
           </button>
 
           <Modal show={this.state.showModal} onHide={this.handleModalClose}>

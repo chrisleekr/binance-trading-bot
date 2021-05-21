@@ -34,7 +34,7 @@
     />
     <link
       rel="stylesheet"
-      href="https://unpkg.com/react-bootstrap-typeahead/css/Typeahead.css"
+      href="https://unpkg.com/react-bootstrap-typeahead@5.1.4/css/Typeahead.min.css"
     />
 
     <link rel="stylesheet" href="./css/App.css" />
@@ -46,11 +46,11 @@
   <body class="dark-theme dark-mode">
     <div id="app"></div>
     <script
-      src="https://unpkg.com/react@17/umd/react.development.js"
+      src="https://unpkg.com/react@17/umd/react.production.min.js"
       crossorigin
     ></script>
     <script
-      src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"
+      src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"
       crossorigin
     ></script>
     <script
@@ -69,6 +69,10 @@
       src="https://unpkg.com/lodash@4.17.20/lodash.min.js"
       crossorigin
     ></script>
+    <script
+      src="https://unpkg.com/axios/dist/axios.min.js"
+      crossorigin
+    ></script>
 
     <script
       src="https://unpkg.com/react-bootstrap-typeahead@5.1.4/dist/react-bootstrap-typeahead.min.js"
@@ -76,7 +80,16 @@
     ></script>
 
     <script>
-      const { Modal, Button, Form, Spinner, Accordion, Card } = ReactBootstrap;
+      const {
+        Modal,
+        Button,
+        Form,
+        Spinner,
+        Accordion,
+        Card,
+        OverlayTrigger,
+        Popover
+      } = ReactBootstrap;
 
       const { Typeahead } = ReactBootstrapTypeahead;
     </script>
@@ -95,14 +108,21 @@
     <script type="text/babel" src="./js/CoinWrapperBuySignal.js"></script>
     <script type="text/babel" src="./js/CoinWrapperAction.js"></script>
     <script type="text/babel" src="./js/CoinWrapperBalance.js"></script>
+    <script type="text/babel" src="./js/SymbolEnableActionIcon.js"></script>
     <script type="text/babel" src="./js/SymbolDeleteIcon.js"></script>
     <script type="text/babel" src="./js/SymbolEditLastBuyPriceIcon.js"></script>
     <script type="text/babel" src="./js/SymbolSettingIcon.js"></script>
     <script type="text/babel" src="./js/CoinWrapperSymbol.js"></script>
     <script type="text/babel" src="./js/CoinWrapper.js"></script>
+    <script
+      type="text/babel"
+      src="./js/SettingIconMaxPurchaseAmount.js"
+    ></script>
     <script type="text/babel" src="./js/SettingIcon.js"></script>
     <script type="text/babel" src="./js/AccountWrapperAsset.js"></script>
     <script type="text/babel" src="./js/AccountWrapper.js"></script>
+    <script type="text/babel" src="./js/Status.js"></script>
+    <script type="text/babel" src="./js/Footer.js"></script>
     <script type="text/babel" src="./js/Header.js"></script>
     <script type="text/babel" src="./js/App.js"></script>
   </body>

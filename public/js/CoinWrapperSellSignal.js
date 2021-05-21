@@ -10,7 +10,6 @@ class CoinWrapperSellSignal extends React.Component {
       },
       symbolConfiguration,
       quoteAssetBalance: { asset: quoteAsset },
-      buy,
       sell
     } = symbolInfo;
 
@@ -18,7 +17,7 @@ class CoinWrapperSellSignal extends React.Component {
       return '';
     }
 
-    const precision = tickSize.indexOf(1) - 1;
+    const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
     if (sell.lastBuyPrice > 0) {
       return (
@@ -32,32 +31,30 @@ class CoinWrapperSellSignal extends React.Component {
                 ) : (
                   <i className='fa fa-toggle-off'></i>
                 )}
+              </span>{' '}
+              / Stop-Loss{' '}
+              <span className='coin-info-value'>
+                {symbolConfiguration.sell.stopLoss.enabled ? (
+                  <i className='fa fa-toggle-on'></i>
+                ) : (
+                  <i className='fa fa-toggle-off'></i>
+                )}
               </span>
             </div>
-            {moment(sell.updatedAt).isValid() ? (
-              <HightlightChange
-                className='coin-info-value'
-                title={sell.updatedAt}>
-                {moment(sell.updatedAt).format('HH:mm:ss')}
+            {symbolConfiguration.sell.enabled === false ? (
+              <HightlightChange className='coin-info-message text-muted'>
+                Trading is disabled.
               </HightlightChange>
             ) : (
               ''
             )}
           </div>
-          {symbolConfiguration.sell.enabled === false ? (
-            <div className='coin-info-column coin-info-column-sell-enabled'>
-              <HightlightChange className='coin-info-message text-muted'>
-                Trading is disabled.
-              </HightlightChange>
-            </div>
-          ) : (
-            ''
-          )}
+
           {sell.currentPrice ? (
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Current price:</span>
               <HightlightChange className='coin-info-value'>
-                {(+sell.currentPrice).toFixed(precision)}
+                {parseFloat(sell.currentPrice).toFixed(precision)}
               </HightlightChange>
             </div>
           ) : (
@@ -70,8 +67,8 @@ class CoinWrapperSellSignal extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Profit/Loss:</span>
               <HightlightChange className='coin-info-value'>
-                {(+sell.currentProfit).toFixed(2)} {quoteAsset} (
-                {(+sell.currentProfitPercentage).toFixed(2)}
+                {parseFloat(sell.currentProfit).toFixed(precision)} {quoteAsset}{' '}
+                ({parseFloat(sell.currentProfitPercentage).toFixed(2)}
                 %)
               </HightlightChange>
             </div>
@@ -90,7 +87,7 @@ class CoinWrapperSellSignal extends React.Component {
                 %):
               </span>
               <HightlightChange className='coin-info-value'>
-                {(+sell.triggerPrice).toFixed(precision)}
+                {parseFloat(sell.triggerPrice).toFixed(precision)}
               </HightlightChange>
             </div>
           ) : (
@@ -100,14 +97,44 @@ class CoinWrapperSellSignal extends React.Component {
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Difference to sell:</span>
               <HightlightChange className='coin-info-value'>
-                {(+sell.difference).toFixed(2)}%
+                {parseFloat(sell.difference).toFixed(2)}%
               </HightlightChange>
             </div>
           ) : (
             ''
           )}
+
+          {symbolConfiguration.sell.stopLoss.enabled &&
+          sell.stopLossTriggerPrice ? (
+            <div className='d-flex flex-column w-100'>
+              <div className='coin-info-column coin-info-column-price divider'></div>
+              <div className='coin-info-column coin-info-column-stop-loss-price'>
+                <span className='coin-info-label'>
+                  Stop-Loss price (
+                  {(
+                    (symbolConfiguration.sell.stopLoss.maxLossPercentage - 1) *
+                    100
+                  ).toFixed(2)}
+                  %) :
+                </span>
+                <HightlightChange className='coin-info-value'>
+                  {parseFloat(sell.stopLossTriggerPrice).toFixed(precision)}
+                </HightlightChange>
+              </div>
+              <div className='coin-info-column coin-info-column-stop-loss-price'>
+                <span className='coin-info-label'>
+                  Difference to Stop-Loss:
+                </span>
+                <HightlightChange className='coin-info-value'>
+                  {parseFloat(sell.stopLossDifference).toFixed(2)}%
+                </HightlightChange>
+              </div>
+            </div>
+          ) : (
+            ''
+          )}
           {sell.processMessage ? (
-            <div className='d-flex flex-column flex-grow-1'>
+            <div className='d-flex flex-column w-100'>
               <div className='coin-info-column coin-info-column-price divider'></div>
               <div className='coin-info-column coin-info-column-message'>
                 <HightlightChange className='coin-info-message'>
@@ -133,19 +160,33 @@ class CoinWrapperSellSignal extends React.Component {
               ) : (
                 <i className='fa fa-toggle-off'></i>
               )}
+            </span>{' '}
+            / Stop-Loss{' '}
+            {symbolConfiguration.sell.stopLoss.enabled
+              ? `(` +
+                (
+                  (symbolConfiguration.sell.stopLoss.maxLossPercentage - 1) *
+                  100
+                ).toFixed(2) +
+                `%) `
+              : ''}
+            <span className='coin-info-value'>
+              {symbolConfiguration.sell.stopLoss.enabled ? (
+                <i className='fa fa-toggle-on'></i>
+              ) : (
+                <i className='fa fa-toggle-off'></i>
+              )}
             </span>
           </div>
-          <span className='coin-info-value'></span>
-        </div>
-        {symbolConfiguration.sell.enabled === false ? (
-          <div className='coin-info-column coin-info-column-sell-enabled'>
+          {symbolConfiguration.sell.enabled === false ? (
             <HightlightChange className='coin-info-message text-muted'>
               Trading is disabled.
             </HightlightChange>
-          </div>
-        ) : (
-          ''
-        )}
+          ) : (
+            ''
+          )}
+        </div>
+
         <CoinWrapperSellLastBuyPrice
           symbolInfo={symbolInfo}
           sendWebSocket={sendWebSocket}></CoinWrapperSellLastBuyPrice>

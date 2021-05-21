@@ -43,6 +43,18 @@
     },
     "subdomain": "BINANCE_LOCAL_TUNNEL_SUBDOMAIN"
   },
+  "featureToggle": {
+    "notifyOrderConfirm": {
+      "__name": "BINANCE_FEATURE_TOGGLE_NOTIFY_ORDER_CONFIRM",
+      "__description": "Set a boolean to notify the order checking/confirm messages. Note that enabling this feature toggle can flood the messages.",
+      "__format": "boolean"
+    },
+    "notifyDebug": {
+      "__name": "BINANCE_FEATURE_TOGGLE_NOTIFY_DEBUG",
+      "__description": "Set a boolean to notify the debug message. Note that enabling this feature toggle can flood the messages.",
+      "__format": "boolean"
+    }
+  },
   "jobs": {
     "alive": {
       "enabled": {
@@ -63,10 +75,6 @@
         "__name": "BINANCE_JOBS_TRAILING_TRADE_SYMBOLS",
         "__format": "json"
       },
-      "supportFIATs": {
-        "__name": "BINANCE_JOBS_TRAILING_TRADE_SUPPORT_FIATS",
-        "__format": "json"
-      },
       "candles": {
         "interval": "BINANCE_JOBS_TRAILING_TRADE_CANDLES_INTERVAL",
         "limit": {
@@ -78,10 +86,6 @@
         "enabled": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_ENABLED",
           "__format": "boolean"
-        },
-        "maxPurchaseAmount": {
-          "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_MAX_PURCHASE_AMOUNT",
-          "__format": "number"
         },
         "triggerPercentage": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_TRIGGER_PERCENTAGE",
@@ -112,8 +116,37 @@
         "limitPercentage": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_LIMIT_PERCENTAGE",
           "__format": "number"
+        },
+        "stopLoss": {
+          "enabled": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_STOP_LOSS_ENABLED",
+            "__format": "boolean"
+          },
+          "maxLossPercentage": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_STOP_LOSS_MAX_LOSS_PERCENTAGE",
+            "__format": "number"
+          },
+          "disableBuyMinutes": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_STOP_LOSS_DISABLE_BUY_MINUTES",
+            "__format": "number"
+          },
+          "orderType": "BINANCE_JOBS_TRAILING_TRADE_SELL_STOP_LOSS_ORDER_TYPE"
+        }
+      },
+      "system": {
+        "temporaryDisableActionAfterConfirmingOrder": {
+          "__name": "BINANCE_JOBS_TRAILING_TRADE_SYSTEM_TEMPORARY_DISABLE_ACTION_AFTER_CONFIRMING_ORDER",
+          "__description": "Set the seconds for disabling any actions after confirming an order. Note that decreasing this value can cause issues with the bot not recording the last buy price.",
+          "__format": "number"
         }
       }
+    },
+    "trailingTradeIndicator": {
+      "enabled": {
+        "__name": "BINANCE_JOBS_TRAILING_TRADE_ENABLED",
+        "__format": "boolean"
+      },
+      "cronTime": "BINANCE_JOBS_TRAILING_TRADE_INDICATOR_CRON_TIME"
     }
   }
 }

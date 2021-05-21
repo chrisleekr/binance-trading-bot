@@ -5,14 +5,16 @@ const clusterUrl = `${config.get('mongo.host')}:${config.get('mongo.port')}`;
 
 const uri = `mongodb://${clusterUrl}/?poolSize=20&retryWrites=true&writeConcern=majority`;
 
-const client = new MongoClient(uri, { useUnifiedTopology: true });
+const client = new MongoClient(uri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+});
 
 let database;
 
 const connect = async funcLogger => {
   const logger = funcLogger.child({ helper: 'mongo' });
   logger.info({ uri }, 'Connecting mongodb');
-
   try {
     await client.connect();
 
