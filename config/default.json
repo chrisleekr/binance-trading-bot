@@ -67,6 +67,9 @@
           "disableBuyMinutes": 360,
           "orderType": "market"
         }
+      },
+      "system": {
+        "temporaryDisableActionAfterConfirmingOrder": 20
       }
     },
     "trailingTradeIndicator": {

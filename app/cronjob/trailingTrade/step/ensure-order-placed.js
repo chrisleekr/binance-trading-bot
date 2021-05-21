@@ -1,3 +1,4 @@
+const config = require('config');
 const moment = require('moment');
 const _ = require('lodash');
 
@@ -179,7 +180,10 @@ const execute = async (logger, rawData) => {
           canResume: false,
           canRemoveLastBuyPrice: false
         },
-        20
+        config.get(
+          'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+          20
+        )
       );
     } else {
       logger.info(
@@ -270,7 +274,10 @@ const execute = async (logger, rawData) => {
           canResume: false,
           canRemoveLastBuyPrice: false
         },
-        20
+        config.get(
+          'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+          20
+        )
       );
     } else {
       logger.info(

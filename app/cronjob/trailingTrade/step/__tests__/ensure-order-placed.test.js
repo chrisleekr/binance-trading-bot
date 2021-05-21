@@ -8,6 +8,7 @@ describe('ensure-order-placed.js', () => {
   let loggerMock;
   let slackMock;
 
+  let mockConfigGet;
   let mockGetAndCacheOpenOrdersForSymbol;
   let mockGetAccountInfoFromAPI;
   let mockDisableAction;
@@ -15,6 +16,20 @@ describe('ensure-order-placed.js', () => {
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
+
+    mockConfigGet = jest.fn(key => {
+      if (
+        key ===
+        'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder'
+      ) {
+        return 20;
+      }
+      return null;
+    });
+
+    jest.mock('config', () => ({
+      get: mockConfigGet
+    }));
 
     mockDisableAction = jest.fn().mockResolvedValue(true);
     mockGetAPILimit = jest.fn().mockReturnValue(10);

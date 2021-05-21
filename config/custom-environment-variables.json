@@ -46,10 +46,12 @@
   "featureToggle": {
     "notifyOrderConfirm": {
       "__name": "BINANCE_FEATURE_TOGGLE_NOTIFY_ORDER_CONFIRM",
+      "__description": "Set a boolean to notify the order checking/confirm messages. Note that enabling this feature toggle can flood the messages.",
       "__format": "boolean"
     },
     "notifyDebug": {
       "__name": "BINANCE_FEATURE_TOGGLE_NOTIFY_DEBUG",
+      "__description": "Set a boolean to notify the debug message. Note that enabling this feature toggle can flood the messages.",
       "__format": "boolean"
     }
   },
@@ -129,6 +131,13 @@
             "__format": "number"
           },
           "orderType": "BINANCE_JOBS_TRAILING_TRADE_SELL_STOP_LOSS_ORDER_TYPE"
+        }
+      },
+      "system": {
+        "temporaryDisableActionAfterConfirmingOrder": {
+          "__name": "BINANCE_JOBS_TRAILING_TRADE_SYSTEM_TEMPORARY_DISABLE_ACTION_AFTER_CONFIRMING_ORDER",
+          "__description": "Set the second for disabling the action after confirming the order. Note that decreasing this value can cause the issue with the bot acting wrong.",
+          "__format": "number"
         }
       }
     },
