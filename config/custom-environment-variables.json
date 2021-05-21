@@ -136,7 +136,7 @@
       "system": {
         "temporaryDisableActionAfterConfirmingOrder": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_SYSTEM_TEMPORARY_DISABLE_ACTION_AFTER_CONFIRMING_ORDER",
-          "__description": "Set the second for disabling the action after confirming the order. Note that decreasing this value can cause the issue with the bot acting wrong.",
+          "__description": "Set the seconds for disabling any actions after confirming an order. Note that decreasing this value can cause issues with the bot not recording the last buy price.",
           "__format": "number"
         }
       }
