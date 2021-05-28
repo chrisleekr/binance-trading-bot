@@ -5,7 +5,7 @@ describe('place-sell-stop-loss-order.js', () => {
   let rawData;
 
   let binanceMock;
-  let slackMock;
+  let messagerMock;
   let loggerMock;
 
   let mockGetAndCacheOpenOrdersForSymbol;
@@ -19,13 +19,13 @@ describe('place-sell-stop-loss-order.js', () => {
       jest.clearAllMocks().resetModules();
     });
     beforeEach(async () => {
-      const { binance, slack, logger } = require('../../../../helpers');
+      const { binance, messager, logger } = require('../../../../helpers');
 
       binanceMock = binance;
-      slackMock = slack;
+      messagerMock = messager;
       loggerMock = logger;
 
-      slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+      messagerMock.sendMessage = jest.fn().mockResolvedValue(true);
       binanceMock.client.order = jest.fn().mockResolvedValue(true);
 
       mockIsExceedAPILimit = jest.fn().mockReturnValue(false);

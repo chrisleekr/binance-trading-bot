@@ -6,7 +6,7 @@ describe('remove-last-buy-price.js', () => {
 
   let cacheMock;
   let mongoMock;
-  let slackMock;
+  let messagerMock;
   let loggerMock;
 
   let mockGetAndCacheOpenOrdersForSymbol;
@@ -19,15 +19,15 @@ describe('remove-last-buy-price.js', () => {
     });
 
     beforeEach(async () => {
-      const { mongo, cache, slack, logger } = require('../../../../helpers');
+      const { mongo, cache, messager, logger } = require('../../../../helpers');
 
       mongoMock = mongo;
       cacheMock = cache;
-      slackMock = slack;
+      messagerMock = messager;
       loggerMock = logger;
 
       mongoMock.deleteOne = jest.fn().mockResolvedValue(true);
-      slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+      messagerMock.sendMessage = jest.fn().mockResolvedValue(true);
       cacheMock.get = jest.fn().mockResolvedValue(null);
 
       mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);

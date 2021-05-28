@@ -283,6 +283,43 @@ class SymbolSettingIcon extends React.Component {
                               </Form.Check.Label>
                             </Form.Check>
                           </Form.Group>
+						  
+						   <Form.Group
+                            controlId='field-lastbuy-amount'
+                            className='mb-2'>
+                            <Form.Label className='mb-0'>
+                              Remove last buy when under{' '}
+                              <OverlayTrigger
+                                trigger='click'
+                                key='lastbuy-amount-overlay'
+                                placement='bottom'
+                                overlay={
+                                  <Popover id='lastbuy-amount-overlay-right'>
+                                    <Popover.Content>
+                                     If the coin value drops below the defined amount, the bot will remove the last buy price. Define 0 to never remove last buy price. 
+                                    </Popover.Content>
+                                  </Popover>
+                                }>
+                                <Button
+                                  variant='link'
+                                  className='p-0 m-0 ml-1 text-info'>
+                                  <i className='fa fa-question-circle'></i>
+                                </Button>
+                              </OverlayTrigger>
+                            </Form.Label>
+                            <Form.Control
+                              size='sm'
+                              type='number'
+                              placeholder='Enter last buy threshold'
+                              required
+                              min='1'
+                              step='0.0001'
+                              data-state-key='buy.lastBuyThreshold'
+                              value={symbolConfiguration.buy.lastBuyThreshold}
+                              onChange={this.handleInputChange}
+                            />
+                          </Form.Group>
+						  
                           <Form.Group
                             controlId='field-buy-maximum-purchase-amount'
                             className='mb-2'>

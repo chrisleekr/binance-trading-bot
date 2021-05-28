@@ -1,11 +1,12 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { mongo, cache, slack } = require('../../../helpers');
+const { mongo, cache, messager } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAPILimit,
   isActionDisabled
 } = require('../../trailingTradeHelper/common');
+const { getConfiguration } = require('../../trailingTradeHelper/configuration');
 
 /**
  * Retrieve last buy order from cache
@@ -41,17 +42,8 @@ const removeLastBuyPrice = async (
     key: `${symbol}-last-buy-price`
   });
 
-  slack.sendMessage(
-    `${symbol} Action (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): Removed last buy price\n` +
-      `- Message: ${processMessage}\n\`\`\`${JSON.stringify(
-        extraMessages,
-        undefined,
-        2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
-  );
+  messager.sendMessage(
+    symbol, null, 'REMOVE_LASTBUY');
 };
 
 /**
@@ -169,15 +161,31 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  if (baseAssetQuantity * currentPrice < parseFloat(minNotional)) {
+/**
+ * Get symbol configuration
+ *
+ * @param {*} logger
+ * @param {*} rawData
+ */
+ 
+ //Get symbol config
+  const symbolConfiguration = await getConfiguration(logger, symbol);
+  
+  //Define variable
+  var lastBuyThreshold = symbolConfiguration.buy.lastBuyThreshold;
+  
+  //Caculated coin value
+  var priceCalculated = baseAssetQuantity * currentPrice;
+  
+   if (priceCalculated < parseFloat(minNotional) && priceCalculated < lastBuyThreshold) {
     // Final check for open orders
     refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
     if (refreshedOpenOrders.length > 0) {
       logger.info('Do not remove last buy price. Found open orders.');
       return data;
     }
-
-    processMessage =
+	
+		 processMessage =
       'Balance is less than the notional value. Delete last buy price.';
 
     logger.error({ baseAssetQuantity }, processMessage);
@@ -192,6 +200,7 @@ const execute = async (logger, rawData) => {
       minNotional,
       openOrders
     });
+	
 
     return data;
   }

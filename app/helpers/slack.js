@@ -7,12 +7,8 @@ const logger = require('./logger');
  *
  * @param {*} text
  */
-const sendMessage = text => {
+const notifySlack = text => {
   logger.info({ tag: 'slack-send-message', text }, 'Send slack message');
-
-  if (config.get('slack.enabled') !== true) {
-    return Promise.resolve({});
-  }
 
   return axios.post(config.get('slack.webhookUrl'), {
     channel: config.get('slack.channel'),
@@ -22,4 +18,4 @@ const sendMessage = text => {
   });
 };
 
-module.exports = { sendMessage };
+module.exports = { notifySlack };

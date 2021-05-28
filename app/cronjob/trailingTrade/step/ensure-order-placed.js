@@ -2,7 +2,7 @@ const config = require('config');
 const moment = require('moment');
 const _ = require('lodash');
 
-const { cache, slack } = require('../../../helpers');
+const { cache, messager } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
@@ -119,6 +119,8 @@ const isOrderExistingInOpenOrders = (_logger, order, openOrders) =>
  * @param {*} logger
  * @param {*} rawData
  */
+ var canCheckBuy = true;
+ var canCheckSell = true;
 const execute = async (logger, rawData) => {
   const data = rawData;
 
@@ -153,22 +155,9 @@ const execute = async (logger, rawData) => {
       data.accountInfo = await getAccountInfoFromAPI(logger);
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-        slack.sendMessage(
-          `${symbol} Action (${moment().format(
-            'HH:mm:ss.SSS'
-          )}): Confirmed buy order\n` +
-            `- Message: The buy order found in the open orders.\n` +
-            `\`\`\`${JSON.stringify(
-              {
-                lastBuyOrder,
-                openOrders
-                // accountInfo: data.accountInfo
-              },
-              undefined,
-              2
-            )}\`\`\`\n` +
-            `- Current API Usage: ${getAPILimit(logger)}`
-        );
+        messager.sendMessage(
+              symbol, lastBuyOrder, 'BUY_CONFIRMED');
+		canCheckBuy = true;
       }
 
       // Lock symbol action 20 seconds to avoid API limit
@@ -192,21 +181,12 @@ const execute = async (logger, rawData) => {
       );
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-        slack.sendMessage(
-          `${symbol} Action (${moment().format(
-            'HH:mm:ss.SSS'
-          )}): Checking for buy order\n` +
-            `- Message: The buy order cannot be found in the open orders.\n` +
-            `\`\`\`${JSON.stringify(
-              {
-                lastBuyOrder,
-                openOrders
-              },
-              undefined,
-              2
-            )}\`\`\`\n` +
-            `- Current API Usage: ${getAPILimit(logger)}`
-        );
+		  
+		  if (canCheckBuy) {
+			   messager.sendMessage(
+              symbol, lastBuyOrder, 'BUY_NOT_FOUND');
+		canCheckBuy = false;
+		  }
       }
 
       return setBuyActionAndMessage(
@@ -247,22 +227,9 @@ const execute = async (logger, rawData) => {
       data.accountInfo = await getAccountInfoFromAPI(logger);
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-        slack.sendMessage(
-          `${symbol} Action (${moment().format(
-            'HH:mm:ss.SSS'
-          )}): Confirmed sell order\n` +
-            `- Message: The sell order found in the open orders.\n` +
-            `\`\`\`${JSON.stringify(
-              {
-                lastSellOrder,
-                openOrders
-                // accountInfo: data.accountInfo
-              },
-              undefined,
-              2
-            )}\`\`\`\n` +
-            `- Current API Usage: ${getAPILimit(logger)}`
-        );
+        messager.sendMessage(
+              symbol, lastSellOrder, 'SELL_CONFIRMED');
+		canCheckSell = true;
       }
 
       // Lock symbol action 20 seconds to avoid API limit
@@ -286,21 +253,12 @@ const execute = async (logger, rawData) => {
       );
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-        slack.sendMessage(
-          `${symbol} Action (${moment().format(
-            'HH:mm:ss.SSS'
-          )}): Checking for sell order\n` +
-            `- Message: The sell order cannot be found in the open orders.\n` +
-            `\`\`\`${JSON.stringify(
-              {
-                lastSellOrder,
-                openOrders
-              },
-              undefined,
-              2
-            )}\`\`\`\n` +
-            `- Current API Usage: ${getAPILimit(logger)}`
-        );
+		  
+		if (canCheckSell) {
+			messager.sendMessage(
+              symbol, lastSellOrder, 'SELL_NOT_FOUND');	
+		canCheckSell = false;
+		}
       }
 
       return setSellActionAndMessage(

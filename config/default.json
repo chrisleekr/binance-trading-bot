@@ -27,6 +27,14 @@
     "channel": "",
     "username": ""
   },
+  "telegram": {
+    "enabled": false,
+    "chatid": "",
+    "token": ""
+  },
+  "language": {
+    "definedLanguage": "en_US"
+  },
   "localTunnel": {
     "enabled": true,
     "subdomain": "default"
@@ -50,6 +58,8 @@
       },
       "buy": {
         "enabled": true,
+        "lastBuyThreshold": 10.00,
+        "lastPurchasedQty": 0,
         "maxPurchaseAmount": -1,
         "maxPurchaseAmounts": {},
         "triggerPercentage": 1.0,

@@ -1,0 +1,13 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\app",
+    "\\app\\cronjob",
+    "\\app\\cronjob\\trailingTrade",
+    "\\app\\cronjob\\trailingTrade\\step",
+    "\\app\\cronjob\\__tests__",
+    "\\app\\helpers"
+  ],
+  "SelectedNode": "\\app\\helpers\\slack.js",
+  "PreviewInSolutionExplorer": false
+}

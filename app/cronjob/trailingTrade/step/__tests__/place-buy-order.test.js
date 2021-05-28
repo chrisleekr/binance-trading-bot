@@ -4,7 +4,7 @@ describe('place-buy-order.js', () => {
   let rawData;
 
   let binanceMock;
-  let slackMock;
+  let messagerMock;
   let loggerMock;
   let mongoMock;
   let cacheMock;
@@ -22,20 +22,20 @@ describe('place-buy-order.js', () => {
     beforeEach(async () => {
       const {
         binance,
-        slack,
+        messager,
         cache,
         logger,
         mongo
       } = require('../../../../helpers');
 
       binanceMock = binance;
-      slackMock = slack;
+      messagerMock = messager;
       loggerMock = logger;
       mongoMock = mongo;
       cacheMock = cache;
 
       cacheMock.set = jest.fn().mockResolvedValue(true);
-      slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+      messagerMock.sendMessage = jest.fn().mockResolvedValue(true);
       binanceMock.client.order = jest.fn().mockResolvedValue(true);
       mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
 

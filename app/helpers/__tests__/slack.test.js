@@ -1,26 +1,26 @@
 const config = require('config');
 const axios = require('axios');
-const slack = require('../slack');
+const messager = require('../messager');
 
 jest.mock('config');
 jest.mock('axios');
 
-describe('slack', () => {
+describe('messager', () => {
   let result;
 
   describe('sendMessage', () => {
-    describe('when slack is not enabled', () => {
+    describe('when messager is not enabled', () => {
       beforeEach(async () => {
         config.get = jest.fn(key => {
           switch (key) {
-            case 'slack.enabled':
+            case 'messager.enabled':
               return false;
             default:
               return '';
           }
         });
 
-        result = await slack.sendMessage('my message');
+        result = await messager.sendMessage('my message');
       });
 
       it('returns expected value', () => {
@@ -28,13 +28,13 @@ describe('slack', () => {
       });
     });
 
-    describe('when slack is enabled', () => {
+    describe('when messager is enabled', () => {
       beforeEach(async () => {
         process.env.NODE_ENV = 'live';
 
         config.get = jest.fn(key => {
           switch (key) {
-            case 'slack.enabled':
+            case 'messager.enabled':
               return true;
             default:
               return `value-${key}`;
@@ -43,15 +43,15 @@ describe('slack', () => {
 
         axios.post = jest.fn().mockResolvedValue(true);
 
-        result = await slack.sendMessage('my message');
+        result = await messager.sendMessage('my message');
       });
 
       it('triggers axios.post', () => {
-        expect(axios.post).toHaveBeenCalledWith('value-slack.webhookUrl', {
-          channel: 'value-slack.channel',
+        expect(axios.post).toHaveBeenCalledWith('value-messager.webhookUrl', {
+          channel: 'value-messager.channel',
           text: 'my message',
           type: 'mrkdwn',
-          username: 'value-slack.username - value-mode'
+          username: 'value-messager.username - value-mode'
         });
       });
 

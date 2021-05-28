@@ -1,7 +1,7 @@
 const _ = require('lodash');
 const moment = require('moment-timezone');
 const config = require('config');
-const { PubSub, binance, cache, slack } = require('./helpers');
+const { PubSub, binance, cache, messager } = require('./helpers');
 
 const {
   getGlobalConfiguration
@@ -73,11 +73,8 @@ const loopToCheckLastReceivedAt = async logger => {
     );
 
     if (config.get('featureToggle.notifyDebug')) {
-      slack.sendMessage(
-        `Binance Websocket (${moment().format(
-          'HH:mm:ss.SSS'
-        )}): The bot didn't receive new candle from Binance Websocket since ${lastReceivedAt.fromNow()}.` +
-          ` Reset Websocket connection.`
+      messager.sendMessage(
+        lastReceivedAt.fromNow(), null, 'NO_CANDLE_RECEIVED'
       );
     }
 

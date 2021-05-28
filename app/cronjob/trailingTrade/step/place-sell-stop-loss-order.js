@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, slack } = require('../../../helpers');
+const { binance, messager } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
@@ -8,6 +8,7 @@ const {
   disableAction,
   getAPILimit
 } = require('../../trailingTradeHelper/common');
+const { getConfiguration } = require('../../trailingTradeHelper/configuration');
 
 /**
  * Place a sell stop-loss order when the current price reached stop-loss trigger price
@@ -83,7 +84,8 @@ const execute = async (logger, rawData) => {
     orderQuantity = parseFloat(maxQty);
   }
 
-  if (orderQuantity * currentPrice < parseFloat(minNotional)) {
+  var calculatedPrice = orderQuantity * currentPrice;
+  if (calculatedPrice < parseFloat(minNotional)) {
     data.sell.processMessage =
       `Notional value is less than the minimum notional value. ` +
       `Do not place a stop-loss order.`;
@@ -122,17 +124,8 @@ const execute = async (logger, rawData) => {
     quantity: orderQuantity
   };
 
-  slack.sendMessage(
-    `${symbol} Sell Stop-Loss Action (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *MARKET*` +
-      `- Order Params: \`\`\`${JSON.stringify(
-        orderParams,
-        undefined,
-        2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
-  );
+  messager.sendMessage(
+    symbol, null, 'SELL_STOP_LOSS');
 
   logger.info(
     { debug: true, function: 'order', orderParams },
@@ -163,17 +156,8 @@ const execute = async (logger, rawData) => {
   // Refresh account info
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
-  slack.sendMessage(
-    `${symbol} Sell Stop-Loss Action Result (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *MARKET*\n` +
-      `- Order Result: \`\`\`${JSON.stringify(
-        orderResult,
-        undefined,
-        2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
-  );
+  messager.sendMessage(
+              symbol, orderResult, 'SELL_STOP_LOSS');
   data.sell.processMessage = `Placed new market order for selling.`;
   data.sell.updatedAt = moment().utc();
 

@@ -2,7 +2,7 @@
 const moment = require('moment');
 const _ = require('lodash');
 
-const { slack, binance } = require('../../../helpers');
+const { messager, binance, telegram } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
@@ -113,23 +113,8 @@ const execute = async (logger, rawData) => {
           data.action = 'buy-order-checking';
 
           if (_.get(featureToggle, 'notifyDebug', false) === true) {
-            slack.sendMessage(
-              `${symbol} Action (${moment().format(
-                'HH:mm:ss.SSS'
-              )}): Failed cancelling buy order\n` +
-                `- Message: Binance API returned an error when cancelling the buy order.` +
-                ` Refreshed open orders and wait for next tick.\n` +
-                `\`\`\`${JSON.stringify(
-                  {
-                    order,
-                    openOrders: data.openOrders,
-                    accountInfo: data.accountInfo
-                  },
-                  undefined,
-                  2
-                )}\`\`\`\n` +
-                `- Current API Usage: ${getAPILimit(logger)}`
-            );
+            messager.sendMessage(
+              symbol, order, 'CANCEL_BUY_FAILED');
           }
         } else {
           // Reset buy open orders
@@ -181,24 +166,10 @@ const execute = async (logger, rawData) => {
           data.action = 'sell-order-checking';
 
           if (_.get(featureToggle, 'notifyDebug', false) === true) {
-            slack.sendMessage(
-              `${symbol} Action (${moment().format(
-                'HH:mm:ss.SSS'
-              )}): Failed cancelling sell order\n` +
-                `- Message: Binance API returned an error when cancelling the buy order.` +
-                ` Refreshed open orders and wait for next tick.\n` +
-                `\`\`\`${JSON.stringify(
-                  {
-                    order,
-                    openOrders: data.openOrders,
-                    accountInfo: data.accountInfo
-                  },
-                  undefined,
-                  2
-                )}\`\`\`\n` +
-                `- Current API Usage: ${getAPILimit(logger)}`
-            );
+            messager.sendMessage(
+              symbol, order, 'CANCEL_SELL_FAILED');
           }
+          
         } else {
           // Reset sell open orders
           data.sell.openOrders = [];

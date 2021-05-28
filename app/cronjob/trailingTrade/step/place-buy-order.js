@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, slack, mongo, cache } = require('../../../helpers');
+const { binance, messager, mongo, cache } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 const {
   getAndCacheOpenOrdersForSymbol,
@@ -146,16 +146,8 @@ const execute = async (logger, rawData) => {
     timeInForce: 'GTC'
   };
 
-  slack.sendMessage(
-    `${symbol} Buy Action (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *STOP_LOSS_LIMIT*\n` +
-      `- Order Params: \`\`\`${JSON.stringify(
-        orderParams,
-        undefined,
-        2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+  messager.sendMessage(
+    symbol, orderParams, 'PLACE_BUY'
   );
 
   logger.info(
@@ -190,16 +182,8 @@ const execute = async (logger, rawData) => {
   // Refresh account info
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
-  slack.sendMessage(
-    `${symbol} Buy Action Result (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *STOP_LOSS_LIMIT*\n` +
-      `- Order Result: \`\`\`${JSON.stringify(
-        orderResult,
-        undefined,
-        2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+  messager.sendMessage(
+    symbol, orderResult, 'PLACE_BUY_DONE'
   );
   data.buy.processMessage = `Placed new stop loss limit order for buying.`;
   data.buy.updatedAt = moment().utc();
