@@ -2,7 +2,7 @@ const config = require('config');
 const moment = require('moment');
 const _ = require('lodash');
 
-const { cache, messager } = require('../../../helpers');
+const { cache, messenger } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
@@ -155,7 +155,7 @@ const execute = async (logger, rawData) => {
       data.accountInfo = await getAccountInfoFromAPI(logger);
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-        messager.sendMessage(
+        messenger.sendMessage(
               symbol, lastBuyOrder, 'BUY_CONFIRMED');
 		canCheckBuy = true;
       }
@@ -183,7 +183,7 @@ const execute = async (logger, rawData) => {
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
 		  
 		  if (canCheckBuy) {
-			   messager.sendMessage(
+			   messenger.sendMessage(
               symbol, lastBuyOrder, 'BUY_NOT_FOUND');
 		canCheckBuy = false;
 		  }
@@ -227,7 +227,7 @@ const execute = async (logger, rawData) => {
       data.accountInfo = await getAccountInfoFromAPI(logger);
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-        messager.sendMessage(
+        messenger.sendMessage(
               symbol, lastSellOrder, 'SELL_CONFIRMED');
 		canCheckSell = true;
       }
@@ -255,7 +255,7 @@ const execute = async (logger, rawData) => {
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
 		  
 		if (canCheckSell) {
-			messager.sendMessage(
+			messenger.sendMessage(
               symbol, lastSellOrder, 'SELL_NOT_FOUND');	
 		canCheckSell = false;
 		}

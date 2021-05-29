@@ -232,10 +232,10 @@ Or use the frontend to adjust configurations after launching the application.
    | BINANCE_LIVE_SECRET_KEY        | Binance API secret for live                                               | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API))      |
    | BINANCE_TEST_API_KEY           | Binance API key for test                                                  | (from [Binance Spot Test Network](https://testnet.binance.vision/))                                 |
    | BINANCE_TEST_SECRET_KEY        | Binance API secret for test                                               | (from [Binance Spot Test Network](https://testnet.binance.vision/))                                 |
-   | BINANCE_messager_ENABLED          | messager enable/disable                                                      | true                                                                                                |
-   | BINANCE_messager_WEBHOOK_URL      | messager webhook URL                                                         | (from [messager](https://messager.com/intl/en-au/help/articles/115005265063-Incoming-webhooks-for-messager)) |
-   | BINANCE_messager_CHANNEL          | messager channel                                                             | "#binance"                                                                                          |
-   | BINANCE_messager_USERNAME         | messager username                                                            | Chris                                                                                               |
+   | BINANCE_messenger_ENABLED          | messenger enable/disable                                                      | true                                                                                                |
+   | BINANCE_messenger_WEBHOOK_URL      | messenger webhook URL                                                         | (from [messenger](https://messenger.com/intl/en-au/help/articles/115005265063-Incoming-webhooks-for-messenger)) |
+   | BINANCE_messenger_CHANNEL          | messenger channel                                                             | "#binance"                                                                                          |
+   | BINANCE_messenger_USERNAME         | messenger username                                                            | Chris                                                                                               |
    | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable [local tunnel](https://github.com/localtunnel/localtunnel) | true                                                                                                |
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain                                         | binance                                                                                             |
 
@@ -269,7 +269,7 @@ Or use the frontend to adjust configurations after launching the application.
 
 3. Open browser `http://0.0.0.0:8080` to see the frontend
 
-   - When launching the application, it will notify public URL to the messager.
+   - When launching the application, it will notify public URL to the messenger.
    - If you have any issue with the bot, you can check the log to find out what happened with the bot. Please take a look [Troubleshooting](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting)
 
 ### Install via Stackfile

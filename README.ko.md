@@ -202,10 +202,10 @@
    | BINANCE_LIVE_SECRET_KEY        | 실서버 Binance API secret                                                            | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API)) |
    | BINANCE_TEST_API_KEY           | 테스트서버 Binance API key                                                           | (from [Binance Spot Test Network](https://testnet.binance.vision/))                            |
    | BINANCE_TEST_SECRET_KEY        | 테스트서버 Binance API secret                                                        | (from [Binance Spot Test Network](https://testnet.binance.vision/))                            |
-   | BINANCE_messager_ENABLED          | 슬랙(messager) 활성화/비활성화                                                          | true                                                                                           |
-   | BINANCE_messager_WEBHOOK_URL      | 슬랙(messager) 웹훅(webhook) URL                                                        | (from messager)                                                                                   |
-   | BINANCE_messager_CHANNEL          | 슬랙(messager) 채널(channel)명                                                          | "#binance"                                                                                     |
-   | BINANCE_messager_USERNAME         | 슬랙(messager) username                                                                 | Chris                                                                                          |
+   | BINANCE_messenger_ENABLED          | 슬랙(messenger) 활성화/비활성화                                                          | true                                                                                           |
+   | BINANCE_messenger_WEBHOOK_URL      | 슬랙(messenger) 웹훅(webhook) URL                                                        | (from messenger)                                                                                   |
+   | BINANCE_messenger_CHANNEL          | 슬랙(messenger) 채널(channel)명                                                          | "#binance"                                                                                     |
+   | BINANCE_messenger_USERNAME         | 슬랙(messenger) username                                                                 | Chris                                                                                          |
    | BINANCE_LOCAL_TUNNEL_ENABLED   | 로컬터널([local tunnel](https://github.com/localtunnel/localtunnel)) 활성화/비활성화 | true                                                                                           |
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | 외부 링크를 위한 로컬터널(local tunnel) 서브도메인                                   | binance                                                                                        |
 
@@ -239,7 +239,7 @@
 
 3. 브라우저를 열어 `http://0.0.0.0:8080`에 접근하시면 프론트엔드에 접근하실 수 있습니다.
 
-   - 프로그램 실행시, 외부 URL은 슬랙(messager)에 공지 됩니다.
+   - 프로그램 실행시, 외부 URL은 슬랙(messenger)에 공지 됩니다.
    - 봇을 사용시 문제가 발생할 경우, 먼저 로그를 확인하시기 바랍니다. 참조: [Troubleshooting](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting)
 
 ## 스크린샷

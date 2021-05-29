@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, messager } = require('../../../helpers');
+const { binance, messenger } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
@@ -124,7 +124,7 @@ const execute = async (logger, rawData) => {
     quantity: orderQuantity
   };
 
-  messager.sendMessage(
+  messenger.sendMessage(
     symbol, null, 'SELL_STOP_LOSS');
 
   logger.info(
@@ -156,7 +156,7 @@ const execute = async (logger, rawData) => {
   // Refresh account info
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
-  messager.sendMessage(
+  messenger.sendMessage(
               symbol, orderResult, 'SELL_STOP_LOSS');
   data.sell.processMessage = `Placed new market order for selling.`;
   data.sell.updatedAt = moment().utc();

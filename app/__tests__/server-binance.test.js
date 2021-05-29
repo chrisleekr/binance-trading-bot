@@ -7,7 +7,7 @@ describe('server-binance', () => {
   let binanceMock;
   let loggerMock;
   let cacheMock;
-  let messagerMock;
+  let slackMock;
 
   let mockGetGlobalConfiguration;
 
@@ -18,13 +18,13 @@ describe('server-binance', () => {
     jest.useFakeTimers();
     jest.mock('config');
 
-    const { PubSub, binance, logger, cache, messager } = require('../helpers');
+    const { PubSub, binance, logger, cache, slack } = require('../helpers');
 
     PubSubMock = PubSub;
     binanceMock = binance;
     loggerMock = logger;
     cacheMock = cache;
-    messagerMock = messager;
+    slackMock = slack;
 
     config = require('config');
   });
@@ -183,7 +183,7 @@ describe('server-binance', () => {
             dateNow += 60000;
             return tmpDateNow;
           });
-          messagerMock.sendMessage = jest.fn();
+          slackMock.sendMessage = jest.fn();
 
           mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
             symbols: ['BTCUSDT']
@@ -233,8 +233,8 @@ describe('server-binance', () => {
           expect(PubSubMock.subscribe).toHaveBeenCalledTimes(2);
         });
 
-        it('triggers messager.sendMessage', () => {
-          expect(messagerMock.sendMessage).toHaveBeenCalled();
+        it('triggers slack.sendMessage', () => {
+          expect(slackMock.sendMessage).toHaveBeenCalled();
         });
       });
 
@@ -258,7 +258,7 @@ describe('server-binance', () => {
             dateNow += 60000;
             return tmpDateNow;
           });
-          messagerMock.sendMessage = jest.fn();
+          slackMock.sendMessage = jest.fn();
 
           mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
             symbols: ['BTCUSDT']
@@ -308,8 +308,8 @@ describe('server-binance', () => {
           expect(PubSubMock.subscribe).toHaveBeenCalledTimes(2);
         });
 
-        it('does not trigger messager.sendMessage', () => {
-          expect(messagerMock.sendMessage).not.toHaveBeenCalled();
+        it('does not trigger slack.sendMessage', () => {
+          expect(slackMock.sendMessage).not.toHaveBeenCalled();
         });
       });
     });

@@ -2,7 +2,7 @@
 const moment = require('moment');
 const _ = require('lodash');
 
-const { messager, binance, telegram } = require('../../../helpers');
+const { messenger, binance } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
@@ -113,7 +113,7 @@ const execute = async (logger, rawData) => {
           data.action = 'buy-order-checking';
 
           if (_.get(featureToggle, 'notifyDebug', false) === true) {
-            messager.sendMessage(
+            messenger.sendMessage(
               symbol, order, 'CANCEL_BUY_FAILED');
           }
         } else {
@@ -166,7 +166,7 @@ const execute = async (logger, rawData) => {
           data.action = 'sell-order-checking';
 
           if (_.get(featureToggle, 'notifyDebug', false) === true) {
-            messager.sendMessage(
+            messenger.sendMessage(
               symbol, order, 'CANCEL_SELL_FAILED');
           }
           

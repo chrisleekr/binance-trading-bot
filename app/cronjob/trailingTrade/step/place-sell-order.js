@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, cache, messager } = require('../../../helpers');
+const { binance, cache, messenger } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 const {
   getAndCacheOpenOrdersForSymbol,
@@ -111,7 +111,7 @@ const execute = async (logger, rawData) => {
     timeInForce: 'GTC'
   };
 
- messager.sendMessage(
+ messenger.sendMessage(
     symbol, orderParams, 'PLACE_SELL'
   );
 
@@ -134,7 +134,7 @@ const execute = async (logger, rawData) => {
   // Refresh account info
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
- messager.sendMessage(
+ messenger.sendMessage(
     symbol, orderResult, 'PLACE_SELL_DONE'
   );
   data.sell.processMessage = `Placed new stop loss limit order for selling.`;

@@ -1,14 +1,14 @@
 /* istanbul ignore file */
 const config = require('config');
-const { messager, logger } = require('../helpers');
+const { slack, logger } = require('../helpers');
 
 (async () => {
-  logger.info({ messagerConfig: config.get('messager') }, 'messager config');
+  logger.info({ slackConfig: config.get('slack') }, 'Slack config');
 
-  const message = `${config.get('mode')} - Binance bot messager test`;
+  const message = `${config.get('mode')} - Binance bot slack test`;
 
-  const result = await messager.sendMessage(message);
+  const result = await slack.sendMessage(message);
 
-  logger.info({ result }, 'messager result');
+  logger.info({ result }, 'Slack result');
   process.exit(0);
 })();

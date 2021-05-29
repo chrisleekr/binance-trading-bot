@@ -17,7 +17,7 @@ const {
   getOpenOrders,
   saveDataToCache
 } = require('./trailingTradeIndicator/steps');
-const { messager } = require('../helpers');
+const { messenger } = require('../helpers');
 
 const execute = async logger => {
   // Retrieve feature toggles
@@ -113,10 +113,12 @@ const execute = async logger => {
     ) {
       // Let's silent for internal server error or assumed temporary errors
     } else {
-      messager.errorMessage(
+     
+      messenger.errorMessage(
         `Execution failed (${moment().format('HH:mm:ss.SSS')})\n` +
           `Job: Trailing Trade Indicator\n` +
           `Code: ${err.code}\n` +
+          `Error message: ${err.message}\n` +
           `There's something *wrong*.\n`+
           `You may want to reset me. You can try this *after disabling me in docker*:\n`+
 		  `wsl --shutdown\n` +

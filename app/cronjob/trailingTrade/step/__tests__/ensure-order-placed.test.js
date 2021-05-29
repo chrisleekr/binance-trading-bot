@@ -6,7 +6,7 @@ describe('ensure-order-placed.js', () => {
   let cacheMock;
   let binanceMock;
   let loggerMock;
-  let messagerMock;
+  let slackMock;
 
   let mockConfigGet;
   let mockGetAndCacheOpenOrdersForSymbol;
@@ -37,12 +37,12 @@ describe('ensure-order-placed.js', () => {
 
   describe('when there is no order', () => {
     beforeEach(async () => {
-      const { messager, cache, binance, logger } = require('../../../../helpers');
+      const { slack, cache, binance, logger } = require('../../../../helpers');
 
       cacheMock = cache;
       binanceMock = binance;
       loggerMock = logger;
-      messagerMock = messager;
+      slackMock = slack;
 
       cacheMock.get = jest.fn().mockResolvedValue(null);
       cacheMock.del = jest.fn().mockResolvedValue(true);
@@ -117,7 +117,7 @@ describe('ensure-order-placed.js', () => {
     describe('when order found in Binance', () => {
       beforeEach(() => {
         const {
-          messager,
+          slack,
           cache,
           binance,
           logger
@@ -126,9 +126,9 @@ describe('ensure-order-placed.js', () => {
         cacheMock = cache;
         binanceMock = binance;
         loggerMock = logger;
-        messagerMock = messager;
+        slackMock = slack;
 
-        messagerMock.sendMessage = jest.fn();
+        slackMock.sendMessage = jest.fn();
 
         cacheMock.get = jest.fn().mockImplementation(key => {
           if (key === 'BTCUSDT-last-buy-order') {
@@ -202,8 +202,8 @@ describe('ensure-order-placed.js', () => {
           expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
         });
 
-        it('does not trigger messager.sendMessage', () => {
-          expect(messagerMock.sendMessage).not.toHaveBeenCalled();
+        it('does not trigger slack.sendMessage', () => {
+          expect(slackMock.sendMessage).not.toHaveBeenCalled();
         });
 
         it('triggers disableAction', () => {
@@ -290,8 +290,8 @@ describe('ensure-order-placed.js', () => {
           expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
         });
 
-        it('triggers messager.sendMessage', () => {
-          expect(messagerMock.sendMessage).toHaveBeenCalled();
+        it('triggers slack.sendMessage', () => {
+          expect(slackMock.sendMessage).toHaveBeenCalled();
         });
 
         it('triggers disableAction', () => {
@@ -342,7 +342,7 @@ describe('ensure-order-placed.js', () => {
     describe('when order is not found in Binance', () => {
       beforeEach(() => {
         const {
-          messager,
+          slack,
           cache,
           binance,
           logger
@@ -351,9 +351,9 @@ describe('ensure-order-placed.js', () => {
         cacheMock = cache;
         binanceMock = binance;
         loggerMock = logger;
-        messagerMock = messager;
+        slackMock = slack;
 
-        messagerMock.sendMessage = jest.fn();
+        slackMock.sendMessage = jest.fn();
 
         cacheMock.get = jest.fn().mockImplementation(key => {
           if (key === 'BTCUSDT-last-buy-order') {
@@ -422,8 +422,8 @@ describe('ensure-order-placed.js', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
-        it('does not trigger messager.sendMessage', () => {
-          expect(messagerMock.sendMessage).not.toHaveBeenCalled();
+        it('does not trigger slack.sendMessage', () => {
+          expect(slackMock.sendMessage).not.toHaveBeenCalled();
         });
 
         it('returns expected result', () => {
@@ -487,8 +487,8 @@ describe('ensure-order-placed.js', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
-        it('triggers messager.sendMessage', () => {
-          expect(messagerMock.sendMessage).toHaveBeenCalled();
+        it('triggers slack.sendMessage', () => {
+          expect(slackMock.sendMessage).toHaveBeenCalled();
         });
 
         it('returns expected result', () => {
@@ -517,7 +517,7 @@ describe('ensure-order-placed.js', () => {
       describe('when notifyOrderConfirm is disabled', () => {
         beforeEach(async () => {
           const {
-            messager,
+            slack,
             cache,
             binance,
             logger
@@ -526,9 +526,9 @@ describe('ensure-order-placed.js', () => {
           cacheMock = cache;
           binanceMock = binance;
           loggerMock = logger;
-          messagerMock = messager;
+          slackMock = slack;
 
-          messagerMock.sendMessage = jest.fn();
+          slackMock.sendMessage = jest.fn();
 
           cacheMock.get = jest.fn().mockImplementation(key => {
             if (key === 'BTCUSDT-last-sell-order') {
@@ -605,8 +605,8 @@ describe('ensure-order-placed.js', () => {
           expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
         });
 
-        it('does not trigger messager.sendMessage', () => {
-          expect(messagerMock.sendMessage).not.toHaveBeenCalled();
+        it('does not trigger slack.sendMessage', () => {
+          expect(slackMock.sendMessage).not.toHaveBeenCalled();
         });
 
         it('triggers disableAction', () => {
@@ -656,7 +656,7 @@ describe('ensure-order-placed.js', () => {
       describe('when notifyOrderConfirm is enabled', () => {
         beforeEach(async () => {
           const {
-            messager,
+            slack,
             cache,
             binance,
             logger
@@ -665,9 +665,9 @@ describe('ensure-order-placed.js', () => {
           cacheMock = cache;
           binanceMock = binance;
           loggerMock = logger;
-          messagerMock = messager;
+          slackMock = slack;
 
-          messagerMock.sendMessage = jest.fn();
+          slackMock.sendMessage = jest.fn();
 
           cacheMock.get = jest.fn().mockImplementation(key => {
             if (key === 'BTCUSDT-last-sell-order') {
@@ -744,8 +744,8 @@ describe('ensure-order-placed.js', () => {
           expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
         });
 
-        it('triggers messager.sendMessage', () => {
-          expect(messagerMock.sendMessage).toHaveBeenCalled();
+        it('triggers slack.sendMessage', () => {
+          expect(slackMock.sendMessage).toHaveBeenCalled();
         });
 
         it('triggers disableAction', () => {
@@ -797,7 +797,7 @@ describe('ensure-order-placed.js', () => {
       describe('when notifyOrderConfirm is disabled', () => {
         beforeEach(async () => {
           const {
-            messager,
+            slack,
             cache,
             binance,
             logger
@@ -806,9 +806,9 @@ describe('ensure-order-placed.js', () => {
           cacheMock = cache;
           binanceMock = binance;
           loggerMock = logger;
-          messagerMock = messager;
+          slackMock = slack;
 
-          messagerMock.sendMessage = jest.fn();
+          slackMock.sendMessage = jest.fn();
 
           cacheMock.get = jest.fn().mockImplementation(key => {
             if (key === 'BTCUSDT-last-sell-order') {
@@ -871,8 +871,8 @@ describe('ensure-order-placed.js', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
-        it('does not trigger messager.sendMessage', () => {
-          expect(messagerMock.sendMessage).not.toHaveBeenCalled();
+        it('does not trigger slack.sendMessage', () => {
+          expect(slackMock.sendMessage).not.toHaveBeenCalled();
         });
 
         it('returns expected result', () => {
@@ -896,7 +896,7 @@ describe('ensure-order-placed.js', () => {
       describe('when notifyOrderConfirm is enabled', () => {
         beforeEach(async () => {
           const {
-            messager,
+            slack,
             cache,
             binance,
             logger
@@ -905,9 +905,9 @@ describe('ensure-order-placed.js', () => {
           cacheMock = cache;
           binanceMock = binance;
           loggerMock = logger;
-          messagerMock = messager;
+          slackMock = slack;
 
-          messagerMock.sendMessage = jest.fn();
+          slackMock.sendMessage = jest.fn();
 
           cacheMock.get = jest.fn().mockImplementation(key => {
             if (key === 'BTCUSDT-last-sell-order') {
@@ -970,8 +970,8 @@ describe('ensure-order-placed.js', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
-        it('triggers messager.sendMessage', () => {
-          expect(messagerMock.sendMessage).toHaveBeenCalled();
+        it('triggers slack.sendMessage', () => {
+          expect(slackMock.sendMessage).toHaveBeenCalled();
         });
 
         it('returns expected result', () => {

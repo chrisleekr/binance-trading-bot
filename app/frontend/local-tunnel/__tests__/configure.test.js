@@ -6,7 +6,7 @@ describe('local-tunnel/configure.js', () => {
   let localTunnel;
   let mockLogger;
   let mockCache;
-  let mockmessager;
+  let mockSlack;
 
   let mockLocalTunnelOn;
 
@@ -15,11 +15,11 @@ describe('local-tunnel/configure.js', () => {
 
     jest.useFakeTimers();
 
-    const { logger, cache, messager } = require('../../../helpers');
+    const { logger, cache, slack } = require('../../../helpers');
 
     mockLogger = logger;
     mockCache = cache;
-    mockmessager = messager;
+    mockSlack = slack;
 
     config = require('config');
     jest.mock('config');
@@ -39,7 +39,7 @@ describe('local-tunnel/configure.js', () => {
       }
     });
 
-    mockmessager.sendMessage = jest.fn();
+    mockSlack.sendMessage = jest.fn();
 
     mockCache.hset = jest.fn().mockResolvedValue(true);
     mockCache.hdel = jest.fn().mockResolvedValue(true);
@@ -263,8 +263,8 @@ describe('local-tunnel/configure.js', () => {
         expect(localTunnel).toHaveBeenCalledTimes(2);
       });
 
-      it('calls messager.sendMessage', () => {
-        expect(mockmessager.sendMessage).toHaveBeenCalled();
+      it('calls slack.sendMessage', () => {
+        expect(mockSlack.sendMessage).toHaveBeenCalled();
       });
     }
   );

@@ -5,7 +5,7 @@ describe('place-sell-order.js', () => {
   let rawData;
 
   let binanceMock;
-  let messagerMock;
+  let slackMock;
   let loggerMock;
   let cacheMock;
 
@@ -20,15 +20,15 @@ describe('place-sell-order.js', () => {
     });
 
     beforeEach(async () => {
-      const { binance, messager, cache, logger } = require('../../../../helpers');
+      const { binance, slack, cache, logger } = require('../../../../helpers');
 
       binanceMock = binance;
-      messagerMock = messager;
+      slackMock = slack;
       loggerMock = logger;
       cacheMock = cache;
 
       cacheMock.set = jest.fn().mockResolvedValue(true);
-      messagerMock.sendMessage = jest.fn().mockResolvedValue(true);
+      slackMock.sendMessage = jest.fn().mockResolvedValue(true);
       binanceMock.client.order = jest.fn().mockResolvedValue(true);
 
       mockIsExceedAPILimit = jest.fn().mockReturnValue(false);

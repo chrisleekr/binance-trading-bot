@@ -19,7 +19,7 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 
 	switch (language) {
 
-		case 'enUS':
+		case 'en-us':
 
 			switch (action) {
 
@@ -120,12 +120,12 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 			}
 			break;
 
-		case 'ptBr':
+		case 'pt-br':
 
 			switch (action) {
 
 				case 'NO_CANDLE_RECEIVED':
-					message = `Não recebi nenhuma vela de dados da Binance Websocket, desde` +
+					message = `Não recebi nenhuma vela de dados da Binance Websocket desde` +
 						symbol + '\n' +
 						`Please, reset my Websocket connection.`;
 					break;

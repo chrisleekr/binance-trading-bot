@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { mongo, cache, messager } = require('../../../helpers');
+const { mongo, cache, messenger } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAPILimit,
@@ -42,7 +42,7 @@ const removeLastBuyPrice = async (
     key: `${symbol}-last-buy-price`
   });
 
-  messager.sendMessage(
+  messenger.sendMessage(
     symbol, null, 'REMOVE_LASTBUY');
 };
 
@@ -169,10 +169,15 @@ const execute = async (logger, rawData) => {
  */
  
  //Get symbol config
-  const symbolConfiguration = await getConfiguration(logger, symbol);
+    const symbolConfiguration = await getConfiguration(logger, symbol);
+    messenger.errorMessage('aaaaaa');
   
   //Define variable
-  var lastBuyThreshold = symbolConfiguration.buy.lastBuyThreshold;
+    var lastBuyThreshold = symbolConfiguration.buy.lastBuyThreshold;
+    var lastBuyThresholdtest = symbolConfiguration.buy.lastBuyThresholds;
+
+    messenger.errorMessage('last buy is :' + lastBuyThreshold);
+    messenger.errorMessage('last buy test is :' + lastBuyThresholdtest);
   
   //Caculated coin value
   var priceCalculated = baseAssetQuantity * currentPrice;

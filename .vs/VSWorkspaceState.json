@@ -8,6 +8,6 @@
     "\\app\\cronjob\\__tests__",
     "\\app\\helpers"
   ],
-  "SelectedNode": "\\app\\helpers\\slack.js",
+  "SelectedNode": "\\app\\cronjob\\trailingTrade\\step\\place-buy-order.js",
   "PreviewInSolutionExplorer": false
 }

@@ -5,7 +5,7 @@ describe('trailingTradeIndicator', () => {
   let config;
 
   let mockLoggerInfo;
-  let mockmessagerSendMessage;
+  let mockSlackSendMessage;
 
   let mockGetGlobalConfiguration;
   let mockGetNextSymbol;
@@ -27,7 +27,7 @@ describe('trailingTradeIndicator', () => {
     config = require('config');
 
     mockLoggerInfo = jest.fn();
-    mockmessagerSendMessage = jest.fn().mockResolvedValue(true);
+    mockSlackSendMessage = jest.fn().mockResolvedValue(true);
     mockGetAPILimit = jest.fn().mockReturnValue(10);
 
     logger.info = mockLoggerInfo;
@@ -39,7 +39,7 @@ describe('trailingTradeIndicator', () => {
         debug: jest.fn(),
         child: jest.fn()
       },
-      messager: { sendMessage: mockmessagerSendMessage }
+      slack: { sendMessage: mockSlackSendMessage }
     }));
   });
 
@@ -324,27 +324,27 @@ describe('trailingTradeIndicator', () => {
       {
         label: 'Error -1001',
         code: -1001,
-        sendmessager: false
+        sendSlack: false
       },
       {
         label: 'Error -1021',
         code: -1021,
-        sendmessager: false
+        sendSlack: false
       },
       {
         label: 'Error ECONNRESET',
         code: 'ECONNRESET',
-        sendmessager: false
+        sendSlack: false
       },
       {
         label: 'Error ECONNREFUSED',
         code: 'ECONNREFUSED',
-        sendmessager: false
+        sendSlack: false
       },
       {
         label: 'Error something else',
         code: 'something',
-        sendmessager: true
+        sendSlack: true
       }
     ].forEach(errorInfo => {
       describe(`${errorInfo.label}`, () => {
@@ -366,13 +366,13 @@ describe('trailingTradeIndicator', () => {
           await trailingTradeIndicatorExecute(logger);
         });
 
-        if (errorInfo.sendmessager) {
-          it('triggers messager.sendMessage', () => {
-            expect(mockmessagerSendMessage).toHaveBeenCalled();
+        if (errorInfo.sendSlack) {
+          it('triggers slack.sendMessage', () => {
+            expect(mockSlackSendMessage).toHaveBeenCalled();
           });
         } else {
-          it('does not trigger messager.sendMessagage', () => {
-            expect(mockmessagerSendMessage).not.toHaveBeenCalled();
+          it('does not trigger slack.sendMessagage', () => {
+            expect(mockSlackSendMessage).not.toHaveBeenCalled();
           });
         }
       });

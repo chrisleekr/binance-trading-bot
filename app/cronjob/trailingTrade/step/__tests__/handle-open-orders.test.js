@@ -7,7 +7,7 @@ describe('handle-open-orders.js', () => {
 
   let binanceMock;
   let loggerMock;
-  let messagerMock;
+  let slackMock;
 
   let mockGetAccountInfoFromAPI;
   let mockGetAndCacheOpenOrdersForSymbol;
@@ -320,12 +320,12 @@ describe('handle-open-orders.js', () => {
       describe('when stop price is higher or equal than current limit price', () => {
         describe('when cancelling order is failed', () => {
           beforeEach(async () => {
-            const { binance, logger, messager } = require('../../../../helpers');
+            const { binance, logger, slack } = require('../../../../helpers');
             binanceMock = binance;
             loggerMock = logger;
-            messagerMock = messager;
+            slackMock = slack;
 
-            messagerMock.sendMessage = jest.fn().mockResolvedValue(true);
+            slackMock.sendMessage = jest.fn().mockResolvedValue(true);
 
             binanceMock.client.cancelOrder = jest
               .fn()
@@ -421,8 +421,8 @@ describe('handle-open-orders.js', () => {
               );
             });
 
-            it('triggers messager.sendMessage', () => {
-              expect(messagerMock.sendMessage).toHaveBeenCalled();
+            it('triggers slack.sendMessage', () => {
+              expect(slackMock.sendMessage).toHaveBeenCalled();
             });
 
             it('returns expected value', () => {
@@ -528,8 +528,8 @@ describe('handle-open-orders.js', () => {
               );
             });
 
-            it('does not trigger messager.sendMessage', () => {
-              expect(messagerMock.sendMessage).not.toHaveBeenCalled();
+            it('does not trigger slack.sendMessage', () => {
+              expect(slackMock.sendMessage).not.toHaveBeenCalled();
             });
 
             it('returns expected value', () => {
@@ -781,12 +781,12 @@ describe('handle-open-orders.js', () => {
       describe('when stop price is less or equal than current limit price', () => {
         describe('when cancel order is failed', () => {
           beforeEach(async () => {
-            const { binance, logger, messager } = require('../../../../helpers');
+            const { binance, logger, slack } = require('../../../../helpers');
             binanceMock = binance;
             loggerMock = logger;
-            messagerMock = messager;
+            slackMock = slack;
 
-            messager.sendMessage = jest.fn().mockResolvedValue(true);
+            slack.sendMessage = jest.fn().mockResolvedValue(true);
 
             binanceMock.client.cancelOrder = jest
               .fn()
@@ -880,8 +880,8 @@ describe('handle-open-orders.js', () => {
               expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
             });
 
-            it('triggers messager.sendMessage', () => {
-              expect(messagerMock.sendMessage).toHaveBeenCalled();
+            it('triggers slack.sendMessage', () => {
+              expect(slackMock.sendMessage).toHaveBeenCalled();
             });
 
             it('returns expected value', () => {
@@ -985,8 +985,8 @@ describe('handle-open-orders.js', () => {
               expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
             });
 
-            it('does not trigger messager.sendMessage', () => {
-              expect(messagerMock.sendMessage).not.toHaveBeenCalled();
+            it('does not trigger slack.sendMessage', () => {
+              expect(slackMock.sendMessage).not.toHaveBeenCalled();
             });
 
             it('returns expected value', () => {

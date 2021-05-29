@@ -1,5 +1,5 @@
 const aliveHelper = require('../alive/helper');
-const { logger, messager } = require('../../helpers');
+const { logger, slack } = require('../../helpers');
 const { execute: aliveExecute } = require('../alive');
 
 jest.mock('../alive/helper');
@@ -23,7 +23,7 @@ describe('alive', () => {
             }
           ]
         });
-        messager.sendMessage = jest.fn();
+        slack.sendMessage = jest.fn();
 
         await aliveExecute(logger);
       });
@@ -32,8 +32,8 @@ describe('alive', () => {
         expect(aliveHelper.getAccountInfo).toHaveBeenCalled();
       });
 
-      it('triggers messager', () => {
-        expect(messager.sendMessage).toHaveBeenCalled();
+      it('triggers slack', () => {
+        expect(slack.sendMessage).toHaveBeenCalled();
       });
     });
 
@@ -42,13 +42,13 @@ describe('alive', () => {
         const e = new Error('something happened');
 
         aliveHelper.getAccountInfo = jest.fn().mockRejectedValue(e);
-        messager.sendMessage = jest.fn();
+        slack.sendMessage = jest.fn();
 
         await aliveExecute(logger);
       });
 
-      it('triggers messager', () => {
-        expect(messager.sendMessage).toHaveBeenCalled();
+      it('triggers slack', () => {
+        expect(slack.sendMessage).toHaveBeenCalled();
       });
     });
   });

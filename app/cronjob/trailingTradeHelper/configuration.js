@@ -202,6 +202,74 @@ const getMaxPurchaseAmount = async (
 
   return newBuyMaxPurchaseAmount;
 };
+
+const getLastBuyThreshold = async (
+  logger,
+  symbol,
+  globalConfiguration,
+  symbolConfiguration
+) => {
+  const symbolBuyLastBuyThreshold = _.get(
+    symbolConfiguration,
+    'buy.lastBuyThreshold',
+    10
+  );
+
+    if (symbolBuyLastBuyThreshold !== 10) {
+    logger.info(
+        { symbolBuyLastBuyThreshold },
+      'Last buy threshold is found from symbol configuration.'
+    );
+        return symbolBuyLastBuyThreshold;
+  }
+
+  logger.info(
+      { symbolBuyLastBuyThreshold },
+    'Last Buy Threshold is set as 10. Need to calculate and override it'
+  );
+
+  let newBuyLastBuyThreshold = 10;
+
+    // If old max purchase maount is -1, then should calculate maximum purchase amount based on the notional amount.
+    const cachedSymbolInfo =
+        JSON.parse(
+            await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
+        ) || {};
+
+    if (_.isEmpty(cachedSymbolInfo) === false) {
+        const {
+            quoteAsset,
+            filterMinNotional: { minNotional }
+        } = cachedSymbolInfo;
+
+        newBuyLastBuyThreshold = _.get(
+            globalConfiguration,
+            `buy.maxPurchaseAmounts.${quoteAsset}`,
+            10
+        );
+
+        logger.info(
+            { quoteAsset, newBuyLastBuyThreshold },
+            'Retreived max purchase amount from global configuration'
+        );
+
+        if (newBuyLastBuyThreshold === 10) {
+            newBuyLastBuyThreshold = parseFloat(minNotional) * 10;
+
+            logger.info(
+                { newBuyLastBuyThreshold, minNotional },
+                'Could not get max purchase amount from global configuration. Use minimum notional from symbol info'
+            );
+        }
+    } else {
+        logger.info(
+            { cachedSymbolInfo },
+            'Could not find symbol info, wait to be cached.'
+        );
+    }
+
+  return newBuyLastBuyThreshold;
+};
 /**
  * Get global/symbol configuration
  *
@@ -230,8 +298,20 @@ const getConfiguration = async (logger, symbol = null) => {
       )
     );
 
-    // For symbol configuration, remove maxPurchaseAmounts
-    _.unset(mergedConfigValue, 'buy.maxPurchaseAmounts');
+    _.set(
+      mergedConfigValue,
+      'buy.lastBuyThreshold',
+        await getLastBuyThreshold(
+        logger,
+        symbol,
+        globalConfigValue,
+        symbolConfigValue
+      )
+    );
+
+      // For symbol configuration, remove maxPurchaseAmounts
+      _.unset(mergedConfigValue, 'buy.maxPurchaseAmounts');
+      _.unset(mergedConfigValue, 'buy.lastBuyThresholds');
   }
 
   // Merge global and symbol configuration

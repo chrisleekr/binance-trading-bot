@@ -1,6 +1,6 @@
 const cache = require('./cache');
 const logger = require('./logger');
-const messager = require('./messager');
+const messenger = require('./messenger');
 const slack = require('./slack');
 const telegram = require('./telegram');
 const binance = require('./binance');
@@ -10,7 +10,7 @@ const { PubSub } = require('./pubsub');
 module.exports = {
   cache,
   logger,
-  messager,
+  messenger,
   slack,
   telegram,
   binance,

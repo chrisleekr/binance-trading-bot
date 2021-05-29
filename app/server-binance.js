@@ -1,7 +1,7 @@
 const _ = require('lodash');
 const moment = require('moment-timezone');
 const config = require('config');
-const { PubSub, binance, cache, messager } = require('./helpers');
+const { PubSub, binance, cache, messenger } = require('./helpers');
 
 const {
   getGlobalConfiguration
@@ -73,7 +73,7 @@ const loopToCheckLastReceivedAt = async logger => {
     );
 
     if (config.get('featureToggle.notifyDebug')) {
-      messager.sendMessage(
+      messenger.sendMessage(
         lastReceivedAt.fromNow(), null, 'NO_CANDLE_RECEIVED'
       );
     }

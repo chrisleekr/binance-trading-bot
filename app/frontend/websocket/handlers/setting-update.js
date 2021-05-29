@@ -27,8 +27,9 @@ const handleSettingUpdate = async (logger, ws, payload) => {
   };
 
   // Set max purchase amount to be -1, which mean max purchase amount
-  // will be automatically calculate based on the notional amount.
-  mergedConfiguration.buy.maxPurchaseAmount = -1;
+    // will be automatically calculate based on the notional amount.
+    mergedConfiguration.buy.maxPurchaseAmount = -1;
+    mergedConfiguration.buy.lastBuyThreshold = 10;
 
   logger.info({ mergedConfiguration }, 'New merged configuration');
 
