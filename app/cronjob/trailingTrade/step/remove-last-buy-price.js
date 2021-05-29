@@ -186,7 +186,7 @@ const execute = async (logger, rawData) => {
   //Caculated coin value
   var priceCalculated = baseAssetQuantity * currentPrice;
   
-   if (priceCalculated < parseFloat(minNotional) && priceCalculated < lastBuyThreshold) {
+   if (priceCalculated < lastBuyThreshold) {
     // Final check for open orders
     refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
     if (refreshedOpenOrders.length > 0) {
