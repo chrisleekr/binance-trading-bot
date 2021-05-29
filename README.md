@@ -12,6 +12,7 @@
 ---
 
 [![ko](https://img.shields.io/badge/lang-한국어-brightgreen.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.ko.md)
+[![中文](https://img.shields.io/badge/lang-中文-blue.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.zh_CN.md)
 
 This is a test project. I am just testing my code.
 
@@ -61,6 +62,12 @@ At the moment, the bot only supports the market order.
 ### Trailing Buy/Sell Bot
 
 This bot is using the concept of trailing buy/sell order which allows following the price fall/rise.
+
+> Trailing Stop Orders
+> About Trailing Stop Orders Concept you can find at [Binance Official document](https://www.binance.com/en/support/faq/360042299292)
+>
+> TL;DR
+> Place orders at a fixed value or percentage when the price changes. Using this feature you can buy at the lowest possible price when buying down and sell at the highest possible price when selling up.
 
 - The bot can monitor multiple symbols. All symbols will be monitored per second.
 - The bot is using MongoDB to provide a persistence database. However, it does not use the latest MongoDB to support Raspberry Pi 32bit. Used MongoDB version
