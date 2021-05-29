@@ -12,6 +12,7 @@
 ---
 
 [![en](https://img.shields.io/badge/lang-English-blue.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.md)
+[![中文](https://img.shields.io/badge/lang-中文-blue.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.zh-cn.md)
 
 이 프로젝트는 제 코드를 테스트 하기 위한 단순한 테스트 프로젝트 입니다.
 
@@ -202,10 +203,10 @@
    | BINANCE_LIVE_SECRET_KEY        | 실서버 Binance API secret                                                            | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API)) |
    | BINANCE_TEST_API_KEY           | 테스트서버 Binance API key                                                           | (from [Binance Spot Test Network](https://testnet.binance.vision/))                            |
    | BINANCE_TEST_SECRET_KEY        | 테스트서버 Binance API secret                                                        | (from [Binance Spot Test Network](https://testnet.binance.vision/))                            |
-   | BINANCE_messenger_ENABLED          | 슬랙(messenger) 활성화/비활성화                                                          | true                                                                                           |
-   | BINANCE_messenger_WEBHOOK_URL      | 슬랙(messenger) 웹훅(webhook) URL                                                        | (from messenger)                                                                                   |
-   | BINANCE_messenger_CHANNEL          | 슬랙(messenger) 채널(channel)명                                                          | "#binance"                                                                                     |
-   | BINANCE_messenger_USERNAME         | 슬랙(messenger) username                                                                 | Chris                                                                                          |
+   | BINANCE_SLACK_ENABLED          | 슬랙(Slack) 활성화/비활성화                                                          | true                                                                                           |
+   | BINANCE_SLACK_WEBHOOK_URL      | 슬랙(Slack) 웹훅(webhook) URL                                                        | (from Slack)                                                                                   |
+   | BINANCE_SLACK_CHANNEL          | 슬랙(Slack) 채널(channel)명                                                          | "#binance"                                                                                     |
+   | BINANCE_SLACK_USERNAME         | 슬랙(Slack) username                                                                 | Chris                                                                                          |
    | BINANCE_LOCAL_TUNNEL_ENABLED   | 로컬터널([local tunnel](https://github.com/localtunnel/localtunnel)) 활성화/비활성화 | true                                                                                           |
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | 외부 링크를 위한 로컬터널(local tunnel) 서브도메인                                   | binance                                                                                        |
 
@@ -239,9 +240,32 @@
 
 3. 브라우저를 열어 `http://0.0.0.0:8080`에 접근하시면 프론트엔드에 접근하실 수 있습니다.
 
-   - 프로그램 실행시, 외부 URL은 슬랙(messenger)에 공지 됩니다.
+   - 프로그램 실행시, 외부 URL은 슬랙(Slack)에 공지 됩니다.
    - 봇을 사용시 문제가 발생할 경우, 먼저 로그를 확인하시기 바랍니다. 참조: [Troubleshooting](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting)
+
 
 ## 스크린샷
 
-**스크린샷 정보는 [README.md](https://github.com/chrisleekr/binance-trading-bot#screenshots)에서 참고하시기 바랍니다.**
+| 프론트엔드 - 모바일                                                                                                           | 세팅                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/116782164-eeb6b880-aaca-11eb-8ad5-ad95e675eed1.png) | ![Setting](https://user-images.githubusercontent.com/5715919/116782053-4a347680-aaca-11eb-9dfd-eb0bfca69381.png) |
+
+| 프론트엔드 - 데스크탑                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------- |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/117468596-2ffe0b00-af98-11eb-99da-db45e8cbdc3c.png) |
+
+### 샘플 거래
+
+| 차트                                                                                                          | 매수 주문                                                                                                          | 매도 주문                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| ![Chart](https://user-images.githubusercontent.com/5715919/111027391-192db300-8444-11eb-8df4-91c98d0c835b.png) | ![Buy Orders](https://user-images.githubusercontent.com/5715919/111027403-36628180-8444-11eb-91dc-f3cdabc5a79e.png) | ![Sell Orders](https://user-images.githubusercontent.com/5715919/111027411-4b3f1500-8444-11eb-8525-37f02a63de25.png) |
+
+## 기부
+
+이 프로젝트가 도움이 되셨다면, 개발자에게 작은 [기부](https://github.com/chrisleekr/binance-trading-bot/blob/master/DONATIONS.md)를 하실 수 있습니다.
+
+## 면책 조항
+
+저는 이 프로젝트에 포함된 정보 및 자료의 정확성이나 안정성에 대해서 어떠한 보증도 하지 않으며 어떠한 책임을 지지 않습니다. 손해의 가능성에 사전에 통보한 경우더라도, 이 코드나 연결된 코드를 직간접적으로 사용함으로써 발생하는 모든 청구, 손해, 손실, 비용 또는 책임 (이익 손실, 업무 중단 또는 정보 손실로 인한 직/간접적인 손해 포함)에 대해 어떠한 경우에도 책임을 지지 않습니다.
+
+**그러니 리스크를 감당하실 수 있을 경우에만 사용하십시요!**
