@@ -5,9 +5,12 @@
     "\\app\\cronjob",
     "\\app\\cronjob\\trailingTrade",
     "\\app\\cronjob\\trailingTrade\\step",
-    "\\app\\cronjob\\__tests__",
-    "\\app\\helpers"
+    "\\app\\helpers",
+    "\\app\\scripts",
+    "\\config",
+    "\\public",
+    "\\public\\js"
   ],
-  "SelectedNode": "\\app\\cronjob\\trailingTrade\\step\\place-buy-order.js",
+  "SelectedNode": "\\app\\cronjob\\trailingTrade\\step\\remove-last-buy-price.js",
   "PreviewInSolutionExplorer": false
 }
