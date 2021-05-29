@@ -12,6 +12,7 @@
 ---
 
 [![en](https://img.shields.io/badge/lang-English-blue.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.md)
+[![中文](https://img.shields.io/badge/lang-中文-blue.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.zh-cn.md)
 
 이 프로젝트는 제 코드를 테스트 하기 위한 단순한 테스트 프로젝트 입니다.
 
