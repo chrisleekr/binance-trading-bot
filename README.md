@@ -347,7 +347,7 @@ to the developer.
 
 ## Contributors
 
-Thanks for all contributors. [Click to see our heroes](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
+Thanks to all contributors :heart: [Click to see our heroes](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
 
 ## Disclaimer
 
