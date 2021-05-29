@@ -47,7 +47,7 @@ class SettingIcon extends React.Component {
         maxPurchaseAmounts[quoteAsset] = minNotional * 10;
       }
       if (lastBuyThresholds[quoteAsset] == undefined) {
-        lastBuyThresholds[quoteAsset] = 10;
+        lastBuyThresholds[quoteAsset] = minNotional;
       }
     });
 

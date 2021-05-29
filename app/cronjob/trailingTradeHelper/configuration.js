@@ -254,7 +254,7 @@ const getLastBuyThreshold = async (
         );
 
         if (newBuyLastBuyThreshold === 10) {
-            newBuyLastBuyThreshold = parseFloat(minNotional) * 10;
+            newBuyLastBuyThreshold = parseFloat(minNotional);
 
             logger.info(
                 { newBuyLastBuyThreshold, minNotional },

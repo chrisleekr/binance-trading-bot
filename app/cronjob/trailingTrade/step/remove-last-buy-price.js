@@ -169,16 +169,10 @@ const execute = async (logger, rawData) => {
  */
  
  //Get symbol config
-    const symbolConfiguration = await getConfiguration(logger, symbol);
-    messenger.errorMessage('aaaaaa');
+  const symbolConfiguration = await getConfiguration(logger, symbol);
   
   //Define variable
     var lastBuyThreshold = symbolConfiguration.buy.lastBuyThreshold;
-    var lastBuyThresholdtest = symbolConfiguration.buy.lastBuyThresholds;
-
-    messenger.errorMessage('last buy is :' + lastBuyThreshold);
-    messenger.errorMessage('last buy test is :' + lastBuyThresholdtest);
-  
   //Caculated coin value
   var priceCalculated = baseAssetQuantity * currentPrice;
   
