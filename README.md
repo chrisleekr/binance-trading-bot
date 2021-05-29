@@ -347,38 +347,7 @@ to the developer.
 
 ## Contributors
 
-<table>
-<tr>
-    <td align="center" style="word-wrap: break-word; width: 150.0; height: 150.0">
-        <a href=https://github.com/chrisleekr>
-            <img src=https://avatars.githubusercontent.com/u/5715919?v=4 width="100;"  style="border-radius:50%;align-items:center;justify-content:center;overflow:hidden;padding-top:10px" alt=chrisleekr/>
-            <br />
-            <sub style="font-size:14px"><b>chrisleekr</b></sub>
-        </a>
-    </td>
-    <td align="center" style="word-wrap: break-word; width: 150.0; height: 150.0">
-        <a href=https://github.com/romualdr>
-            <img src=https://avatars.githubusercontent.com/u/5497356?v=4 width="100;"  style="border-radius:50%;align-items:center;justify-content:center;overflow:hidden;padding-top:10px" alt=Romuald R./>
-            <br />
-            <sub style="font-size:14px"><b>Romuald R.</b></sub>
-        </a>
-    </td>
-    <td align="center" style="word-wrap: break-word; width: 150.0; height: 150.0">
-        <a href=https://github.com/hipposen>
-            <img src=https://avatars.githubusercontent.com/u/10888467?v=4 width="100;"  style="border-radius:50%;align-items:center;justify-content:center;overflow:hidden;padding-top:10px" alt=hipposen/>
-            <br />
-            <sub style="font-size:14px"><b>hipposen</b></sub>
-        </a>
-    </td>
-    <td align="center" style="word-wrap: break-word; width: 150.0; height: 150.0">
-        <a href=https://github.com/thamlth>
-            <img src=https://avatars.githubusercontent.com/u/45093611?v=4 width="100;"  style="border-radius:50%;align-items:center;justify-content:center;overflow:hidden;padding-top:10px" alt=thamlth/>
-            <br />
-            <sub style="font-size:14px"><b>thamlth</b></sub>
-        </a>
-    </td>
-</tr>
-</table>
+Thanks for all contributors. [Click to see our heroes](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
 
 ## Disclaimer
 
