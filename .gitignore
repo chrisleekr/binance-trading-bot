@@ -25,3 +25,5 @@ data
 log
 
 .env
+.vs
+.vscode

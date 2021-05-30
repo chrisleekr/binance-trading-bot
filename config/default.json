@@ -50,8 +50,8 @@
       },
       "buy": {
         "enabled": true,
-        "lastBuyThreshold": 10,
-        "lastBuyThresholds": {},
+        "lastBuyPriceRemoveThreshold": -1,
+        "lastBuyPriceRemoveThresholds": {},
         "maxPurchaseAmount": -1,
         "maxPurchaseAmounts": {},
         "triggerPercentage": 1.0,

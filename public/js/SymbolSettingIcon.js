@@ -283,7 +283,7 @@ class SymbolSettingIcon extends React.Component {
                               </Form.Check.Label>
                             </Form.Check>
                           </Form.Group>
-						  
+
 						   <Form.Group
                             controlId='field-lastbuy-amount'
                             className='mb-2'>
@@ -296,7 +296,7 @@ class SymbolSettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='lastbuy-amount-overlay-right'>
                                     <Popover.Content>
-                                     If the coin value drops below the defined amount, the bot will remove the last buy price. Define 0 to never remove last buy price. 
+                                     If the coin value drops below the defined amount, the bot will remove the last buy price. Define 0 to never remove last buy price.
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -314,12 +314,12 @@ class SymbolSettingIcon extends React.Component {
                               required
                               min='0.0001'
                               step='0.0001'
-                              data-state-key='buy.lastBuyThreshold'
-                              value={symbolConfiguration.buy.lastBuyThreshold}
+                              data-state-key='buy.lastBuyPriceRemoveThreshold'
+                              value={symbolConfiguration.buy.lastBuyPriceRemoveThreshold}
                               onChange={this.handleInputChange}
                             />
                           </Form.Group>
-						  
+
                           <Form.Group
                             controlId='field-buy-maximum-purchase-amount'
                             className='mb-2'>

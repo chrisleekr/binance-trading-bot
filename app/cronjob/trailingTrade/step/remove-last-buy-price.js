@@ -171,29 +171,19 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-/**
- * Get symbol configuration
- *
- * @param {*} logger
- * @param {*} rawData
- */
- 
- //Get symbol config
-  const symbolConfiguration = await getConfiguration(logger, symbol);
-  
-  //Define variable
-    var lastBuyThreshold = symbolConfiguration.buy.lastBuyThreshold;
-  //Caculated coin value
-  var priceCalculated = baseAssetQuantity * currentPrice;
-  
-   if (priceCalculated < lastBuyThreshold) {
+  //Get symbol config and define last buy remove price threshold, then get the calculated price.
+  const symbolConfiguration = rawData.symbolConfiguration;
+  const lastBuyPriceRemoveThreshold = symbolConfiguration.buy.lastBuyPriceRemoveThreshold;
+  const priceCalculated = baseAssetQuantity * currentPrice;
+
+   if (priceCalculated < lastBuyPriceRemoveThreshold) {
     // Final check for open orders
     refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
     if (refreshedOpenOrders.length > 0) {
       logger.info('Do not remove last buy price. Found open orders.');
       return data;
     }
-	
+
 		 processMessage =
       'Balance is less than the notional value. Delete last buy price.';
 
@@ -209,7 +199,6 @@ const execute = async (logger, rawData) => {
       minNotional,
       openOrders
     });
-	
 
     return data;
   }
