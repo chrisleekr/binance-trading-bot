@@ -43,10 +43,49 @@ class App extends React.Component {
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
     this.sendWebSocket = this.sendWebSocket.bind(this);
+
+    this.toast = this.toast.bind(this);
+
+    this.notyf = new Notyf({
+      types: [
+        {
+          type: 'info',
+          background: '#2f96b4',
+          icon: {
+            className: 'fa fa-info-circle fa-lg',
+            tagName: 'i',
+            text: '',
+            color: 'white'
+          }
+        },
+        {
+          type: 'warning',
+          background: '#fd7e14',
+          icon: {
+            className: 'fa fa-exclamation-circle fa-lg',
+            tagName: 'i',
+            text: '',
+            color: 'white'
+          }
+        }
+      ],
+      duration: 3000,
+      ripple: true,
+      position: { x: 'right', y: 'bottom' },
+      dismissible: true
+    });
   }
 
   requestLatest() {
     this.sendWebSocket('latest');
+  }
+
+  toast({ type, title }) {
+    // this.notyf.dismissAll();
+    this.notyf.open({
+      type,
+      message: title
+    });
   }
 
   connectWebSocket() {
@@ -63,6 +102,10 @@ class App extends React.Component {
 
     instance.onopen = () => {
       console.log('Connection is successfully established.');
+      this.toast({
+        type: 'success',
+        title: 'Connected to the bot.'
+      });
       self.setState(prevState => ({
         webSocket: {
           ...prevState.webSocket,
@@ -109,11 +152,22 @@ class App extends React.Component {
           apiInfo: response.common.apiInfo
         });
       }
+
+      if (response.type === 'notification') {
+        this.toast({
+          type: response.message.type,
+          title: response.message.title
+        });
+      }
     };
 
     instance.onclose = () => {
       console.log('Socket is closed. Reconnect will be attempted in 1 second.');
 
+      this.toast({
+        type: 'info',
+        title: 'Disconnected from the bot. Reconnecting...'
+      });
       self.setState(prevState => ({
         webSocket: {
           ...prevState.webSocket,

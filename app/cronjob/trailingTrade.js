@@ -17,16 +17,20 @@ const {
   getSymbolConfiguration,
   getSymbolInfo,
   getBalances,
+  getOverrideAction,
+  ensureManualBuyOrder,
   ensureOrderPlaced,
   getOpenOrders,
   getIndicators,
   handleOpenOrders,
   determineAction,
+  placeManualTrade,
   placeBuyOrder,
   placeSellOrder,
   placeSellStopLossOrder,
   removeLastBuyPrice,
-  saveDataToCache
+  saveDataToCache,
+  cancelOrder
 } = require('./trailingTrade/steps');
 const { slack } = require('../helpers');
 
@@ -74,6 +78,7 @@ const execute = async logger => {
           quoteAssetBalance: {},
           buy: {},
           sell: {},
+          order: {},
           saveToCache: true
         };
 
@@ -86,6 +91,14 @@ const execute = async logger => {
           {
             stepName: 'get-symbol-info',
             stepFunc: getSymbolInfo
+          },
+          {
+            stepName: 'get-override-action',
+            stepFunc: getOverrideAction
+          },
+          {
+            stepName: 'ensure-manual-buy-order',
+            stepFunc: ensureManualBuyOrder
           },
           {
             stepName: 'ensure-open-placed',
@@ -121,11 +134,19 @@ const execute = async logger => {
             stepFunc: placeBuyOrder
           },
           {
+            stepName: 'place-manual-order',
+            stepFunc: placeManualTrade
+          },
+          {
+            stepName: 'cancel-order',
+            stepFunc: cancelOrder
+          },
+          {
             stepName: 'place-sell-order',
             stepFunc: placeSellOrder
           },
           {
-            stepName: 'place-sell-stop-lossorder',
+            stepName: 'place-sell-stop-loss-order',
             stepFunc: placeSellStopLossOrder
           },
           // In case account information is updated, get balance again.

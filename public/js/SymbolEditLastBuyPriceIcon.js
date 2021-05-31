@@ -32,12 +32,16 @@ class SymbolEditLastBuyPriceIcon extends React.Component {
 
   handleFormSubmit(e) {
     e.preventDefault();
-    console.log(
-      'handleFormSubmit this.state.symbolInfo ',
-      this.state.symbolInfo
-    );
 
-    this.props.sendWebSocket('symbol-update', this.state.symbolInfo);
+    const {
+      symbol,
+      sell: { lastBuyPrice }
+    } = this.state.symbolInfo;
+
+    this.props.sendWebSocket('symbol-update-last-buy-price', {
+      symbol,
+      sell: { lastBuyPrice }
+    });
     this.handleModalClose();
   }
 
@@ -85,13 +89,12 @@ class SymbolEditLastBuyPriceIcon extends React.Component {
           onClick={this.handleModalShow}>
           <i className='fa fa-edit'></i>
         </button>
-        <Modal
-          show={this.state.showModal}
-          onHide={this.handleModalClose}
-          size='sm'>
+        <Modal show={this.state.showModal} onHide={this.handleModalClose}>
           <Form onSubmit={this.handleFormSubmit}>
             <Modal.Header className='pt-1 pb-1'>
-              <Modal.Title>Edit Last Buy Price</Modal.Title>
+              <Modal.Title>
+                Edit Last Buy Price for {symbolInfo.symbol}
+              </Modal.Title>
             </Modal.Header>
             <Modal.Body>
               <h2 className='form-header'>Sell Signal</h2>

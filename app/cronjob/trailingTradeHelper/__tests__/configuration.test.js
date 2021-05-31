@@ -28,7 +28,7 @@ describe('configuration.js', () => {
 
     it('triggers PubSub.publish', () => {
       expect(PubSub.publish).toHaveBeenCalledWith(
-        'trailing-trade-configuration-changed',
+        'reset-binance-websocket',
         true
       );
     });

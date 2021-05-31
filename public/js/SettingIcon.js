@@ -89,11 +89,6 @@ class SettingIcon extends React.Component {
   }
 
   handleFormSubmit(extraConfiguration = {}) {
-    console.log(
-      'handleFormSubmit this.state.configuration ',
-      this.state.configuration
-    );
-
     this.handleModalClose('confirm');
     this.handleModalClose('setting');
     this.props.sendWebSocket('setting-update', {
@@ -132,8 +127,6 @@ class SettingIcon extends React.Component {
   }
 
   handleMaxPurchaeAmountChange(newMaxPurchaseAmounts) {
-    console.log('handleMaxPurchaeAmountChange => ', newMaxPurchaseAmounts);
-
     const { configuration } = this.state;
 
     this.setState({

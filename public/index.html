@@ -36,6 +36,7 @@
       rel="stylesheet"
       href="https://unpkg.com/react-bootstrap-typeahead@5.1.4/css/Typeahead.min.css"
     />
+    <link rel="stylesheet" href="https://unpkg.com/notyf@3.9.0/notyf.min.css" />
 
     <link rel="stylesheet" href="./css/App.css" />
     <meta
@@ -45,12 +46,20 @@
   </head>
   <body class="dark-theme dark-mode">
     <div id="app"></div>
-    <script
+    <!-- <script
       src="https://unpkg.com/react@17/umd/react.production.min.js"
       crossorigin
     ></script>
     <script
       src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"
+      crossorigin
+    ></script> -->
+    <script
+      src="https://unpkg.com/react@17/umd/react.development.js"
+      crossorigin
+    ></script>
+    <script
+      src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"
       crossorigin
     ></script>
     <script
@@ -73,25 +82,37 @@
       src="https://unpkg.com/axios/dist/axios.min.js"
       crossorigin
     ></script>
-
     <script
       src="https://unpkg.com/react-bootstrap-typeahead@5.1.4/dist/react-bootstrap-typeahead.min.js"
       crossorigin
     ></script>
+    <script
+      src="https://unpkg.com/notyf@3.9.0/notyf.min.js"
+      crossorigin
+    ></script>
 
     <script>
+      const { useState, useRef, useEffect } = React;
+
       const {
         Modal,
+        ButtonGroup,
         Button,
         Form,
         Spinner,
         Accordion,
         Card,
         OverlayTrigger,
-        Popover
+        Popover,
+        Row,
+        Col,
+        InputGroup,
+        FormControl
       } = ReactBootstrap;
 
       const { Typeahead } = ReactBootstrapTypeahead;
+      // const Swal = sweetAlert;
+      // const notyf = new Notyf();
     </script>
 
     <script type="text/babel" src="./js/Config.js"></script>
@@ -106,8 +127,10 @@
     <script type="text/babel" src="./js/CoinWrapperSellSignal.js"></script>
     <script type="text/babel" src="./js/CoinWrapperBuyOrders.js"></script>
     <script type="text/babel" src="./js/CoinWrapperBuySignal.js"></script>
+    <script type="text/babel" src="./js/CoinWrapperManualTrade.js"></script>
     <script type="text/babel" src="./js/CoinWrapperAction.js"></script>
     <script type="text/babel" src="./js/CoinWrapperBalance.js"></script>
+    <script type="text/babel" src="./js/SymbolCancelIcon.js"></script>
     <script type="text/babel" src="./js/SymbolEnableActionIcon.js"></script>
     <script type="text/babel" src="./js/SymbolDeleteIcon.js"></script>
     <script type="text/babel" src="./js/SymbolEditLastBuyPriceIcon.js"></script>

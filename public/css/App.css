@@ -13,6 +13,18 @@ body.dark-theme {
   border-top: 1px dashed #585858;
 }
 
+/* Start SweetAlert */
+/*
+.swal2-popup.swal2-toast {
+  padding: 0.5em;
+  box-shadow: none;
+}
+
+.swal2-popup.swal2-toast .swal2-title {
+  margin: 0.7em 0em;
+}
+/* Finish SweetAlert */
+
 /* Disable scrolling */
 input[type='number']::-webkit-outer-spin-button,
 input[type='number']::-webkit-inner-spin-button {
@@ -53,6 +65,10 @@ input[type='number'] {
 
 .fs-7 {
   font-size: 0.8rem !important;
+}
+
+.w-20 {
+  width: 20% !important;
 }
 
 .app {
@@ -196,10 +212,12 @@ input[type='number'] {
   background-color: #272b38;
 }
 
-.accordion-wrapper .btn-link {
-  text-transform: uppercase;
-  font-weight: bold;
+.accordion-wrapper .btn-account-balance {
   color: #809fff;
+}
+
+.account-balance-actions-wrapper .btn-convert-to-bnb {
+  color: #f4bd34;
 }
 
 .account-asset-coin {
@@ -419,7 +437,134 @@ input[type='number'] {
   color: #deb887;
 }
 
+/**
+  Start: Manual Trade
+*/
+.input-group > .input-group-prepend {
+  flex: 0 0 25%;
+}
+.input-group .input-group-text {
+  width: 100%;
+}
 
-.status-wrapper-ul{
-  
+.input-group > .input-group-append {
+  flex: 0 0 25%;
+}
+
+.btn-manual {
+  margin: 2px 0px 0px;
+  appearance: none;
+  user-select: none;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-flex;
+  -webkit-box-align: center;
+  align-items: center;
+  -webkit-box-pack: center;
+  justify-content: center;
+  box-sizing: border-box;
+  text-align: center;
+  text-decoration: none;
+  outline: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 20px;
+  word-break: keep-all;
+  padding: 6px 12px;
+  height: 45px;
+  border: none;
+  border-radius: 4px;
+  color: white;
+}
+
+.btn-manual:active,
+.btn-manual:hover {
+  color: white;
+}
+
+.coin-info-sub-wrapper-symbol .coin-info-column-icon .btn-manual-trade {
+  padding: 0 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  background-color: #6f42c1;
+  color: #fff;
+}
+
+.coin-info-sub-wrapper-symbol .coin-info-column-icon .btn-manual-trade:hover {
+  background-color: rgba(110, 66, 193, 0.855);
+  color: #fff;
+  text-decoration: none;
+}
+
+.btn-manual-buy {
+  background-color: rgb(2, 192, 118);
+}
+
+.btn-manual-buy:active:not(:disabled) {
+  box-shadow: none;
+  background-color: rgb(21, 152, 101);
+}
+
+.btn-manual-buy:hover:not(:disabled):not(:active) {
+  box-shadow: none;
+  background-color: rgb(46, 209, 145);
+}
+
+.btn-manual-sell {
+  background-color: rgb(248, 73, 96);
+}
+
+.btn-manual-sell:active:not(:disabled) {
+  box-shadow: none;
+  background-color: rgb(207, 48, 74);
+}
+
+.btn-manual-sell:hover:not(:disabled):not(:active) {
+  box-shadow: none;
+  background-color: rgb(255, 66, 101);
+}
+
+.manual-trade-wrappers {
+  display: flex;
+  flex-direction: row;
+}
+
+.manual-trade-wrapper {
+  width: 50%;
+  padding-right: 20px;
+}
+
+@media (max-width: 800px) {
+  .manual-trade-wrappers {
+    flex-direction: column;
+  }
+
+  .manual-trade-wrapper {
+    width: 100%;
+    padding-right: 0;
+  }
+
+  .manual-trade-sell-wrapper {
+    margin-top: 20px;
+  }
+}
+
+.manual-trade-title-buy {
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+/**
+  End: Manual Trade
+*/
+
+.btn-cancel-order {
+  line-height: 0.8rem;
+  vertical-align: unset;
+  color: #f84960;
+}
+
+.btn-cancel-order:hover {
+  color: #f84960ce;
 }

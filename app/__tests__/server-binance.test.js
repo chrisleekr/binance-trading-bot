@@ -72,7 +72,7 @@ describe('server-binance', () => {
 
       it('triggers PubSub.subscribe', () => {
         expect(PubSubMock.subscribe).toHaveBeenCalledWith(
-          'trailing-trade-configuration-changed',
+          'reset-binance-websocket',
           expect.any(Function)
         );
       });
@@ -140,7 +140,7 @@ describe('server-binance', () => {
 
       it('triggers PubSub.subscribe', () => {
         expect(PubSubMock.subscribe).toHaveBeenCalledWith(
-          'trailing-trade-configuration-changed',
+          'reset-binance-websocket',
           expect.any(Function)
         );
       });
