@@ -38,9 +38,8 @@ class CoinWrapperSetting extends React.Component {
             className='btn btn-sm btn-link p-0 ml-1'
             onClick={this.toggleCollapse}>
             <i
-              className={`fa ${
-                collapsed ? 'fa-arrow-right' : 'fa-arrow-down'
-              }`}></i>
+              className={`fa ${collapsed ? 'fa-arrow-right' : 'fa-arrow-down'
+                }`}></i>
           </button>
         </div>
         <div
@@ -72,6 +71,13 @@ class CoinWrapperSetting extends React.Component {
                   <i className='fa fa-toggle-off'></i>
                 )}
               </span>
+            </div>
+
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>Last Buy Price Remove Threshold:</span>
+              <HightlightChange className='coin-info-value'>
+                {symbolConfiguration.buy.lastBuyPriceRemoveThreshold} {quoteAsset}
+              </HightlightChange>
             </div>
 
             <div className='coin-info-column coin-info-column-order'>

@@ -6,8 +6,6 @@ const {
   getAPILimit,
   isActionDisabled
 } = require('../../trailingTradeHelper/common');
-const { getConfiguration } = require('../../trailingTradeHelper/configuration');
-
 /**
  * Retrieve last buy order from cache
  *
@@ -47,12 +45,12 @@ const removeLastBuyPrice = async (
     `${symbol} Action (${moment().format(
       'HH:mm:ss.SSS'
     )}): Removed last buy price\n` +
-      `- Message: ${processMessage}\n\`\`\`${JSON.stringify(
-        extraMessages,
-        undefined,
-        2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+    `- Message: ${processMessage}\n\`\`\`${JSON.stringify(
+      extraMessages,
+      undefined,
+      2
+    )}\`\`\`\n` +
+    `- Current API Usage: ${getAPILimit(logger)}`
   );
 };
 
@@ -69,6 +67,9 @@ const execute = async (logger, rawData) => {
     isLocked,
     action,
     symbol,
+    symbolConfiguration: {
+      buy: { lastBuyPriceRemoveThreshold }
+    },
     symbolInfo: {
       filterLotSize: { stepSize, minQty },
       filterMinNotional: { minNotional }
@@ -171,12 +172,7 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  //Get symbol config and define last buy remove price threshold, then get the calculated price.
-  const symbolConfiguration = rawData.symbolConfiguration;
-  const lastBuyPriceRemoveThreshold = symbolConfiguration.buy.lastBuyPriceRemoveThreshold;
-  const priceCalculated = baseAssetQuantity * currentPrice;
-
-   if (priceCalculated < lastBuyPriceRemoveThreshold) {
+  if (baseAssetQuantity * currentPrice < lastBuyPriceRemoveThreshold) {
     // Final check for open orders
     refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
     if (refreshedOpenOrders.length > 0) {
@@ -184,7 +180,7 @@ const execute = async (logger, rawData) => {
       return data;
     }
 
-		 processMessage =
+    processMessage =
       'Balance is less than the notional value. Delete last buy price.';
 
     logger.error({ baseAssetQuantity }, processMessage);
