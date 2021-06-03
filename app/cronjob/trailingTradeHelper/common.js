@@ -81,6 +81,7 @@ const cacheExchangeSymbols = async (logger, _globalConfiguration) => {
  * @param {*} accountInfo
  * @returns
  */
+/*
 const extendBalancesWithDustTransfer = async (_logger, rawAccountInfo) => {
   const accountInfo = rawAccountInfo;
   const ignoreAssets = ['BNB', 'BTC'];
@@ -128,6 +129,7 @@ const extendBalancesWithDustTransfer = async (_logger, rawAccountInfo) => {
   accountInfo.balances = newBalances;
   return accountInfo;
 };
+*/
 
 /**
  * Retrieve account information from API and filter balances
@@ -263,21 +265,6 @@ const getAndCacheOpenOrdersForSymbol = async (logger, symbol) => {
  * @param {*} logger
  * @param {*} symbol
  */
-// const getLastBuyPrice = async (logger, symbol) => {
-//   const lastBuyPriceDoc = await mongo.findOne(
-//     logger,
-//     'trailing-trade-symbols',
-//     {
-//       key: `${symbol}-last-buy-price`
-//     }
-//   );
-
-//   const cachedLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
-//   logger.debug({ cachedLastBuyPrice }, 'Last buy price from cache');
-
-//   return cachedLastBuyPrice;
-// };
-
 const getLastBuyPrice = async (logger, symbol) =>
   mongo.findOne(logger, 'trailing-trade-symbols', {
     key: `${symbol}-last-buy-price`
@@ -290,8 +277,12 @@ const getLastBuyPrice = async (logger, symbol) =>
  * @param {*} symbol
  * @param {*} param2
  */
-const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity }) =>
-  mongo.upsertOne(
+const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity }) => {
+  logger.info(
+    { tag: 'save-last-buy-price', symbol, lastBuyPrice, quantity },
+    'Save last buy price'
+  );
+  return mongo.upsertOne(
     logger,
     'trailing-trade-symbols',
     { key: `${symbol}-last-buy-price` },
@@ -301,6 +292,7 @@ const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity }) =>
       quantity
     }
   );
+};
 
 /**
  * Lock symbol
@@ -445,7 +437,7 @@ module.exports = {
   cacheExchangeSymbols,
   getAccountInfoFromAPI,
   getAccountInfo,
-  extendBalancesWithDustTransfer,
+  // extendBalancesWithDustTransfer,
   getOpenOrdersFromAPI,
   getOpenOrdersBySymbolFromAPI,
   getAndCacheOpenOrdersForSymbol,

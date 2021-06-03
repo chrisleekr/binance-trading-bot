@@ -1,11 +1,11 @@
 /* eslint-disable no-await-in-loop */
 const moment = require('moment');
-const { isEmpty } = require('lodash');
 const _ = require('lodash');
-const { cache, PubSub, binance } = require('../../../helpers');
+const { cache, PubSub, binance, slack } = require('../../../helpers');
 const {
   getLastBuyPrice,
-  saveLastBuyPrice
+  saveLastBuyPrice,
+  getAPILimit
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -16,196 +16,101 @@ const {
  * @param {*} order
  */
 const calculateLastBuyPrice = async (logger, symbol, order) => {
-  const { orderId, fills } = order;
+  const { orderId, type, executedQty, cummulativeQuoteQty } = order;
   const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
 
-  const lastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', 0);
+  const orgLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', 0);
+  const orgQuantity = _.get(lastBuyPriceDoc, 'quantity', 0);
+  const orgTotalAmount = orgLastBuyPrice * orgQuantity;
 
-  let totalQuantity = _.get(lastBuyPriceDoc, 'quantity', 0);
-  let totalAmount = lastBuyPrice * totalQuantity;
+  logger.info(
+    { orgLastBuyPrice, orgQuantity, orgTotalAmount },
+    'Existing last buy price'
+  );
 
-  if (!isEmpty(fills)) {
-    fills.forEach(fill => {
-      const filledPrice = parseFloat(fill.price);
-      const filledQuantity = parseFloat(fill.qty);
+  const filledQuoteQty = parseFloat(cummulativeQuoteQty);
+  const filledQuantity = parseFloat(executedQty);
 
-      totalQuantity += filledQuantity;
-      totalAmount += filledPrice * filledQuantity;
-    });
-  }
+  const newQuantity = orgQuantity + filledQuantity;
+  const newTotalAmount = orgTotalAmount + filledQuoteQty;
 
+  const newLastBuyPrice = newTotalAmount / newQuantity;
+
+  logger.info(
+    { newLastBuyPrice, newTotalAmount, newQuantity },
+    'New last buy price'
+  );
   await saveLastBuyPrice(logger, symbol, {
-    lastBuyPrice: totalAmount / totalQuantity,
-    quantity: totalQuantity
+    lastBuyPrice: newLastBuyPrice,
+    quantity: newQuantity
   });
 
   await cache.hdel(`trailing-trade-manual-buy-order-${symbol}`, orderId);
 
   PubSub.publish('frontend-notification', {
     type: 'success',
-    title: `The last buy price for ${symbol} has been updated.`
+    title: `New last buy price for ${symbol} has been updated.`
   });
+
+  slack.sendMessage(
+    `${symbol} Last buy price Updated (${moment().format(
+      'HH:mm:ss.SSS'
+    )}): *${type}*\n` +
+      `- Order Result: \`\`\`${JSON.stringify(
+        {
+          orgLastBuyPrice,
+          orgQuantity,
+          orgTotalAmount,
+          newLastBuyPrice,
+          newQuantity,
+          newTotalAmount
+        },
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
+  );
+};
+
+/**
+ * Send slack message for order result
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} side
+ * @param {*} orderParams
+ * @param {*} orderResult
+ */
+const slackMessageOrderResult = async (
+  logger,
+  symbol,
+  side,
+  orderParams,
+  orderResult
+) => {
+  const type = orderParams.type.toUpperCase();
+
+  PubSub.publish('frontend-notification', {
+    type: 'success',
+    title: `The ${side} order for ${symbol} has been executed successfully.`
+  });
+
+  return slack.sendMessage(
+    `${symbol} Manual ${side.toUpperCase()} Order Filled (${moment().format(
+      'HH:mm:ss.SSS'
+    )}): *${type}*\n` +
+      `- Order Result: \`\`\`${JSON.stringify(
+        orderResult,
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
+  );
 };
 
 /**
  * Ensure manual buy order is placed
  *
- * {
-      "symbol": "ETHBTC",
-      "orderId": 9749,
-      "orderListId": -1,
-      "clientOrderId": "aBNNh7GfjNnZIzm35GLwAq",
-      "transactTime": 1622368454223,
-      "price": "0.06828200",
-      "origQty": "0.10000000",
-      "executedQty": "0.10000000",
-      "cummulativeQuoteQty": "0.00682820",
-      "status": "FILLED",
-      "timeInForce": "GTC",
-      "type": "LIMIT",
-      "side": "BUY",
-      "fills": [
-        {
-          "price": "0.06828200",
-          "qty": "0.10000000",
-          "commission": "0.00000000",
-          "commissionAsset": "ETH",
-          "tradeId": 3153
-        }
-      ]
-    }
-    {
-      "symbol": "BTCUSDT",
-      "orderId": 5674916,
-      "orderListId": -1,
-      "clientOrderId": "aiYKXjAZmELqEE16mqpFTn",
-      "transactTime": 1622368621204,
-      "price": "35901.96000000",
-      "origQty": "0.00100000",
-      "executedQty": "0.00100000",
-      "cummulativeQuoteQty": "35.90121000",
-      "status": "FILLED",
-      "timeInForce": "GTC",
-      "type": "LIMIT",
-      "side": "BUY",
-      "fills": [
-        {
-          "price": "35901.21000000",
-          "qty": "0.00100000",
-          "commission": "0.00000000",
-          "commissionAsset": "BTC",
-          "tradeId": 1471678
-        }
-      ]
-    }
-
-
-    {
-      "symbol": "ETHBTC",
-      "orderId": 9752,
-      "orderListId": -1,
-      "clientOrderId": "HgtQVdcHsqYIXQ47AXt7jL",
-      "transactTime": 1622368502241,
-      "price": "0.00000000",
-      "origQty": "0.01464000",
-      "executedQty": "0.01464000",
-      "cummulativeQuoteQty": "0.00099964",
-      "status": "FILLED",
-      "timeInForce": "GTC",
-      "type": "MARKET",
-      "side": "BUY",
-      "fills": [
-        {
-          "price": "0.06828200",
-          "qty": "0.01464000",
-          "commission": "0.00000000",
-          "commissionAsset": "ETH",
-          "tradeId": 3155
-        }
-      ]
-    }
-
-    {
-      "symbol": "BTCUSDT",
-      "orderId": 5675005,
-      "orderListId": -1,
-      "clientOrderId": "N5mxvfjIfkMBUmAf71KEOq",
-      "transactTime": 1622368662561,
-      "price": "0.00000000",
-      "origQty": "0.00306300",
-      "executedQty": "0.00306300",
-      "cummulativeQuoteQty": "109.99701639",
-      "status": "FILLED",
-      "timeInForce": "GTC",
-      "type": "MARKET",
-      "side": "BUY",
-      "fills": [
-        {
-          "price": "35911.53000000",
-          "qty": "0.00306300",
-          "commission": "0.00000000",
-          "commissionAsset": "BTC",
-          "tradeId": 1471705
-        }
-      ]
-    }
-
-    {
-      "symbol": "ETHBTC",
-      "orderId": 9753,
-      "orderListId": -1,
-      "clientOrderId": "jnw8mWBHTxEWFfkqQE0DNL",
-      "transactTime": 1622368530571,
-      "price": "0.00000000",
-      "origQty": "0.01000000",
-      "executedQty": "0.01000000",
-      "cummulativeQuoteQty": "0.00068282",
-      "status": "FILLED",
-      "timeInForce": "GTC",
-      "type": "MARKET",
-      "side": "BUY",
-      "fills": [
-        {
-          "price": "0.06828200",
-          "qty": "0.01000000",
-          "commission": "0.00000000",
-          "commissionAsset": "ETH",
-          "tradeId": 3156
-        }
-      ]
-    }
-
-    {
-      "symbol": "BTCUSDT",
-      "orderId": 5675060,
-      "orderListId": -1,
-      "clientOrderId": "I8VZV5NR5yZu6xXBxRltMY",
-      "transactTime": 1622368688218,
-      "price": "0.00000000",
-      "origQty": "0.05000000",
-      "executedQty": "0.05000000",
-      "cummulativeQuoteQty": "1795.75050000",
-      "status": "FILLED",
-      "timeInForce": "GTC",
-      "type": "MARKET",
-      "side": "BUY",
-      "fills": [
-        {
-          "price": "35915.01000000",
-          "qty": "0.01392200",
-          "commission": "0.00000000",
-          "commissionAsset": "BTC",
-          "tradeId": 1471719
-        },
-        {
-          "price": "35915.01000000",
-          "qty": "0.03607800",
-          "commission": "0.00000000",
-          "commissionAsset": "BTC",
-          "tradeId": 1471720
-        }
-      ]
-    }
  * @param {*} logger
  * @param {*} rawData
  */
@@ -230,6 +135,8 @@ const execute = async (logger, rawData) => {
     );
     return data;
   }
+
+  const removeStatuses = ['CANCELLED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'];
 
   // Check if manual-buy-order is existing
   // eslint-disable-next-line no-restricted-syntax
@@ -261,7 +168,31 @@ const execute = async (logger, rawData) => {
             { buyOrder },
             'The order is filled, caluclate last buy price.'
           );
+          slackMessageOrderResult(
+            logger,
+            symbol,
+            buyOrder.side,
+            buyOrder,
+            orderResult
+          );
           await calculateLastBuyPrice(logger, symbol, orderResult);
+        } else if (removeStatuses.includes(orderResult.status) === true) {
+          // If order is no longer available, then delete from cache
+          await cache.hdel(
+            `trailing-trade-manual-buy-order-${symbol}`,
+            orderResult.orderId
+          );
+          slack.sendMessage(
+            `${symbol} Manual ${buyOrder.side.toUpperCase()} Order Removed (${moment().format(
+              'HH:mm:ss.SSS'
+            )}): *${buyOrder.type}*\n` +
+              `- Order Result: \`\`\`${JSON.stringify(
+                orderResult,
+                undefined,
+                2
+              )}\`\`\`\n` +
+              `- Current API Usage: ${getAPILimit(logger)}`
+          );
         } else {
           // If not filled, update next check time
           const updatedNextCheck = moment().add(

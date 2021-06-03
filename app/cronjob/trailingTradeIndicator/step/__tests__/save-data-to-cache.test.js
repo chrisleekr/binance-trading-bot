@@ -22,16 +22,6 @@ describe('save-data-to-cache.js', () => {
       await step.execute(logger, rawData);
     });
 
-    it('triggers cache.hset for account info', () => {
-      expect(cache.hset).toHaveBeenCalledWith(
-        'trailing-trade-common',
-        'account-info',
-        JSON.stringify({
-          my: 'account'
-        })
-      );
-    });
-
     it('triggers cache.hset for symbol indicator data', () => {
       expect(cache.hset).toHaveBeenCalledWith(
         'trailing-trade-symbols',

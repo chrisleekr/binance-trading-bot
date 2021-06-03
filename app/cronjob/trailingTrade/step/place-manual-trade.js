@@ -115,7 +115,7 @@ const formatOrder = async (logger, symbol, order) => {
     return formatOrderMarketAmount(logger, side, symbol, sell);
   }
 
-  throw new Error('Unknown order side/type');
+  throw new Error('Unknown order side/type for manual trade');
 };
 
 /**
@@ -124,13 +124,21 @@ const formatOrder = async (logger, symbol, order) => {
  * @param {*} logger
  * @param {*} symbol
  * @param {*} side
+ * @param {*} order
  * @param {*} orderParams
  */
-const slackMessageOrderParams = async (logger, symbol, side, orderParams) => {
-  let type = orderParams.type.toUpperCase();
+const slackMessageOrderParams = async (
+  logger,
+  symbol,
+  side,
+  order,
+  orderParams
+) => {
+  const { type: rawType, marketType } = order[side];
+  let type = rawType.toUpperCase();
 
-  if (orderParams.type === 'market') {
-    type += ` - ${orderParams.marketType.toUpperCase()}`;
+  if (type === 'MARKET') {
+    type += ` - ${marketType.toUpperCase()}`;
   }
 
   return slack.sendMessage(
@@ -152,20 +160,21 @@ const slackMessageOrderParams = async (logger, symbol, side, orderParams) => {
  * @param {*} logger
  * @param {*} symbol
  * @param {*} side
- * @param {*} orderParams
+ * @param {*} order
  * @param {*} orderResult
  */
 const slackMessageOrderResult = async (
   logger,
   symbol,
   side,
-  orderParams,
+  order,
   orderResult
 ) => {
-  let type = orderParams.type.toUpperCase();
+  const { type: rawType, marketType } = order[side];
+  let type = rawType.toUpperCase();
 
-  if (orderParams.type === 'market') {
-    type += ` - ${orderParams.marketType.toUpperCase()}`;
+  if (type === 'MARKET') {
+    type += ` - ${marketType.toUpperCase()}`;
   }
 
   PubSub.publish('frontend-notification', {
@@ -246,7 +255,7 @@ const execute = async (logger, rawData) => {
 
   // Assume order is provided with correct value
   const orderParams = await formatOrder(logger, symbol, order);
-  slackMessageOrderParams(logger, symbol, order.side, orderParams);
+  slackMessageOrderParams(logger, symbol, order.side, order, orderParams);
 
   const orderResult = await binance.client.order(orderParams);
 
@@ -265,7 +274,7 @@ const execute = async (logger, rawData) => {
   // Refresh account info
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
-  slackMessageOrderResult(logger, symbol, order.side, orderParams, orderResult);
+  slackMessageOrderResult(logger, symbol, order.side, order, orderResult);
   data.buy.processMessage = `Placed new manual order.`;
   data.buy.updatedAt = moment().utc();
 

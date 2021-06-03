@@ -35,6 +35,8 @@ const saveGlobalConfiguration = async (logger, configuration) => {
 const getGlobalConfiguration = async logger => {
   const orgConfigValue = config.get('jobs.trailingTrade');
 
+  orgConfigValue.symbols = Object.values(orgConfigValue.symbols);
+
   const savedConfigValue = await mongo.findOne(
     logger,
     'trailing-trade-common',
@@ -53,7 +55,7 @@ const getGlobalConfiguration = async logger => {
   }
 
   return _.mergeWith(savedConfigValue, orgConfigValue, (objValue, srcValue) => {
-    if (!_.isObject(objValue)) {
+    if (_.isArray(objValue) || !_.isObject(objValue)) {
       return objValue;
     }
     return _.defaultsDeep(objValue, srcValue);

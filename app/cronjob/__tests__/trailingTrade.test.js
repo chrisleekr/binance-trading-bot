@@ -19,12 +19,16 @@ describe('trailingTrade', () => {
 
   let mockGetSymbolConfiguration;
   let mockGetSymbolInfo;
-  let mockGetBalances;
+  let mockGetOverrideAction;
+  let mockEnsureManualBuyOrder;
   let mockEnsureOrderPlaced;
+  let mockGetBalances;
   let mockGetOpenOrders;
   let mockGetIndicators;
   let mockHandleOpenOrders;
   let mockDetermineAction;
+  let mockPlaceManualTrade;
+  let mockCancelOrder;
   let mockPlaceBuyOrder;
   let mockPlaceSellOrder;
   let mockPlaceSellStopLossOrder;
@@ -103,13 +107,27 @@ describe('trailingTrade', () => {
         }
       }));
 
-      mockGetBalances = jest.fn().mockImplementation((_logger, rawData) => ({
-        ...rawData,
-        ...{
-          baseAssetBalance: { baseAsset: 'balance' },
-          quoteAssetBalance: { quoteAsset: 'balance' }
-        }
-      }));
+      mockGetOverrideAction = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            overrideAction: {
+              action: 'override-action'
+            }
+          }
+        }));
+
+      mockEnsureManualBuyOrder = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            ensureManualBuyOrder: {
+              ensured: 'manual-buy-order'
+            }
+          }
+        }));
 
       mockEnsureOrderPlaced = jest
         .fn()
@@ -117,6 +135,14 @@ describe('trailingTrade', () => {
           ...rawData,
           ensure: 'order-placed'
         }));
+
+      mockGetBalances = jest.fn().mockImplementation((_logger, rawData) => ({
+        ...rawData,
+        ...{
+          baseAssetBalance: { baseAsset: 'balance' },
+          quoteAssetBalance: { quoteAsset: 'balance' }
+        }
+      }));
 
       mockGetOpenOrders = jest.fn().mockImplementation((_logger, rawData) => ({
         ...rawData,
@@ -163,6 +189,26 @@ describe('trailingTrade', () => {
           ...rawData,
           ...{ action: 'determined' }
         }));
+
+      mockPlaceManualTrade = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            placeManualTrade: {
+              placed: 'manual-trade'
+            }
+          }
+        }));
+
+      mockCancelOrder = jest.fn().mockImplementation((_logger, rawData) => ({
+        ...rawData,
+        ...{
+          cancelOrder: {
+            cancelled: 'existing-order'
+          }
+        }
+      }));
 
       mockPlaceBuyOrder = jest.fn().mockImplementation((_logger, rawData) => ({
         ...rawData,
@@ -227,12 +273,16 @@ describe('trailingTrade', () => {
       jest.mock('../trailingTrade/steps', () => ({
         getSymbolConfiguration: mockGetSymbolConfiguration,
         getSymbolInfo: mockGetSymbolInfo,
-        getBalances: mockGetBalances,
+        getOverrideAction: mockGetOverrideAction,
+        ensureManualBuyOrder: mockEnsureManualBuyOrder,
         ensureOrderPlaced: mockEnsureOrderPlaced,
+        getBalances: mockGetBalances,
         getOpenOrders: mockGetOpenOrders,
         getIndicators: mockGetIndicators,
         handleOpenOrders: mockHandleOpenOrders,
         determineAction: mockDetermineAction,
+        placeManualTrade: mockPlaceManualTrade,
+        cancelOrder: mockCancelOrder,
         placeBuyOrder: mockPlaceBuyOrder,
         placeSellOrder: mockPlaceSellOrder,
         placeSellStopLossOrder: mockPlaceSellStopLossOrder,
@@ -278,10 +328,15 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
-            stopLoss: 'processed',
+            order: {},
             saveToCache: true,
+            overrideAction: { action: 'override-action' },
+            ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             handled: 'open-orders',
+            placeManualTrade: { placed: 'manual-trade' },
+            cancelOrder: { cancelled: 'existing-order' },
+            stopLoss: 'processed',
             removed: 'last-buy-price',
             saved: 'data-to-cache'
           }
@@ -309,10 +364,15 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
-            stopLoss: 'processed',
+            order: {},
             saveToCache: true,
+            overrideAction: { action: 'override-action' },
+            ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             handled: 'open-orders',
+            placeManualTrade: { placed: 'manual-trade' },
+            cancelOrder: { cancelled: 'existing-order' },
+            stopLoss: 'processed',
             removed: 'last-buy-price',
             saved: 'data-to-cache'
           }
@@ -340,10 +400,15 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
-            stopLoss: 'processed',
+            order: {},
             saveToCache: true,
+            overrideAction: { action: 'override-action' },
+            ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             handled: 'open-orders',
+            placeManualTrade: { placed: 'manual-trade' },
+            cancelOrder: { cancelled: 'existing-order' },
+            stopLoss: 'processed',
             removed: 'last-buy-price',
             saved: 'data-to-cache'
           }
@@ -404,13 +469,27 @@ describe('trailingTrade', () => {
         }
       }));
 
-      mockGetBalances = jest.fn().mockImplementation((_logger, rawData) => ({
-        ...rawData,
-        ...{
-          baseAssetBalance: { baseAsset: 'balance' },
-          quoteAssetBalance: { quoteAsset: 'balance' }
-        }
-      }));
+      mockGetOverrideAction = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            overrideAction: {
+              action: 'override-action'
+            }
+          }
+        }));
+
+      mockEnsureManualBuyOrder = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            ensureManualBuyOrder: {
+              ensured: 'manual-buy-order'
+            }
+          }
+        }));
 
       mockEnsureOrderPlaced = jest
         .fn()
@@ -418,6 +497,14 @@ describe('trailingTrade', () => {
           ...rawData,
           ensure: 'order-placed'
         }));
+
+      mockGetBalances = jest.fn().mockImplementation((_logger, rawData) => ({
+        ...rawData,
+        ...{
+          baseAssetBalance: { baseAsset: 'balance' },
+          quoteAssetBalance: { quoteAsset: 'balance' }
+        }
+      }));
 
       mockGetOpenOrders = jest.fn().mockImplementation((_logger, rawData) => ({
         ...rawData,
@@ -464,6 +551,26 @@ describe('trailingTrade', () => {
           ...rawData,
           ...{ action: 'determined' }
         }));
+
+      mockPlaceManualTrade = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            placeManualTrade: {
+              placed: 'manual-trade'
+            }
+          }
+        }));
+
+      mockCancelOrder = jest.fn().mockImplementation((_logger, rawData) => ({
+        ...rawData,
+        ...{
+          cancelOrder: {
+            cancelled: 'existing-order'
+          }
+        }
+      }));
 
       mockPlaceBuyOrder = jest.fn().mockImplementation((_logger, rawData) => ({
         ...rawData,
@@ -528,12 +635,16 @@ describe('trailingTrade', () => {
       jest.mock('../trailingTrade/steps', () => ({
         getSymbolConfiguration: mockGetSymbolConfiguration,
         getSymbolInfo: mockGetSymbolInfo,
-        getBalances: mockGetBalances,
+        getOverrideAction: mockGetOverrideAction,
+        ensureManualBuyOrder: mockEnsureManualBuyOrder,
         ensureOrderPlaced: mockEnsureOrderPlaced,
+        getBalances: mockGetBalances,
         getOpenOrders: mockGetOpenOrders,
         getIndicators: mockGetIndicators,
         handleOpenOrders: mockHandleOpenOrders,
         determineAction: mockDetermineAction,
+        placeManualTrade: mockPlaceManualTrade,
+        cancelOrder: mockCancelOrder,
         placeBuyOrder: mockPlaceBuyOrder,
         placeSellOrder: mockPlaceSellOrder,
         placeSellStopLossOrder: mockPlaceSellStopLossOrder,
@@ -581,10 +692,15 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
-            stopLoss: 'processed',
+            order: {},
             saveToCache: true,
+            overrideAction: { action: 'override-action' },
+            ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             handled: 'open-orders',
+            placeManualTrade: { placed: 'manual-trade' },
+            cancelOrder: { cancelled: 'existing-order' },
+            stopLoss: 'processed',
             removed: 'last-buy-price',
             saved: 'data-to-cache'
           }
@@ -614,10 +730,15 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
-            stopLoss: 'processed',
+            order: {},
             saveToCache: true,
+            overrideAction: { action: 'override-action' },
+            ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             handled: 'open-orders',
+            placeManualTrade: { placed: 'manual-trade' },
+            cancelOrder: { cancelled: 'existing-order' },
+            stopLoss: 'processed',
             removed: 'last-buy-price',
             saved: 'data-to-cache'
           }
@@ -647,10 +768,15 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
-            stopLoss: 'processed',
+            order: {},
             saveToCache: true,
+            overrideAction: { action: 'override-action' },
+            ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             handled: 'open-orders',
+            placeManualTrade: { placed: 'manual-trade' },
+            cancelOrder: { cancelled: 'existing-order' },
+            stopLoss: 'processed',
             removed: 'last-buy-price',
             saved: 'data-to-cache'
           }
@@ -670,19 +796,22 @@ describe('trailingTrade', () => {
         ...data,
         symbol: 'BTCUSDT'
       };
-      mockGetGlobalConfiguration = jest.fn().mockResolvedValue(true);
-      mockCacheExchangeSymbols = jest.fn().mockResolvedValue(true);
-      mockGetAccountInfo = jest.fn().mockResolvedValue(true);
+
       mockGetSymbolConfiguration = jest.fn().mockResolvedValue(true);
       mockGetSymbolInfo = jest.fn().mockResolvedValue(true);
-      mockGetBalances = jest.fn().mockResolvedValue(true);
+      mockGetOverrideAction = jest.fn().mockResolvedValue(true);
+      mockEnsureManualBuyOrder = jest.fn().mockResolvedValue(true);
       mockEnsureOrderPlaced = jest.fn().mockResolvedValue(true);
+      mockGetBalances = jest.fn().mockResolvedValue(true);
       mockGetOpenOrders = jest.fn().mockResolvedValue(true);
       mockGetIndicators = jest.fn().mockResolvedValue(true);
       mockHandleOpenOrders = jest.fn().mockResolvedValue(true);
       mockDetermineAction = jest.fn().mockResolvedValue(true);
+      mockPlaceManualTrade = jest.fn().mockResolvedValue(true);
+      mockCancelOrder = jest.fn().mockResolvedValue(true);
       mockPlaceBuyOrder = jest.fn().mockResolvedValue(true);
       mockPlaceSellOrder = jest.fn().mockResolvedValue(true);
+      mockPlaceSellStopLossOrder = jest.fn().mockResolvedValue(true);
       mockRemoveLastBuyPrice = jest.fn().mockResolvedValue(true);
       mockSaveDataToCache = jest.fn().mockResolvedValue(true);
 
@@ -702,14 +831,19 @@ describe('trailingTrade', () => {
       jest.mock('../trailingTrade/steps', () => ({
         getSymbolConfiguration: mockGetSymbolConfiguration,
         getSymbolInfo: mockGetSymbolInfo,
-        getBalances: mockGetBalances,
+        getOverrideAction: mockGetOverrideAction,
+        ensureManualBuyOrder: mockEnsureManualBuyOrder,
         ensureOrderPlaced: mockEnsureOrderPlaced,
+        getBalances: mockGetBalances,
         getOpenOrders: mockGetOpenOrders,
         getIndicators: mockGetIndicators,
         handleOpenOrders: mockHandleOpenOrders,
         determineAction: mockDetermineAction,
+        placeManualTrade: mockPlaceManualTrade,
+        cancelOrder: mockCancelOrder,
         placeBuyOrder: mockPlaceBuyOrder,
         placeSellOrder: mockPlaceSellOrder,
+        placeSellStopLossOrder: mockPlaceSellStopLossOrder,
         removeLastBuyPrice: mockRemoveLastBuyPrice,
         saveDataToCache: mockSaveDataToCache
       }));

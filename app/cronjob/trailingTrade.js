@@ -130,16 +130,16 @@ const execute = async logger => {
             stepFunc: determineAction
           },
           {
-            stepName: 'place-buy-order',
-            stepFunc: placeBuyOrder
-          },
-          {
             stepName: 'place-manual-order',
             stepFunc: placeManualTrade
           },
           {
             stepName: 'cancel-order',
             stepFunc: cancelOrder
+          },
+          {
+            stepName: 'place-buy-order',
+            stepFunc: placeBuyOrder
           },
           {
             stepName: 'place-sell-order',
@@ -182,6 +182,7 @@ const execute = async logger => {
           { debug: true, symbol },
           '⏹ TrailingTrade: Finish process (Debug)...'
         );
+
         logger.info({ symbol, data }, 'TrailingTrade: Finish process...');
       })
     );

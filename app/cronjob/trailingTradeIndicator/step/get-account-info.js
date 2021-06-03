@@ -45,8 +45,8 @@ const execute = async (logger, rawData) => {
   // Binance API weight for account info should be 10 for each request.
   // However, sometimes Binance changes API weight to 20 for some reason.
   // To avoid issue, getting account info will be done every 2 seconds.
-
   const currentSecond = moment().format('ss');
+
   if (currentSecond % refreshAccountInfoPeriod !== 0) {
     logger.info({ currentSecond }, 'Skipping to get account info');
     return data;

@@ -70,7 +70,7 @@
       },
       "system": {
         "temporaryDisableActionAfterConfirmingOrder": 20,
-        "checkManualBuyOrderPeriod": 10,
+        "checkManualBuyOrderPeriod": 5,
         "refreshAccountInfoPeriod": 1
       }
     },
