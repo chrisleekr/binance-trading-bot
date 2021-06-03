@@ -1,7 +1,7 @@
 /* eslint-disable global-require */
 const moment = require('moment');
+
 describe('ensure-manual-buy-order.js', () => {
-  let result;
   let rawData;
 
   let binanceMock;
