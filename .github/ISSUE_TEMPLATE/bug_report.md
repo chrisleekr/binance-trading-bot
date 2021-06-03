@@ -6,6 +6,23 @@ labels: 'bug'
 assignees: ''
 ---
 
+
+<!-- Please read this comment before you submitting the issue. -->
+<!-- You don't need to answer these questions in the issue. -->
+
+<!-- Have you searched for your issues? Other traders may already have the answer for you. -->
+<!-- https://github.com/chrisleekr/binance-trading-bot/issues -->
+
+<!-- Have you checked the Troubleshooting wiki page? -->
+<!-- Please refer the wiki page whether other traders already got answer for you -->
+<!-- https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting -->
+
+## Version
+
+<!-- At the bottom of the frontend, you can see "Running Version" with the commit hash. -->
+<!-- Please provide the version and commit hash. -->
+<!-- If it said "unspecified", then you are running the development mode. Unless you are developing, simple use DockerHub image. -->
+
 ## Description
 
 <!-- A clear and concise description of the bug. -->
