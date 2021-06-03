@@ -28,6 +28,10 @@ incurred directly or indirectly by using this code. Read
 
 ## Latest changes
 
+### Support manual trade
+
+The bot is now supporting manual trade per symbol. It will automatically re-calculate the last buy price if exists.
+
 ### Support all symbols
 
 The bot is now supporting all symbols such as ETHBTC, XRPBTC. As a result, the maximum purchase amount configuration has been updated in the global
@@ -316,7 +320,7 @@ to view the past changes.
 - [x] Improve frontend & settings UI - [#93](https://github.com/chrisleekr/binance-trading-bot/issues/93) [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
 - [x] Support all symbols - [#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
 - [x] Add stop loss feature - [#99](https://github.com/chrisleekr/binance-trading-bot/issues/99)
-- [ ] Add manual buy/sell feature -[#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
+- [x] Add manual buy/sell feature -[#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
 - [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
 - [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
 - [ ] Support Grid strategy for buy/sell to mitigate loss/increasing profit - [#158](https://github.com/chrisleekr/binance-trading-bot/issues/158)
