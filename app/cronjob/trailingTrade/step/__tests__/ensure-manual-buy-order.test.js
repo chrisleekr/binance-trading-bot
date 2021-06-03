@@ -2,6 +2,7 @@
 const moment = require('moment');
 
 describe('ensure-manual-buy-order.js', () => {
+  let result;
   let rawData;
 
   let binanceMock;
@@ -83,6 +84,18 @@ describe('ensure-manual-buy-order.js', () => {
 
       it('does not trigger saveLastBuyPrice', () => {
         expect(mockSaveLastBuyPrice).not.toHaveBeenCalled();
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          symbol: 'BTCUSDT',
+          isLocked: false,
+          symbolConfiguration: {
+            system: {
+              checkManualBuyOrderPeriod: 10
+            }
+          }
+        });
       });
     });
 
