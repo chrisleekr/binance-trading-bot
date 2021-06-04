@@ -39,6 +39,7 @@ class CoinWrapperManualTrade extends React.Component {
     this.handleModalShow = this.handleModalShow.bind(this);
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
     this.handleInputChange = this.handleInputChange.bind(this);
+    this.handleClick = this.handleClick.bind(this);
 
     this.calculatePercentage = this.calculatePercentage.bind(this);
   }
@@ -78,6 +79,10 @@ class CoinWrapperManualTrade extends React.Component {
     this.setState({
       showModal: false
     });
+  }
+
+  handleClick(e) {
+    e.target.select();
   }
 
   calculateTotal(order) {
@@ -416,7 +421,9 @@ class CoinWrapperManualTrade extends React.Component {
       filterPrice,
       filterLotSize,
       baseAssetBalance,
-      quoteAssetBalance
+      quoteAssetBalance,
+      baseAssetStepSize,
+      quoteAssetTickSize
     } = this.props;
 
     const { showModal, lastCandle, order } = this.state;
@@ -441,7 +448,7 @@ class CoinWrapperManualTrade extends React.Component {
           backdrop='static'
           size='xl'>
           <Modal.Header closeButton className='pt-1 pb-1'>
-            <Modal.Title>Manual Trade</Modal.Title>
+            <Modal.Title>Manual Trade for {symbol}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
             <p className='d-block text-muted mb-2'>
@@ -463,9 +470,19 @@ class CoinWrapperManualTrade extends React.Component {
                   </span>
                 </div>
                 <div className='manual-trade-row d-flex flex-row justify-content-between mt-1'>
+                  <div className='manual-trade-label'>Current price</div>
+                  <span className='manual-trade-quote-asset'>
+                    {parseFloat(lastCandle.close).toFixed(baseAssetStepSize)}{' '}
+                    {baseAssetBalance.asset}
+                  </span>
+                </div>
+                <div className='manual-trade-row d-flex flex-row justify-content-between mt-1'>
                   <div className='manual-trade-label'>Balance</div>
                   <span className='manual-trade-quote-asset'>
-                    {quoteAssetBalance.free} {quoteAssetBalance.asset}
+                    {parseFloat(quoteAssetBalance.free).toFixed(
+                      quoteAssetTickSize
+                    )}{' '}
+                    {quoteAssetBalance.asset}
                   </span>
                 </div>
                 <div className='manual-trade-row manual-trade-type-wrapper mt-2'>
@@ -510,6 +527,7 @@ class CoinWrapperManualTrade extends React.Component {
                           className='text-right'
                           data-state-key='buy.price'
                           value={order.buy.price}
+                          onClick={this.handleClick}
                           onChange={this.handleInputChange}
                         />
                       ) : (
@@ -549,6 +567,7 @@ class CoinWrapperManualTrade extends React.Component {
                           max={filterLotSize.maxQty}
                           data-state-key='buy.quantity'
                           value={order.buy.quantity}
+                          onClick={this.handleClick}
                           onChange={this.handleInputChange}
                         />
                         <InputGroup.Append>
@@ -621,6 +640,7 @@ class CoinWrapperManualTrade extends React.Component {
                               className='text-right'
                               data-state-key='buy.quoteOrderQty'
                               value={order.buy.quoteOrderQty}
+                              onClick={this.handleClick}
                               onChange={this.handleInputChange}
                             />
                           ) : (
@@ -635,6 +655,7 @@ class CoinWrapperManualTrade extends React.Component {
                               className='text-right'
                               data-state-key='buy.marketQuantity'
                               value={order.buy.marketQuantity}
+                              onClick={this.handleClick}
                               onChange={this.handleInputChange}
                             />
                           ) : (
@@ -741,10 +762,20 @@ class CoinWrapperManualTrade extends React.Component {
                   </span>
                 </div>
 
+                <div className='manual-trade-row d-flex flex-row justify-content-between mt-1'>
+                  <div className='manual-trade-label'>Current price</div>
+                  <span className='manual-trade-quote-asset'>
+                    {parseFloat(lastCandle.close).toFixed(baseAssetStepSize)}{' '}
+                    {baseAssetBalance.asset}
+                  </span>
+                </div>
                 <div className='manual-trade-row d-flex flex-row justify-content-between'>
                   <div className='manual-trade-label'>Balance</div>
                   <span className='manual-trade-base-sset'>
-                    {baseAssetBalance.free} {baseAssetBalance.asset}
+                    {parseFloat(baseAssetBalance.free).toFixed(
+                      baseAssetStepSize
+                    )}{' '}
+                    {baseAssetBalance.asset}
                   </span>
                 </div>
                 <div className='manual-trade-row manual-trade-type-wrapper mt-2'>
@@ -789,6 +820,7 @@ class CoinWrapperManualTrade extends React.Component {
                           className='text-right'
                           data-state-key='sell.price'
                           value={order.sell.price}
+                          onClick={this.handleClick}
                           onChange={this.handleInputChange}
                         />
                       ) : (
@@ -830,6 +862,7 @@ class CoinWrapperManualTrade extends React.Component {
                           max={filterLotSize.maxQty}
                           data-state-key='sell.quantity'
                           value={order.sell.quantity}
+                          onClick={this.handleClick}
                           onChange={this.handleInputChange}
                         />
                         <InputGroup.Append>
@@ -902,6 +935,7 @@ class CoinWrapperManualTrade extends React.Component {
                               className='text-right'
                               data-state-key='sell.quoteOrderQty'
                               value={order.sell.quoteOrderQty}
+                              onClick={this.handleClick}
                               onChange={this.handleInputChange}
                             />
                           ) : (
@@ -916,6 +950,7 @@ class CoinWrapperManualTrade extends React.Component {
                               className='text-right'
                               data-state-key='sell.marketQuantity'
                               value={order.sell.marketQuantity}
+                              onClick={this.handleClick}
                               onChange={this.handleInputChange}
                             />
                           ) : (

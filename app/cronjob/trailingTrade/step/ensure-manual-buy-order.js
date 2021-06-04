@@ -73,7 +73,7 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
 };
 
 /**
- * Send slack message for order result
+ * Send slack message for order filled
  *
  * @param {*} logger
  * @param {*} symbol
@@ -81,7 +81,7 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
  * @param {*} orderParams
  * @param {*} orderResult
  */
-const slackMessageOrderResult = async (
+const slackMessageOrderFilled = async (
   logger,
   symbol,
   side,
@@ -97,6 +97,42 @@ const slackMessageOrderResult = async (
 
   return slack.sendMessage(
     `${symbol} Manual ${side.toUpperCase()} Order Filled (${moment().format(
+      'HH:mm:ss.SSS'
+    )}): *${type}*\n` +
+      `- Order Result: \`\`\`${JSON.stringify(
+        orderResult,
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
+  );
+};
+
+/**
+ * Send slack message for order deleted
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} side
+ * @param {*} orderParams
+ * @param {*} orderResult
+ */
+const slackMessageOrderDeleted = async (
+  logger,
+  symbol,
+  side,
+  orderParams,
+  orderResult
+) => {
+  const type = orderParams.type.toUpperCase();
+
+  PubSub.publish('frontend-notification', {
+    type: 'success',
+    title: `The ${side} order for ${symbol} is ${orderResult.status}. Stop monitoring.`
+  });
+
+  return slack.sendMessage(
+    `${symbol} Manual ${side.toUpperCase()} Order Removed (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +
       `- Order Result: \`\`\`${JSON.stringify(
@@ -168,7 +204,7 @@ const execute = async (logger, rawData) => {
             { buyOrder },
             'The order is filled, caluclate last buy price.'
           );
-          slackMessageOrderResult(
+          slackMessageOrderFilled(
             logger,
             symbol,
             buyOrder.side,
@@ -182,16 +218,13 @@ const execute = async (logger, rawData) => {
             `trailing-trade-manual-buy-order-${symbol}`,
             orderResult.orderId
           );
-          slack.sendMessage(
-            `${symbol} Manual ${buyOrder.side.toUpperCase()} Order Removed (${moment().format(
-              'HH:mm:ss.SSS'
-            )}): *${buyOrder.type}*\n` +
-              `- Order Result: \`\`\`${JSON.stringify(
-                orderResult,
-                undefined,
-                2
-              )}\`\`\`\n` +
-              `- Current API Usage: ${getAPILimit(logger)}`
+
+          slackMessageOrderDeleted(
+            logger,
+            symbol,
+            buyOrder.side,
+            buyOrder,
+            orderResult
           );
         } else {
           // If not filled, update next check time
