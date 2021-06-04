@@ -98,35 +98,67 @@ class CoinWrapperManualTrade extends React.Component {
   }
 
   validateOrder(order) {
+    const { baseAssetBalance, quoteAssetBalance } = this.props;
+    const { lastCandle } = this.state;
+
+    const baseAssetBalanceFree = parseFloat(baseAssetBalance.free);
+    const quoteAssetBalanceFree = parseFloat(quoteAssetBalance.free);
+
+    const currentPrice = parseFloat(lastCandle.close);
+
     order.buy.isValid = false;
     order.sell.isValid = false;
 
     if (order.buy.type === 'limit') {
-      if (order.buy.total > 0) {
+      // Total must be more than 0 and total must be less than the quote asset balance.
+      if (order.buy.total > 0 && order.buy.total <= quoteAssetBalanceFree) {
         order.buy.isValid = true;
       }
     }
 
     if (order.sell.type === 'limit') {
-      if (order.sell.total > 0) {
+      // Total must be more than 0 and quantity must be less than the base asset balance.
+      if (order.sell.total > 0 && order.sell.quantity <= baseAssetBalanceFree) {
         order.sell.isValid = true;
       }
     }
 
     if (order.buy.type === 'market') {
-      if (order.buy.marketType === 'total' && order.buy.quoteOrderQty > 0) {
+      // Quote amount must be more than 0 and must be less than the quote asset balance.
+      if (
+        order.buy.marketType === 'total' &&
+        order.buy.quoteOrderQty > 0 &&
+        order.buy.quoteOrderQty <= quoteAssetBalanceFree
+      ) {
         order.buy.isValid = true;
       }
-      if (order.buy.marketType === 'amount' && order.buy.marketQuantity > 0) {
+
+      // Quantity must be more than 0 and total amount must be less than the quote asset balance.
+      if (
+        order.buy.marketType === 'amount' &&
+        order.buy.marketQuantity > 0 &&
+        order.buy.marketQuantity * currentPrice <= quoteAssetBalanceFree
+      ) {
         order.buy.isValid = true;
       }
     }
 
     if (order.sell.type === 'market') {
-      if (order.sell.marketType === 'total' && order.sell.quoteOrderQty > 0) {
+      // Quote amount must be more than 0 and quantity must be less than the base asset balance.
+      if (
+        order.sell.marketType === 'total' &&
+        order.sell.quoteOrderQty > 0 &&
+        order.sell.quoteOrderQty / currentPrice <= baseAssetBalanceFree
+      ) {
         order.sell.isValid = true;
       }
-      if (order.sell.marketType === 'amount' && order.sell.marketQuantity > 0) {
+
+      // Quantity must be more than 0 and must be less than the base asset balance.
+      if (
+        order.sell.marketType === 'amount' &&
+        order.sell.marketQuantity > 0 &&
+        order.sell.marketQuantity <= baseAssetBalanceFree
+      ) {
         order.sell.isValid = true;
       }
     }
@@ -167,18 +199,20 @@ class CoinWrapperManualTrade extends React.Component {
 
   calculatePercentageLimitBuy({
     quoteAssetBalance,
-    lastCandle,
+    currentPrice,
     percentage,
     filterPrice,
-    quoteAssetTickSize
+    baseAssetStepSize
   }) {
-    let newAmount = (
-      (parseFloat(quoteAssetBalance.free) / parseFloat(lastCandle.close)) *
-      (percentage / 100)
-    ).toFixed(quoteAssetTickSize);
+    const quoteAssetBalanceFree = parseFloat(quoteAssetBalance.free);
+
+    let newAmount = _.floor(
+      (quoteAssetBalanceFree / currentPrice) * (percentage / 100),
+      baseAssetStepSize
+    );
 
     if (parseFloat(newAmount) > parseFloat(filterPrice.maxPrice)) {
-      newAmount = parseFloat(filterPrice.maxPrice).toFixed(quoteAssetTickSize);
+      newAmount = parseFloat(filterPrice.maxPrice).toFixed(baseAssetStepSize);
     }
 
     return parseFloat(newAmount);
@@ -190,13 +224,18 @@ class CoinWrapperManualTrade extends React.Component {
     baseAssetStepSize,
     filterLotSize
   }) {
-    let newAmount = (
-      parseFloat(baseAssetBalance.free) *
-      (percentage / 100)
-    ).toFixed(baseAssetStepSize);
+    const baseAssetBalanceFree = parseFloat(baseAssetBalance.free);
+
+    // Make base asset precision correctly
+    let newAmount = _.floor(
+      baseAssetBalanceFree * (percentage / 100),
+      baseAssetStepSize
+    );
+
     if (parseFloat(newAmount) > parseFloat(filterLotSize.maxQty)) {
       newAmount = parseFloat(filterLotSize.maxQty).toFixed(baseAssetStepSize);
     }
+
     return parseFloat(newAmount);
   }
 
@@ -206,10 +245,12 @@ class CoinWrapperManualTrade extends React.Component {
     percentage,
     filterPrice
   }) {
-    let newAmount = (
-      parseFloat(quoteAssetBalance.free) *
-      (percentage / 100)
-    ).toFixed(quoteAssetTickSize);
+    const quoteAssetBalanceFree = parseFloat(quoteAssetBalance.free);
+
+    let newAmount = _.floor(
+      quoteAssetBalanceFree * (percentage / 100),
+      quoteAssetTickSize
+    );
 
     if (parseFloat(newAmount) > parseFloat(filterPrice.maxPrice)) {
       newAmount = parseFloat(filterPrice.maxPrice).toFixed(quoteAssetTickSize);
@@ -225,10 +266,14 @@ class CoinWrapperManualTrade extends React.Component {
     percentage,
     filterLotSize
   }) {
-    let newAmount = (
-      (parseFloat(quoteAssetBalance.free) / parseFloat(lastCandle.close)) *
-      (percentage / 100)
-    ).toFixed(baseAssetStepSize);
+    const quoteAssetBalanceFree = parseFloat(quoteAssetBalance.free);
+    const currentPrice = parseFloat(lastCandle.close);
+
+    let newAmount = _.floor(
+      (quoteAssetBalanceFree / currentPrice) * (percentage / 100),
+      baseAssetStepSize
+    );
+
     if (parseFloat(newAmount) > parseFloat(filterLotSize.maxQty)) {
       newAmount = parseFloat(filterLotSize.maxQty).toFixed(baseAssetStepSize);
     }
@@ -243,11 +288,13 @@ class CoinWrapperManualTrade extends React.Component {
     percentage,
     filterPrice
   }) {
-    let newAmount = (
-      parseFloat(baseAssetBalance.free) *
-      parseFloat(lastCandle.close) *
-      (percentage / 100)
-    ).toFixed(quoteAssetTickSize);
+    const baseAssetBalanceFree = parseFloat(baseAssetBalance.free);
+    const currentPrice = parseFloat(lastCandle.close);
+
+    let newAmount = _.floor(
+      baseAssetBalanceFree * currentPrice * (percentage / 100),
+      quoteAssetTickSize
+    );
 
     if (parseFloat(newAmount) > parseFloat(filterPrice.maxPrice)) {
       newAmount = parseFloat(filterPrice.maxPrice).toFixed(quoteAssetTickSize);
@@ -262,10 +309,12 @@ class CoinWrapperManualTrade extends React.Component {
     percentage,
     filterLotSize
   }) {
-    let newAmount = (
-      parseFloat(baseAssetBalance.free) *
-      (percentage / 100)
-    ).toFixed(baseAssetStepSize);
+    const baseAssetBalanceFree = parseFloat(baseAssetBalance.free);
+
+    let newAmount = _.floor(
+      baseAssetBalanceFree * (percentage / 100),
+      baseAssetStepSize
+    );
 
     if (parseFloat(newAmount) > parseFloat(filterLotSize.maxQty)) {
       newAmount = parseFloat(filterLotSize.maxQty).toFixed(baseAssetStepSize);
@@ -292,10 +341,10 @@ class CoinWrapperManualTrade extends React.Component {
     if (orderParams.type === 'limit' && side === 'buy') {
       orderParams.quantity = this.calculatePercentageLimitBuy({
         quoteAssetBalance,
-        lastCandle,
+        currentPrice: parseFloat(orderParams.price),
         percentage,
         filterPrice,
-        quoteAssetTickSize
+        baseAssetStepSize
       });
     } else if (orderParams.type === 'limit' && side === 'sell') {
       orderParams.quantity = this.calculatePercentageLimitSell({
