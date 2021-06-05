@@ -597,9 +597,8 @@ describe('server-binance', () => {
       expect(mockGetGlobalConfiguration).toHaveBeenCalled();
     });
 
-    it('triggers setTimeout', () => {
-      expect(setTimeout).toHaveBeenCalledTimes(1);
-      expect(setTimeout).toHaveBeenLastCalledWith(expect.any(Function), 1000);
+    it('triggers binance.client.prices', () => {
+      expect(binanceMock.client.prices).toHaveBeenCalledTimes(2);
     });
 
     [
