@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.69] - 2021-06-05
+
+- Fixed typo issue with CANCELED manual order handling
+
 ## [0.0.68] - 2021-06-05
 
 - Fixed the issue with the order not found error for the manual order

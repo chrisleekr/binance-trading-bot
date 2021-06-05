@@ -411,7 +411,7 @@ describe('ensure-manual-buy-order.js', () => {
 
       [
         {
-          desc: 'with LIMIT order and CANCELLED',
+          desc: 'with LIMIT order and CANCELED',
           symbol: 'CAKEUSDT',
           lastBuyPriceDoc: {
             lastBuyPrice: 30,
@@ -438,7 +438,7 @@ describe('ensure-manual-buy-order.js', () => {
             orderId: 159653829,
             executedQty: '1.00000000',
             cummulativeQuoteQty: '19.54900000',
-            status: 'CANCELLED',
+            status: 'CANCELED',
             type: 'LIMIT',
             side: 'BUY'
           }
@@ -543,7 +543,7 @@ describe('ensure-manual-buy-order.js', () => {
           }
         },
         {
-          desc: 'with LIMIT order and CANCELLED',
+          desc: 'with LIMIT order and CANCELED',
           symbol: 'CAKEUSDT',
           lastBuyPriceDoc: {
             lastBuyPrice: 30,
@@ -570,7 +570,7 @@ describe('ensure-manual-buy-order.js', () => {
             orderId: 159653829,
             executedQty: '1.00000000',
             cummulativeQuoteQty: '19.54900000',
-            status: 'CANCELLED',
+            status: 'CANCELED',
             type: 'LIMIT',
             side: 'BUY'
           }

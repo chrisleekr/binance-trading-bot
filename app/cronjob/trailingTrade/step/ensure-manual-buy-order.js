@@ -172,7 +172,7 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  const removeStatuses = ['CANCELLED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'];
+  const removeStatuses = ['CANCELED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'];
 
   // Check if manual-buy-order is existing
   // eslint-disable-next-line no-restricted-syntax
