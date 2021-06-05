@@ -135,7 +135,6 @@ const loopToCheckLastReceivedAt = async logger => {
 const setupTest = async logger => {
   // Get configuration
   const globalConfiguration = await getGlobalConfiguration(logger);
-  console.trace('globalConfiguration => ', globalConfiguration);
   // Retrieve account info from cache
   const accountInfo = await getAccountInfo(logger);
 

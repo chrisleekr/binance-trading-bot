@@ -1,7 +1,5 @@
 /* eslint-disable global-require */
 
-jest.useFakeTimers();
-
 describe('server-binance', () => {
   let config;
 
@@ -30,6 +28,8 @@ describe('server-binance', () => {
     slackMock = slack;
 
     config = require('config');
+
+    jest.useFakeTimers();
   });
 
   describe('when the bot is running live mode', () => {
@@ -530,7 +530,7 @@ describe('server-binance', () => {
     });
   });
 
-  fdescribe('when the bot is running test mode', () => {
+  describe('when the bot is running test mode', () => {
     beforeEach(async () => {
       config.get = jest.fn(key => {
         switch (key) {
@@ -541,9 +541,9 @@ describe('server-binance', () => {
         }
       });
 
-      mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
+      mockGetGlobalConfiguration = jest.fn().mockImplementation(() => ({
         symbols: ['BTCUSDT', 'ETHUSDT', 'LTCUSDT']
-      });
+      }));
 
       mockGetAccountInfo = jest.fn().mockResolvedValue({
         balances: [
@@ -592,7 +592,7 @@ describe('server-binance', () => {
       const { runBinance } = require('../server-binance');
       await runBinance(loggerMock);
 
-      jest.advanceTimersByTime(2000);
+      jest.advanceTimersByTime(1200);
     });
 
     it('triggers getGlobalConfiguration', () => {
