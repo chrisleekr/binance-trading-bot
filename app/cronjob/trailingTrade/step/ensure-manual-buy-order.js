@@ -193,10 +193,43 @@ const execute = async (logger, rawData) => {
 
       if (moment(nextCheck) < moment()) {
         // Check orders whether it's filled or not
-        const orderResult = await binance.client.getOrder({
-          symbol,
-          orderId: buyOrder.orderId
-        });
+        let orderResult;
+        try {
+          orderResult = await binance.client.getOrder({
+            symbol,
+            orderId: buyOrder.orderId
+          });
+        } catch (e) {
+          logger.error(
+            { e },
+            'The order could not be found or error occurred querying the order.'
+          );
+          const updatedNextCheck = moment().add(
+            checkManualBuyOrderPeriod,
+            'seconds'
+          );
+
+          logger.info(
+            {
+              e,
+              buyOrder,
+              checkManualBuyOrderPeriod,
+              nextCheck: updatedNextCheck
+            },
+            'The order could not be found or error occurred querying the order.'
+          );
+
+          await cache.hset(
+            `trailing-trade-manual-buy-order-${symbol}`,
+            buyOrder.orderId,
+            JSON.stringify({
+              ...buyOrder,
+              nextCheck: updatedNextCheck
+            })
+          );
+
+          return data;
+        }
 
         // If filled, then calculate average cost and quantity and save new last buy pirce.
         if (orderResult.status === 'FILLED') {
