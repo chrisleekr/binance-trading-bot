@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- add Chinese translation of readme by [@izayl](https://github.com/izayl) - [#205](https://github.com/chrisleekr/binance-trading-bot/pull/205)
+- Support manual trade - [#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
+
 ## [0.0.66] - 2021-05-21
 
 - Updated frontend to display version - [#59](https://github.com/chrisleekr/binance-trading-bot/issues/59)

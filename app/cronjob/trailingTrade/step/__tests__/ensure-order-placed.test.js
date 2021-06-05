@@ -62,6 +62,7 @@ describe('ensure-order-placed.js', () => {
 
       rawData = {
         symbol: 'BTCUSDT',
+        action: 'not-determined',
         featureToggle: {
           notifyOrderConfirm: true
         },
@@ -102,6 +103,7 @@ describe('ensure-order-placed.js', () => {
     it('returns expected result', () => {
       expect(result).toStrictEqual({
         symbol: 'BTCUSDT',
+        action: 'not-determined',
         featureToggle: {
           notifyOrderConfirm: true
         },
@@ -166,6 +168,7 @@ describe('ensure-order-placed.js', () => {
         beforeEach(async () => {
           rawData = {
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             featureToggle: {
               notifyOrderConfirm: false
             },
@@ -222,6 +225,7 @@ describe('ensure-order-placed.js', () => {
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             featureToggle: {
               notifyOrderConfirm: false
             },
@@ -254,6 +258,7 @@ describe('ensure-order-placed.js', () => {
         beforeEach(async () => {
           rawData = {
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             featureToggle: {
               notifyOrderConfirm: true
             },
@@ -310,6 +315,7 @@ describe('ensure-order-placed.js', () => {
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             featureToggle: {
               notifyOrderConfirm: true
             },
@@ -384,6 +390,7 @@ describe('ensure-order-placed.js', () => {
         beforeEach(async () => {
           rawData = {
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             featureToggle: {
               notifyOrderConfirm: false
             },
@@ -429,10 +436,10 @@ describe('ensure-order-placed.js', () => {
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
+            action: 'buy-order-checking',
             featureToggle: {
               notifyOrderConfirm: false
             },
-            action: 'buy-order-checking',
             openOrders: [],
             buy: {
               openOrders: [],
@@ -449,6 +456,7 @@ describe('ensure-order-placed.js', () => {
         beforeEach(async () => {
           rawData = {
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             featureToggle: {
               notifyOrderConfirm: true
             },
@@ -494,10 +502,10 @@ describe('ensure-order-placed.js', () => {
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
+            action: 'buy-order-checking',
             featureToggle: {
               notifyOrderConfirm: true
             },
-            action: 'buy-order-checking',
             openOrders: [],
             buy: {
               openOrders: [],
@@ -563,6 +571,7 @@ describe('ensure-order-placed.js', () => {
 
           rawData = {
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             featureToggle: {
               notifyOrderConfirm: false
             },
@@ -625,6 +634,7 @@ describe('ensure-order-placed.js', () => {
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             featureToggle: {
               notifyOrderConfirm: false
             },
@@ -702,6 +712,7 @@ describe('ensure-order-placed.js', () => {
 
           rawData = {
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             featureToggle: {
               notifyOrderConfirm: true
             },
@@ -764,6 +775,7 @@ describe('ensure-order-placed.js', () => {
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             featureToggle: {
               notifyOrderConfirm: true
             },
@@ -836,6 +848,7 @@ describe('ensure-order-placed.js', () => {
 
           rawData = {
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             featureToggle: {
               notifyOrderConfirm: false
             },
@@ -878,10 +891,10 @@ describe('ensure-order-placed.js', () => {
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
+            action: 'sell-order-checking',
             featureToggle: {
               notifyOrderConfirm: false
             },
-            action: 'sell-order-checking',
             openOrders: [],
             sell: {
               openOrders: [],
@@ -935,6 +948,7 @@ describe('ensure-order-placed.js', () => {
 
           rawData = {
             symbol: 'BTCUSDT',
+            action: 'not-determined',
             featureToggle: {
               notifyOrderConfirm: true
             },
@@ -977,10 +991,10 @@ describe('ensure-order-placed.js', () => {
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
+            action: 'sell-order-checking',
             featureToggle: {
               notifyOrderConfirm: true
             },
-            action: 'sell-order-checking',
             openOrders: [],
             sell: {
               openOrders: [],
@@ -991,6 +1005,70 @@ describe('ensure-order-placed.js', () => {
             }
           });
         });
+      });
+    });
+  });
+
+  describe('when action is not "not-determined"', () => {
+    beforeEach(async () => {
+      const { slack, cache, binance, logger } = require('../../../../helpers');
+
+      cacheMock = cache;
+      binanceMock = binance;
+      loggerMock = logger;
+      slackMock = slack;
+
+      cacheMock.get = jest.fn().mockResolvedValue(null);
+      cacheMock.del = jest.fn().mockResolvedValue(true);
+      binanceMock.client.getOrder = jest.fn().mockRejectedValue({});
+
+      mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+      mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+        account: 'info'
+      });
+
+      jest.mock('../../../trailingTradeHelper/common', () => ({
+        getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+        getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+        disableAction: mockDisableAction,
+        getAPILimit: mockGetAPILimit
+      }));
+
+      rawData = {
+        symbol: 'BTCUSDT',
+        action: 'manual-trade',
+        featureToggle: {
+          notifyOrderConfirm: true
+        },
+        openOrders: [],
+        buy: {
+          openOrders: []
+        }
+      };
+
+      const step = require('../ensure-order-placed');
+      result = await step.execute(loggerMock, rawData);
+    });
+
+    it('does not trigger cache.get for buy order', () => {
+      expect(cacheMock.get).not.toHaveBeenCalled();
+    });
+
+    it('does not trigger cache.get for sell order', () => {
+      expect(cacheMock.get).not.toHaveBeenCalled();
+    });
+
+    it('returns expected result', () => {
+      expect(result).toStrictEqual({
+        symbol: 'BTCUSDT',
+        action: 'manual-trade',
+        featureToggle: {
+          notifyOrderConfirm: true
+        },
+        openOrders: [],
+        buy: {
+          openOrders: []
+        }
       });
     });
   });

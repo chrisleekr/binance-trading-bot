@@ -165,16 +165,14 @@ describe('trailingTradeIndicator', () => {
         {
           symbol: 'BTCUSDT',
           data: {
-            featureToggle: {
-              notifyOrderConfirm: true,
-              notifyDebug: false
-            },
+            featureToggle: { notifyOrderConfirm: true, notifyDebug: false },
             globalConfiguration: { global: 'configuration data' },
             symbol: 'BTCUSDT',
             symbolConfiguration: { symbol: 'configuration data' },
             accountInfo: { account: 'information' },
             indicators: { some: 'value' },
             openOrders: [{ orderId: 1 }],
+            apiLimit: { start: 10, end: 10 },
             saved: 'data-to-cache'
           }
         },

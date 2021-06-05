@@ -17,7 +17,9 @@ class Status extends React.Component {
               as={Card.Header}
               eventKey='0'
               className='px-2 py-1'>
-              <button type='button' className='btn btn-sm btn-link btn-status'>
+              <button
+                type='button'
+                className='btn btn-sm btn-link btn-status text-uppercase font-weight-bold'>
                 Status
               </button>
             </Accordion.Toggle>
