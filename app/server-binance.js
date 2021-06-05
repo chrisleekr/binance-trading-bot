@@ -26,6 +26,7 @@ const monitoringSymbols = async (
   { globalConfiguration, accountInfo }
 ) => {
   const { symbols: globalSymbols } = globalConfiguration;
+
   // To cut the reference for the global configuration symbols
   const symbols = _.cloneDeep(globalSymbols);
 
@@ -134,7 +135,7 @@ const loopToCheckLastReceivedAt = async logger => {
 const setupTest = async logger => {
   // Get configuration
   const globalConfiguration = await getGlobalConfiguration(logger);
-
+  console.trace('globalConfiguration => ', globalConfiguration);
   // Retrieve account info from cache
   const accountInfo = await getAccountInfo(logger);
 

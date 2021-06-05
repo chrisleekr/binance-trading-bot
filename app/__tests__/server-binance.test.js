@@ -1,5 +1,7 @@
 /* eslint-disable global-require */
 
+jest.useFakeTimers();
+
 describe('server-binance', () => {
   let config;
 
@@ -16,7 +18,7 @@ describe('server-binance', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
-    jest.useFakeTimers();
+
     jest.mock('config');
 
     const { PubSub, binance, logger, cache, slack } = require('../helpers');
@@ -528,7 +530,7 @@ describe('server-binance', () => {
     });
   });
 
-  describe('when the bot is running test mode', () => {
+  fdescribe('when the bot is running test mode', () => {
     beforeEach(async () => {
       config.get = jest.fn(key => {
         switch (key) {
@@ -590,16 +592,15 @@ describe('server-binance', () => {
       const { runBinance } = require('../server-binance');
       await runBinance(loggerMock);
 
-      jest.advanceTimersByTime(1200);
+      jest.advanceTimersByTime(2000);
     });
 
     it('triggers getGlobalConfiguration', () => {
       expect(mockGetGlobalConfiguration).toHaveBeenCalled();
     });
 
-    it('triggers setTimeout', () => {
-      expect(setTimeout).toHaveBeenCalledTimes(1);
-      expect(setTimeout).toHaveBeenLastCalledWith(expect.any(Function), 1000);
+    it('triggers binance.client.prices', () => {
+      expect(binanceMock.client.prices).toHaveBeenCalledTimes(2);
     });
 
     [

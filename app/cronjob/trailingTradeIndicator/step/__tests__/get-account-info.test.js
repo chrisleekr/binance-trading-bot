@@ -243,8 +243,9 @@ describe('get-account-info.js', () => {
           });
 
           // Mock moment to return 31
-          jest.mock('moment', () => () =>
-            jest.requireActual('moment')('2020-01-01T00:00:31.000Z')
+          jest.mock(
+            'moment',
+            () => () => jest.requireActual('moment')('2020-01-01T00:00:31.000Z')
           );
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
@@ -297,8 +298,9 @@ describe('get-account-info.js', () => {
           });
 
           // Mock moment to return 30
-          jest.mock('moment', () => () =>
-            jest.requireActual('moment')('2020-01-01T00:00:30.000Z')
+          jest.mock(
+            'moment',
+            () => () => jest.requireActual('moment')('2020-01-01T00:00:30.000Z')
           );
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
