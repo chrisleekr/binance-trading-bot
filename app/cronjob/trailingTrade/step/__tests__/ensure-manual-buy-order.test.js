@@ -4,7 +4,6 @@ const moment = require('moment');
 describe('ensure-manual-buy-order.js', () => {
   let result;
   let rawData;
-  let error;
 
   let binanceMock;
   let slackMock;
