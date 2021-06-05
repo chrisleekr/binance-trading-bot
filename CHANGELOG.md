@@ -2,7 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [0.0.68] - 2021-06-05
+
+- Fixed the issue with the order not found error for the manual order
+
+## [0.0.67] - 2021-06-05
 
 - add Chinese translation of readme by [@izayl](https://github.com/izayl) - [#205](https://github.com/chrisleekr/binance-trading-bot/pull/205)
 - Support manual trade - [#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
