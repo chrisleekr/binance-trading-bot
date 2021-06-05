@@ -866,8 +866,7 @@ describe('place-sell-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit
@@ -991,8 +990,7 @@ describe('place-sell-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit
@@ -1116,8 +1114,7 @@ describe('place-sell-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit
@@ -1243,8 +1240,7 @@ describe('place-sell-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit
@@ -1368,8 +1364,7 @@ describe('place-sell-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit
@@ -1493,8 +1488,7 @@ describe('place-sell-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit

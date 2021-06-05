@@ -16,7 +16,7 @@ describe('server-binance', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
-
+    jest.useFakeTimers();
     jest.mock('config');
 
     const { PubSub, binance, logger, cache, slack } = require('../helpers');
@@ -28,8 +28,6 @@ describe('server-binance', () => {
     slackMock = slack;
 
     config = require('config');
-
-    jest.useFakeTimers();
   });
 
   describe('when the bot is running live mode', () => {
@@ -541,9 +539,9 @@ describe('server-binance', () => {
         }
       });
 
-      mockGetGlobalConfiguration = jest.fn().mockImplementation(() => ({
+      mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
         symbols: ['BTCUSDT', 'ETHUSDT', 'LTCUSDT']
-      }));
+      });
 
       mockGetAccountInfo = jest.fn().mockResolvedValue({
         balances: [
