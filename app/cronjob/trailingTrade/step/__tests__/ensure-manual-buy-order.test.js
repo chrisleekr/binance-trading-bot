@@ -4,6 +4,7 @@ const moment = require('moment');
 describe('ensure-manual-buy-order.js', () => {
   let result;
   let rawData;
+  let error;
 
   let binanceMock;
   let slackMock;
@@ -697,6 +698,65 @@ describe('ensure-manual-buy-order.js', () => {
               expect.any(String)
             );
           });
+        });
+      });
+
+      describe('when binance.client.getOrder throws an error', () => {
+        beforeEach(async () => {
+          mockGetLastBuyPrice = jest.fn().mockResolvedValue({
+            lastBuyPrice: 30,
+            quantity: 3
+          });
+
+          cacheMock.hgetall = jest.fn().mockResolvedValue({
+            159653829: JSON.stringify({
+              symbol: 'CAKEUSDT',
+              orderId: 159653829,
+              origQty: '1.00000000',
+              executedQty: '1.00000000',
+              cummulativeQuoteQty: '19.54900000',
+              status: 'NEW',
+              type: 'LIMIT',
+              side: 'BUY',
+              nextCheck: moment()
+                .subtract(1, 'minute')
+                .format('YYYY-MM-DDTHH:mm:ssZ')
+            })
+          });
+
+          binanceMock.client.getOrder = jest
+            .fn()
+            .mockRejectedValue(new Error('Order is not found.'));
+
+          const step = require('../ensure-manual-buy-order');
+
+          rawData = {
+            symbol: 'CAKEUSDT',
+            isLocked: false,
+            symbolConfiguration: {
+              system: {
+                checkManualBuyOrderPeriod: 10
+              }
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('does not trigger saveLastBuyPrice', () => {
+          expect(mockSaveLastBuyPrice).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger cache.hdel', () => {
+          expect(cacheMock.hdel).not.toHaveBeenCalled();
+        });
+
+        it('triggers cache.hset', () => {
+          expect(cacheMock.hset).toHaveBeenCalledWith(
+            `trailing-trade-manual-buy-order-CAKEUSDT`,
+            159653829,
+            expect.any(String)
+          );
         });
       });
     });
