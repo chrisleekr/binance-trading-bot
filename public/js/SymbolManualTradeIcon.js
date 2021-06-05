@@ -433,8 +433,8 @@ class CoinWrapperManualTrade extends React.Component {
     }
 
     return (
-      <div className='coin-info-manual-buy-wrapper'>
-        <div className='coin-info-column coin-info-column-manual-buy d-flex flex-row justify-content-start align-content-between border-bottom-0 mb-0 pb-0'>
+      <div className='coin-info-symbol-manual-trade-wrapper'>
+        <div className='coin-info-column coin-info-column-symbol-manual-trade d-flex flex-row justify-content-start align-content-between border-bottom-0 mb-0 pb-0'>
           <button
             type='button'
             className='btn btn-sm btn-manual-trade mr-1'

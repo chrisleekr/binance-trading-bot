@@ -23,7 +23,9 @@ class CoinWrapperSellOrders extends React.Component {
 
     const renderOpenOrders = openOrders.map((openOrder, index) => {
       return (
-        <div key={index} className='coin-info-sub-open-order-wrapper'>
+        <div
+          key={'coin-wrapper-sell-order-' + index}
+          className='coin-info-sub-open-order-wrapper'>
           <div className='coin-info-column coin-info-column-title'>
             <div className='coin-info-label d-flex flex-row'>
               <span>Open Order #{index + 1}</span>{' '}

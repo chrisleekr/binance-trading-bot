@@ -58,7 +58,7 @@ class SettingIconMaxPurchaseAmount extends React.Component {
     return quoteAssets.map((quoteAsset, index) => {
       return (
         <div
-          key={quoteAsset + '-' + index}
+          key={'quote-asset-' + quoteAsset + '-' + index}
           className='coin-info-max-purchase-amount-wrapper'>
           <Form.Group
             controlId={'field-max-limit-percentage-' + quoteAsset}

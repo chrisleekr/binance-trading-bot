@@ -8,7 +8,7 @@ class AccountWrapper extends React.Component {
     const assets = accountInfo.balances.map((balance, index) => {
       return (
         <AccountWrapperAsset
-          key={index}
+          key={`account-wrapper-` + index}
           balance={balance}></AccountWrapperAsset>
       );
     });
