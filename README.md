@@ -295,13 +295,13 @@ Or use the frontend to adjust configurations after launching the application.
 
 ## Screenshots
 
-| Frontend Mobile                                                                                                          | Setting                                                                                                          |
-| ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/116782164-eeb6b880-aaca-11eb-8ad5-ad95e675eed1.png) | ![Setting](https://user-images.githubusercontent.com/5715919/116782053-4a347680-aaca-11eb-9dfd-eb0bfca69381.png) |
+| Frontend Mobile | Setting | Manual Trade |
+| --------------- | ------- | ------------ |
+| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/120882974-07604400-c61e-11eb-8509-96eaac88231b.png) | ![Setting](https://user-images.githubusercontent.com/5715919/120882990-1810ba00-c61e-11eb-839b-a866fcb355e4.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/120883027-41314a80-c61e-11eb-84aa-8b8fc55a4732.png) |
 
 | Frontend Desktop                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/117468596-2ffe0b00-af98-11eb-99da-db45e8cbdc3c.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/120882948-e992df00-c61d-11eb-913a-bcb19bbfb5ac.png) |
 
 ### Sample Trade
 
