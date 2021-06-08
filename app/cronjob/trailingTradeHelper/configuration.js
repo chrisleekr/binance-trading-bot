@@ -230,7 +230,7 @@ const getLastBuyPriceRemoveThreshold = async (
 
   let newBuyLastBuyPriceRemoveThreshold = -1;
 
-  // If old last buy price remove threshold is -1, then should calculate maximum purchase amount based on the notional amount.
+  // If old last buy price remove threshold is -1, then should calculate last buy price remove threshold based on the notional amount.
   const cachedSymbolInfo =
     JSON.parse(
       await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
