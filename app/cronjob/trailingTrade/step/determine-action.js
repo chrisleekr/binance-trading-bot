@@ -137,7 +137,7 @@ const setSellActionAndMessage = (logger, rawData, action, processMessage) => {
 };
 
 /**
- * Determine action for buy
+ * Determine action for trade
  *
  * @param {*} logger
  * @param {*} rawData

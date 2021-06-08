@@ -54,6 +54,9 @@ describe('get-indicators.js', () => {
 
         rawData = {
           symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
           symbolConfiguration: {
             buy: {
               triggerPercentage: 1.01,
@@ -79,6 +82,9 @@ describe('get-indicators.js', () => {
       it('returns expected value', () => {
         expect(result).toStrictEqual({
           symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
           symbolConfiguration: {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
             sell: {
@@ -89,7 +95,11 @@ describe('get-indicators.js', () => {
               }
             }
           },
-          baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
+          baseAssetBalance: {
+            total: 0.1,
+            estimatedValue: 1555.509,
+            isLessThanMinNotionalValue: false
+          },
           openOrders: [],
           indicators: {
             highestPrice: 10000,
@@ -134,7 +144,9 @@ describe('get-indicators.js', () => {
         cacheMock = cache;
         loggerMock = logger;
 
-        mockGetLastBuyPrice = jest.fn().mockResolvedValue(9000);
+        mockGetLastBuyPrice = jest
+          .fn()
+          .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getLastBuyPrice: mockGetLastBuyPrice
         }));
@@ -167,6 +179,9 @@ describe('get-indicators.js', () => {
 
         rawData = {
           symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
           symbolConfiguration: {
             buy: {
               triggerPercentage: 1.01,
@@ -222,6 +237,9 @@ describe('get-indicators.js', () => {
       it('triggers expected value', () => {
         expect(result).toStrictEqual({
           symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
           symbolConfiguration: {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
             sell: {
@@ -232,7 +250,11 @@ describe('get-indicators.js', () => {
               }
             }
           },
-          baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
+          baseAssetBalance: {
+            total: 0.1,
+            estimatedValue: 1555.509,
+            isLessThanMinNotionalValue: false
+          },
           openOrders: [
             {
               orderId: 1,
@@ -402,6 +424,9 @@ describe('get-indicators.js', () => {
         step = require('../get-indicators');
         rawData = {
           symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
           symbolConfiguration: {
             buy: {
               triggerPercentage: 1.01,
@@ -455,6 +480,9 @@ describe('get-indicators.js', () => {
       it('triggers expected value', () => {
         expect(result).toStrictEqual({
           symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
           symbolConfiguration: {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
             sell: {
@@ -465,7 +493,11 @@ describe('get-indicators.js', () => {
               }
             }
           },
-          baseAssetBalance: { total: 0.1, estimatedValue: 1555.509 },
+          baseAssetBalance: {
+            total: 0.1,
+            estimatedValue: 1555.509,
+            isLessThanMinNotionalValue: false
+          },
           openOrders: [
             {
               orderId: 1,
@@ -636,6 +668,9 @@ describe('get-indicators.js', () => {
 
         rawData = {
           symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
           symbolConfiguration: {
             buy: {
               triggerPercentage: 1.01,
@@ -665,6 +700,9 @@ describe('get-indicators.js', () => {
       it('triggers expected value', () => {
         expect(result).toStrictEqual({
           symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
           symbolConfiguration: {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.011 },
             sell: {
@@ -677,7 +715,8 @@ describe('get-indicators.js', () => {
           },
           baseAssetBalance: {
             total: 0.1,
-            estimatedValue: 1555.509
+            estimatedValue: 1555.509,
+            isLessThanMinNotionalValue: false
           },
           openOrders: [],
           indicators: {
@@ -746,6 +785,9 @@ describe('get-indicators.js', () => {
 
         rawData = {
           symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
           symbolConfiguration: {
             buy: {
               triggerPercentage: 1.01,
@@ -767,6 +809,9 @@ describe('get-indicators.js', () => {
       it('returns expected value', () => {
         expect(result).toStrictEqual({
           symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
           symbolConfiguration: {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
             sell: {
@@ -810,6 +855,9 @@ describe('get-indicators.js', () => {
 
         rawData = {
           symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
           symbolConfiguration: {
             buy: {
               triggerPercentage: 1.01,
@@ -831,6 +879,9 @@ describe('get-indicators.js', () => {
       it('returns expected value', () => {
         expect(result).toStrictEqual({
           symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
           symbolConfiguration: {
             buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
             sell: {

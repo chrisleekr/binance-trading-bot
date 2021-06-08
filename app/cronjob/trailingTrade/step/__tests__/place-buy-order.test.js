@@ -1128,6 +1128,21 @@ describe('place-buy-order.js', () => {
           });
         });
 
+        it('triggers mongo.upsertOne', () => {
+          expect(mongoMock.upsertOne).toHaveBeenCalledWith(
+            loggerMock,
+            'trailing-trade-symbols',
+            {
+              key: 'BTCUPUSDT-last-buy-price'
+            },
+            {
+              key: 'BTCUPUSDT-last-buy-price',
+              lastBuyPrice: 202.2,
+              quantity: 0.24
+            }
+          );
+        });
+
         it('triggers cache.set', () => {
           expect(cacheMock.set).toHaveBeenCalledWith(
             'BTCUPUSDT-last-buy-order',
@@ -1248,6 +1263,21 @@ describe('place-buy-order.js', () => {
             timeInForce: 'GTC',
             type: 'STOP_LOSS_LIMIT'
           });
+        });
+
+        it('triggers mongo.upsertOne', () => {
+          expect(mongoMock.upsertOne).toHaveBeenCalledWith(
+            loggerMock,
+            'trailing-trade-symbols',
+            {
+              key: 'ETHBTC-last-buy-price'
+            },
+            {
+              key: 'ETHBTC-last-buy-price',
+              lastBuyPrice: 0.045359,
+              quantity: 0.022
+            }
+          );
         });
 
         it('triggers cache.set', () => {
@@ -1380,6 +1410,21 @@ describe('place-buy-order.js', () => {
           );
         });
 
+        it('triggers mongo.upsertOne', () => {
+          expect(mongoMock.upsertOne).toHaveBeenCalledWith(
+            loggerMock,
+            'trailing-trade-symbols',
+            {
+              key: 'ALPHABTC-last-buy-price'
+            },
+            {
+              key: 'ALPHABTC-last-buy-price',
+              lastBuyPrice: 0.00003812,
+              quantity: 26
+            }
+          );
+        });
+
         it('triggers getAndCacheOpenOrdersForSymbol', () => {
           expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
         });
@@ -1499,6 +1544,21 @@ describe('place-buy-order.js', () => {
             'BTCBRL-last-buy-order',
             'true',
             120
+          );
+        });
+
+        it('triggers mongo.upsertOne', () => {
+          expect(mongoMock.upsertOne).toHaveBeenCalledWith(
+            loggerMock,
+            'trailing-trade-symbols',
+            {
+              key: 'BTCBRL-last-buy-price'
+            },
+            {
+              key: 'BTCBRL-last-buy-price',
+              lastBuyPrice: 271704,
+              quantity: 0.00004
+            }
           );
         });
 

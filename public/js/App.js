@@ -38,15 +38,55 @@ class App extends React.Component {
       ],
       symbols: [],
       accountInfo: {},
-      publicURL: ''
+      publicURL: '',
+      totalPnL: {}
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
     this.sendWebSocket = this.sendWebSocket.bind(this);
+
+    this.toast = this.toast.bind(this);
+
+    this.notyf = new Notyf({
+      types: [
+        {
+          type: 'info',
+          background: '#2f96b4',
+          icon: {
+            className: 'fa fa-info-circle fa-lg',
+            tagName: 'i',
+            text: '',
+            color: 'white'
+          }
+        },
+        {
+          type: 'warning',
+          background: '#fd7e14',
+          icon: {
+            className: 'fa fa-exclamation-circle fa-lg',
+            tagName: 'i',
+            text: '',
+            color: 'white'
+          }
+        }
+      ],
+      duration: 3000,
+      ripple: true,
+      position: { x: 'right', y: 'bottom' },
+      dismissible: true
+    });
   }
 
   requestLatest() {
     this.sendWebSocket('latest');
+  }
+
+  toast({ type, title }) {
+    // this.notyf.dismissAll();
+    this.notyf.open({
+      type,
+      message: title
+    });
   }
 
   connectWebSocket() {
@@ -63,6 +103,10 @@ class App extends React.Component {
 
     instance.onopen = () => {
       console.log('Connection is successfully established.');
+      this.toast({
+        type: 'success',
+        title: 'Connected to the bot.'
+      });
       self.setState(prevState => ({
         webSocket: {
           ...prevState.webSocket,
@@ -81,7 +125,28 @@ class App extends React.Component {
         if (_.isEmpty(response.common.accountInfo)) {
           return;
         }
+
+        // Calculate total profit/loss
+        const totalPnL = {};
+        _.forEach(response.stats.symbols, s => {
+          if (totalPnL[s.quoteAssetBalance.asset] === undefined) {
+            totalPnL[s.quoteAssetBalance.asset] = {
+              asset: s.quoteAssetBalance.asset,
+              amount: 0,
+              profit: 0
+            };
+          }
+
+          totalPnL[s.quoteAssetBalance.asset].amount +=
+            (parseFloat(s.baseAssetBalance.free) +
+              parseFloat(s.baseAssetBalance.free)) *
+            s.sell.lastBuyPrice;
+          totalPnL[s.quoteAssetBalance.asset].profit += s.sell.currentProfit;
+        });
+
+        // Set states
         self.setState({
+          totalPnL,
           symbols: _.sortBy(response.stats.symbols, s => {
             if (s.buy.openOrders.length > 0) {
               const openOrder = s.buy.openOrders[0];
@@ -109,11 +174,22 @@ class App extends React.Component {
           apiInfo: response.common.apiInfo
         });
       }
+
+      if (response.type === 'notification') {
+        this.toast({
+          type: response.message.type,
+          title: response.message.title
+        });
+      }
     };
 
     instance.onclose = () => {
       console.log('Socket is closed. Reconnect will be attempted in 1 second.');
 
+      this.toast({
+        type: 'info',
+        title: 'Disconnected from the bot. Reconnecting...'
+      });
       self.setState(prevState => ({
         webSocket: {
           ...prevState.webSocket,
@@ -155,7 +231,8 @@ class App extends React.Component {
       configuration,
       accountInfo,
       publicURL,
-      apiInfo
+      apiInfo,
+      totalPnL
     } = this.state;
 
     const coinWrappers = symbols.map((symbol, index) => {
@@ -164,7 +241,7 @@ class App extends React.Component {
           extraClassName={
             index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
           }
-          key={symbol.symbol}
+          key={'coin-wrapper-' + symbol.symbol}
           symbolInfo={symbol}
           configuration={configuration}
           sendWebSocket={this.sendWebSocket}
@@ -183,10 +260,14 @@ class App extends React.Component {
         />
         {_.isEmpty(configuration) === false ? (
           <div className='app-body'>
-            <div className='account-wrapper'>
+            <div className='app-body-header-wrapper'>
               <AccountWrapper accountInfo={accountInfo} />
+              <ProfitLossWrapper totalPnL={totalPnL} />
             </div>
             <div className='coin-wrappers'>{coinWrappers}</div>
+            <div className='app-body-footer-wrapper'>
+              <Status apiInfo={apiInfo} />
+            </div>
           </div>
         ) : (
           <div className='app-body app-body-loading'>
@@ -195,7 +276,7 @@ class App extends React.Component {
             </Spinner>
           </div>
         )}
-        <Status apiInfo={apiInfo} />
+
         <Footer packageVersion={packageVersion} gitHash={gitHash} />
       </div>
     );

@@ -3,6 +3,8 @@ const moment = require('moment-timezone');
 const config = require('config');
 const { PubSub, binance, cache, slack } = require('./helpers');
 
+const { getAccountInfo } = require('./cronjob/trailingTradeHelper/common');
+
 const {
   getGlobalConfiguration
 } = require('./cronjob/trailingTradeHelper/configuration');
@@ -10,6 +12,39 @@ const {
 let websocketCandlesClean;
 
 let lastReceivedAt = moment();
+
+/**
+ * Retrieve the list of symbols to watch
+ *  - This includes account's symbol to BTC pairs.
+ *
+ * @param {*} _logger
+ * @param {*} param1
+ * @returns
+ */
+const monitoringSymbols = async (
+  _logger,
+  { globalConfiguration, accountInfo }
+) => {
+  const { symbols: globalSymbols } = globalConfiguration;
+  // To cut the reference for the global configuration symbols
+  const symbols = _.cloneDeep(globalSymbols);
+
+  const cachedExchangeSymbols =
+    JSON.parse(await cache.hget('trailing-trade-common', 'exchange-symbols')) ||
+    {};
+
+  return accountInfo.balances.reduce((acc, b) => {
+    const symbol = `${b.asset}BTC`;
+    // Make sure the symbol existing in Binance. Otherwise, just ignore.
+    if (
+      cachedExchangeSymbols[symbol] !== undefined &&
+      acc.includes(symbol) === false
+    ) {
+      acc.push(symbol);
+    }
+    return acc;
+  }, symbols);
+};
 
 /**
  * Setup web socket for retrieving candles
@@ -22,7 +57,15 @@ const setWebSocketCandles = async logger => {
   // Get configuration
   const globalConfiguration = await getGlobalConfiguration(logger);
 
-  const { symbols } = globalConfiguration;
+  // Retrieve account info from cache
+  const accountInfo = await getAccountInfo(logger);
+
+  // Retrieve list of monitoring symbols including assets BTC pairs
+  const symbols = await monitoringSymbols(logger, {
+    globalConfiguration,
+    accountInfo
+  });
+
   logger.info({ symbols }, 'Retrieved symbols');
 
   if (websocketCandlesClean) {
@@ -33,7 +76,6 @@ const setWebSocketCandles = async logger => {
     logger.info({ candle }, 'Received new candle');
 
     // Record last received date/time
-
     lastReceivedAt = moment();
 
     // Save latest candle for the symbol
@@ -51,13 +93,10 @@ const setWebSocketCandles = async logger => {
  * @param {*} logger
  */
 const setupLive = async logger => {
-  PubSub.subscribe(
-    'trailing-trade-configuration-changed',
-    async (message, data) => {
-      logger.info(`Message: ${message}, Data: ${data}`);
-      await setWebSocketCandles(logger);
-    }
-  );
+  PubSub.subscribe('reset-binance-websocket', async (message, data) => {
+    logger.info(`Message: ${message}, Data: ${data}`);
+    await setWebSocketCandles(logger);
+  });
 
   await setWebSocketCandles(logger);
 };
@@ -96,7 +135,15 @@ const setupTest = async logger => {
   // Get configuration
   const globalConfiguration = await getGlobalConfiguration(logger);
 
-  const { symbols } = globalConfiguration;
+  // Retrieve account info from cache
+  const accountInfo = await getAccountInfo(logger);
+
+  // Retrieve list of monitoring symbols including assets BTC pairs
+  const symbols = await monitoringSymbols(logger, {
+    globalConfiguration,
+    accountInfo
+  });
+
   logger.info({ symbols }, 'Retrieved symbols');
 
   const currentPrices = await binance.client.prices();

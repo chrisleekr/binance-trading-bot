@@ -110,6 +110,14 @@ const hget = async (key, field) => {
 };
 
 /**
+ * Get value from key wihtout lock
+ * @param {*} key
+ * @param {*} field
+ * @returns
+ */
+const hgetWithoutLock = async (key, field) => redis.hget(key, field);
+
+/**
  * Get value from key
  *
  * @param {*} key
@@ -135,6 +143,7 @@ module.exports = {
   getWithTTL,
   del,
   hset,
+  hgetWithoutLock,
   hget,
   hgetall,
   hdel

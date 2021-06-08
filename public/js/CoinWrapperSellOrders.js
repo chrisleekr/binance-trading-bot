@@ -7,6 +7,7 @@ class CoinWrapperSellOrders extends React.Component {
 
     const {
       symbolInfo: {
+        symbol,
         filterPrice: { tickSize }
       },
       symbolConfiguration,
@@ -22,9 +23,18 @@ class CoinWrapperSellOrders extends React.Component {
 
     const renderOpenOrders = openOrders.map((openOrder, index) => {
       return (
-        <div key={index} className='coin-info-sub-open-order-wrapper'>
+        <div
+          key={'coin-wrapper-sell-order-' + index}
+          className='coin-info-sub-open-order-wrapper'>
           <div className='coin-info-column coin-info-column-title'>
-            <span className='coin-info-label'>Open Order #{index + 1}</span>
+            <div className='coin-info-label d-flex flex-row'>
+              <span>Open Order #{index + 1}</span>{' '}
+              <SymbolCancelIcon
+                symbol={symbol}
+                order={openOrder}
+                sendWebSocket={sendWebSocket}
+              />
+            </div>
 
             {openOrder.updatedAt && moment(openOrder.updatedAt).isValid() ? (
               <HightlightChange

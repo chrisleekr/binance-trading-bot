@@ -240,7 +240,7 @@ describe('latest.test.js', () => {
             collection === 'trailing-trade-symbols' &&
             _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
           ) {
-            return { lastBuyPrice: null, type: 'i-am-symbol' };
+            return { lastBuyPrice: 100, quantity: 10, type: 'i-am-symbol' };
           }
 
           if (
@@ -254,7 +254,7 @@ describe('latest.test.js', () => {
             collection === 'trailing-trade-symbols' &&
             _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
           ) {
-            return { lastBuyPrice: null, type: 'i-am-symbol' };
+            return { lastBuyPrice: null, quantity: null, type: 'i-am-symbol' };
           }
 
           return null;

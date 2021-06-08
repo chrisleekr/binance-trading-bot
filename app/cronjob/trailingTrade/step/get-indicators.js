@@ -15,6 +15,9 @@ const execute = async (logger, rawData) => {
 
   const {
     symbol,
+    symbolInfo: {
+      filterMinNotional: { minNotional }
+    },
     symbolConfiguration: {
       buy: {
         triggerPercentage: buyTriggerPercentage,
@@ -68,7 +71,9 @@ const execute = async (logger, rawData) => {
   const buyLimitPrice = currentPrice * buyLimitPercentage;
 
   // Get last buy price
-  const lastBuyPrice = await getLastBuyPrice(logger, symbol);
+  const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
+  const lastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
+
   const sellTriggerPrice =
     lastBuyPrice > 0 ? lastBuyPrice * sellTriggerPercentage : null;
   const sellDifference =
@@ -85,6 +90,8 @@ const execute = async (logger, rawData) => {
 
   // Estimate value
   const baseAssetEstimatedValue = baseAssetTotalBalance * currentPrice;
+  const isLessThanMinNotionalValue =
+    baseAssetEstimatedValue < parseFloat(minNotional);
 
   const sellCurrentProfit =
     lastBuyPrice > 0
@@ -136,6 +143,7 @@ const execute = async (logger, rawData) => {
 
   // Populate data
   data.baseAssetBalance.estimatedValue = baseAssetEstimatedValue;
+  data.baseAssetBalance.isLessThanMinNotionalValue = isLessThanMinNotionalValue;
 
   data.buy = {
     currentPrice,
