@@ -1,0 +1,2626 @@
+{
+  "ETHBTC": { "symbol": "ETHBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "LTCBTC": { "symbol": "LTCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BNBBTC": { "symbol": "BNBBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "NEOBTC": { "symbol": "NEOBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "QTUMETH": { "symbol": "QTUMETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "EOSETH": { "symbol": "EOSETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "SNTETH": { "symbol": "SNTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BNTETH": { "symbol": "BNTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BCCBTC": { "symbol": "BCCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "GASBTC": { "symbol": "GASBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BNBETH": { "symbol": "BNBETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BTCUSDT": { "symbol": "BTCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ETHUSDT": { "symbol": "ETHUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "HSRBTC": { "symbol": "HSRBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "OAXETH": { "symbol": "OAXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "DNTETH": { "symbol": "DNTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "MCOETH": { "symbol": "MCOETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ICNETH": { "symbol": "ICNETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "MCOBTC": { "symbol": "MCOBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "WTCBTC": { "symbol": "WTCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "WTCETH": { "symbol": "WTCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "LRCBTC": { "symbol": "LRCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "LRCETH": { "symbol": "LRCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "QTUMBTC": {
+    "symbol": "QTUMBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "YOYOBTC": {
+    "symbol": "YOYOBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "OMGBTC": { "symbol": "OMGBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "OMGETH": { "symbol": "OMGETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ZRXBTC": { "symbol": "ZRXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ZRXETH": { "symbol": "ZRXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "STRATBTC": {
+    "symbol": "STRATBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "STRATETH": {
+    "symbol": "STRATETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "SNGLSBTC": {
+    "symbol": "SNGLSBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "SNGLSETH": {
+    "symbol": "SNGLSETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "BQXBTC": { "symbol": "BQXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BQXETH": { "symbol": "BQXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "KNCBTC": { "symbol": "KNCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "KNCETH": { "symbol": "KNCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "FUNBTC": { "symbol": "FUNBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "FUNETH": { "symbol": "FUNETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "SNMBTC": { "symbol": "SNMBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SNMETH": { "symbol": "SNMETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "NEOETH": { "symbol": "NEOETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "IOTABTC": {
+    "symbol": "IOTABTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "IOTAETH": { "symbol": "IOTAETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "LINKBTC": {
+    "symbol": "LINKBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "LINKETH": { "symbol": "LINKETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "XVGBTC": { "symbol": "XVGBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "XVGETH": { "symbol": "XVGETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "SALTBTC": {
+    "symbol": "SALTBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "SALTETH": { "symbol": "SALTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "MDABTC": { "symbol": "MDABTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "MDAETH": { "symbol": "MDAETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "MTLBTC": { "symbol": "MTLBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "MTLETH": { "symbol": "MTLETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "SUBBTC": { "symbol": "SUBBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SUBETH": { "symbol": "SUBETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "EOSBTC": { "symbol": "EOSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SNTBTC": { "symbol": "SNTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ETCETH": { "symbol": "ETCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ETCBTC": { "symbol": "ETCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "MTHBTC": { "symbol": "MTHBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "MTHETH": { "symbol": "MTHETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ENGBTC": { "symbol": "ENGBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ENGETH": { "symbol": "ENGETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "DNTBTC": { "symbol": "DNTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ZECBTC": { "symbol": "ZECBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ZECETH": { "symbol": "ZECETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BNTBTC": { "symbol": "BNTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ASTBTC": { "symbol": "ASTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ASTETH": { "symbol": "ASTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "DASHBTC": {
+    "symbol": "DASHBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "DASHETH": { "symbol": "DASHETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "OAXBTC": { "symbol": "OAXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ICNBTC": { "symbol": "ICNBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BTGBTC": { "symbol": "BTGBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BTGETH": { "symbol": "BTGETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "EVXBTC": { "symbol": "EVXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "EVXETH": { "symbol": "EVXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "REQBTC": { "symbol": "REQBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "REQETH": { "symbol": "REQETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "VIBBTC": { "symbol": "VIBBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "VIBETH": { "symbol": "VIBETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "HSRETH": { "symbol": "HSRETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "TRXBTC": { "symbol": "TRXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "TRXETH": { "symbol": "TRXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "POWRBTC": {
+    "symbol": "POWRBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "POWRETH": { "symbol": "POWRETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ARKBTC": { "symbol": "ARKBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ARKETH": { "symbol": "ARKETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "YOYOETH": { "symbol": "YOYOETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "XRPBTC": { "symbol": "XRPBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "XRPETH": { "symbol": "XRPETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "MODBTC": { "symbol": "MODBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "MODETH": { "symbol": "MODETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ENJBTC": { "symbol": "ENJBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ENJETH": { "symbol": "ENJETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "STORJBTC": {
+    "symbol": "STORJBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "STORJETH": {
+    "symbol": "STORJETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "BNBUSDT": { "symbol": "BNBUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "VENBNB": { "symbol": "VENBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "YOYOBNB": { "symbol": "YOYOBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "POWRBNB": { "symbol": "POWRBNB", "quoteAsset": "BNB", "minNotional": 0.1 },
+  "VENBTC": { "symbol": "VENBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "VENETH": { "symbol": "VENETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "KMDBTC": { "symbol": "KMDBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "KMDETH": { "symbol": "KMDETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "NULSBNB": { "symbol": "NULSBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "RCNBTC": { "symbol": "RCNBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "RCNETH": { "symbol": "RCNETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "RCNBNB": { "symbol": "RCNBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "NULSBTC": {
+    "symbol": "NULSBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "NULSETH": { "symbol": "NULSETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "RDNBTC": { "symbol": "RDNBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "RDNETH": { "symbol": "RDNETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "RDNBNB": { "symbol": "RDNBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "XMRBTC": { "symbol": "XMRBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "XMRETH": { "symbol": "XMRETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "DLTBNB": { "symbol": "DLTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "WTCBNB": { "symbol": "WTCBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DLTBTC": { "symbol": "DLTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "DLTETH": { "symbol": "DLTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "AMBBTC": { "symbol": "AMBBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "AMBETH": { "symbol": "AMBETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "AMBBNB": { "symbol": "AMBBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BCCETH": { "symbol": "BCCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BCCUSDT": { "symbol": "BCCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BCCBNB": { "symbol": "BCCBNB", "quoteAsset": "BNB", "minNotional": 0.1 },
+  "BATBTC": { "symbol": "BATBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BATETH": { "symbol": "BATETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BATBNB": { "symbol": "BATBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BCPTBTC": {
+    "symbol": "BCPTBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "BCPTETH": { "symbol": "BCPTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BCPTBNB": { "symbol": "BCPTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ARNBTC": { "symbol": "ARNBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ARNETH": { "symbol": "ARNETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "GVTBTC": { "symbol": "GVTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "GVTETH": { "symbol": "GVTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "CDTBTC": { "symbol": "CDTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "CDTETH": { "symbol": "CDTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "GXSBTC": { "symbol": "GXSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "GXSETH": { "symbol": "GXSETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "NEOUSDT": { "symbol": "NEOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "NEOBNB": { "symbol": "NEOBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "POEBTC": { "symbol": "POEBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "POEETH": { "symbol": "POEETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "QSPBTC": { "symbol": "QSPBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "QSPETH": { "symbol": "QSPETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "QSPBNB": { "symbol": "QSPBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BTSBTC": { "symbol": "BTSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BTSETH": { "symbol": "BTSETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BTSBNB": { "symbol": "BTSBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "XZCBTC": { "symbol": "XZCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "XZCETH": { "symbol": "XZCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "XZCBNB": { "symbol": "XZCBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "LSKBTC": { "symbol": "LSKBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "LSKETH": { "symbol": "LSKETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "LSKBNB": { "symbol": "LSKBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "TNTBTC": { "symbol": "TNTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "TNTETH": { "symbol": "TNTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "FUELBTC": {
+    "symbol": "FUELBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "FUELETH": { "symbol": "FUELETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "MANABTC": {
+    "symbol": "MANABTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "MANAETH": { "symbol": "MANAETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BCDBTC": { "symbol": "BCDBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BCDETH": { "symbol": "BCDETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "DGDBTC": { "symbol": "DGDBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "DGDETH": { "symbol": "DGDETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "IOTABNB": { "symbol": "IOTABNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ADXBTC": { "symbol": "ADXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ADXETH": { "symbol": "ADXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ADXBNB": { "symbol": "ADXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ADABTC": { "symbol": "ADABTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ADAETH": { "symbol": "ADAETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "PPTBTC": { "symbol": "PPTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "PPTETH": { "symbol": "PPTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "CMTBTC": { "symbol": "CMTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "CMTETH": { "symbol": "CMTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "CMTBNB": { "symbol": "CMTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "XLMBTC": { "symbol": "XLMBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "XLMETH": { "symbol": "XLMETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "XLMBNB": { "symbol": "XLMBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "CNDBTC": { "symbol": "CNDBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "CNDETH": { "symbol": "CNDETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "CNDBNB": { "symbol": "CNDBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "LENDBTC": {
+    "symbol": "LENDBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "LENDETH": { "symbol": "LENDETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "WABIBTC": {
+    "symbol": "WABIBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "WABIETH": { "symbol": "WABIETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "WABIBNB": { "symbol": "WABIBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "LTCETH": { "symbol": "LTCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "LTCUSDT": { "symbol": "LTCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "LTCBNB": { "symbol": "LTCBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "TNBBTC": { "symbol": "TNBBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "TNBETH": { "symbol": "TNBETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "WAVESBTC": {
+    "symbol": "WAVESBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "WAVESETH": {
+    "symbol": "WAVESETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "WAVESBNB": {
+    "symbol": "WAVESBNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "GTOBTC": { "symbol": "GTOBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "GTOETH": { "symbol": "GTOETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "GTOBNB": { "symbol": "GTOBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ICXBTC": { "symbol": "ICXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ICXETH": { "symbol": "ICXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ICXBNB": { "symbol": "ICXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "OSTBTC": { "symbol": "OSTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "OSTETH": { "symbol": "OSTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "OSTBNB": { "symbol": "OSTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ELFBTC": { "symbol": "ELFBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ELFETH": { "symbol": "ELFETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "AIONBTC": {
+    "symbol": "AIONBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "AIONETH": { "symbol": "AIONETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "AIONBNB": { "symbol": "AIONBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "NEBLBTC": {
+    "symbol": "NEBLBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "NEBLETH": { "symbol": "NEBLETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "NEBLBNB": { "symbol": "NEBLBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BRDBTC": { "symbol": "BRDBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BRDETH": { "symbol": "BRDETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BRDBNB": { "symbol": "BRDBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "MCOBNB": { "symbol": "MCOBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "EDOBTC": { "symbol": "EDOBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "EDOETH": { "symbol": "EDOETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "WINGSBTC": {
+    "symbol": "WINGSBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "WINGSETH": {
+    "symbol": "WINGSETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "NAVBTC": { "symbol": "NAVBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "NAVETH": { "symbol": "NAVETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "NAVBNB": { "symbol": "NAVBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "LUNBTC": { "symbol": "LUNBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "LUNETH": { "symbol": "LUNETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "TRIGBTC": {
+    "symbol": "TRIGBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "TRIGETH": { "symbol": "TRIGETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "TRIGBNB": { "symbol": "TRIGBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "APPCBTC": {
+    "symbol": "APPCBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "APPCETH": { "symbol": "APPCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "APPCBNB": { "symbol": "APPCBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "VIBEBTC": {
+    "symbol": "VIBEBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "VIBEETH": { "symbol": "VIBEETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "RLCBTC": { "symbol": "RLCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "RLCETH": { "symbol": "RLCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "RLCBNB": { "symbol": "RLCBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "INSBTC": { "symbol": "INSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "INSETH": { "symbol": "INSETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "PIVXBTC": {
+    "symbol": "PIVXBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "PIVXETH": { "symbol": "PIVXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "PIVXBNB": { "symbol": "PIVXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "IOSTBTC": {
+    "symbol": "IOSTBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "IOSTETH": { "symbol": "IOSTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "CHATBTC": {
+    "symbol": "CHATBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "CHATETH": { "symbol": "CHATETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "STEEMBTC": {
+    "symbol": "STEEMBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "STEEMETH": {
+    "symbol": "STEEMETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "STEEMBNB": {
+    "symbol": "STEEMBNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "NANOBTC": {
+    "symbol": "NANOBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "NANOETH": { "symbol": "NANOETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "NANOBNB": { "symbol": "NANOBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "VIABTC": { "symbol": "VIABTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "VIAETH": { "symbol": "VIAETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "VIABNB": { "symbol": "VIABNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BLZBTC": { "symbol": "BLZBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BLZETH": { "symbol": "BLZETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BLZBNB": { "symbol": "BLZBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "AEBTC": { "symbol": "AEBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "AEETH": { "symbol": "AEETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "AEBNB": { "symbol": "AEBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "RPXBTC": { "symbol": "RPXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "RPXETH": { "symbol": "RPXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "RPXBNB": { "symbol": "RPXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "NCASHBTC": {
+    "symbol": "NCASHBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "NCASHETH": {
+    "symbol": "NCASHETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "NCASHBNB": {
+    "symbol": "NCASHBNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "POABTC": { "symbol": "POABTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "POAETH": { "symbol": "POAETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "POABNB": { "symbol": "POABNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ZILBTC": { "symbol": "ZILBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ZILETH": { "symbol": "ZILETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ZILBNB": { "symbol": "ZILBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ONTBTC": { "symbol": "ONTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ONTETH": { "symbol": "ONTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ONTBNB": { "symbol": "ONTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "STORMBTC": {
+    "symbol": "STORMBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "STORMETH": {
+    "symbol": "STORMETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "STORMBNB": {
+    "symbol": "STORMBNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "QTUMBNB": { "symbol": "QTUMBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "QTUMUSDT": { "symbol": "QTUMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "XEMBTC": { "symbol": "XEMBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "XEMETH": { "symbol": "XEMETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "XEMBNB": { "symbol": "XEMBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "WANBTC": { "symbol": "WANBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "WANETH": { "symbol": "WANETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "WANBNB": { "symbol": "WANBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "WPRBTC": { "symbol": "WPRBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "WPRETH": { "symbol": "WPRETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "QLCBTC": { "symbol": "QLCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "QLCETH": { "symbol": "QLCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "SYSBTC": { "symbol": "SYSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SYSETH": { "symbol": "SYSETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "SYSBNB": { "symbol": "SYSBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "QLCBNB": { "symbol": "QLCBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "GRSBTC": { "symbol": "GRSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "GRSETH": { "symbol": "GRSETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ADAUSDT": { "symbol": "ADAUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ADABNB": { "symbol": "ADABNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "CLOAKBTC": {
+    "symbol": "CLOAKBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "CLOAKETH": {
+    "symbol": "CLOAKETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "GNTBTC": { "symbol": "GNTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "GNTETH": { "symbol": "GNTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "GNTBNB": { "symbol": "GNTBNB", "quoteAsset": "BNB", "minNotional": 0.1 },
+  "LOOMBTC": {
+    "symbol": "LOOMBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "LOOMETH": { "symbol": "LOOMETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "LOOMBNB": { "symbol": "LOOMBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "XRPUSDT": { "symbol": "XRPUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BCNBTC": { "symbol": "BCNBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BCNETH": { "symbol": "BCNETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BCNBNB": { "symbol": "BCNBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "REPBTC": { "symbol": "REPBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "REPETH": { "symbol": "REPETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "REPBNB": { "symbol": "REPBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BTCTUSD": { "symbol": "BTCTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "TUSDBTC": {
+    "symbol": "TUSDBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "ETHTUSD": { "symbol": "ETHTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "TUSDETH": { "symbol": "TUSDETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "TUSDBNB": { "symbol": "TUSDBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ZENBTC": { "symbol": "ZENBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ZENETH": { "symbol": "ZENETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ZENBNB": { "symbol": "ZENBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "SKYBTC": { "symbol": "SKYBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SKYETH": { "symbol": "SKYETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "SKYBNB": { "symbol": "SKYBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "EOSUSDT": { "symbol": "EOSUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "EOSBNB": { "symbol": "EOSBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "CVCBTC": { "symbol": "CVCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "CVCETH": { "symbol": "CVCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "CVCBNB": { "symbol": "CVCBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "THETABTC": {
+    "symbol": "THETABTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "THETAETH": {
+    "symbol": "THETAETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "THETABNB": {
+    "symbol": "THETABNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "XRPBNB": { "symbol": "XRPBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "TUSDUSDT": { "symbol": "TUSDUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "IOTAUSDT": { "symbol": "IOTAUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "XLMUSDT": { "symbol": "XLMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "IOTXBTC": {
+    "symbol": "IOTXBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "IOTXETH": { "symbol": "IOTXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "QKCBTC": { "symbol": "QKCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "QKCETH": { "symbol": "QKCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "AGIBTC": { "symbol": "AGIBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "AGIETH": { "symbol": "AGIETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "AGIBNB": { "symbol": "AGIBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "NXSBTC": { "symbol": "NXSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "NXSETH": { "symbol": "NXSETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "NXSBNB": { "symbol": "NXSBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ENJBNB": { "symbol": "ENJBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DATABTC": {
+    "symbol": "DATABTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "DATAETH": { "symbol": "DATAETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ONTUSDT": { "symbol": "ONTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "TRXBNB": { "symbol": "TRXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "TRXUSDT": { "symbol": "TRXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ETCUSDT": { "symbol": "ETCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ETCBNB": { "symbol": "ETCBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ICXUSDT": { "symbol": "ICXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SCBTC": { "symbol": "SCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SCETH": { "symbol": "SCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "SCBNB": { "symbol": "SCBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "NPXSBTC": {
+    "symbol": "NPXSBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "NPXSETH": { "symbol": "NPXSETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "VENUSDT": { "symbol": "VENUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "KEYBTC": { "symbol": "KEYBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "KEYETH": { "symbol": "KEYETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "NASBTC": { "symbol": "NASBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "NASETH": { "symbol": "NASETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "NASBNB": { "symbol": "NASBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "MFTBTC": { "symbol": "MFTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "MFTETH": { "symbol": "MFTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "MFTBNB": { "symbol": "MFTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DENTBTC": {
+    "symbol": "DENTBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "DENTETH": { "symbol": "DENTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ARDRBTC": {
+    "symbol": "ARDRBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "ARDRETH": { "symbol": "ARDRETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ARDRBNB": { "symbol": "ARDRBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "NULSUSDT": { "symbol": "NULSUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "HOTBTC": { "symbol": "HOTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "HOTETH": { "symbol": "HOTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "VETBTC": { "symbol": "VETBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "VETETH": { "symbol": "VETETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "VETUSDT": { "symbol": "VETUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "VETBNB": { "symbol": "VETBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DOCKBTC": {
+    "symbol": "DOCKBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "DOCKETH": { "symbol": "DOCKETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "POLYBTC": {
+    "symbol": "POLYBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "POLYBNB": { "symbol": "POLYBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "PHXBTC": { "symbol": "PHXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "PHXETH": { "symbol": "PHXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "PHXBNB": { "symbol": "PHXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "HCBTC": { "symbol": "HCBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "HCETH": { "symbol": "HCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "GOBTC": { "symbol": "GOBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "GOBNB": { "symbol": "GOBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "PAXBTC": { "symbol": "PAXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "PAXBNB": { "symbol": "PAXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "PAXUSDT": { "symbol": "PAXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "PAXETH": { "symbol": "PAXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "RVNBTC": { "symbol": "RVNBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "RVNBNB": { "symbol": "RVNBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DCRBTC": { "symbol": "DCRBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "DCRBNB": { "symbol": "DCRBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "USDCBNB": { "symbol": "USDCBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "MITHBTC": {
+    "symbol": "MITHBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "MITHBNB": { "symbol": "MITHBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BCHABCBTC": {
+    "symbol": "BCHABCBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "BCHSVBTC": {
+    "symbol": "BCHSVBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "BCHABCUSDT": {
+    "symbol": "BCHABCUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "BCHSVUSDT": {
+    "symbol": "BCHSVUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "BNBPAX": { "symbol": "BNBPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "BTCPAX": { "symbol": "BTCPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "ETHPAX": { "symbol": "ETHPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "XRPPAX": { "symbol": "XRPPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "EOSPAX": { "symbol": "EOSPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "XLMPAX": { "symbol": "XLMPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "RENBTC": { "symbol": "RENBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "RENBNB": { "symbol": "RENBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BNBTUSD": { "symbol": "BNBTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "XRPTUSD": { "symbol": "XRPTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "EOSTUSD": { "symbol": "EOSTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "XLMTUSD": { "symbol": "XLMTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "BNBUSDC": { "symbol": "BNBUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "BTCUSDC": { "symbol": "BTCUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "ETHUSDC": { "symbol": "ETHUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "XRPUSDC": { "symbol": "XRPUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "EOSUSDC": { "symbol": "EOSUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "XLMUSDC": { "symbol": "XLMUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "USDCUSDT": { "symbol": "USDCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ADATUSD": { "symbol": "ADATUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "TRXTUSD": { "symbol": "TRXTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "NEOTUSD": { "symbol": "NEOTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "TRXXRP": { "symbol": "TRXXRP", "quoteAsset": "XRP", "minNotional": 10 },
+  "XZCXRP": { "symbol": "XZCXRP", "quoteAsset": "XRP", "minNotional": 10 },
+  "PAXTUSD": { "symbol": "PAXTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "USDCTUSD": { "symbol": "USDCTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "USDCPAX": { "symbol": "USDCPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "LINKUSDT": { "symbol": "LINKUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "LINKTUSD": { "symbol": "LINKTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "LINKPAX": { "symbol": "LINKPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "LINKUSDC": { "symbol": "LINKUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "WAVESUSDT": {
+    "symbol": "WAVESUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "WAVESTUSD": {
+    "symbol": "WAVESTUSD",
+    "quoteAsset": "TUSD",
+    "minNotional": 10
+  },
+  "WAVESPAX": { "symbol": "WAVESPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "WAVESUSDC": {
+    "symbol": "WAVESUSDC",
+    "quoteAsset": "USDC",
+    "minNotional": 10
+  },
+  "BCHABCTUSD": {
+    "symbol": "BCHABCTUSD",
+    "quoteAsset": "TUSD",
+    "minNotional": 10
+  },
+  "BCHABCPAX": {
+    "symbol": "BCHABCPAX",
+    "quoteAsset": "PAX",
+    "minNotional": 10
+  },
+  "BCHABCUSDC": {
+    "symbol": "BCHABCUSDC",
+    "quoteAsset": "USDC",
+    "minNotional": 10
+  },
+  "BCHSVTUSD": {
+    "symbol": "BCHSVTUSD",
+    "quoteAsset": "TUSD",
+    "minNotional": 10
+  },
+  "BCHSVPAX": { "symbol": "BCHSVPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "BCHSVUSDC": {
+    "symbol": "BCHSVUSDC",
+    "quoteAsset": "USDC",
+    "minNotional": 10
+  },
+  "LTCTUSD": { "symbol": "LTCTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "LTCPAX": { "symbol": "LTCPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "LTCUSDC": { "symbol": "LTCUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "TRXPAX": { "symbol": "TRXPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "TRXUSDC": { "symbol": "TRXUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "BTTBTC": { "symbol": "BTTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BTTBNB": { "symbol": "BTTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BTTUSDT": { "symbol": "BTTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BNBUSDS": { "symbol": "BNBUSDS", "quoteAsset": "USDS", "minNotional": 10 },
+  "BTCUSDS": { "symbol": "BTCUSDS", "quoteAsset": "USDS", "minNotional": 10 },
+  "USDSUSDT": { "symbol": "USDSUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "USDSPAX": { "symbol": "USDSPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "USDSTUSD": { "symbol": "USDSTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "USDSUSDC": { "symbol": "USDSUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "BTTPAX": { "symbol": "BTTPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "BTTTUSD": { "symbol": "BTTTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "BTTUSDC": { "symbol": "BTTUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "ONGBNB": { "symbol": "ONGBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ONGBTC": { "symbol": "ONGBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ONGUSDT": { "symbol": "ONGUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "HOTBNB": { "symbol": "HOTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "HOTUSDT": { "symbol": "HOTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ZILUSDT": { "symbol": "ZILUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ZRXBNB": { "symbol": "ZRXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ZRXUSDT": { "symbol": "ZRXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "FETBNB": { "symbol": "FETBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "FETBTC": { "symbol": "FETBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "FETUSDT": { "symbol": "FETUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BATUSDT": { "symbol": "BATUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "XMRBNB": { "symbol": "XMRBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "XMRUSDT": { "symbol": "XMRUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ZECBNB": { "symbol": "ZECBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ZECUSDT": { "symbol": "ZECUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ZECPAX": { "symbol": "ZECPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "ZECTUSD": { "symbol": "ZECTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "ZECUSDC": { "symbol": "ZECUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "IOSTBNB": { "symbol": "IOSTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "IOSTUSDT": { "symbol": "IOSTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "CELRBNB": { "symbol": "CELRBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "CELRBTC": {
+    "symbol": "CELRBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "CELRUSDT": { "symbol": "CELRUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ADAPAX": { "symbol": "ADAPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "ADAUSDC": { "symbol": "ADAUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "NEOPAX": { "symbol": "NEOPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "NEOUSDC": { "symbol": "NEOUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "DASHBNB": { "symbol": "DASHBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DASHUSDT": { "symbol": "DASHUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "NANOUSDT": { "symbol": "NANOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "OMGBNB": { "symbol": "OMGBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "OMGUSDT": { "symbol": "OMGUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "THETAUSDT": {
+    "symbol": "THETAUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "ENJUSDT": { "symbol": "ENJUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "MITHUSDT": { "symbol": "MITHUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "MATICBNB": {
+    "symbol": "MATICBNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "MATICBTC": {
+    "symbol": "MATICBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "MATICUSDT": {
+    "symbol": "MATICUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "ATOMBNB": { "symbol": "ATOMBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ATOMBTC": {
+    "symbol": "ATOMBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "ATOMUSDT": { "symbol": "ATOMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ATOMUSDC": { "symbol": "ATOMUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "ATOMPAX": { "symbol": "ATOMPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "ATOMTUSD": { "symbol": "ATOMTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "ETCUSDC": { "symbol": "ETCUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "ETCPAX": { "symbol": "ETCPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "ETCTUSD": { "symbol": "ETCTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "BATUSDC": { "symbol": "BATUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "BATPAX": { "symbol": "BATPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "BATTUSD": { "symbol": "BATTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "PHBBNB": { "symbol": "PHBBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "PHBBTC": { "symbol": "PHBBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "PHBUSDC": { "symbol": "PHBUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "PHBTUSD": { "symbol": "PHBTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "PHBPAX": { "symbol": "PHBPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "TFUELBNB": {
+    "symbol": "TFUELBNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "TFUELBTC": {
+    "symbol": "TFUELBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "TFUELUSDT": {
+    "symbol": "TFUELUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "TFUELUSDC": {
+    "symbol": "TFUELUSDC",
+    "quoteAsset": "USDC",
+    "minNotional": 10
+  },
+  "TFUELTUSD": {
+    "symbol": "TFUELTUSD",
+    "quoteAsset": "TUSD",
+    "minNotional": 10
+  },
+  "TFUELPAX": { "symbol": "TFUELPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "ONEBNB": { "symbol": "ONEBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ONEBTC": { "symbol": "ONEBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ONEUSDT": { "symbol": "ONEUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ONETUSD": { "symbol": "ONETUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "ONEPAX": { "symbol": "ONEPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "ONEUSDC": { "symbol": "ONEUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "FTMBNB": { "symbol": "FTMBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "FTMBTC": { "symbol": "FTMBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "FTMUSDT": { "symbol": "FTMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "FTMTUSD": { "symbol": "FTMTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "FTMPAX": { "symbol": "FTMPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "FTMUSDC": { "symbol": "FTMUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "BTCBBTC": {
+    "symbol": "BTCBBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "BCPTTUSD": { "symbol": "BCPTTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "BCPTPAX": { "symbol": "BCPTPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "BCPTUSDC": { "symbol": "BCPTUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "ALGOBNB": { "symbol": "ALGOBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ALGOBTC": {
+    "symbol": "ALGOBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "ALGOUSDT": { "symbol": "ALGOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ALGOTUSD": { "symbol": "ALGOTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "ALGOPAX": { "symbol": "ALGOPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "ALGOUSDC": { "symbol": "ALGOUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "USDSBUSDT": {
+    "symbol": "USDSBUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "USDSBUSDS": {
+    "symbol": "USDSBUSDS",
+    "quoteAsset": "USDS",
+    "minNotional": 10
+  },
+  "GTOUSDT": { "symbol": "GTOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "GTOPAX": { "symbol": "GTOPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "GTOTUSD": { "symbol": "GTOTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "GTOUSDC": { "symbol": "GTOUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "ERDBNB": { "symbol": "ERDBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ERDBTC": { "symbol": "ERDBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ERDUSDT": { "symbol": "ERDUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ERDPAX": { "symbol": "ERDPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "ERDUSDC": { "symbol": "ERDUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "DOGEBNB": { "symbol": "DOGEBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DOGEBTC": {
+    "symbol": "DOGEBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "DOGEUSDT": { "symbol": "DOGEUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DOGEPAX": { "symbol": "DOGEPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "DOGEUSDC": { "symbol": "DOGEUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "DUSKBNB": { "symbol": "DUSKBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DUSKBTC": {
+    "symbol": "DUSKBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "DUSKUSDT": { "symbol": "DUSKUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DUSKUSDC": { "symbol": "DUSKUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "DUSKPAX": { "symbol": "DUSKPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "BGBPUSDC": { "symbol": "BGBPUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "ANKRBNB": { "symbol": "ANKRBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ANKRBTC": {
+    "symbol": "ANKRBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "ANKRUSDT": { "symbol": "ANKRUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ANKRTUSD": { "symbol": "ANKRTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "ANKRPAX": { "symbol": "ANKRPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "ANKRUSDC": { "symbol": "ANKRUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "ONTPAX": { "symbol": "ONTPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "ONTUSDC": { "symbol": "ONTUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "WINBNB": { "symbol": "WINBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "WINBTC": { "symbol": "WINBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "WINUSDT": { "symbol": "WINUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "WINUSDC": { "symbol": "WINUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "COSBNB": { "symbol": "COSBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "COSBTC": { "symbol": "COSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "COSUSDT": { "symbol": "COSUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "TUSDBTUSD": {
+    "symbol": "TUSDBTUSD",
+    "quoteAsset": "TUSD",
+    "minNotional": 10
+  },
+  "NPXSUSDT": { "symbol": "NPXSUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "NPXSUSDC": { "symbol": "NPXSUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "COCOSBNB": {
+    "symbol": "COCOSBNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "COCOSBTC": {
+    "symbol": "COCOSBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "COCOSUSDT": {
+    "symbol": "COCOSUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "MTLUSDT": { "symbol": "MTLUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "TOMOBNB": { "symbol": "TOMOBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "TOMOBTC": {
+    "symbol": "TOMOBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "TOMOUSDT": { "symbol": "TOMOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "TOMOUSDC": { "symbol": "TOMOUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "PERLBNB": { "symbol": "PERLBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "PERLBTC": {
+    "symbol": "PERLBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "PERLUSDC": { "symbol": "PERLUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "PERLUSDT": { "symbol": "PERLUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DENTUSDT": { "symbol": "DENTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "MFTUSDT": { "symbol": "MFTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "KEYUSDT": { "symbol": "KEYUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "STORMUSDT": {
+    "symbol": "STORMUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "DOCKUSDT": { "symbol": "DOCKUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "WANUSDT": { "symbol": "WANUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "FUNUSDT": { "symbol": "FUNUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "CVCUSDT": { "symbol": "CVCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BTTTRX": { "symbol": "BTTTRX", "quoteAsset": "TRX", "minNotional": 100 },
+  "WINTRX": { "symbol": "WINTRX", "quoteAsset": "TRX", "minNotional": 100 },
+  "CHZBNB": { "symbol": "CHZBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "CHZBTC": { "symbol": "CHZBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "CHZUSDT": { "symbol": "CHZUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BANDBNB": { "symbol": "BANDBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BANDBTC": {
+    "symbol": "BANDBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "BANDUSDT": { "symbol": "BANDUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BNBBUSD": { "symbol": "BNBBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BTCBUSD": { "symbol": "BTCBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BUSDUSDT": { "symbol": "BUSDUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BEAMBNB": { "symbol": "BEAMBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BEAMBTC": {
+    "symbol": "BEAMBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "BEAMUSDT": { "symbol": "BEAMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "XTZBNB": { "symbol": "XTZBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "XTZBTC": { "symbol": "XTZBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "XTZUSDT": { "symbol": "XTZUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "RENUSDT": { "symbol": "RENUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "RVNUSDT": { "symbol": "RVNUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "HCUSDT": { "symbol": "HCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "HBARBNB": { "symbol": "HBARBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "HBARBTC": {
+    "symbol": "HBARBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "HBARUSDT": { "symbol": "HBARUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "NKNBNB": { "symbol": "NKNBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "NKNBTC": { "symbol": "NKNBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "NKNUSDT": { "symbol": "NKNUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "XRPBUSD": { "symbol": "XRPBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ETHBUSD": { "symbol": "ETHBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BCHABCBUSD": {
+    "symbol": "BCHABCBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "LTCBUSD": { "symbol": "LTCBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "LINKBUSD": { "symbol": "LINKBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ETCBUSD": { "symbol": "ETCBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "STXBNB": { "symbol": "STXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "STXBTC": { "symbol": "STXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "STXUSDT": { "symbol": "STXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "KAVABNB": { "symbol": "KAVABNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "KAVABTC": {
+    "symbol": "KAVABTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "KAVAUSDT": { "symbol": "KAVAUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BUSDNGN": { "symbol": "BUSDNGN", "quoteAsset": "NGN", "minNotional": 500 },
+  "BNBNGN": { "symbol": "BNBNGN", "quoteAsset": "NGN", "minNotional": 500 },
+  "BTCNGN": { "symbol": "BTCNGN", "quoteAsset": "NGN", "minNotional": 500 },
+  "ARPABNB": { "symbol": "ARPABNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ARPABTC": {
+    "symbol": "ARPABTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "ARPAUSDT": { "symbol": "ARPAUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "TRXBUSD": { "symbol": "TRXBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "EOSBUSD": { "symbol": "EOSBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "IOTXUSDT": { "symbol": "IOTXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "RLCUSDT": { "symbol": "RLCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "MCOUSDT": { "symbol": "MCOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "XLMBUSD": { "symbol": "XLMBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ADABUSD": { "symbol": "ADABUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "CTXCBNB": { "symbol": "CTXCBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "CTXCBTC": {
+    "symbol": "CTXCBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "CTXCUSDT": { "symbol": "CTXCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BCHBNB": { "symbol": "BCHBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BCHBTC": { "symbol": "BCHBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BCHUSDT": { "symbol": "BCHUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BCHUSDC": { "symbol": "BCHUSDC", "quoteAsset": "USDC", "minNotional": 10 },
+  "BCHTUSD": { "symbol": "BCHTUSD", "quoteAsset": "TUSD", "minNotional": 10 },
+  "BCHPAX": { "symbol": "BCHPAX", "quoteAsset": "PAX", "minNotional": 10 },
+  "BCHBUSD": { "symbol": "BCHBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BTCRUB": { "symbol": "BTCRUB", "quoteAsset": "RUB", "minNotional": 100 },
+  "ETHRUB": { "symbol": "ETHRUB", "quoteAsset": "RUB", "minNotional": 100 },
+  "XRPRUB": { "symbol": "XRPRUB", "quoteAsset": "RUB", "minNotional": 100 },
+  "BNBRUB": { "symbol": "BNBRUB", "quoteAsset": "RUB", "minNotional": 100 },
+  "TROYBNB": { "symbol": "TROYBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "TROYBTC": {
+    "symbol": "TROYBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "TROYUSDT": { "symbol": "TROYUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BUSDRUB": { "symbol": "BUSDRUB", "quoteAsset": "RUB", "minNotional": 100 },
+  "QTUMBUSD": { "symbol": "QTUMBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "VETBUSD": { "symbol": "VETBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "VITEBNB": { "symbol": "VITEBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "VITEBTC": {
+    "symbol": "VITEBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "VITEUSDT": { "symbol": "VITEUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "FTTBNB": { "symbol": "FTTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "FTTBTC": { "symbol": "FTTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "FTTUSDT": { "symbol": "FTTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BTCTRY": { "symbol": "BTCTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "BNBTRY": { "symbol": "BNBTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "BUSDTRY": { "symbol": "BUSDTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "ETHTRY": { "symbol": "ETHTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "XRPTRY": { "symbol": "XRPTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "USDTTRY": { "symbol": "USDTTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "USDTRUB": { "symbol": "USDTRUB", "quoteAsset": "RUB", "minNotional": 100 },
+  "BTCEUR": { "symbol": "BTCEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "ETHEUR": { "symbol": "ETHEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "BNBEUR": { "symbol": "BNBEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "XRPEUR": { "symbol": "XRPEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "EURBUSD": { "symbol": "EURBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "EURUSDT": { "symbol": "EURUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "OGNBNB": { "symbol": "OGNBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "OGNBTC": { "symbol": "OGNBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "OGNUSDT": { "symbol": "OGNUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DREPBNB": { "symbol": "DREPBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DREPBTC": {
+    "symbol": "DREPBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "DREPUSDT": { "symbol": "DREPUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BULLUSDT": { "symbol": "BULLUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BULLBUSD": { "symbol": "BULLBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BEARUSDT": { "symbol": "BEARUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BEARBUSD": { "symbol": "BEARBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ETHBULLUSDT": {
+    "symbol": "ETHBULLUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "ETHBULLBUSD": {
+    "symbol": "ETHBULLBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "ETHBEARUSDT": {
+    "symbol": "ETHBEARUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "ETHBEARBUSD": {
+    "symbol": "ETHBEARBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "TCTBNB": { "symbol": "TCTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "TCTBTC": { "symbol": "TCTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "TCTUSDT": { "symbol": "TCTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "WRXBNB": { "symbol": "WRXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "WRXBTC": { "symbol": "WRXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "WRXUSDT": { "symbol": "WRXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ICXBUSD": { "symbol": "ICXBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BTSUSDT": { "symbol": "BTSUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BTSBUSD": { "symbol": "BTSBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "LSKUSDT": { "symbol": "LSKUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BNTUSDT": { "symbol": "BNTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BNTBUSD": { "symbol": "BNTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "LTOBNB": { "symbol": "LTOBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "LTOBTC": { "symbol": "LTOBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "LTOUSDT": { "symbol": "LTOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ATOMBUSD": { "symbol": "ATOMBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DASHBUSD": { "symbol": "DASHBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "NEOBUSD": { "symbol": "NEOBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "WAVESBUSD": {
+    "symbol": "WAVESBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "XTZBUSD": { "symbol": "XTZBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "EOSBULLUSDT": {
+    "symbol": "EOSBULLUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "EOSBULLBUSD": {
+    "symbol": "EOSBULLBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "EOSBEARUSDT": {
+    "symbol": "EOSBEARUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "EOSBEARBUSD": {
+    "symbol": "EOSBEARBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "XRPBULLUSDT": {
+    "symbol": "XRPBULLUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "XRPBULLBUSD": {
+    "symbol": "XRPBULLBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "XRPBEARUSDT": {
+    "symbol": "XRPBEARUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "XRPBEARBUSD": {
+    "symbol": "XRPBEARBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "BATBUSD": { "symbol": "BATBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ENJBUSD": { "symbol": "ENJBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "NANOBUSD": { "symbol": "NANOBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ONTBUSD": { "symbol": "ONTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "RVNBUSD": { "symbol": "RVNBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "STRATBUSD": {
+    "symbol": "STRATBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "STRATBNB": {
+    "symbol": "STRATBNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "STRATUSDT": {
+    "symbol": "STRATUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "AIONBUSD": { "symbol": "AIONBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "AIONUSDT": { "symbol": "AIONUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "MBLBNB": { "symbol": "MBLBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "MBLBTC": { "symbol": "MBLBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "MBLUSDT": { "symbol": "MBLUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "COTIBNB": { "symbol": "COTIBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "COTIBTC": {
+    "symbol": "COTIBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "COTIUSDT": { "symbol": "COTIUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ALGOBUSD": { "symbol": "ALGOBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BTTBUSD": { "symbol": "BTTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "TOMOBUSD": { "symbol": "TOMOBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "XMRBUSD": { "symbol": "XMRBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ZECBUSD": { "symbol": "ZECBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BNBBULLUSDT": {
+    "symbol": "BNBBULLUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "BNBBULLBUSD": {
+    "symbol": "BNBBULLBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "BNBBEARUSDT": {
+    "symbol": "BNBBEARUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "BNBBEARBUSD": {
+    "symbol": "BNBBEARBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "STPTBNB": { "symbol": "STPTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "STPTBTC": {
+    "symbol": "STPTBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "STPTUSDT": { "symbol": "STPTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BTCZAR": { "symbol": "BTCZAR", "quoteAsset": "ZAR", "minNotional": 100 },
+  "ETHZAR": { "symbol": "ETHZAR", "quoteAsset": "ZAR", "minNotional": 100 },
+  "BNBZAR": { "symbol": "BNBZAR", "quoteAsset": "ZAR", "minNotional": 100 },
+  "USDTZAR": { "symbol": "USDTZAR", "quoteAsset": "ZAR", "minNotional": 100 },
+  "BUSDZAR": { "symbol": "BUSDZAR", "quoteAsset": "ZAR", "minNotional": 100 },
+  "BTCBKRW": { "symbol": "BTCBKRW", "quoteAsset": "BKRW", "minNotional": 1000 },
+  "ETHBKRW": { "symbol": "ETHBKRW", "quoteAsset": "BKRW", "minNotional": 1000 },
+  "BNBBKRW": { "symbol": "BNBBKRW", "quoteAsset": "BKRW", "minNotional": 1000 },
+  "WTCUSDT": { "symbol": "WTCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DATABUSD": { "symbol": "DATABUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DATAUSDT": { "symbol": "DATAUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "XZCUSDT": { "symbol": "XZCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SOLBNB": { "symbol": "SOLBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "SOLBTC": { "symbol": "SOLBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SOLUSDT": { "symbol": "SOLUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SOLBUSD": { "symbol": "SOLBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BTCIDRT": {
+    "symbol": "BTCIDRT",
+    "quoteAsset": "IDRT",
+    "minNotional": 20000
+  },
+  "BNBIDRT": {
+    "symbol": "BNBIDRT",
+    "quoteAsset": "IDRT",
+    "minNotional": 20000
+  },
+  "USDTIDRT": {
+    "symbol": "USDTIDRT",
+    "quoteAsset": "IDRT",
+    "minNotional": 20000
+  },
+  "BUSDIDRT": {
+    "symbol": "BUSDIDRT",
+    "quoteAsset": "IDRT",
+    "minNotional": 20000
+  },
+  "CTSIBTC": {
+    "symbol": "CTSIBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "CTSIUSDT": { "symbol": "CTSIUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "CTSIBNB": { "symbol": "CTSIBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "CTSIBUSD": { "symbol": "CTSIBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "HIVEBNB": { "symbol": "HIVEBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "HIVEBTC": {
+    "symbol": "HIVEBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "HIVEUSDT": { "symbol": "HIVEUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "CHRBNB": { "symbol": "CHRBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "CHRBTC": { "symbol": "CHRBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "CHRUSDT": { "symbol": "CHRUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BTCUPUSDT": {
+    "symbol": "BTCUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "BTCDOWNUSDT": {
+    "symbol": "BTCDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "GXSUSDT": { "symbol": "GXSUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ARDRUSDT": { "symbol": "ARDRUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ERDBUSD": { "symbol": "ERDBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "LENDUSDT": { "symbol": "LENDUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "HBARBUSD": { "symbol": "HBARBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "MATICBUSD": {
+    "symbol": "MATICBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "WRXBUSD": { "symbol": "WRXBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ZILBUSD": { "symbol": "ZILBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "MDTBNB": { "symbol": "MDTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "MDTBTC": { "symbol": "MDTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "MDTUSDT": { "symbol": "MDTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "STMXBNB": { "symbol": "STMXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "STMXBTC": {
+    "symbol": "STMXBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "STMXETH": { "symbol": "STMXETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "STMXUSDT": { "symbol": "STMXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "KNCBUSD": { "symbol": "KNCBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "KNCUSDT": { "symbol": "KNCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "REPBUSD": { "symbol": "REPBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "REPUSDT": { "symbol": "REPUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "LRCBUSD": { "symbol": "LRCBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "LRCUSDT": { "symbol": "LRCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "IQBNB": { "symbol": "IQBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "IQBUSD": { "symbol": "IQBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "PNTBTC": { "symbol": "PNTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "PNTUSDT": { "symbol": "PNTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BTCGBP": { "symbol": "BTCGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "ETHGBP": { "symbol": "ETHGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "XRPGBP": { "symbol": "XRPGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "BNBGBP": { "symbol": "BNBGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "GBPBUSD": { "symbol": "GBPBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DGBBNB": { "symbol": "DGBBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DGBBTC": { "symbol": "DGBBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "DGBBUSD": { "symbol": "DGBBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BTCUAH": { "symbol": "BTCUAH", "quoteAsset": "UAH", "minNotional": 100 },
+  "USDTUAH": { "symbol": "USDTUAH", "quoteAsset": "UAH", "minNotional": 100 },
+  "COMPBTC": {
+    "symbol": "COMPBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "COMPBNB": { "symbol": "COMPBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "COMPBUSD": { "symbol": "COMPBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "COMPUSDT": { "symbol": "COMPUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BTCBIDR": {
+    "symbol": "BTCBIDR",
+    "quoteAsset": "BIDR",
+    "minNotional": 20000
+  },
+  "ETHBIDR": {
+    "symbol": "ETHBIDR",
+    "quoteAsset": "BIDR",
+    "minNotional": 20000
+  },
+  "BNBBIDR": {
+    "symbol": "BNBBIDR",
+    "quoteAsset": "BIDR",
+    "minNotional": 20000
+  },
+  "BUSDBIDR": {
+    "symbol": "BUSDBIDR",
+    "quoteAsset": "BIDR",
+    "minNotional": 20000
+  },
+  "USDTBIDR": {
+    "symbol": "USDTBIDR",
+    "quoteAsset": "BIDR",
+    "minNotional": 20000
+  },
+  "BKRWUSDT": { "symbol": "BKRWUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BKRWBUSD": { "symbol": "BKRWBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "SCUSDT": { "symbol": "SCUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ZENUSDT": { "symbol": "ZENUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SXPBTC": { "symbol": "SXPBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SXPBNB": { "symbol": "SXPBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "SXPBUSD": { "symbol": "SXPBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "SNXBTC": { "symbol": "SNXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SNXBNB": { "symbol": "SNXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "SNXBUSD": { "symbol": "SNXBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "SNXUSDT": { "symbol": "SNXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ETHUPUSDT": {
+    "symbol": "ETHUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "ETHDOWNUSDT": {
+    "symbol": "ETHDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "ADAUPUSDT": {
+    "symbol": "ADAUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "ADADOWNUSDT": {
+    "symbol": "ADADOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "LINKUPUSDT": {
+    "symbol": "LINKUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "LINKDOWNUSDT": {
+    "symbol": "LINKDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "VTHOBNB": { "symbol": "VTHOBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "VTHOBUSD": { "symbol": "VTHOBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "VTHOUSDT": { "symbol": "VTHOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DCRBUSD": { "symbol": "DCRBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DGBUSDT": { "symbol": "DGBUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "GBPUSDT": { "symbol": "GBPUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "STORJBUSD": {
+    "symbol": "STORJBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "SXPUSDT": { "symbol": "SXPUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "IRISBNB": { "symbol": "IRISBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "IRISBTC": {
+    "symbol": "IRISBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "IRISBUSD": { "symbol": "IRISBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "MKRBNB": { "symbol": "MKRBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "MKRBTC": { "symbol": "MKRBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "MKRUSDT": { "symbol": "MKRUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "MKRBUSD": { "symbol": "MKRBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DAIBNB": { "symbol": "DAIBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DAIBTC": { "symbol": "DAIBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "DAIUSDT": { "symbol": "DAIUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DAIBUSD": { "symbol": "DAIBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "RUNEBNB": { "symbol": "RUNEBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "RUNEBTC": {
+    "symbol": "RUNEBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "RUNEBUSD": { "symbol": "RUNEBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "MANABUSD": { "symbol": "MANABUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DOGEBUSD": { "symbol": "DOGEBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "LENDBUSD": { "symbol": "LENDBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ZRXBUSD": { "symbol": "ZRXBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DCRUSDT": { "symbol": "DCRUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "STORJUSDT": {
+    "symbol": "STORJUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "XRPBKRW": { "symbol": "XRPBKRW", "quoteAsset": "BKRW", "minNotional": 1000 },
+  "ADABKRW": { "symbol": "ADABKRW", "quoteAsset": "BKRW", "minNotional": 1000 },
+  "BTCAUD": { "symbol": "BTCAUD", "quoteAsset": "AUD", "minNotional": 10 },
+  "ETHAUD": { "symbol": "ETHAUD", "quoteAsset": "AUD", "minNotional": 10 },
+  "AUDBUSD": { "symbol": "AUDBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "FIOBNB": { "symbol": "FIOBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "FIOBTC": { "symbol": "FIOBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "FIOBUSD": { "symbol": "FIOBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BNBUPUSDT": {
+    "symbol": "BNBUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "BNBDOWNUSDT": {
+    "symbol": "BNBDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "XTZUPUSDT": {
+    "symbol": "XTZUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "XTZDOWNUSDT": {
+    "symbol": "XTZDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "AVABNB": { "symbol": "AVABNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "AVABTC": { "symbol": "AVABTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "AVABUSD": { "symbol": "AVABUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "USDTBKRW": {
+    "symbol": "USDTBKRW",
+    "quoteAsset": "BKRW",
+    "minNotional": 1000
+  },
+  "BUSDBKRW": {
+    "symbol": "BUSDBKRW",
+    "quoteAsset": "BKRW",
+    "minNotional": 1000
+  },
+  "IOTABUSD": { "symbol": "IOTABUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "MANAUSDT": { "symbol": "MANAUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "XRPAUD": { "symbol": "XRPAUD", "quoteAsset": "AUD", "minNotional": 10 },
+  "BNBAUD": { "symbol": "BNBAUD", "quoteAsset": "AUD", "minNotional": 10 },
+  "AUDUSDT": { "symbol": "AUDUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BALBNB": { "symbol": "BALBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BALBTC": { "symbol": "BALBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BALBUSD": { "symbol": "BALBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "YFIBNB": { "symbol": "YFIBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "YFIBTC": { "symbol": "YFIBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "YFIBUSD": { "symbol": "YFIBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "YFIUSDT": { "symbol": "YFIUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BLZBUSD": { "symbol": "BLZBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "KMDBUSD": { "symbol": "KMDBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BALUSDT": { "symbol": "BALUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BLZUSDT": { "symbol": "BLZUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "IRISUSDT": { "symbol": "IRISUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "KMDUSDT": { "symbol": "KMDUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BTCDAI": { "symbol": "BTCDAI", "quoteAsset": "DAI", "minNotional": 10 },
+  "ETHDAI": { "symbol": "ETHDAI", "quoteAsset": "DAI", "minNotional": 10 },
+  "BNBDAI": { "symbol": "BNBDAI", "quoteAsset": "DAI", "minNotional": 10 },
+  "USDTDAI": { "symbol": "USDTDAI", "quoteAsset": "DAI", "minNotional": 10 },
+  "BUSDDAI": { "symbol": "BUSDDAI", "quoteAsset": "DAI", "minNotional": 10 },
+  "JSTBNB": { "symbol": "JSTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "JSTBTC": { "symbol": "JSTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "JSTBUSD": { "symbol": "JSTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "JSTUSDT": { "symbol": "JSTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SRMBNB": { "symbol": "SRMBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "SRMBTC": { "symbol": "SRMBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SRMBUSD": { "symbol": "SRMBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "SRMUSDT": { "symbol": "SRMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ANTBNB": { "symbol": "ANTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ANTBTC": { "symbol": "ANTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ANTBUSD": { "symbol": "ANTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ANTUSDT": { "symbol": "ANTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "CRVBNB": { "symbol": "CRVBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "CRVBTC": { "symbol": "CRVBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "CRVBUSD": { "symbol": "CRVBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "CRVUSDT": { "symbol": "CRVUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SANDBNB": { "symbol": "SANDBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "SANDBTC": {
+    "symbol": "SANDBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "SANDUSDT": { "symbol": "SANDUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SANDBUSD": { "symbol": "SANDBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "OCEANBNB": {
+    "symbol": "OCEANBNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "OCEANBTC": {
+    "symbol": "OCEANBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "OCEANBUSD": {
+    "symbol": "OCEANBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "OCEANUSDT": {
+    "symbol": "OCEANUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "NMRBNB": { "symbol": "NMRBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "NMRBTC": { "symbol": "NMRBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "NMRBUSD": { "symbol": "NMRBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "NMRUSDT": { "symbol": "NMRUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DOTBNB": { "symbol": "DOTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DOTBTC": { "symbol": "DOTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "DOTBUSD": { "symbol": "DOTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DOTUSDT": { "symbol": "DOTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "LUNABNB": { "symbol": "LUNABNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "LUNABTC": {
+    "symbol": "LUNABTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "LUNABUSD": { "symbol": "LUNABUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "LUNAUSDT": { "symbol": "LUNAUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "IDEXBTC": {
+    "symbol": "IDEXBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "IDEXBUSD": { "symbol": "IDEXBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "RSRBNB": { "symbol": "RSRBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "RSRBTC": { "symbol": "RSRBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "RSRBUSD": { "symbol": "RSRBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "RSRUSDT": { "symbol": "RSRUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "PAXGBNB": { "symbol": "PAXGBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "PAXGBTC": {
+    "symbol": "PAXGBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "PAXGBUSD": { "symbol": "PAXGBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "PAXGUSDT": { "symbol": "PAXGUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "WNXMBNB": { "symbol": "WNXMBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "WNXMBTC": {
+    "symbol": "WNXMBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "WNXMBUSD": { "symbol": "WNXMBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "WNXMUSDT": { "symbol": "WNXMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "TRBBNB": { "symbol": "TRBBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "TRBBTC": { "symbol": "TRBBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "TRBBUSD": { "symbol": "TRBBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "TRBUSDT": { "symbol": "TRBUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ETHNGN": { "symbol": "ETHNGN", "quoteAsset": "NGN", "minNotional": 500 },
+  "DOTBIDR": {
+    "symbol": "DOTBIDR",
+    "quoteAsset": "BIDR",
+    "minNotional": 20000
+  },
+  "LINKAUD": { "symbol": "LINKAUD", "quoteAsset": "AUD", "minNotional": 10 },
+  "SXPAUD": { "symbol": "SXPAUD", "quoteAsset": "AUD", "minNotional": 10 },
+  "BZRXBNB": { "symbol": "BZRXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BZRXBTC": {
+    "symbol": "BZRXBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "BZRXBUSD": { "symbol": "BZRXBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BZRXUSDT": { "symbol": "BZRXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "WBTCBTC": {
+    "symbol": "WBTCBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "WBTCETH": { "symbol": "WBTCETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "SUSHIBNB": {
+    "symbol": "SUSHIBNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "SUSHIBTC": {
+    "symbol": "SUSHIBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "SUSHIBUSD": {
+    "symbol": "SUSHIBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "SUSHIUSDT": {
+    "symbol": "SUSHIUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "YFIIBNB": { "symbol": "YFIIBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "YFIIBTC": {
+    "symbol": "YFIIBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "YFIIBUSD": { "symbol": "YFIIBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "YFIIUSDT": { "symbol": "YFIIUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "KSMBNB": { "symbol": "KSMBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "KSMBTC": { "symbol": "KSMBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "KSMBUSD": { "symbol": "KSMBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "KSMUSDT": { "symbol": "KSMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "EGLDBNB": { "symbol": "EGLDBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "EGLDBTC": {
+    "symbol": "EGLDBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "EGLDBUSD": { "symbol": "EGLDBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "EGLDUSDT": { "symbol": "EGLDUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DIABNB": { "symbol": "DIABNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "DIABTC": { "symbol": "DIABTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "DIABUSD": { "symbol": "DIABUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DIAUSDT": { "symbol": "DIAUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "RUNEUSDT": { "symbol": "RUNEUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "FIOUSDT": { "symbol": "FIOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "UMABTC": { "symbol": "UMABTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "UMAUSDT": { "symbol": "UMAUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "EOSUPUSDT": {
+    "symbol": "EOSUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "EOSDOWNUSDT": {
+    "symbol": "EOSDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "TRXUPUSDT": {
+    "symbol": "TRXUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "TRXDOWNUSDT": {
+    "symbol": "TRXDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "XRPUPUSDT": {
+    "symbol": "XRPUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "XRPDOWNUSDT": {
+    "symbol": "XRPDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "DOTUPUSDT": {
+    "symbol": "DOTUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "DOTDOWNUSDT": {
+    "symbol": "DOTDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "SRMBIDR": {
+    "symbol": "SRMBIDR",
+    "quoteAsset": "BIDR",
+    "minNotional": 20000
+  },
+  "ONEBIDR": {
+    "symbol": "ONEBIDR",
+    "quoteAsset": "BIDR",
+    "minNotional": 20000
+  },
+  "LINKTRY": { "symbol": "LINKTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "USDTNGN": { "symbol": "USDTNGN", "quoteAsset": "NGN", "minNotional": 500 },
+  "BELBNB": { "symbol": "BELBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BELBTC": { "symbol": "BELBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BELBUSD": { "symbol": "BELBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BELUSDT": { "symbol": "BELUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "WINGBNB": { "symbol": "WINGBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "WINGBTC": {
+    "symbol": "WINGBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "SWRVBNB": { "symbol": "SWRVBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "SWRVBUSD": { "symbol": "SWRVBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "WINGBUSD": { "symbol": "WINGBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "WINGUSDT": { "symbol": "WINGUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "LTCUPUSDT": {
+    "symbol": "LTCUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "LTCDOWNUSDT": {
+    "symbol": "LTCDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "LENDBKRW": {
+    "symbol": "LENDBKRW",
+    "quoteAsset": "BKRW",
+    "minNotional": 1000
+  },
+  "SXPEUR": { "symbol": "SXPEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "CREAMBNB": {
+    "symbol": "CREAMBNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "CREAMBUSD": {
+    "symbol": "CREAMBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "UNIBNB": { "symbol": "UNIBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "UNIBTC": { "symbol": "UNIBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "UNIBUSD": { "symbol": "UNIBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "UNIUSDT": { "symbol": "UNIUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "NBSBTC": { "symbol": "NBSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "NBSUSDT": { "symbol": "NBSUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "OXTBTC": { "symbol": "OXTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "OXTUSDT": { "symbol": "OXTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SUNBTC": { "symbol": "SUNBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SUNUSDT": { "symbol": "SUNUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "AVAXBNB": { "symbol": "AVAXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "AVAXBTC": {
+    "symbol": "AVAXBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "AVAXBUSD": { "symbol": "AVAXBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "AVAXUSDT": { "symbol": "AVAXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "HNTBTC": { "symbol": "HNTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "HNTUSDT": { "symbol": "HNTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BAKEBNB": { "symbol": "BAKEBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BURGERBNB": {
+    "symbol": "BURGERBNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "SXPBIDR": {
+    "symbol": "SXPBIDR",
+    "quoteAsset": "BIDR",
+    "minNotional": 20000
+  },
+  "LINKBKRW": {
+    "symbol": "LINKBKRW",
+    "quoteAsset": "BKRW",
+    "minNotional": 1000
+  },
+  "FLMBNB": { "symbol": "FLMBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "FLMBTC": { "symbol": "FLMBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "FLMBUSD": { "symbol": "FLMBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "FLMUSDT": { "symbol": "FLMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SCRTBTC": {
+    "symbol": "SCRTBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "SCRTETH": { "symbol": "SCRTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "CAKEBNB": { "symbol": "CAKEBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "CAKEBUSD": { "symbol": "CAKEBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "SPARTABNB": {
+    "symbol": "SPARTABNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "UNIUPUSDT": {
+    "symbol": "UNIUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "UNIDOWNUSDT": {
+    "symbol": "UNIDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "ORNBTC": { "symbol": "ORNBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ORNUSDT": { "symbol": "ORNUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "TRXNGN": { "symbol": "TRXNGN", "quoteAsset": "NGN", "minNotional": 500 },
+  "SXPTRY": { "symbol": "SXPTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "UTKBTC": { "symbol": "UTKBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "UTKUSDT": { "symbol": "UTKUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "XVSBNB": { "symbol": "XVSBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "XVSBTC": { "symbol": "XVSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "XVSBUSD": { "symbol": "XVSBUSD", "quoteAsset": "BUSD", "minNotional": 0.05 },
+  "XVSUSDT": { "symbol": "XVSUSDT", "quoteAsset": "USDT", "minNotional": 0.05 },
+  "ALPHABNB": {
+    "symbol": "ALPHABNB",
+    "quoteAsset": "BNB",
+    "minNotional": 0.05
+  },
+  "ALPHABTC": {
+    "symbol": "ALPHABTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "ALPHABUSD": {
+    "symbol": "ALPHABUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "ALPHAUSDT": {
+    "symbol": "ALPHAUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "VIDTBTC": {
+    "symbol": "VIDTBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "VIDTBUSD": { "symbol": "VIDTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "AAVEBNB": { "symbol": "AAVEBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BTCBRL": { "symbol": "BTCBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "USDTBRL": { "symbol": "USDTBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "AAVEBTC": {
+    "symbol": "AAVEBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "AAVEETH": { "symbol": "AAVEETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "AAVEBUSD": { "symbol": "AAVEBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "AAVEUSDT": { "symbol": "AAVEUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "AAVEBKRW": {
+    "symbol": "AAVEBKRW",
+    "quoteAsset": "BKRW",
+    "minNotional": 1000
+  },
+  "NEARBNB": { "symbol": "NEARBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "NEARBTC": {
+    "symbol": "NEARBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "NEARBUSD": { "symbol": "NEARBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "NEARUSDT": { "symbol": "NEARUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SXPUPUSDT": {
+    "symbol": "SXPUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "SXPDOWNUSDT": {
+    "symbol": "SXPDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "DOTBKRW": { "symbol": "DOTBKRW", "quoteAsset": "BKRW", "minNotional": 1000 },
+  "SXPGBP": { "symbol": "SXPGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "FILBNB": { "symbol": "FILBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "FILBTC": { "symbol": "FILBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "FILBUSD": { "symbol": "FILBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "FILUSDT": { "symbol": "FILUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "FILUPUSDT": {
+    "symbol": "FILUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "FILDOWNUSDT": {
+    "symbol": "FILDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "YFIUPUSDT": {
+    "symbol": "YFIUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "YFIDOWNUSDT": {
+    "symbol": "YFIDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "INJBNB": { "symbol": "INJBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "INJBTC": { "symbol": "INJBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "INJBUSD": { "symbol": "INJBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "INJUSDT": { "symbol": "INJUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "AERGOBTC": {
+    "symbol": "AERGOBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "AERGOBUSD": {
+    "symbol": "AERGOBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "LINKEUR": { "symbol": "LINKEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "ONEBUSD": { "symbol": "ONEBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "EASYETH": { "symbol": "EASYETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "AUDIOBTC": {
+    "symbol": "AUDIOBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "AUDIOBUSD": {
+    "symbol": "AUDIOBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "AUDIOUSDT": {
+    "symbol": "AUDIOUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "CTKBNB": { "symbol": "CTKBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "CTKBTC": { "symbol": "CTKBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "CTKBUSD": { "symbol": "CTKBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "CTKUSDT": { "symbol": "CTKUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BCHUPUSDT": {
+    "symbol": "BCHUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "BCHDOWNUSDT": {
+    "symbol": "BCHDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "BOTBTC": { "symbol": "BOTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BOTBUSD": { "symbol": "BOTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ETHBRL": { "symbol": "ETHBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "DOTEUR": { "symbol": "DOTEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "AKROBTC": {
+    "symbol": "AKROBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "AKROUSDT": { "symbol": "AKROUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "KP3RBNB": { "symbol": "KP3RBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "KP3RBUSD": { "symbol": "KP3RBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "AXSBNB": { "symbol": "AXSBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "AXSBTC": { "symbol": "AXSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "AXSBUSD": { "symbol": "AXSBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "AXSUSDT": { "symbol": "AXSUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "HARDBNB": { "symbol": "HARDBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "HARDBTC": {
+    "symbol": "HARDBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "HARDBUSD": { "symbol": "HARDBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "HARDUSDT": { "symbol": "HARDUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BNBBRL": { "symbol": "BNBBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "LTCEUR": { "symbol": "LTCEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "RENBTCBTC": {
+    "symbol": "RENBTCBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "RENBTCETH": {
+    "symbol": "RENBTCETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "DNTBUSD": { "symbol": "DNTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DNTUSDT": { "symbol": "DNTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SLPETH": { "symbol": "SLPETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "ADAEUR": { "symbol": "ADAEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "LTCNGN": { "symbol": "LTCNGN", "quoteAsset": "NGN", "minNotional": 500 },
+  "CVPETH": { "symbol": "CVPETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "CVPBUSD": { "symbol": "CVPBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "STRAXBTC": {
+    "symbol": "STRAXBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "STRAXETH": {
+    "symbol": "STRAXETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "STRAXBUSD": {
+    "symbol": "STRAXBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "STRAXUSDT": {
+    "symbol": "STRAXUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "FORBTC": { "symbol": "FORBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "FORBUSD": { "symbol": "FORBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "UNFIBNB": { "symbol": "UNFIBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "UNFIBTC": {
+    "symbol": "UNFIBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "UNFIBUSD": { "symbol": "UNFIBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "UNFIUSDT": { "symbol": "UNFIUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "FRONTETH": {
+    "symbol": "FRONTETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "FRONTBUSD": {
+    "symbol": "FRONTBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "BCHABUSD": { "symbol": "BCHABUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ROSEBTC": {
+    "symbol": "ROSEBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "ROSEBUSD": { "symbol": "ROSEBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ROSEUSDT": { "symbol": "ROSEUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "AVAXTRY": { "symbol": "AVAXTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "BUSDBRL": { "symbol": "BUSDBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "AVAUSDT": { "symbol": "AVAUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SYSBUSD": { "symbol": "SYSBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "XEMUSDT": { "symbol": "XEMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "HEGICETH": {
+    "symbol": "HEGICETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "HEGICBUSD": {
+    "symbol": "HEGICBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "AAVEUPUSDT": {
+    "symbol": "AAVEUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "AAVEDOWNUSDT": {
+    "symbol": "AAVEDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "PROMBNB": { "symbol": "PROMBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "PROMBUSD": { "symbol": "PROMBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "XRPBRL": { "symbol": "XRPBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "XRPNGN": { "symbol": "XRPNGN", "quoteAsset": "NGN", "minNotional": 500 },
+  "SKLBTC": { "symbol": "SKLBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SKLBUSD": { "symbol": "SKLBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "SKLUSDT": { "symbol": "SKLUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BCHEUR": { "symbol": "BCHEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "YFIEUR": { "symbol": "YFIEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "ZILBIDR": {
+    "symbol": "ZILBIDR",
+    "quoteAsset": "BIDR",
+    "minNotional": 20000
+  },
+  "SUSDBTC": {
+    "symbol": "SUSDBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "SUSDETH": { "symbol": "SUSDETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "SUSDUSDT": { "symbol": "SUSDUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "COVERETH": {
+    "symbol": "COVERETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "COVERBUSD": {
+    "symbol": "COVERBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "GLMBTC": { "symbol": "GLMBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "GLMETH": { "symbol": "GLMETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "GHSTETH": { "symbol": "GHSTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "GHSTBUSD": { "symbol": "GHSTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "SUSHIUPUSDT": {
+    "symbol": "SUSHIUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "SUSHIDOWNUSDT": {
+    "symbol": "SUSHIDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "XLMUPUSDT": {
+    "symbol": "XLMUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "XLMDOWNUSDT": {
+    "symbol": "XLMDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "LINKBRL": { "symbol": "LINKBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "LINKNGN": { "symbol": "LINKNGN", "quoteAsset": "NGN", "minNotional": 500 },
+  "LTCRUB": { "symbol": "LTCRUB", "quoteAsset": "RUB", "minNotional": 100 },
+  "TRXTRY": { "symbol": "TRXTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "XLMEUR": { "symbol": "XLMEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "DFETH": { "symbol": "DFETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "DFBUSD": { "symbol": "DFBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "GRTBTC": { "symbol": "GRTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "GRTETH": { "symbol": "GRTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "GRTUSDT": { "symbol": "GRTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "JUVBTC": { "symbol": "JUVBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "JUVBUSD": { "symbol": "JUVBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "JUVUSDT": { "symbol": "JUVUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "PSGBTC": { "symbol": "PSGBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "PSGBUSD": { "symbol": "PSGBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "PSGUSDT": { "symbol": "PSGUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BUSDBVND": {
+    "symbol": "BUSDBVND",
+    "quoteAsset": "BVND",
+    "minNotional": 30000
+  },
+  "USDTBVND": {
+    "symbol": "USDTBVND",
+    "quoteAsset": "BVND",
+    "minNotional": 30000
+  },
+  "1INCHBTC": {
+    "symbol": "1INCHBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "1INCHUSDT": {
+    "symbol": "1INCHUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "REEFBTC": {
+    "symbol": "REEFBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "REEFUSDT": { "symbol": "REEFUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "OGBTC": { "symbol": "OGBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "OGUSDT": { "symbol": "OGUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ATMBTC": { "symbol": "ATMBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ATMUSDT": { "symbol": "ATMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ASRBTC": { "symbol": "ASRBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ASRUSDT": { "symbol": "ASRUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "CELOBTC": {
+    "symbol": "CELOBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "CELOUSDT": { "symbol": "CELOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "RIFBTC": { "symbol": "RIFBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "RIFUSDT": { "symbol": "RIFUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "CHZTRY": { "symbol": "CHZTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "XLMTRY": { "symbol": "XLMTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "LINKGBP": { "symbol": "LINKGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "GRTEUR": { "symbol": "GRTEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "BTCSTBTC": {
+    "symbol": "BTCSTBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "BTCSTBUSD": {
+    "symbol": "BTCSTBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "BTCSTUSDT": {
+    "symbol": "BTCSTUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "TRUBTC": { "symbol": "TRUBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "TRUBUSD": { "symbol": "TRUBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "TRUUSDT": { "symbol": "TRUUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DEXEETH": { "symbol": "DEXEETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "DEXEBUSD": { "symbol": "DEXEBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "EOSEUR": { "symbol": "EOSEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "LTCBRL": { "symbol": "LTCBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "USDCBUSD": { "symbol": "USDCBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "TUSDBUSD": { "symbol": "TUSDBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "PAXBUSD": { "symbol": "PAXBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "CKBBTC": { "symbol": "CKBBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "CKBBUSD": { "symbol": "CKBBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "CKBUSDT": { "symbol": "CKBUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "TWTBTC": { "symbol": "TWTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "TWTBUSD": { "symbol": "TWTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "TWTUSDT": { "symbol": "TWTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "FIROBTC": {
+    "symbol": "FIROBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "FIROETH": { "symbol": "FIROETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "FIROUSDT": { "symbol": "FIROUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BETHETH": { "symbol": "BETHETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "DOGEEUR": { "symbol": "DOGEEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "DOGETRY": { "symbol": "DOGETRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "DOGEAUD": { "symbol": "DOGEAUD", "quoteAsset": "AUD", "minNotional": 10 },
+  "DOGEBRL": { "symbol": "DOGEBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "DOTNGN": { "symbol": "DOTNGN", "quoteAsset": "NGN", "minNotional": 500 },
+  "PROSETH": { "symbol": "PROSETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "LITBTC": { "symbol": "LITBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "LITBUSD": { "symbol": "LITBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "LITUSDT": { "symbol": "LITUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BTCVAI": { "symbol": "BTCVAI", "quoteAsset": "VAI", "minNotional": 10 },
+  "BUSDVAI": { "symbol": "BUSDVAI", "quoteAsset": "VAI", "minNotional": 10 },
+  "SFPBTC": { "symbol": "SFPBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "SFPBUSD": { "symbol": "SFPBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "SFPUSDT": { "symbol": "SFPUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DOGEGBP": { "symbol": "DOGEGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "DOTTRY": { "symbol": "DOTTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "FXSBTC": { "symbol": "FXSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "FXSBUSD": { "symbol": "FXSBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DODOBTC": {
+    "symbol": "DODOBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "DODOBUSD": { "symbol": "DODOBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DODOUSDT": { "symbol": "DODOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "FRONTBTC": {
+    "symbol": "FRONTBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "EASYBTC": {
+    "symbol": "EASYBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "CAKEBTC": {
+    "symbol": "CAKEBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "CAKEUSDT": { "symbol": "CAKEUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BAKEBUSD": { "symbol": "BAKEBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "UFTETH": { "symbol": "UFTETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "UFTBUSD": { "symbol": "UFTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "1INCHBUSD": {
+    "symbol": "1INCHBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "BANDBUSD": { "symbol": "BANDBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "GRTBUSD": { "symbol": "GRTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "IOSTBUSD": { "symbol": "IOSTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "OMGBUSD": { "symbol": "OMGBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "REEFBUSD": { "symbol": "REEFBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ACMBTC": { "symbol": "ACMBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ACMBUSD": { "symbol": "ACMBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ACMUSDT": { "symbol": "ACMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "AUCTIONBTC": {
+    "symbol": "AUCTIONBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "AUCTIONBUSD": {
+    "symbol": "AUCTIONBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "PHABTC": { "symbol": "PHABTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "PHABUSD": { "symbol": "PHABUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DOTGBP": { "symbol": "DOTGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "ADATRY": { "symbol": "ADATRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "ADABRL": { "symbol": "ADABRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "ADAGBP": { "symbol": "ADAGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "TVKBTC": { "symbol": "TVKBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "TVKBUSD": { "symbol": "TVKBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BADGERBTC": {
+    "symbol": "BADGERBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "BADGERBUSD": {
+    "symbol": "BADGERBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "BADGERUSDT": {
+    "symbol": "BADGERUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "FISBTC": { "symbol": "FISBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "FISBUSD": { "symbol": "FISBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "FISUSDT": { "symbol": "FISUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DOTBRL": { "symbol": "DOTBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "ADAAUD": { "symbol": "ADAAUD", "quoteAsset": "AUD", "minNotional": 10 },
+  "HOTTRY": { "symbol": "HOTTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "EGLDEUR": { "symbol": "EGLDEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "OMBTC": { "symbol": "OMBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "OMBUSD": { "symbol": "OMBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "OMUSDT": { "symbol": "OMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "PONDBTC": {
+    "symbol": "PONDBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "PONDBUSD": { "symbol": "PONDBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "PONDUSDT": { "symbol": "PONDUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "DEGOBTC": {
+    "symbol": "DEGOBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "DEGOBUSD": { "symbol": "DEGOBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "DEGOUSDT": { "symbol": "DEGOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "AVAXEUR": { "symbol": "AVAXEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "BTTTRY": { "symbol": "BTTTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "CHZBRL": { "symbol": "CHZBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "UNIEUR": { "symbol": "UNIEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "ALICEBTC": {
+    "symbol": "ALICEBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "ALICEBUSD": {
+    "symbol": "ALICEBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "ALICEUSDT": {
+    "symbol": "ALICEUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "CHZBUSD": { "symbol": "CHZBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "CHZEUR": { "symbol": "CHZEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "CHZGBP": { "symbol": "CHZGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "BIFIBNB": { "symbol": "BIFIBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "BIFIBUSD": { "symbol": "BIFIBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "LINABTC": {
+    "symbol": "LINABTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "LINABUSD": { "symbol": "LINABUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "LINAUSDT": { "symbol": "LINAUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ADARUB": { "symbol": "ADARUB", "quoteAsset": "RUB", "minNotional": 100 },
+  "ENJBRL": { "symbol": "ENJBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "ENJEUR": { "symbol": "ENJEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "MATICEUR": { "symbol": "MATICEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "NEOTRY": { "symbol": "NEOTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "PERPBTC": {
+    "symbol": "PERPBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "PERPBUSD": { "symbol": "PERPBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "PERPUSDT": { "symbol": "PERPUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "RAMPBTC": {
+    "symbol": "RAMPBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "RAMPBUSD": { "symbol": "RAMPBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "RAMPUSDT": { "symbol": "RAMPUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SUPERBTC": {
+    "symbol": "SUPERBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "SUPERBUSD": {
+    "symbol": "SUPERBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "SUPERUSDT": {
+    "symbol": "SUPERUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "CFXBTC": { "symbol": "CFXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "CFXBUSD": { "symbol": "CFXBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "CFXUSDT": { "symbol": "CFXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ENJGBP": { "symbol": "ENJGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "EOSTRY": { "symbol": "EOSTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "LTCGBP": { "symbol": "LTCGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "LUNAEUR": { "symbol": "LUNAEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "RVNTRY": { "symbol": "RVNTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "THETAEUR": { "symbol": "THETAEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "XVGBUSD": { "symbol": "XVGBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "EPSBTC": { "symbol": "EPSBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "EPSBUSD": { "symbol": "EPSBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "EPSUSDT": { "symbol": "EPSUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "AUTOBTC": {
+    "symbol": "AUTOBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "AUTOBUSD": { "symbol": "AUTOBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "AUTOUSDT": { "symbol": "AUTOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "TKOBTC": { "symbol": "TKOBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "TKOBIDR": {
+    "symbol": "TKOBIDR",
+    "quoteAsset": "BIDR",
+    "minNotional": 20000
+  },
+  "TKOBUSD": { "symbol": "TKOBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "TKOUSDT": { "symbol": "TKOUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "PUNDIXETH": {
+    "symbol": "PUNDIXETH",
+    "quoteAsset": "ETH",
+    "minNotional": 0.005
+  },
+  "PUNDIXUSDT": {
+    "symbol": "PUNDIXUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "BTTBRL": { "symbol": "BTTBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "BTTEUR": { "symbol": "BTTEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "HOTEUR": { "symbol": "HOTEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "WINEUR": { "symbol": "WINEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "TLMBTC": { "symbol": "TLMBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "TLMBUSD": { "symbol": "TLMBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "TLMUSDT": { "symbol": "TLMUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "1INCHUPUSDT": {
+    "symbol": "1INCHUPUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "1INCHDOWNUSDT": {
+    "symbol": "1INCHDOWNUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "BTGBUSD": { "symbol": "BTGBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BTGUSDT": { "symbol": "BTGUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "HOTBUSD": { "symbol": "HOTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BNBUAH": { "symbol": "BNBUAH", "quoteAsset": "UAH", "minNotional": 100 },
+  "ONTTRY": { "symbol": "ONTTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "VETEUR": { "symbol": "VETEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "VETGBP": { "symbol": "VETGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "WINBRL": { "symbol": "WINBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "MIRBTC": { "symbol": "MIRBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "MIRBUSD": { "symbol": "MIRBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "MIRUSDT": { "symbol": "MIRUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BARBTC": { "symbol": "BARBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "BARBUSD": { "symbol": "BARBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "BARUSDT": { "symbol": "BARUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "FORTHBTC": {
+    "symbol": "FORTHBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "FORTHBUSD": {
+    "symbol": "FORTHBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "FORTHUSDT": {
+    "symbol": "FORTHUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "CAKEGBP": { "symbol": "CAKEGBP", "quoteAsset": "GBP", "minNotional": 10 },
+  "DOGERUB": { "symbol": "DOGERUB", "quoteAsset": "RUB", "minNotional": 100 },
+  "HOTBRL": { "symbol": "HOTBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "WRXEUR": { "symbol": "WRXEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "EZBTC": { "symbol": "EZBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "EZETH": { "symbol": "EZETH", "quoteAsset": "ETH", "minNotional": 0.005 },
+  "BAKEUSDT": { "symbol": "BAKEUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BURGERBUSD": {
+    "symbol": "BURGERBUSD",
+    "quoteAsset": "BUSD",
+    "minNotional": 10
+  },
+  "BURGERUSDT": {
+    "symbol": "BURGERUSDT",
+    "quoteAsset": "USDT",
+    "minNotional": 10
+  },
+  "SLPBUSD": { "symbol": "SLPBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "SLPUSDT": { "symbol": "SLPUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "TRXAUD": { "symbol": "TRXAUD", "quoteAsset": "AUD", "minNotional": 10 },
+  "TRXEUR": { "symbol": "TRXEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "VETTRY": { "symbol": "VETTRY", "quoteAsset": "TRY", "minNotional": 10 },
+  "SHIBUSDT": { "symbol": "SHIBUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "SHIBBUSD": { "symbol": "SHIBBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ICPBTC": { "symbol": "ICPBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ICPBNB": { "symbol": "ICPBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ICPBUSD": { "symbol": "ICPBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ICPUSDT": { "symbol": "ICPUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "BTCGYEN": { "symbol": "BTCGYEN", "quoteAsset": "GYEN", "minNotional": 1000 },
+  "USDTGYEN": {
+    "symbol": "USDTGYEN",
+    "quoteAsset": "GYEN",
+    "minNotional": 1000
+  },
+  "SHIBEUR": { "symbol": "SHIBEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "SHIBRUB": { "symbol": "SHIBRUB", "quoteAsset": "RUB", "minNotional": 100 },
+  "ETCEUR": { "symbol": "ETCEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "ETCBRL": { "symbol": "ETCBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "DOGEBIDR": {
+    "symbol": "DOGEBIDR",
+    "quoteAsset": "BIDR",
+    "minNotional": 20000
+  },
+  "ARBTC": { "symbol": "ARBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "ARBNB": { "symbol": "ARBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "ARBUSD": { "symbol": "ARBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "ARUSDT": { "symbol": "ARUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "POLSBTC": {
+    "symbol": "POLSBTC",
+    "quoteAsset": "BTC",
+    "minNotional": 0.0001
+  },
+  "POLSBNB": { "symbol": "POLSBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "POLSBUSD": { "symbol": "POLSBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "POLSUSDT": { "symbol": "POLSUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "MDXBTC": { "symbol": "MDXBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "MDXBNB": { "symbol": "MDXBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "MDXBUSD": { "symbol": "MDXBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "MDXUSDT": { "symbol": "MDXUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "MASKBNB": { "symbol": "MASKBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "MASKBUSD": { "symbol": "MASKBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "MASKUSDT": { "symbol": "MASKUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "LPTBTC": { "symbol": "LPTBTC", "quoteAsset": "BTC", "minNotional": 0.0001 },
+  "LPTBNB": { "symbol": "LPTBNB", "quoteAsset": "BNB", "minNotional": 0.05 },
+  "LPTBUSD": { "symbol": "LPTBUSD", "quoteAsset": "BUSD", "minNotional": 10 },
+  "LPTUSDT": { "symbol": "LPTUSDT", "quoteAsset": "USDT", "minNotional": 10 },
+  "ETHUAH": { "symbol": "ETHUAH", "quoteAsset": "UAH", "minNotional": 100 },
+  "MATICBRL": { "symbol": "MATICBRL", "quoteAsset": "BRL", "minNotional": 10 },
+  "SOLEUR": { "symbol": "SOLEUR", "quoteAsset": "EUR", "minNotional": 10 },
+  "SHIBBRL": { "symbol": "SHIBBRL", "quoteAsset": "BRL", "minNotional": 10 }
+}

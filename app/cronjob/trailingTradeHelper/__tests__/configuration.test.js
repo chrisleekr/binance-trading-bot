@@ -28,7 +28,7 @@ describe('configuration.js', () => {
 
     it('triggers PubSub.publish', () => {
       expect(PubSub.publish).toHaveBeenCalledWith(
-        'trailing-trade-configuration-changed',
+        'reset-binance-websocket',
         true
       );
     });
@@ -45,6 +45,7 @@ describe('configuration.js', () => {
           if (key === 'jobs.trailingTrade') {
             return {
               enabled: true,
+              symbols: ['BTCUSDT', 'BNBBTC', 'TRXUSDT'],
               sell: {
                 stopLoss: {
                   enabled: true,
@@ -67,6 +68,7 @@ describe('configuration.js', () => {
           {
             key: 'configuration',
             enabled: true,
+            symbols: ['BTCUSDT', 'BNBBTC', 'TRXUSDT'],
             sell: {
               stopLoss: {
                 enabled: true,
@@ -80,6 +82,7 @@ describe('configuration.js', () => {
       it('returns expected value', () => {
         expect(result).toStrictEqual({
           enabled: true,
+          symbols: ['BTCUSDT', 'BNBBTC', 'TRXUSDT'],
           sell: {
             stopLoss: {
               enabled: true,
@@ -96,49 +99,40 @@ describe('configuration.js', () => {
 
     describe('when found from mongodb and configuration with stopLoss', () => {
       beforeEach(async () => {
-        mongo.findOne = jest.fn((_logger, collection, filter) => {
-          if (
-            collection === 'trailing-trade-common' &&
-            _.isEqual(filter, { key: 'configuration' })
-          ) {
-            return {
-              sell: {
-                stopLoss: {
-                  enabled: true,
-                  key: 'value'
-                }
-              }
-            };
-          }
-          return null;
-        });
-
-        result = await configuration.getGlobalConfiguration(logger);
-      });
-
-      it('returns expected value', () => {
-        expect(result).toStrictEqual({
-          sell: {
-            stopLoss: {
-              enabled: true,
-              key: 'value'
-            }
-          }
-        });
-      });
-    });
-
-    describe('when found from mongodb and configuration without stopLoss', () => {
-      beforeEach(async () => {
         config.get = jest.fn(key => {
           if (key === 'jobs.trailingTrade') {
             return {
               enabled: true,
+              cronTime: '* * * * * *',
+              symbols: ['BTCUSDT', 'ETHUSDT', 'ETHBTC', 'XRPBTC'],
+              candles: {
+                interval: '1h',
+                limit: 100
+              },
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: -1,
+                maxPurchaseAmounts: {},
+                triggerPercentage: 1.0,
+                stopPercentage: 1.02,
+                limitPercentage: 1.021
+              },
               sell: {
+                enabled: true,
+                triggerPercentage: 1.06,
+                stopPercentage: 0.98,
+                limitPercentage: 0.979,
                 stopLoss: {
-                  enabled: true,
-                  key: 'value'
+                  enabled: false,
+                  maxLossPercentage: 0.8,
+                  disableBuyMinutes: 360,
+                  orderType: 'market'
                 }
+              },
+              system: {
+                temporaryDisableActionAfterConfirmingOrder: 20,
+                checkManualBuyOrderPeriod: 10,
+                refreshAccountInfoPeriod: 1
               }
             };
           }
@@ -151,7 +145,30 @@ describe('configuration.js', () => {
             _.isEqual(filter, { key: 'configuration' })
           ) {
             return {
-              sell: {}
+              enabled: true,
+              cronTime: '* * * * * *',
+              symbols: ['BNBUSDT', 'TRXUSDT', 'ETHBTC', 'XRPBTC'],
+              candles: {
+                interval: '30m',
+                limit: 150
+              },
+              buy: {
+                enabled: false,
+                maxPurchaseAmount: -1,
+                maxPurchaseAmounts: {},
+                triggerPercentage: 1.05,
+                stopPercentage: 1.08,
+                limitPercentage: 1.081
+              },
+              sell: {
+                enabled: false,
+                triggerPercentage: 1.08,
+                stopPercentage: 0.95,
+                limitPercentage: 0.949
+              },
+              system: {
+                temporaryDisableActionAfterConfirmingOrder: 10
+              }
             };
           }
           return null;
@@ -162,11 +179,34 @@ describe('configuration.js', () => {
 
       it('returns expected value', () => {
         expect(result).toStrictEqual({
+          enabled: true,
+          cronTime: '* * * * * *',
+          symbols: ['BNBUSDT', 'TRXUSDT', 'ETHBTC', 'XRPBTC'],
+          candles: { interval: '30m', limit: 150 },
+          buy: {
+            enabled: false,
+            maxPurchaseAmount: -1,
+            maxPurchaseAmounts: {},
+            triggerPercentage: 1.05,
+            stopPercentage: 1.08,
+            limitPercentage: 1.081
+          },
           sell: {
+            enabled: false,
+            triggerPercentage: 1.08,
+            stopPercentage: 0.95,
+            limitPercentage: 0.949,
             stopLoss: {
-              enabled: true,
-              key: 'value'
+              enabled: false,
+              maxLossPercentage: 0.8,
+              disableBuyMinutes: 360,
+              orderType: 'market'
             }
+          },
+          system: {
+            temporaryDisableActionAfterConfirmingOrder: 10,
+            checkManualBuyOrderPeriod: 10,
+            refreshAccountInfoPeriod: 1
           }
         });
       });
@@ -316,12 +356,38 @@ describe('configuration.js', () => {
         if (key === 'jobs.trailingTrade') {
           return {
             enabled: true,
+            cronTime: '* * * * * *',
+            symbols: ['BTCUSDT', 'ETHUSDT', 'ETHBTC', 'XRPBTC'],
+            candles: {
+              interval: '1h',
+              limit: 100
+            },
             buy: {
-              enabled: true
+              enabled: true,
+              maxPurchaseAmount: -1,
+              maxPurchaseAmounts: {
+                USDT: 100
+              },
+              triggerPercentage: 1.0,
+              stopPercentage: 1.02,
+              limitPercentage: 1.021
             },
             sell: {
-              enabled: false,
-              stopLoss: { enabled: true }
+              enabled: true,
+              triggerPercentage: 1.06,
+              stopPercentage: 0.98,
+              limitPercentage: 0.979,
+              stopLoss: {
+                enabled: false,
+                maxLossPercentage: 0.8,
+                disableBuyMinutes: 360,
+                orderType: 'market'
+              }
+            },
+            system: {
+              temporaryDisableActionAfterConfirmingOrder: 20,
+              checkManualBuyOrderPeriod: 5,
+              refreshAccountInfoPeriod: 1
             }
           };
         }
@@ -338,8 +404,41 @@ describe('configuration.js', () => {
           ) {
             return {
               enabled: true,
-              some: 'value',
-              sell: {}
+              cronTime: '* * * * * *',
+              symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+              candles: {
+                interval: '1d',
+                limit: 10
+              },
+              buy: {
+                enabled: false,
+                maxPurchaseAmount: -1,
+                maxPurchaseAmounts: {
+                  USDT: 100,
+                  BTC: 0.001,
+                  BUSD: 100
+                },
+                triggerPercentage: 1.05,
+                stopPercentage: 1.05,
+                limitPercentage: 1.051
+              },
+              sell: {
+                enabled: false,
+                triggerPercentage: 1.08,
+                stopPercentage: 0.95,
+                limitPercentage: 0.949,
+                stopLoss: {
+                  enabled: true,
+                  maxLossPercentage: 0.95,
+                  disableBuyMinutes: 60,
+                  orderType: 'market'
+                }
+              },
+              system: {
+                temporaryDisableActionAfterConfirmingOrder: 10,
+                checkManualBuyOrderPeriod: 10,
+                refreshAccountInfoPeriod: 3
+              }
             };
           }
           if (
@@ -347,8 +446,30 @@ describe('configuration.js', () => {
             _.isEqual(filter, { key: 'BTCUSDT-configuration' })
           ) {
             return {
-              enabled: true,
-              some: 'BTCUSDT-value'
+              key: 'BTCUSDT-configuration',
+              candles: {
+                interval: '1h',
+                limit: 50
+              },
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 150,
+                triggerPercentage: 1.04,
+                stopPercentage: 1.04,
+                limitPercentage: 1.041
+              },
+              sell: {
+                enabled: true,
+                triggerPercentage: 1.06,
+                stopPercentage: 0.96,
+                limitPercentage: 0.979,
+                stopLoss: {
+                  enabled: true,
+                  maxLossPercentage: 0.81,
+                  disableBuyMinutes: 65,
+                  orderType: 'market'
+                }
+              }
             };
           }
           return null;
@@ -361,16 +482,40 @@ describe('configuration.js', () => {
         expect(config.get).toHaveBeenCalled();
       });
 
-      it('triggers mongo.upsertOne', () => {
-        expect(mongo.upsertOne).toHaveBeenCalled();
+      it('does not trigger mongo.upsertOne', () => {
+        expect(mongo.upsertOne).not.toHaveBeenCalled();
       });
 
       it('returns expected value', () => {
         expect(result).toStrictEqual({
           enabled: true,
-          some: 'value',
+          cronTime: '* * * * * *',
+          symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+          candles: { interval: '1d', limit: 10 },
+          buy: {
+            enabled: false,
+            maxPurchaseAmount: -1,
+            maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 },
+            triggerPercentage: 1.05,
+            stopPercentage: 1.05,
+            limitPercentage: 1.051
+          },
           sell: {
-            stopLoss: { enabled: true }
+            enabled: false,
+            triggerPercentage: 1.08,
+            stopPercentage: 0.95,
+            limitPercentage: 0.949,
+            stopLoss: {
+              enabled: true,
+              maxLossPercentage: 0.95,
+              disableBuyMinutes: 60,
+              orderType: 'market'
+            }
+          },
+          system: {
+            temporaryDisableActionAfterConfirmingOrder: 10,
+            checkManualBuyOrderPeriod: 10,
+            refreshAccountInfoPeriod: 3
           }
         });
       });
@@ -412,14 +557,35 @@ describe('configuration.js', () => {
             {
               key: 'configuration',
               enabled: true,
+              cronTime: '* * * * * *',
+              symbols: ['BTCUSDT', 'ETHUSDT', 'ETHBTC', 'XRPBTC'],
+              candles: { interval: '1h', limit: 100 },
               buy: {
-                enabled: true
+                enabled: true,
+                maxPurchaseAmount: -1,
+                maxPurchaseAmounts: {
+                  USDT: 100
+                },
+                triggerPercentage: 1,
+                stopPercentage: 1.02,
+                limitPercentage: 1.021
               },
               sell: {
-                enabled: false,
+                enabled: true,
+                triggerPercentage: 1.06,
+                stopPercentage: 0.98,
+                limitPercentage: 0.979,
                 stopLoss: {
-                  enabled: true
+                  enabled: false,
+                  maxLossPercentage: 0.8,
+                  disableBuyMinutes: 360,
+                  orderType: 'market'
                 }
+              },
+              system: {
+                temporaryDisableActionAfterConfirmingOrder: 20,
+                checkManualBuyOrderPeriod: 5,
+                refreshAccountInfoPeriod: 1
               }
             }
           );
@@ -428,15 +594,32 @@ describe('configuration.js', () => {
         it('returns epxected value', () => {
           expect(result).toStrictEqual({
             enabled: true,
+            cronTime: '* * * * * *',
+            symbols: ['BTCUSDT', 'ETHUSDT', 'ETHBTC', 'XRPBTC'],
+            candles: { interval: '1h', limit: 100 },
             buy: {
               enabled: true,
-              maxPurchaseAmount: 100
+              maxPurchaseAmount: 100,
+              triggerPercentage: 1,
+              stopPercentage: 1.02,
+              limitPercentage: 1.021
             },
             sell: {
-              enabled: false,
+              enabled: true,
+              triggerPercentage: 1.06,
+              stopPercentage: 0.98,
+              limitPercentage: 0.979,
               stopLoss: {
-                enabled: true
+                enabled: false,
+                maxLossPercentage: 0.8,
+                disableBuyMinutes: 360,
+                orderType: 'market'
               }
+            },
+            system: {
+              temporaryDisableActionAfterConfirmingOrder: 20,
+              checkManualBuyOrderPeriod: 5,
+              refreshAccountInfoPeriod: 1
             }
           });
         });
@@ -451,8 +634,41 @@ describe('configuration.js', () => {
             ) {
               return {
                 enabled: true,
-                some: 'value',
-                sell: {}
+                cronTime: '* * * * * *',
+                symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+                candles: {
+                  interval: '1d',
+                  limit: 10
+                },
+                buy: {
+                  enabled: false,
+                  maxPurchaseAmount: -1,
+                  maxPurchaseAmounts: {
+                    USDT: 100,
+                    BTC: 0.001,
+                    BUSD: 100
+                  },
+                  triggerPercentage: 1.05,
+                  stopPercentage: 1.05,
+                  limitPercentage: 1.051
+                },
+                sell: {
+                  enabled: false,
+                  triggerPercentage: 1.08,
+                  stopPercentage: 0.95,
+                  limitPercentage: 0.949,
+                  stopLoss: {
+                    enabled: true,
+                    maxLossPercentage: 0.95,
+                    disableBuyMinutes: 60,
+                    orderType: 'market'
+                  }
+                },
+                system: {
+                  temporaryDisableActionAfterConfirmingOrder: 10,
+                  checkManualBuyOrderPeriod: 10,
+                  refreshAccountInfoPeriod: 3
+                }
               };
             }
             return null;
@@ -465,21 +681,39 @@ describe('configuration.js', () => {
           expect(config.get).toHaveBeenCalled();
         });
 
-        it('triggers mongo.upsertOne', () => {
-          expect(mongo.upsertOne).toHaveBeenCalled();
+        it('does not triggers mongo.upsertOne', () => {
+          expect(mongo.upsertOne).not.toHaveBeenCalled();
         });
 
         it('returns expected value', () => {
           expect(result).toStrictEqual({
             enabled: true,
-            some: 'value',
+            cronTime: '* * * * * *',
+            symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+            candles: { interval: '1d', limit: 10 },
             buy: {
-              maxPurchaseAmount: 100
+              enabled: false,
+              maxPurchaseAmount: 100,
+              triggerPercentage: 1.05,
+              stopPercentage: 1.05,
+              limitPercentage: 1.051
             },
             sell: {
+              enabled: false,
+              triggerPercentage: 1.08,
+              stopPercentage: 0.95,
+              limitPercentage: 0.949,
               stopLoss: {
-                enabled: true
+                enabled: true,
+                maxLossPercentage: 0.95,
+                disableBuyMinutes: 60,
+                orderType: 'market'
               }
+            },
+            system: {
+              temporaryDisableActionAfterConfirmingOrder: 10,
+              checkManualBuyOrderPeriod: 10,
+              refreshAccountInfoPeriod: 3
             }
           });
         });
@@ -495,9 +729,41 @@ describe('configuration.js', () => {
               ) {
                 return {
                   enabled: true,
-                  some: 'value',
-                  buy: { enabled: true },
-                  sell: { enabled: true }
+                  cronTime: '* * * * * *',
+                  symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+                  candles: {
+                    interval: '1d',
+                    limit: 10
+                  },
+                  buy: {
+                    enabled: false,
+                    maxPurchaseAmount: -1,
+                    maxPurchaseAmounts: {
+                      USDT: 100,
+                      BTC: 0.001,
+                      BUSD: 100
+                    },
+                    triggerPercentage: 1.05,
+                    stopPercentage: 1.05,
+                    limitPercentage: 1.051
+                  },
+                  sell: {
+                    enabled: false,
+                    triggerPercentage: 1.08,
+                    stopPercentage: 0.95,
+                    limitPercentage: 0.949,
+                    stopLoss: {
+                      enabled: true,
+                      maxLossPercentage: 0.95,
+                      disableBuyMinutes: 60,
+                      orderType: 'market'
+                    }
+                  },
+                  system: {
+                    temporaryDisableActionAfterConfirmingOrder: 10,
+                    checkManualBuyOrderPeriod: 10,
+                    refreshAccountInfoPeriod: 3
+                  }
                 };
               }
 
@@ -506,10 +772,30 @@ describe('configuration.js', () => {
                 _.isEqual(filter, { key: 'BTCUSDT-configuration' })
               ) {
                 return {
-                  enabled: true,
-                  some: 'symbol-value',
-                  buy: { enabled: false, maxPurchaseAmount: 100 },
-                  sell: { enabled: false }
+                  key: 'BTCUSDT-configuration',
+                  candles: {
+                    interval: '1h',
+                    limit: 50
+                  },
+                  buy: {
+                    enabled: true,
+                    maxPurchaseAmount: 150,
+                    triggerPercentage: 1.04,
+                    stopPercentage: 1.04,
+                    limitPercentage: 1.041
+                  },
+                  sell: {
+                    enabled: true,
+                    triggerPercentage: 1.06,
+                    stopPercentage: 0.96,
+                    limitPercentage: 0.979,
+                    stopLoss: {
+                      enabled: true,
+                      maxLossPercentage: 0.81,
+                      disableBuyMinutes: 65,
+                      orderType: 'market'
+                    }
+                  }
                 };
               }
               return null;
@@ -522,20 +808,40 @@ describe('configuration.js', () => {
             expect(config.get).toHaveBeenCalled();
           });
 
-          it('triggers mongo.upsertOne', () => {
-            expect(mongo.upsertOne).toHaveBeenCalled();
+          it('does not trigger mongo.upsertOne', () => {
+            expect(mongo.upsertOne).not.toHaveBeenCalled();
           });
 
           it('returns expected value', () => {
             expect(result).toStrictEqual({
+              key: 'BTCUSDT-configuration',
               enabled: true,
-              some: 'symbol-value',
-              buy: { enabled: false, maxPurchaseAmount: 100 },
+              cronTime: '* * * * * *',
+              symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+              candles: { interval: '1h', limit: 50 },
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 150,
+                triggerPercentage: 1.04,
+                stopPercentage: 1.04,
+                limitPercentage: 1.041
+              },
               sell: {
-                enabled: false,
+                enabled: true,
+                triggerPercentage: 1.06,
+                stopPercentage: 0.96,
+                limitPercentage: 0.979,
                 stopLoss: {
-                  enabled: true
+                  enabled: true,
+                  maxLossPercentage: 0.81,
+                  disableBuyMinutes: 65,
+                  orderType: 'market'
                 }
+              },
+              system: {
+                temporaryDisableActionAfterConfirmingOrder: 10,
+                checkManualBuyOrderPeriod: 10,
+                refreshAccountInfoPeriod: 3
               }
             });
           });
@@ -558,9 +864,41 @@ describe('configuration.js', () => {
               ) {
                 return {
                   enabled: true,
-                  some: 'value',
-                  buy: { enabled: true, maxPurchaseAmounts: { USDT: 80 } },
-                  sell: { enabled: true }
+                  cronTime: '* * * * * *',
+                  symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+                  candles: {
+                    interval: '1d',
+                    limit: 10
+                  },
+                  buy: {
+                    enabled: false,
+                    maxPurchaseAmount: 50,
+                    maxPurchaseAmounts: {
+                      USDT: 100,
+                      BTC: 0.001,
+                      BUSD: 100
+                    },
+                    triggerPercentage: 1.05,
+                    stopPercentage: 1.05,
+                    limitPercentage: 1.051
+                  },
+                  sell: {
+                    enabled: false,
+                    triggerPercentage: 1.08,
+                    stopPercentage: 0.95,
+                    limitPercentage: 0.949,
+                    stopLoss: {
+                      enabled: true,
+                      maxLossPercentage: 0.95,
+                      disableBuyMinutes: 60,
+                      orderType: 'market'
+                    }
+                  },
+                  system: {
+                    temporaryDisableActionAfterConfirmingOrder: 10,
+                    checkManualBuyOrderPeriod: 10,
+                    refreshAccountInfoPeriod: 3
+                  }
                 };
               }
 
@@ -569,10 +907,29 @@ describe('configuration.js', () => {
                 _.isEqual(filter, { key: 'BTCUSDT-configuration' })
               ) {
                 return {
-                  enabled: true,
-                  some: 'symbol-value',
-                  buy: { enabled: false, maxPurchaseAmount: -1 },
-                  sell: { enabled: false }
+                  key: 'BTCUSDT-configuration',
+                  candles: {
+                    interval: '1h',
+                    limit: 50
+                  },
+                  buy: {
+                    enabled: true,
+                    triggerPercentage: 1.04,
+                    stopPercentage: 1.04,
+                    limitPercentage: 1.041
+                  },
+                  sell: {
+                    enabled: true,
+                    triggerPercentage: 1.06,
+                    stopPercentage: 0.96,
+                    limitPercentage: 0.979,
+                    stopLoss: {
+                      enabled: true,
+                      maxLossPercentage: 0.81,
+                      disableBuyMinutes: 65,
+                      orderType: 'market'
+                    }
+                  }
                 };
               }
               return null;
@@ -583,20 +940,40 @@ describe('configuration.js', () => {
 
           it('returns expected value', () => {
             expect(result).toStrictEqual({
+              key: 'BTCUSDT-configuration',
               enabled: true,
-              some: 'symbol-value',
-              buy: { enabled: false, maxPurchaseAmount: 80 },
+              cronTime: '* * * * * *',
+              symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+              candles: { interval: '1h', limit: 50 },
+              buy: {
+                enabled: true,
+                maxPurchaseAmount: 50,
+                triggerPercentage: 1.04,
+                stopPercentage: 1.04,
+                limitPercentage: 1.041
+              },
               sell: {
-                enabled: false,
+                enabled: true,
+                triggerPercentage: 1.06,
+                stopPercentage: 0.96,
+                limitPercentage: 0.979,
                 stopLoss: {
-                  enabled: true
+                  enabled: true,
+                  maxLossPercentage: 0.81,
+                  disableBuyMinutes: 65,
+                  orderType: 'market'
                 }
+              },
+              system: {
+                temporaryDisableActionAfterConfirmingOrder: 10,
+                checkManualBuyOrderPeriod: 10,
+                refreshAccountInfoPeriod: 3
               }
             });
           });
         });
 
-        describe('when global configuration buy max purchase amount is -1', () => {
+        describe('when configuration is not valid format', () => {
           beforeEach(async () => {
             cache.hget = jest.fn().mockResolvedValue(
               JSON.stringify({
@@ -614,7 +991,10 @@ describe('configuration.js', () => {
                 return {
                   enabled: true,
                   some: 'value',
-                  buy: { enabled: true, maxPurchaseAmounts: { BNB: 80 } },
+                  buy: {
+                    enabled: true,
+                    maxPurchaseAmounts: { USDT: 80, BNB: 80 }
+                  },
                   sell: { enabled: true }
                 };
               }
@@ -640,12 +1020,32 @@ describe('configuration.js', () => {
             expect(result).toStrictEqual({
               enabled: true,
               some: 'symbol-value',
-              buy: { enabled: false, maxPurchaseAmount: 100 },
+              buy: {
+                enabled: false,
+                maxPurchaseAmount: 80,
+                triggerPercentage: 1,
+                stopPercentage: 1.02,
+                limitPercentage: 1.021
+              },
               sell: {
                 enabled: false,
+                triggerPercentage: 1.06,
+                stopPercentage: 0.98,
+                limitPercentage: 0.979,
                 stopLoss: {
-                  enabled: true
+                  enabled: false,
+                  maxLossPercentage: 0.8,
+                  disableBuyMinutes: 360,
+                  orderType: 'market'
                 }
+              },
+              cronTime: '* * * * * *',
+              symbols: ['BTCUSDT', 'ETHUSDT', 'ETHBTC', 'XRPBTC'],
+              candles: { interval: '1h', limit: 100 },
+              system: {
+                temporaryDisableActionAfterConfirmingOrder: 20,
+                checkManualBuyOrderPeriod: 5,
+                refreshAccountInfoPeriod: 1
               }
             });
           });
@@ -688,12 +1088,32 @@ describe('configuration.js', () => {
             expect(result).toStrictEqual({
               enabled: true,
               some: 'symbol-value',
-              buy: { enabled: false, maxPurchaseAmount: -1 },
+              cronTime: '* * * * * *',
+              symbols: ['BTCUSDT', 'ETHUSDT', 'ETHBTC', 'XRPBTC'],
+              candles: { interval: '1h', limit: 100 },
+              buy: {
+                enabled: false,
+                maxPurchaseAmount: -1,
+                triggerPercentage: 1,
+                stopPercentage: 1.02,
+                limitPercentage: 1.021
+              },
               sell: {
                 enabled: false,
+                triggerPercentage: 1.06,
+                stopPercentage: 0.98,
+                limitPercentage: 0.979,
                 stopLoss: {
-                  enabled: true
+                  enabled: false,
+                  maxLossPercentage: 0.8,
+                  disableBuyMinutes: 360,
+                  orderType: 'market'
                 }
+              },
+              system: {
+                temporaryDisableActionAfterConfirmingOrder: 20,
+                checkManualBuyOrderPeriod: 5,
+                refreshAccountInfoPeriod: 1
               }
             });
           });

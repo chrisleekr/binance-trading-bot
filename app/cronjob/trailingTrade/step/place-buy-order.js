@@ -169,7 +169,8 @@ const execute = async (logger, rawData) => {
     },
     {
       key: `${symbol}-last-buy-price`,
-      lastBuyPrice: limitPrice
+      lastBuyPrice: limitPrice,
+      quantity: orderQuantity
     }
   );
 

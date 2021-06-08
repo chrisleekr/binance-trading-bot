@@ -22,18 +22,10 @@ const saveGlobalConfiguration = async (logger, configuration) => {
     }
   );
 
-  PubSub.publish('trailing-trade-configuration-changed', true);
+  PubSub.publish('reset-binance-websocket', true);
 
   return result;
 };
-
-/**
- * Backward compatibility function to check stop loss configuration
- *
- * @param {*} globalConfiguration
- */
-const hasSellStopLoss = globalConfiguration =>
-  _.get(globalConfiguration, 'sell.stopLoss.enabled', null) !== null;
 
 /**
  * Get global configuration from mongodb
@@ -41,33 +33,33 @@ const hasSellStopLoss = globalConfiguration =>
  * @param {*} logger
  */
 const getGlobalConfiguration = async logger => {
-  let configValue = await mongo.findOne(logger, 'trailing-trade-common', {
-    key: 'configuration'
-  });
+  const orgConfigValue = config.get('jobs.trailingTrade');
 
-  if (_.isEmpty(configValue)) {
+  orgConfigValue.symbols = Object.values(orgConfigValue.symbols);
+
+  const savedConfigValue = await mongo.findOne(
+    logger,
+    'trailing-trade-common',
+    {
+      key: 'configuration'
+    }
+  );
+
+  if (_.isEmpty(savedConfigValue)) {
     logger.info(
       'Could not find configuration from MongoDB, retrieve from initial configuration.'
     );
 
     // If it is empty, then global configuration is not stored in the
-    configValue = config.get('jobs.trailingTrade');
-
-    await saveGlobalConfiguration(logger, configValue);
+    await saveGlobalConfiguration(logger, orgConfigValue);
   }
 
-  // Backward compatibility to check stopLoss config
-  if (hasSellStopLoss(configValue) === false) {
-    // If stop loss configuration does not exist, then get from config.
-    const initialConfigValue = config.get('jobs.trailingTrade');
-
-    configValue.sell.stopLoss = _.get(initialConfigValue, 'sell.stopLoss');
-
-    // Save one more time. This code block should not happen once saved.
-    await saveGlobalConfiguration(logger, configValue);
-  }
-
-  return configValue;
+  return _.mergeWith(savedConfigValue, orgConfigValue, (objValue, srcValue) => {
+    if (_.isArray(objValue) || !_.isObject(objValue)) {
+      return objValue;
+    }
+    return _.defaultsDeep(objValue, srcValue);
+  });
 };
 
 /**
@@ -225,12 +217,12 @@ const getLastBuyPriceRemoveThreshold = async (
 
   logger.info(
     { symbolBuyLastBuyPriceRemoveThreshold },
-    'Last Buy Threshold is set as -1. Need to calculate and override it'
+    'Last Buy Price Remove Threshold is set as -1. Need to calculate and override it'
   );
 
   let newBuyLastBuyPriceRemoveThreshold = -1;
 
-  // If old last buy price is -1, then should calculate maximum purchase amount based on the notional amount.
+  // If old last buy price remove threshold is -1, then should calculate last buy remove threshold based on the notional amount.
   const cachedSymbolInfo =
     JSON.parse(
       await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)

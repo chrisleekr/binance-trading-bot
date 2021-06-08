@@ -44,9 +44,9 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
       _.set(lastBuyPriceRemoveThresholds, stateKey, value)
     );
 
-    const newLastBuyPriceRemoveThreshold = _.set(lastBuyPriceRemoveThresholds, stateKey, value);
+    const newLastBuyPriceRemoveThresholds = _.set(lastBuyPriceRemoveThresholds, stateKey, value);
     this.setState({
-      lastBuyPriceRemoveThresholds: newLastBuyPriceRemoveThreshold
+      lastBuyPriceRemoveThresholds: newLastBuyPriceRemoveThresholds
     });
 
     this.props.handleLastBuyPriceRemoveThresholdChange(lastBuyPriceRemoveThresholds);
@@ -64,19 +64,19 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
       return (
         <div
           key={quoteAsset + '-' + index}
-          className='coin-info-last-buy-threshold-wrapper'>
+          className='coin-info-last-buy-remove-threshold-wrapper'>
           <Form.Group
-            controlId={'field-min-last-buy-limit-percentage-' + quoteAsset}
+            controlId={'field-min-last-buy-remove-threshold-limit-percentage-' + quoteAsset}
             className='mb-2'>
             <Form.Label className='mb-0'>
-              Last Buy Threshold for {quoteAsset}{' '}
+              Last Buy Price Remove Threshold for {quoteAsset}{' '}
               <OverlayTrigger
                 trigger='click'
-                key={'last-buy-threshold-overlay-' + quoteAsset}
+                key={'last-buy-remove-threshold-overlay-' + quoteAsset}
                 placement='bottom'
                 overlay={
                   <Popover
-                    id={'last-buy-threshold-overlay-right' + quoteAsset}>
+                    id={'last-buy-remove-threshold-overlay-right' + quoteAsset}>
                     <Popover.Content>
                       Set the last buy threshold for symbols with quote asset "
                       {quoteAsset}". The last buy threshold will be applied to

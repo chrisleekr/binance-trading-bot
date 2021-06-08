@@ -46,7 +46,7 @@ class SettingIcon extends React.Component {
       if (maxPurchaseAmounts[quoteAsset] === undefined) {
         maxPurchaseAmounts[quoteAsset] = minNotional * 10;
       }
-      if (lastBuyPriceRemoveThresholds[quoteAsset] == undefined) {
+      if (lastBuyPriceRemoveThresholds[quoteAsset] === undefined) {
         lastBuyPriceRemoveThresholds[quoteAsset] = minNotional;
       }
     });
@@ -80,8 +80,8 @@ class SettingIcon extends React.Component {
         configuration.buy.lastBuyPriceRemoveThresholds = {};
       }
 
-        // Set max purchase amount
-        const { quoteAssets, maxPurchaseAmounts, lastBuyPriceRemoveThresholds } = this.getQuoteAssets(
+      // Set max purchase amount
+      const { quoteAssets, maxPurchaseAmounts, lastBuyPriceRemoveThresholds } = this.getQuoteAssets(
         exchangeSymbols,
         selectedSymbols,
         configuration.buy.maxPurchaseAmounts,
@@ -100,11 +100,6 @@ class SettingIcon extends React.Component {
   }
 
   handleFormSubmit(extraConfiguration = {}) {
-    console.log(
-      'handleFormSubmit this.state.configuration ',
-      this.state.configuration
-    );
-
     this.handleModalClose('confirm');
     this.handleModalClose('setting');
     this.props.sendWebSocket('setting-update', {
@@ -131,8 +126,8 @@ class SettingIcon extends React.Component {
       target.type === 'checkbox'
         ? target.checked
         : target.type === 'number'
-        ? +target.value
-        : target.value;
+          ? +target.value
+          : target.value;
     const stateKey = target.getAttribute('data-state-key');
 
     const { configuration } = this.state;
@@ -143,8 +138,6 @@ class SettingIcon extends React.Component {
   }
 
   handleMaxPurchaeAmountChange(newMaxPurchaseAmounts) {
-    console.log('handleMaxPurchaeAmountChange => ', newMaxPurchaseAmounts);
-
     const { configuration } = this.state;
 
     this.setState({
@@ -157,7 +150,7 @@ class SettingIcon extends React.Component {
   }
 
   handleLastBuyPriceRemoveThresholdChange(newLastBuyPriceRemoveThresholds) {
-      console.log('handleLastBuyPriceRemoveThresholdChange => ', newLastBuyPriceRemoveThresholds);
+    console.log('handleLastBuyPriceRemoveThresholdChange => ', newLastBuyPriceRemoveThresholds);
 
     const { configuration } = this.state;
 

@@ -323,6 +323,50 @@ describe('cache', () => {
     });
   });
 
+  describe('hgetWithoutLock', () => {
+    beforeEach(async () => {
+      jest.clearAllMocks().resetModules();
+
+      mockHGet = jest.fn(() => 'my-value');
+      jest.mock('config');
+      jest.mock('ioredis', () =>
+        jest.fn().mockImplementation(() => ({
+          hget: mockHGet
+        }))
+      );
+
+      mockUnlock = jest.fn(() => true);
+      mockLock = jest.fn(() => ({
+        unlock: mockUnlock
+      }));
+      jest.mock('redlock', () =>
+        jest.fn().mockImplementation(() => ({
+          lock: mockLock
+        }))
+      );
+
+      cache = require('../cache');
+
+      result = await cache.hgetWithoutLock('my-key', 'my-field');
+    });
+
+    it('does not trigger lock', () => {
+      expect(mockLock).not.toHaveBeenCalled();
+    });
+
+    it('triggers mockGet', () => {
+      expect(mockHGet).toHaveBeenCalledWith('my-key', 'my-field');
+    });
+
+    it('does not trigger unlock', () => {
+      expect(mockUnlock).not.toHaveBeenCalled();
+    });
+
+    it('returns expected value', () => {
+      expect(result).toBe('my-value');
+    });
+  });
+
   describe('hgetall', () => {
     beforeEach(async () => {
       jest.clearAllMocks().resetModules();

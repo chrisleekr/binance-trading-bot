@@ -6,8 +6,6 @@ const {
   getAPILimit,
   isActionDisabled
 } = require('../../trailingTradeHelper/common');
-const { getConfiguration } = require('../../trailingTradeHelper/configuration');
-
 /**
  * Retrieve last buy order from cache
  *
@@ -15,6 +13,7 @@ const { getConfiguration } = require('../../trailingTradeHelper/configuration');
  * @param {*} symbol
  * @returns
  */
+
 const getLastBuyOrder = async (logger, symbol) => {
   const cachedLastBuyOrder =
     JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
