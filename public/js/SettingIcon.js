@@ -26,12 +26,12 @@ class SettingIcon extends React.Component {
     this.handleMaxPurchaeAmountChange = this.handleMaxPurchaeAmountChange.bind(
       this
     );
-    this.handleLastBuyThresholdChange = this.handleLastBuyThresholdChange.bind(
+    this.handleLastBuyPriceRemoveThresholdChange = this.handleLastBuyPriceRemoveThresholdChange.bind(
       this
     );
   }
 
-  getQuoteAssets(exchangeSymbols, selectedSymbols, maxPurchaseAmounts, lastBuyThresholds) {
+  getQuoteAssets(exchangeSymbols, selectedSymbols, maxPurchaseAmounts, lastBuyPriceRemoveThresholds) {
     const quoteAssets = [];
 
     selectedSymbols.forEach(symbol => {
@@ -46,12 +46,12 @@ class SettingIcon extends React.Component {
       if (maxPurchaseAmounts[quoteAsset] === undefined) {
         maxPurchaseAmounts[quoteAsset] = minNotional * 10;
       }
-      if (lastBuyThresholds[quoteAsset] == undefined) {
-        lastBuyThresholds[quoteAsset] = minNotional;
+      if (lastBuyPriceRemoveThresholds[quoteAsset] == undefined) {
+        lastBuyPriceRemoveThresholds[quoteAsset] = minNotional;
       }
     });
 
-    return { quoteAssets, maxPurchaseAmounts, lastBuyThresholds };
+    return { quoteAssets, maxPurchaseAmounts, lastBuyPriceRemoveThresholds };
   }
 
   componentDidUpdate(nextProps) {
@@ -76,20 +76,20 @@ class SettingIcon extends React.Component {
       if (configuration.buy.maxPurchaseAmounts === undefined) {
         configuration.buy.maxPurchaseAmounts = {};
       }
-      if (configuration.buy.lastBuyThresholds === undefined) {
-        configuration.buy.lastBuyThresholds = {};
+      if (configuration.buy.lastBuyPriceRemoveThresholds === undefined) {
+        configuration.buy.lastBuyPriceRemoveThresholds = {};
       }
 
         // Set max purchase amount
-        const { quoteAssets, maxPurchaseAmounts, lastBuyThresholds } = this.getQuoteAssets(
+        const { quoteAssets, maxPurchaseAmounts, lastBuyPriceRemoveThresholds } = this.getQuoteAssets(
         exchangeSymbols,
         selectedSymbols,
         configuration.buy.maxPurchaseAmounts,
-        configuration.buy.lastBuyThresholds
+        configuration.buy.lastBuyPriceRemoveThresholds
       );
 
       configuration.buy.maxPurchaseAmounts = maxPurchaseAmounts;
-      configuration.buy.lastBuyThresholds = lastBuyThresholds;
+      configuration.buy.lastBuyPriceRemoveThresholds = lastBuyPriceRemoveThresholds;
 
       this.setState({
         availableSymbols,
@@ -156,16 +156,16 @@ class SettingIcon extends React.Component {
     });
   }
 
-  handleLastBuyThresholdChange(newlastBuyThresholds) {
-      console.log('handleLastBuyThresholdChange => ', newlastBuyThresholds);
+  handleLastBuyPriceRemoveThresholdChange(newLastBuyPriceRemoveThresholds) {
+      console.log('handleLastBuyPriceRemoveThresholdChange => ', newLastBuyPriceRemoveThresholds);
 
     const { configuration } = this.state;
 
     this.setState({
       configuration: _.set(
         configuration,
-        'buy.lastBuyThresholds',
-        newlastBuyThresholds
+        'buy.lastBuyPriceRemoveThresholds',
+        newLastBuyPriceRemoveThresholds
       )
     });
   }
@@ -229,16 +229,16 @@ class SettingIcon extends React.Component {
                                 const {
                                   quoteAssets,
                                   maxPurchaseAmounts,
-                                  lastBuyThresholds
+                                  lastBuyPriceRemoveThresholds
                                 } = this.getQuoteAssets(
                                   exchangeSymbols,
                                   selected,
                                   configuration.buy.maxPurchaseAmounts,
-                                  configuration.buy.lastBuyThresholds,
+                                  configuration.buy.lastBuyPriceRemoveThresholds,
                                 );
-                                  
+
                                 configuration.buy.maxPurchaseAmounts = maxPurchaseAmounts;
-                                configuration.buy.lastBuyThresholds = lastBuyThresholds;
+                                configuration.buy.lastBuyPriceRemoveThresholds = lastBuyPriceRemoveThresholds;
                                 this.setState({ configuration, quoteAssets });
                               }}
                               size='sm'
@@ -409,9 +409,9 @@ class SettingIcon extends React.Component {
                               </Form.Check.Label>
                             </Form.Check>
                           </Form.Group>
-						  
-						 
-						  
+
+
+
                           <SettingIconMaxPurchaseAmount
                             quoteAssets={quoteAssets}
                             maxPurchaseAmounts={
@@ -422,13 +422,13 @@ class SettingIcon extends React.Component {
                             }
                           />
 
-                          <SettingIconLastBuyThreshold
+                          <SettingIconLastBuyPriceRemoveThreshold
                             quoteAssets={quoteAssets}
-                            lastBuyThresholds={
-                              configuration.buy.lastBuyThresholds
+                            lastBuyPriceRemoveThresholds={
+                              configuration.buy.lastBuyPriceRemoveThresholds
                             }
-                            handleLastBuyThresholdChange={
-                              this.handleLastBuyThresholdChange
+                            handleLastBuyPriceRemoveThresholdChange={
+                              this.handleLastBuyPriceRemoveThresholdChange
                             }
                           />
 

@@ -180,7 +180,7 @@ const execute = async logger => {
     } else {
        messenger.errorMessage(
         `Execution failed (${moment().format('HH:mm:ss.SSS')})\n` +
-          `Job: Trailing Trade Indicator\n` +
+          `Job: Trailing Trade\n` +
           `Code: ${err.code}\n` +
           `Error message: ${err.message}\n` +
           `There's something *wrong*.\n`+

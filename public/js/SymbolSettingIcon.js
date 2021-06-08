@@ -77,8 +77,8 @@ class SymbolSettingIcon extends React.Component {
       target.type === 'checkbox'
         ? target.checked
         : target.type === 'number'
-        ? +target.value
-        : target.value;
+          ? +target.value
+          : target.value;
     const stateKey = target.getAttribute('data-state-key');
 
     const { symbolConfiguration } = this.state;
@@ -283,20 +283,23 @@ class SymbolSettingIcon extends React.Component {
                               </Form.Check.Label>
                             </Form.Check>
                           </Form.Group>
-						  
-						   <Form.Group
-                            controlId='field-lastbuy-amount'
+
+                          <Form.Group
+                            controlId='field-last-buy-remove-threshold'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
                               Remove last buy when under{' '}
                               <OverlayTrigger
                                 trigger='click'
-                                key='lastbuy-amount-overlay'
+                                key='last-buy-remove-threshold-overlay'
                                 placement='bottom'
                                 overlay={
-                                  <Popover id='lastbuy-amount-overlay-right'>
+                                  <Popover id='last-buy-remove-threshold-overlay-right'>
                                     <Popover.Content>
-                                     If the coin value drops below the defined amount, the bot will remove the last buy price. Define 0 to never remove last buy price. 
+                                      When price of coin drops below the threshold the bot will
+                                      remove the last buy price. If the bot didn't sell the coin,
+                                      you can manually add the last buy price. But if the price is
+                                      still below the threshold, it will remove it again!
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -314,12 +317,12 @@ class SymbolSettingIcon extends React.Component {
                               required
                               min='0.0001'
                               step='0.0001'
-                              data-state-key='buy.lastBuyThreshold'
-                              value={symbolConfiguration.buy.lastBuyThreshold}
+                              data-state-key='buy.lastBuyPriceRemoveThreshold'
+                              value={symbolConfiguration.buy.lastBuyPriceRemoveThreshold}
                               onChange={this.handleInputChange}
                             />
                           </Form.Group>
-						  
+
                           <Form.Group
                             controlId='field-buy-maximum-purchase-amount'
                             className='mb-2'>

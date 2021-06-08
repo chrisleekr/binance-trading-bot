@@ -58,8 +58,8 @@
       },
       "buy": {
         "enabled": true,
-        "lastBuyThreshold": 10,
-        "lastBuyThresholds": {},
+        "lastBuyPriceRemoveThreshold": -1,
+        "lastBuyPriceRemoveThresholds": {},
         "lastPurchasedQty": 0,
         "maxPurchaseAmount": -1,
         "maxPurchaseAmounts": {},

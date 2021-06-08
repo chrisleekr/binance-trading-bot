@@ -19,7 +19,108 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 
 	switch (language) {
 
-		case 'en-us':
+		case 'vi':
+
+			switch (action) {
+
+				case 'NO_CANDLE_RECEIVED':
+					message = `Tôi không thể đọc được nến từ Binance` +
+						symbol + '\n' +
+						`Hãy khởi động lại kết nối Websocket.`;
+					break;
+
+				case 'BALANCE_INFO':
+					message = symbol;
+					break;
+
+				case 'PLACE_BUY':
+					message = '*Đang đặt lệnh* mua. 💵\n' +
+						'Coin: ' + symbol + '\n' +
+						'Số lượng: ' + quantity + '\n' +
+						'Giá mua: ' + price;
+					break;
+
+				case 'PLACE_BUY_DONE':
+					message = 'Đã mua *thành công*. ✔\n' +
+						'Coin: ' + symbol;
+					break;
+
+				case 'PLACE_SELL':
+					message = '*Đang đặt lệnh* bán. 💵\n' +
+						'Coin: ' + symbol + '\n' +
+						'Số lượng: ' + quantity + '\n' +
+						'Giá bán: ' + price;
+					break;
+
+				case 'PLACE_SELL_DONE':
+					message = 'Đã bán *thành công*. ✔\n' +
+						'Coin: ' + symbol;
+					break;
+
+				case 'CHECK_BUY':
+					message = '*Kiểm tra* lệnh mua ' + symbol + ' ... 🔍';
+					break;
+
+				case 'CHECK_SELL':
+					message = '*Kiểm tra* ' + symbol + ' bán ... 🔍 ';
+					break;
+
+				case 'BUY_CONFIRMED':
+					message = 'Đã đặt mua *thành công*. ✔\n' +
+						'Coin: ' + symbol;
+					break;
+
+				case 'BUY_NOT_FOUND':
+					message = 'Lệnh mua ' + symbol + ' *không tìm thấy*. ' + '❌' + 'đang thử lại...';
+					break;
+
+				case 'SELL_CONFIRMED':
+					message = 'Đã đặt bán *thành công*. ✔\n' +
+						'Coin: ' + symbol;
+					break;
+
+				case 'SELL_NOT_FOUND':
+					message = 'Lệnh bán ' + symbol + ' *không tìm thấy*. ' + '❌' + ' đang thử lại...';
+					break;
+
+				case 'CANCEL_BUY':
+					message = 'Lệnh mua ' + symbol + ' *đã được huỷ*.';
+					break;
+
+				case 'CANCEL_BUY_FAILED':
+					message = 'Lệnh mua ' + symbol + ' *không huỷ được*. ' + '🚨' + '\n đang thử lại...';
+					break;
+
+				case 'CANCEL_SELL':
+					message = 'Lệnh bán ' + symbol + ' *đã được huỷ*.';
+					break;
+
+				case 'CANCEL_SELL_FAILED':
+
+					message = 'Lệnh bán ' + symbol + ' *không huỷ được*. ' + '🚨' + '\n đang thử lại...';
+					break;
+
+				case 'SELL_STOP_LOSS':
+					message = 'Bán *tất cả* số coin  ' + symbol + ' vì bán cắt lỗ.';
+					break;
+
+				case 'REMOVE_LASTBUY':
+					message = 'Đang xoá giá mua gần nhất *' + symbol + '*.';
+					break;
+
+				case 'LINK':
+					message = 'Bot *link*: ' + symbol;
+					break;
+
+				default:
+					message = 'Thông cảm. Tôi chưa xác định được vấn đề mua bán. Chắc đang có vấn đề.\n' +
+						action + '\n' +
+						symbol;
+					break;
+			}
+			break;
+
+		case 'en':
 
 			switch (action) {
 
@@ -87,12 +188,12 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 					message = 'Buy order of ' + symbol + ' *was canceled*.';
 					break;
 
-				case 'CALCEL_BUY_FAILED':
+				case 'CANCEL_BUY_FAILED':
 					message = 'Buy order of ' + symbol + ' *coudnt be canceled*. ' + '🚨' + '\n retrying...';
 					break;
 
 				case 'CANCEL_SELL':
-					message = 'Sell order of ' + symbol + ' *was canceled*.'
+					message = 'Sell order of ' + symbol + ' *was canceled*.';
 					break;
 
 				case 'CANCEL_SELL_FAILED':
@@ -120,7 +221,7 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 			}
 			break;
 
-		case 'pt-br':
+		case 'pt':
 
 			switch (action) {
 
@@ -188,7 +289,7 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 					message = 'Ordem de compra de: ' + symbol + ' *foi cancelada*.';
 					break;
 
-				case 'CALCEL_BUY_FAILED':
+				case 'CANCEL_BUY_FAILED':
 					message = 'Ordem de compra de: ' + symbol + ' *não pôde ser cancelada*.' + '🚨' + '\n tentando de novo...';
 					break;
 
@@ -216,7 +317,6 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 			}
 			break;
 	}
-
 
 	if (config.get('slack.enabled') == true) {
 		slack.notifySlack(message);
