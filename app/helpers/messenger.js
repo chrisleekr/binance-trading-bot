@@ -104,7 +104,7 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 					message = 'Bán *tất cả* số coin  ' + symbol + ' vì bán cắt lỗ.';
 					break;
 
-				case 'REMOVE_LASTBUY':
+				case 'REMOVE_LAST_BUY':
 					message = 'Đang xoá giá mua gần nhất *' + symbol + '*.';
 					break;
 
@@ -205,7 +205,7 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 					message = 'Sold *all* of  ' + symbol + ' because of stop-loss.';
 					break;
 
-				case 'REMOVE_LASTBUY':
+				case 'REMOVE_LAST_BUY':
 					message = 'Removing last buy price from *' + symbol + '*.';
 					break;
 
@@ -306,7 +306,7 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 					message = 'Vendi *TUDO* de:  ' + symbol + ' por causa do para-perda.';
 					break;
 
-				case 'REMOVE_LASTBUY':
+				case 'REMOVE_LAST_BUY':
 					message = 'Removendo último preço comprado de: *' + symbol + '*.';
 					break;
 

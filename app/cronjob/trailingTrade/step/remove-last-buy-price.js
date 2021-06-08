@@ -42,7 +42,7 @@ const removeLastBuyPrice = async (
   });
 
   messenger.sendMessage(
-    symbol, null, 'REMOVE_LASTBUY');
+    symbol, null, 'REMOVE_LAST_BUY');
 };
 
 /**
