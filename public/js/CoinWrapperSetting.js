@@ -74,7 +74,7 @@ class CoinWrapperSetting extends React.Component {
             </div>
 
             <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>Last Buy Price Remove Threshold:</span>
+              <span className='coin-info-label'>Last Buy Price Threshold:</span>
               <HightlightChange className='coin-info-value'>
                 {symbolConfiguration.buy.lastBuyPriceRemoveThreshold} {quoteAsset}
               </HightlightChange>
