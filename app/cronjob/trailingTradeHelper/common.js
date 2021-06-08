@@ -74,12 +74,70 @@ const cacheExchangeSymbols = async (logger, _globalConfiguration) => {
 };
 
 /**
+ * Add estimatedBTC and canDustTransfer flags to balances
+ *  - Leave this function for future reference
+ *
+ * @param {*} logger
+ * @param {*} accountInfo
+ * @returns
+ */
+/*
+const extendBalancesWithDustTransfer = async (_logger, rawAccountInfo) => {
+  const accountInfo = rawAccountInfo;
+  const ignoreAssets = ['BNB', 'BTC'];
+
+  const newBalances = await Promise.all(
+    accountInfo.balances.map(async b => {
+      const balance = b;
+      const symbol = `${b.asset}BTC`;
+
+      // Set default value
+      balance.estimatedBTC = -1;
+      balance.canDustTransfer = false;
+
+      // If asset can be ignored
+      if (ignoreAssets.includes(balance.asset)) {
+        return balance;
+      }
+
+      // Get latest candle for asset+BTC pair
+      const cachedLatestCandle =
+        JSON.parse(
+          await cache.hget('trailing-trade-symbols', `${symbol}-latest-candle`)
+        ) || {};
+
+      // If cannot find the latest candle, assume not be able to do dust transfer
+      if (_.isEmpty(cachedLatestCandle)) {
+        return balance;
+      }
+
+      // https://academy.binance.com/en/articles/converting-dust-on-binance
+      // In order to qualify the dust must have a value less than 0.001BTC
+
+      balance.estimatedBTC =
+        parseFloat(cachedLatestCandle.close) * parseFloat(balance.free);
+
+      // If the estimated BTC is less than 0.001, then set dust transfer
+      if (balance.estimatedBTC === 0 || balance.estimatedBTC <= 0.001) {
+        balance.canDustTransfer = true;
+      }
+
+      return balance;
+    })
+  );
+
+  accountInfo.balances = newBalances;
+  return accountInfo;
+};
+*/
+
+/**
  * Retrieve account information from API and filter balances
  *
  * @param {*} logger
  */
 const getAccountInfoFromAPI = async logger => {
-  logger.info({ function: 'accountInfo' }, 'Retrieving account info from API');
+  logger.info({ tag: 'get-account-info' }, 'Retrieving account info from API');
   const accountInfo = await binance.client.accountInfo();
 
   accountInfo.balances = accountInfo.balances.reduce((acc, b) => {
@@ -92,7 +150,7 @@ const getAccountInfoFromAPI = async logger => {
   }, []);
 
   logger.info(
-    { debug: true, function: 'accountInfo' },
+    { tag: 'get-account-info', accountInfo },
     'Retrieved account information from API'
   );
 
@@ -113,15 +171,20 @@ const getAccountInfoFromAPI = async logger => {
  */
 const getAccountInfo = async logger => {
   const accountInfo =
-    JSON.parse(await cache.hget('trailing-trade-common', 'account-info')) || {};
+    JSON.parse(
+      await cache.hgetWithoutLock('trailing-trade-common', 'account-info')
+    ) || {};
 
   if (_.isEmpty(accountInfo) === false) {
-    logger.info({ accountInfo }, 'Retrieved account info from cache');
+    logger.info(
+      { tag: 'get-account-info', accountInfo },
+      'Retrieved account info from cache'
+    );
     return accountInfo;
   }
 
   logger.info(
-    { debug: true },
+    { tag: 'get-account-info' },
     'Could not parse account information from cache, get from api'
   );
 
@@ -202,19 +265,33 @@ const getAndCacheOpenOrdersForSymbol = async (logger, symbol) => {
  * @param {*} logger
  * @param {*} symbol
  */
-const getLastBuyPrice = async (logger, symbol) => {
-  const lastBuyPriceDoc = await mongo.findOne(
+const getLastBuyPrice = async (logger, symbol) =>
+  mongo.findOne(logger, 'trailing-trade-symbols', {
+    key: `${symbol}-last-buy-price`
+  });
+
+/**
+ * Save last buy price to mongodb
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} param2
+ */
+const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity }) => {
+  logger.info(
+    { tag: 'save-last-buy-price', symbol, lastBuyPrice, quantity },
+    'Save last buy price'
+  );
+  return mongo.upsertOne(
     logger,
     'trailing-trade-symbols',
+    { key: `${symbol}-last-buy-price` },
     {
-      key: `${symbol}-last-buy-price`
+      key: `${symbol}-last-buy-price`,
+      lastBuyPrice,
+      quantity
     }
   );
-
-  const cachedLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
-  logger.debug({ cachedLastBuyPrice }, 'Last buy price from cache');
-
-  return cachedLastBuyPrice;
 };
 
 /**
@@ -330,14 +407,42 @@ const isExceedAPILimit = logger => {
   return usedWeight1m > 1180;
 };
 
+/**
+ * Get override data
+ *
+ * @param {*} -logger
+ * @param {*} symbol
+ * @returns
+ */
+const getOverrideData = async (_logger, symbol) => {
+  const overrideData = await cache.hget('trailing-trade-override', symbol);
+  if (!overrideData) {
+    return null;
+  }
+
+  return JSON.parse(overrideData);
+};
+
+/**
+ * Remove override data
+ *
+ * @param {*} _logger
+ * @param {*} symbol
+ * @returns
+ */
+const removeOverrideData = async (_logger, symbol) =>
+  cache.hdel('trailing-trade-override', symbol);
+
 module.exports = {
   cacheExchangeSymbols,
   getAccountInfoFromAPI,
   getAccountInfo,
+  // extendBalancesWithDustTransfer,
   getOpenOrdersFromAPI,
   getOpenOrdersBySymbolFromAPI,
   getAndCacheOpenOrdersForSymbol,
   getLastBuyPrice,
+  saveLastBuyPrice,
   lockSymbol,
   isSymbolLocked,
   unlockSymbol,
@@ -345,5 +450,7 @@ module.exports = {
   isActionDisabled,
   deleteDisableAction,
   getAPILimit,
-  isExceedAPILimit
+  isExceedAPILimit,
+  getOverrideData,
+  removeOverrideData
 };

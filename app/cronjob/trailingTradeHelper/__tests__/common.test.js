@@ -325,7 +325,7 @@ describe('common.js', () => {
         cacheMock = cache;
         binanceMock = binance;
 
-        cacheMock.hget = jest
+        cacheMock.hgetWithoutLock = jest
           .fn()
           .mockResolvedValue(
             JSON.stringify(
@@ -342,8 +342,8 @@ describe('common.js', () => {
         result = await commonHelper.getAccountInfo(logger);
       });
 
-      it('triggers cache.hget for account info', () => {
-        expect(cacheMock.hget).toHaveBeenCalledWith(
+      it('triggers cache.hgetWithoutLock for account info', () => {
+        expect(cacheMock.hgetWithoutLock).toHaveBeenCalledWith(
           'trailing-trade-common',
           'account-info'
         );
@@ -375,7 +375,7 @@ describe('common.js', () => {
         cacheMock = cache;
         binanceMock = binance;
 
-        cacheMock.hget = jest.fn().mockResolvedValue(null);
+        cacheMock.hgetWithoutLock = jest.fn().mockResolvedValue(null);
         cacheMock.hset = jest.fn().mockResolvedValue(true);
 
         binanceMock.client.accountInfo = jest
@@ -386,8 +386,8 @@ describe('common.js', () => {
         result = await commonHelper.getAccountInfo(logger);
       });
 
-      it('triggers cache.hget for account info', () => {
-        expect(cacheMock.hget).toHaveBeenCalledWith(
+      it('triggers cache.hgetWithoutLock for account info', () => {
+        expect(cacheMock.hgetWithoutLock).toHaveBeenCalledWith(
           'trailing-trade-common',
           'account-info'
         );
@@ -558,7 +558,8 @@ describe('common.js', () => {
         loggerMock = logger;
 
         mongoMock.findOne = jest.fn().mockResolvedValue({
-          lastBuyPrice: 100
+          lastBuyPrice: 100,
+          quantity: 10
         });
 
         commonHelper = require('../common');
@@ -576,8 +577,45 @@ describe('common.js', () => {
       });
 
       it('returns expected value', () => {
-        expect(result).toStrictEqual(100);
+        expect(result).toStrictEqual({
+          lastBuyPrice: 100,
+          quantity: 10
+        });
       });
+    });
+  });
+
+  describe('saveLastBuyPrice', () => {
+    beforeEach(async () => {
+      const { mongo, logger } = require('../../../helpers');
+
+      mongoMock = mongo;
+      loggerMock = logger;
+
+      mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
+
+      commonHelper = require('../common');
+      result = await commonHelper.saveLastBuyPrice(loggerMock, 'BTCUSDT', {
+        lastBuyPrice: 1000,
+        quantity: 1
+      });
+    });
+
+    it('triggers mongo.upsertOne', () => {
+      expect(mongoMock.upsertOne).toHaveBeenCalledWith(
+        loggerMock,
+        'trailing-trade-symbols',
+        { key: 'BTCUSDT-last-buy-price' },
+        {
+          key: 'BTCUSDT-last-buy-price',
+          lastBuyPrice: 1000,
+          quantity: 1
+        }
+      );
+    });
+
+    it('returns expected value', () => {
+      expect(result).toBeTruthy();
     });
   });
 
@@ -891,6 +929,86 @@ describe('common.js', () => {
           expect(result).toBeFalsy();
         });
       });
+    });
+  });
+
+  describe('getOverrideData', () => {
+    describe('when there is override data', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hget = jest.fn().mockResolvedValue(
+          JSON.stringify({
+            action: 'manual-trade',
+            order: {
+              some: 'value'
+            }
+          })
+        );
+
+        commonHelper = require('../common');
+
+        result = await commonHelper.getOverrideData(loggerMock, 'BTCUSDT');
+      });
+
+      it('triggers cache.hget', () => {
+        expect(cacheMock.hget).toHaveBeenCalledWith(
+          'trailing-trade-override',
+          'BTCUSDT'
+        );
+      });
+
+      it('retruns expected value', () => {
+        expect(result).toStrictEqual({
+          action: 'manual-trade',
+          order: {
+            some: 'value'
+          }
+        });
+      });
+    });
+
+    describe('when there is no override', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hget = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.getOverrideData(loggerMock, 'BTCUSDT');
+      });
+
+      it('retruns expected value', () => {
+        expect(result).toBeNull();
+      });
+    });
+  });
+
+  describe('removeOverrideData', () => {
+    beforeEach(async () => {
+      const { cache, logger } = require('../../../helpers');
+
+      loggerMock = logger;
+      cacheMock = cache;
+
+      cacheMock.hdel = jest.fn().mockResolvedValue(true);
+
+      commonHelper = require('../common');
+
+      result = await commonHelper.removeOverrideData(loggerMock, 'BTCUSDT');
+    });
+
+    it('triggers cache.hdel', () => {
+      expect(cacheMock.hdel).toHaveBeenCalledWith(
+        'trailing-trade-override',
+        'BTCUSDT'
+      );
     });
   });
 });

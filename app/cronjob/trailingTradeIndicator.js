@@ -31,7 +31,8 @@ const execute = async logger => {
     symbolConfiguration: {},
     accountInfo: {},
     indicators: {},
-    openOrders: []
+    openOrders: [],
+    apiLimit: { start: getAPILimit(logger), end: null }
   };
 
   try {
@@ -92,6 +93,8 @@ const execute = async logger => {
 
     // Unlock symbol for processing
     await unlockSymbol(logger, symbol);
+
+    data.apiLimit.end = getAPILimit(logger);
 
     logger.info(
       { debug: true, symbol },

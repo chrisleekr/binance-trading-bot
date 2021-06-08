@@ -5,11 +5,13 @@ class CoinWrapperBuyOrders extends React.Component {
   render() {
     const {
       symbolInfo: {
+        symbol,
         symbolInfo: {
           filterPrice: { tickSize }
         },
         buy: { openOrders }
-      }
+      },
+      sendWebSocket
     } = this.props;
 
     if (openOrders.length === 0) {
@@ -20,9 +22,18 @@ class CoinWrapperBuyOrders extends React.Component {
 
     const renderOpenOrders = openOrders.map((openOrder, index) => {
       return (
-        <div key={index} className='coin-info-sub-open-order-wrapper'>
+        <div
+          key={'coin-wrapper-buy-orders-' + index}
+          className='coin-info-sub-open-order-wrapper'>
           <div className='coin-info-column coin-info-column-title'>
-            <span className='coin-info-label'>Open Order #{index + 1}</span>
+            <div className='coin-info-label d-flex flex-row'>
+              <span>Open Order #{index + 1}</span>{' '}
+              <SymbolCancelIcon
+                symbol={symbol}
+                order={openOrder}
+                sendWebSocket={sendWebSocket}
+              />
+            </div>
 
             {openOrder.updatedAt && moment(openOrder.updatedAt).isValid() ? (
               <HightlightChange

@@ -1,12 +1,16 @@
 const WebSocket = require('ws');
+const { PubSub } = require('../../helpers');
+
 const {
   handleLatest,
   handleSettingUpdate,
-  handleSymbolUpdate,
+  handleSymbolUpdateLastBuyPrice,
   handleSymbolDelete,
   handleSymbolSettingUpdate,
   handleSymbolSettingDelete,
-  handleSymbolEnableAction
+  handleSymbolEnableAction,
+  handleManualTrade,
+  handleCancelOrder
 } = require('./handlers');
 
 const handleWarning = (logger, ws, message) => {
@@ -50,8 +54,8 @@ const configureWebSocket = async (server, funcLogger) => {
         case 'setting-update':
           await handleSettingUpdate(commandLogger, ws, payload);
           break;
-        case 'symbol-update':
-          await handleSymbolUpdate(commandLogger, ws, payload);
+        case 'symbol-update-last-buy-price':
+          await handleSymbolUpdateLastBuyPrice(commandLogger, ws, payload);
           break;
         case 'symbol-delete':
           await handleSymbolDelete(commandLogger, ws, payload);
@@ -65,6 +69,12 @@ const configureWebSocket = async (server, funcLogger) => {
         case 'symbol-enable-action':
           await handleSymbolEnableAction(commandLogger, ws, payload);
           break;
+        case 'manual-trade':
+          await handleManualTrade(commandLogger, ws, payload);
+          break;
+        case 'cancel-order':
+          await handleCancelOrder(commandLogger, ws, payload);
+          break;
         default:
           handleWarning(logger, ws, 'Command is not recognised.');
       }
@@ -77,6 +87,20 @@ const configureWebSocket = async (server, funcLogger) => {
         message: 'You are successfully connected to WebSocket.'
       })
     );
+
+    PubSub.subscribe('frontend-notification', async (message, data) => {
+      logger.info(
+        { tag: 'frontend-notification' },
+        `Message: ${message}, Data: ${data}`
+      );
+      ws.send(
+        JSON.stringify({
+          result: true,
+          type: 'notification',
+          message: data
+        })
+      );
+    });
   });
 
   server.on('upgrade', (request, socket, head) => {

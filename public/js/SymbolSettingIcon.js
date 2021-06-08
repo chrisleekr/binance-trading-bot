@@ -44,10 +44,6 @@ class SymbolSettingIcon extends React.Component {
 
   handleFormSubmit(e) {
     e.preventDefault();
-    console.log(
-      'handleFormSubmit this.state.symbolConfiguration ',
-      this.state.symbolConfiguration
-    );
 
     this.handleModalClose('setting');
 

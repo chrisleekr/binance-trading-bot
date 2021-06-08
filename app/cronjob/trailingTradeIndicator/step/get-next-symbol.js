@@ -19,14 +19,20 @@ const execute = async (logger, rawData) => {
     'last-indicator-symbol'
   );
 
-  logger.info({ cachedLastSymbol }, 'Cached last symbol');
+  logger.info(
+    { tag: 'get-next-symbol', cachedLastSymbol, symbols },
+    'Cached last symbol'
+  );
   let currentSymbol = symbols[0];
   if (cachedLastSymbol) {
     const cachedSymbolIndex = symbols.indexOf(cachedLastSymbol);
     currentSymbol = symbols[cachedSymbolIndex + 1] || symbols[0];
   }
 
-  logger.info({ currentSymbol }, 'Determined current symbol');
+  logger.info(
+    { tag: 'get-next-symbol', currentSymbol },
+    'Determined current symbol'
+  );
   await cache.hset(
     'trailing-trade-common',
     'last-indicator-symbol',

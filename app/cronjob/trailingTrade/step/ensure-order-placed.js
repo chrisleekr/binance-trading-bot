@@ -122,7 +122,15 @@ const isOrderExistingInOpenOrders = (_logger, order, openOrders) =>
 const execute = async (logger, rawData) => {
   const data = rawData;
 
-  const { symbol, featureToggle } = data;
+  const { symbol, action, featureToggle } = data;
+
+  if (action !== 'not-determined') {
+    logger.info(
+      { action },
+      'Action is already defined, do not try to ensure order placed.'
+    );
+    return data;
+  }
 
   // Ensure buy order placed
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);

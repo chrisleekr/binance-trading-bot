@@ -20,7 +20,7 @@ class SettingIconMaxPurchaseAmount extends React.Component {
         false
     ) {
       const { maxPurchaseAmounts } = nextProps;
-      console.log('maxPurchaseAmounts has changed', { maxPurchaseAmounts });
+
       this.setState({
         maxPurchaseAmounts
       });
@@ -38,11 +38,6 @@ class SettingIconMaxPurchaseAmount extends React.Component {
     const stateKey = target.getAttribute('data-state-key');
 
     const { maxPurchaseAmounts } = this.state;
-
-    console.log(
-      '_.set(maxPurchaseAmounts, stateKey, value) => ',
-      _.set(maxPurchaseAmounts, stateKey, value)
-    );
 
     const newMaxPurchaseAmounts = _.set(maxPurchaseAmounts, stateKey, value);
     this.setState({
@@ -63,7 +58,7 @@ class SettingIconMaxPurchaseAmount extends React.Component {
     return quoteAssets.map((quoteAsset, index) => {
       return (
         <div
-          key={quoteAsset + '-' + index}
+          key={'quote-asset-' + quoteAsset + '-' + index}
           className='coin-info-max-purchase-amount-wrapper'>
           <Form.Group
             controlId={'field-max-limit-percentage-' + quoteAsset}

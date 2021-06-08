@@ -5,11 +5,13 @@ describe('index', () => {
     expect(index).toStrictEqual({
       handleLatest: expect.any(Function),
       handleSettingUpdate: expect.any(Function),
-      handleSymbolUpdate: expect.any(Function),
+      handleSymbolUpdateLastBuyPrice: expect.any(Function),
       handleSymbolDelete: expect.any(Function),
       handleSymbolSettingUpdate: expect.any(Function),
       handleSymbolSettingDelete: expect.any(Function),
-      handleSymbolEnableAction: expect.any(Function)
+      handleSymbolEnableAction: expect.any(Function),
+      handleManualTrade: expect.any(Function),
+      handleCancelOrder: expect.any(Function)
     });
   });
 });

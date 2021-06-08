@@ -70,11 +70,12 @@ const handleLatest = async (logger, ws, _payload) => {
         logger,
         newSymbol.symbol
       );
+
       // Retrieve latest last buy price
-      newSymbol.sell.lastBuyPrice = await getLastBuyPrice(
-        logger,
-        newSymbol.symbol
-      );
+      const lastBuyPriceDoc = await getLastBuyPrice(logger, newSymbol.symbol);
+      const lastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
+      newSymbol.sell.lastBuyPrice = lastBuyPrice;
+
       // Retreive action disabled
       newSymbol.isActionDisabled = await isActionDisabled(newSymbol.symbol);
       return newSymbol;
