@@ -17,7 +17,7 @@ class SettingIconMaxPurchaseAmount extends React.Component {
     if (
       _.isEmpty(nextProps.maxPurchaseAmounts) === false &&
       _.isEqual(nextProps.maxPurchaseAmounts, this.state.maxPurchaseAmounts) ===
-        false
+      false
     ) {
       const { maxPurchaseAmounts } = nextProps;
 
@@ -33,8 +33,8 @@ class SettingIconMaxPurchaseAmount extends React.Component {
       target.type === 'checkbox'
         ? target.checked
         : target.type === 'number'
-        ? +target.value
-        : target.value;
+          ? +target.value
+          : target.value;
     const stateKey = target.getAttribute('data-state-key');
 
     const { maxPurchaseAmounts } = this.state;

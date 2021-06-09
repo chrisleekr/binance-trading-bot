@@ -119,7 +119,7 @@ class App extends React.Component {
       let response = {};
       try {
         response = JSON.parse(evt.data);
-      } catch (_e) {}
+      } catch (_e) { }
 
       if (response.type === 'latest') {
         if (_.isEmpty(response.common.accountInfo)) {

@@ -167,6 +167,7 @@ class SettingIcon extends React.Component {
     const { configuration, availableSymbols, quoteAssets } = this.state;
     const { symbols: selectedSymbols } = configuration;
 
+
     if (_.isEmpty(configuration)) {
       return '';
     }

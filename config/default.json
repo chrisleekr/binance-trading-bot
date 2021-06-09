@@ -32,9 +32,6 @@
     "chatid": "",
     "token": ""
   },
-  "language": {
-    "definedLanguage": "en-us"
-  },
   "localTunnel": {
     "enabled": true,
     "subdomain": "default"
@@ -84,6 +81,7 @@
         }
       },
       "system": {
+        "language": "en",
         "temporaryDisableActionAfterConfirmingOrder": 20,
         "checkManualBuyOrderPeriod": 5,
         "refreshAccountInfoPeriod": 1
