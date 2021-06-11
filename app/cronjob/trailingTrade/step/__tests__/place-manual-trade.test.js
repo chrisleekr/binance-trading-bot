@@ -17,8 +17,9 @@ describe('place-manual-trade.js', () => {
     jest.clearAllMocks().resetModules();
 
     // Mock moment to return static date
-    jest.mock('moment', () => () =>
-      jest.requireActual('moment')('2020-01-01T00:00:00.000Z')
+    jest.mock(
+      'moment',
+      () => () => jest.requireActual('moment')('2020-01-01T00:00:00.000Z')
     );
 
     const { binance, slack, cache, logger } = require('../../../../helpers');

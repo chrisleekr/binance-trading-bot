@@ -8,6 +8,7 @@ const { handleSymbolSettingUpdate } = require('./symbol-setting-update');
 const { handleSymbolSettingDelete } = require('./symbol-setting-delete');
 const { handleSymbolEnableAction } = require('./symbol-enable-action');
 const { handleManualTrade } = require('./manual-trade');
+const { handleManualTradeAllSymbols } = require('./manual-trade-all-symbols');
 const { handleCancelOrder } = require('./cancel-order');
 
 module.exports = {
@@ -19,5 +20,6 @@ module.exports = {
   handleSymbolSettingDelete,
   handleSymbolEnableAction,
   handleManualTrade,
+  handleManualTradeAllSymbols,
   handleCancelOrder
 };

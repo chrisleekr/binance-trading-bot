@@ -39,14 +39,16 @@ describe('cancel-order.js', () => {
   });
 
   it('triggers cache.hset', () => {
-    expect(cacheMock.hset).toHaveBeenCalledWith(
-      'trailing-trade-override',
-      'BTCUSDT',
-      JSON.stringify({
-        action: 'cancel-order',
-        order: { some: 'value' }
-      })
+    expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
+      'trailing-trade-override'
     );
+    expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual('BTCUSDT');
+    const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
+    expect(args).toStrictEqual({
+      action: 'cancel-order',
+      order: { some: 'value' },
+      actionAt: expect.any(String)
+    });
   });
 
   it('triggers PubSub.publish', () => {

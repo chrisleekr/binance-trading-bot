@@ -10,6 +10,7 @@ const {
   handleSymbolSettingDelete,
   handleSymbolEnableAction,
   handleManualTrade,
+  handleManualTradeAllSymbols,
   handleCancelOrder
 } = require('./handlers');
 
@@ -71,6 +72,9 @@ const configureWebSocket = async (server, funcLogger) => {
           break;
         case 'manual-trade':
           await handleManualTrade(commandLogger, ws, payload);
+          break;
+        case 'manual-trade-all-symbols':
+          await handleManualTradeAllSymbols(commandLogger, ws, payload);
           break;
         case 'cancel-order':
           await handleCancelOrder(commandLogger, ws, payload);

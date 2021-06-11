@@ -125,15 +125,9 @@ const formatOrder = async (logger, symbol, order) => {
  * @param {*} symbol
  * @param {*} side
  * @param {*} order
- * @param {*} orderParams
+ * @param {*} params
  */
-const slackMessageOrderParams = async (
-  logger,
-  symbol,
-  side,
-  order,
-  orderParams
-) => {
+const slackMessageOrderParams = async (logger, symbol, side, order, params) => {
   const { type: rawType, marketType } = order[side];
   let type = rawType.toUpperCase();
 
@@ -145,11 +139,7 @@ const slackMessageOrderParams = async (
     `${symbol} Manual ${side.toUpperCase()} Action (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +
-      `- Order Params: \`\`\`${JSON.stringify(
-        orderParams,
-        undefined,
-        2
-      )}\`\`\`\n` +
+      `- Order Params: \`\`\`${JSON.stringify(params, undefined, 2)}\`\`\`\n` +
       `- Current API Usage: ${getAPILimit(logger)}`
   );
 };
@@ -235,6 +225,7 @@ const execute = async (logger, rawData) => {
     symbol,
     isLocked,
     action,
+    baseAssetBalance,
     symbolConfiguration: {
       system: { checkManualBuyOrderPeriod }
     },
@@ -255,7 +246,10 @@ const execute = async (logger, rawData) => {
 
   // Assume order is provided with correct value
   const orderParams = await formatOrder(logger, symbol, order);
-  slackMessageOrderParams(logger, symbol, order.side, order, orderParams);
+  slackMessageOrderParams(logger, symbol, order.side, order, {
+    orderParams,
+    baseAssetBalance
+  });
 
   const orderResult = await binance.client.order(orderParams);
 

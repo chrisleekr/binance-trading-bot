@@ -565,10 +565,49 @@ input[type='number'] {
   }
 }
 
+.manual-trade-all-wrapper {
+  width: 100%;
+  padding-right: 0;
+}
+
+.manual-trade-all-row-base-assets-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.manual-trade-all-row-base-assets {
+  width: 50%;
+}
+
+@media (max-width: 600px) {
+  .manual-trade-all-row-base-assets-wrapper {
+    flex-direction: column;
+  }
+
+  .manual-trade-all-row-base-assets {
+    width: 100%;
+  }
+}
+
 .manual-trade-title-buy {
   font-weight: bold;
   font-size: 1.2rem;
 }
+
+.manual-trade-quote-asset-title {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  border-bottom: 1px solid #c1c1c1;
+}
+
+.btn-percentage {
+  font-size: 0.7rem !important;
+  line-height: 1 !important;
+  padding: 0.2rem 0.5rem !important;
+}
+
 /**
   End: Manual Trade
 */

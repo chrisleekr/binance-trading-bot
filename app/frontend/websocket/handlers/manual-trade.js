@@ -1,3 +1,4 @@
+const moment = require('moment');
 const { cache, PubSub } = require('../../../helpers');
 
 const handleManualTrade = async (logger, ws, payload) => {
@@ -12,7 +13,8 @@ const handleManualTrade = async (logger, ws, payload) => {
     `${symbol}`,
     JSON.stringify({
       action: 'manual-trade',
-      order
+      order,
+      actionAt: moment()
     })
   );
 

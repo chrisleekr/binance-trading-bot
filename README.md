@@ -30,7 +30,7 @@ incurred directly or indirectly by using this code. Read
 
 ### Support manual trade
 
-The bot is now supporting manual trade per symbol. It will automatically re-calculate the last buy price if exists.
+The bot is now supporting manual trade per symbol and all symbols. It will automatically re-calculate the last buy price if exists.
 
 ### Support all symbols
 

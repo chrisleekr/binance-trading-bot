@@ -23,9 +23,8 @@ class SettingIcon extends React.Component {
 
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
     this.handleInputChange = this.handleInputChange.bind(this);
-    this.handleMaxPurchaeAmountChange = this.handleMaxPurchaeAmountChange.bind(
-      this
-    );
+    this.handleMaxPurchaeAmountChange =
+      this.handleMaxPurchaeAmountChange.bind(this);
   }
 
   getQuoteAssets(exchangeSymbols, selectedSymbols, maxPurchaseAmounts) {
@@ -194,16 +193,15 @@ class SettingIcon extends React.Component {
 
                                 configuration.symbols = selected;
 
-                                const {
-                                  quoteAssets,
-                                  maxPurchaseAmounts
-                                } = this.getQuoteAssets(
-                                  exchangeSymbols,
-                                  selected,
-                                  configuration.buy.maxPurchaseAmounts
-                                );
+                                const { quoteAssets, maxPurchaseAmounts } =
+                                  this.getQuoteAssets(
+                                    exchangeSymbols,
+                                    selected,
+                                    configuration.buy.maxPurchaseAmounts
+                                  );
 
-                                configuration.buy.maxPurchaseAmounts = maxPurchaseAmounts;
+                                configuration.buy.maxPurchaseAmounts =
+                                  maxPurchaseAmounts;
                                 this.setState({ configuration, quoteAssets });
                               }}
                               size='sm'

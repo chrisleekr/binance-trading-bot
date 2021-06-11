@@ -1,4 +1,5 @@
 const _ = require('lodash');
+const moment = require('moment');
 
 const {
   getOverrideData,
@@ -36,8 +37,9 @@ const execute = async (logger, rawData) => {
 
   // Override action
   if (
-    _.get(overrideData, 'action') === 'manual-trade' ||
-    _.get(overrideData, 'action') === 'cancel-order'
+    (_.get(overrideData, 'action') === 'manual-trade' ||
+      _.get(overrideData, 'action') === 'cancel-order') &&
+    moment(_.get(overrideData, 'actionAt', undefined)) <= moment()
   ) {
     data.action = overrideData.action;
     data.order = overrideData.order;

@@ -448,7 +448,7 @@ class CoinWrapperManualTrade extends React.Component {
           backdrop='static'
           size='xl'>
           <Modal.Header closeButton className='pt-1 pb-1'>
-            <Modal.Title>Manual Trade for {symbol}</Modal.Title>
+            <Modal.Title>Manual trade for {symbol}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
             <p className='d-block text-muted mb-2'>

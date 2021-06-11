@@ -144,6 +144,11 @@
           "__description": "Set the seconds for the period of checking the manual buy order. Note that reducing the seconds can cause issues with the bot exceeding the API usage.",
           "__format": "number"
         },
+        "placeManualOrderInterval": {
+          "__name": "BINANCE_JOBS_TRAILING_TRADE_SYSTEM_PLACE_MANUAL_ORDER_INTERVAL",
+          "__description": "Set the seconds for the period of placing the manual orders. Note that reducing the seconds can cause issues with the bot exceeding the API usage.",
+          "__format": "number"
+        },
         "refreshAccountInfoPeriod": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_SYSTEM_REFRESH_ACCOUNT_INFO_PERIOD",
           "__description": "Set the seconds for the period of checking the account info.",
