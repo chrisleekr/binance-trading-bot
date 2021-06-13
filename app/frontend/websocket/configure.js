@@ -11,7 +11,9 @@ const {
   handleSymbolEnableAction,
   handleManualTrade,
   handleManualTradeAllSymbols,
-  handleCancelOrder
+  handleCancelOrder,
+  handleDustTransferGet,
+  handleDustTransferExecute
 } = require('./handlers');
 
 const handleWarning = (logger, ws, message) => {
@@ -78,6 +80,12 @@ const configureWebSocket = async (server, funcLogger) => {
           break;
         case 'cancel-order':
           await handleCancelOrder(commandLogger, ws, payload);
+          break;
+        case 'dust-transfer-get':
+          await handleDustTransferGet(commandLogger, ws, payload);
+          break;
+        case 'dust-transfer-execute':
+          await handleDustTransferExecute(commandLogger, ws, payload);
           break;
         default:
           handleWarning(logger, ws, 'Command is not recognised.');

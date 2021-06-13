@@ -10,6 +10,8 @@ const { handleSymbolEnableAction } = require('./symbol-enable-action');
 const { handleManualTrade } = require('./manual-trade');
 const { handleManualTradeAllSymbols } = require('./manual-trade-all-symbols');
 const { handleCancelOrder } = require('./cancel-order');
+const { handleDustTransferGet } = require('./dust-transfer-get');
+const { handleDustTransferExecute } = require('./dust-transfer-execute');
 
 module.exports = {
   handleLatest,
@@ -21,5 +23,7 @@ module.exports = {
   handleSymbolEnableAction,
   handleManualTrade,
   handleManualTradeAllSymbols,
-  handleCancelOrder
+  handleCancelOrder,
+  handleDustTransferGet,
+  handleDustTransferExecute
 };

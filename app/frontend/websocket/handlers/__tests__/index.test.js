@@ -12,7 +12,9 @@ describe('index', () => {
       handleSymbolEnableAction: expect.any(Function),
       handleManualTradeAllSymbols: expect.any(Function),
       handleManualTrade: expect.any(Function),
-      handleCancelOrder: expect.any(Function)
+      handleCancelOrder: expect.any(Function),
+      handleDustTransferGet: expect.any(Function),
+      handleDustTransferExecute: expect.any(Function)
     });
   });
 });

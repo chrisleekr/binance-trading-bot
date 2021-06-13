@@ -16,7 +16,8 @@ class App extends React.Component {
       exchangeSymbols: [],
       symbols: [],
       accountInfo: {},
-      publicURL: ''
+      publicURL: '',
+      dustTransfer: {}
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
@@ -139,6 +140,12 @@ class App extends React.Component {
           title: response.message.title
         });
       }
+
+      if (response.type === 'dust-transfer-get-result') {
+        self.setState({
+          dustTransfer: response.dustTransfer
+        });
+      }
     };
 
     instance.onclose = () => {
@@ -188,7 +195,8 @@ class App extends React.Component {
       configuration,
       accountInfo,
       publicURL,
-      apiInfo
+      apiInfo,
+      dustTransfer
     } = this.state;
 
     const coinWrappers = symbols.map((symbol, index) => {
@@ -216,7 +224,11 @@ class App extends React.Component {
         {_.isEmpty(configuration) === false ? (
           <div className='app-body'>
             <div className='app-body-header-wrapper'>
-              <AccountWrapper accountInfo={accountInfo} />
+              <AccountWrapper
+                accountInfo={accountInfo}
+                dustTransfer={dustTransfer}
+                sendWebSocket={this.sendWebSocket}
+              />
               <ProfitLossWrapper
                 symbols={symbols}
                 sendWebSocket={this.sendWebSocket}

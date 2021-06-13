@@ -10,9 +10,11 @@ describe('trailingTradeIndicator', () => {
   let mockGetGlobalConfiguration;
   let mockGetNextSymbol;
   let mockGetSymbolConfiguration;
+  let mockGetOverrideAction;
   let mockGetAccountInfo;
   let mockGetIndicators;
   let mockGetOpenOrders;
+  let mockExecuteDustTransfer;
   let mockSaveDataToCache;
 
   let mockLockSymbol;
@@ -97,6 +99,25 @@ describe('trailingTradeIndicator', () => {
           }
         }));
 
+      mockGetOverrideAction = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            action: 'override-action',
+            overrideParams: { param: 'overrided' }
+          }
+        }));
+
+      mockExecuteDustTransfer = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            dustTransfer: 'dust-transfer'
+          }
+        }));
+
       mockGetAccountInfo = jest.fn().mockImplementation((_logger, rawData) => ({
         ...rawData,
         ...{
@@ -135,6 +156,8 @@ describe('trailingTradeIndicator', () => {
         getGlobalConfiguration: mockGetGlobalConfiguration,
         getNextSymbol: mockGetNextSymbol,
         getSymbolConfiguration: mockGetSymbolConfiguration,
+        getOverrideAction: mockGetOverrideAction,
+        executeDustTransfer: mockExecuteDustTransfer,
         getAccountInfo: mockGetAccountInfo,
         getIndicators: mockGetIndicators,
         getOpenOrders: mockGetOpenOrders,
@@ -165,6 +188,7 @@ describe('trailingTradeIndicator', () => {
         {
           symbol: 'BTCUSDT',
           data: {
+            action: 'override-action',
             featureToggle: { notifyOrderConfirm: true, notifyDebug: false },
             globalConfiguration: { global: 'configuration data' },
             symbol: 'BTCUSDT',
@@ -172,7 +196,9 @@ describe('trailingTradeIndicator', () => {
             accountInfo: { account: 'information' },
             indicators: { some: 'value' },
             openOrders: [{ orderId: 1 }],
+            overrideParams: { param: 'overrided' },
             apiLimit: { start: 10, end: 10 },
+            dustTransfer: 'dust-transfer',
             saved: 'data-to-cache'
           }
         },

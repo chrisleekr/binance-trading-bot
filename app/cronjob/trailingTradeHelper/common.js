@@ -81,7 +81,6 @@ const cacheExchangeSymbols = async (logger, _globalConfiguration) => {
  * @param {*} accountInfo
  * @returns
  */
-/*
 const extendBalancesWithDustTransfer = async (_logger, rawAccountInfo) => {
   const accountInfo = rawAccountInfo;
   const ignoreAssets = ['BNB', 'BTC'];
@@ -118,7 +117,7 @@ const extendBalancesWithDustTransfer = async (_logger, rawAccountInfo) => {
         parseFloat(cachedLatestCandle.close) * parseFloat(balance.free);
 
       // If the estimated BTC is less than 0.001, then set dust transfer
-      if (balance.estimatedBTC === 0 || balance.estimatedBTC <= 0.001) {
+      if (balance.estimatedBTC === 0 || balance.estimatedBTC <= 0.003) {
         balance.canDustTransfer = true;
       }
 
@@ -129,7 +128,6 @@ const extendBalancesWithDustTransfer = async (_logger, rawAccountInfo) => {
   accountInfo.balances = newBalances;
   return accountInfo;
 };
-*/
 
 /**
  * Retrieve account information from API and filter balances
@@ -408,13 +406,13 @@ const isExceedAPILimit = logger => {
 };
 
 /**
- * Get override data
+ * Get override data for Symbol
  *
- * @param {*} -logger
+ * @param {*} logger
  * @param {*} symbol
  * @returns
  */
-const getOverrideData = async (_logger, symbol) => {
+const getOverrideDataForSymbol = async (_logger, symbol) => {
   const overrideData = await cache.hget('trailing-trade-override', symbol);
   if (!overrideData) {
     return null;
@@ -424,20 +422,49 @@ const getOverrideData = async (_logger, symbol) => {
 };
 
 /**
- * Remove override data
+ * Remove override data for Symbol
  *
  * @param {*} _logger
  * @param {*} symbol
  * @returns
  */
-const removeOverrideData = async (_logger, symbol) =>
+const removeOverrideDataForSymbol = async (_logger, symbol) =>
   cache.hdel('trailing-trade-override', symbol);
+
+/**
+ * Get override data for Indicator
+ *
+ * @param {*} logger
+ * @param {*} key
+ * @returns
+ */
+const getOverrideDataForIndicator = async (_logger, key) => {
+  const overrideData = await cache.hget(
+    'trailing-trade-indicator-override',
+    key
+  );
+  if (!overrideData) {
+    return null;
+  }
+
+  return JSON.parse(overrideData);
+};
+
+/**
+ * Remove override data for Indicator
+ *
+ * @param {*} _logger
+ * @param {*} key
+ * @returns
+ */
+const removeOverrideDataForIndicator = async (_logger, key) =>
+  cache.hdel('trailing-trade-indicator-override', key);
 
 module.exports = {
   cacheExchangeSymbols,
   getAccountInfoFromAPI,
   getAccountInfo,
-  // extendBalancesWithDustTransfer,
+  extendBalancesWithDustTransfer,
   getOpenOrdersFromAPI,
   getOpenOrdersBySymbolFromAPI,
   getAndCacheOpenOrdersForSymbol,
@@ -451,6 +478,8 @@ module.exports = {
   deleteDisableAction,
   getAPILimit,
   isExceedAPILimit,
-  getOverrideData,
-  removeOverrideData
+  getOverrideDataForSymbol,
+  removeOverrideDataForSymbol,
+  getOverrideDataForIndicator,
+  removeOverrideDataForIndicator
 };

@@ -55,6 +55,14 @@ input[type='number'] {
   font-size: 0.8rem !important;
 }
 
+.w-10 {
+  width: 10% !important;
+}
+
+.w-15 {
+  width: 15% !important;
+}
+
 .w-20 {
   width: 20% !important;
 }
@@ -671,4 +679,22 @@ input[type='number'] {
 
 /**
   End: Profit Loss
+*/
+
+/**
+  Start: Dust Transfer
+*/
+.btn-dust-transfer {
+  color: #c99400;
+}
+
+.btn-dust-transfer:hover {
+  color: #e2a600;
+}
+
+.checkbox-dust-transfer-symbol label {
+  line-height: 1.5rem;
+}
+/**
+  End: Dust Transfer
 */
