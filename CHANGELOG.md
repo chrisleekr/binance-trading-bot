@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 - Support manual trade for all symbols -  [#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
 - Configured Redis password
+- Support converting small balances to BNB -  [#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
 
 ## [0.0.69] - 2021-06-05
 
