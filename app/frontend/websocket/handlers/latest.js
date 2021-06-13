@@ -1,4 +1,5 @@
 const _ = require('lodash');
+const config = require('config');
 const { version } = require('../../../../package.json');
 
 const { binance, cache } = require('../../../helpers');
@@ -35,8 +36,13 @@ const handleLatest = async (logger, ws, _payload) => {
   const globalConfiguration = await getGlobalConfiguration(logger);
   logger.info({ globalConfiguration }, 'Configuration from MongoDB');
 
+
+
   let common = {};
   try {
+    if (globalConfiguration.language != config.get('language')) {
+      globalConfiguration.language = config.get('language')
+    }
     common = {
       version,
       gitHash: process.env.GIT_HASH || 'unspecified',

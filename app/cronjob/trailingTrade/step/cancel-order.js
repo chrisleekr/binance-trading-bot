@@ -1,5 +1,6 @@
 const moment = require('moment');
-const { binance, slack, cache, PubSub } = require('../../../helpers');
+const config = require('config');
+const { binance, messenger, cache, PubSub } = require('../../../helpers');
 const {
   getAPILimit,
   getAndCacheOpenOrdersForSymbol,
@@ -34,7 +35,11 @@ const execute = async (logger, rawData) => {
     orderId: order.orderId
   };
 
-  slack.sendMessage(
+
+const language = config.get('language');
+const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+
+  messenger.sendMessage(
     `${symbol} Cancel Action (${moment().format('HH:mm:ss.SSS')}): \n` +
       `- Order: \`\`\`${JSON.stringify(order, undefined, 2)}\`\`\`\n` +
       `- Current API Usage: ${getAPILimit(logger)}`
@@ -66,11 +71,10 @@ const execute = async (logger, rawData) => {
   PubSub.publish('frontend-notification', {
     type: 'success',
     title:
-      `The order for ${symbol} has been cancelled successfully.` +
-      ` If the order still display, it should be removed soon.`
+      actions.action_cancel_success[1] + symbol + actions.action_cancel_success[2]
   });
 
-  slack.sendMessage(
+  messenger.sendMessage(
     `${symbol} Cancel Action Result (${moment().format('HH:mm:ss.SSS')}):\n` +
       `- Order Result: \`\`\`${JSON.stringify(
         orderResult,
@@ -80,7 +84,7 @@ const execute = async (logger, rawData) => {
       `- Current API Usage: ${getAPILimit(logger)}`
   );
 
-  data.buy.processMessage = `The order has been cancelled.`;
+  data.buy.processMessage = actions.order_cancelled;
   data.buy.updatedAt = moment().utc();
 
   return data;

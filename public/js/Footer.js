@@ -26,22 +26,24 @@ class Footer extends React.Component {
   }
 
   render() {
-    const { packageVersion, gitHash } = this.props;
+    const { packageVersion, gitHash, jsonStrings } = this.props;
     const { currentVersion } = this.state;
 
-    if (!packageVersion) {
+    if (!packageVersion || _.isEmpty(jsonStrings)) {
       return '';
     }
+
+    const { footer } = jsonStrings;
 
     return (
       <div className='app-footer'>
         <div className='footer-wrapper'>
           <div className='footer-column mr-1'>
-            Running Version: <span className='ml-1'>v{packageVersion}</span> (
+            {footer.version}: <span className='ml-1'>v{packageVersion}</span> (
             {gitHash})
           </div>
           <div className='footer-column'>
-            Latest Version:
+            {footer.latest_version}:
             <a
               href='https://github.com/chrisleekr/binance-trading-bot/releases'
               target='_blank'

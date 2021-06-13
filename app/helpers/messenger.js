@@ -1,6 +1,7 @@
 const config = require('config');
 const telegram = require('./telegram');
 const slack = require('./slack');
+const { messenger } = require('.');
 
 /**
  * Send slack message
@@ -15,7 +16,7 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 		quantity = lastOrder.quantity;
 		price = lastOrder.price;
 	}
-	const language = config.get('jobs.trailingTrade.system.language');
+	const language = config.get('language');
 
 	switch (language) {
 

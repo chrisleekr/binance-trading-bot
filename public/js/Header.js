@@ -8,7 +8,8 @@ class Header extends React.Component {
       publicURL,
       sendWebSocket,
       exchangeSymbols,
-      exchangeFIATs
+      exchangeFIATs,
+      jsonStrings
     } = this.props;
 
     return (
@@ -55,6 +56,7 @@ class Header extends React.Component {
                 exchangeFIATs={exchangeFIATs}
                 configuration={configuration}
                 sendWebSocket={sendWebSocket}
+                jsonStrings={jsonStrings}
               />
             ) : (
               ''

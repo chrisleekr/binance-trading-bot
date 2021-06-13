@@ -3,7 +3,12 @@
 /* eslint-disable no-undef */
 class ProfitLossWrapper extends React.Component {
   render() {
-    const { totalPnL } = this.props;
+    const { totalPnL, jsonStrings } = this.props;
+
+    if (_.isEmpty(jsonStrings)) {
+      return '';
+    }
+    const { profitLossWrapper, commonStrings } = jsonStrings;
 
     const quoteAssets = Object.values(totalPnL).map((pnl, index) => {
       const percentage =
@@ -31,7 +36,7 @@ class ProfitLossWrapper extends React.Component {
               <div className='d-flex flex-row justify-content-between'>
                 <div className='flex-column-left'>
                   <div className='btn-profit-loss text-uppercase font-weight-bold'>
-                    Profit/Loss{' '}
+                    {commonStrings.profit_loss}{' '}
                     <OverlayTrigger
                       trigger='click'
                       key='profit-loss-overlay'
@@ -39,12 +44,7 @@ class ProfitLossWrapper extends React.Component {
                       overlay={
                         <Popover id='profit-loss-overlay-right'>
                           <Popover.Content>
-                            This section displays the estimated profit/loss for
-                            the list of assets that are currently open to
-                            selling with the last buy price recorded. The
-                            calculation is simply adding profit/loss values for
-                            each quote asset. Note that it does not represent
-                            the historical profit/loss.
+                            {profitLossWrapper.profit_loss_description}
                           </Popover.Content>
                         </Popover>
                       }>

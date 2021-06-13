@@ -176,10 +176,10 @@ class CoinWrapperManualTrade extends React.Component {
       target.type === 'button'
         ? target.getAttribute('data-state-value')
         : target.type === 'checkbox'
-        ? target.checked
-        : target.type === 'number'
-        ? +target.value
-        : target.value;
+          ? target.checked
+          : target.type === 'number'
+            ? +target.value
+            : target.value;
     const stateKey = target.getAttribute('data-state-key');
 
     const { order } = this.state;
@@ -423,14 +423,17 @@ class CoinWrapperManualTrade extends React.Component {
       baseAssetBalance,
       quoteAssetBalance,
       baseAssetStepSize,
-      quoteAssetTickSize
+      quoteAssetTickSize,
+      jsonStrings
     } = this.props;
 
     const { showModal, lastCandle, order } = this.state;
 
-    if (_.get(lastCandle, 'close', null) === null) {
+    if (_.get(lastCandle, 'close', null) === null || _.isEmpty(jsonStrings)) {
       return '';
     }
+
+    const { symbolManualTrade, commonStrings } = jsonStrings;
 
     return (
       <div className='coin-info-symbol-manual-trade-wrapper'>
@@ -439,7 +442,7 @@ class CoinWrapperManualTrade extends React.Component {
             type='button'
             className='btn btn-sm btn-manual-trade mr-1'
             onClick={() => this.handleModalShow()}>
-            <i className='fa fa-shopping-bag'></i> Trade
+            <i className='fa fa-shopping-bag'></i> {symbolManualTrade.trade}
           </button>
         </div>
         <Modal
@@ -448,36 +451,31 @@ class CoinWrapperManualTrade extends React.Component {
           backdrop='static'
           size='xl'>
           <Modal.Header closeButton className='pt-1 pb-1'>
-            <Modal.Title>Manual Trade for {symbol}</Modal.Title>
+            <Modal.Title>{symbolManualTrade.manual_trade_for} {symbol}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
             <p className='d-block text-muted mb-2'>
-              In this modal, you can trade {symbol} manually. If you already
-              have the last buy price, then the bot will calculate average cost
-              and re-calculate the last buy price.
+              {symbolManualTrade.description[1]} {symbol} {symbolManualTrade.description[2]}
               <br />
-              To make sure the last buy price is recorded only if the order is
-              successfully executed, the bot will monitor the order after
-              placing the buy order. This action may increase the use of API
-              weight.
+              {symbolManualTrade.description[3]}
             </p>
 
             <div className='manual-trade-wrappers'>
               <div className='manual-trade-wrapper manual-trade-buy-wrapper'>
                 <div className='manual-trade-title-wrapper d-flex flex-row justify-content-between'>
                   <span className='manual-trade-title-buy'>
-                    Buy {baseAssetBalance.asset}
+                    {commonStrings.buy} {baseAssetBalance.asset}
                   </span>
                 </div>
                 <div className='manual-trade-row d-flex flex-row justify-content-between mt-1'>
-                  <div className='manual-trade-label'>Current price</div>
+                  <div className='manual-trade-label'>{commonStrings.current_price}</div>
                   <span className='manual-trade-quote-asset'>
                     {parseFloat(lastCandle.close).toFixed(baseAssetStepSize)}{' '}
                     {baseAssetBalance.asset}
                   </span>
                 </div>
                 <div className='manual-trade-row d-flex flex-row justify-content-between mt-1'>
-                  <div className='manual-trade-label'>Balance</div>
+                  <div className='manual-trade-label'>{commonStrings.balance}</div>
                   <span className='manual-trade-quote-asset'>
                     {parseFloat(quoteAssetBalance.free).toFixed(
                       quoteAssetTickSize
@@ -495,7 +493,7 @@ class CoinWrapperManualTrade extends React.Component {
                       data-state-key='buy.type'
                       data-state-value='limit'
                       onClick={e => this.handleInputChange(e)}>
-                      Limit
+                      {commonStrings.limit}
                     </Button>
                     <Button
                       variant={
@@ -505,24 +503,24 @@ class CoinWrapperManualTrade extends React.Component {
                       data-state-key='buy.type'
                       data-state-value='market'
                       onClick={e => this.handleInputChange(e)}>
-                      Market
+                      {commonStrings.market}
                     </Button>
                   </ButtonGroup>
                 </div>
                 <div className='manual-trade-row manual-trade-price-wrapper mt-2'>
                   <Form.Group controlId='field-buy-price' className='mb-2'>
                     <Form.Label htmlFor='field-buy-price-input' srOnly>
-                      Price
+                      {commonStrings.price}
                     </Form.Label>
                     <InputGroup size='sm'>
                       <InputGroup.Prepend>
-                        <InputGroup.Text>Price</InputGroup.Text>
+                        <InputGroup.Text>{commonStrings.price}</InputGroup.Text>
                       </InputGroup.Prepend>
                       {order.buy.type === 'limit' ? (
                         <FormControl
                           id='field-buy-price-input'
                           type='number'
-                          placeholder='Price'
+                          placeholder={commonStrings.price}
                           step={filterPrice.tickSize}
                           className='text-right'
                           data-state-key='buy.price'
@@ -552,16 +550,16 @@ class CoinWrapperManualTrade extends React.Component {
                   <div className='manual-trade-row manual-trade-quantity-wrapper mt-2'>
                     <Form.Group controlId='field-buy-quantity' className='mb-2'>
                       <Form.Label htmlFor='field-buy-quantity-input' srOnly>
-                        Amount
+                        {commonStrings.quantity}
                       </Form.Label>
                       <InputGroup size='sm'>
                         <InputGroup.Prepend>
-                          <InputGroup.Text>Amount</InputGroup.Text>
+                          <InputGroup.Text>{commonStrings.quantity}</InputGroup.Text>
                         </InputGroup.Prepend>
                         <FormControl
                           id='field-buy-quantity-input'
                           type='number'
-                          placeholder='Amount'
+                          placeholder={commonStrings.quantity}
                           step={filterLotSize.stepSize}
                           className='text-right'
                           max={filterLotSize.maxQty}
@@ -595,7 +593,7 @@ class CoinWrapperManualTrade extends React.Component {
                           data-state-key='buy.marketType'
                           data-state-value='total'
                           onClick={e => this.handleInputChange(e)}>
-                          Total
+                          {commonStrings.total}
                         </Button>
                         <Button
                           variant={
@@ -607,7 +605,7 @@ class CoinWrapperManualTrade extends React.Component {
                           data-state-key='buy.marketType'
                           data-state-value='amount'
                           onClick={e => this.handleInputChange(e)}>
-                          Amount
+                          {commonStrings.quantity}
                         </Button>
                       </ButtonGroup>
                     </div>
@@ -620,22 +618,22 @@ class CoinWrapperManualTrade extends React.Component {
                           htmlFor='field-buy-market-total-input'
                           srOnly>
                           {order.buy.marketType === 'total'
-                            ? 'Total'
-                            : 'Amount'}
+                            ? commonStrings.total
+                            : commonStrings.quantity}
                         </Form.Label>
                         <InputGroup size='sm'>
                           <InputGroup.Prepend>
                             <InputGroup.Text>
                               {order.buy.marketType === 'total'
-                                ? 'Total'
-                                : 'Amount'}
+                                ? commonStrings.total
+                                : commonStrings.quantity}
                             </InputGroup.Text>
                           </InputGroup.Prepend>
                           {order.buy.marketType === 'total' ? (
                             <FormControl
                               id='field-buy-market-total-input'
                               type='number'
-                              placeholder='Quantity'
+                              placeholder={commonStrings.quantity}
                               step={filterPrice.tickSize}
                               className='text-right'
                               data-state-key='buy.quoteOrderQty'
@@ -651,7 +649,7 @@ class CoinWrapperManualTrade extends React.Component {
                               id='field-buy-market-total-input'
                               type='number'
                               step={filterLotSize.stepSize}
-                              placeholder='Total'
+                              placeholder={commonStrings.quantity}
                               className='text-right'
                               data-state-key='buy.marketQuantity'
                               value={order.buy.marketQuantity}
@@ -714,16 +712,16 @@ class CoinWrapperManualTrade extends React.Component {
                   <div className='manual-trade-row manual-trade-total-wrapper mt-2'>
                     <Form.Group controlId='field-buy-total' className='mb-2'>
                       <Form.Label htmlFor='field-buy-total-input' srOnly>
-                        Total
+                        {commonStrings.total}
                       </Form.Label>
                       <InputGroup size='sm'>
                         <InputGroup.Prepend>
-                          <InputGroup.Text>Total</InputGroup.Text>
+                          <InputGroup.Text>{commonStrings.total}</InputGroup.Text>
                         </InputGroup.Prepend>
                         <FormControl
                           id='field-buy-total-input'
                           type='number'
-                          placeholder='Amount'
+                          placeholder={commonStrings.quantity}
                           className='text-right'
                           value={order.buy.total}
                           disabled
@@ -751,26 +749,26 @@ class CoinWrapperManualTrade extends React.Component {
                       this.handleInputChange(e);
                       this.handleFormSubmit(e);
                     }}>
-                    Buy {baseAssetBalance.asset}
+                    {commonStrings.buy} {baseAssetBalance.asset}
                   </button>
                 </div>
               </div>
               <div className='manual-trade-wrapper manual-trade-sell-wrapper'>
                 <div className='manual-trade-title-wrapper d-flex flex-row justify-content-between'>
                   <span className='manual-trade-title-buy font-weight-bolder'>
-                    Sell {baseAssetBalance.asset}
+                    {commonStrings.sell} {baseAssetBalance.asset}
                   </span>
                 </div>
 
                 <div className='manual-trade-row d-flex flex-row justify-content-between mt-1'>
-                  <div className='manual-trade-label'>Current price</div>
+                  <div className='manual-trade-label'>{commonStrings.current_price}</div>
                   <span className='manual-trade-quote-asset'>
                     {parseFloat(lastCandle.close).toFixed(baseAssetStepSize)}{' '}
                     {baseAssetBalance.asset}
                   </span>
                 </div>
                 <div className='manual-trade-row d-flex flex-row justify-content-between'>
-                  <div className='manual-trade-label'>Balance</div>
+                  <div className='manual-trade-label'>{commonStrings.balance}</div>
                   <span className='manual-trade-base-sset'>
                     {parseFloat(baseAssetBalance.free).toFixed(
                       baseAssetStepSize
@@ -788,7 +786,7 @@ class CoinWrapperManualTrade extends React.Component {
                       data-state-key='sell.type'
                       data-state-value='limit'
                       onClick={e => this.handleInputChange(e)}>
-                      Limit
+                      {commonStrings.limit}
                     </Button>
                     <Button
                       variant={
@@ -798,24 +796,24 @@ class CoinWrapperManualTrade extends React.Component {
                       data-state-key='sell.type'
                       data-state-value='market'
                       onClick={e => this.handleInputChange(e)}>
-                      Market
+                      {commonStrings.market}
                     </Button>
                   </ButtonGroup>
                 </div>
                 <div className='manual-trade-row manual-trade-price-wrapper mt-2'>
                   <Form.Group controlId='field-sell-price' className='mb-2'>
                     <Form.Label htmlFor='field-sell-price-input' srOnly>
-                      Price
+                      {commonStrings.price}
                     </Form.Label>
                     <InputGroup size='sm'>
                       <InputGroup.Prepend>
-                        <InputGroup.Text>Price</InputGroup.Text>
+                        <InputGroup.Text>{commonStrings.price}</InputGroup.Text>
                       </InputGroup.Prepend>
                       {order.sell.type === 'limit' ? (
                         <FormControl
                           id='field-sell-price-input'
                           type='number'
-                          placeholder='Price'
+                          placeholder={commonStrings.price}
                           step={filterPrice.tickSize}
                           className='text-right'
                           data-state-key='sell.price'
@@ -828,7 +826,7 @@ class CoinWrapperManualTrade extends React.Component {
                           id='field-sell-price-input'
                           type='text'
                           className='text-right'
-                          value='Market'
+                          value={commonStrings.market}
                           disabled={true}
                         />
                       )}
@@ -847,16 +845,16 @@ class CoinWrapperManualTrade extends React.Component {
                       controlId='field-sell-quantity'
                       className='mb-2'>
                       <Form.Label htmlFor='field-sell-quantity-input' srOnly>
-                        Amount
+                        {commonStrings.quantity}
                       </Form.Label>
                       <InputGroup size='sm'>
                         <InputGroup.Prepend>
-                          <InputGroup.Text>Amount</InputGroup.Text>
+                          <InputGroup.Text>{commonStrings.quantity}</InputGroup.Text>
                         </InputGroup.Prepend>
                         <FormControl
                           id='field-sell-quantity-input'
                           type='number'
-                          placeholder='Amount'
+                          placeholder={commonStrings.quantity}
                           step={filterLotSize.stepSize}
                           className='text-right'
                           max={filterLotSize.maxQty}
@@ -890,7 +888,7 @@ class CoinWrapperManualTrade extends React.Component {
                           data-state-key='sell.marketType'
                           data-state-value='total'
                           onClick={e => this.handleInputChange(e)}>
-                          Total
+                          {commonStrings.total}
                         </Button>
                         <Button
                           variant={
@@ -902,7 +900,7 @@ class CoinWrapperManualTrade extends React.Component {
                           data-state-key='sell.marketType'
                           data-state-value='amount'
                           onClick={e => this.handleInputChange(e)}>
-                          Amount
+                          {commonStrings.quantity}
                         </Button>
                       </ButtonGroup>
                     </div>
@@ -915,22 +913,22 @@ class CoinWrapperManualTrade extends React.Component {
                           htmlFor='field-sell-market-total-input'
                           srOnly>
                           {order.sell.marketType === 'total'
-                            ? 'Total'
-                            : 'Amount'}
+                            ? commonStrings.total
+                            : commonStrings.quantity}
                         </Form.Label>
                         <InputGroup size='sm'>
                           <InputGroup.Prepend>
                             <InputGroup.Text>
                               {order.sell.marketType === 'total'
-                                ? 'Total'
-                                : 'Amount'}
+                                ? commonStrings.total
+                                : commonStrings.quantity}
                             </InputGroup.Text>
                           </InputGroup.Prepend>
                           {order.sell.marketType === 'total' ? (
                             <FormControl
                               id='field-sell-market-total-input'
                               type='number'
-                              placeholder='Quantity'
+                              placeholder={commonStrings.quantity}
                               step={filterPrice.tickSize}
                               className='text-right'
                               data-state-key='sell.quoteOrderQty'
@@ -946,7 +944,7 @@ class CoinWrapperManualTrade extends React.Component {
                               id='field-sell-market-total-input'
                               type='number'
                               step={filterLotSize.stepSize}
-                              placeholder='Total'
+                              placeholder={commonStrings.total}
                               className='text-right'
                               data-state-key='sell.marketQuantity'
                               value={order.sell.marketQuantity}
@@ -1009,16 +1007,16 @@ class CoinWrapperManualTrade extends React.Component {
                   <div className='manual-trade-row manual-trade-total-wrapper mt-2'>
                     <Form.Group controlId='field-sell-total' className='mb-2'>
                       <Form.Label htmlFor='field-sell-total-input' srOnly>
-                        Total
+                        {commonStrings.total}
                       </Form.Label>
                       <InputGroup size='sm'>
                         <InputGroup.Prepend>
-                          <InputGroup.Text>Total</InputGroup.Text>
+                          <InputGroup.Text>{commonStrings.total}</InputGroup.Text>
                         </InputGroup.Prepend>
                         <FormControl
                           id='field-sell-total-input'
                           type='number'
-                          placeholder='Amount'
+                          placeholder={commonStrings.quantity}
                           className='text-right'
                           value={order.sell.total}
                           disabled
@@ -1046,7 +1044,7 @@ class CoinWrapperManualTrade extends React.Component {
                       this.handleInputChange(e);
                       this.handleFormSubmit(e);
                     }}>
-                    Sell {baseAssetBalance.asset}
+                    {commonStrings.sell} {baseAssetBalance.asset}
                   </button>
                 </div>
               </div>

@@ -48,12 +48,14 @@ class SettingIconMaxPurchaseAmount extends React.Component {
   }
 
   render() {
-    const { quoteAssets } = this.props;
+    const { quoteAssets, jsonStrings } = this.props;
     const { maxPurchaseAmounts } = this.state;
 
-    if (_.isEmpty(maxPurchaseAmounts)) {
+    if (_.isEmpty(maxPurchaseAmounts) || _.isEmpty(jsonStrings)) {
       return '';
     }
+
+    const { settingIcon } = jsonStrings;
 
     return quoteAssets.map((quoteAsset, index) => {
       return (
@@ -64,7 +66,7 @@ class SettingIconMaxPurchaseAmount extends React.Component {
             controlId={'field-max-limit-percentage-' + quoteAsset}
             className='mb-2'>
             <Form.Label className='mb-0'>
-              Max purchase amount for {quoteAsset}{' '}
+              {settingIcon.max_purchase_amount_for} {quoteAsset}{' '}
               <OverlayTrigger
                 trigger='click'
                 key={'max-purchase-amount-overlay-' + quoteAsset}
@@ -73,10 +75,7 @@ class SettingIconMaxPurchaseAmount extends React.Component {
                   <Popover
                     id={'max-purchase-amount-overlay-right' + quoteAsset}>
                     <Popover.Content>
-                      Set max purchase amount for symbols with quote asset "
-                      {quoteAsset}". The max purchase amount will be applied to
-                      the symbols which ends with "{quoteAsset}" if not
-                      configured the symbol configuration.
+                      {settingIcon.max_purchase_amount_description} {quoteAsset}
                     </Popover.Content>
                   </Popover>
                 }>
@@ -88,7 +87,7 @@ class SettingIconMaxPurchaseAmount extends React.Component {
             <Form.Control
               size='sm'
               type='number'
-              placeholder={'Enter max purchase amount for ' + quoteAsset}
+              placeholder={settingIcon.placeholder_max_purchase_amount + quoteAsset}
               required
               min='0'
               step='0.0001'

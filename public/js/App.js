@@ -1,6 +1,8 @@
 /* eslint-disable react/jsx-no-undef */
 /* eslint-disable no-undef */
 
+let languageReady = false;
+let languageData = {};
 class App extends React.Component {
   constructor(props) {
     super(props);
@@ -235,51 +237,74 @@ class App extends React.Component {
       totalPnL
     } = this.state;
 
-    const coinWrappers = symbols.map((symbol, index) => {
-      return (
-        <CoinWrapper
-          extraClassName={
-            index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
-          }
-          key={'coin-wrapper-' + symbol.symbol}
-          symbolInfo={symbol}
-          configuration={configuration}
-          sendWebSocket={this.sendWebSocket}
-        />
-      );
-    });
+    if (configuration.language != undefined) {
+      if (!languageReady) {
+        languageReady = true;
 
-    return (
-      <div className='app'>
-        <Header
-          configuration={configuration}
-          publicURL={publicURL}
-          exchangeSymbols={exchangeSymbols}
-          exchangeFIATs={exchangeFIATs}
-          sendWebSocket={this.sendWebSocket}
-        />
-        {_.isEmpty(configuration) === false ? (
-          <div className='app-body'>
-            <div className='app-body-header-wrapper'>
-              <AccountWrapper accountInfo={accountInfo} />
-              <ProfitLossWrapper totalPnL={totalPnL} />
-            </div>
-            <div className='coin-wrappers'>{coinWrappers}</div>
-            <div className='app-body-footer-wrapper'>
-              <Status apiInfo={apiInfo} />
-            </div>
-          </div>
-        ) : (
-          <div className='app-body app-body-loading'>
-            <Spinner animation='border' role='status'>
-              <span className='sr-only'>Loading...</span>
-            </Spinner>
-          </div>
-        )}
+        fetch(configuration.language + ".json")
+          .then(res => res.json())
+          .then(data => languageData = data);
+      }
 
-        <Footer packageVersion={packageVersion} gitHash={gitHash} />
-      </div>
-    );
+      if (languageData != undefined) {
+        const coinWrappers = symbols.map((symbol, index) => {
+          return (
+            <CoinWrapper
+              extraClassName={
+                index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
+              }
+              key={'coin-wrapper-' + symbol.symbol}
+              symbolInfo={symbol}
+              configuration={configuration}
+              sendWebSocket={this.sendWebSocket}
+              jsonStrings={languageData}
+            />
+          );
+        });
+
+        return (
+          <div className='app' >
+            <Header
+              configuration={configuration}
+              publicURL={publicURL}
+              exchangeSymbols={exchangeSymbols}
+              exchangeFIATs={exchangeFIATs}
+              sendWebSocket={this.sendWebSocket}
+              jsonStrings={languageData}
+            />
+            {_.isEmpty(configuration) === false ? (
+              <div className='app-body'>
+                <div className='app-body-header-wrapper'>
+                  <AccountWrapper accountInfo={accountInfo}
+                    jsonStrings={languageData} />
+                  <ProfitLossWrapper totalPnL={totalPnL} jsonStrings={languageData} />
+                </div>
+                <div className='coin-wrappers'>{coinWrappers}</div>
+                <div className='app-body-footer-wrapper'>
+                  <Status apiInfo={apiInfo} jsonStrings={languageData} />
+                </div>
+              </div>
+            ) : (
+              <div className='app-body app-body-loading'>
+                <Spinner animation='border' role='status'>
+                  <span className='sr-only'>Loading...</span>
+                </Spinner>
+              </div>
+            )}
+
+            <Footer packageVersion={packageVersion} gitHash={gitHash} jsonStrings={languageData} />
+          </div >
+        );
+      } else {
+        return '';
+      }
+    } else {
+      return '';
+    }
+
+
+
+
   }
 }
 

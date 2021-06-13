@@ -5,51 +5,54 @@ class CoinWrapperAction extends React.Component {
   render() {
     const {
       symbolInfo: { symbol, action, buy, isLocked, isActionDisabled },
-      sendWebSocket
+      sendWebSocket,
+      jsonStrings
     } = this.props;
 
+
+    const { coinWrapper, commonStrings } = jsonStrings;
     let label;
     switch (action) {
       case 'buy':
-        label = 'Buy';
+        label = commonStrings.buy;
         break;
       case 'buy-temporary-disabled':
-        label = 'Temporary disabled';
+        label = coinWrapper.action_disabled;
         break;
       case 'buy-order-checking':
-        label = 'Checking for buy order';
+        label = coinWrapper.action_buy_check;
         break;
       case 'buy-order-wait':
-        label = 'Wait for buy order';
+        label = coinWrapper.action_buy_wait;
         break;
       case 'sell':
-        label = 'Sell';
+        label = commonStrings.sell;
         break;
       case 'sell-temporary-disabled':
-        label = 'Temporary disabled';
+        label = coinWrapper.action_disabled;
         break;
       case 'sell-stop-loss':
-        label = 'Selling due to stop-loss';
+        label = coinWrapper.selling_stop_loss;
         break;
       case 'sell-order-checking':
-        label = 'Checking for sell order';
+        label = coinWrapper.action_sell_check;
         break;
       case 'sell-order-wait':
-        label = 'Wait for sell order';
+        label = coinWrapper.action_sell_wait;
         break;
       case 'sell-wait':
-        label = 'Wait';
+        label = coinWrapper.wait;
         break;
       default:
-        label = 'Wait';
+        label = coinWrapper.wait;
     }
 
     if (isLocked) {
-      label = 'Locked';
+      label = commonStrings.locked;
     }
 
     if (isActionDisabled.isDisabled) {
-      label = `Disabled by ${isActionDisabled.disabledBy}`;
+      label = coinWrapper.disabled_by + isActionDisabled.disabledBy;
     }
 
     return (
@@ -78,7 +81,8 @@ class CoinWrapperAction extends React.Component {
                   <SymbolEnableActionIcon
                     symbol={symbol}
                     className='mr-1'
-                    sendWebSocket={sendWebSocket}></SymbolEnableActionIcon>
+                    sendWebSocket={sendWebSocket}
+                    jsonStrings={jsonStrings}></SymbolEnableActionIcon>
                 ) : (
                   ''
                 )}

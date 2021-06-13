@@ -134,6 +134,10 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
+
+const language = config.get('language');
+const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+
   // Ensure buy order placed
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);
   if (_.isEmpty(lastBuyOrder) === false) {
@@ -173,7 +177,7 @@ const execute = async (logger, rawData) => {
         symbol,
         {
           disabledBy: 'buy order',
-          message: 'Disabled action after confirming the buy order.',
+          message: actions.action_buy_disabled_after_buy,
           canResume: false,
           canRemoveLastBuyPrice: false
         },
@@ -189,7 +193,7 @@ const execute = async (logger, rawData) => {
       );
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-		  
+
 		  if (canCheckBuy) {
 			   messenger.sendMessage(
               symbol, lastBuyOrder, 'BUY_NOT_FOUND');
@@ -201,8 +205,7 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'buy-order-checking',
-        'The buy order seems placed; however, it does not appear in the open orders. ' +
-          'Wait for the buy order to appear in open orders.'
+        actions.action_buy_order_checking
       );
     }
   }
@@ -245,7 +248,7 @@ const execute = async (logger, rawData) => {
         symbol,
         {
           disabledBy: 'sell order',
-          message: 'Disabled action after confirming the sell order.',
+          message: actions.action_sell_disabled_after_sell,
           canResume: false,
           canRemoveLastBuyPrice: false
         },
@@ -261,10 +264,10 @@ const execute = async (logger, rawData) => {
       );
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-		  
+
 		if (canCheckSell) {
 			messenger.sendMessage(
-              symbol, lastSellOrder, 'SELL_NOT_FOUND');	
+              symbol, lastSellOrder, 'SELL_NOT_FOUND');
 		canCheckSell = false;
 		}
       }
@@ -273,8 +276,7 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'sell-order-checking',
-        'The sell order seems placed; however, it does not appear in the open orders. ' +
-          'Wait for the sell order to appear in open orders.'
+        actions.action_sell_order_checking
       );
     }
   }

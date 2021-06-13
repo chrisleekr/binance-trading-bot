@@ -1,12 +1,14 @@
 /* eslint-disable no-await-in-loop */
 const moment = require('moment');
 const _ = require('lodash');
-const { cache, PubSub, binance, slack } = require('../../../helpers');
+const config = require('config');
+const { cache, PubSub, binance, messenger } = require('../../../helpers');
 const {
   getLastBuyPrice,
   saveLastBuyPrice,
   getAPILimit
 } = require('../../trailingTradeHelper/common');
+let actions = {};
 
 /**
  * Retrieve last buy price and recalculate new last buy price
@@ -126,12 +128,15 @@ const slackMessageOrderDeleted = async (
 ) => {
   const type = orderParams.type.toUpperCase();
 
+const language = config.get('language');
+const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+
   PubSub.publish('frontend-notification', {
     type: 'success',
-    title: `The ${side} order for ${symbol} is ${orderResult.status}. Stop monitoring.`
+    title: actions.action_stop_monitoring[1] + side + actions.action_stop_monitoring[2]  + symbol + actions.action_stop_monitoring[3] + orderResult.status + actions.action_stop_monitoring[4]
   });
 
-  return slack.sendMessage(
+  return messenger.sendMessage(
     `${symbol} Manual ${side.toUpperCase()} Order Removed (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +

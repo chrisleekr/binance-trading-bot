@@ -25,7 +25,8 @@ class CoinWrapperSymbol extends React.Component {
       baseAssetBalance,
       quoteAssetBalance,
       configuration: globalConfiguration,
-      sendWebSocket
+      sendWebSocket,
+      jsonStrings
     } = this.props;
 
     return (
@@ -53,6 +54,7 @@ class CoinWrapperSymbol extends React.Component {
             baseAssetBalance={baseAssetBalance}
             quoteAssetBalance={quoteAssetBalance}
             sendWebSocket={sendWebSocket}
+            jsonStrings={jsonStrings}
           />
           {this.isMonitoring() && (
             <Spinner
@@ -65,10 +67,12 @@ class CoinWrapperSymbol extends React.Component {
             symbolInfo={symbolInfo}
             globalConfiguration={globalConfiguration}
             sendWebSocket={sendWebSocket}
+            jsonStrings={jsonStrings}
           />
           <SymbolDeleteIcon
             symbolInfo={symbolInfo}
             sendWebSocket={sendWebSocket}
+            jsonStrings={jsonStrings}
           />
         </div>
       </div>

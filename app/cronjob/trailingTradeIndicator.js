@@ -112,11 +112,12 @@ const execute = async logger => {
       err.code === -1021 || // Timestamp for this request is outside of the recvWindow
       err.code === 'ECONNRESET' ||
       err.code === 'ECONNREFUSED' ||
+      err.code === 'ETIMEDOUT' ||
       err.message.includes('redlock') // For the redlock fail
     ) {
       // Let's silent for internal server error or assumed temporary errors
     } else {
-     
+
       messenger.errorMessage(
         `Execution failed (${moment().format('HH:mm:ss.SSS')})\n` +
           `Job: Trailing Trade Indicator\n` +

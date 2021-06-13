@@ -44,6 +44,7 @@
     "chatid": "BINANCE_TELEGRAM_CHATID",
     "token": "BINANCE_TELEGRAM_TOKEN"
   },
+  "language": "LANGUAGE",
   "localTunnel": {
     "enabled": {
       "__name": "BINANCE_LOCAL_TUNNEL_ENABLED",
@@ -74,6 +75,7 @@
       "balanceSymbols": "BINANCE_JOBS_ALIVE_BALANCE_SYMBOLS"
     },
     "trailingTrade": {
+      "language": "LANGUAGE",
       "enabled": {
         "__name": "BINANCE_JOBS_TRAILING_TRADE_ENABLED",
         "__format": "boolean"
@@ -142,7 +144,6 @@
         }
       },
       "system": {
-        "language": "LANGUAGE",
         "temporaryDisableActionAfterConfirmingOrder": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_SYSTEM_TEMPORARY_DISABLE_ACTION_AFTER_CONFIRMING_ORDER",
           "__description": "Set the seconds for disabling any actions after confirming an order. Note that decreasing this value can cause issues with the bot not recording the last buy price.",

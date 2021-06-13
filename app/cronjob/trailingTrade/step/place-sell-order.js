@@ -2,6 +2,7 @@ const _ = require('lodash');
 const moment = require('moment');
 const { binance, cache, messenger } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
+const config = require('config');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
@@ -47,8 +48,11 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
+  const language = config.get('language');
+  const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+
   if (openOrders.length > 0) {
-    data.sell.processMessage = `There are open orders for ${symbol}. Do not place an order.`;
+    data.sell.processMessage = action.action_open_orders[1] + symbol + '.' + actions.action_open_orders[2];
     data.sell.updatedAt = moment().utc();
 
     return data;
@@ -70,8 +74,8 @@ const execute = async (logger, rawData) => {
 
   if (orderQuantity <= parseFloat(minQty)) {
     data.sell.processMessage =
-      `Order quantity is less or equal than the minimum quantity - ${minQty}. ` +
-      `Do not place an order.`;
+      actions.action_order_minimum_qty[1] + minQty +
+      actions.action_order_minimum_qty[2];
     data.sell.updatedAt = moment().utc();
 
     return data;
@@ -81,21 +85,21 @@ const execute = async (logger, rawData) => {
   }
 
   if (orderQuantity * limitPrice < parseFloat(minNotional)) {
-    data.sell.processMessage = `Notional value is less than the minimum notional value. Do not place an order.`;
+    data.sell.processMessage = actions.action_less_than_nominal;
     data.sell.updatedAt = moment().utc();
 
     return data;
   }
 
   if (tradingEnabled !== true) {
-    data.sell.processMessage = `Trading for ${symbol} is disabled. Do not place an order.`;
+    data.buy.processMessage = actions.action_trading_for_disabled[1] + symbol + actions.action_trading_for_disabled[2];
     data.sell.updatedAt = moment().utc();
 
     return data;
   }
 
   if (isExceedAPILimit(logger)) {
-    data.sell.processMessage = `Binance API limit has been exceeded. Do not place an order.`;
+    data.buy.processMessage = actions.action_api_exceed;
     data.sell.updatedAt = moment().utc();
 
     return data;
@@ -111,7 +115,7 @@ const execute = async (logger, rawData) => {
     timeInForce: 'GTC'
   };
 
- messenger.sendMessage(
+  messenger.sendMessage(
     symbol, orderParams, 'PLACE_SELL'
   );
 
@@ -134,10 +138,10 @@ const execute = async (logger, rawData) => {
   // Refresh account info
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
- messenger.sendMessage(
+  messenger.sendMessage(
     symbol, orderResult, 'PLACE_SELL_DONE'
   );
-  data.sell.processMessage = `Placed new stop loss limit order for selling.`;
+  data.buy.processMessage = actions.action_placed_new_sell_order;
   data.sell.updatedAt = moment().utc();
 
   return data;

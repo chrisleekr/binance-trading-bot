@@ -1,0 +1,247 @@
+{
+  "settingIcon": {
+    "global_settings": "Global Settings",
+    "global_settings_description": "In this window you can configure the global settings. If the symbol has a different configuration, it will not be affected. Please proceed with caution when changing values.",
+    "symbols": "Symbols",
+    "placeholder_monitor_symbols": "Choose symbols to monitor...",
+    "candle_settings": "Candle Settings",
+    "candle_interval_description": "Set the candle interval to calculate min/max price.",
+    "candle_limit_description": "Set the candle limit to calculate min/max price.",
+    "buy_sell_conf": "Buy & Sell Settings",
+    "trading_enabled_description": "If enabled, the bot will buy the currency when it detects the buy signal. If disabled, the bot will not buy, but will keep monitoring. If the market is volatile, you can disable it.",
+    "trading_enabled_description_sell": "If enabled, the bot will sell the currency when it detects the sell signal. If disabled, the bot will not sell.",
+    "trigger_percent_buy": "Percentage for buy signal",
+    "trigger_percent_buy_description": "Sets the percentage to activate the buy signal. Example: If set 1.01 and the lowest price is $100, then the bot will buy the currency when the current price reaches 1.01. You cannot set less than 1, as the price will never reach the value. Unless there is a very sharp drop.",
+    "trigger_percent_sell": "Percentage for the sell signal",
+    "trigger_percent_sell_description": "Sets the percentage to activate the sell signal. Example: If set 1.06 the minimum profit will be 6%. If the last bought price is $100, the bot will sell the currency when the current price is $106.",
+    "placeholder_trigger_percent": "Set the buy signal",
+    "stop_price_percent_description": "Sets the percentage to calculate the stop price. Example: If set 1.01 and the current price is $100, the stop price will be $101 for the limit order.",
+    "placeholder_enter_stop_price": "Set the stop price",
+    "placeholder_enter_limit_price": "Set limit price",
+    "limit_price_percent_description": "Sets the percentage to calculate the limit price. Example: If you set 1,011 and the current price is $100, the limit price will be $101.10 for the limit order.",
+    "stop_price_percent_description_sell": "Sets the percentage to calculate the stop price. Example: If set 0.99 and the current price is $106, the stop price will be $104.94 for the stop order.",
+    "limit_price_percent_description_sell": "Sets the percentage to calculate the limit price. Example: If set 0.98 and the current price is $106, the limit price will be $103.88 for the limit order.",
+    "stop_loss_enabled_description": "If enabled, the bot will sell the coin when it reaches the percentage set in stop-loss. You can enable this function to prevent bigger losses than expected.",
+    "max_loss_percent_description": "Sets the maximum loss percentage of the stop-loss. Example: if set to 0.80, it means you will not lose more than 20% of the total invested amount. If you bought the coin at the price of $100, the last price long will be set to $100, and stop-loss to $80. If it hits $80, the bot will sell all available currency balance in a market order.",
+    "placeholder_enter_max_loss": "Set the maximum loss",
+    "temporary_disable_buy": "Temporarily disable purchase for (in minutes)",
+    "temporary_disable_buy_description": "Defines how long to disable currency purchase in case of stop-loss activation. Example: If set 360, purchase will be disabled for 6 hours.",
+    "placeholder_temporary_disable": "Set the minutes to disable",
+    "note_changes": "Note that the changes will take effect on the next tick",
+    "reset_global_settings": "Reset to global settings",
+    "warning_global_save": "Warning: You are about to save the global adjustment",
+    "ask_all_or_global": "Do you want to apply the settings to all symbols or just the global?",
+    "delete_symbol_setting": "Do you want to delete the symbol settings?",
+    "choosed_all_symbols": "If you apply to all and any symbol has a different setting, it will be lost!",
+    "choosed_global": "If you apply globally and any symbol has some different configuration, it will be set to custom!",
+    "apply_all_symbols": "Apply to all symbols",
+    "apply_global_only": "Apply globally",
+    "customise": "Customize",
+    "description": "In this window you can override the global settings for a specific symbol. Please know what you are doing. The settings applied here will only affect this symbol.",
+    "last_buy_price_remove_threshold_description": {
+      "1": "Sets the limit for removing the last bid price on symbols ending with",
+      "2": " When the currency price drops below the limit, the bot will remove the last purchased price. If the bot has not sold the currency, you can manually add the last purchased price, but if it is below the limit, will be removed again."
+    },
+    "placeholder_last_buy_remove_price_threshold": "Set the threshold to remove the last buy price from",
+    "max_purchase_amount_for": "Maximum amount to purchase from",
+    "max_purchase_amount": "Maximum amount for purchase",
+    "max_purchase_amount_symbol_description": "Sets the maximum amount to buy. Example: If set to 100, when the bot receives the buy signal, it will buy $100 of the currency.",
+    "max_purchase_amount_description": "Sets the maximum purchase amount on symbols ending with",
+    "placeholder_max_purchase_amount": "Set the limit to remove the last purchase price",
+    "cancel": "Cancel",
+    "yes": "Yes"
+  },
+  "coinWrapper": {
+    "actions": {
+      "action_disabled": "Temporarily disabled",
+      "action_buy_check": "Checking purchase order",
+      "action_buy_wait": "Waiting for purchase order",
+      "action_selling_stop_loss": "Selling currency because of stop-loss",
+      "action_sell_check": "Checking sales order",
+      "action_sell_wait": "Waiting for sales order",
+      "disabled_by": "Disabled by ",
+      "action_sell_disabled": {
+        "1": "The current price has reached the price for activating the sale.",
+        "2": "However, the action is temporarily disabled by ",
+        "3": "Summarize sales process after: "
+      },
+      "action_sell_disabled_stop_loss": {
+        "1": "The current price has reached the stop-loss price.",
+        "2": "However, the action is temporarily disabled by ",
+        "3": "Summarize sales process after: "
+      },
+      "action_wait": {
+        "1": "The current price has reached the activation price.",
+        "2": "And you have enough of",
+        "3": "to sell.",
+        "4": "Set the last purchase price to start selling.",
+        "5": "Do not process purchase."
+      },
+      "action_buy_disabled": {
+        "1": "The current price has reached the purchase activation price.",
+        "2": "However, the action is temporarily disabled by ",
+        "3": "Summarize purchase process after: "
+      },
+      "action_buy": "The current price has reached the price for activating the purchase. I will try to buy the currency.",
+      "action_sell": "The current price has reached the price for activating the sale. I will sell the currency.",
+      "action_sell_stop_loss": "The current price has reached the stop-loss price. I am selling the currency at market price.",
+      "sell_wait": "Current price is less than sale activation price. Waiting.",
+      "action_open_orders": {
+        "1": "There are open orders from the symbol ",
+        "2": "I won't open a new one."
+      },
+      "action_max_purchase_undefined": "I don't have a maximum purchase amount. Please set one in the settings.",
+      "action_dont_place_order": {
+        "1": "I can't buy the coin as there isn't",
+        "2": "to buy"
+      },
+      "action_dont_place_order_calc": {
+        "1": "I can't buy the currency because there isn't",
+        "2": "to buy",
+        "3": " after calculation."
+      },
+      "action_trading_for_disabled": {
+        "1": "Trading for ",
+        "2": " is disabled. I will not open an order."
+      },
+      "action_api_exceed": "The API limit has been reached. I will not act for now.",
+      "action_placed_new_order": "I opened an order limit purchase.",
+      "action_order_minimum_qty": {
+        "1": "The quantity for the order is equal to or less than the smallest quantity - ",
+        "2": ". I will not try to sell."
+      },
+      "action_less_than_nominal": "The current value is less than the minimum allowed value. I will not sell yet.",
+      "action_placed_new_sell_order": "I opened a sell limit order.",
+      "action_unknown_order": {
+        "1": "Unknown order type: ",
+        "2": "I will not open a market sell order."
+      },
+      "action_disabled_stop_loss": "Temporarily disabled because of stop-loss.",
+      "action_buy_disabled_after_buy": "I disabled the actions after confirming the purchase order.",
+      "action_sell_disabled_after_sell": "Disabled the actions after confirming the sell order.",
+      "action_buy_order_checking": "The purchase order appears to have been placed. However, I cannot find it in the open orders. Wait until it appears.",
+      "action_sell_order_checking": "The sell order appears to be placed. However, I cannot find it in the open orders. Wait until it appears.",
+      "action_stop_monitoring": {
+        "1": "The order of ",
+        "2": " of the symbol: ",
+        "3": "is",
+        "4": "I'm stopping monitoring."
+      },
+      "action_cancel_success": {
+        "1": "The order of ",
+        "2": " was canceled successfully. If the order still appears, wait for it to disappear."
+      },
+      "order_cancelled": "The order has been cancelled."
+    },
+    "estimated_value": "Estimated value",
+    "temporary_disable_sell": "Disable sell temporarily",
+    "order_type": "Order type",
+    "wait": "Waiting",
+    "open_order": "Open order",
+    "placed_at": "Placed in",
+    "current_limit_price": "Limit price",
+    "diff_cancel": "Difference to cancel",
+    "diff_execute": "Diff to execute",
+    "buy_open_orders": "Open purchase orders",
+    "buy_signal": "Buy sign",
+    "highest_price": "Highest price",
+    "lowest_price": "Lowest price",
+    "trigger_price": "Price to trigger",
+    "diff_buy": "Difference to buy",
+    "diff_sell": "Difference for sale",
+    "sell_open_orders": "Open sales orders",
+    "stop_loss_price": "Stop-Loss Price",
+    "diff_stop_loss": "Difference to stop-loss",
+    "stop_percent": "Stop percent",
+    "limit_percent": "Percent of limit",
+    "type": "Type",
+    "minimum_profit": "Minimum gain",
+    "max_purchase_amount": "Maximum purchase amount",
+    "candles": "Candles",
+    "trigger_percent": "Percentage to trigger"
+  },
+  "footer": {
+    "version": "Current version",
+    "latest_version": "Latest version"
+  },
+  "profitLossWrapper": {
+    "profit_loss_description": "This section shows approximately your profit/loss for the current list of symbols open for sale with the last defined buy price. The calculation is simply adding your profit/loss for each symbol. Note that it does not represent your trading history gains and losses."
+  },
+  "symbolDelete": {
+    "remove_symbol": "Remove symbol",
+    "description": {
+      "1": "Are you sure you want to remove the symbol from the cache?",
+      "2": "Note that this will only erase cached values.",
+      "3": "If the symbol is still being monitored, it will appear again."
+    }
+  },
+  "symbolEditLastBuyPrice": {
+    "edit_last_buy": "Edit last price bought from",
+    "placeholder_last_buy": "Set the last purchase price",
+    "description": {
+      "1": "Set/Modify the last purchase price of the symbol.",
+      "2": "If the bot bought the currency, the price is automatically set.",
+      "3": "If you bought manually directly from the broker, you can set the last buy price for the bot to sell at the defined profit.",
+      "4": "When the last buy price is set, the bot will start monitoring the sell possibility.",
+      "5": "If you want to remove the last purchase price, set 0."
+    }
+  },
+  "symbolEnableAction": {
+    "resume_symbol_action": "Resume symbol action",
+    "description": {
+      "1": "Are you sure you want to resume the symbol's action?",
+      "2": "If the market is volatile, the bot will buy it again if it receives the buy signal.",
+      "3": "Proceed with caution."
+    }
+  },
+  "symbolManualTrade": {
+    "trade": "Trade",
+    "manual_trade_for": "Manual trading for",
+    "description": {
+      "1": "In this window you can trade ",
+      "2": " manually. If you already have the last purchased price, then the bot will calculate the average cost and recalculate the last purchased price.",
+      "3": "To make sure the last purchase price was successfully recorded, the bot will monitor the purchase order. This may increase API usage."
+    }
+  },
+  "placeManualTrade": {
+    "action_manual_order": "I opened a manual order.",
+    "notify_order_success": {
+      "1": "The order of ",
+      "2": "of the symbol: ",
+      "3": ". Placed successfully. If the order has not yet been executed, it should appear at some point."
+    }
+  },
+  "commonStrings": {
+    "interval": "Interval",
+    "limit": "Limit",
+    "buy": "Buy",
+    "sell": "Sale",
+    "used_weight": "Used API weight (1m)",
+    "trading_enabled": "Trading enabled",
+    "stop_price_percent": "Stop price percentage",
+    "limit_price_percent": "Limit price percentage",
+    "stop_loss": "Stop-loss",
+    "stop_loss_enabled": "Stop-loss enabled",
+    "max_loss_percent": "Maximum loss percentage",
+    "close": "Close",
+    "save_changes": "Save settings",
+    "account_balance": "Account balance",
+    "total": "Total",
+    "free": "Free",
+    "locked": "Locked",
+    "status": "Status",
+    "quantity": "Amount",
+    "price": "Price",
+    "stop_price": "Stop price",
+    "current_price": "Current price",
+    "sell_signal": "Sale Signal",
+    "trading_disabled": "Trading disabled",
+    "last_buy_price": "Last buy price",
+    "profit_loss": "Gains/Loss",
+    "settings": "Settings",
+    "last_buy_price_remove_threshold": "Threshold to remove last buy price",
+    "remove": "Remove",
+    "resume": "Resume",
+    "market": "Market"
+  }
+}

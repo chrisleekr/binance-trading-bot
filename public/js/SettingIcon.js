@@ -165,12 +165,15 @@ class SettingIcon extends React.Component {
 
   render() {
     const { configuration, availableSymbols, quoteAssets } = this.state;
+    const { jsonStrings } = this.props;
     const { symbols: selectedSymbols } = configuration;
 
 
-    if (_.isEmpty(configuration)) {
+    if (_.isEmpty(configuration) || _.isEmpty(jsonStrings)) {
       return '';
     }
+
+    const { settingIcon, commonStrings } = jsonStrings;
 
     return (
       <div className='header-column-icon-wrapper setting-wrapper'>
@@ -186,14 +189,11 @@ class SettingIcon extends React.Component {
           size='xl'>
           <Form>
             <Modal.Header className='pt-1 pb-1'>
-              <Modal.Title>Global Settings</Modal.Title>
+              <Modal.Title>{settingIcon.global_settings}</Modal.Title>
             </Modal.Header>
             <Modal.Body>
               <span className='text-muted'>
-                In this modal, you can configure the global configuration. If
-                the symbol has a specific configuration, the change won't impact
-                the symbol. Please make sure you understand what the setting is
-                about before changing the configuration value.
+                {settingIcon.global_settings_description}
               </span>
               <Accordion defaultActiveKey='0'>
                 <Card className='mt-1' style={{ overflow: 'visible' }}>
@@ -203,7 +203,7 @@ class SettingIcon extends React.Component {
                       variant='link'
                       eventKey='0'
                       className='p-0 fs-7 text-uppercase'>
-                      Symbols
+                      {settingIcon.symbols}
                     </Accordion.Toggle>
                   </Card.Header>
                   <Accordion.Collapse eventKey='0'>
@@ -238,7 +238,7 @@ class SettingIcon extends React.Component {
                               size='sm'
                               options={availableSymbols}
                               defaultSelected={selectedSymbols}
-                              placeholder='Choose symbols to monitor...'
+                              placeholder={settingIcon.placeholder_monitor_symbols}
                             />
                           </Form.Group>
                         </div>
@@ -256,7 +256,7 @@ class SettingIcon extends React.Component {
                       variant='link'
                       eventKey='0'
                       className='p-0 fs-7 text-uppercase'>
-                      Candle Settings
+                      {settingIcon.candle_settings}
                     </Accordion.Toggle>
                   </Card.Header>
                   <Accordion.Collapse eventKey='0'>
@@ -267,7 +267,7 @@ class SettingIcon extends React.Component {
                             controlId='field-candles-interval'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
-                              Interval
+                              {commonStrings.interval}
                               <OverlayTrigger
                                 trigger='click'
                                 key='interval-overlay'
@@ -275,8 +275,7 @@ class SettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='interval-overlay-right'>
                                     <Popover.Content>
-                                      Set candle interval for calculating the
-                                      highest/lowest price.
+                                      {settingIcon.candle_interval_description}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -311,7 +310,7 @@ class SettingIcon extends React.Component {
                             controlId='field-candles-limit'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
-                              Limit
+                              {commonStrings.limit}
                               <OverlayTrigger
                                 trigger='click'
                                 key='limit-overlay'
@@ -319,8 +318,7 @@ class SettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='limit-overlay-right'>
                                     <Popover.Content>
-                                      Set the number of candles to retrieve for
-                                      calculating the highest/lowest price.
+                                      {settingIcon.candle_limit_description}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -334,7 +332,7 @@ class SettingIcon extends React.Component {
                             <Form.Control
                               size='sm'
                               type='number'
-                              placeholder='Enter limit'
+                              placeholder={settingIcon.placeholder_enter_limit_price}
                               required
                               min='0'
                               step='1'
@@ -358,14 +356,14 @@ class SettingIcon extends React.Component {
                       variant='link'
                       eventKey='0'
                       className='p-0 fs-7 text-uppercase'>
-                      Buy &amp; Sell Configurations
+                      {settingIcon.buy_sell_conf}
                     </Accordion.Toggle>
                   </Card.Header>
                   <Accordion.Collapse eventKey='0'>
                     <Card.Body className='px-2 py-1'>
                       <div className='row'>
                         <div className='col-xs-12 col-sm-6'>
-                          <p className='form-header mb-1'>Buy</p>
+                          <p className='form-header mb-1'>{commonStrings.buy}</p>
                           <Form.Group
                             controlId='field-buy-enabled'
                             className='mb-2'>
@@ -377,7 +375,7 @@ class SettingIcon extends React.Component {
                                 onChange={this.handleInputChange}
                               />
                               <Form.Check.Label>
-                                Trading Enabled{' '}
+                                {commonStrings.trading_enabled}{' '}
                                 <OverlayTrigger
                                   trigger='click'
                                   key='buy-enabled-overlay'
@@ -385,12 +383,7 @@ class SettingIcon extends React.Component {
                                   overlay={
                                     <Popover id='buy-enabled-overlay-right'>
                                       <Popover.Content>
-                                        If enabled, the bot will purchase the
-                                        coin when it detects the buy signal. If
-                                        disabled, the bot will not purchase the
-                                        coin, but continue to monitoring. When
-                                        the market is volatile, you can disable
-                                        it temporarily.
+                                        {settingIcon.trading_enabled_description}
                                       </Popover.Content>
                                     </Popover>
                                   }>
@@ -411,6 +404,7 @@ class SettingIcon extends React.Component {
                             maxPurchaseAmounts={
                               configuration.buy.maxPurchaseAmounts
                             }
+                            jsonStrings={jsonStrings}
                             handleMaxPurchaeAmountChange={
                               this.handleMaxPurchaeAmountChange
                             }
@@ -421,6 +415,7 @@ class SettingIcon extends React.Component {
                             lastBuyPriceRemoveThresholds={
                               configuration.buy.lastBuyPriceRemoveThresholds
                             }
+                            jsonStrings={jsonStrings}
                             handleLastBuyPriceRemoveThresholdChange={
                               this.handleLastBuyPriceRemoveThresholdChange
                             }
@@ -430,7 +425,7 @@ class SettingIcon extends React.Component {
                             controlId='field-buy-trigger-percentage'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
-                              Trigger percentage{' '}
+                              {settingIcon.trigger_percent_buy}{' '}
                               <OverlayTrigger
                                 trigger='click'
                                 key='buy-trigger-percentage-overlay'
@@ -438,15 +433,7 @@ class SettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='buy-trigger-percentage-overlay-right'>
                                     <Popover.Content>
-                                      Set the trigger percentage for buying.
-                                      i.e. if set <code>1.01</code> and the
-                                      lowest price is <code>$100</code>, then
-                                      the bot will buy the coin when the current
-                                      price reaches <code>$101</code>. You
-                                      cannot set less than <code>1</code>,
-                                      because it will never reach the trigger
-                                      price unless there is a deep decline
-                                      before the next process.
+                                      {settingIcon.trigger_percent_buy_description}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -460,7 +447,7 @@ class SettingIcon extends React.Component {
                             <Form.Control
                               size='sm'
                               type='number'
-                              placeholder='Enter trigger percentage'
+                              placeholder={settingIcon.placeholder_trigger_percent}
                               required
                               min='0'
                               step='0.0001'
@@ -473,7 +460,7 @@ class SettingIcon extends React.Component {
                             controlId='field-buy-stop-percentage'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
-                              Stop price percentage{' '}
+                              {commonStrings.stop_price_percent}{' '}
                               <OverlayTrigger
                                 trigger='click'
                                 key='buy-stop-price-percentage-overlay'
@@ -481,11 +468,7 @@ class SettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='buy-stop-price-percentage-overlay-right'>
                                     <Popover.Content>
-                                      Set the percentage to calculate stop
-                                      price. i.e. if set <code>1.01</code> and
-                                      current price <code>$100</code>, stop
-                                      price will be <code>$101</code> for stop
-                                      limit order.
+                                      {settingIcon.stop_price_percent_description}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -499,7 +482,7 @@ class SettingIcon extends React.Component {
                             <Form.Control
                               size='sm'
                               type='number'
-                              placeholder='Enter stop price percentage'
+                              placeholder={settingIcon.placeholder_enter_stop_price}
                               required
                               min='0'
                               step='0.0001'
@@ -513,7 +496,7 @@ class SettingIcon extends React.Component {
                             controlId='field-buy-limit-percentage'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
-                              Limit price percentage{' '}
+                              {commonStrings.limit_price_percent}{' '}
                               <OverlayTrigger
                                 trigger='click'
                                 key='interval-overlay'
@@ -521,11 +504,7 @@ class SettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='interval-overlay-right'>
                                     <Popover.Content>
-                                      Set the percentage to calculate limit
-                                      price. i.e. if set <code>1.011</code> and
-                                      current price <code>$100</code>, limit
-                                      price will be <code>$101.10</code> for
-                                      stop limit order.
+                                      {settingIcon.limit_price_percent_description}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -539,7 +518,7 @@ class SettingIcon extends React.Component {
                             <Form.Control
                               size='sm'
                               type='number'
-                              placeholder='Enter limit price percentage'
+                              placeholder={settingIcon.placeholder_enter_limit_price}
                               required
                               min='0'
                               step='0.0001'
@@ -550,7 +529,7 @@ class SettingIcon extends React.Component {
                           </Form.Group>
                         </div>
                         <div className='col-xs-12 col-sm-6'>
-                          <p className='form-header mb-1'>Sell</p>
+                          <p className='form-header mb-1'>{commonStrings.sell}</p>
                           <Form.Group
                             controlId='field-sell-enabled'
                             className='mb-2'>
@@ -562,7 +541,7 @@ class SettingIcon extends React.Component {
                                 onChange={this.handleInputChange}
                               />
                               <Form.Check.Label>
-                                Trading Enabled{' '}
+                                {commonStrings.trading_enabled}{' '}
                                 <OverlayTrigger
                                   trigger='click'
                                   key='sell-enabled-overlay'
@@ -570,12 +549,7 @@ class SettingIcon extends React.Component {
                                   overlay={
                                     <Popover id='sell-enabled-overlay-right'>
                                       <Popover.Content>
-                                        If enabled, the bot will sell the coin
-                                        when it detects the sell signal. If
-                                        disabled, the bot will not sell the
-                                        coin, but continue to monitoring. When
-                                        the market is volatile, you can disable
-                                        it temporarily.
+                                        {settingIcon.trading_enabled_description_sell}
                                       </Popover.Content>
                                     </Popover>
                                   }>
@@ -592,7 +566,7 @@ class SettingIcon extends React.Component {
                             controlId='field-sell-last-buy-percentage'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
-                              Trigger percentage{' '}
+                              {settingIcon.trigger_percent_sell}{' '}
                               <OverlayTrigger
                                 trigger='click'
                                 key='sell-trigger-percentage-overlay'
@@ -600,12 +574,7 @@ class SettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='sell-trigger-percentage-overlay-right'>
                                     <Popover.Content>
-                                      Set the trigger percentage for minimum
-                                      profit. i.e. if set <code>1.06</code>,
-                                      minimum profit will be <code>6%</code>. So
-                                      if the last buy price is <code>$100</code>
-                                      , then the bot will sell the coin when the
-                                      current price reaches <code>$106</code>.
+                                      {settingIcon.trigger_percent_sell_description}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -619,7 +588,7 @@ class SettingIcon extends React.Component {
                             <Form.Control
                               size='sm'
                               type='number'
-                              placeholder='Enter trigger percentage'
+                              placeholder={settingIcon.placeholder_trigger_percent}
                               required
                               min='0'
                               step='0.0001'
@@ -632,7 +601,7 @@ class SettingIcon extends React.Component {
                             controlId='field-sell-stop-percentage'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
-                              Stop price percentage{' '}
+                              {commonStrings.stop_price_percent}{' '}
                               <OverlayTrigger
                                 trigger='click'
                                 key='sell-stop-price-percentage-overlay'
@@ -640,11 +609,7 @@ class SettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='sell-stop-price-percentage-overlay-right'>
                                     <Popover.Content>
-                                      Set the percentage to calculate stop
-                                      price. i.e. if set <code>0.99</code> and
-                                      current price <code>$106</code>, stop
-                                      price will be <code>$104.94</code> for
-                                      stop limit order.
+                                      {settingIcon.stop_price_percent_description_sell}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -658,7 +623,7 @@ class SettingIcon extends React.Component {
                             <Form.Control
                               size='sm'
                               type='number'
-                              placeholder='Enter stop price percentage'
+                              placeholder={settingIcon.placeholder_enter_stop_price}
                               required
                               min='0'
                               step='0.0001'
@@ -671,7 +636,7 @@ class SettingIcon extends React.Component {
                             controlId='field-sell-stop-percentage'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
-                              Limit price percentage{' '}
+                              {commonStrings.limit_price_percent}{' '}
                               <OverlayTrigger
                                 trigger='click'
                                 key='sell-limit-price-percentage-overlay'
@@ -679,11 +644,7 @@ class SettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='sell-limit-price-percentage-overlay-right'>
                                     <Popover.Content>
-                                      Set the percentage to calculate limit
-                                      price. i.e. if set <code>0.98</code> and
-                                      current price <code>$106</code>, limit
-                                      price will be <code>$103.88</code> for
-                                      stop limit order.
+                                      {settingIcon.limit_price_percent_description_sell}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -697,7 +658,7 @@ class SettingIcon extends React.Component {
                             <Form.Control
                               size='sm'
                               type='number'
-                              placeholder='Enter limit price percentage'
+                              placeholder={settingIcon.placeholder_enter_limit_price}
                               required
                               min='0'
                               step='0.0001'
@@ -706,7 +667,7 @@ class SettingIcon extends React.Component {
                               onChange={this.handleInputChange}
                             />
                           </Form.Group>
-                          <p className='form-header mb-1'>Sell - Stop-Loss</p>
+                          <p className='form-header mb-1'>{commonStrings.sell} - {commonStrings.stop_loss}</p>
                           <Form.Group
                             controlId='field-sell-stop-loss-enabled'
                             className='mb-2'>
@@ -718,7 +679,7 @@ class SettingIcon extends React.Component {
                                 onChange={this.handleInputChange}
                               />
                               <Form.Check.Label>
-                                Stop-Loss Enabled{' '}
+                                {commonStrings.stop_loss_enabled}{' '}
                                 <OverlayTrigger
                                   trigger='click'
                                   key='sell-stop-loss-enabled-overlay'
@@ -726,11 +687,7 @@ class SettingIcon extends React.Component {
                                   overlay={
                                     <Popover id='sell-stop-loss-enabled-overlay-right'>
                                       <Popover.Content>
-                                        If enabled, the bot will sell the coin
-                                        when it reaches the configured amount of
-                                        the loss from the last buy price. You
-                                        can enable this feature to prevent the
-                                        loss more than expected.
+                                        {settingIcon.stop_loss_enabled_description}
                                       </Popover.Content>
                                     </Popover>
                                   }>
@@ -747,7 +704,7 @@ class SettingIcon extends React.Component {
                             controlId='field-sell-stop-loss-max-loss-percentage'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
-                              Max loss percentage{' '}
+                              {commonStrings.max_loss_percent}{' '}
                               <OverlayTrigger
                                 trigger='click'
                                 key='sell-stop-loss-max-loss-percentage-overlay'
@@ -755,16 +712,7 @@ class SettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='sell-stop-loss-max-loss-percentage-overlay-right'>
                                     <Popover.Content>
-                                      Set maximum loss percentage for stop-loss.
-                                      i.e. if set <code>0.80</code>, it means
-                                      you won't lose than <code>-20%</code> of
-                                      the last buy price. When you purchased the
-                                      coin at <code>$100</code>, the last price
-                                      will be set as <code>$100</code>. And then
-                                      when the current price reaches{' '}
-                                      <code>$80</code>, the bot will place the{' '}
-                                      <strong>market order</strong> to sell all
-                                      available balance.
+                                      {settingIcon.max_loss_percent_description}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -778,7 +726,7 @@ class SettingIcon extends React.Component {
                             <Form.Control
                               size='sm'
                               type='number'
-                              placeholder='Enter maximum loss percentage'
+                              placeholder={settingIcon.placeholder_enter_max_loss}
                               required
                               max='1'
                               min='0'
@@ -794,7 +742,7 @@ class SettingIcon extends React.Component {
                             controlId='field-sell-stop-loss-disable-buy-minutes'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
-                              Temporary disable for buying (minutes){' '}
+                              {settingIcon.temporary_disable_buy}{' '}
                               <OverlayTrigger
                                 trigger='click'
                                 key='sell-stop-loss-disable-buy-minutes-overlay'
@@ -802,10 +750,7 @@ class SettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='sell-stop-loss-disable-buy-minutes-overlay-right'>
                                     <Popover.Content>
-                                      Set for how long to disable buying in
-                                      minutes after placing a stop-loss order.
-                                      i.e. if set <code>360</code>, the bot will
-                                      temporarily disable buying for 6 hours.
+                                      {settingIcon.temporary_disable_buy_description}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -819,7 +764,7 @@ class SettingIcon extends React.Component {
                             <Form.Control
                               size='sm'
                               type='number'
-                              placeholder='Enter minutes for disabling buy'
+                              placeholder={settingIcon.placeholder_temporary_disable}
                               required
                               max='99999999'
                               min='1'
@@ -840,20 +785,19 @@ class SettingIcon extends React.Component {
             </Modal.Body>
             <Modal.Footer>
               <div className='w-100'>
-                Note that the changes will be displayed in the frontend in the
-                next tick.
+                {settingIcon.note_changes}
               </div>
               <Button
                 variant='secondary'
                 size='sm'
                 onClick={() => this.handleModalClose('setting')}>
-                Close
+                {commonStrings.close}
               </Button>
               <Button
                 variant='primary'
                 size='sm'
                 onClick={() => this.handleModalShow('confirm')}>
-                Save Changes
+                {commonStrings.save_changes}
               </Button>
             </Modal.Footer>
           </Form>
@@ -865,24 +809,20 @@ class SettingIcon extends React.Component {
           size='md'>
           <Modal.Header className='pt-1 pb-1'>
             <Modal.Title>
-              <span className='text-danger'>⚠ Save Changes</span>
+              <span className='text-danger'>⚠ {commonStrings.save_changes}</span>
             </Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            Warning: You are about to save the global configuration.
+            {settingIcon.warning_global_save}
             <br />
             <br />
-            Do you want to apply the changes for all symbols or just global
-            configuration?
+            {settingIcon.ask_all_or_global}
             <br />
             <br />
-            If you choose to apply for all symbols, then customised symbol
-            configurations will be removed.
+            {settingIcon.choosed_all_symbols}
             <br />
             <br />
-            If you choose to apply the global configuration only, then the
-            symbols that are different from the global configuration will be
-            displayed as customised.
+            {settingIcon.choosed_global}
           </Modal.Body>
 
           <Modal.Footer>
@@ -890,13 +830,13 @@ class SettingIcon extends React.Component {
               variant='secondary'
               size='sm'
               onClick={() => this.handleModalClose('confirm')}>
-              Cancel
+              {settingIcon.cancel}
             </Button>
             <Button
               variant='success'
               size='sm'
               onClick={() => this.handleFormSubmit({ action: 'apply-to-all' })}>
-              Apply to all symbols
+              {settingIcon.apply_all_symbols}
             </Button>
             <Button
               variant='primary'
@@ -906,7 +846,7 @@ class SettingIcon extends React.Component {
                   action: 'apply-to-global-only'
                 })
               }>
-              Apply to global only
+              {settingIcon.apply_global_only}
             </Button>
           </Modal.Footer>
         </Modal>

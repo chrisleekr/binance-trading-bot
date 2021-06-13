@@ -1,6 +1,7 @@
 const moment = require('moment');
 
 const { isActionDisabled } = require('../../trailingTradeHelper/common');
+const config = require('config');
 
 /**
  * Check whether can buy or not
@@ -168,6 +169,12 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
+
+const language = config.get('language');
+const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+
+  // messenger.errorMessage("pora2" + json)
+
   // Check buy signal -
   //  if last buy price is less than 0
   //    and current price is less or equal than lowest price
@@ -179,10 +186,10 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'wait',
-        `The current price reached the trigger price. ` +
-        `But you have enough ${baseAsset} to sell. ` +
-        `Set the last buy price to start selling. ` +
-        `Do not process buy.`
+        actions.action_wait[1] +
+        actions.action_wait[2] + baseAsset + actions.action_wait[3] +
+        actions.action_wait[4] +
+        actions.action_wait[5]
       );
     }
 
@@ -196,9 +203,9 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'buy-temporary-disabled',
-        'The current price reached the trigger price. ' +
-        `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
-        `Resume buy process after ${checkDisable.ttl}s.`
+        actions.action_buy_disabled[1] +
+        actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+        actions.action_sell_disabled[3] + checkDisable.ttl + 's'
       );
     }
 
@@ -206,7 +213,7 @@ const execute = async (logger, rawData) => {
       logger,
       data,
       'buy',
-      "The current price reached the trigger price. Let's buy it."
+      actions.action_buy
     );
   }
 
@@ -226,9 +233,9 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'sell-temporary-disabled',
-          'The current price is reached the sell trigger price. ' +
-          `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
-          `Resume sell process after ${checkDisable.ttl}s.`
+          actions.action_sell_disabled[1] +
+          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
         );
       }
       // Then sell
@@ -236,7 +243,7 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'sell',
-        "The current price is more than the trigger price. Let's sell."
+        actions.action_sell
       );
     }
     if (isLowerThanStopLossTriggerPrice(data)) {
@@ -250,9 +257,9 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'sell-temporary-disabled',
-          'The current price is reached the stop-loss price. ' +
-          `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
-          `Resume sell process after ${checkDisable.ttl}s.`
+          actions.action_sell_disabled_stop_loss[1] +
+          actions.action_sell_disabled_stop_loss[2] + checkDisable.disabledBy + '.' +
+          actions.action_sell_disabled_stop_loss[3] + checkDisable.ttl + 's'
         );
       }
       // Then sell market order
@@ -260,7 +267,7 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'sell-stop-loss',
-        'The current price is reached the stop-loss price. Place market sell order.'
+        actions.action_sell_stop_loss
       );
     }
 
@@ -269,7 +276,7 @@ const execute = async (logger, rawData) => {
       logger,
       data,
       'sell-wait',
-      'The current price is lower than the selling trigger price. Wait.'
+      actions.sell_wait
     );
   }
 

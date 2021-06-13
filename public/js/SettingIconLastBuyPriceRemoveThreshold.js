@@ -47,12 +47,14 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
   }
 
   render() {
-    const { quoteAssets } = this.props;
+    const { quoteAssets, jsonStrings } = this.props;
     const { lastBuyPriceRemoveThresholds } = this.state;
 
-    if (_.isEmpty(lastBuyPriceRemoveThresholds)) {
+    if (_.isEmpty(lastBuyPriceRemoveThresholds) || _.isEmpty(jsonStrings)) {
       return '';
     }
+
+    const { settingIcon, commonStrings } = jsonStrings;
 
     return quoteAssets.map((quoteAsset, index) => {
       return (
@@ -63,7 +65,7 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
             controlId={'field-min-last-buy-remove-threshold-limit-percentage-' + quoteAsset}
             className='mb-2'>
             <Form.Label className='mb-0'>
-              Last Buy Price Remove Threshold for {quoteAsset}{' '}
+              {commonStrings.last_buy_price_remove_threshold} {quoteAsset}{' '}
               <OverlayTrigger
                 trigger='click'
                 key={'last-buy-remove-threshold-overlay-' + quoteAsset}
@@ -72,15 +74,10 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
                   <Popover
                     id={'last-buy-remove-threshold-overlay-right' + quoteAsset}>
                     <Popover.Content>
-                      Set the last buy threshold for symbols with quote asset "
-                      {quoteAsset}". The last buy threshold will be applied to
-                      the symbols which ends with "{quoteAsset}" if not
-                      configured the symbol configuration.
+                      {settingIcon.last_buy_price_remove_threshold_description[1]} "
+                      {quoteAsset}".
 
-                      When price of coin drops below the threshold the bot will
-                      remove the last buy price. If the bot didn't sell the coin,
-                      you can manually add the last buy price. But if the price is
-                      still below the threshold, it will remove it again!
+                      {settingIcon.last_buy_price_remove_threshold_description[2]}
                     </Popover.Content>
                   </Popover>
                 }>
@@ -92,7 +89,7 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
             <Form.Control
               size='sm'
               type='number'
-              placeholder={'Enter last buy threshold for ' + quoteAsset}
+              placeholder={settingIcon.placeholder_last_buy_remove_price_threshold + quoteAsset}
               required
               min='0.0001'
               step='0.0001'

@@ -32,6 +32,7 @@
     "chatid": "",
     "token": ""
   },
+  "language": "en",
   "localTunnel": {
     "enabled": true,
     "subdomain": "default"
@@ -46,6 +47,7 @@
       "cronTime": "0 0 9 * * *"
     },
     "trailingTrade": {
+      "language": "en",
       "enabled": true,
       "cronTime": "* * * * * *",
       "symbols": [
@@ -81,7 +83,6 @@
         }
       },
       "system": {
-        "language": "en",
         "temporaryDisableActionAfterConfirmingOrder": 20,
         "checkManualBuyOrderPeriod": 5,
         "refreshAccountInfoPeriod": 1

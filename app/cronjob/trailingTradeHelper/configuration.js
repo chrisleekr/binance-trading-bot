@@ -84,6 +84,7 @@ const getSymbolConfiguration = async (logger, symbol = null) => {
     return {};
   }
 
+
   return configValue;
 };
 

@@ -38,7 +38,9 @@ class SymbolEnableActionIcon extends React.Component {
   }
 
   render() {
-    const { symbol, className } = this.props;
+    const { symbol, className, jsonStrings } = this.props;
+
+    const { symbolEnableAction, commonStrings } = jsonStrings;
     return (
       <span
         className={
@@ -53,29 +55,28 @@ class SymbolEnableActionIcon extends React.Component {
 
         <Modal show={this.state.showModal} onHide={this.handleModalClose}>
           <Modal.Header className='pt-1 pb-1'>
-            <Modal.Title>Resume Symbol Action - {symbol}</Modal.Title>
+            <Modal.Title>{symbolEnableAction.resume_symbol_action} - {symbol}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            Are you sure to resume action for this symbol?
+            {symbolEnableAction.description[1]}
             <br />
-            Note that when the market is volatile, the bot may buy again and
-            sell in market order.
+            {symbolEnableAction.description[2]}
             <br />
-            Please proceed with precaution.
+            {symbolEnableAction.description[3]}
           </Modal.Body>
           <Modal.Footer>
             <Button
               variant='secondary'
               size='sm'
               onClick={this.handleModalClose}>
-              Close
+              {commonStrings.close}
             </Button>
             <Button
               type='button'
               variant='danger'
               size='sm'
               onClick={this.handleDelete}>
-              Resume
+              {commonStrings.resume}
             </Button>
           </Modal.Footer>
         </Modal>

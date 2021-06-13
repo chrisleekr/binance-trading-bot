@@ -1,10 +1,12 @@
 const moment = require('moment');
-const { binance, slack, cache, PubSub } = require('../../../helpers');
+const { binance, cache, PubSub, messenger } = require('../../../helpers');
+const config = require('config');
 const {
   getAPILimit,
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
+let actions = {};
 
 /**
  * Format order params for market total
@@ -127,7 +129,7 @@ const formatOrder = async (logger, symbol, order) => {
  * @param {*} order
  * @param {*} orderParams
  */
-const slackMessageOrderParams = async (
+const messengerMessageOrderParams = async (
   logger,
   symbol,
   side,
@@ -141,7 +143,7 @@ const slackMessageOrderParams = async (
     type += ` - ${marketType.toUpperCase()}`;
   }
 
-  return slack.sendMessage(
+  return messenger.errorMessage(
     `${symbol} Manual ${side.toUpperCase()} Action (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +
@@ -180,11 +182,10 @@ const slackMessageOrderResult = async (
   PubSub.publish('frontend-notification', {
     type: 'success',
     title:
-      `The ${side} order for ${symbol} has been placed successfully.` +
-      ` If the order is not executed, it should appear soon.`
+      actions.notify_order_success[1] + side + actions.notify_order_success[2] + symbol + actions.notify_order_success[3]
   });
 
-  return slack.sendMessage(
+  return messenger.errorMessage(
     `${symbol} Manual ${side.toUpperCase()} Result (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +
@@ -252,10 +253,13 @@ const execute = async (logger, rawData) => {
     );
     return data;
   }
+const language = config.get('language');
+
+const { coinWrapper: { actions }, placeManualTrade } = require(`../../../../public/${config.get('language')}.json`);
 
   // Assume order is provided with correct value
   const orderParams = await formatOrder(logger, symbol, order);
-  slackMessageOrderParams(logger, symbol, order.side, order, orderParams);
+  messengerMessageOrderParams(logger, symbol, order.side, order, orderParams);
 
   const orderResult = await binance.client.order(orderParams);
 
@@ -275,7 +279,7 @@ const execute = async (logger, rawData) => {
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
   slackMessageOrderResult(logger, symbol, order.side, order, orderResult);
-  data.buy.processMessage = `Placed new manual order.`;
+  data.buy.processMessage = placeManualTrade.action_manual_order;
   data.buy.updatedAt = moment().utc();
 
   return data;

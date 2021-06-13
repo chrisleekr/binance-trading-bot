@@ -2,6 +2,7 @@ const _ = require('lodash');
 const moment = require('moment');
 const { binance, messenger, mongo, cache } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
+const config = require('config');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
@@ -54,8 +55,12 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
+
+  const language = config.get('language');
+  const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+
   if (openOrders.length > 0) {
-    data.buy.processMessage = `There are open orders for ${symbol}. Do not place an order.`;
+    data.buy.processMessage = action.action_open_orders[1] + symbol + '.' + actions.action_open_orders[2];
     data.buy.updatedAt = moment().utc();
 
     return data;
@@ -63,7 +68,7 @@ const execute = async (logger, rawData) => {
 
   if (maxPurchaseAmount <= 0) {
     data.buy.processMessage =
-      'Max purchase amount must be configured. Please configure symbol settings.';
+      actions.action_max_purchase_undefined;
     data.buy.updatedAt = moment().utc();
 
     return data;
@@ -87,7 +92,7 @@ const execute = async (logger, rawData) => {
   }
 
   if (freeBalance < parseFloat(minNotional)) {
-    data.buy.processMessage = `Do not place a buy order as not enough ${quoteAsset} to buy ${baseAsset}.`;
+    data.buy.processMessage = actions.action_dont_place_order[1] + quoteAsset + actions.action_dont_place_order[2] + baseAsset + '.';
     data.buy.updatedAt = moment().utc();
 
     return data;
@@ -106,7 +111,7 @@ const execute = async (logger, rawData) => {
   const orderQuantity = parseFloat(
     _.floor(
       orderQuantityBeforeCommission -
-        orderQuantityBeforeCommission * (0.1 / 100),
+      orderQuantityBeforeCommission * (0.1 / 100),
       lotPrecision
     )
   );
@@ -115,22 +120,22 @@ const execute = async (logger, rawData) => {
 
   if (orderQuantity * limitPrice < parseFloat(minNotional)) {
     data.buy.processMessage =
-      `Do not place a buy order as not enough ${quoteAsset} ` +
-      `to buy ${baseAsset} after calculation.`;
+      actions.action_dont_place_order_calc[1] + quoteAsset +
+      actions.action_dont_place_order_calc[2] + baseAsset + actions.action_dont_place_order_calc[3];
     data.buy.updatedAt = moment().utc();
 
     return data;
   }
 
   if (tradingEnabled !== true) {
-    data.buy.processMessage = `Trading for ${symbol} is disabled. Do not place an order.`;
+    data.buy.processMessage = actions.action_trading_for_disabled[1] + symbol + actions.action_trading_for_disabled[2];
     data.buy.updatedAt = moment().utc();
 
     return data;
   }
 
   if (isExceedAPILimit(logger)) {
-    data.buy.processMessage = `Binance API limit has been exceeded. Do not place an order.`;
+    data.buy.processMessage = actions.action_api_exceed;
     data.buy.updatedAt = moment().utc();
 
     return data;
@@ -186,7 +191,7 @@ const execute = async (logger, rawData) => {
   messenger.sendMessage(
     symbol, orderResult, 'PLACE_BUY_DONE'
   );
-  data.buy.processMessage = `Placed new stop loss limit order for buying.`;
+  data.buy.processMessage = actions.action_placed_new_order;
   data.buy.updatedAt = moment().utc();
 
   // Save last buy price
