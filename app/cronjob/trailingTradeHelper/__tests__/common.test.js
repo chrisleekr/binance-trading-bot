@@ -305,6 +305,13 @@ describe('common.js', () => {
           return JSON.stringify({ close: '0.04480' });
         }
 
+        if (
+          hash === 'trailing-trade-symbols' &&
+          key === 'TRXBTC-latest-candle'
+        ) {
+          return JSON.stringify({ close: '0.00000179' });
+        }
+
         return null;
       });
 
@@ -330,6 +337,10 @@ describe('common.js', () => {
           {
             asset: 'TRX',
             free: '0.001'
+          },
+          {
+            asset: 'XRP',
+            free: '2'
           }
         ]
       });
@@ -353,20 +364,26 @@ describe('common.js', () => {
           {
             asset: 'ETH',
             canDustTransfer: false,
-            estimatedBTC: 0.06584,
+            estimatedBTC: '0.06584000',
             free: '1'
           },
           {
             asset: 'LTC',
             canDustTransfer: true,
-            estimatedBTC: 0.0000448,
+            estimatedBTC: '0.00004480',
             free: '0.001'
           },
           {
             asset: 'TRX',
+            canDustTransfer: true,
+            estimatedBTC: '0.00000000',
+            free: '0.001'
+          },
+          {
+            asset: 'XRP',
             canDustTransfer: false,
             estimatedBTC: -1,
-            free: '0.001'
+            free: '2'
           }
         ]
       });
