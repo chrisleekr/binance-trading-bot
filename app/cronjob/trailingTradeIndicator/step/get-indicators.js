@@ -1,5 +1,5 @@
 const _ = require('lodash');
-const { binance } = require('../../../helpers');
+const { binance, messenger } = require('../../../helpers');
 
 /**
  * Flatten candle data
@@ -36,7 +36,7 @@ const execute = async (logger, rawData) => {
   const {
     symbol,
     symbolConfiguration: {
-      candles: { interval, limit }
+      candles: { interval, limit }, isGoingUp
     }
   } = data;
 
@@ -53,7 +53,39 @@ const execute = async (logger, rawData) => {
 
   // Flatten candles data to get lowest price
   const candlesData = flattenCandlesData(candles);
+  const candleLows = candlesData.low
 
+  var newCandle = 1;
+  var difference = 0.000;
+  candleLows.forEach(candle => {
+    var newCandleToTest = candleLows[newCandle];
+    if (newCandleToTest != undefined) {
+      if (candle >= newCandleToTest) {
+      calc = candle - newCandleToTest;
+      difference = calc;
+      messenger.errorMessage("going up");
+    } else {
+      calc = newCandleToTest - candle;
+      difference = calc;
+      messenger.errorMessage("going down");
+    }
+    }
+    newCandle++;
+  });
+  messenger.errorMessage("Diff: " + difference);
+
+  if (Math.sign(difference) == 1) {
+    messenger.errorMessage("going up");
+    isGoingUp.itIs = "up";
+  } else if (Math.sign(difference) == 0) {
+    messenger.errorMessage("maintaining");
+    isGoingUp.itIs = "maintaining position";
+  } else if (Math.sign(difference) == -1) {
+    messenger.errorMessage("falling");
+    isGoingUp.itIs = "falling";
+  } else if (Math.sign(difference) == -0) {
+    messenger.errorMessage("xupa kuu")
+  }
   // Get lowest price
   const lowestPrice = _.min(candlesData.low);
 

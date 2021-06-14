@@ -19,6 +19,7 @@ describe('determine-action.js', () => {
           },
           baseAssetBalance: { total: '1.4500000' },
           buy: {
+            lastBuyPriceRemoveThreshold: 10,
             currentPrice: 184.099,
             triggerPrice: 172.375
           },
@@ -49,6 +50,7 @@ describe('determine-action.js', () => {
           },
           baseAssetBalance: { total: '1.4500000' },
           buy: {
+            lastBuyPriceRemoveThreshold: 10,
             currentPrice: 184.099,
             triggerPrice: 172.375
           },
@@ -79,6 +81,7 @@ describe('determine-action.js', () => {
           },
           baseAssetBalance: { total: '1.4500000' },
           buy: {
+            lastBuyPriceRemoveThreshold: 10,
             currentPrice: 184.099,
             triggerPrice: 172.375
           },
@@ -117,6 +120,7 @@ describe('determine-action.js', () => {
               },
               baseAssetBalance: { total: '1.0500000' },
               buy: {
+                lastBuyPriceRemoveThreshold: 10,
                 currentPrice: 184.099,
                 triggerPrice: 185.375
               },
@@ -142,6 +146,7 @@ describe('determine-action.js', () => {
               },
               baseAssetBalance: { total: '1.0500000' },
               buy: {
+                lastBuyPriceRemoveThreshold: 10,
                 currentPrice: 184.099,
                 triggerPrice: 185.375,
                 processMessage:
@@ -185,6 +190,7 @@ describe('determine-action.js', () => {
               },
               baseAssetBalance: { total: '0.0500000' },
               buy: {
+                lastBuyPriceRemoveThreshold: 10,
                 currentPrice: 184.099,
                 triggerPrice: 185.375
               },
@@ -209,6 +215,7 @@ describe('determine-action.js', () => {
               },
               baseAssetBalance: { total: '0.0500000' },
               buy: {
+                lastBuyPriceRemoveThreshold: 10,
                 currentPrice: 184.099,
                 triggerPrice: 185.375,
                 processMessage:
@@ -243,6 +250,7 @@ describe('determine-action.js', () => {
               },
               baseAssetBalance: { total: '0.0500000' },
               buy: {
+                lastBuyPriceRemoveThreshold: 10,
                 currentPrice: 184.099,
                 triggerPrice: 185.375
               },
@@ -267,6 +275,7 @@ describe('determine-action.js', () => {
               },
               baseAssetBalance: { total: '0.0500000' },
               buy: {
+                lastBuyPriceRemoveThreshold: 10,
                 currentPrice: 184.099,
                 triggerPrice: 185.375,
                 processMessage:
@@ -296,6 +305,7 @@ describe('determine-action.js', () => {
               },
               baseAssetBalance: { total: '1.0500000' },
               buy: {
+                lastBuyPriceRemoveThreshold: 10,
                 currentPrice: 184.099,
                 triggerPrice: 185.375
               },
@@ -336,6 +346,7 @@ describe('determine-action.js', () => {
                 },
                 baseAssetBalance: { total: '1.0500000' },
                 buy: {
+                  lastBuyPriceRemoveThreshold: 10,
                   currentPrice: 184.099,
                   triggerPrice: 185.375
                 },
@@ -374,6 +385,7 @@ describe('determine-action.js', () => {
                 },
                 baseAssetBalance: { total: '1.0500000' },
                 buy: {
+                  lastBuyPriceRemoveThreshold: 10,
                   currentPrice: 184.099,
                   triggerPrice: 185.375
                 },
@@ -408,6 +420,7 @@ describe('determine-action.js', () => {
                 },
                 baseAssetBalance: { total: '1.0500000' },
                 buy: {
+                  lastBuyPriceRemoveThreshold: 10,
                   currentPrice: 160.099,
                   triggerPrice: 185.375
                 },
@@ -437,6 +450,7 @@ describe('determine-action.js', () => {
                 },
                 baseAssetBalance: { total: '1.0500000' },
                 buy: {
+                  lastBuyPriceRemoveThreshold: 10,
                   currentPrice: 160.099,
                   triggerPrice: 185.375
                 },
@@ -469,6 +483,7 @@ describe('determine-action.js', () => {
                 },
                 baseAssetBalance: { total: '1.0500000' },
                 buy: {
+                  lastBuyPriceRemoveThreshold: 10,
                   currentPrice: 160.099,
                   triggerPrice: 185.375
                 },
@@ -516,6 +531,7 @@ describe('determine-action.js', () => {
                   },
                   baseAssetBalance: { total: '1.0500000' },
                   buy: {
+                    lastBuyPriceRemoveThreshold: 10,
                     currentPrice: 160.099,
                     triggerPrice: 185.375
                   },
@@ -560,6 +576,7 @@ describe('determine-action.js', () => {
                   },
                   baseAssetBalance: { total: '1.0500000' },
                   buy: {
+                    lastBuyPriceRemoveThreshold: 10,
                     currentPrice: 160.099,
                     triggerPrice: 185.375
                   },
@@ -594,6 +611,7 @@ describe('determine-action.js', () => {
               },
               baseAssetBalance: { total: '1.0500000' },
               buy: {
+                lastBuyPriceRemoveThreshold: 10,
                 currentPrice: 184.099,
                 triggerPrice: 185.375
               },
@@ -623,6 +641,7 @@ describe('determine-action.js', () => {
               },
               baseAssetBalance: { total: '1.0500000' },
               buy: {
+                lastBuyPriceRemoveThreshold: 10,
                 currentPrice: 184.099,
                 triggerPrice: 185.375
               },
@@ -651,6 +670,7 @@ describe('determine-action.js', () => {
             },
             baseAssetBalance: { total: '0.0500000' },
             buy: {
+              lastBuyPriceRemoveThreshold: 10,
               currentPrice: 184.099,
               triggerPrice: 180.375
             },
@@ -675,6 +695,7 @@ describe('determine-action.js', () => {
             },
             baseAssetBalance: { total: '0.0500000' },
             buy: {
+              lastBuyPriceRemoveThreshold: 10,
               currentPrice: 184.099,
               triggerPrice: 180.375
             },

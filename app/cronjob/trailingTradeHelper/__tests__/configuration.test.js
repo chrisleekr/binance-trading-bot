@@ -187,6 +187,8 @@ describe('configuration.js', () => {
             enabled: false,
             maxPurchaseAmount: -1,
             maxPurchaseAmounts: {},
+            lastBuyPriceRemoveThreshold: -1,
+            lastBuyPriceRemoveThreshold: {},
             triggerPercentage: 1.05,
             stopPercentage: 1.08,
             limitPercentage: 1.081
@@ -260,7 +262,8 @@ describe('configuration.js', () => {
         expect(result).toStrictEqual({
           myConfig: 'value',
           buy: {
-            maxPurchaseAmount: 150
+            maxPurchaseAmount: 150,
+            lastBuyPriceRemoveThreshold: 0.0001,
           }
         });
       });
@@ -418,6 +421,12 @@ describe('configuration.js', () => {
                   BTC: 0.001,
                   BUSD: 100
                 },
+                lastBuyPriceRemoveThreshold: -1,
+                lastBuyPriceRemoveThreshold: {
+                  USDT: 10,
+                  BTC: 0.001,
+                  BUSD: 10
+                },
                 triggerPercentage: 1.05,
                 stopPercentage: 1.05,
                 limitPercentage: 1.051
@@ -454,6 +463,7 @@ describe('configuration.js', () => {
               buy: {
                 enabled: true,
                 maxPurchaseAmount: 150,
+                lastBuyPriceRemoveThreshold: 0.0001,
                 triggerPercentage: 1.04,
                 stopPercentage: 1.04,
                 limitPercentage: 1.041
@@ -496,6 +506,12 @@ describe('configuration.js', () => {
             enabled: false,
             maxPurchaseAmount: -1,
             maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 },
+            lastBuyPriceRemoveThreshold: -1,
+            lastBuyPriceRemoveThreshold: {
+              USDT: 10,
+              BTC: 0.0001,
+              BUSD: 10
+            },
             triggerPercentage: 1.05,
             stopPercentage: 1.05,
             limitPercentage: 1.051
@@ -566,6 +582,10 @@ describe('configuration.js', () => {
                 maxPurchaseAmounts: {
                   USDT: 100
                 },
+                lastBuyPriceRemoveThreshold: -1,
+                lastBuyPriceRemoveThreshold: {
+                  USDT: 10,
+                },
                 triggerPercentage: 1,
                 stopPercentage: 1.02,
                 limitPercentage: 1.021
@@ -600,6 +620,7 @@ describe('configuration.js', () => {
             buy: {
               enabled: true,
               maxPurchaseAmount: 100,
+              lastBuyPriceRemoveThreshold: 10,
               triggerPercentage: 1,
               stopPercentage: 1.02,
               limitPercentage: 1.021
@@ -648,6 +669,12 @@ describe('configuration.js', () => {
                     BTC: 0.001,
                     BUSD: 100
                   },
+                  lastBuyPriceRemoveThreshold: -1,
+                  lastBuyPriceRemoveThreshold: {
+                    USDT: 10,
+                    BTC: 0.001,
+                    BUSD: 10
+                  },
                   triggerPercentage: 1.05,
                   stopPercentage: 1.05,
                   limitPercentage: 1.051
@@ -694,6 +721,7 @@ describe('configuration.js', () => {
             buy: {
               enabled: false,
               maxPurchaseAmount: 100,
+              lastBuyPriceRemoveThreshold: 10,
               triggerPercentage: 1.05,
               stopPercentage: 1.05,
               limitPercentage: 1.051
@@ -743,6 +771,12 @@ describe('configuration.js', () => {
                       BTC: 0.001,
                       BUSD: 100
                     },
+                    lastBuyPriceRemoveThreshold: -1,
+                    lastBuyPriceRemoveThreshold: {
+                      USDT: 10,
+                      BTC: 0.001,
+                      BUSD: 10
+                    },
                     triggerPercentage: 1.05,
                     stopPercentage: 1.05,
                     limitPercentage: 1.051
@@ -780,6 +814,7 @@ describe('configuration.js', () => {
                   buy: {
                     enabled: true,
                     maxPurchaseAmount: 150,
+                    lastBuyPriceRemoveThreshold: 0.001,
                     triggerPercentage: 1.04,
                     stopPercentage: 1.04,
                     limitPercentage: 1.041
@@ -822,6 +857,7 @@ describe('configuration.js', () => {
               buy: {
                 enabled: true,
                 maxPurchaseAmount: 150,
+                lastBuyPriceRemoveThreshold: 0.001,
                 triggerPercentage: 1.04,
                 stopPercentage: 1.04,
                 limitPercentage: 1.041
@@ -877,6 +913,12 @@ describe('configuration.js', () => {
                       USDT: 100,
                       BTC: 0.001,
                       BUSD: 100
+                    },
+                    lastBuyPriceRemoveThreshold: 10,
+                    lastBuyPriceRemoveThreshold: {
+                      USDT: 10,
+                      BTC: 0.001,
+                      BUSD: 10
                     },
                     triggerPercentage: 1.05,
                     stopPercentage: 1.05,
@@ -948,6 +990,7 @@ describe('configuration.js', () => {
               buy: {
                 enabled: true,
                 maxPurchaseAmount: 50,
+                lastBuyPriceRemoveThreshold: 0.0001,
                 triggerPercentage: 1.04,
                 stopPercentage: 1.04,
                 limitPercentage: 1.041
@@ -1023,6 +1066,7 @@ describe('configuration.js', () => {
               buy: {
                 enabled: false,
                 maxPurchaseAmount: 80,
+                lastBuyPriceRemoveThreshold: 10,
                 triggerPercentage: 1,
                 stopPercentage: 1.02,
                 limitPercentage: 1.021
@@ -1062,7 +1106,7 @@ describe('configuration.js', () => {
                 return {
                   enabled: true,
                   some: 'value',
-                  buy: { enabled: true, maxPurchaseAmounts: { BNB: 80 } },
+                  buy: { enabled: true, maxPurchaseAmounts: { BNB: 80 }, lastBuyPriceRemoveThreshold: { BNB: 0.05} },
                   sell: { enabled: true }
                 };
               }
@@ -1094,6 +1138,7 @@ describe('configuration.js', () => {
               buy: {
                 enabled: false,
                 maxPurchaseAmount: -1,
+                lastBuyPriceRemoveThreshold: -1,
                 triggerPercentage: 1,
                 stopPercentage: 1.02,
                 limitPercentage: 1.021
