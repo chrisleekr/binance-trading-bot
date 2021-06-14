@@ -15,9 +15,9 @@ services:
       - BINANCE_SLACK_ENABLED=true
       - BINANCE_JOBS_ALIVE_ENABLED=true
       - BINANCE_JOBS_TRAILING_TRADE_ENABLED=true
-      - REDIS_HOST=binance-redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=
+      - BINANCE_REDIS_HOST=binance-redis
+      - BINANCE_REDIS_PORT=6379
+      - BINANCE_REDIS_PASSWORD=secretp422
     ports:
       - 8080:80
     logging:
@@ -27,7 +27,7 @@ services:
 
   binance-redis:
     container_name: binance-redis
-    image: redis:6.0
+    image: redis:6.2
     sysctls:
       net.core.somaxconn: 1024
     networks:
@@ -36,7 +36,8 @@ services:
     volumes:
       - redis_data:/data
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
-    command: redis-server /usr/local/etc/redis/redis.conf
+    command:
+      redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
 
   binance-mongo:
     container_name: binance-mongo

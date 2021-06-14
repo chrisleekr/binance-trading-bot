@@ -71,6 +71,7 @@
       "system": {
         "temporaryDisableActionAfterConfirmingOrder": 20,
         "checkManualBuyOrderPeriod": 5,
+        "placeManualOrderInterval": 5,
         "refreshAccountInfoPeriod": 1
       }
     },

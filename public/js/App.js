@@ -14,32 +14,10 @@ class App extends React.Component {
       gitHash: '',
       configuration: {},
       exchangeSymbols: [],
-      // This list is from binance FIAT markets. Dosn't need to be dynamic.
-      exchangeFIATs: [
-        'USDT',
-        'BUSD',
-        'BRL',
-        'EUR',
-        'GBP',
-        'TRY',
-        'TUSD',
-        'USDC',
-        'PAX',
-        'AUD',
-        'BIDR',
-        'DAI',
-        'IDRT',
-        'RUB',
-        'ZAR',
-        'NGN',
-        'UAH',
-        'VAI',
-        'BVND'
-      ],
       symbols: [],
       accountInfo: {},
       publicURL: '',
-      totalPnL: {}
+      dustTransfer: {}
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
@@ -126,27 +104,8 @@ class App extends React.Component {
           return;
         }
 
-        // Calculate total profit/loss
-        const totalPnL = {};
-        _.forEach(response.stats.symbols, s => {
-          if (totalPnL[s.quoteAssetBalance.asset] === undefined) {
-            totalPnL[s.quoteAssetBalance.asset] = {
-              asset: s.quoteAssetBalance.asset,
-              amount: 0,
-              profit: 0
-            };
-          }
-
-          totalPnL[s.quoteAssetBalance.asset].amount +=
-            (parseFloat(s.baseAssetBalance.free) +
-              parseFloat(s.baseAssetBalance.free)) *
-            s.sell.lastBuyPrice;
-          totalPnL[s.quoteAssetBalance.asset].profit += s.sell.currentProfit;
-        });
-
         // Set states
         self.setState({
-          totalPnL,
           symbols: _.sortBy(response.stats.symbols, s => {
             if (s.buy.openOrders.length > 0) {
               const openOrder = s.buy.openOrders[0];
@@ -179,6 +138,12 @@ class App extends React.Component {
         this.toast({
           type: response.message.type,
           title: response.message.title
+        });
+      }
+
+      if (response.type === 'dust-transfer-get-result') {
+        self.setState({
+          dustTransfer: response.dustTransfer
         });
       }
     };
@@ -226,13 +191,12 @@ class App extends React.Component {
       packageVersion,
       gitHash,
       exchangeSymbols,
-      exchangeFIATs,
       symbols,
       configuration,
       accountInfo,
       publicURL,
       apiInfo,
-      totalPnL
+      dustTransfer
     } = this.state;
 
     const coinWrappers = symbols.map((symbol, index) => {
@@ -255,14 +219,20 @@ class App extends React.Component {
           configuration={configuration}
           publicURL={publicURL}
           exchangeSymbols={exchangeSymbols}
-          exchangeFIATs={exchangeFIATs}
           sendWebSocket={this.sendWebSocket}
         />
         {_.isEmpty(configuration) === false ? (
           <div className='app-body'>
             <div className='app-body-header-wrapper'>
-              <AccountWrapper accountInfo={accountInfo} />
-              <ProfitLossWrapper totalPnL={totalPnL} />
+              <AccountWrapper
+                accountInfo={accountInfo}
+                dustTransfer={dustTransfer}
+                sendWebSocket={this.sendWebSocket}
+              />
+              <ProfitLossWrapper
+                symbols={symbols}
+                sendWebSocket={this.sendWebSocket}
+              />
             </div>
             <div className='coin-wrappers'>{coinWrappers}</div>
             <div className='app-body-footer-wrapper'>

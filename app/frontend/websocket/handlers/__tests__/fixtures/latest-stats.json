@@ -30,11 +30,12 @@
     "system": {
       "temporaryDisableActionAfterConfirmingOrder": 20,
       "checkManualBuyOrderPeriod": 5,
+      "placeManualOrderInterval": 5,
       "refreshAccountInfoPeriod": 1
     }
   },
   "common": {
-    "version": "0.0.66",
+    "version": "0.0.69",
     "gitHash": "some-hash",
     "configuration": {
       "enabled": true,
@@ -65,6 +66,7 @@
       "system": {
         "temporaryDisableActionAfterConfirmingOrder": 20,
         "checkManualBuyOrderPeriod": 5,
+        "placeManualOrderInterval": 5,
         "refreshAccountInfoPeriod": 1
       }
     },
@@ -132,6 +134,7 @@
           "system": {
             "temporaryDisableActionAfterConfirmingOrder": 20,
             "checkManualBuyOrderPeriod": 5,
+            "placeManualOrderInterval": 5,
             "refreshAccountInfoPeriod": 1
           }
         },
@@ -165,6 +168,7 @@
           "system": {
             "temporaryDisableActionAfterConfirmingOrder": 20,
             "checkManualBuyOrderPeriod": 5,
+            "placeManualOrderInterval": 5,
             "refreshAccountInfoPeriod": 1
           }
         },
@@ -330,6 +334,7 @@
           "system": {
             "temporaryDisableActionAfterConfirmingOrder": 20,
             "checkManualBuyOrderPeriod": 5,
+            "placeManualOrderInterval": 5,
             "refreshAccountInfoPeriod": 1
           }
         },
@@ -363,6 +368,7 @@
           "system": {
             "temporaryDisableActionAfterConfirmingOrder": 20,
             "checkManualBuyOrderPeriod": 5,
+            "placeManualOrderInterval": 5,
             "refreshAccountInfoPeriod": 1
           }
         },

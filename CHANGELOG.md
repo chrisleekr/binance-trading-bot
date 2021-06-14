@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Support manual trade for all symbols -  [#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
+- Configured Redis password
+- Support converting small balances to BNB -  [#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
+
 ## [0.0.69] - 2021-06-05
 
 - Fixed typo issue with CANCELED manual order handling
@@ -12,7 +18,7 @@ All notable changes to this project will be documented in this file.
 
 ## [0.0.67] - 2021-06-05
 
-- add Chinese translation of readme by [@izayl](https://github.com/izayl) - [#205](https://github.com/chrisleekr/binance-trading-bot/pull/205)
+- Add Chinese translation of readme by [@izayl](https://github.com/izayl) - [#205](https://github.com/chrisleekr/binance-trading-bot/pull/205)
 - Support manual trade - [#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
 
 ## [0.0.66] - 2021-05-21

@@ -281,6 +281,98 @@ describe('common.js', () => {
     });
   });
 
+  describe('extendBalancesWithDustTransfer', () => {
+    beforeEach(async () => {
+      const { cache, binance, logger } = require('../../../helpers');
+
+      cacheMock = cache;
+      binanceMock = binance;
+
+      cacheMock.hset = jest.fn().mockResolvedValue(true);
+
+      cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+        if (
+          hash === 'trailing-trade-symbols' &&
+          key === 'ETHBTC-latest-candle'
+        ) {
+          return JSON.stringify({ close: '0.065840' });
+        }
+
+        if (
+          hash === 'trailing-trade-symbols' &&
+          key === 'LTCBTC-latest-candle'
+        ) {
+          return JSON.stringify({ close: '0.04480' });
+        }
+
+        return null;
+      });
+
+      commonHelper = require('../common');
+      result = await commonHelper.extendBalancesWithDustTransfer(logger, {
+        balances: [
+          {
+            asset: 'BTC',
+            free: '0.001'
+          },
+          {
+            asset: 'BNB',
+            free: '0.02'
+          },
+          {
+            asset: 'ETH',
+            free: '1'
+          },
+          {
+            asset: 'LTC',
+            free: '0.001'
+          },
+          {
+            asset: 'TRX',
+            free: '0.001'
+          }
+        ]
+      });
+    });
+
+    it('returns expected result', () => {
+      expect(result).toStrictEqual({
+        balances: [
+          {
+            asset: 'BTC',
+            canDustTransfer: false,
+            estimatedBTC: -1,
+            free: '0.001'
+          },
+          {
+            asset: 'BNB',
+            canDustTransfer: false,
+            estimatedBTC: -1,
+            free: '0.02'
+          },
+          {
+            asset: 'ETH',
+            canDustTransfer: false,
+            estimatedBTC: 0.06584,
+            free: '1'
+          },
+          {
+            asset: 'LTC',
+            canDustTransfer: true,
+            estimatedBTC: 0.0000448,
+            free: '0.001'
+          },
+          {
+            asset: 'TRX',
+            canDustTransfer: false,
+            estimatedBTC: -1,
+            free: '0.001'
+          }
+        ]
+      });
+    });
+  });
+
   describe('getAccountInfoFromAPI', () => {
     beforeEach(async () => {
       const { cache, binance, logger } = require('../../../helpers');
@@ -932,7 +1024,7 @@ describe('common.js', () => {
     });
   });
 
-  describe('getOverrideData', () => {
+  describe('getOverrideDataForSymbol', () => {
     describe('when there is override data', () => {
       beforeEach(async () => {
         const { cache, logger } = require('../../../helpers');
@@ -951,7 +1043,10 @@ describe('common.js', () => {
 
         commonHelper = require('../common');
 
-        result = await commonHelper.getOverrideData(loggerMock, 'BTCUSDT');
+        result = await commonHelper.getOverrideDataForSymbol(
+          loggerMock,
+          'BTCUSDT'
+        );
       });
 
       it('triggers cache.hget', () => {
@@ -981,7 +1076,10 @@ describe('common.js', () => {
         cacheMock.hget = jest.fn().mockResolvedValue(null);
 
         commonHelper = require('../common');
-        result = await commonHelper.getOverrideData(loggerMock, 'BTCUSDT');
+        result = await commonHelper.getOverrideDataForSymbol(
+          loggerMock,
+          'BTCUSDT'
+        );
       });
 
       it('retruns expected value', () => {
@@ -990,7 +1088,7 @@ describe('common.js', () => {
     });
   });
 
-  describe('removeOverrideData', () => {
+  describe('removeOverrideDataForSymbol', () => {
     beforeEach(async () => {
       const { cache, logger } = require('../../../helpers');
 
@@ -1001,13 +1099,105 @@ describe('common.js', () => {
 
       commonHelper = require('../common');
 
-      result = await commonHelper.removeOverrideData(loggerMock, 'BTCUSDT');
+      result = await commonHelper.removeOverrideDataForSymbol(
+        loggerMock,
+        'BTCUSDT'
+      );
     });
 
     it('triggers cache.hdel', () => {
       expect(cacheMock.hdel).toHaveBeenCalledWith(
         'trailing-trade-override',
         'BTCUSDT'
+      );
+    });
+  });
+
+  describe('getOverrideDataForIndicator', () => {
+    describe('when there is override data', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hget = jest.fn().mockResolvedValue(
+          JSON.stringify({
+            action: 'dust-transfer',
+            order: {
+              some: 'value'
+            }
+          })
+        );
+
+        commonHelper = require('../common');
+
+        result = await commonHelper.getOverrideDataForIndicator(
+          loggerMock,
+          'global'
+        );
+      });
+
+      it('triggers cache.hget', () => {
+        expect(cacheMock.hget).toHaveBeenCalledWith(
+          'trailing-trade-indicator-override',
+          'global'
+        );
+      });
+
+      it('retruns expected value', () => {
+        expect(result).toStrictEqual({
+          action: 'dust-transfer',
+          order: {
+            some: 'value'
+          }
+        });
+      });
+    });
+
+    describe('when there is no override', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hget = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.getOverrideDataForIndicator(
+          loggerMock,
+          'global'
+        );
+      });
+
+      it('retruns expected value', () => {
+        expect(result).toBeNull();
+      });
+    });
+  });
+
+  describe('removeOverrideDataForIndicator', () => {
+    beforeEach(async () => {
+      const { cache, logger } = require('../../../helpers');
+
+      loggerMock = logger;
+      cacheMock = cache;
+
+      cacheMock.hdel = jest.fn().mockResolvedValue(true);
+
+      commonHelper = require('../common');
+
+      result = await commonHelper.removeOverrideDataForIndicator(
+        loggerMock,
+        'global'
+      );
+    });
+
+    it('triggers cache.hdel', () => {
+      expect(cacheMock.hdel).toHaveBeenCalledWith(
+        'trailing-trade-indicator-override',
+        'global'
       );
     });
   });

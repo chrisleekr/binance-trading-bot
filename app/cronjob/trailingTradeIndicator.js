@@ -12,9 +12,11 @@ const {
   getGlobalConfiguration,
   getNextSymbol,
   getSymbolConfiguration,
+  getOverrideAction,
   getAccountInfo,
   getIndicators,
   getOpenOrders,
+  executeDustTransfer,
   saveDataToCache
 } = require('./trailingTradeIndicator/steps');
 const { slack } = require('../helpers');
@@ -25,6 +27,7 @@ const execute = async logger => {
 
   // Define sekeleton of data structure
   let data = {
+    action: 'not-determined',
     featureToggle,
     globalConfiguration: {},
     symbol: null,
@@ -32,6 +35,7 @@ const execute = async logger => {
     accountInfo: {},
     indicators: {},
     openOrders: [],
+    overrideParams: {},
     apiLimit: { start: getAPILimit(logger), end: null }
   };
 
@@ -61,6 +65,14 @@ const execute = async logger => {
       {
         stepName: 'get-symbol-configuration',
         stepFunc: getSymbolConfiguration
+      },
+      {
+        stepName: 'get-override-action',
+        stepFunc: getOverrideAction
+      },
+      {
+        stepName: 'execute-dust-transfer',
+        stepFunc: executeDustTransfer
       },
       {
         stepName: 'get-account-info',

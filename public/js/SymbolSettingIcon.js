@@ -21,9 +21,8 @@ class SymbolSettingIcon extends React.Component {
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
 
     this.handleInputChange = this.handleInputChange.bind(this);
-    this.resetToGlobalConfiguration = this.resetToGlobalConfiguration.bind(
-      this
-    );
+    this.resetToGlobalConfiguration =
+      this.resetToGlobalConfiguration.bind(this);
   }
 
   componentDidUpdate(nextProps) {

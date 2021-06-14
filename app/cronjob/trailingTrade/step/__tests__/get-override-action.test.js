@@ -5,15 +5,15 @@ describe('get-override-action.js', () => {
 
   let loggerMock;
 
-  let mockGetOverrideData;
-  let mockRemoveOverrideData;
+  let mockGetOverrideDataForSymbol;
+  let mockRemoveOverrideDataForSymbol;
 
   describe('execute', () => {
     beforeEach(() => {
       jest.clearAllMocks().resetModules();
 
-      mockGetOverrideData = jest.fn();
-      mockRemoveOverrideData = jest.fn();
+      mockGetOverrideDataForSymbol = jest.fn();
+      mockRemoveOverrideDataForSymbol = jest.fn();
     });
 
     describe('when symbol is locked', () => {
@@ -23,8 +23,8 @@ describe('get-override-action.js', () => {
         loggerMock = logger;
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getOverrideData: mockGetOverrideData,
-          removeOverrideData: mockRemoveOverrideData
+          getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+          removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol
         }));
 
         rawData = {
@@ -53,8 +53,8 @@ describe('get-override-action.js', () => {
         loggerMock = logger;
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getOverrideData: mockGetOverrideData,
-          removeOverrideData: mockRemoveOverrideData
+          getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+          removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol
         }));
 
         rawData = {
@@ -83,15 +83,15 @@ describe('get-override-action.js', () => {
 
           loggerMock = logger;
 
-          mockGetOverrideData = jest.fn().mockResolvedValue({
+          mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
             action: 'manual-trade',
             order: {
               some: 'data'
             }
           });
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getOverrideData: mockGetOverrideData,
-            removeOverrideData: mockRemoveOverrideData
+            getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+            removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol
           }));
 
           rawData = {
@@ -104,15 +104,15 @@ describe('get-override-action.js', () => {
           result = await step.execute(loggerMock, rawData);
         });
 
-        it('triggers getOverrideData', () => {
-          expect(mockGetOverrideData).toHaveBeenCalledWith(
+        it('triggers getOverrideDataForSymbol', () => {
+          expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
             loggerMock,
             'BTCUSDT'
           );
         });
 
-        it('triggers removeOverrideData', () => {
-          expect(mockRemoveOverrideData).toHaveBeenCalledWith(
+        it('triggers removeOverrideDataForSymbol', () => {
+          expect(mockRemoveOverrideDataForSymbol).toHaveBeenCalledWith(
             loggerMock,
             'BTCUSDT'
           );
@@ -136,15 +136,15 @@ describe('get-override-action.js', () => {
 
           loggerMock = logger;
 
-          mockGetOverrideData = jest.fn().mockResolvedValue({
+          mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
             action: 'cancel-order',
             order: {
               some: 'data'
             }
           });
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getOverrideData: mockGetOverrideData,
-            removeOverrideData: mockRemoveOverrideData
+            getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+            removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol
           }));
 
           rawData = {
@@ -157,15 +157,15 @@ describe('get-override-action.js', () => {
           result = await step.execute(loggerMock, rawData);
         });
 
-        it('triggers getOverrideData', () => {
-          expect(mockGetOverrideData).toHaveBeenCalledWith(
+        it('triggers getOverrideDataForSymbol', () => {
+          expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
             loggerMock,
             'BTCUSDT'
           );
         });
 
-        it('triggers removeOverrideData', () => {
-          expect(mockRemoveOverrideData).toHaveBeenCalledWith(
+        it('triggers removeOverrideDataForSymbol', () => {
+          expect(mockRemoveOverrideDataForSymbol).toHaveBeenCalledWith(
             loggerMock,
             'BTCUSDT'
           );
@@ -189,15 +189,15 @@ describe('get-override-action.js', () => {
 
           loggerMock = logger;
 
-          mockGetOverrideData = jest.fn().mockResolvedValue({
+          mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
             action: 'something-unknown',
             order: {
               some: 'data'
             }
           });
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getOverrideData: mockGetOverrideData,
-            removeOverrideData: mockRemoveOverrideData
+            getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+            removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol
           }));
 
           rawData = {
@@ -210,15 +210,15 @@ describe('get-override-action.js', () => {
           result = await step.execute(loggerMock, rawData);
         });
 
-        it('triggers getOverrideData', () => {
-          expect(mockGetOverrideData).toHaveBeenCalledWith(
+        it('triggers getOverrideDataForSymbol', () => {
+          expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
             loggerMock,
             'BTCUSDT'
           );
         });
 
-        it('does not trigger removeOverrideData', () => {
-          expect(mockRemoveOverrideData).not.toHaveBeenCalled();
+        it('does not trigger removeOverrideDataForSymbol', () => {
+          expect(mockRemoveOverrideDataForSymbol).not.toHaveBeenCalled();
         });
 
         it('retruns expected result', () => {
