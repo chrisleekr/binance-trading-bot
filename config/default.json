@@ -50,6 +50,10 @@
       "language": "en",
       "enabled": true,
       "cronTime": "* * * * * *",
+      "isGoingUp": {
+        "itIs": "no",
+        "difference": -1
+      },
       "symbols": [
         "BTCUSDT",
         "ETHUSDT",
