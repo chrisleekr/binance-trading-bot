@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.71] - 2021-06-14
+
+- Fixed the issue with dust transfer
+
 ## [0.0.70] - 2021-06-14
 
 - Support manual trade for all symbols -  [#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
