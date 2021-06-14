@@ -185,7 +185,7 @@ The bot will also set the symbol to be temporarily disabled for 60 minutes to av
 
 - Manual trade
 - Convert small balances to BNB
-- Monitoring all symbols
+- Trade all symbols
 - Monitoring multiple coins simultaneously
 - Stop-Loss
 
