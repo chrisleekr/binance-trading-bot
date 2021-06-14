@@ -1,5 +1,5 @@
 /* eslint-disable global-require */
-describe('cancel-order.js', () => {
+describe('dust-transfer-execute.js', () => {
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
@@ -27,35 +27,32 @@ describe('cancel-order.js', () => {
     cacheMock.hset = jest.fn().mockResolvedValue(true);
     PubSubMock.publish = jest.fn().mockResolvedValue(true);
 
-    const { handleCancelOrder } = require('../cancel-order');
-    await handleCancelOrder(loggerMock, mockWebSocketServer, {
+    const { handleDustTransferExecute } = require('../dust-transfer-execute');
+    await handleDustTransferExecute(loggerMock, mockWebSocketServer, {
       data: {
-        symbol: 'BTCUSDT',
-        order: {
-          some: 'value'
-        }
+        dustTransfer: ['TRX', 'ETH']
       }
     });
   });
 
   it('triggers cache.hset', () => {
     expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
-      'trailing-trade-override'
+      'trailing-trade-indicator-override'
     );
-    expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual('BTCUSDT');
+    expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual('global');
     const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
     expect(args).toStrictEqual({
-      action: 'cancel-order',
-      order: { some: 'value' },
+      action: 'dust-transfer',
+      params: ['TRX', 'ETH'],
       actionAt: expect.any(String)
     });
   });
 
   it('triggers PubSub.publish', () => {
     expect(PubSubMock.publish).toHaveBeenCalledWith('frontend-notification', {
-      type: 'info',
       title:
-        'Cancelling the order action has been received. Wait for cancelling the order.'
+        'The dust transfer request received by the bot. Wait for executing the dust transfer.',
+      type: 'info'
     });
   });
 
@@ -63,8 +60,8 @@ describe('cancel-order.js', () => {
     expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
       JSON.stringify({
         result: true,
-        type: 'cancel-order-result',
-        message: 'Cancelling the order action has been received.'
+        type: 'dust-transfer-execute-result',
+        message: 'The dust transfer request received.'
       })
     );
   });

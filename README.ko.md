@@ -175,6 +175,14 @@
 
 그리고 지속적인 매수/매도를 방지하기 위해서 해당 코인은 60분동안 임시로 거래가 중단됩니다. 프론트엔드는 중단 아이콘과 다시 거래 시작까지 얼마나 남았는지 시간을 보여줍니다. 거래를 바로 시작할려면 플레이 아이콘을 클릭하시면 됩니다.
 
+### [기능](https://github.com/chrisleekr/binance-trading-bot/wiki/Features)
+
+- 수동 거래
+- 소규모 자산 BNB로 전환하기
+- 모든 코인 거래하기
+- 여러 코인들을 동시에 모니터링하기
+- 스탑-로스
+
 ### 프론트엔드 + 웹 소켓
 
 프론트엔드는 React.js 기반으로 개발 되었으며 웹소켓을 통해 통신합니다:
@@ -242,7 +250,6 @@
 
    - 프로그램 실행시, 외부 URL은 슬랙(Slack)에 공지 됩니다.
    - 봇을 사용시 문제가 발생할 경우, 먼저 로그를 확인하시기 바랍니다. 참조: [Troubleshooting](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting)
-
 
 ## 스크린샷
 

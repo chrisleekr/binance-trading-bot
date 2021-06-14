@@ -20,7 +20,10 @@ describe('websocket/configure.js', () => {
   let mockHandleSymbolSettingDelete;
   let mockHandleSymbolEnableAction;
   let mockHandleManualTrade;
+  let mockHandleManualTradeAllSymbols;
   let mockHandleCancelOrder;
+  let mockHandleDustTransferGet;
+  let mockHandleDustTransferExecute;
 
   let PubSubMock;
 
@@ -89,7 +92,10 @@ describe('websocket/configure.js', () => {
     mockHandleSymbolSettingDelete = jest.fn().mockResolvedValue(true);
     mockHandleSymbolEnableAction = jest.fn().mockResolvedValue(true);
     mockHandleManualTrade = jest.fn().mockResolvedValue(true);
+    mockHandleManualTradeAllSymbols = jest.fn().mockResolvedValue(true);
     mockHandleCancelOrder = jest.fn().mockResolvedValue(true);
+    mockHandleDustTransferGet = jest.fn().mockResolvedValue(true);
+    mockHandleDustTransferExecute = jest.fn().mockResolvedValue(true);
 
     jest.mock('../handlers', () => ({
       handleLatest: mockHandleLatest,
@@ -100,7 +106,10 @@ describe('websocket/configure.js', () => {
       handleSymbolSettingDelete: mockHandleSymbolSettingDelete,
       handleSymbolEnableAction: mockHandleSymbolEnableAction,
       handleManualTrade: mockHandleManualTrade,
-      handleCancelOrder: mockHandleCancelOrder
+      handleManualTradeAllSymbols: mockHandleManualTradeAllSymbols,
+      handleCancelOrder: mockHandleCancelOrder,
+      handleDustTransferGet: mockHandleDustTransferGet,
+      handleDustTransferExecute: mockHandleDustTransferExecute
     }));
 
     mockExpressServerOn = jest.fn().mockImplementation((_event, cb) => {
@@ -677,6 +686,54 @@ describe('websocket/configure.js', () => {
     });
   });
 
+  describe('when message command is manual-trade-all-symbols', () => {
+    beforeEach(() => {
+      mockWebSocketServerWebSocketOn = jest
+        .fn()
+        .mockImplementation((_event, cb) => {
+          cb(
+            JSON.stringify({
+              command: 'manual-trade-all-symbols'
+            })
+          );
+        });
+
+      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
+
+      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
+        cb({
+          on: mockWebSocketServerWebSocketOn,
+          send: mockWebSocketServerWebSocketSend
+        });
+      });
+
+      WebSocket.Server.mockImplementation(() => ({
+        on: mockWebSocketServerOn,
+        handleUpgrade: mockWebSocketServerHandleUpgrade,
+        emit: mockWebSocketServerEmit
+      }));
+
+      const { logger } = require('../../../helpers');
+
+      const { configureWebSocket } = require('../configure');
+      configureWebSocket(mockExpressServer, logger);
+    });
+
+    it('triggers handleManualTradeAllSymbols', () => {
+      expect(mockHandleManualTradeAllSymbols).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.any(Object),
+        {
+          command: 'manual-trade-all-symbols'
+        }
+      );
+    });
+
+    it('returns wss', () => {
+      expect(wss).not.toBeNull();
+    });
+  });
+
   describe('when message command is cancel-order', () => {
     beforeEach(() => {
       mockWebSocketServerWebSocketOn = jest
@@ -716,6 +773,102 @@ describe('websocket/configure.js', () => {
         expect.any(Object),
         {
           command: 'cancel-order'
+        }
+      );
+    });
+
+    it('returns wss', () => {
+      expect(wss).not.toBeNull();
+    });
+  });
+
+  describe('when message command is dust-transfer-get', () => {
+    beforeEach(() => {
+      mockWebSocketServerWebSocketOn = jest
+        .fn()
+        .mockImplementation((_event, cb) => {
+          cb(
+            JSON.stringify({
+              command: 'dust-transfer-get'
+            })
+          );
+        });
+
+      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
+
+      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
+        cb({
+          on: mockWebSocketServerWebSocketOn,
+          send: mockWebSocketServerWebSocketSend
+        });
+      });
+
+      WebSocket.Server.mockImplementation(() => ({
+        on: mockWebSocketServerOn,
+        handleUpgrade: mockWebSocketServerHandleUpgrade,
+        emit: mockWebSocketServerEmit
+      }));
+
+      const { logger } = require('../../../helpers');
+
+      const { configureWebSocket } = require('../configure');
+      configureWebSocket(mockExpressServer, logger);
+    });
+
+    it('triggers handleDustTransferGet', () => {
+      expect(mockHandleDustTransferGet).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.any(Object),
+        {
+          command: 'dust-transfer-get'
+        }
+      );
+    });
+
+    it('returns wss', () => {
+      expect(wss).not.toBeNull();
+    });
+  });
+
+  describe('when message command is dust-transfer-execute', () => {
+    beforeEach(() => {
+      mockWebSocketServerWebSocketOn = jest
+        .fn()
+        .mockImplementation((_event, cb) => {
+          cb(
+            JSON.stringify({
+              command: 'dust-transfer-execute'
+            })
+          );
+        });
+
+      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
+
+      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
+        cb({
+          on: mockWebSocketServerWebSocketOn,
+          send: mockWebSocketServerWebSocketSend
+        });
+      });
+
+      WebSocket.Server.mockImplementation(() => ({
+        on: mockWebSocketServerOn,
+        handleUpgrade: mockWebSocketServerHandleUpgrade,
+        emit: mockWebSocketServerEmit
+      }));
+
+      const { logger } = require('../../../helpers');
+
+      const { configureWebSocket } = require('../configure');
+      configureWebSocket(mockExpressServer, logger);
+    });
+
+    it('triggers handleDustTransferExecute', () => {
+      expect(mockHandleDustTransferExecute).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.any(Object),
+        {
+          command: 'dust-transfer-execute'
         }
       );
     });

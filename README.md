@@ -26,41 +26,6 @@ incurred directly or indirectly by using this code. Read
 
 **Before updating the bot, make sure to record the last buy price in the note. It may lose the configuration or last buy price records.**
 
-## Latest changes
-
-### Support manual trade
-
-The bot is now supporting manual trade per symbol. It will automatically re-calculate the last buy price if exists.
-
-### Support all symbols
-
-The bot is now supporting all symbols such as ETHBTC, XRPBTC. As a result, the maximum purchase amount configuration has been updated in the global
-configuration.
-
-The max purchase amount now can be configured for the quote asset. The quote asset is the coin you use to buy the base asset. For example, for BTCUSDT, BTC
-is the base asset, USDT is the quote asset.
-
-In the global configuration, you would see a field for "Maximum purchase amount for USDT". If you configure this, any newly added symbols, which uses USDT would
-be applied for the configured maximum purchase amount.
-
-A default value will be dynamically calculated based on the symbol's minimum notional value.
-
-### Support monitoring multiple coins simultaneously
-
-The bot is now monitoring all coins every second. However, updating the indicators for the symbol cannot update every second because of the API limit.
-As a result, I had to introduce the lock mechanism for the symbol. The frontend will display the lock icon when the symbol is updating the indicators in the background. During updating the indicators, the bot will not process the order.
-
-If interested, take a look this PR
-[#77](https://github.com/chrisleekr/binance-trading-bot/pull/77)
-
-### Support Stop-Loss
-
-The bot is now supporting Stop-Loss for preventing the loss than configured. In the configuration, you can enable Stop-Loss and set the maximum loss percentage along with the minutes of disabling buying action. The bot will calculate the Stop-Loss trigger price based on the last buy price.
-
-For example, let's assume it is configured `Max loss percentage` to be `0.8` and `Temporary disable for buying` to be 60. The last buy price is `$100`. Then the bot will calculate the Stop-Loss trigger price as `$80`. When the current price reaches `$80`, the bot will place the market order.
-
-At the moment, the bot only supports the market order.
-
 ## How it works
 
 ### Trailing Buy/Sell Bot
@@ -216,6 +181,14 @@ The bot will place new MARKET order for selling because the current price ($90) 
 
 The bot will also set the symbol to be temporarily disabled for 60 minutes to avoid buying/sell continuously. In the frontend, the action will display the pause icon and how long left to be enabled again. The symbol can be enabled by clicking the play icon.
 
+### [Features](https://github.com/chrisleekr/binance-trading-bot/wiki/Features)
+
+- Manual trade
+- Convert small balances to BNB
+- Trade all symbols
+- Monitoring multiple coins simultaneously
+- Stop-Loss
+
 ### Frontend + WebSocket
 
 React.js based frontend communicating via Web Socket:
@@ -321,9 +294,9 @@ to view the past changes.
 - [x] Support all symbols - [#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
 - [x] Add stop loss feature - [#99](https://github.com/chrisleekr/binance-trading-bot/issues/99)
 - [x] Add manual buy/sell feature -[#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
+- [ ] Support Grid strategy for buy/sell to mitigate loss/increasing profit - [#158](https://github.com/chrisleekr/binance-trading-bot/issues/158)
 - [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
 - [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
-- [ ] Support Grid strategy for buy/sell to mitigate loss/increasing profit - [#158](https://github.com/chrisleekr/binance-trading-bot/issues/158)
 - [ ] Improve buy strategy with restricting purchase if the price is close to ATH - [#82](https://github.com/chrisleekr/binance-trading-bot/issues/82)
 - [ ] Secure frontend with the password authentication
 - [ ] Display summary of transactions on the frontend - [#160](https://github.com/chrisleekr/binance-trading-bot/issues/160)

@@ -127,14 +127,14 @@ const formatOrder = async (logger, symbol, order) => {
  * @param {*} symbol
  * @param {*} side
  * @param {*} order
- * @param {*} orderParams
+ * @param {*} params
  */
 const messengerMessageOrderParams = async (
   logger,
   symbol,
   side,
   order,
-  orderParams
+  params
 ) => {
   const { type: rawType, marketType } = order[side];
   let type = rawType.toUpperCase();
@@ -147,11 +147,7 @@ const messengerMessageOrderParams = async (
     `${symbol} Manual ${side.toUpperCase()} Action (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +
-      `- Order Params: \`\`\`${JSON.stringify(
-        orderParams,
-        undefined,
-        2
-      )}\`\`\`\n` +
+      `- Order Params: \`\`\`${JSON.stringify(params, undefined, 2)}\`\`\`\n` +
       `- Current API Usage: ${getAPILimit(logger)}`
   );
 };
@@ -236,6 +232,7 @@ const execute = async (logger, rawData) => {
     symbol,
     isLocked,
     action,
+    baseAssetBalance,
     symbolConfiguration: {
       system: { checkManualBuyOrderPeriod }
     },

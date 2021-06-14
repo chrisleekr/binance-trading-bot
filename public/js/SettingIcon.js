@@ -23,12 +23,8 @@ class SettingIcon extends React.Component {
 
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
     this.handleInputChange = this.handleInputChange.bind(this);
-    this.handleMaxPurchaeAmountChange = this.handleMaxPurchaeAmountChange.bind(
-      this
-    );
-    this.handleLastBuyPriceRemoveThresholdChange = this.handleLastBuyPriceRemoveThresholdChange.bind(
-      this
-    );
+    this.handleMaxPurchaeAmountChange = this.handleMaxPurchaeAmountChange.bind(this);
+    this.handleLastBuyPriceRemoveThresholdChange = this.handleLastBuyPriceRemoveThresholdChange.bind(this);
   }
 
   getQuoteAssets(exchangeSymbols, selectedSymbols, maxPurchaseAmounts, lastBuyPriceRemoveThresholds) {

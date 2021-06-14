@@ -393,7 +393,8 @@ describe('remove-last-buy-price.js', () => {
         describe('ALPHABTC', () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+              getAndCacheOpenOrdersForSymbol:
+                mockGetAndCacheOpenOrdersForSymbol,
               isActionDisabled: mockIsActionDisabled,
               getAPILimit: mockGetAPILimit
             }));
@@ -454,7 +455,8 @@ describe('remove-last-buy-price.js', () => {
         describe('BTCUPUSDT', () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+              getAndCacheOpenOrdersForSymbol:
+                mockGetAndCacheOpenOrdersForSymbol,
               isActionDisabled: mockIsActionDisabled,
               getAPILimit: mockGetAPILimit
             }));

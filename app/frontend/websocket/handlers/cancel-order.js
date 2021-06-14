@@ -1,3 +1,4 @@
+const moment = require('moment');
 const { cache, PubSub } = require('../../../helpers');
 
 const handleCancelOrder = async (logger, ws, payload) => {
@@ -12,7 +13,8 @@ const handleCancelOrder = async (logger, ws, payload) => {
     `${symbol}`,
     JSON.stringify({
       action: 'cancel-order',
-      order
+      order,
+      actionAt: moment()
     })
   );
 
