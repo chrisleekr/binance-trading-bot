@@ -17,7 +17,7 @@ const canBuy = data => {
   } = data;
 
   return lastBuyPrice <= 0 && buyCurrentPrice <= buyTriggerPrice &&
-    Math.sign(trendDiff) != -1;
+    Math.sign(trendDiff) == 1;
 };
 
 /**
