@@ -211,6 +211,15 @@
       "3": ". Đã đặt thành công. Nếu lệnh chưa được thực hiện, nó sẽ xuất hiện tại một số điểm."
     }
   },
+  "manualTrade": {
+    "trade_all": "Giao dịch tất cả",
+    "manual_trade_for_all": "Giao dịch thủ công cho tất cả các ký hiệu",
+    "description": {
+      "1": "Trong cửa sổ này, bạn có thể giao dịch tất cả các ký hiệu theo cách thủ công. Để đơn giản hóa quy trình, chỉ hỗ trợ lệnh thị trường.",
+      "2": "Nếu bạn đặt 0 trên biểu tượng, bot sẽ không đặt hàng cho biểu tượng. Nếu bạn đã có giá đặt mua cuối cùng, thì bot sẽ tính chi phí trung bình và sẽ tính lại giá đặt mua cuối cùng.",
+      "3": "Để đảm bảo giá mua cuối cùng được ghi lại thành công, bot sẽ theo dõi đơn đặt hàng. Điều này có thể làm tăng việc sử dụng API."
+    }
+  },
   "commonStrings": {
     "interval": "Khoảng thời gian",
     "limit": "Giới hạn",
@@ -242,6 +251,8 @@
     "last_buy_price_remove_threshold": "Ngưỡng loại bỏ giá mua cuối cùng",
     "remove": "Xoá",
     "resume": "Tóm tắt",
-    "market": "Thị trường"
+    "market": "Thị trường",
+    "current_balance": "Số dư hiện tại",
+    "remaining_balance": "Số dư còn lại"
   }
 }

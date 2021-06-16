@@ -13,7 +13,7 @@ class CoinWrapperSellSignal extends React.Component {
       sell
     } = symbolInfo;
 
-    if (sell.openOrders.length > 0) {
+    if (sell.openOrders.length > 0 || _.isEmpty(jsonStrings)) {
       return '';
     }
 

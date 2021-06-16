@@ -17,28 +17,28 @@ class CoinWrapperAction extends React.Component {
         label = commonStrings.buy;
         break;
       case 'buy-temporary-disabled':
-        label = coinWrapper.action_disabled;
+        label = coinWrapper.actions.action_disabled;
         break;
       case 'buy-order-checking':
-        label = coinWrapper.action_buy_check;
+        label = coinWrapper.actions.action_buy_check;
         break;
       case 'buy-order-wait':
-        label = coinWrapper.action_buy_wait;
+        label = coinWrapper.actions.action_buy_wait;
         break;
       case 'sell':
         label = commonStrings.sell;
         break;
       case 'sell-temporary-disabled':
-        label = coinWrapper.action_disabled;
+        label = coinWrapper.actions.action_disabled;
         break;
       case 'sell-stop-loss':
-        label = coinWrapper.selling_stop_loss;
+        label = coinWrapper.actions.action_selling_stop_loss;
         break;
       case 'sell-order-checking':
-        label = coinWrapper.action_sell_check;
+        label = coinWrapper.actions.action_sell_check;
         break;
       case 'sell-order-wait':
-        label = coinWrapper.action_sell_wait;
+        label = coinWrapper.actions.action_sell_wait;
         break;
       case 'sell-wait':
         label = coinWrapper.wait;
@@ -52,14 +52,14 @@ class CoinWrapperAction extends React.Component {
     }
 
     if (isActionDisabled.isDisabled) {
-      label = coinWrapper.disabled_by + isActionDisabled.disabledBy;
+      label = coinWrapper.actions.disabled_by + isActionDisabled.disabledBy;
     }
 
     return (
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title border-bottom-0 mb-0 pb-0'>
           <div className='coin-info-label'>
-            Action -{' '}
+            {commonStrings.action} -{' '}
             <span className='coin-info-value'>
               {moment(buy.updatedAt).format('HH:mm:ss')}
             </span>
@@ -87,7 +87,7 @@ class CoinWrapperAction extends React.Component {
                   ''
                 )}
                 ({moment.duration(isActionDisabled.ttl, 'seconds').humanize()}{' '}
-                left){' '}
+                {commonStrings.time_remaining}){' '}
               </div>
             ) : (
               ''

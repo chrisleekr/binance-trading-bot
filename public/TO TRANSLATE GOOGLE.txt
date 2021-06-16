@@ -66,9 +66,9 @@
         "3": "Resumir processo de venda após: "
       },
       "action_sell_disabled_stop_loss": {
-        "1": "O preço atual atingiu o preço do para-perda. ",
+        "1": "O preço atual atingiu o preço do para-perda.",
         "2": "Porém, a ação está temporariamente desabilitada por ",
-        "3": " Resumir processo de venda após: "
+        "3": "Resumir processo de venda após: "
       },
       "action_wait": {
         "1": "O preço atual atingiu o preço de ativação.",
@@ -150,8 +150,8 @@
     "diff_buy": "Diferença para compra",
     "diff_sell": "Diferença para venda",
     "sell_open_orders": "Ordens de venda abertas",
-    "stop_loss_price": "Preço para-perdas",
-    "diff_stop_loss": "Diferença para o para-perdas",
+    "stop_loss_price": "Preço do para-perda",
+    "diff_stop_loss": "Differença para o para-perdas",
     "stop_percent": "Porcento de parada",
     "limit_percent": "Porcento do limite",
     "type": "Tipo",
@@ -254,10 +254,6 @@
     "resume": "Resumir",
     "market": "Mercado",
     "current_balance": "Saldo atual",
-    "remaining_balance": "Saldo restante",
-    "time_remaining": "restante",
-    "action": "Ação",
-    "strenght": "Força",
-    "trending": "Tendência"
+    "remaining_balance": "Saldo restante"
   }
 }

@@ -211,6 +211,15 @@
       "3": ". Placed successfully. If the order has not yet been executed, it should appear at some point."
     }
   },
+  "manualTrade": {
+    "trade_all": "Trade All",
+    "manual_trade_for_all": "Manual trading for all symbols",
+    "description": {
+      "1": "In this window you can trade all symbols manually. To simplify the process, only market order is supported.",
+      "2": "If you set 0 on the symbol, the bot will not place an order for the symbol. If you already have the last bid price, then the bot will calculate the average cost and will recalculate the last bid price. ",
+      "3": "To make sure the last purchase price was successfully recorded, the bot will monitor the purchase order. This may increase API usage."
+    }
+  },
   "commonStrings": {
     "interval": "Interval",
     "limit": "Limit",
@@ -242,6 +251,8 @@
     "last_buy_price_remove_threshold": "Threshold to remove last buy price",
     "remove": "Remove",
     "resume": "Resume",
-    "market": "Market"
+    "market": "Market",
+    "current_balance": "Current Balance",
+    "remaining_balance": "Remaining Balance"
   }
 }

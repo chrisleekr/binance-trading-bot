@@ -78,8 +78,8 @@ const execute = async (logger, rawData) => {
 
   if (orderQuantity <= parseFloat(minQty)) {
     data.sell.processMessage =
-    actions.action_order_minimum_qty[1] + minQty +
-    actions.action_order_minimum_qty[2];
+      actions.action_order_minimum_qty[1] + minQty +
+      actions.action_order_minimum_qty[2];
     data.sell.updatedAt = moment().utc();
 
     return data;

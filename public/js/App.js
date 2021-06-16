@@ -232,7 +232,6 @@ class App extends React.Component {
               configuration={configuration}
               publicURL={publicURL}
               exchangeSymbols={exchangeSymbols}
-              exchangeFIATs={exchangeFIATs}
               sendWebSocket={this.sendWebSocket}
               jsonStrings={languageData}
             />
@@ -245,7 +244,10 @@ class App extends React.Component {
                     sendWebSocket={this.sendWebSocket}
                     jsonStrings={languageData}
                   />
-                  <ProfitLossWrapper totalPnL={totalPnL} jsonStrings={languageData} />
+                  <ProfitLossWrapper
+                    symbols={symbols}
+                    sendWebSocket={this.sendWebSocket}
+                    jsonStrings={languageData} />
                 </div>
                 <div className='coin-wrappers'>{coinWrappers}</div>
                 <div className='app-body-footer-wrapper'>

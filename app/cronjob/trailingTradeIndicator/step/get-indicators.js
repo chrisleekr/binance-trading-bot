@@ -36,7 +36,7 @@ const execute = async (logger, rawData) => {
   const {
     symbol,
     symbolConfiguration: {
-      candles: { interval, limit }, isGoingUp
+      candles: { interval, limit }
     }
   } = data;
 
@@ -56,36 +56,41 @@ const execute = async (logger, rawData) => {
   const candleLows = candlesData.low
 
   var newCandle = 1;
-  var difference = 0.000;
+  var differences = [];
+  var difference = 0;
+  var status = "not enough data";
+
   candleLows.forEach(candle => {
     var newCandleToTest = candleLows[newCandle];
     if (newCandleToTest != undefined) {
-      if (candle >= newCandleToTest) {
-      calc = candle - newCandleToTest;
-      difference = calc;
-      messenger.errorMessage("going up");
-    } else {
-      calc = newCandleToTest - candle;
-      difference = calc;
-      messenger.errorMessage("going down");
-    }
+      if (candle <= newCandleToTest) {
+        calc = (newCandleToTest - candle).toFixed(5) * 1;
+      } else {
+        calc = (candle - newCandleToTest).toFixed(5) * -1;
+      }
+
+      differences.push(calc);
     }
     newCandle++;
   });
-  messenger.errorMessage("Diff: " + difference);
 
-  if (Math.sign(difference) == 1) {
-    messenger.errorMessage("going up");
-    isGoingUp.itIs = "up";
-  } else if (Math.sign(difference) == 0) {
-    messenger.errorMessage("maintaining");
-    isGoingUp.itIs = "maintaining position";
-  } else if (Math.sign(difference) == -1) {
-    messenger.errorMessage("falling");
-    isGoingUp.itIs = "falling";
-  } else if (Math.sign(difference) == -0) {
-    messenger.errorMessage("xupa kuu")
+  var lastDiff = 0;
+  differences.forEach(diff => {
+    difference = lastDiff + diff;
+  });
+
+  switch (Math.sign(difference)) {
+    case -1:
+      status = "FALLING";
+      break;
+    case 0:
+      status = "HOLDING";
+      break;
+    case 1:
+      status = "UP";
+      break;
   }
+
   // Get lowest price
   const lowestPrice = _.min(candlesData.low);
 
@@ -94,7 +99,9 @@ const execute = async (logger, rawData) => {
 
   data.indicators = {
     highestPrice,
-    lowestPrice
+    lowestPrice,
+    trend: status,
+    trendDiff: difference
   };
 
   return data;

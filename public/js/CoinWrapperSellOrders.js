@@ -3,7 +3,7 @@
 /* eslint-disable no-undef */
 class CoinWrapperSellOrders extends React.Component {
   render() {
-    const { symbolInfo, sendWebSocket, jsonStrings: { coinWrapper, commonStrings } } = this.props;
+    const { symbolInfo, sendWebSocket, jsonStrings } = this.props;
 
     const {
       symbolInfo: {
@@ -15,9 +15,11 @@ class CoinWrapperSellOrders extends React.Component {
       quoteAssetBalance: { asset: quoteAsset }
     } = symbolInfo;
 
-    if (openOrders.length === 0) {
+    if (openOrders.length === 0 || _.isEmpty(jsonStrings)) {
       return '';
     }
+
+    const { coinWrapper, commonStrings } = jsonStrings;
 
     const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 

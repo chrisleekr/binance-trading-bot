@@ -12,10 +12,12 @@ const config = require('config');
 const canBuy = data => {
   const {
     buy: { currentPrice: buyCurrentPrice, triggerPrice: buyTriggerPrice },
-    sell: { lastBuyPrice }
+    sell: { lastBuyPrice },
+    indicators: { trendDiff }
   } = data;
 
-  return lastBuyPrice <= 0 && buyCurrentPrice <= buyTriggerPrice;
+  return lastBuyPrice <= 0 && buyCurrentPrice <= buyTriggerPrice &&
+    Math.sign(trendDiff) != -1;
 };
 
 /**
@@ -70,13 +72,16 @@ const canSell = data => {
       buy: { lastBuyPriceRemoveThreshold }
     },
     baseAssetBalance: { total: baseAssetTotalBalance },
-    sell: { currentPrice: sellCurrentPrice, lastBuyPrice }
+    sell: { currentPrice: sellCurrentPrice, lastBuyPrice },
+    indicators: { trendDiff }
   } = data;
 
   return (
     lastBuyPrice > 0 &&
     baseAssetTotalBalance * sellCurrentPrice > parseFloat(minNotional) &&
-    baseAssetTotalBalance * sellCurrentPrice > lastBuyPriceRemoveThreshold
+    baseAssetTotalBalance * sellCurrentPrice > lastBuyPriceRemoveThreshold &&
+    Math.sign(trendDiff) != 1
+
   );
 };
 
@@ -170,8 +175,8 @@ const execute = async (logger, rawData) => {
   }
 
 
-const language = config.get('language');
-const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+  const language = config.get('language');
+  const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
 
   // messenger.errorMessage("pora2" + json)
 

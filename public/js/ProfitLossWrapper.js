@@ -114,6 +114,7 @@ class ProfitLossWrapper extends React.Component {
                       symbols={symbols}
                       setUpdate={this.setUpdate}
                       sendWebSocket={sendWebSocket}
+                      jsonStrings={jsonStrings}
                     />
                   ) : (
                     ''
