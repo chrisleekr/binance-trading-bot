@@ -224,7 +224,7 @@ const execute = async (logger, rawData) => {
   //  and total balance is enough to sell
   if (canSell(data)) {
     // And if current price is higher or equal than trigger price
-    if (isHigherThanSellTriggerPrice(data) && Math.sign(data.indicators.trendDiff) != 1) {
+    if (isHigherThanSellTriggerPrice(data)) {
       const checkDisable = await isActionDisabled(symbol);
       logger.info(
         { tag: 'check-disable', checkDisable },
