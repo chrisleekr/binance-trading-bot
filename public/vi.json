@@ -253,6 +253,10 @@
     "resume": "Tóm tắt",
     "market": "Thị trường",
     "current_balance": "Số dư hiện tại",
-    "remaining_balance": "Số dư còn lại"
+    "remaining_balance": "Số dư còn lại",
+    "time_remaining": "còn lại",
+    "action": "Hành động",
+    "strenght": "Sức mạnh",
+    "trending": "Xu hướng"
   }
 }

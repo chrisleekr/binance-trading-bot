@@ -254,6 +254,10 @@
     "resume": "Resumir",
     "market": "Mercado",
     "current_balance": "Saldo actual",
-    "left_balance": "Saldo restante"
+    "left_balance": "Saldo restante",
+    "time_remaining": "restante",
+    "action": "Acción",
+    "strenght": "Fuerza",
+    "trending": "Trending"
   }
 }

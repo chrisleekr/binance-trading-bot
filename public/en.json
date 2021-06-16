@@ -253,6 +253,10 @@
     "resume": "Resume",
     "market": "Market",
     "current_balance": "Current Balance",
-    "remaining_balance": "Remaining Balance"
+    "remaining_balance": "Remaining Balance",
+    "time_remaining": "remaining",
+    "action": "Action",
+    "strenght": "Strength",
+    "trending": "Trend"
   }
 }

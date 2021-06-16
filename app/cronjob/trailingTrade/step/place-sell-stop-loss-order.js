@@ -127,8 +127,8 @@ const execute = async (logger, rawData) => {
     quantity: orderQuantity
   };
 
-  messenger.sendMessage(
-    symbol, null, 'SELL_STOP_LOSS');
+  //  messenger.sendMessage(
+  //   symbol, null, 'SELL_STOP_LOSS');
 
   logger.info(
     { debug: true, function: 'order', orderParams },

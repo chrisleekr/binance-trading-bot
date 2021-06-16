@@ -10,50 +10,26 @@ const flattenCandlesData = candles => {
   const openTime = [];
   const high = [];
   const low = [];
+  const close = [];
 
   candles.forEach(candle => {
     openTime.push(+candle.openTime);
     high.push(+candle.high);
     low.push(+candle.low);
+    close.push(+candle.close);
   });
 
   return {
     openTime,
     high,
-    low
+    low,
+    close
   };
 };
 
-/**
- * Get symbol information, buy/sell indicators
- *
- * @param {*} logger
- * @param {*} rawData
- */
-const execute = async (logger, rawData) => {
-  const data = rawData;
+const testIndicatorData = candles => {
 
-  const {
-    symbol,
-    symbolConfiguration: {
-      candles: { interval, limit }
-    }
-  } = data;
-
-  // Retrieve candles
-  logger.info(
-    { debug: true, function: 'candles', interval, limit },
-    'Retrieving candles from API'
-  );
-  const candles = await binance.client.candles({
-    symbol,
-    interval,
-    limit
-  });
-
-  // Flatten candles data to get lowest price
-  const candlesData = flattenCandlesData(candles);
-  const candleLows = candlesData.low
+  const candleLows = candles.close
 
   var newCandle = 1;
   var differences = [];
@@ -91,6 +67,67 @@ const execute = async (logger, rawData) => {
       break;
   }
 
+  return { status, difference };
+}
+
+const rsiData = candles => {
+  var totalU = 0;
+  var totalD = 0;
+  var startU = candles.high.length - 15;
+  var endU = candles.high.length;
+  var startD = candles.low.length - 15;
+  var endD = candles.low.length;
+  for (var i = 0; i < endU; i++) {
+    if (i >= startU) {
+      totalU += candles.high[i];
+    }
+  }
+  for (var i = 0; i < endD; i++) {
+    if (i >= startD) {
+      totalD += candles.low[i];
+    }
+  }
+  const avgU = totalU / candles.high.length;
+  const avgD = totalD / candles.low.length;
+
+  const RS = avgU / avgD;
+  const RSI = 100 - 100 / (1 + RS);
+  return RSI;
+}
+
+/**
+ * Get symbol information, buy/sell indicators
+ *
+ * @param {*} logger
+ * @param {*} rawData
+ */
+const execute = async (logger, rawData) => {
+  const data = rawData;
+
+  const {
+    symbol,
+    symbolConfiguration: {
+      candles: { interval, limit }
+    }
+  } = data;
+
+  // Retrieve candles
+  logger.info(
+    { debug: true, function: 'candles', interval, limit },
+    'Retrieving candles from API'
+  );
+  const candles = await binance.client.candles({
+    symbol,
+    interval,
+    limit
+  });
+
+  // Flatten candles data to get lowest price
+  const candlesData = flattenCandlesData(candles);
+
+  const testIndicator = testIndicatorData(candlesData);
+  const rsiIndicator = rsiData(candlesData);
+
   // Get lowest price
   const lowestPrice = _.min(candlesData.low);
 
@@ -100,8 +137,9 @@ const execute = async (logger, rawData) => {
   data.indicators = {
     highestPrice,
     lowestPrice,
-    trend: status,
-    trendDiff: difference
+    trend: testIndicator.status,
+    trendDiff: testIndicator.difference,
+    RSI: rsiIndicator
   };
 
   return data;

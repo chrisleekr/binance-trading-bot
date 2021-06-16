@@ -72,16 +72,13 @@ const canSell = data => {
       buy: { lastBuyPriceRemoveThreshold }
     },
     baseAssetBalance: { total: baseAssetTotalBalance },
-    sell: { currentPrice: sellCurrentPrice, lastBuyPrice },
-    indicators: { trendDiff }
+    sell: { currentPrice: sellCurrentPrice, lastBuyPrice }
   } = data;
 
   return (
     lastBuyPrice > 0 &&
     baseAssetTotalBalance * sellCurrentPrice > parseFloat(minNotional) &&
-    baseAssetTotalBalance * sellCurrentPrice > lastBuyPriceRemoveThreshold &&
-    Math.sign(trendDiff) != 1
-
+    baseAssetTotalBalance * sellCurrentPrice > lastBuyPriceRemoveThreshold
   );
 };
 
@@ -227,7 +224,7 @@ const execute = async (logger, rawData) => {
   //  and total balance is enough to sell
   if (canSell(data)) {
     // And if current price is higher or equal than trigger price
-    if (isHigherThanSellTriggerPrice(data)) {
+    if (isHigherThanSellTriggerPrice(data) && Math.sign(data.indicators.trendDiff) != 1) {
       const checkDisable = await isActionDisabled(symbol);
       logger.info(
         { tag: 'check-disable', checkDisable },
