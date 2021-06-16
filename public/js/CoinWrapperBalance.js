@@ -21,8 +21,6 @@ class CoinWrapperBalance extends React.Component {
 
     const { coinWrapper, commonStrings } = jsonStrings;
 
-    console.log(symbolInfo)
-
     return (
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title'>
