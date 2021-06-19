@@ -27,7 +27,7 @@ const flattenCandlesData = candles => {
   };
 };
 
-const testIndicatorData = candles => {
+const huskyTrend = candles => {
 
   const candleLows = candles.close
 
@@ -35,14 +35,17 @@ const testIndicatorData = candles => {
   var differences = [];
   var difference = 0;
   var status = "not enough data";
+  const positiveMultiplier = 1.004;
+  const negativeMultiplier = -1.01;
 
   candleLows.forEach(candle => {
     var newCandleToTest = candleLows[newCandle];
     if (newCandleToTest != undefined) {
+      var calc = 0;
       if (candle <= newCandleToTest) {
-        calc = (newCandleToTest - candle).toFixed(5) * 1;
+        calc = (newCandleToTest - candle) * positiveMultiplier;
       } else {
-        calc = (candle - newCandleToTest).toFixed(5) * -1;
+        calc = (candle - newCandleToTest) * negativeMultiplier;
       }
 
       differences.push(calc);
@@ -52,7 +55,7 @@ const testIndicatorData = candles => {
 
   var lastDiff = 0;
   differences.forEach(diff => {
-    difference = lastDiff + diff;
+    difference = (lastDiff + diff).toFixed(6);
   });
 
   switch (Math.sign(difference)) {
@@ -60,7 +63,7 @@ const testIndicatorData = candles => {
       status = "FALLING";
       break;
     case 0:
-      status = "HOLDING";
+      status = "TREND IS TURNING";
       break;
     case 1:
       status = "UP";
@@ -68,31 +71,6 @@ const testIndicatorData = candles => {
   }
 
   return { status, difference };
-}
-
-const rsiData = candles => {
-  var totalU = 0;
-  var totalD = 0;
-  var startU = candles.high.length - 15;
-  var endU = candles.high.length;
-  var startD = candles.low.length - 15;
-  var endD = candles.low.length;
-  for (var i = 0; i < endU; i++) {
-    if (i >= startU) {
-      totalU += candles.high[i];
-    }
-  }
-  for (var i = 0; i < endD; i++) {
-    if (i >= startD) {
-      totalD += candles.low[i];
-    }
-  }
-  const avgU = totalU / candles.high.length;
-  const avgD = totalD / candles.low.length;
-
-  const RS = avgU / avgD;
-  const RSI = 100 - 100 / (1 + RS);
-  return RSI;
 }
 
 /**
@@ -125,8 +103,7 @@ const execute = async (logger, rawData) => {
   // Flatten candles data to get lowest price
   const candlesData = flattenCandlesData(candles);
 
-  const testIndicator = testIndicatorData(candlesData);
-  const rsiIndicator = rsiData(candlesData);
+  const testIndicator = huskyTrend(candlesData);
 
   // Get lowest price
   const lowestPrice = _.min(candlesData.low);
@@ -139,7 +116,7 @@ const execute = async (logger, rawData) => {
     lowestPrice,
     trend: testIndicator.status,
     trendDiff: testIndicator.difference,
-    RSI: rsiIndicator
+    //  RSI: rsiIndicator
   };
 
   return data;

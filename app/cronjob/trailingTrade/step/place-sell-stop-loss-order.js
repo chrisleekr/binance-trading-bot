@@ -49,122 +49,120 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  if (action !== 'sell-stop-loss') {
+  if (action == 'sell-stop-loss' || action == 'sell-profit') {
+    const language = config.get('language');
+    const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+
+    if (openOrders.length > 0) {
+      data.sell.processMessage = action.action_open_orders[1] + symbol + '.' + actions.action_open_orders[2];
+      data.sell.updatedAt = moment().utc();
+
+      return data;
+    }
+
+    const lotPrecision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
+
+    const freeBalance = parseFloat(_.floor(baseAssetFreeBalance, lotPrecision));
+    logger.info({ freeBalance }, 'Free balance');
+
+    let orderQuantity = parseFloat(
+      _.floor(freeBalance - freeBalance * (0.1 / 100), lotPrecision)
+    );
+
+    if (orderQuantity <= parseFloat(minQty)) {
+      data.sell.processMessage =
+        actions.action_order_minimum_qty[1] + minQty +
+        actions.action_order_minimum_qty[2];
+      data.sell.updatedAt = moment().utc();
+
+      return data;
+    }
+
+    if (orderQuantity > parseFloat(maxQty)) {
+      orderQuantity = parseFloat(maxQty);
+    }
+
+    var calculatedPrice = orderQuantity * currentPrice;
+    if (calculatedPrice < parseFloat(minNotional)) {
+      data.sell.processMessage = actions.action_less_than_nominal;
+      data.sell.updatedAt = moment().utc();
+
+      return data;
+    }
+
+    if (tradingEnabled !== true) {
+      data.buy.processMessage = actions.action_trading_for_disabled[1] + symbol + actions.action_trading_for_disabled[2];
+      data.sell.updatedAt = moment().utc();
+
+      return data;
+    }
+
+    if (isExceedAPILimit(logger)) {
+      data.buy.processMessage = actions.action_api_exceed;
+      data.sell.updatedAt = moment().utc();
+
+      return data;
+    }
+
+    // Currently, only support market order for stop-loss.
+    const allowedOrderTypes = ['market'];
+    if (allowedOrderTypes.includes(sellStopLossOrderType) === false) {
+      data.sell.processMessage = actions.action_unknown_order[1] + sellStopLossOrderType + actions.action_unknown_order[2];
+      data.sell.updatedAt = moment().utc();
+
+      return data;
+    }
+
+    const orderParams = {
+      symbol,
+      side: 'sell',
+      type: 'MARKET',
+      quantity: orderQuantity
+    };
+
+    messenger.sendMessage(
+      symbol, null, 'SELL_STOP_LOSS');
+
+    logger.info(
+      { debug: true, function: 'order', orderParams },
+      'Sell market order params'
+    );
+    const orderResult = await binance.client.order(orderParams);
+
+    logger.info({ orderResult }, 'Market order result');
+
+    if (action == 'sell-stop-loss') {
+      // Temporary disable action
+      await disableAction(
+        symbol,
+        {
+          disabledBy: 'stop loss',
+          message: actions.action_disabled_stop_loss,
+          canResume: true,
+          canRemoveLastBuyPrice: true
+        },
+        sellStopLossDisableBuyMinutes * 60
+      );
+    }
+
+    // Get open orders and update cache
+    data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+    data.sell.openOrders = data.openOrders.filter(
+      o => o.side.toLowerCase() === 'sell'
+    );
+
+    // Refresh account info
+    data.accountInfo = await getAccountInfoFromAPI(logger);
+    data.sell.processMessage = actions.action_sell_stop_loss;
+    data.sell.updatedAt = moment().utc();
+
+    return data;
+  } else {
     logger.info(
       `Do not process a sell order because action is not 'sell-stop-loss'.`
     );
     return data;
   }
-
-
-  const language = config.get('language');
-  const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
-
-  if (openOrders.length > 0) {
-    data.sell.processMessage = action.action_open_orders[1] + symbol + '.' + actions.action_open_orders[2];
-    data.sell.updatedAt = moment().utc();
-
-    return data;
-  }
-
-  const lotPrecision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
-
-  const freeBalance = parseFloat(_.floor(baseAssetFreeBalance, lotPrecision));
-  logger.info({ freeBalance }, 'Free balance');
-
-  let orderQuantity = parseFloat(
-    _.floor(freeBalance - freeBalance * (0.1 / 100), lotPrecision)
-  );
-
-  if (orderQuantity <= parseFloat(minQty)) {
-    data.sell.processMessage =
-      actions.action_order_minimum_qty[1] + minQty +
-      actions.action_order_minimum_qty[2];
-    data.sell.updatedAt = moment().utc();
-
-    return data;
-  }
-
-  if (orderQuantity > parseFloat(maxQty)) {
-    orderQuantity = parseFloat(maxQty);
-  }
-
-  var calculatedPrice = orderQuantity * currentPrice;
-  if (calculatedPrice < parseFloat(minNotional)) {
-    data.sell.processMessage = actions.action_less_than_nominal;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
-  }
-
-  if (tradingEnabled !== true) {
-    data.buy.processMessage = actions.action_trading_for_disabled[1] + symbol + actions.action_trading_for_disabled[2];
-    data.sell.updatedAt = moment().utc();
-
-    return data;
-  }
-
-  if (isExceedAPILimit(logger)) {
-    data.buy.processMessage = actions.action_api_exceed;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
-  }
-
-  // Currently, only support market order for stop-loss.
-  const allowedOrderTypes = ['market'];
-  if (allowedOrderTypes.includes(sellStopLossOrderType) === false) {
-    data.sell.processMessage = actions.action_unknown_order[1] + sellStopLossOrderType + actions.action_unknown_order[2];
-    data.sell.updatedAt = moment().utc();
-
-    return data;
-  }
-
-  const orderParams = {
-    symbol,
-    side: 'sell',
-    type: 'MARKET',
-    quantity: orderQuantity
-  };
-
-  //  messenger.sendMessage(
-  //   symbol, null, 'SELL_STOP_LOSS');
-
-  logger.info(
-    { debug: true, function: 'order', orderParams },
-    'Sell market order params'
-  );
-  const orderResult = await binance.client.order(orderParams);
-
-  logger.info({ orderResult }, 'Market order result');
-
-  // Temporary disable action
-  await disableAction(
-    symbol,
-    {
-      disabledBy: 'stop loss',
-      message: actions.action_disabled_stop_loss,
-      canResume: true,
-      canRemoveLastBuyPrice: true
-    },
-    sellStopLossDisableBuyMinutes * 60
-  );
-
-  // Get open orders and update cache
-  data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
-  data.sell.openOrders = data.openOrders.filter(
-    o => o.side.toLowerCase() === 'sell'
-  );
-
-  // Refresh account info
-  data.accountInfo = await getAccountInfoFromAPI(logger);
-
-  messenger.sendMessage(
-    symbol, orderResult, 'SELL_STOP_LOSS');
-  data.sell.processMessage = actions.action_sell_stop_loss;
-  data.sell.updatedAt = moment().utc();
-
-  return data;
 };
 
 module.exports = { execute };

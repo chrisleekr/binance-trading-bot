@@ -115,8 +115,16 @@
           "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_ENABLED",
           "__format": "boolean"
         },
+        "trendDownMarketSell": {
+          "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_ENABLED_ON_DOWNTREND",
+          "__format": "boolean"
+        },
         "triggerPercentage": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_TRIGGER_PERCENTAGE",
+          "__format": "number"
+        },
+        "hardTriggerPercentage": {
+          "__name": "BINANCE_JOBS_TRAILING_TRADE_HARD_SELL_TRIGGER_PERCENTAGE",
           "__format": "number"
         },
         "stopPercentage": {

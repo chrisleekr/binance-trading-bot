@@ -28,7 +28,7 @@ class CoinWrapperBalance extends React.Component {
           <span className='coin-info-value'>{baseAssetBalance.asset}</span>
         </div>
         <div className='coin-info-column coin-info-column-right coin-info-column-balance'>
-          <span className='coin-info-label'>{commonStrings.trending}:</span>
+          <span className='coin-info-label'>{commonStrings.trending} Husky:</span>
           <HightlightChange className='coin-info-value'>
             {symbolInfo.indicators.trend} - {commonStrings.strenght}: {symbolInfo.indicators.trendDiff}
           </HightlightChange>

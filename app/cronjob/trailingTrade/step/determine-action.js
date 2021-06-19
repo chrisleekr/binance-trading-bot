@@ -2,6 +2,7 @@ const moment = require('moment');
 
 const { isActionDisabled } = require('../../trailingTradeHelper/common');
 const config = require('config');
+const { messenger } = require('../../../helpers');
 
 /**
  * Check whether can buy or not
@@ -16,7 +17,8 @@ const canBuy = data => {
     indicators: { trendDiff }
   } = data;
 
-  return lastBuyPrice <= 0 && buyCurrentPrice <= buyTriggerPrice &&
+  return lastBuyPrice <= 0 &&
+    buyCurrentPrice <= buyTriggerPrice &&
     Math.sign(trendDiff) == 1;
 };
 
@@ -94,6 +96,22 @@ const isHigherThanSellTriggerPrice = data => {
   } = data;
 
   return sellCurrentPrice >= sellTriggerPrice;
+};
+
+const isHigherThanHardSellTriggerPrice = data => {
+  const {
+    sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice, hardSellTriggerPrice: hardSellTriggerPrice }
+  } = data;
+
+  return sellCurrentPrice >= sellTriggerPrice * 1.008;
+};
+
+const isHigherThanSellTriggerPriceAndTrendIsDown = data => {
+  const {
+    sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice }
+  } = data;
+
+  return sellCurrentPrice >= sellTriggerPrice && Math.sign(data.indicators.trendDiff) == -1;
 };
 
 /**
@@ -175,8 +193,6 @@ const execute = async (logger, rawData) => {
   const language = config.get('language');
   const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
 
-  // messenger.errorMessage("pora2" + json)
-
   // Check buy signal -
   //  if last buy price is less than 0
   //    and current price is less or equal than lowest price
@@ -223,8 +239,68 @@ const execute = async (logger, rawData) => {
   //  last buy price has a value
   //  and total balance is enough to sell
   if (canSell(data)) {
+
+    //And its above the HARD sell trigger.
+    if (isHigherThanHardSellTriggerPrice(data)) {
+      const checkDisable = await isActionDisabled(symbol);
+      logger.info(
+        { tag: 'check-disable', checkDisable },
+        'Checked whether symbol is disabled or not.'
+      );
+      if (checkDisable.isDisabled) {
+        return setSellActionAndMessage(
+          logger,
+          data,
+          'sell-temporary-disabled',
+          actions.action_sell_disabled[1] +
+          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+        );
+      }
+      messenger.errorMessage("We are selling by HARD profit trigger.")
+      // Then sell market order
+      return setSellActionAndMessage(
+        logger,
+        data,
+        'sell-profit',
+        actions.action_sell_stop_loss
+      );
+    }
+
+    if (isHigherThanSellTriggerPriceAndTrendIsDown(data)) {
+      // if (data.sell.trendDownMarketSell) {
+
+      const checkDisable = await isActionDisabled(symbol);
+      logger.info(
+        { tag: 'check-disable', checkDisable },
+        'Checked whether symbol is disabled or not.'
+      );
+      if (checkDisable.isDisabled) {
+        return setSellActionAndMessage(
+          logger,
+          data,
+          'sell-temporary-disabled',
+          actions.action_sell_disabled[1] +
+          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+        );
+      }
+      messenger.errorMessage("We are selling bcs trending is going DOWN.")
+
+      // Then sell market order
+      return setSellActionAndMessage(
+        logger,
+        data,
+        'sell-profit',
+        actions.action_sell_stop_loss
+      );
+      // }
+    }
+
+
     // And if current price is higher or equal than trigger price
-    if (isHigherThanSellTriggerPrice(data)) {
+    if (isHigherThanSellTriggerPrice(data) && Math.sign(data.indicators.trendDiff) == -1) {
+
       const checkDisable = await isActionDisabled(symbol);
       logger.info(
         { tag: 'check-disable', checkDisable },
