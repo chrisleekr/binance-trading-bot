@@ -28,6 +28,7 @@
   },
   "homepage": "https://github.com/chrisleekr/binance-traiding-bot#readme",
   "dependencies": {
+    "adm-zip": "^0.5.5",
     "axios": "^0.21.1",
     "binance-api-node": "^0.10.47",
     "bunyan": "^1.8.15",
@@ -35,6 +36,7 @@
     "config": "^3.3.6",
     "cron": "^1.8.2",
     "cross-env": "^7.0.3",
+    "convert-csv-to-array": "^1.0.3",
     "express": "^4.17.1",
     "ioredis": "^4.27.4",
     "localtunnel": "^2.0.1",
@@ -44,6 +46,7 @@
     "moment-timezone": "^0.5.33",
     "mongodb": "3.6.9",
     "node-telegram-bot-api": "^0.53.0",
+    "nodejs-file-downloader": "^4.7.1",
     "pubsub-js": "^1.9.3",
     "redlock": "^4.2.0",
     "uuid": "^8.3.2",

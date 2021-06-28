@@ -25,6 +25,7 @@ const execute = async (logger, rawData) => {
       },
       sell: {
         triggerPercentage: sellTriggerPercentage,
+        hardPercentage: sellHardTriggerPercentage,
         limitPercentage: sellLimitPercentage,
         stopLoss: { maxLossPercentage: sellMaxLossPercentage }
       }
@@ -72,10 +73,26 @@ const execute = async (logger, rawData) => {
 
   // Get last buy price
   const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
+  const lastQuantityBought = _.get(lastBuyPriceDoc, 'quantity', null);
   const lastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
+  const lastPricesBought = _.get(lastBuyPriceDoc, 'lastPricesBought', null);
+
+  let average = 0;
+  let averageLastBuyPrices = lastBuyPrice;
+  if (lastPricesBought != null) {
+    lastPricesBought.forEach(price => {
+
+      average += price;
+    });
+
+    averageLastBuyPrices = average / lastPricesBought.length;
+  }
+
 
   const sellTriggerPrice =
     lastBuyPrice > 0 ? lastBuyPrice * sellTriggerPercentage : null;
+  const sellHardTriggerPrice =
+    lastBuyPrice > 0 ? lastBuyPrice * sellHardTriggerPercentage : null;
   const sellDifference =
     lastBuyPrice > 0 ? (1 - sellTriggerPrice / currentPrice) * 100 : null;
   const sellLimitPrice = currentPrice * sellLimitPercentage;
@@ -89,7 +106,7 @@ const execute = async (logger, rawData) => {
       : null;
 
   // Estimate value
-  const baseAssetEstimatedValue = baseAssetTotalBalance * currentPrice;
+  const baseAssetEstimatedValue = lastQuantityBought * currentPrice;
   const isLessThanMinNotionalValue =
     baseAssetEstimatedValue < parseFloat(minNotional);
 
@@ -161,7 +178,10 @@ const execute = async (logger, rawData) => {
     currentPrice,
     limitPrice: sellLimitPrice,
     lastBuyPrice,
+    averageLastBuyPrices: averageLastBuyPrices,
+    lastPricesBought: lastPricesBought,
     triggerPrice: sellTriggerPrice,
+    hardTriggerPrice: sellHardTriggerPrice,
     difference: sellDifference,
     stopLossTriggerPrice: sellStopLossTriggerPrice,
     stopLossDifference: sellStopLossDifference,
@@ -169,7 +189,8 @@ const execute = async (logger, rawData) => {
     currentProfitPercentage: sellCurrentProfitPercentage,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'sell'),
     processMessage: _.get(data, 'sell.processMessage', ''),
-    updatedAt: moment().utc()
+    updatedAt: moment().utc(),
+    lastQtyBought: lastQuantityBought
   };
 
   return data;

@@ -438,8 +438,39 @@ input[type='number'] {
   }
 }
 
+.modal-body {
+  background: #191f2c;
+}
+
+.modal-content {
+  background: #191f2c;
+}
+
+.modal-footer {
+  color: #cfcfcf;
+  background: #191f2c;
+}
+
+.form-control .form-control-sm {
+  color: #cfcfcf;
+  background: #191f2c;
+}
+
+.card {
+  background: #283041;
+}
+
 .modal-dialog {
-  color: #272b38;
+  color: #cfcfcf;
+}
+
+.text-muted {
+  color: #f3f3f3;
+}
+
+.rbt-token {
+  color: #dfda9e;
+  background: #3a4763;
 }
 
 .form-header {
@@ -459,6 +490,10 @@ input[type='number'] {
   color: #deb887;
 }
 
+.btn-link {
+  color: #a2e5ff;
+}
+
 /**
   Start: Manual Trade
 */
@@ -467,6 +502,8 @@ input[type='number'] {
 }
 .input-group .input-group-text {
   width: 100%;
+  color: #e4dc8a;
+  background: #3a4763;
 }
 
 .input-group > .input-group-append {
@@ -621,6 +658,12 @@ input[type='number'] {
 */
 
 .btn-cancel-order {
+  line-height: 0.8rem;
+  vertical-align: unset;
+  color: #f84960;
+}
+
+.btn-backtest {
   line-height: 0.8rem;
   vertical-align: unset;
   color: #f84960;

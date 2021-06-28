@@ -70,11 +70,17 @@
         "stopPercentage": 1.02,
         "limitPercentage": 1.021
       },
+      "backtest": {
+        "moneyToTest": 100,
+        "daysToTest": 30
+      },
       "sell": {
         "enabled": true,
+        "marketEnabled": true,
         "trendDownMarketSell": true,
+        "stakeCoinEnabled": true,
         "triggerPercentage": 1.06,
-        "hardSellTriggerPrice": 10,
+        "hardPercentage": 1.1,
         "stopPercentage": 0.98,
         "limitPercentage": 0.979,
         "stopLoss": {

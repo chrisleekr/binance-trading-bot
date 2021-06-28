@@ -30,15 +30,16 @@ const execute = async (logger, rawData) => {
     symbolConfiguration: {
       sell: {
         enabled: tradingEnabled,
+        triggerPercentage,
         stopLoss: {
           orderType: sellStopLossOrderType,
           disableBuyMinutes: sellStopLossDisableBuyMinutes
-        }
+        },
+        stakeCoinsEnabled
       }
     },
     action,
-    baseAssetBalance: { free: baseAssetFreeBalance },
-    sell: { currentPrice, openOrders }
+    sell: { currentPrice, openOrders, lastQtyBought }
   } = data;
 
   if (isLocked) {
@@ -62,7 +63,7 @@ const execute = async (logger, rawData) => {
 
     const lotPrecision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
 
-    const freeBalance = parseFloat(_.floor(baseAssetFreeBalance, lotPrecision));
+    const freeBalance = parseFloat(_.floor(lastQtyBought, lotPrecision));
     logger.info({ freeBalance }, 'Free balance');
 
     let orderQuantity = parseFloat(
@@ -113,15 +114,30 @@ const execute = async (logger, rawData) => {
       return data;
     }
 
+    if (stakeCoinsEnabled) {
+      const reduceSellTrigger = (triggerPercentage * 100) - 100;
+      const amountOfProfitToReduceToStake = (orderQuantity / 100) * reduceSellTrigger
+      const calculatedOrderQuantity = parseFloat(
+        _.floor((orderQuantity - amountOfProfitToReduceToStake), lotPrecision)
+      );
+
+      if ((calculatedOrderQuantity * currentPrice) > parseFloat(minNotional)) {
+        orderQuantity = calculatedOrderQuantity;
+      };
+    }
+
+    if (orderQuantity == 0) {
+      messenger.errorMessage("Trying to sell at stop loss but order quantity IS: " + orderQuantity);
+      data.sell.processMessage = "I can't sell at stop loss because Quantity is 0. You would lost your staked coins. Please, sell manually.";
+      data.sell.updatedAt = moment().utc();
+      return data;
+    }
     const orderParams = {
       symbol,
       side: 'sell',
       type: 'MARKET',
       quantity: orderQuantity
     };
-
-    messenger.sendMessage(
-      symbol, null, 'SELL_STOP_LOSS');
 
     logger.info(
       { debug: true, function: 'order', orderParams },
@@ -132,6 +148,9 @@ const execute = async (logger, rawData) => {
     logger.info({ orderResult }, 'Market order result');
 
     if (action == 'sell-stop-loss') {
+      messenger.sendMessage(
+        symbol, null, 'SELL_STOP_LOSS');
+      messenger.errorMessage("sell at stop loss but order quantity IS: " + orderQuantity);
       // Temporary disable action
       await disableAction(
         symbol,
@@ -143,6 +162,9 @@ const execute = async (logger, rawData) => {
         },
         sellStopLossDisableBuyMinutes * 60
       );
+    } else {
+      messenger.errorMessage(
+        "I sold the coin at market price because profit was higher than defined profit");
     }
 
     // Get open orders and update cache

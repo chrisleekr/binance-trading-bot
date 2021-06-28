@@ -28,11 +28,12 @@ const execute = async (logger, rawData) => {
       filterMinNotional: { minNotional }
     },
     symbolConfiguration: {
-      sell: { enabled: tradingEnabled, stopPercentage, limitPercentage }
+      sell: { enabled: tradingEnabled, stopPercentage, limitPercentage, triggerPercentage, stakeCoinsEnabled }
     },
     action,
     baseAssetBalance: { free: baseAssetFreeBalance },
-    sell: { currentPrice, openOrders }
+    sell: { currentPrice, openOrders, lastQtyBought },
+    indicators: { trendDiff }
   } = data;
 
   if (isLocked) {
@@ -65,7 +66,7 @@ const execute = async (logger, rawData) => {
   const stopPrice = roundDown(currentPrice * stopPercentage, pricePrecision);
   const limitPrice = roundDown(currentPrice * limitPercentage, pricePrecision);
 
-  const freeBalance = parseFloat(_.floor(baseAssetFreeBalance, lotPrecision));
+  const freeBalance = parseFloat(_.floor(lastQtyBought, lotPrecision));
   logger.info({ freeBalance }, 'Free balance');
 
   let orderQuantity = parseFloat(
@@ -103,6 +104,27 @@ const execute = async (logger, rawData) => {
     data.sell.updatedAt = moment().utc();
 
     return data;
+  }
+
+
+  if (Math.sign(trendDiff) == 1) {
+    data.buy.processMessage = "Trend is going up, cancelling order";
+    data.buy.updatedAt = moment().utc();
+
+    return data;
+  }
+
+
+  if (stakeCoinsEnabled) {
+    const reduceSellTrigger = (triggerPercentage * 100) - 100;
+    const amountOfProfitToReduceToStake = (orderQuantity / 100) * reduceSellTrigger
+    const calculatedOrderQuantity = parseFloat(
+      _.floor((orderQuantity - amountOfProfitToReduceToStake), lotPrecision)
+    );
+
+    if ((calculatedOrderQuantity * currentPrice) > parseFloat(minNotional)) {
+      orderQuantity = calculatedOrderQuantity;
+    };
   }
 
   const orderParams = {

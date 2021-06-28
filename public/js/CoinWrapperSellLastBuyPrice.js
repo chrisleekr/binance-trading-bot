@@ -34,6 +34,18 @@ class CoinWrapperSellLastBuyPrice extends React.Component {
         ) : (
           <span className='coin-info-value coin-info-value-with-icon'>N/A</span>
         )}
+        <span className='coin-info-label coin-info-label-with-icon'>
+          - Average Price:
+        </span>
+        {sell.averageLastBuyPrices != null ? (
+          <div className='coin-info-value  coin-info-value-with-icon'>
+            <HightlightChange className='coin-info-value coin-info-value-with-icon'>
+              {sell.averageLastBuyPrices.toFixed(precision)}
+            </HightlightChange>
+          </div>
+        ) : (
+          <span className='coin-info-value coin-info-value-with-icon'>N/A</span>
+        )}
       </div>
     );
   }

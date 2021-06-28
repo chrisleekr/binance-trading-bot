@@ -32,11 +32,10 @@ const huskyTrend = candles => {
   const candleLows = candles.close
 
   var newCandle = 1;
-  var differences = [];
-  var difference = 0;
+  var diff = 0;
   var status = "not enough data";
-  const positiveMultiplier = 1.004;
-  const negativeMultiplier = -1.01;
+  const positiveMultiplier = 1.015;
+  const negativeMultiplier = -1.06;
 
   candleLows.forEach(candle => {
     var newCandleToTest = candleLows[newCandle];
@@ -48,15 +47,14 @@ const huskyTrend = candles => {
         calc = (candle - newCandleToTest) * negativeMultiplier;
       }
 
-      differences.push(calc);
+      const finalCalc = (calc / candle) * 100;
+
+      diff += finalCalc;
     }
     newCandle++;
   });
 
-  var lastDiff = 0;
-  differences.forEach(diff => {
-    difference = (lastDiff + diff).toFixed(6);
-  });
+  const difference = diff.toFixed(2);
 
   switch (Math.sign(difference)) {
     case -1:

@@ -1,8 +1,8 @@
 const moment = require('moment');
 
-const { isActionDisabled } = require('../../trailingTradeHelper/common');
+const { isActionDisabled, removeOverrideDataForIndicator } = require('../../trailingTradeHelper/common');
 const config = require('config');
-const { messenger } = require('../../../helpers');
+const { messenger, mongo } = require('../../../helpers');
 
 /**
  * Check whether can buy or not
@@ -100,10 +100,10 @@ const isHigherThanSellTriggerPrice = data => {
 
 const isHigherThanHardSellTriggerPrice = data => {
   const {
-    sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice, hardSellTriggerPrice: hardSellTriggerPrice }
+    sell: { currentPrice: sellCurrentPrice, hardTriggerPrice: hardSellTriggerPrice }
   } = data;
 
-  return sellCurrentPrice >= sellTriggerPrice * 1.008;
+  return sellCurrentPrice >= hardSellTriggerPrice
 };
 
 const isHigherThanSellTriggerPriceAndTrendIsDown = data => {
@@ -170,7 +170,8 @@ const execute = async (logger, rawData) => {
     action,
     symbol,
     isLocked,
-    symbolInfo: { baseAsset }
+    symbolInfo: { baseAsset },
+    symbolConfiguration: { sell: { trendDownMarketSell } }
   } = data;
 
   if (isLocked) {
@@ -263,38 +264,47 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'sell-profit',
-        actions.action_sell_stop_loss
+        "Selling because of hard profit."
       );
     }
 
     if (isHigherThanSellTriggerPriceAndTrendIsDown(data)) {
-      // if (data.sell.trendDownMarketSell) {
+      if (trendDownMarketSell) {
 
-      const checkDisable = await isActionDisabled(symbol);
-      logger.info(
-        { tag: 'check-disable', checkDisable },
-        'Checked whether symbol is disabled or not.'
-      );
-      if (checkDisable.isDisabled) {
+        const checkDisable = await isActionDisabled(symbol);
+        logger.info(
+          { tag: 'check-disable', checkDisable },
+          'Checked whether symbol is disabled or not.'
+        );
+        if (checkDisable.isDisabled) {
+          return setSellActionAndMessage(
+            logger,
+            data,
+            'sell-temporary-disabled',
+            actions.action_sell_disabled[1] +
+            actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+            actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+          );
+        }
+        messenger.errorMessage("We are selling bcs trending is going DOWN. Selling at market.")
+
+        // Then sell market order
         return setSellActionAndMessage(
           logger,
           data,
-          'sell-temporary-disabled',
-          actions.action_sell_disabled[1] +
-          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+          'sell-profit',
+          "Selling because trend is down and current price is higher than defined profit. Market Order."
+        );
+      } else {
+        messenger.errorMessage("We are selling bcs trending is going DOWN. Selling normally.")
+        //Sell at limit order
+        return setSellActionAndMessage(
+          logger,
+          data,
+          'sell',
+          "Selling because trend is down and current price is higher than defined profit. Limit order."
         );
       }
-      messenger.errorMessage("We are selling bcs trending is going DOWN.")
-
-      // Then sell market order
-      return setSellActionAndMessage(
-        logger,
-        data,
-        'sell-profit',
-        actions.action_sell_stop_loss
-      );
-      // }
     }
 
 

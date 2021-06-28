@@ -440,18 +440,30 @@ class SettingIcon extends React.Component {
                                 </Button>
                               </OverlayTrigger>
                             </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder={settingIcon.placeholder_trigger_percent}
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='buy.triggerPercentage'
-                              value={configuration.buy.triggerPercentage}
-                              onChange={this.handleInputChange}
-                            />
+                            <Form.Label htmlFor='field-min-sell-stop-loss-percentage' srOnly>
+                              {commonStrings.quantity}
+                            </Form.Label>
+                            <InputGroup size='sm'>
+
+                              <FormControl
+                                size='sm'
+                                type='number'
+                                placeholder={settingIcon.placeholder_trigger_percent}
+                                required
+                                min='0'
+                                step='0.0001'
+                                data-state-key='buy.triggerPercentage'
+                                value={configuration.buy.triggerPercentage}
+                                onChange={this.handleInputChange}
+                              />
+                              <InputGroup.Append>
+                                <InputGroup.Text>
+                                  {((configuration.buy.triggerPercentage * 100) / 100).toFixed(2)}%
+                                </InputGroup.Text>
+                              </InputGroup.Append>
+                            </InputGroup>
                           </Form.Group>
+
                           <Form.Group
                             controlId='field-buy-stop-percentage'
                             className='mb-2'>
@@ -475,17 +487,28 @@ class SettingIcon extends React.Component {
                                 </Button>
                               </OverlayTrigger>
                             </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder={settingIcon.placeholder_enter_stop_price}
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='buy.stopPercentage'
-                              value={configuration.buy.stopPercentage}
-                              onChange={this.handleInputChange}
-                            />
+                            <Form.Label htmlFor='field-min-buy-stop-price-percentage' srOnly>
+                              {commonStrings.quantity}
+                            </Form.Label>
+                            <InputGroup size='sm'>
+
+                              <FormControl
+                                size='sm'
+                                type='number'
+                                placeholder={settingIcon.placeholder_enter_stop_price}
+                                required
+                                min='0'
+                                step='0.0001'
+                                data-state-key='buy.stopPercentage'
+                                value={configuration.buy.stopPercentage}
+                                onChange={this.handleInputChange}
+                              />
+                              <InputGroup.Append>
+                                <InputGroup.Text>
+                                  {((configuration.buy.stopPercentage * 100) - 100).toFixed(2)}%
+                                </InputGroup.Text>
+                              </InputGroup.Append>
+                            </InputGroup>
                           </Form.Group>
 
                           <Form.Group
@@ -511,17 +534,28 @@ class SettingIcon extends React.Component {
                                 </Button>
                               </OverlayTrigger>
                             </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder={settingIcon.placeholder_enter_limit_price}
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='buy.limitPercentage'
-                              value={configuration.buy.limitPercentage}
-                              onChange={this.handleInputChange}
-                            />
+                            <Form.Label htmlFor='field-min-buy-limit-percentage' srOnly>
+                              {commonStrings.quantity}
+                            </Form.Label>
+                            <InputGroup size='sm'>
+
+                              <FormControl
+                                size='sm'
+                                type='number'
+                                placeholder={settingIcon.placeholder_enter_limit_price}
+                                required
+                                min='0'
+                                step='0.0001'
+                                data-state-key='buy.limitPercentage'
+                                value={configuration.buy.limitPercentage}
+                                onChange={this.handleInputChange}
+                              />
+                              <InputGroup.Append>
+                                <InputGroup.Text>
+                                  {((configuration.buy.limitPercentage * 100) - 100).toFixed(2)}%
+                                </InputGroup.Text>
+                              </InputGroup.Append>
+                            </InputGroup>
                           </Form.Group>
                         </div>
                         <div className='col-xs-12 col-sm-6'>
@@ -558,6 +592,41 @@ class SettingIcon extends React.Component {
                               </Form.Check.Label>
                             </Form.Check>
                           </Form.Group>
+
+                          <Form.Group
+                            controlId='field-sell-market-enabled'
+                            className='mb-2'>
+                            <Form.Check size='sm'>
+                              <Form.Check.Input
+                                type='checkbox'
+                                data-state-key='sell.marketEnabled'
+                                checked={configuration.sell.marketEnabled}
+                                onChange={this.handleInputChange}
+                              />
+                              <Form.Check.Label>
+                                TODO Sell at Market Order{' '}
+                                <OverlayTrigger
+                                  trigger='click'
+                                  key='sell-market-enabled-overlay'
+                                  placement='bottom'
+                                  overlay={
+                                    <Popover id='sell-market-enabled-overlay-right'>
+                                      <Popover.Content>
+                                        TODO Will sell at market order if trend is going down and current price is higher than your sell trigger.
+                                        If true, will sell at market order, if false, limit order.
+                                      </Popover.Content>
+                                    </Popover>
+                                  }>
+                                  <Button
+                                    variant='link'
+                                    className='p-0 m-0 ml-1 text-info'>
+                                    <i className='fa fa-question-circle'></i>
+                                  </Button>
+                                </OverlayTrigger>
+                              </Form.Check.Label>
+                            </Form.Check>
+                          </Form.Group>
+
                           <Form.Group
                             controlId='field-sell-last-buy-percentage'
                             className='mb-2'>
@@ -581,18 +650,30 @@ class SettingIcon extends React.Component {
                                 </Button>
                               </OverlayTrigger>
                             </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder={settingIcon.placeholder_trigger_percent}
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='sell.triggerPercentage'
-                              value={configuration.sell.triggerPercentage}
-                              onChange={this.handleInputChange}
-                            />
+                            <Form.Label htmlFor='field-min-sell-trigger-percentage' srOnly>
+                              {commonStrings.quantity}
+                            </Form.Label>
+                            <InputGroup size='sm'>
+
+                              <FormControl
+                                size='sm'
+                                type='number'
+                                placeholder={settingIcon.placeholder_trigger_percent}
+                                required
+                                min='0'
+                                step='0.0001'
+                                data-state-key='sell.triggerPercentage'
+                                value={configuration.sell.triggerPercentage}
+                                onChange={this.handleInputChange}
+                              />
+                              <InputGroup.Append>
+                                <InputGroup.Text>
+                                  {((configuration.sell.triggerPercentage * 100) - 100).toFixed(2)}%
+                                </InputGroup.Text>
+                              </InputGroup.Append>
+                            </InputGroup>
                           </Form.Group>
+
                           <Form.Group
                             controlId='field-sell-stop-percentage'
                             className='mb-2'>
@@ -616,18 +697,30 @@ class SettingIcon extends React.Component {
                                 </Button>
                               </OverlayTrigger>
                             </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder={settingIcon.placeholder_enter_stop_price}
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='sell.stopPercentage'
-                              value={configuration.sell.stopPercentage}
-                              onChange={this.handleInputChange}
-                            />
+                            <Form.Label htmlFor='field-min-sell-stop-price-percentage' srOnly>
+                              {commonStrings.quantity}
+                            </Form.Label>
+                            <InputGroup size='sm'>
+
+                              <FormControl
+                                size='sm'
+                                type='number'
+                                placeholder={settingIcon.placeholder_enter_stop_price}
+                                required
+                                min='0'
+                                step='0.0001'
+                                data-state-key='sell.stopPercentage'
+                                value={configuration.sell.stopPercentage}
+                                onChange={this.handleInputChange}
+                              />
+                              <InputGroup.Append>
+                                <InputGroup.Text>
+                                  {((configuration.sell.stopPercentage * 100) - 100).toFixed(2)}%
+                                </InputGroup.Text>
+                              </InputGroup.Append>
+                            </InputGroup>
                           </Form.Group>
+
                           <Form.Group
                             controlId='field-sell-stop-percentage'
                             className='mb-2'>
@@ -651,18 +744,77 @@ class SettingIcon extends React.Component {
                                 </Button>
                               </OverlayTrigger>
                             </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder={settingIcon.placeholder_enter_limit_price}
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='sell.limitPercentage'
-                              value={configuration.sell.limitPercentage}
-                              onChange={this.handleInputChange}
-                            />
+                            <Form.Label htmlFor='field-min-sell-limit-price-percentage' srOnly>
+                              {commonStrings.quantity}
+                            </Form.Label>
+                            <InputGroup size='sm'>
+
+                              <FormControl
+                                size='sm'
+                                type='number'
+                                placeholder={settingIcon.placeholder_enter_limit_price}
+                                required
+                                min='0'
+                                step='0.0001'
+                                data-state-key='sell.limitPercentage'
+                                value={configuration.sell.limitPercentage}
+                                onChange={this.handleInputChange}
+                              />
+                              <InputGroup.Append>
+                                <InputGroup.Text>
+                                  {((configuration.sell.limitPercentage * 100) - 100).toFixed(2)}%
+                                </InputGroup.Text>
+                              </InputGroup.Append>
+                            </InputGroup>
                           </Form.Group>
+
+                          <Form.Group
+                            controlId='field-sell-hard-percentage'
+                            className='mb-2'>
+                            <Form.Label className='mb-0'>
+                              TODO Hard Sell Percentage {' '}
+                              <OverlayTrigger
+                                trigger='click'
+                                key='sell-hard-price-percentage-overlay'
+                                placement='bottom'
+                                overlay={
+                                  <Popover id='sell-hard-price-percentage-overlay-right'>
+                                    <Popover.Content>
+                                      {settingIcon.limit_price_percent_description_sell}
+                                    </Popover.Content>
+                                  </Popover>
+                                }>
+                                <Button
+                                  variant='link'
+                                  className='p-0 m-0 ml-1 text-info'>
+                                  <i className='fa fa-question-circle'></i>
+                                </Button>
+                              </OverlayTrigger>
+                            </Form.Label>
+                            <Form.Label htmlFor='field-min-sell-hard-price-percentage' srOnly>
+                              {commonStrings.quantity}
+                            </Form.Label>
+                            <InputGroup size='sm'>
+
+                              <FormControl
+                                size='sm'
+                                type='number'
+                                placeholder={settingIcon.placeholder_enter_limit_price}
+                                required
+                                min='0'
+                                step='0.0001'
+                                data-state-key='sell.hardPercentage'
+                                value={configuration.sell.hardPercentage}
+                                onChange={this.handleInputChange}
+                              />
+                              <InputGroup.Append>
+                                <InputGroup.Text>
+                                  {((configuration.sell.hardPercentage * 100) - 100).toFixed(2)}%
+                                </InputGroup.Text>
+                              </InputGroup.Append>
+                            </InputGroup>
+                          </Form.Group>
+
                           <p className='form-header mb-1'>{commonStrings.sell} - {commonStrings.stop_loss}</p>
                           <Form.Group
                             controlId='field-sell-stop-loss-enabled'
@@ -696,6 +848,7 @@ class SettingIcon extends React.Component {
                               </Form.Check.Label>
                             </Form.Check>
                           </Form.Group>
+
                           <Form.Group
                             controlId='field-sell-stop-loss-max-loss-percentage'
                             className='mb-2'>
@@ -719,21 +872,33 @@ class SettingIcon extends React.Component {
                                 </Button>
                               </OverlayTrigger>
                             </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder={settingIcon.placeholder_enter_max_loss}
-                              required
-                              max='1'
-                              min='0'
-                              step='0.0001'
-                              data-state-key='sell.stopLoss.maxLossPercentage'
-                              value={
-                                configuration.sell.stopLoss.maxLossPercentage
-                              }
-                              onChange={this.handleInputChange}
-                            />
+                            <Form.Label htmlFor='field-min-sell-stop-loss-percentage' srOnly>
+                              {commonStrings.quantity}
+                            </Form.Label>
+                            <InputGroup size='sm'>
+
+                              <FormControl
+                                size='sm'
+                                type='number'
+                                placeholder={settingIcon.placeholder_enter_max_loss}
+                                required
+                                max='1'
+                                min='0'
+                                step='0.0001'
+                                data-state-key='sell.stopLoss.maxLossPercentage'
+                                value={
+                                  configuration.sell.stopLoss.maxLossPercentage
+                                }
+                                onChange={this.handleInputChange}
+                              />
+                              <InputGroup.Append>
+                                <InputGroup.Text>
+                                  {((configuration.sell.stopLoss.maxLossPercentage * 100) - 100).toFixed(2)}%
+                                </InputGroup.Text>
+                              </InputGroup.Append>
+                            </InputGroup>
                           </Form.Group>
+
                           <Form.Group
                             controlId='field-sell-stop-loss-disable-buy-minutes'
                             className='mb-2'>
@@ -757,20 +922,68 @@ class SettingIcon extends React.Component {
                                 </Button>
                               </OverlayTrigger>
                             </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder={settingIcon.placeholder_temporary_disable}
-                              required
-                              max='99999999'
-                              min='1'
-                              step='1'
-                              data-state-key='sell.stopLoss.disableBuyMinutes'
-                              value={
-                                configuration.sell.stopLoss.disableBuyMinutes
-                              }
-                              onChange={this.handleInputChange}
-                            />
+                            <Form.Label htmlFor='field-min-sell-stop-loss-percentage' srOnly>
+                              {commonStrings.quantity}
+                            </Form.Label>
+                            <InputGroup size='sm'>
+
+                              <FormControl
+                                size='sm'
+                                type='number'
+                                placeholder={settingIcon.placeholder_temporary_disable}
+                                required
+                                max='99999999'
+                                min='1'
+                                step='1'
+                                data-state-key='sell.stopLoss.disableBuyMinutes'
+                                value={
+                                  configuration.sell.stopLoss.disableBuyMinutes
+                                }
+                                onChange={this.handleInputChange}
+                              />
+                              <InputGroup.Append>
+                                <InputGroup.Text>
+                                  {(configuration.sell.stopLoss.disableBuyMinutes / 60).toFixed(2)} hours disabled.
+                                </InputGroup.Text>
+                              </InputGroup.Append>
+                            </InputGroup>
+                          </Form.Group>
+
+                          <p className='form-header mb-1'>TODO - Stake coins?</p>
+                          <Form.Group
+                            controlId='field-sell-stake-coins-enabled'
+                            className='mb-2'>
+                            <Form.Check size='sm'>
+                              <Form.Check.Input
+                                type='checkbox'
+                                data-state-key='sell.stakeCoinEnabled'
+                                checked={
+                                  configuration.sell.stakeCoinEnabled
+                                }
+                                onChange={this.handleInputChange}
+                              />
+                              <Form.Check.Label>
+                                Stake coins {' '}
+                                <OverlayTrigger
+                                  trigger='click'
+                                  key='sell-stake-coins-enabled-overlay'
+                                  placement='bottom'
+                                  overlay={
+                                    <Popover id='sell-stake-coins-enabled-overlay-right'>
+                                      <Popover.Content>
+                                        When enabled, the bot will sell a little less quantity then what it bought.
+                                        Ex: If you set your profit to 0,5% the bot will sell only 99,5% of the amount it bought.
+                                      </Popover.Content>
+                                    </Popover>
+                                  }>
+                                  <Button
+                                    variant='link'
+                                    className='p-0 m-0 ml-1 text-info'>
+                                    <i className='fa fa-question-circle'></i>
+                                  </Button>
+                                </OverlayTrigger>
+                              </Form.Check.Label>
+                            </Form.Check>
                           </Form.Group>
                         </div>
                       </div>

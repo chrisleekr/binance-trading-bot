@@ -5,6 +5,7 @@ const {
   handleLatest,
   handleSettingUpdate,
   handleSymbolUpdateLastBuyPrice,
+  handleSymbolBackTest,
   handleSymbolDelete,
   handleSymbolSettingUpdate,
   handleSymbolSettingDelete,
@@ -59,6 +60,9 @@ const configureWebSocket = async (server, funcLogger) => {
           break;
         case 'symbol-update-last-buy-price':
           await handleSymbolUpdateLastBuyPrice(commandLogger, ws, payload);
+          break;
+        case 'symbol-backtest':
+          await handleSymbolBackTest(commandLogger, ws, payload);
           break;
         case 'symbol-delete':
           await handleSymbolDelete(commandLogger, ws, payload);

@@ -132,17 +132,17 @@ const execute = async logger => {
 
       messenger.errorMessage(
         `Execution failed (${moment().format('HH:mm:ss.SSS')})\n` +
-          `Job: Trailing Trade Indicator\n` +
-          `Code: ${err.code}\n` +
-          `Error message: ${err.message}\n` +
-          `There's something *wrong*.\n`+
-          `You may want to reset me. You can try this *after disabling me in docker*:\n`+
-		  `wsl --shutdown\n` +
-		  `Now *restart wsl through windows notification* (if you're a windows user).\n` +
-		  `Or you can *try this* to *sync docker clock with your machine*:\n` +
-		  `docker run -it --rm --privileged --pid=host debian nsenter -t 1 -m -u -n -i date -u $(date -u +%m%d%H%M%Y)\n` +
-		  `Then you just need to *restart* me.\n` +
-          `- Current API Usage: ${getAPILimit(logger)}`
+        `Job: Trailing Trade Indicator\n` +
+        `Code: ${err.code}\n` +
+        `Error message: ${err.message}\n` +
+        `There's something *wrong*.\n` +
+        `You may want to reset me. You can try this *after disabling me in docker*:\n` +
+        `wsl --shutdown\n` +
+        `Now *restart wsl through windows notification* (if you're a windows user).\n` +
+        `Or you can *try this* to *sync docker clock with your machine*:\n` +
+        `docker run -it --rm --privileged --pid=host debian nsenter -t 1 -m -u -n -i date -u $(date -u +%m%d%H%M%Y)\n` +
+        `Then you just need to *restart* me.\n` +
+        `- Current API Usage: ${getAPILimit(logger)}`
       );
     }
   }

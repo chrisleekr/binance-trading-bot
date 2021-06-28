@@ -3,6 +3,9 @@ const { handleSettingUpdate } = require('./setting-update');
 const {
   handleSymbolUpdateLastBuyPrice
 } = require('./symbol-update-last-buy-price');
+const {
+  handleSymbolBackTest
+} = require('./symbol-backtest');
 const { handleSymbolDelete } = require('./symbol-delete');
 const { handleSymbolSettingUpdate } = require('./symbol-setting-update');
 const { handleSymbolSettingDelete } = require('./symbol-setting-delete');
@@ -17,6 +20,7 @@ module.exports = {
   handleLatest,
   handleSettingUpdate,
   handleSymbolUpdateLastBuyPrice,
+  handleSymbolBackTest,
   handleSymbolDelete,
   handleSymbolSettingUpdate,
   handleSymbolSettingDelete,

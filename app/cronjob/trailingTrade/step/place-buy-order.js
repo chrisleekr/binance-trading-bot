@@ -39,7 +39,8 @@ const execute = async (logger, rawData) => {
     },
     action,
     quoteAssetBalance: { free: quoteAssetFreeBalance },
-    buy: { currentPrice, openOrders }
+    buy: { currentPrice, openOrders },
+    indicators: { trendDiff }
   } = data;
 
   if (isLocked) {
@@ -141,6 +142,13 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
+  if (Math.sign(trendDiff) == -1) {
+    data.buy.processMessage = "Trend is going down, cancelling order";
+    data.buy.updatedAt = moment().utc();
+
+    return data;
+  }
+
   const orderParams = {
     symbol,
     side: 'buy',
@@ -163,21 +171,8 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Order result');
 
-  // Set last buy order to be checked over 2 minutes
-  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 120);
-
-  await mongo.upsertOne(
-    logger,
-    'trailing-trade-symbols',
-    {
-      key: `${symbol}-last-buy-price`
-    },
-    {
-      key: `${symbol}-last-buy-price`,
-      lastBuyPrice: limitPrice,
-      quantity: orderQuantity
-    }
-  );
+  // Set last buy order to be checked over 1 minute
+  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 60);
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
@@ -195,6 +190,33 @@ const execute = async (logger, rawData) => {
   data.buy.updatedAt = moment().utc();
 
   // Save last buy price
+  const lastBuyPriceVar = await mongo.findOne(logger, 'trailing-trade-symbols', {
+    key: `${symbol}-last-buy-price`
+  });
+
+  let lastPricesBoughtArray = _.get(lastBuyPriceVar, 'lastPricesBought', null);
+
+  if (lastBuyPriceVar == null) {
+    lastPricesBoughtArray = [];
+  }
+
+  if (!lastPricesBoughtArray.includes(limitPrice)) {
+    lastPricesBoughtArray.push(limitPrice);
+  }
+
+  await mongo.upsertOne(
+    logger,
+    'trailing-trade-symbols',
+    {
+      key: `${symbol}-last-buy-price`
+    },
+    {
+      key: `${symbol}-last-buy-price`,
+      lastBuyPrice: limitPrice,
+      quantity: orderQuantity,
+      lastPricesBought: lastPricesBoughtArray
+    }
+  );
   return data;
 };
 
