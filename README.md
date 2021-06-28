@@ -14,7 +14,23 @@
 [![ko](https://img.shields.io/badge/lang-한국어-brightgreen.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.ko.md)
 [![中文](https://img.shields.io/badge/lang-中文-blue.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.zh-cn.md)
 
-This is a test project. I am just testing my code.
+This is my fork of Binance Trading Bot. I am just enhancing Chrisleek code.
+
+## Latest Changes
+
+**- Theme is now darker, sleeker.**
+
+**- New "Husky" indicator. Bot now follows its indicator of when to buy and sell. Your profit can be higher than defined profit, but not less!**
+
+**- Backtest -- WIP -- SOON!**
+
+**- Multilanguage! Bot currently supports vi, en, es, pt.**
+
+**- Bot now only sells the quantity it bought. NOTE: In the future with multiple buys, it will record every quantity bought.**
+
+**- Telegram notifications!! Now it supports telegram and slack. NOTE: Messages were reworked to feel more "telegram-ish".**
+
+
 
 ## Warnings
 
