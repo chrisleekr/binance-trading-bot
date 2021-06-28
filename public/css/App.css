@@ -451,9 +451,21 @@ input[type='number'] {
   background: #191f2c;
 }
 
-.form-control .form-control-sm {
+.form-control {
   color: #cfcfcf;
   background: #191f2c;
+}
+
+.rbt-menu {
+  background: #191f2c;
+}
+
+.rbt-input-main {
+  color: #cfcfcf;
+}
+
+.dropdown-item {
+  color: #cfcfcf;
 }
 
 .card {
