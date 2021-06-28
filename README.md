@@ -16,19 +16,19 @@
 
 This is my fork of Binance Trading Bot. I am just enhancing Chrisleek code.
 
-##Latest Changes
+## Latest Changes
 
-** - Theme is now darker, sleeker.**
+**- Theme is now darker, sleeker.**
 
-** - New "Husky" indicator. Bot now follows its indicator of when to buy and sell. Your profit can be higher than defined profit, but not less! **
+**- New "Husky" indicator. Bot now follows its indicator of when to buy and sell. Your profit can be higher than defined profit, but not less! **
 
-** - Backtest -- WIP -- SOON! **
+**- Backtest -- WIP -- SOON! **
 
-** - Multilanguage! Bot currently supports vi, en, es, pt. **
+**- Multilanguage! Bot currently supports vi, en, es, pt. **
 
-** - Bot now only sells the quantity it bought. NOTE: In the future with multiple buys, it will record every quantity bought. **
+**- Bot now only sells the quantity it bought. NOTE: In the future with multiple buys, it will record every quantity bought. **
 
-** - Telegram notifications!! Now it supports telegram and slack. NOTE: Messages were reworked to feel more "telegram-ish". **
+**- Telegram notifications!! Now it supports telegram and slack. NOTE: Messages were reworked to feel more "telegram-ish".**
 
 
 
