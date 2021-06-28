@@ -439,11 +439,11 @@ input[type='number'] {
 }
 
 .theme-light {
-  --color-primary: #cccccc;
-  --color-card: #EBEBEB;
+  --color-primary: #EBEBEB;
+  --color-card: #E0E0E0;
   --color-token: #CCCCCC;
-  --font-secondary-color: #333333;
-  --font-link: #154872;
+  --font-secondary-color: #2c2c2c;
+  --font-link: #135081;
   --font-main-color: #333333;
 }
 .theme-dark {
