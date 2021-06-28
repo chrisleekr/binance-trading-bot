@@ -604,7 +604,7 @@ class SettingIcon extends React.Component {
                                 onChange={this.handleInputChange}
                               />
                               <Form.Check.Label>
-                                TODO Sell at Market Order{' '}
+                                {settingIcon.sell_market_order}{' '}
                                 <OverlayTrigger
                                   trigger='click'
                                   key='sell-market-enabled-overlay'
@@ -612,8 +612,7 @@ class SettingIcon extends React.Component {
                                   overlay={
                                     <Popover id='sell-market-enabled-overlay-right'>
                                       <Popover.Content>
-                                        TODO Will sell at market order if trend is going down and current price is higher than your sell trigger.
-                                        If true, will sell at market order, if false, limit order.
+                                        {settingIcon.sell_market_order_description}
                                       </Popover.Content>
                                     </Popover>
                                   }>
@@ -949,7 +948,7 @@ class SettingIcon extends React.Component {
                             </InputGroup>
                           </Form.Group>
 
-                          <p className='form-header mb-1'>TODO - Stake coins?</p>
+                          <p className='form-header mb-1'>{settingIcon.stake_coins} ?</p>
                           <Form.Group
                             controlId='field-sell-stake-coins-enabled'
                             className='mb-2'>
@@ -963,7 +962,7 @@ class SettingIcon extends React.Component {
                                 onChange={this.handleInputChange}
                               />
                               <Form.Check.Label>
-                                Stake coins {' '}
+                                {settingIcon.stake_coins} {' '}
                                 <OverlayTrigger
                                   trigger='click'
                                   key='sell-stake-coins-enabled-overlay'
@@ -971,8 +970,7 @@ class SettingIcon extends React.Component {
                                   overlay={
                                     <Popover id='sell-stake-coins-enabled-overlay-right'>
                                       <Popover.Content>
-                                        When enabled, the bot will sell a little less quantity then what it bought.
-                                        Ex: If you set your profit to 0,5% the bot will sell only 99,5% of the amount it bought.
+                                        {settingIcon.stake_coins_description}
                                       </Popover.Content>
                                     </Popover>
                                   }>

@@ -43,6 +43,7 @@ class AccountWrapper extends React.Component {
                   <DustTransferIcon
                     dustTransfer={dustTransfer}
                     sendWebSocket={sendWebSocket}
+                    jsonStrings={jsonStrings}
                   />
                 </div>
               </Card.Body>

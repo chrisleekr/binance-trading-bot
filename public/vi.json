@@ -49,7 +49,18 @@
     "max_purchase_amount_description": "Đặt số tiền mua tối đa trên các ký hiệu kết thúc bằng",
     "placeholder_max_purchase_amount": "Đặt giới hạn để xóa giá mua cuối cùng",
     "cancel": "Hủy bỏ",
-    "yes": "Đúng"
+    "yes": "Đúng",
+    "sell_market_order": "Bán theo lệnh thị trường",
+    "sell_market_order_description": "Nếu được chọn, bot sẽ bán tiền tệ theo giá thị trường khi phát hiện xu hướng giảm và lợi nhuận của nó cao hơn lợi nhuận được xác định trước khi kích hoạt bán",
+    "stake_coins": "Tích lũy tiền",
+    "stake_coins_description": "Nếu được chọn, bot sẽ bán ít hơn một chút so với số tiền mà nó đã mua để tích lũy tiền. Ví dụ: Nếu được đặt thành 0,5% lợi nhuận, bot sẽ chỉ bán 99,5% số tiền nó đã mua"
+  },
+  "dustTransfer": {
+    "convert_small_balances_bnb": "Chuyển đổi một lượng nhỏ thành BNB",
+    "description": "Bạn có thể chuyển đổi số tiền dưới 0,003 BTC thành BNB cứ sau 6 giờ. Không thể chuyển đổi các loại tiền tệ không được liệt kê ở đây.",
+    "loading": "Đang tải",
+    "no_asset_convert": "Không có đơn vị tiền tệ nào để chuyển đổi.",
+    "convert": "Chuyển đổi"
   },
   "coinWrapper": {
     "actions": {
@@ -252,6 +263,7 @@
     "remove": "Xoá",
     "resume": "Tóm tắt",
     "market": "Thị trường",
+    "balance": "Thăng bằng",
     "current_balance": "Số dư hiện tại",
     "remaining_balance": "Số dư còn lại",
     "time_remaining": "còn lại",

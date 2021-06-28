@@ -49,7 +49,18 @@
     "max_purchase_amount_description": "Define a quantia máxima de compra em símbolos terminados com",
     "placeholder_max_purchase_amount": "Defina o limite para remover o último preço de compra",
     "cancel": "Cancelar",
-    "yes": "Sim"
+    "yes": "Sim",
+    "sell_market_order": "Vender por ordem de mercado",
+    "sell_market_order_description": "Se selecionado, o bot irá vender a moeda a preço de mercado quando detectar que a tendência está caindo e seus lucros estão maiores que os lucros pré-definidos na ativação de venda",
+    "stake_coins": "Acumular moedas",
+    "stake_coins_description": "Se selecionado, o bot irá vender um pouco menos do que comprou para acumular moedas. Exemplo: Se definido como lucro 0,5% o bot irá vender apenas 99,5% da quantia que comprou"
+  },
+  "dustTransfer": {
+    "convert_small_balances_bnb": "Converter pequenas quantias em BNB",
+    "description": "Você pode converter quantias com valor menor que 0.003 BTC em BNB a cada 6 horas. Não é possível converter moedas que não estejam listadas aqui.",
+    "loading": "Carregando",
+    "no_asset_convert": "Não há nenhuma moeda para converter.",
+    "convert": "Converter"
   },
   "coinWrapper": {
     "actions": {

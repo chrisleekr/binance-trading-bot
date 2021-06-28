@@ -49,7 +49,18 @@
     "max_purchase_amount_description": "Sets the maximum purchase amount on symbols ending with",
     "placeholder_max_purchase_amount": "Set the limit to remove the last purchase price",
     "cancel": "Cancel",
-    "yes": "Yes"
+    "yes": "Yes",
+    "sell_market_order": "Sell by market order",
+    "sell_market_order_description": "If selected, the bot will sell the currency at market price when it detects that the trend is falling and its profits are higher than the predefined profits in the sell activation",
+    "stake_coins": "Accumulate coins",
+    "stake_coins_description": "If checked, the bot will sell a little less than it bought to accumulate coins. Example: If set to 0.5% profit the bot will only sell 99.5% of the amount it bought"
+  },
+  "dustTransfer": {
+    "convert_small_balances_bnb": "Convert small amounts to BNB",
+    "description": "You can convert amounts less than 0.003 BTC into BNB every 6 hours. It is not possible to convert currencies that are not listed here.",
+    "loading": "Loading",
+    "no_asset_convert": "There is no currency to convert.",
+    "convert": "Convert"
   },
   "coinWrapper": {
     "actions": {
@@ -252,6 +263,7 @@
     "remove": "Remove",
     "resume": "Resume",
     "market": "Market",
+    "balance": "Balance",
     "current_balance": "Current Balance",
     "remaining_balance": "Remaining Balance",
     "time_remaining": "remaining",

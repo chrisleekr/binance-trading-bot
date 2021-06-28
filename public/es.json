@@ -49,7 +49,18 @@
     "max_purchase_amount_description": "Establece el monto máximo de compra en los símbolos que terminan en",
     "placeholder_max_purchase_amount": "Establecer el límite para eliminar el último precio de compra",
     "cancelar": "Cancelar",
-    "yes": "Sí"
+    "yes": "Sí",
+    "sell_market_order": "Vender por orden de mercado",
+    "sell_market_order_description": "Si se selecciona, el bot venderá la moneda al precio de mercado cuando detecte que la tendencia está cayendo y sus ganancias son más altas que las ganancias predefinidas en la activación de venta",
+    "stake_coins": "Acumula monedas",
+    "stake_coins_description": "Si se marca, el bot venderá un poco menos de lo que compró para acumular monedas. Ejemplo: si se establece en un beneficio del 0,5%, el bot solo venderá el 99,5% de la cantidad que compró"
+  },
+  "dustTransfer": {
+    "convert_small_balances_bnb": "Convertir pequeñas cantidades a BNB",
+    "description": "Puede convertir cantidades inferiores a 0.003 BTC a BNB cada 6 horas. No es posible convertir monedas que no se enumeran aquí.",
+    "loading": "Cargando",
+    "no_asset_convert": "No hay moneda para convertir",
+    "convertir": "Convertir"
   },
   "coinWrapper": {
     "actions": {
@@ -160,7 +171,7 @@
     "candles": "Velas",
     "trigger_percent": "Porcentaje para activar"
   },
-  "pie de página": {
+  "footer": {
     "version": "Versión actual",
     "latest_version": "Versión más reciente"
   },
@@ -253,6 +264,7 @@
     "remove": "Eliminar",
     "resume": "Resumir",
     "market": "Mercado",
+    "balance": "Cantidad",
     "current_balance": "Saldo actual",
     "left_balance": "Saldo restante",
     "time_remaining": "restante",

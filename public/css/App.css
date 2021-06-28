@@ -205,7 +205,7 @@ input[type='number'] {
   border-radius: 10px;
 
   padding: 10px;
-  background-color: var(--color-card);
+  background-color: var(--color-primary);
 }
 
 .accordion-wrapper .btn-account-balance,

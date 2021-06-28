@@ -79,6 +79,13 @@ class DustTransferIcon extends React.Component {
 
   render() {
     const { showModal, loading, dustTransfer } = this.state;
+    const { jsonStrings } = this.props;
+
+    if (_.isEmpty(jsonStrings)) {
+      return '';
+    }
+
+    const { dustTransfer: dustTransferStrings } = jsonStrings;
 
     let symbols = null;
     if (_.isEmpty(dustTransfer) === false) {
@@ -105,7 +112,7 @@ class DustTransferIcon extends React.Component {
             type='button'
             className='btn btn-sm btn-link btn-dust-transfer'
             onClick={() => this.handleModalShow()}>
-            Convert small balance to BNB
+            {dustTransferStrings.convert_small_balances_bnb}
           </button>
         </div>
         <Modal
@@ -114,26 +121,24 @@ class DustTransferIcon extends React.Component {
           backdrop='static'
           size='xl'>
           <Modal.Header closeButton className='pt-1 pb-1'>
-            <Modal.Title>Convert small balance to BNB</Modal.Title>
+            <Modal.Title>{dustTransferStrings.convert_small_balances_bnb}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
             <p className='d-block text-muted mb-2'>
-              You can convert balances with a valuation below 0.0003 BTC to BNB
-              once every 6 hours. It is not currently possible to convert
-              delisted coins.
+              {dustTransferStrings.description}
             </p>
             <div className='dust-transfer-symbols-parent-wrappers'>
               {loading ? (
                 <div className='text-center w-100'>
                   <Spinner animation='border' role='status'>
-                    <span className='sr-only'>Loading...</span>
+                    <span className='sr-only'>{dustTransferStrings.loading}...</span>
                   </Spinner>
                 </div>
               ) : (
                 <div className='dust-transfer-symbols-wrappers'>
                   {_.isEmpty(symbols) ? (
                     <div className='text-center'>
-                      There is no asset to convert.
+                      {dustTransferStrings.no_asset_convert}
                     </div>
                   ) : (
                     <React.Fragment>
@@ -145,7 +150,7 @@ class DustTransferIcon extends React.Component {
                           type='button'
                           className='btn btn-sm btn-primary w-100 btn-dust-transfer-execute'
                           onClick={() => this.executeDustTransfer()}>
-                          Convert
+                          {dustTransferStrings.convert}
                         </button>
                       </div>
                     </React.Fragment>
