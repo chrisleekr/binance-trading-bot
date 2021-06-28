@@ -42,7 +42,12 @@ class CoinWrapperSymbol extends React.Component {
         </div>
         <div className='coin-info-column coin-info-column-icon'>
 
-
+          <BackTestIcon
+            symbolInfo={symbolInfo}
+            globalConfiguration={globalConfiguration}
+            sendWebSocket={sendWebSocket}
+            jsonStrings={jsonStrings}
+          />
 
           <CoinWrapperManualTrade
             symbol={symbol}

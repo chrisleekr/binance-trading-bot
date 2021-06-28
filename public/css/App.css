@@ -4,8 +4,8 @@ body {
 }
 
 body.dark-theme {
-  color: #cfcfcf;
-  background: #191f2c;
+  color: var(--font-main-color);;
+  background: var(--color-primary);
   font-size: 0.8rem;
 }
 
@@ -205,7 +205,7 @@ input[type='number'] {
   border-radius: 10px;
 
   padding: 10px;
-  background-color: #272b38;
+  background-color: var(--color-card);
 }
 
 .accordion-wrapper .btn-account-balance,
@@ -291,7 +291,7 @@ input[type='number'] {
 }
 
 .coin-wrapper-even {
-  background-color: #272b38;
+  background-color: var(--color-card);
 }
 
 .coin-info-wrapper {
@@ -392,7 +392,7 @@ input[type='number'] {
 }
 
 .coin-info-sub-label {
-  border-bottom: 1px dotted #cfcfcf;
+  border-bottom: 1px dotted var(--font-main-color);;
 }
 
 .coin-info-label,
@@ -438,51 +438,68 @@ input[type='number'] {
   }
 }
 
+.theme-light {
+  --color-primary: #cccccc;
+  --color-card: #EBEBEB;
+  --color-token: #CCCCCC;
+  --font-secondary-color: #333333;
+  --font-link: #154872;
+  --font-main-color: #333333;
+}
+.theme-dark {
+  --color-primary: #191F2C;
+  --color-card: #283041;
+  --color-token: #3A4763;
+  --font-secondary-color: #D1C975;
+  --font-link: #00A1E0;
+  --font-main-color: #CFCFCF;
+}
+
 .modal-body {
-  background: #191f2c;
+  background: var(--color-primary);
 }
 
 .modal-content {
-  background: #191f2c;
+  background: var(--color-primary);
 }
 
 .modal-footer {
-  color: #cfcfcf;
-  background: #191f2c;
+  color: var(--font-main-color);
+  background: var(--color-primary);
 }
 
 .form-control {
-  color: #cfcfcf;
-  background: #191f2c;
+  color: var(--font-main-color);;
+  background: var(--color-primary);
 }
 
 .rbt-menu {
-  background: #191f2c;
+  background: var(--color-primary);
 }
 
 .rbt-input-main {
-  color: #cfcfcf;
+  color: var(--font-main-color);;
 }
 
 .dropdown-item {
-  color: #cfcfcf;
+  color: var(--font-main-color);;
 }
 
 .card {
-  background: #283041;
+  background: var(--color-card);
 }
 
 .modal-dialog {
-  color: #cfcfcf;
+  color: var(--font-main-color);;
 }
 
 .text-muted {
-  color: #f3f3f3;
+  color: var(--font-main-color);;
 }
 
 .rbt-token {
-  color: #dfda9e;
-  background: #3a4763;
+  color: var(--font-secondary-color);
+  background: var(--color-token);
 }
 
 .form-header {
@@ -503,7 +520,7 @@ input[type='number'] {
 }
 
 .btn-link {
-  color: #a2e5ff;
+  color: var(--font-link);
 }
 
 /**
@@ -514,8 +531,8 @@ input[type='number'] {
 }
 .input-group .input-group-text {
   width: 100%;
-  color: #e4dc8a;
-  background: #3a4763;
+  color: var(--font-secondary-color);
+  background: var(--color-token);
 }
 
 .input-group > .input-group-append {
@@ -698,7 +715,7 @@ input[type='number'] {
   -moz-border-radius: 10px;
   border-radius: 10px;
   padding: 10px;
-  background-color: #272b38;
+  background-color: var(--color-primary);
 
   display: flex;
   flex-flow: row wrap;

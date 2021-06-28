@@ -85,7 +85,7 @@ class ProfitLossWrapper extends React.Component {
     return (
       <div className='accordion-wrapper profit-loss-accordion-wrapper'>
         <Accordion defaultActiveKey='0'>
-          <Card bg='dark'>
+          <Card>
             <Card.Header className='px-2 py-1'>
               <div className='d-flex flex-row justify-content-between'>
                 <div className='flex-column-left'>

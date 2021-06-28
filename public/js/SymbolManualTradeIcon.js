@@ -533,8 +533,7 @@ class CoinWrapperManualTrade extends React.Component {
                           id='field-buy-price-input'
                           type='text'
                           className='text-right'
-                          value='Market'
-                          disabled={true}
+                          value={commonStrings.market}
                         />
                       )}
 
@@ -724,7 +723,6 @@ class CoinWrapperManualTrade extends React.Component {
                           placeholder={commonStrings.quantity}
                           className='text-right'
                           value={order.buy.total}
-                          disabled
                         />
                         <InputGroup.Append>
                           <InputGroup.Text>
@@ -827,7 +825,6 @@ class CoinWrapperManualTrade extends React.Component {
                           type='text'
                           className='text-right'
                           value={commonStrings.market}
-                          disabled={true}
                         />
                       )}
 
@@ -1019,7 +1016,7 @@ class CoinWrapperManualTrade extends React.Component {
                           placeholder={commonStrings.quantity}
                           className='text-right'
                           value={order.sell.total}
-                          disabled
+
                         />
                         <InputGroup.Append>
                           <InputGroup.Text>

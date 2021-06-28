@@ -464,13 +464,11 @@ class ManualTradeIcon extends React.Component {
                           id='field-buy-price-input'
                           type='text'
                           className='text-right'
-                          value='Market'
-                          disabled={true}
+                          value={commonStrings.market}
                         />
                       </InputGroup>
                     </Form.Group>
                   </div>
-
                   <div className='manual-trade-row manual-trade-type-wrapper mt-2'>
                     <ButtonGroup size='sm' className='d-block'>
                       <Button
@@ -730,8 +728,7 @@ class ManualTradeIcon extends React.Component {
                           id='field-sell-price-input'
                           type='text'
                           className='text-right'
-                          value='Market'
-                          disabled={true}
+                          value={commonStrings.market}
                         />
                       </InputGroup>
                     </Form.Group>

@@ -9,7 +9,7 @@ class AccountWrapper extends React.Component {
       return '';
     }
 
-    const {commonStrings} = jsonStrings;
+    const { commonStrings } = jsonStrings;
 
     const assets = accountInfo.balances.map((balance, index) => {
       return (
@@ -23,7 +23,7 @@ class AccountWrapper extends React.Component {
     return (
       <div className='accordion-wrapper account-wrapper'>
         <Accordion>
-          <Card bg='dark'>
+          <Card>
             <Accordion.Toggle
               as={Card.Header}
               eventKey='0'

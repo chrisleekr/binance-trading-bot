@@ -35,6 +35,8 @@ class Header extends React.Component {
               </a>
             </div>
 
+            <ThemeChanger />
+
             {_.isEmpty(publicURL) === false ? (
               <div className='header-column-icon-wrapper public-url-wrapper'>
                 <a

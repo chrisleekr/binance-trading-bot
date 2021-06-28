@@ -458,7 +458,7 @@ class SettingIcon extends React.Component {
                               />
                               <InputGroup.Append>
                                 <InputGroup.Text>
-                                  {((configuration.buy.triggerPercentage * 100) / 100).toFixed(2)}%
+                                  {((configuration.buy.triggerPercentage - 1) * 100).toFixed(2)}%
                                 </InputGroup.Text>
                               </InputGroup.Append>
                             </InputGroup>
