@@ -92,6 +92,7 @@ const execute = async (logger, rawData) => {
           'Stop price is higher than buy limit price, cancel current buy order'
         );
 
+        messenger.errorMessage("Trend diff is down, cancelling buy order")
         // Cancel current order
         const cancelResult = await cancelOrder(logger, symbol, order);
         if (cancelResult === false) {

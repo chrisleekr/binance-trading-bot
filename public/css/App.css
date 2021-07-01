@@ -1,12 +1,29 @@
 /* Dark Mode styles */
-body {
-  overflow-y: scroll; /* Show vertical scrollbar */
+
+.theme-light {
+  --color-primary: #EBEBEB;
+  --color-card: #E0E0E0;
+  --color-token: #CCCCCC;
+  --font-secondary-color: #2c2c2c;
+  --font-link: #135081;
+  --font-main-color: #333333;
+}
+.theme-dark {
+  --color-primary: #191F2C;
+  --color-card: #283041;
+  --color-token: #3A4763;
+  --font-secondary-color: #D1C975;
+  --font-link: #00A1E0;
+  --font-main-color: #CFCFCF;
 }
 
-body.dark-theme {
-  color: var(--font-main-color);;
-  background: var(--color-primary);
+body {
+  overflow-y: scroll; /* Show vertical scrollbar */
   font-size: 0.8rem;
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
+  background: var(--color-primary);
+  transition: background 0.5s ease-in-out;
 }
 
 .divider {
@@ -68,7 +85,7 @@ input[type='number'] {
 }
 
 .app {
-  padding: 10px;
+  padding: 5px;
 }
 
 .app-body-loading {
@@ -88,7 +105,8 @@ input[type='number'] {
 }
 
 .app-h1 i {
-  color: #fff;
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
 }
 
 .app-header {
@@ -119,7 +137,8 @@ input[type='number'] {
 }
 
 .header-wrapper .header-column.header-column-icon i {
-  color: #fff;
+  color: var(--font-main-color);
+
   font-size: 20px;
 }
 
@@ -147,7 +166,8 @@ input[type='number'] {
   margin-left: 5px;
 }
 .coin-info-label-with-icon i {
-  color: #fff;
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
   font-size: 15px;
 }
 
@@ -163,7 +183,8 @@ input[type='number'] {
   margin-left: 5px;
 }
 .coin-info-column-price .coin-info-value-with-icon i {
-  color: #fff;
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
   font-size: 15px;
 }
 
@@ -200,12 +221,13 @@ input[type='number'] {
 }
 
 .account-wrapper-body {
-  -webkit-border-radius: 10px;
-  -moz-border-radius: 10px;
-  border-radius: 10px;
+  -webkit-border-radius: 15px;
+  -moz-border-radius: 15px;
+  border-radius: 15px;
 
   padding: 10px;
   background-color: var(--color-primary);
+  transition: background-color 0.5s ease-in-out;
 }
 
 .accordion-wrapper .btn-account-balance,
@@ -267,13 +289,21 @@ input[type='number'] {
 }
 
 .coin-wrapper {
-  width: 25%;
-  -webkit-border-radius: 10px;
-  -moz-border-radius: 10px;
-  border-radius: 10px;
+  width: 24.5%;
+  -webkit-border-radius: 15px;
+  -moz-border-radius: 15px;
+  border-radius: 15px;
   padding: 5px;
-  margin-bottom: 10px;
+  margin: 3px;
   flex: 25% auto;
+}
+
+.coin-wrapper:hover {
+  -webkit-border-radius: 20px;
+  -moz-border-radius: 20px;
+  border-radius: 20px;
+  box-shadow: 0 1px 4px var(--font-secondary-color), 0 1px 4px var(--font-secondary-color);
+  transition: all 0.5s ease-in-out;
 }
 
 @media (max-width: 1200px) {
@@ -292,11 +322,12 @@ input[type='number'] {
 
 .coin-wrapper-even {
   background-color: var(--color-card);
+  transition: background-color 0.5s ease-in-out;
 }
 
 .coin-info-wrapper {
   width: 100%;
-  padding: 10px;
+  padding: 2px;
   display: flex;
   flex-flow: row wrap;
 }
@@ -321,7 +352,8 @@ input[type='number'] {
 
 .coin-info-column-name {
   font-weight: bold;
-  color: #fff;
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
   font-size: 1rem;
 }
 
@@ -348,11 +380,13 @@ input[type='number'] {
   display: flex;
   flex-flow: row wrap;
   justify-content: flex-end;
-  color: #fff;
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
 }
 
 .coin-info-sub-wrapper-symbol .coin-info-column-icon button {
-  color: #fff;
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
 }
 
 .coin-info-column-title {
@@ -375,7 +409,8 @@ input[type='number'] {
 }
 
 .coin-info-column-title-setting i {
-  color: #fff;
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
   font-size: 15px;
 }
 
@@ -429,7 +464,7 @@ input[type='number'] {
 }
 
 .blink {
-  animation: blinker 0.5s normal;
+  animation: blinker 0.5s ease;
 }
 
 @keyframes blinker {
@@ -438,68 +473,74 @@ input[type='number'] {
   }
 }
 
-.theme-light {
-  --color-primary: #EBEBEB;
-  --color-card: #E0E0E0;
-  --color-token: #CCCCCC;
-  --font-secondary-color: #2c2c2c;
-  --font-link: #135081;
-  --font-main-color: #333333;
-}
-.theme-dark {
-  --color-primary: #191F2C;
-  --color-card: #283041;
-  --color-token: #3A4763;
-  --font-secondary-color: #D1C975;
-  --font-link: #00A1E0;
-  --font-main-color: #CFCFCF;
-}
+/**
+  Start: Theming
+*/
 
 .modal-body {
   background: var(--color-primary);
+  transition: background 0.5s ease-in-out;
 }
 
 .modal-content {
   background: var(--color-primary);
+  transition: background 0.5s ease-in-out;
 }
 
 .modal-footer {
   color: var(--font-main-color);
   background: var(--color-primary);
+  transition: background 0.5s ease-in-out;
+  transition: color 0.5s ease-in-out;
 }
 
 .form-control {
-  color: var(--font-main-color);;
+  color: var(--font-main-color);
   background: var(--color-primary);
+  transition: background 0.5s ease-in-out;
+  transition: color 0.5s ease-in-out;
 }
 
 .rbt-menu {
   background: var(--color-primary);
+  transition: background 0.5s ease-in-out;
 }
 
 .rbt-input-main {
-  color: var(--font-main-color);;
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
 }
 
 .dropdown-item {
-  color: var(--font-main-color);;
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
 }
 
 .card {
   background: var(--color-card);
+  -webkit-border-radius: 15px;
+  -moz-border-radius: 15px;
+  border-radius: 15px;
+  margin: 4px;
+  transition: background 0.5s ease-in-out;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16), 0 1px 4px rgba(0, 0, 0, 0.23);
 }
 
 .modal-dialog {
-  color: var(--font-main-color);;
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
 }
 
 .text-muted {
-  color: var(--font-main-color);;
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
 }
 
 .rbt-token {
   color: var(--font-secondary-color);
   background: var(--color-token);
+  transition: background 0.5s ease-in-out;
+  transition: color 0.5s ease-in-out;
 }
 
 .form-header {
@@ -515,13 +556,24 @@ input[type='number'] {
   color: #f84960;
 }
 
+
 .coin-setting-customised {
   color: #deb887;
 }
 
 .btn-link {
   color: var(--font-link);
+  transition: color 0.5s ease-in-out;
 }
+
+.btn {
+  color: var(--font-main-color);
+  transition: color 0.5s ease-in-out;
+}
+
+/**
+  Start: End Theming
+*/
 
 /**
   Start: Manual Trade
@@ -533,6 +585,8 @@ input[type='number'] {
   width: 100%;
   color: var(--font-secondary-color);
   background: var(--color-token);
+  transition: background 0.5s ease-in-out;
+  transition: color 0.5s ease-in-out;
 }
 
 .input-group > .input-group-append {
@@ -576,13 +630,15 @@ input[type='number'] {
   padding: 0 0.5rem;
   font-size: 0.8rem;
   line-height: 1.5;
-  background-color: #6f42c1;
-  color: #fff;
+  background-color: var(--font-secondary-color) !important;
+  color: var(--color-primary) !important;
+  transition: all 0.5s ease-in-out !important;
 }
 
 .btn-manual-trade:hover {
-  background-color: rgba(110, 66, 193, 0.855);
-  color: #fff;
+  color: #CFCFCF !important;
+  background-color: rgba(86, 44, 163, 0.855) !important;
+  transition: all 0.5s ease-in-out !important;
   text-decoration: none;
 }
 
@@ -593,11 +649,13 @@ input[type='number'] {
 .btn-manual-buy:active:not(:disabled) {
   box-shadow: none;
   background-color: rgb(21, 152, 101);
+  transition: all 0.5s ease-in-out !important;
 }
 
 .btn-manual-buy:hover:not(:disabled):not(:active) {
   box-shadow: none;
   background-color: rgb(46, 209, 145);
+  transition: all 0.5s ease-in-out !important;
 }
 
 .btn-manual-sell {
@@ -607,11 +665,13 @@ input[type='number'] {
 .btn-manual-sell:active:not(:disabled) {
   box-shadow: none;
   background-color: rgb(207, 48, 74);
+  transition: all 0.5s ease-in-out !important;
 }
 
 .btn-manual-sell:hover:not(:disabled):not(:active) {
   box-shadow: none;
   background-color: rgb(255, 66, 101);
+  transition: all 0.5s ease-in-out !important;
 }
 
 .manual-trade-wrappers {
@@ -711,11 +771,12 @@ input[type='number'] {
 }
 
 .profit-loss-wrapper-body {
-  -webkit-border-radius: 10px;
-  -moz-border-radius: 10px;
-  border-radius: 10px;
-  padding: 10px;
+  -webkit-border-radius: 15px;
+  -moz-border-radius: 15px;
+  border-radius: 15px;
+  padding: 15px;
   background-color: var(--color-primary);
+  transition: background-color 0.5s ease-in-out;
 
   display: flex;
   flex-flow: row wrap;
@@ -770,3 +831,80 @@ input[type='number'] {
 /**
   End: Dust Transfer
 */
+
+.search-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 20px;border: none;
+  cursor: pointer;
+  background: var(--font-main-color);
+}
+  .search-box label .search-icon {
+    color: var(--color-primary);
+    transition: color 0.5s ease-in-out
+  }
+
+.search-box:hover {
+    color: var(--font-main-color);
+    background: var(--color-primary);
+    box-shadow: 0 0 0 5px var(--font-secondary-color);
+
+  transition: all 0.5s ease-in-out !important;
+}
+.search-box label .search-icon {
+  color: var(--color-primary);
+  transition: color 0.5s ease-in-out !important;
+   }
+
+  .search-box:focus {
+    border: none;outline: none;
+    box-shadow: none;
+    padding-left: 15px;
+    cursor: text;
+    width: 300px;
+    border-radius: auto;
+    background: var(--font-main-color);
+    color: var(--color-primary);
+    transition: all 0.5s ease-in-out;
+  }
+  .search-box label .search-icon {
+    color: var(--color-primary);
+    transition: color 0.5s ease-in-out !important;
+   }
+
+  .search-box:not(:focus) {
+    width: 20px;height: 20px;
+    border-radius: 20px;border: none;
+    cursor: pointer;
+    background: var(--font-main-color);
+    color: var(--font-main-color);
+    transition: all 0.5s ease-in-out !important;
+     }
+
+#search-submit {
+  position: relative;left: -5000px;
+  transition: position 0.5s ease-in-out !important;
+}
+
+.search-icon {
+  position: relative;
+  left: -16px;
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.gg-color-picker {
+  box-sizing: border-box;
+  position: relative;
+  display: block;
+  transform: rotate(-45deg) scale(var(--ggs,1));
+  width: 18px;
+  height: 10px;
+  border-left: 0;
+  border-top-left-radius: 100px;
+  border-bottom-left-radius: 100px;
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-right: 2px solid transparent;
+  box-shadow: inset 0 0 0 2px
+}

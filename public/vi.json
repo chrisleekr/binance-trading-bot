@@ -187,9 +187,11 @@
     }
   },
   "symbolEditLastBuyPrice": {
-    "edit_last_buy": "Chỉnh sửa giá cuối cùng đã mua từ",
+    "edit_last_buy": "Chỉnh sửa giá mua cuối cùng và số lượng",
     "placeholder_last_buy": "Đặt giá mua cuối cùng",
-    "description": {
+    "placeholder_last_qty_bought": "Đặt giá mua cuối cùng",
+    "edit_last_qty_bought_description": "Đặt / sửa đổi số tiền đã mua cuối cùng. Nếu bạn không đặt nó bên cạnh giá cuối cùng, bot sẽ bán TẤT CẢ số tiền miễn phí của đơn vị tiền tệ, thay vì chỉ số tiền được mua cuối cùng.",
+    "edit_last_buy_description": {
       "1": "Đặt / Sửa đổi giá mua cuối cùng của biểu tượng.",
       "2": "Nếu bot mua tiền tệ, giá sẽ tự động được đặt.",
       "3": "Nếu bạn mua thủ công trực tiếp từ nhà môi giới, bạn có thể đặt giá mua cuối cùng để bot bán ở mức lợi nhuận xác định.",
@@ -268,7 +270,7 @@
     "remaining_balance": "Số dư còn lại",
     "time_remaining": "còn lại",
     "action": "Hành động",
-    "strenght": "Sức mạnh",
+    "strength": "Sức mạnh",
     "trending": "Xu hướng"
   }
 }

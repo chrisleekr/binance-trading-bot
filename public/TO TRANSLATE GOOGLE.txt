@@ -49,7 +49,18 @@
     "max_purchase_amount_description": "Define a quantia máxima de compra em símbolos terminados com",
     "placeholder_max_purchase_amount": "Defina o limite para remover o último preço de compra",
     "cancel": "Cancelar",
-    "yes": "Sim"
+    "yes": "Sim",
+    "sell_market_order": "Vender por ordem de mercado",
+    "sell_market_order_description": "Se selecionado, o bot irá vender a moeda a preço de mercado quando detectar que a tendência está caindo e seus lucros estão maiores que os lucros pré-definidos na ativação de venda",
+    "stake_coins": "Acumular moedas",
+    "stake_coins_description": "Se selecionado, o bot irá vender um pouco menos do que comprou para acumular moedas. Exemplo: Se definido como lucro 0,5% o bot irá vender apenas 99,5% da quantia que comprou"
+  },
+  "dustTransfer": {
+    "convert_small_balances_bnb": "Converter pequenas quantias em BNB",
+    "description": "Você pode converter quantias com valor menor que 0.003 BTC em BNB a cada 6 horas. Não é possível converter moedas que não estejam listadas aqui.",
+    "loading": "Carregando",
+    "no_asset_convert": "Não há nenhuma moeda para converter.",
+    "convert": "Converter"
   },
   "coinWrapper": {
     "actions": {
@@ -66,9 +77,9 @@
         "3": "Resumir processo de venda após: "
       },
       "action_sell_disabled_stop_loss": {
-        "1": "O preço atual atingiu o preço do para-perda.",
+        "1": "O preço atual atingiu o preço do para-perda. ",
         "2": "Porém, a ação está temporariamente desabilitada por ",
-        "3": "Resumir processo de venda após: "
+        "3": " Resumir processo de venda após: "
       },
       "action_wait": {
         "1": "O preço atual atingiu o preço de ativação.",
@@ -150,8 +161,8 @@
     "diff_buy": "Diferença para compra",
     "diff_sell": "Diferença para venda",
     "sell_open_orders": "Ordens de venda abertas",
-    "stop_loss_price": "Preço do para-perda",
-    "diff_stop_loss": "Differença para o para-perdas",
+    "stop_loss_price": "Preço para-perdas",
+    "diff_stop_loss": "Diferença para o para-perdas",
     "stop_percent": "Porcento de parada",
     "limit_percent": "Porcento do limite",
     "type": "Tipo",
@@ -176,9 +187,11 @@
     }
   },
   "symbolEditLastBuyPrice": {
-    "edit_last_buy": "Editar último preço comprado de",
+    "edit_last_buy": "Editar último preço de compra e quantia de",
     "placeholder_last_buy": "Defina o último preço de compra",
-    "description": {
+    "placeholder_last_qty_bought": "Defina o último preço de compra",
+    "edit_last_qty_bought_description": "Definir/Modificar a última quantia comprada. Se não definir junto ao último preço, o bot irá vender TODA a quantia livre da moeda, ao invés de apenas a última quantia comprada.",
+    "edit_last_buy_description": {
       "1": "Definir/Modificar o último preço de compra do símbolo.",
       "2": "Se o bot comprou a moeda, o preço é automaticamente definido.",
       "3": "Se você comprou manualmente diretamente pela corretora, pode definir o último preço de compra para o bot vender ao lucro definido.",
@@ -253,7 +266,12 @@
     "remove": "Remover",
     "resume": "Resumir",
     "market": "Mercado",
+    "balance": "Saldo",
     "current_balance": "Saldo atual",
-    "remaining_balance": "Saldo restante"
+    "remaining_balance": "Saldo restante",
+    "time_remaining": "restante",
+    "action": "Ação",
+    "strength": "Força",
+    "trending": "Tendência"
   }
 }

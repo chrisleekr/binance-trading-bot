@@ -42,8 +42,6 @@ class CoinWrapperSymbol extends React.Component {
         </div>
         <div className='coin-info-column coin-info-column-icon'>
 
-
-
           <CoinWrapperManualTrade
             symbol={symbol}
             lastCandle={lastCandle}

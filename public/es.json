@@ -187,9 +187,11 @@
     }
   },
   "symbolEditLastBuyPrice": {
-    "edit_last_buy": "Editar el último precio comprado a",
+    "edit_last_buy": "Edita el último precio de compra y el importe de",
     "placeholder_last_buy": "Establecer el último precio de compra",
-    "description": {
+    "placeholder_last_qty_bought": "Establecer el último precio de compra",
+    "edit_last_qty_bought_description": "Establecer / modificar la última cantidad comprada. Si no lo establece junto al último precio, el bot venderá TODA la cantidad gratuita de la moneda, en lugar de solo la última cantidad comprada.",
+    "edit_last_buy_description": {
       "1": "Establecer / modificar el último precio de compra del símbolo.",
       "2": "Si el bot compró la moneda, el precio se establece automáticamente",
       "3": "Si compró manualmente directamente al corredor, puede establecer el último precio de compra para que el bot venda con la ganancia definida",
@@ -269,7 +271,7 @@
     "left_balance": "Saldo restante",
     "time_remaining": "restante",
     "action": "Acción",
-    "strenght": "Fuerza",
+    "strength": "Fuerza",
     "trending": "Trending"
   }
 }

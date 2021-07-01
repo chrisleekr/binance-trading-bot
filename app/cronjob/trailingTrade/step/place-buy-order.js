@@ -33,6 +33,7 @@ const execute = async (logger, rawData) => {
       buy: {
         enabled: tradingEnabled,
         maxPurchaseAmount,
+        minPurchaseAmount,
         stopPercentage,
         limitPercentage
       }
@@ -92,12 +93,18 @@ const execute = async (logger, rawData) => {
     logger.info({ freeBalance }, 'Free balance after adjust');
   }
 
+  if (freeBalance < parseFloat(minPurchaseAmount)) {
+    freeBalance = minPurchaseAmount;
+    logger.info({ freeBalance }, 'Free balance after adjust');
+  }
+
   if (freeBalance < parseFloat(minNotional)) {
     data.buy.processMessage = actions.action_dont_place_order[1] + quoteAsset + actions.action_dont_place_order[2] + baseAsset + '.';
     data.buy.updatedAt = moment().utc();
 
     return data;
   }
+
 
   const stopPrice = roundDown(currentPrice * stopPercentage, pricePrecision);
   const limitPrice = roundDown(currentPrice * limitPercentage, pricePrecision);

@@ -24,6 +24,7 @@ class SettingIcon extends React.Component {
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
     this.handleInputChange = this.handleInputChange.bind(this);
     this.handleMaxPurchaeAmountChange = this.handleMaxPurchaeAmountChange.bind(this);
+    this.handleMinPurchaeAmountChange = this.handleMinPurchaeAmountChange.bind(this);
     this.handleLastBuyPriceRemoveThresholdChange = this.handleLastBuyPriceRemoveThresholdChange.bind(this);
   }
 
@@ -145,6 +146,18 @@ class SettingIcon extends React.Component {
     });
   }
 
+  handleMinPurchaeAmountChange(newMinPurchaseAmounts) {
+    const { configuration } = this.state;
+
+    this.setState({
+      configuration: _.set(
+        configuration,
+        'buy.minPurchaseAmounts',
+        newMinPurchaseAmounts
+      )
+    });
+  }
+
   handleLastBuyPriceRemoveThresholdChange(newLastBuyPriceRemoveThresholds) {
     console.log('handleLastBuyPriceRemoveThresholdChange => ', newLastBuyPriceRemoveThresholds);
 
@@ -191,7 +204,9 @@ class SettingIcon extends React.Component {
               <span className='text-muted'>
                 {settingIcon.global_settings_description}
               </span>
-              <Accordion defaultActiveKey='0'>
+              <Accordion
+                className='accordion-wrapper'
+                defaultActiveKey='0'>
                 <Card className='mt-1' style={{ overflow: 'visible' }}>
                   <Card.Header className='px-2 py-1'>
                     <Accordion.Toggle
@@ -403,6 +418,17 @@ class SettingIcon extends React.Component {
                             jsonStrings={jsonStrings}
                             handleMaxPurchaeAmountChange={
                               this.handleMaxPurchaeAmountChange
+                            }
+                          />
+
+                          <SettingIconMinPurchaseAmount
+                            quoteAssets={quoteAssets}
+                            minPurchaseAmounts={
+                              configuration.buy.minPurchaseAmounts
+                            }
+                            jsonStrings={jsonStrings}
+                            handleMinPurchaeAmountChange={
+                              this.handleMinPurchaeAmountChange
                             }
                           />
 

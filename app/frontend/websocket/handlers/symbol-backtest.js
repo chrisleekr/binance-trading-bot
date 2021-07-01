@@ -5,7 +5,8 @@ const {
 } = require('../../../cronjob/trailingTrade/step/determine-backtest.js');
 const Downloader = require('nodejs-file-downloader');
 const AdmZip = require("adm-zip");
-const { convertCSVToArray } = require('convert-csv-to-array');
+const fs = require('fs');
+const csv = require('csv-parser');
 /**
  * Delete last buy price
  *
@@ -47,11 +48,6 @@ const downloadZipFromBinance = async (startDate, endDate, symbol) => {
     var month = startDate.substring(3, 5);
     var year = startDate.substring(6, 10);
 
-
-    var link = ``;
-
-
-
     day = day.substring(0, 1) + candleNumber;
 
     if (day == 30) {
@@ -64,68 +60,47 @@ const downloadZipFromBinance = async (startDate, endDate, symbol) => {
       year = year.substring(6, 9) + candleNumber;
     }
 
-    link = `https://data.binance.vision/data/spot/daily/klines/${symbol}/1m/${symbol}-1m-${year}-${month}-${day}.zip`;
-
-    messenger.errorMessage("link: " + link + " dir: " + require('path').resolve('./'));
-
     const path = require('path').resolve('./');
+    const filename = `/${symbol}-1m-${year}-${month}-${day}`;
 
+    messenger.errorMessage("Trying to read from file at path: " + path + `/${symbol}-1m-${year}-${month}-${day}.csv`)
 
     try {
-      messenger.errorMessage("Trying to read from file at path: " + path + `/${symbol}-1m-${year}-${month}-${day}.csv`)
+      const fp = path + filename + '.csv'; jhu
 
-      const arrayofObjects = convertCSVToArray(path + `/${symbol}-1m-${year}-${month}-${day}.csv`, {
-        separator: ',', // use the separator you use in your csv (e.g. '\t', ',', ';' ...)
-      });
-      if (arrayofObjects != null || arrayofObjects != undefined || arrayofObjects.length > 0) {
-        messenger.errorMessage("json obtained correctly from disk");
-
-        arrayofObjects.forEach((data) => {
-          const candleClose = data[4];
-          messenger.errorMessage(candleClose);
-          //[openTime, open, high, low, close, volume, closeTime, quoteAssetVolume, numberOfTrades, takerBuyBaseAsset, takerBuQuoteAssetVolume, ignore]
-          dataFromZip.push(candleClose);
+      messenger.errorMessage("start parsing")
+      fs.createReadStream(fp)
+        .pipe(csv())
+        .on('data', (data) => dataFromZip.push(data))
+        .on('end', function () {
+          messenger.errorMessage("Parsing ended successfully.");
         });
-      }
 
-
-    } catch (error) {
+    } catch {
       messenger.errorMessage("Couldnt access a file in disk. Gonna download it.")
 
-      const downloader = new Downloader({
-        url: link,
-        directory: path,//Sub directories will also be automatically created if they do not exist.
-        filename: `${symbol}-1m-${year}-${month}-${day}.zip`
-      });
+      const link = `https://data.binance.vision/data/spot/daily/klines/${symbol}/1m/${symbol}-1m-${year}-${month}-${day}.zip`;
 
-      try {
-        await downloader.download().then(file => {
-          messenger.errorMessage("Download successfull 2/2" + " path; " + path + `/${symbol}-1m-${year}-${month}-${day}.zip`);
-          const fifle = file;
-          if (unZipIt(path, `/${symbol}-1m-${year}-${month}-${day}.zip`)) {
+      messenger.errorMessage("link: " + link + " dir: " + require('path').resolve('./'));
 
-            messenger.errorMessage("json obtained correctly after download");
-            const arrayofObjects = convertCSVToArray(path + `/${symbol}-1m-${year}-${month}-${day}.csv`, {
-              separator: ',', // use the separator you use in your csv (e.g. '\t', ',', ';' ...)
-            });
-            if (arrayofObjects != null || arrayofObjects != undefined || arrayofObjects.length > 0) {
-              messenger.errorMessage("json obtained correctly from disk after download");
+      new Downloader({ url: link, directory: path }).download().then(file => {
+        messenger.errorMessage("Download successfull 2/2" + " path; " + path + `/${symbol}-1m-${year}-${month}-${day}.zip`);
+        const fifle = file;
+        if (unZipIt(path, filename + '.zip')) {
 
-              arrayofObjects.forEach((data) => {
-                const candleClose = data[4];
-                messenger.errorMessage(candleClose);
-                //[openTime, open, high, low, close, volume, closeTime, quoteAssetVolume, numberOfTrades, takerBuyBaseAsset, takerBuQuoteAssetVolume, ignore]
-                dataFromZip.push(candleClose);
-              });
-            }
+          messenger.errorMessage("json obtained correctly after download");
+          const jsonObj = csv().fromFile(path + filename + '.csv');
+
+          if (jsonObj != undefined) {
+            messenger.errorMessage("json obtained correctly from disk after download" + jsonObj.length);
+
+            //[openTime, open, high, low, close, volume, closeTime, quoteAssetVolume, numberOfTrades, takerBuyBaseAsset, takerBuQuoteAssetVolume, ignore]
+            dataFromZip.push(+jsonObj);
+
           }
-        });
-
-      } catch (error) {
-        messenger.errorMessage(error);
-      }
+        }
+      });
     }
-
 
     if (candleNumber == Difference_In_Days) {
       messenger.errorMessage("data length: " + dataFromZip.length)
@@ -174,11 +149,7 @@ const getBackTestData = async (ws, symbol, rawData, moneyToTest, daysToTest) => 
       `Retrieved last candles ${limit} candles`
   });
 
-  const backtestCsv = await downloadZipFromBinance("01/03/2021", "01/05/2021", "ETHUSDT");
-
-  backtestCsv.forEach(data => {
-    messenger.errorMessage("data: " + data);
-  });
+  downloadZipFromBinance("01/03/2021", "01/05/2021", "ETHUSDT");
 
   const candles = await binance.client.candles({
     symbol,

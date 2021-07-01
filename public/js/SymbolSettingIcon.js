@@ -365,6 +365,53 @@ class SymbolSettingIcon extends React.Component {
                           </Form.Group>
 
                           <Form.Group
+                            controlId='field-buy-minimum-purchase-amount'
+                            className='mb-2'>
+                            <Form.Label className='mb-0'>
+                              {settingIcon.min_purchase_amount}{' '}
+                              <OverlayTrigger
+                                trigger='click'
+                                key='buy-minimum-purchase-amount-overlay'
+                                placement='bottom'
+                                overlay={
+                                  <Popover id='buy-minimum-purchase-amount-overlay-right'>
+                                    <Popover.Content>
+                                      {settingIcon.min_purchase_amount_symbol_description}
+                                    </Popover.Content>
+                                  </Popover>
+                                }>
+                                <Button
+                                  variant='link'
+                                  className='p-0 m-0 ml-1 text-info'>
+                                  <i className='fa fa-question-circle'></i>
+                                </Button>
+                              </OverlayTrigger>
+                            </Form.Label>
+                            <Form.Label htmlFor='field-min-sell-stop-loss-percentage' srOnly>
+                              {commonStrings.quantity}
+                            </Form.Label>
+                            <InputGroup size='sm'>
+
+                              <FormControl
+                                size='sm'
+                                type='number'
+                                placeholder={settingIcon.placeholder_min_purchase_amount}
+                                required
+                                min='0'
+                                step='0.0001'
+                                data-state-key='buy.minPurchaseAmount'
+                                value={symbolConfiguration.buy.minPurchaseAmount}
+                                onChange={this.handleInputChange}
+                              />
+                              <InputGroup.Append>
+                                <InputGroup.Text>
+                                  ${symbolConfiguration.buy.minPurchaseAmount}
+                                </InputGroup.Text>
+                              </InputGroup.Append>
+                            </InputGroup>
+                          </Form.Group>
+
+                          <Form.Group
                             controlId='field-buy-trigger-percentage'
                             className='mb-2'>
                             <Form.Label className='mb-0'>

@@ -187,9 +187,11 @@
     }
   },
   "symbolEditLastBuyPrice": {
-    "edit_last_buy": "Edit last price bought from",
+    "edit_last_buy": "Edit last purchase price and amount of",
     "placeholder_last_buy": "Set the last purchase price",
-    "description": {
+    "placeholder_last_qty_bought": "Set the last purchase price",
+    "edit_last_qty_bought_description": "Set/Modify the last purchased amount. If you don't set it next to the last price, the bot will sell ALL the free amount of the currency, instead of just the last purchased amount.",
+    "edit_last_buy_description": {
       "1": "Set/Modify the last purchase price of the symbol.",
       "2": "If the bot bought the currency, the price is automatically set.",
       "3": "If you bought manually directly from the broker, you can set the last buy price for the bot to sell at the defined profit.",
@@ -268,7 +270,7 @@
     "remaining_balance": "Remaining Balance",
     "time_remaining": "remaining",
     "action": "Action",
-    "strenght": "Strength",
+    "strength": "Strength",
     "trending": "Trend"
   }
 }

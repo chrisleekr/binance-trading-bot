@@ -66,6 +66,8 @@
         "lastBuyPriceRemoveThresholds": {},
         "maxPurchaseAmount": -1,
         "maxPurchaseAmounts": {},
+        "minPurchaseAmounts": {},
+        "minPurchaseAmount": -1,
         "triggerPercentage": 1.0,
         "stopPercentage": 1.02,
         "limitPercentage": 1.021

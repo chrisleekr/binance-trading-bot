@@ -3,6 +3,7 @@
 
 let languageReady = false;
 let languageData = {};
+let searchSymbol = '';
 class App extends React.Component {
   constructor(props) {
     super(props);
@@ -67,6 +68,13 @@ class App extends React.Component {
       type,
       message: title
     });
+  }
+
+  searchSymbolWithName(name) {
+
+    searchSymbol = name;
+
+    console.log("Set search success " + searchSymbol)
   }
 
   connectWebSocket() {
@@ -212,18 +220,37 @@ class App extends React.Component {
 
       if (languageData != undefined) {
         const coinWrappers = symbols.map((symbol, index) => {
-          return (
-            <CoinWrapper
-              extraClassName={
-                index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
-              }
-              key={'coin-wrapper-' + symbol.symbol}
-              symbolInfo={symbol}
-              configuration={configuration}
-              sendWebSocket={this.sendWebSocket}
-              jsonStrings={languageData}
-            />
-          );
+          if (searchSymbol != '') {
+            console.log("Search is not null : " + searchSymbol)
+            if (symbol.symbol.includes(searchSymbol)) {
+              console.log("Search equals symbol!")
+              return (
+                <CoinWrapper
+                  extraClassName={
+                    index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
+                  }
+                  key={'coin-wrapper-' + symbol.symbol}
+                  symbolInfo={symbol}
+                  configuration={configuration}
+                  sendWebSocket={this.sendWebSocket}
+                  jsonStrings={languageData}
+                />
+              );
+            }
+          } else {
+            return (
+              <CoinWrapper
+                extraClassName={
+                  index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
+                }
+                key={'coin-wrapper-' + symbol.symbol}
+                symbolInfo={symbol}
+                configuration={configuration}
+                sendWebSocket={this.sendWebSocket}
+                jsonStrings={languageData}
+              />
+            );
+          }
         });
 
         return (
@@ -233,6 +260,7 @@ class App extends React.Component {
               publicURL={publicURL}
               exchangeSymbols={exchangeSymbols}
               sendWebSocket={this.sendWebSocket}
+              searchSymbolWithName={this.searchSymbolWithName}
               jsonStrings={languageData}
             />
             {_.isEmpty(configuration) === false ? (

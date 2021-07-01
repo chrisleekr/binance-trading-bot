@@ -98,7 +98,7 @@ class BackTestIcon extends React.Component {
         <div className='coin-info-column coin-info-column-manual-trade d-flex flex-row justify-content-start align-content-between border-bottom-0 mb-0 pb-0'>
           <button
             type='button'
-            className='btn btn-sm btn-manual-trade mr-1'
+            className='btn btn-sm btn-backtest mr-1'
             onClick={() => this.handleModalShow()}>
             <i className='fa fa-shopping-bag'></i> Backtest
           </button>

@@ -150,7 +150,6 @@ const execute = async (logger, rawData) => {
     if (action == 'sell-stop-loss') {
       messenger.sendMessage(
         symbol, null, 'SELL_STOP_LOSS');
-      messenger.errorMessage("sell at stop loss but order quantity IS: " + orderQuantity);
       // Temporary disable action
       await disableAction(
         symbol,

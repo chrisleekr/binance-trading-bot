@@ -35,12 +35,12 @@ class SymbolEditLastBuyPriceIcon extends React.Component {
 
     const {
       symbol,
-      sell: { lastBuyPrice }
+      sell: { lastBuyPrice, lastQtyBought }
     } = this.state.symbolInfo;
 
     this.props.sendWebSocket('symbol-update-last-buy-price', {
       symbol,
-      sell: { lastBuyPrice }
+      sell: { lastBuyPrice, lastQtyBought }
     });
     this.handleModalClose();
   }
@@ -114,19 +114,37 @@ class SymbolEditLastBuyPriceIcon extends React.Component {
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
-                  {symbolEditLastBuyPrice.description[1]}
+                  {symbolEditLastBuyPrice.edit_last_buy_description[1]}
                   <br />
                   <br />
-                  {symbolEditLastBuyPrice.description[2]}
+                  {symbolEditLastBuyPrice.edit_last_buy_description[2]}
                   <br />
                   <br />
-                  {symbolEditLastBuyPrice.description[3]}
+                  {symbolEditLastBuyPrice.edit_last_buy_description[3]}
                   <br />
                   <br />
-                  {symbolEditLastBuyPrice.description[4]}
+                  {symbolEditLastBuyPrice.edit_last_buy_description[4]}
                   <br />
                   <br />
-                  {symbolEditLastBuyPrice.description[5]}
+                  {symbolEditLastBuyPrice.edit_last_buy_description[5]}
+                </Form.Text>
+              </Form.Group>
+
+              <Form.Group controlId='field-candles-interval'>
+                <Form.Label>{commonStrings.last_qty_bought}</Form.Label>
+                <Form.Control
+                  size='sm'
+                  type='number'
+                  placeholder={symbolEditLastBuyPrice.placeholder_last_qty_bought}
+                  required
+                  min='0'
+                  step='0.00000001'
+                  data-state-key='sell.lastQtyBought'
+                  defaultValue={symbolInfo.sell.lastQtyBought}
+                  onChange={this.handleInputChange}
+                />
+                <Form.Text className='text-muted'>
+                  {symbolEditLastBuyPrice.edit_last_qty_bought_description}
                 </Form.Text>
               </Form.Group>
             </Modal.Body>

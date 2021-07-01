@@ -45,9 +45,12 @@
     "placeholder_last_buy_remove_price_threshold": "Defina o limite para remover o último preço de compra de",
     "max_purchase_amount_for": "Máxima quantia para compra de",
     "max_purchase_amount": "Máxima quantia para compra",
+    "min_purchase_amount": "Mínima quantia para compra",
+    "min_purchase_amount_for": "Mínima quantia para compra de",
     "max_purchase_amount_symbol_description": "Define a máxima quantia para compra. Exemplo: Se definido 100, quando o bot recever o sinal de compra, irá comprar $100 da moeda.",
     "max_purchase_amount_description": "Define a quantia máxima de compra em símbolos terminados com",
-    "placeholder_max_purchase_amount": "Defina o limite para remover o último preço de compra",
+    "placeholder_max_purchase_amount": "Defina o limite para a máxima quantia de compra",
+    "placeholder_min_purchase_amount": "Defina o limite para a mínima quantia de compra",
     "cancel": "Cancelar",
     "yes": "Sim",
     "sell_market_order": "Vender por ordem de mercado",
@@ -187,9 +190,11 @@
     }
   },
   "symbolEditLastBuyPrice": {
-    "edit_last_buy": "Editar último preço comprado de",
+    "edit_last_buy": "Editar último preço de compra e quantia de",
     "placeholder_last_buy": "Defina o último preço de compra",
-    "description": {
+    "placeholder_last_qty_bought": "Defina o último preço de compra",
+    "edit_last_qty_bought_description": "Definir/Modificar a última quantia comprada. Se não definir junto ao último preço, o bot irá vender TODA a quantia livre da moeda, ao invés de apenas a última quantia comprada.",
+    "edit_last_buy_description": {
       "1": "Definir/Modificar o último preço de compra do símbolo.",
       "2": "Se o bot comprou a moeda, o preço é automaticamente definido.",
       "3": "Se você comprou manualmente diretamente pela corretora, pode definir o último preço de compra para o bot vender ao lucro definido.",
@@ -269,7 +274,7 @@
     "remaining_balance": "Saldo restante",
     "time_remaining": "restante",
     "action": "Ação",
-    "strenght": "Força",
+    "strength": "Força",
     "trending": "Tendência"
   }
 }

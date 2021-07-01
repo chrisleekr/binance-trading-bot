@@ -43,7 +43,7 @@ const deleteLastBuyPrice = async (logger, ws, symbol) => {
  * @param {*} lastBuyPrice
  * @returns
  */
-const updateLastBuyPrice = async (logger, ws, symbol, lastBuyPrice) => {
+const updateLastBuyPrice = async (logger, ws, symbol, lastBuyPrice, lastQtyBought) => {
   // Retrieve symbol info
   const cachedSymbolInfo =
     JSON.parse(
@@ -84,10 +84,14 @@ const updateLastBuyPrice = async (logger, ws, symbol, lastBuyPrice) => {
     total: 0,
     estimatedValue: 0
   };
-
+  let baseAssetTotalBalance;
   // Calculate total quantity
-  const baseAssetTotalBalance =
-    parseFloat(baseAssetBalance.free) + parseFloat(baseAssetBalance.locked);
+  if (lastQtyBought != 0) {
+    baseAssetTotalBalance = lastQtyBought;
+  } else {
+    baseAssetTotalBalance = parseFloat(baseAssetBalance.free) + parseFloat(baseAssetBalance.locked);
+  }
+
 
   await saveLastBuyPrice(logger, symbol, {
     lastBuyPrice,
@@ -117,13 +121,13 @@ const handleSymbolUpdateLastBuyPrice = async (logger, ws, payload) => {
 
   // Update last-buy-price
   const { symbol } = symbolInfo;
-  const { lastBuyPrice } = symbolInfo.sell;
+  const { lastBuyPrice, lastQtyBought } = symbolInfo.sell;
 
   if (parseFloat(lastBuyPrice) <= 0) {
     return deleteLastBuyPrice(logger, ws, symbol);
   }
 
-  return updateLastBuyPrice(logger, ws, symbol, lastBuyPrice);
+  return updateLastBuyPrice(logger, ws, symbol, lastBuyPrice, lastQtyBought);
 };
 
 module.exports = { handleSymbolUpdateLastBuyPrice };
