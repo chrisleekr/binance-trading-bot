@@ -60,6 +60,18 @@
         "interval": "1h",
         "limit": 100
       },
+      "strategyOptions": {
+        "tradeOptions": {
+          "differenceToBuy": 5,
+          "manyBuys": false
+        },
+        "huskyOptions": {
+          "positive": 1.015,
+          "negative": 1.06,
+          "buySignal": true,
+          "sellSignal": false
+        }
+      },
       "buy": {
         "enabled": true,
         "lastBuyPriceRemoveThreshold": -1,

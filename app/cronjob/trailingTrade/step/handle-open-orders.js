@@ -59,7 +59,8 @@ const execute = async (logger, rawData) => {
     openOrders,
     buy: { limitPrice: buyLimitPrice },
     sell: { limitPrice: sellLimitPrice },
-    indicators: { trendDiff }
+    indicators: { trendDiff },
+    symbolConfiguration: { strategyOptions: { huskyOptions: { buySignal, sellSignal } } }
   } = data;
 
   if (isLocked) {
@@ -86,13 +87,16 @@ const execute = async (logger, rawData) => {
     }
     // Is the stop price is higher than current limit price?
     if (order.side.toLowerCase() === 'buy') {
-      if (parseFloat(order.stopPrice) >= buyLimitPrice || Math.sign(trendDiff) == -1) {
+      let isHuskySignalActivated = false;
+      if (buySignal) {
+        isHuskySignalActivated = Math.sign(trendDiff) == -1;
+      }
+      if (parseFloat(order.stopPrice) >= buyLimitPrice || isHuskySignalActivated) {
         logger.info(
           { stopPrice: order.stopPrice, buyLimitPrice },
           'Stop price is higher than buy limit price, cancel current buy order'
-        );
+        )
 
-        messenger.errorMessage("Trend diff is down, cancelling buy order")
         // Cancel current order
         const cancelResult = await cancelOrder(logger, symbol, order);
         if (cancelResult === false) {
@@ -140,13 +144,15 @@ const execute = async (logger, rawData) => {
 
     // Is the stop price is less than current limit price?
     if (order.side.toLowerCase() === 'sell') {
-      if (parseFloat(order.stopPrice) <= sellLimitPrice || Math.sign(trendDiff) == 1) {
+      let isHuskySignalActivated = false;
+      if (sellSignal) {
+        isHuskySignalActivated = Math.sign(trendDiff) == 1;
+      }
+      if (parseFloat(order.stopPrice) <= sellLimitPrice || isHuskySignalActivated) {
         logger.info(
           { stopPrice: order.stopPrice, sellLimitPrice },
           'Stop price is less than sell limit price, cancel current sell order'
         );
-
-        messenger.errorMessage("Trend diff is up, cancelling sell order")
 
         // Cancel current order
         const cancelResult = await cancelOrder(logger, symbol, order);

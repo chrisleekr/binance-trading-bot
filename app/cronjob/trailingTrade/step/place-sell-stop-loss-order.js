@@ -161,9 +161,6 @@ const execute = async (logger, rawData) => {
         },
         sellStopLossDisableBuyMinutes * 60
       );
-    } else {
-      messenger.errorMessage(
-        "I sold the coin at market price because profit was higher than defined profit");
     }
 
     // Get open orders and update cache

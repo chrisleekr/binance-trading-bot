@@ -222,6 +222,332 @@ class SymbolSettingIcon extends React.Component {
               </Accordion>
 
               <Accordion defaultActiveKey='0'>
+
+                <Accordion
+                  className='accordion-wrapper'
+                  defaultActiveKey='0'>
+                  <Card className='mt-1'>
+                    <Card.Header className='px-2 py-1'>
+                      <Accordion.Toggle
+                        as={Button}
+                        variant='link'
+                        eventKey='0'
+                        className='p-0 fs-7 text-uppercase'>
+                        {settingIcon.strategy_options}
+                      </Accordion.Toggle>
+                    </Card.Header>
+                    <Accordion.Collapse eventKey='0'>
+                      <Card.Body className='px-2 py-1'>
+                        <div className='row'>
+                          <div className='col-xs-12 col-sm-6'>
+                            <p className='form-header mb-1'>{settingIcon.trade_options}</p>
+
+                            <Form.Group
+                              controlId='field-buy-stop-percentage'
+                              className='mb-2'>
+                              <Form.Check size='sm'>
+                                <Form.Check.Input
+                                  type='checkbox'
+                                  data-state-key='strategyOptions.tradeOptions.manyBuys'
+                                  checked={symbolConfiguration.strategyOptions.tradeOptions.manyBuys}
+                                  onChange={this.handleInputChange}
+                                />
+                                <Form.Check.Label>
+                                  {settingIcon.grid_buy_strategy_activate}{' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='buy-enabled-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='buy-enabled-overlay-right'>
+                                        <Popover.Content>
+                                          {settingIcon.grid_buy_strategy_activate_description}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Check.Label>
+                              </Form.Check>
+                            </Form.Group>
+
+                            <Form.Group
+                              controlId='field-buy-after-difference-amount'
+                              className='mb-2'>
+                              <Form.Label className='mb-0'>
+                                {settingIcon.grid_buy_strategy}{' '}
+                                <OverlayTrigger
+                                  trigger='click'
+                                  key='buy-after-difference-amount-overlay'
+                                  placement='bottom'
+                                  overlay={
+                                    <Popover id='buy-after-difference-amount-overlay-right'>
+                                      <Popover.Content>
+                                        {settingIcon.grid_buy_strategy_description}
+                                      </Popover.Content>
+                                    </Popover>
+                                  }>
+                                  <Button
+                                    variant='link'
+                                    className='p-0 m-0 ml-1 text-info'>
+                                    <i className='fa fa-question-circle'></i>
+                                  </Button>
+                                </OverlayTrigger>
+                              </Form.Label>
+                              <InputGroup size='sm'>
+                                <FormControl
+                                  size='sm'
+                                  type='number'
+                                  placeholder="5"
+                                  required
+                                  min='0'
+                                  step='0.0001'
+                                  data-state-key='strategyOptions.tradeOptions.differenceToBuy'
+                                  value={symbolConfiguration.strategyOptions.tradeOptions.differenceToBuy}
+                                  onChange={this.handleInputChange}
+                                />
+                                <InputGroup.Append>
+                                  <InputGroup.Text>
+                                    {symbolConfiguration.strategyOptions.tradeOptions.differenceToBuy}%
+                                  </InputGroup.Text>
+                                </InputGroup.Append>
+                              </InputGroup>
+                            </Form.Group>
+
+                            <p className='form-header mb-1'>{settingIcon.stake_coins} ?</p>
+                            <Form.Group
+                              controlId='field-sell-stake-coins-enabled'
+                              className='mb-2'>
+                              <Form.Check size='sm'>
+                                <Form.Check.Input
+                                  type='checkbox'
+                                  data-state-key='sell.stakeCoinEnabled'
+                                  checked={
+                                    symbolConfiguration.sell.stakeCoinEnabled
+                                  }
+                                  onChange={this.handleInputChange}
+                                />
+                                <Form.Check.Label>
+                                  {settingIcon.stake_coins} {' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='sell-stake-coins-enabled-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='sell-stake-coins-enabled-overlay-right'>
+                                        <Popover.Content>
+                                          {settingIcon.stake_coins_description}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Check.Label>
+                              </Form.Check>
+                            </Form.Group>
+                          </div>
+                          <div className='col-xs-12 col-sm-6'>
+                            <p className='form-header mb-1'>Husky Indicator</p>
+
+                            <Form.Group
+                              controlId='field-buy-stop-percentage'
+                              className='mb-2'>
+                              <Form.Check size='sm'>
+                                <Form.Check.Input
+                                  type='checkbox'
+                                  data-state-key='strategyOptions.huskyOptions.buySignal'
+                                  checked={symbolConfiguration.strategyOptions.huskyOptions.buySignal}
+                                  onChange={this.handleInputChange}
+                                />
+                                <Form.Check.Label>
+                                  {settingIcon.use_husky_buy}{' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='buy-enabled-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='buy-enabled-overlay-right'>
+                                        <Popover.Content>
+                                          {settingIcon.use_husky_buy_description}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Check.Label>
+                              </Form.Check>
+                            </Form.Group>
+
+                            <Form.Group
+                              controlId='field-buy-stop-percentage'
+                              className='mb-2'>
+                              <Form.Check size='sm'>
+                                <Form.Check.Input
+                                  type='checkbox'
+                                  data-state-key='strategyOptions.huskyOptions.sellSignal'
+                                  checked={symbolConfiguration.strategyOptions.huskyOptions.sellSignal}
+                                  onChange={this.handleInputChange}
+                                />
+                                <Form.Check.Label>
+                                  {settingIcon.use_husky_sell}{' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='buy-enabled-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='buy-enabled-overlay-right'>
+                                        <Popover.Content>
+                                          {settingIcon.use_husky_sell_description}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Check.Label>
+                              </Form.Check>
+                            </Form.Group>
+
+                            <p className='form-header mb-1'>{settingIcon.force_market_order} ?</p>
+                            <Form.Group
+                              controlId='field-sell-market-enabled'
+                              className='mb-2'>
+                              <Form.Check size='sm'>
+                                <Form.Check.Input
+                                  type='checkbox'
+                                  data-state-key='sell.marketEnabled'
+                                  checked={symbolConfiguration.sell.marketEnabled}
+                                  onChange={this.handleInputChange}
+                                />
+                                <Form.Check.Label>
+                                  {settingIcon.sell_market_order}{' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='sell-market-enabled-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='sell-market-enabled-overlay-right'>
+                                        <Popover.Content>
+                                          {settingIcon.sell_market_order_description}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Check.Label>
+                              </Form.Check>
+                            </Form.Group>
+
+                            <Form.Group
+                              controlId='field-husky-positive'
+                              className='mb-2'>
+                              <Form.Label className='mb-0'>
+                                {settingIcon.weight_green_candle}{' '}
+                                <OverlayTrigger
+                                  trigger='click'
+                                  key='husky-positive-overlay'
+                                  placement='bottom'
+                                  overlay={
+                                    <Popover id='husky-positive-overlay-right'>
+                                      <Popover.Content>
+                                        {settingIcon.weight_green_candle_description}
+                                      </Popover.Content>
+                                    </Popover>
+                                  }>
+                                  <Button
+                                    variant='link'
+                                    className='p-0 m-0 ml-1 text-info'>
+                                    <i className='fa fa-question-circle'></i>
+                                  </Button>
+                                </OverlayTrigger>
+                              </Form.Label>
+                              <InputGroup size='sm'>
+                                <FormControl
+                                  size='sm'
+                                  type='number'
+                                  placeholder="1"
+                                  required
+                                  min='0'
+                                  step='0.0001'
+                                  data-state-key='strategyOptions.huskyOptions.positive'
+                                  value={symbolConfiguration.strategyOptions.huskyOptions.positive}
+                                  onChange={this.handleInputChange}
+                                />
+                                <InputGroup.Append>
+                                  <InputGroup.Text>
+                                    {((symbolConfiguration.strategyOptions.huskyOptions.positive - 1) * 100).toFixed(2)}% heavier than negative
+                                  </InputGroup.Text>
+                                </InputGroup.Append>
+                              </InputGroup>
+                            </Form.Group>
+
+                            <Form.Group
+                              controlId='field-husky-negative'
+                              className='mb-2'>
+                              <Form.Label className='mb-0'>
+                                {settingIcon.weight_red_candle} {' '}
+                                <OverlayTrigger
+                                  trigger='click'
+                                  key='husky-negative-overlay'
+                                  placement='bottom'
+                                  overlay={
+                                    <Popover id='husky-negative-overlay-right'>
+                                      <Popover.Content>
+                                        {settingIcon.weight_red_candle_description}
+                                      </Popover.Content>
+                                    </Popover>
+                                  }>
+                                  <Button
+                                    variant='link'
+                                    className='p-0 m-0 ml-1 text-info'>
+                                    <i className='fa fa-question-circle'></i>
+                                  </Button>
+                                </OverlayTrigger>
+                              </Form.Label>
+                              <InputGroup size='sm'>
+                                <FormControl
+                                  size='sm'
+                                  type='number'
+                                  placeholder="1.25"
+                                  required
+                                  min='0'
+                                  step='0.0001'
+                                  data-state-key='strategyOptions.huskyOptions.negative'
+                                  value={symbolConfiguration.strategyOptions.huskyOptions.negative}
+                                  onChange={this.handleInputChange}
+                                />
+                                <InputGroup.Append>
+                                  <InputGroup.Text>
+                                    {((symbolConfiguration.strategyOptions.huskyOptions.negative - 1) * 100).toFixed(2)}% heavier than positive
+                                  </InputGroup.Text>
+                                </InputGroup.Append>
+                              </InputGroup>
+                            </Form.Group>
+                          </div>
+                        </div>
+                      </Card.Body>
+                    </Accordion.Collapse>
+                  </Card>
+                </Accordion>
                 <Card className='mt-1'>
                   <Card.Header className='px-2 py-1'>
                     <Accordion.Toggle
@@ -588,40 +914,6 @@ class SymbolSettingIcon extends React.Component {
                           </Form.Group>
 
                           <Form.Group
-                            controlId='field-sell-market-enabled'
-                            className='mb-2'>
-                            <Form.Check size='sm'>
-                              <Form.Check.Input
-                                type='checkbox'
-                                data-state-key='sell.marketEnabled'
-                                checked={symbolConfiguration.sell.marketEnabled}
-                                onChange={this.handleInputChange}
-                              />
-                              <Form.Check.Label>
-                                TODO Sell at Market Order{' '}
-                                <OverlayTrigger
-                                  trigger='click'
-                                  key='sell-market-enabled-overlay'
-                                  placement='bottom'
-                                  overlay={
-                                    <Popover id='sell-market-enabled-overlay-right'>
-                                      <Popover.Content>
-                                        TODO Will sell at market order if trend is going down and current price is higher than your sell trigger.
-                                        If true, will sell at market order, if false, limit order.
-                                      </Popover.Content>
-                                    </Popover>
-                                  }>
-                                  <Button
-                                    variant='link'
-                                    className='p-0 m-0 ml-1 text-info'>
-                                    <i className='fa fa-question-circle'></i>
-                                  </Button>
-                                </OverlayTrigger>
-                              </Form.Check.Label>
-                            </Form.Check>
-                          </Form.Group>
-
-                          <Form.Group
                             controlId='field-sell-last-buy-percentage'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
@@ -761,54 +1053,6 @@ class SymbolSettingIcon extends React.Component {
                               </InputGroup.Append>
                             </InputGroup>
                           </Form.Group>
-
-                          <Form.Group
-                            controlId='field-sell-hard-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              TODO Hard Sell Percentage {' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='sell-hard-price-percentage-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='sell-hard-price-percentage-overlay-right'>
-                                    <Popover.Content>
-                                      {settingIcon.limit_price_percent_description_sell}
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Label htmlFor='field-min-sell-hard-price-percentage' srOnly>
-                              {commonStrings.quantity}
-                            </Form.Label>
-                            <InputGroup size='sm'>
-
-                              <FormControl
-                                size='sm'
-                                type='number'
-                                placeholder={settingIcon.placeholder_enter_limit_price}
-                                required
-                                min='0'
-                                step='0.0001'
-                                data-state-key='sell.hardPercentage'
-                                value={symbolConfiguration.sell.hardPercentage}
-                                onChange={this.handleInputChange}
-                              />
-                              <InputGroup.Append>
-                                <InputGroup.Text>
-                                  {((symbolConfiguration.sell.hardPercentage * 100) - 100).toFixed(2)}%
-                                </InputGroup.Text>
-                              </InputGroup.Append>
-                            </InputGroup>
-                          </Form.Group>
-
                           <p className='form-header mb-1'>{commonStrings.sell} - {commonStrings.stop_loss}</p>
                           <Form.Group
                             controlId='field-sell-stop-loss-enabled'

@@ -296,6 +296,7 @@ input[type='number'] {
   padding: 5px;
   margin: 3px;
   flex: 25% auto;
+  transition: all 0.5s ease-in-out;
 }
 
 .coin-wrapper:hover {
@@ -861,7 +862,7 @@ input[type='number'] {
     box-shadow: none;
     padding-left: 15px;
     cursor: text;
-    width: 300px;
+    width: 120px;
     border-radius: auto;
     background: var(--font-main-color);
     color: var(--color-primary);
@@ -883,7 +884,7 @@ input[type='number'] {
 
 #search-submit {
   position: relative;left: -5000px;
-  transition: position 0.5s ease-in-out !important;
+  transition: all 0.5s ease-in-out !important;
 }
 
 .search-icon {

@@ -14,12 +14,19 @@ const canBuy = data => {
   const {
     buy: { currentPrice: buyCurrentPrice, triggerPrice: buyTriggerPrice },
     sell: { lastBuyPrice },
-    indicators: { trendDiff }
+    indicators: { trendDiff },
+    symbolConfiguration: { strategyOptions: { huskyOptions: { buySignal } } }
   } = data;
 
-  return lastBuyPrice <= 0 &&
-    buyCurrentPrice <= buyTriggerPrice &&
-    Math.sign(trendDiff) == 1;
+  if (buySignal) {
+    return lastBuyPrice <= 0 &&
+      buyCurrentPrice <= buyTriggerPrice &&
+      Math.sign(trendDiff) == 1;
+  } else {
+    return lastBuyPrice <= 0 &&
+      buyCurrentPrice <= buyTriggerPrice;
+  }
+
 };
 
 /**
@@ -38,6 +45,28 @@ const hasBalanceToSell = data => {
   } = data;
 
   return baseAssetTotalBalance * buyCurrentPrice >= parseFloat(minNotional);
+};
+
+/**
+ * Check whether current price difference is higher than defined, to buy again
+ *
+ * @param {*} data
+ * @returns
+ */
+const currentPriceIsHigherThanDifferenceToBuy = data => {
+  const {
+    buy: { currentPrice: buyCurrentPrice },
+    sell: { lastBuyPrice },
+    symbolConfiguration: { strategyOptions: { tradeOptions: { manyBuys, differenceToBuy } } }
+  } = data;
+
+  if (lastBuyPrice == 0 || lastBuyPrice == null || manyBuys == false) {
+    return false;
+  }
+
+  const percDiff = 100 * ((lastBuyPrice - buyCurrentPrice) / ((lastBuyPrice + buyCurrentPrice) / 2));
+
+  return percDiff >= differenceToBuy;
 };
 
 /**
@@ -92,10 +121,15 @@ const canSell = data => {
  */
 const isHigherThanSellTriggerPrice = data => {
   const {
-    sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice }
+    sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice },
+    symbolConfiguration: { strategyOptions: { huskyOptions: { sellSignal } } }
   } = data;
 
-  return sellCurrentPrice >= sellTriggerPrice;
+  if (sellSignal) {
+    return sellCurrentPrice >= sellTriggerPrice && Math.sign(data.indicators.trendDiff) == -1
+  } else {
+    return sellCurrentPrice >= sellTriggerPrice;
+  }
 };
 
 const isHigherThanHardSellTriggerPrice = data => {
@@ -108,10 +142,11 @@ const isHigherThanHardSellTriggerPrice = data => {
 
 const isHigherThanSellTriggerPriceAndTrendIsDown = data => {
   const {
-    sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice }
+    sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice },
+    symbolConfiguration: { strategyOptions: { huskyOptions: { sellSignal } } }
   } = data;
 
-  return sellCurrentPrice >= sellTriggerPrice && Math.sign(data.indicators.trendDiff) == -1;
+  return sellCurrentPrice >= sellTriggerPrice && Math.sign(data.indicators.trendDiff) == -1 && sellSignal;
 };
 
 /**
@@ -200,40 +235,70 @@ const execute = async (logger, rawData) => {
   //    and current balance has not enough value to sell,
   //  then buy.
   if (canBuy(data)) {
-    if (hasBalanceToSell(data)) {
+    if (currentPriceIsHigherThanDifferenceToBuy(data)) {
+      const checkDisable = await isActionDisabled(symbol);
+      logger.info(
+        { tag: 'check-disable', checkDisable },
+        'Checked whether symbol is disabled or not.'
+      );
+      if (checkDisable.isDisabled) {
+        return setBuyActionAndMessage(
+          logger,
+          data,
+          'buy-temporary-disabled',
+          actions.action_buy_disabled[1] +
+          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+        );
+      }
+
+      logger.info(
+        "Buying again!."
+      );
+
+
       return setBuyActionAndMessage(
         logger,
         data,
-        'wait',
-        actions.action_wait[1] +
-        actions.action_wait[2] + baseAsset + actions.action_wait[3] +
-        actions.action_wait[4] +
-        actions.action_wait[5]
+        'buy',
+        actions.action_buy
       );
-    }
+    } else {
+      if (hasBalanceToSell(data)) {
+        return setBuyActionAndMessage(
+          logger,
+          data,
+          'wait',
+          actions.action_wait[1] +
+          actions.action_wait[2] + baseAsset + actions.action_wait[3] +
+          actions.action_wait[4] +
+          actions.action_wait[5]
+        );
+      }
 
-    const checkDisable = await isActionDisabled(symbol);
-    logger.info(
-      { tag: 'check-disable', checkDisable },
-      'Checked whether symbol is disabled or not.'
-    );
-    if (checkDisable.isDisabled) {
+      const checkDisable = await isActionDisabled(symbol);
+      logger.info(
+        { tag: 'check-disable', checkDisable },
+        'Checked whether symbol is disabled or not.'
+      );
+      if (checkDisable.isDisabled) {
+        return setBuyActionAndMessage(
+          logger,
+          data,
+          'buy-temporary-disabled',
+          actions.action_buy_disabled[1] +
+          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+        );
+      }
+
       return setBuyActionAndMessage(
         logger,
         data,
-        'buy-temporary-disabled',
-        actions.action_buy_disabled[1] +
-        actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-        actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+        'buy',
+        actions.action_buy
       );
     }
-
-    return setBuyActionAndMessage(
-      logger,
-      data,
-      'buy',
-      actions.action_buy
-    );
   }
 
   // Check sell signal - if
@@ -258,36 +323,44 @@ const execute = async (logger, rawData) => {
           actions.action_sell_disabled[3] + checkDisable.ttl + 's'
         );
       }
-      messenger.errorMessage("We are selling by HARD profit trigger.")
-      // Then sell market order
-      return setSellActionAndMessage(
-        logger,
-        data,
-        'sell-profit',
-        "Selling because of hard profit."
-      );
+      if (trendDownMarketSell) {
+        // Then sell market order
+        return setSellActionAndMessage(
+          logger,
+          data,
+          'sell-profit',
+          "Selling because of hard profit. At market order."
+        );
+      } else {
+        // Then sell limit order
+        return setSellActionAndMessage(
+          logger,
+          data,
+          'sell',
+          "Selling because of hard profit. At limit order."
+        );
+      }
+
     }
 
     if (isHigherThanSellTriggerPriceAndTrendIsDown(data)) {
-      if (trendDownMarketSell) {
 
-        const checkDisable = await isActionDisabled(symbol);
-        logger.info(
-          { tag: 'check-disable', checkDisable },
-          'Checked whether symbol is disabled or not.'
+      const checkDisable = await isActionDisabled(symbol);
+      logger.info(
+        { tag: 'check-disable', checkDisable },
+        'Checked whether symbol is disabled or not.'
+      );
+      if (checkDisable.isDisabled) {
+        return setSellActionAndMessage(
+          logger,
+          data,
+          'sell-temporary-disabled',
+          actions.action_sell_disabled[1] +
+          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
         );
-        if (checkDisable.isDisabled) {
-          return setSellActionAndMessage(
-            logger,
-            data,
-            'sell-temporary-disabled',
-            actions.action_sell_disabled[1] +
-            actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-            actions.action_sell_disabled[3] + checkDisable.ttl + 's'
-          );
-        }
-        messenger.errorMessage("We are selling bcs trending is going DOWN. Selling at market.")
-
+      }
+      if (trendDownMarketSell) {
         // Then sell market order
         return setSellActionAndMessage(
           logger,
@@ -296,7 +369,6 @@ const execute = async (logger, rawData) => {
           "Selling because trend is down and current price is higher than defined profit. Market Order."
         );
       } else {
-        messenger.errorMessage("We are selling bcs trending is going DOWN. Selling normally.")
         //Sell at limit order
         return setSellActionAndMessage(
           logger,
@@ -309,7 +381,7 @@ const execute = async (logger, rawData) => {
 
 
     // And if current price is higher or equal than trigger price
-    if (isHigherThanSellTriggerPrice(data) && Math.sign(data.indicators.trendDiff) == -1) {
+    if (isHigherThanSellTriggerPrice(data)) {
 
       const checkDisable = await isActionDisabled(symbol);
       logger.info(

@@ -28,7 +28,8 @@ const execute = async (logger, rawData) => {
       filterMinNotional: { minNotional }
     },
     symbolConfiguration: {
-      sell: { enabled: tradingEnabled, stopPercentage, limitPercentage, triggerPercentage, stakeCoinsEnabled }
+      sell: { enabled: tradingEnabled, stopPercentage, limitPercentage, triggerPercentage, stakeCoinsEnabled },
+      strategyOptions: { huskyOptions: { sellSignal } }
     },
     action,
     baseAssetBalance: { free: baseAssetFreeBalance },
@@ -107,12 +108,15 @@ const execute = async (logger, rawData) => {
   }
 
 
-  if (Math.sign(trendDiff) == 1) {
-    data.buy.processMessage = "Trend is going up, cancelling order";
-    data.buy.updatedAt = moment().utc();
+  if (sellSignal) {
+    if (Math.sign(trendDiff) == 1) {
+      data.buy.processMessage = "Trend is going up, cancelling order";
+      data.buy.updatedAt = moment().utc();
 
-    return data;
+      return data;
+    }
   }
+
 
 
   if (stakeCoinsEnabled) {

@@ -119,8 +119,8 @@ const isOrderExistingInOpenOrders = (_logger, order, openOrders) =>
  * @param {*} logger
  * @param {*} rawData
  */
- var canCheckBuy = true;
- var canCheckSell = true;
+var canCheckBuy = true;
+var canCheckSell = true;
 const execute = async (logger, rawData) => {
   const data = rawData;
 
@@ -135,8 +135,8 @@ const execute = async (logger, rawData) => {
   }
 
 
-const language = config.get('language');
-const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+  const language = config.get('language');
+  const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
 
   // Ensure buy order placed
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);
@@ -168,8 +168,8 @@ const { coinWrapper: { actions } } = require(`../../../../public/${language}.jso
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
         messenger.sendMessage(
-              symbol, lastBuyOrder, 'BUY_CONFIRMED');
-		canCheckBuy = true;
+          symbol, lastBuyOrder, 'BUY_CONFIRMED');
+        canCheckBuy = true;
       }
 
       // Lock symbol action 20 seconds to avoid API limit
@@ -194,11 +194,11 @@ const { coinWrapper: { actions } } = require(`../../../../public/${language}.jso
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
 
-		  if (canCheckBuy) {
-			   messenger.sendMessage(
-              symbol, lastBuyOrder, 'BUY_NOT_FOUND');
-		canCheckBuy = false;
-		  }
+        if (canCheckBuy) {
+          messenger.sendMessage(
+            symbol, lastBuyOrder, 'BUY_NOT_FOUND');
+          canCheckBuy = false;
+        }
       }
 
       return setBuyActionAndMessage(
@@ -239,8 +239,8 @@ const { coinWrapper: { actions } } = require(`../../../../public/${language}.jso
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
         messenger.sendMessage(
-              symbol, lastSellOrder, 'SELL_CONFIRMED');
-		canCheckSell = true;
+          symbol, lastSellOrder, 'SELL_CONFIRMED');
+        canCheckSell = true;
       }
 
       // Lock symbol action 20 seconds to avoid API limit
@@ -265,11 +265,11 @@ const { coinWrapper: { actions } } = require(`../../../../public/${language}.jso
 
       if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
 
-		if (canCheckSell) {
-			messenger.sendMessage(
-              symbol, lastSellOrder, 'SELL_NOT_FOUND');
-		canCheckSell = false;
-		}
+        if (canCheckSell) {
+          messenger.sendMessage(
+            symbol, lastSellOrder, 'SELL_NOT_FOUND');
+          canCheckSell = false;
+        }
       }
 
       return setSellActionAndMessage(

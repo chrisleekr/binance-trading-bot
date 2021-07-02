@@ -1,5 +1,5 @@
 const _ = require('lodash');
-const { cache, binance, mongo } = require('../../helpers');
+const { cache, binance, mongo, messenger } = require('../../helpers');
 
 const isValidCachedExchangeSymbols = exchangeSymbols =>
   _.get(
@@ -281,6 +281,8 @@ const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity }) => {
     { tag: 'save-last-buy-price', symbol, lastBuyPrice, quantity },
     'Save last buy price'
   );
+  messenger.errorMessage("Saving last buy price: " + lastBuyPrice)
+  messenger.errorMessage("Saving last qty: " + quantity)
   return mongo.upsertOne(
     logger,
     'trailing-trade-symbols',

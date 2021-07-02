@@ -27,15 +27,16 @@ const flattenCandlesData = candles => {
   };
 };
 
-const huskyTrend = candles => {
+const huskyTrend = (candles, strategyOptions) => {
 
-  const candleLows = candles.close
+  const candleLows = candles.close;
 
+  const { huskyOptions: { positive, negative } } = strategyOptions;
   var newCandle = 1;
   var diff = 0;
   var status = "not enough data";
-  const positiveMultiplier = 1.015;
-  const negativeMultiplier = -1.06;
+  const positiveMultiplier = positive;
+  const negativeMultiplier = -negative;
 
   candleLows.forEach(candle => {
     var newCandleToTest = candleLows[newCandle];
@@ -83,8 +84,9 @@ const execute = async (logger, rawData) => {
   const {
     symbol,
     symbolConfiguration: {
-      candles: { interval, limit }
-    }
+      candles: { interval, limit },
+      strategyOptions
+    },
   } = data;
 
   // Retrieve candles
@@ -101,7 +103,7 @@ const execute = async (logger, rawData) => {
   // Flatten candles data to get lowest price
   const candlesData = flattenCandlesData(candles);
 
-  const testIndicator = huskyTrend(candlesData);
+  const testIndicator = huskyTrend(candlesData, strategyOptions);
 
   // Get lowest price
   const lowestPrice = _.min(candlesData.low);

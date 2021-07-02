@@ -33,9 +33,7 @@ const getLastBuyOrder = async (logger, symbol) => {
  */
 const removeLastBuyPrice = async (
   logger,
-  symbol,
-  processMessage,
-  extraMessages
+  symbol
 ) => {
   await mongo.deleteOne(logger, 'trailing-trade-symbols', {
     key: `${symbol}-last-buy-price`

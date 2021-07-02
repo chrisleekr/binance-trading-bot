@@ -1,14 +1,46 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, messenger, mongo, cache } = require('../../../helpers');
+const { binance, messenger, mongo, cache, PubSub } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 const config = require('config');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
+  getLastBuyPrice,
   isExceedAPILimit,
-  getAPILimit
+  getAPILimit,
+  saveLastBuyPrice
 } = require('../../trailingTradeHelper/common');
+
+const calculateLastBuyPrice = async (logger, symbol, price, quantity) => {
+  const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
+
+  const orgLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', 0);
+  const orgQuantity = _.get(lastBuyPriceDoc, 'quantity', 0);
+  const orgTotalAmount = orgLastBuyPrice * orgQuantity;
+
+  const filledQuoteQty = price;
+  const filledQuantity = quantity;
+  const filledTotalAmount = (filledQuoteQty * filledQuantity);
+
+  const newQuantity = (orgQuantity + filledQuantity);
+  const newTotalAmount = (orgTotalAmount + filledTotalAmount);
+
+  const newLastBuyPrice = (newTotalAmount / newQuantity);
+
+
+  await saveLastBuyPrice(logger, symbol, {
+    lastBuyPrice: newLastBuyPrice,
+    quantity: newQuantity
+  });
+
+  PubSub.publish('frontend-notification', {
+    type: 'success',
+    title: `New last buy price for ${symbol} has been updated.`
+  });
+
+  return;
+};
 
 /**
  * Place a buy order if has enough balance
@@ -36,7 +68,8 @@ const execute = async (logger, rawData) => {
         minPurchaseAmount,
         stopPercentage,
         limitPercentage
-      }
+      },
+      strategyOptions: { huskyOptions: { buySignal } }
     },
     action,
     quoteAssetBalance: { free: quoteAssetFreeBalance },
@@ -149,12 +182,15 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  if (Math.sign(trendDiff) == -1) {
-    data.buy.processMessage = "Trend is going down, cancelling order";
-    data.buy.updatedAt = moment().utc();
+  if (buySignal) {
+    if (Math.sign(trendDiff) == -1) {
+      data.buy.processMessage = "Trend is going down, cancelling order";
+      data.buy.updatedAt = moment().utc();
 
-    return data;
+      return data;
+    }
   }
+
 
   const orderParams = {
     symbol,
@@ -178,8 +214,8 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Order result');
 
-  // Set last buy order to be checked over 1 minute
-  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 60);
+  // Set last buy order to be checked over 2 minutes
+  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 120);
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
@@ -196,34 +232,9 @@ const execute = async (logger, rawData) => {
   data.buy.processMessage = actions.action_placed_new_order;
   data.buy.updatedAt = moment().utc();
 
+  await calculateLastBuyPrice(logger, symbol, limitPrice, orderQuantity);
+
   // Save last buy price
-  const lastBuyPriceVar = await mongo.findOne(logger, 'trailing-trade-symbols', {
-    key: `${symbol}-last-buy-price`
-  });
-
-  let lastPricesBoughtArray = _.get(lastBuyPriceVar, 'lastPricesBought', null);
-
-  if (lastBuyPriceVar == null) {
-    lastPricesBoughtArray = [];
-  }
-
-  if (!lastPricesBoughtArray.includes(limitPrice)) {
-    lastPricesBoughtArray.push(limitPrice);
-  }
-
-  await mongo.upsertOne(
-    logger,
-    'trailing-trade-symbols',
-    {
-      key: `${symbol}-last-buy-price`
-    },
-    {
-      key: `${symbol}-last-buy-price`,
-      lastBuyPrice: limitPrice,
-      quantity: orderQuantity,
-      lastPricesBought: lastPricesBoughtArray
-    }
-  );
   return data;
 };
 
