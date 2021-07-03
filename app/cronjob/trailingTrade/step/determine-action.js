@@ -36,6 +36,20 @@ const hasBalanceToSell = data => {
 };
 
 /**
+ * Check whether current price within the buying restriction price or not
+ *
+ * @param {*} data
+ * @returns
+ */
+const isGreaterThanTheRestrictionPrice = data => {
+  const {
+    buy: { currentPrice: buyCurrentPrice, restrictionPrice: buyRestrictionPrice }
+  } = data;
+
+  return buyCurrentPrice >= buyRestrictionPrice;
+};
+
+/**
  * Set buy action and message
  *
  * @param {*} logger
@@ -168,6 +182,7 @@ const execute = async (logger, rawData) => {
   //  if last buy price is less than 0
   //    and current price is less or equal than lowest price
   //    and current balance has not enough value to sell,
+  //    and current price is lower than the restriction price
   //  then buy.
   if (canBuy(data)) {
     if (hasBalanceToSell(data)) {
@@ -179,6 +194,15 @@ const execute = async (logger, rawData) => {
           `But you have enough ${baseAsset} to sell. ` +
           `Set the last buy price to start selling. ` +
           `Do not process buy.`
+      );
+    }
+
+    if (isGreaterThanTheRestrictionPrice(data)) {
+      return setBuyActionAndMessage(
+        logger,
+        data,
+        'wait',
+        `The current price has reached the lowest price; however, it is restricted to buy the coin.`
       );
     }
 

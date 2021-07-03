@@ -37,6 +37,36 @@ class CoinWrapperBuySignal extends React.Component {
             ''
           )}
         </div>
+        {buy.athPrice ? (
+          <div className='coin-info-column coin-info-column-price'>
+            <span className='coin-info-label'>
+              ATH price ({symbolConfiguration.athCandles.interval}/
+              {symbolConfiguration.athCandles.limit}):
+            </span>
+            <HightlightChange className='coin-info-value'>
+              {parseFloat(buy.athPrice).toFixed(precision)}
+            </HightlightChange>
+          </div>
+        ) : (
+          ''
+        )}
+        {buy.restrictionPrice ? (
+          <div className='coin-info-column coin-info-column-price'>
+            <span className='coin-info-label'>
+              Buying restriction price (
+              {(
+                parseFloat(symbolConfiguration.buy.restrictionPercentage - 1) *
+                100
+              ).toFixed(2)}
+              %):
+            </span>
+            <HightlightChange className='coin-info-value'>
+              {parseFloat(buy.restrictionPrice).toFixed(precision)}
+            </HightlightChange>
+          </div>
+        ) : (
+          ''
+        )}
         {buy.highestPrice ? (
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>Highest price:</span>

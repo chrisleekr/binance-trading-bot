@@ -48,13 +48,18 @@
         "interval": "1h",
         "limit": 100
       },
+      "athCandles": {
+        "interval": "1d",
+        "limit": 30
+      },
       "buy": {
         "enabled": true,
         "maxPurchaseAmount": -1,
         "maxPurchaseAmounts": {},
         "triggerPercentage": 1.0,
         "stopPercentage": 1.02,
-        "limitPercentage": 1.021
+        "limitPercentage": 1.021,
+        "restrictionPercentage": 0.90
       },
       "sell": {
         "enabled": true,

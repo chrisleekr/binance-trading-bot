@@ -70,7 +70,7 @@ describe('server-frontend', () => {
       expect(mockExpressListen).toHaveBeenCalledWith(80);
     });
 
-    it('triggers configureWebScoket', () => {
+    it('triggers configureWebSocket', () => {
       expect(mockConfigureWebSocket).toHaveBeenCalled();
     });
 
