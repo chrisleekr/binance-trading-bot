@@ -172,7 +172,7 @@ const execute = async (logger, rawData) => {
         canCheckBuy = true;
       }
 
-      // Lock symbol action 20 seconds to avoid API limit
+      // Lock symbol action 10 seconds to avoid API limit
       await disableAction(
         symbol,
         {
@@ -183,7 +183,7 @@ const execute = async (logger, rawData) => {
         },
         config.get(
           'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          20
+          10
         )
       );
     } else {
@@ -243,7 +243,7 @@ const execute = async (logger, rawData) => {
         canCheckSell = true;
       }
 
-      // Lock symbol action 20 seconds to avoid API limit
+      // Lock symbol action 10 seconds to avoid API limit
       await disableAction(
         symbol,
         {
@@ -254,7 +254,7 @@ const execute = async (logger, rawData) => {
         },
         config.get(
           'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          20
+          10
         )
       );
     } else {

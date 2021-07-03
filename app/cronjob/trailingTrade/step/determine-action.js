@@ -15,16 +15,25 @@ const canBuy = data => {
     buy: { currentPrice: buyCurrentPrice, triggerPrice: buyTriggerPrice },
     sell: { lastBuyPrice },
     indicators: { trendDiff },
-    symbolConfiguration: { strategyOptions: { huskyOptions: { buySignal } } }
+    symbolConfiguration: { strategyOptions: { tradeOptions: { manyBuys }, huskyOptions: { buySignal } } }
   } = data;
 
   if (buySignal) {
-    return lastBuyPrice <= 0 &&
-      buyCurrentPrice <= buyTriggerPrice &&
-      Math.sign(trendDiff) == 1;
+    if (manyBuys) {
+      return buyCurrentPrice <= buyTriggerPrice &&
+        Math.sign(trendDiff) == 1;
+    } else {
+      return lastBuyPrice <= 0 &&
+        buyCurrentPrice <= buyTriggerPrice &&
+        Math.sign(trendDiff) == 1;
+    }
   } else {
-    return lastBuyPrice <= 0 &&
-      buyCurrentPrice <= buyTriggerPrice;
+    if (manyBuys) {
+      return buyCurrentPrice <= buyTriggerPrice;
+    } else {
+      return lastBuyPrice <= 0 &&
+        buyCurrentPrice <= buyTriggerPrice;
+    }
   }
 
 };

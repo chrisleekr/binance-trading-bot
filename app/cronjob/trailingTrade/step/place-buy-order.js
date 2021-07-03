@@ -12,36 +12,6 @@ const {
   saveLastBuyPrice
 } = require('../../trailingTradeHelper/common');
 
-const calculateLastBuyPrice = async (logger, symbol, price, quantity) => {
-  const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
-
-  const orgLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', 0);
-  const orgQuantity = _.get(lastBuyPriceDoc, 'quantity', 0);
-  const orgTotalAmount = orgLastBuyPrice * orgQuantity;
-
-  const filledQuoteQty = price;
-  const filledQuantity = quantity;
-  const filledTotalAmount = (filledQuoteQty * filledQuantity);
-
-  const newQuantity = (orgQuantity + filledQuantity);
-  const newTotalAmount = (orgTotalAmount + filledTotalAmount);
-
-  const newLastBuyPrice = (newTotalAmount / newQuantity);
-
-
-  await saveLastBuyPrice(logger, symbol, {
-    lastBuyPrice: newLastBuyPrice,
-    quantity: newQuantity
-  });
-
-  PubSub.publish('frontend-notification', {
-    type: 'success',
-    title: `New last buy price for ${symbol} has been updated.`
-  });
-
-  return;
-};
-
 /**
  * Place a buy order if has enough balance
  *
@@ -231,8 +201,6 @@ const execute = async (logger, rawData) => {
   );
   data.buy.processMessage = actions.action_placed_new_order;
   data.buy.updatedAt = moment().utc();
-
-  await calculateLastBuyPrice(logger, symbol, limitPrice, orderQuantity);
 
   // Save last buy price
   return data;

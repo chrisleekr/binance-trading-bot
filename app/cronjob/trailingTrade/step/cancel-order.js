@@ -15,7 +15,7 @@ const {
  */
 const execute = async (logger, rawData) => {
   const data = rawData;
-  const { symbol, isLocked, action, order } = data;
+  const { symbol, isLocked, action, order, sell: { lastBuyPrice } } = data;
 
   if (isLocked) {
     logger.info({ isLocked }, 'Symbol is locked, do not process cancel-order');
@@ -36,14 +36,8 @@ const execute = async (logger, rawData) => {
   };
 
 
-const language = config.get('language');
-const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
-
-  messenger.sendMessage(
-    `${symbol} Cancel Action (${moment().format('HH:mm:ss.SSS')}): \n` +
-      `- Order: \`\`\`${JSON.stringify(order, undefined, 2)}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
-  );
+  const language = config.get('language');
+  const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
 
   logger.info(
     { debug: true, function: 'order', orderParams },
@@ -75,13 +69,7 @@ const { coinWrapper: { actions } } = require(`../../../../public/${language}.jso
   });
 
   messenger.sendMessage(
-    `${symbol} Cancel Action Result (${moment().format('HH:mm:ss.SSS')}):\n` +
-      `- Order Result: \`\`\`${JSON.stringify(
-        orderResult,
-        undefined,
-        2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+    symbol, orderResult, 'ORDER_CANCELED'
   );
 
   data.buy.processMessage = actions.order_cancelled;
