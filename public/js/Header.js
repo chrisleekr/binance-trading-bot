@@ -8,8 +8,7 @@ class Header extends React.Component {
       publicURL,
       sendWebSocket,
       exchangeSymbols,
-      jsonStrings,
-      searchSymbolWithName
+      jsonStrings
     } = this.props;
 
     return (

@@ -260,7 +260,6 @@ class App extends React.Component {
               publicURL={publicURL}
               exchangeSymbols={exchangeSymbols}
               sendWebSocket={this.sendWebSocket}
-              searchSymbolWithName={this.searchSymbolWithName}
               jsonStrings={languageData}
             />
             {_.isEmpty(configuration) === false ? (
@@ -275,7 +274,8 @@ class App extends React.Component {
                   <ProfitLossWrapper
                     symbols={symbols}
                     sendWebSocket={this.sendWebSocket}
-                    jsonStrings={languageData} />
+                    jsonStrings={languageData}
+                    searchSymbolWithName={this.searchSymbolWithName} />
                 </div>
                 <div className='coin-wrappers'>{coinWrappers}</div>
                 <div className='app-body-footer-wrapper'>
