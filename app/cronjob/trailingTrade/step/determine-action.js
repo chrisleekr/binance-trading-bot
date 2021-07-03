@@ -43,7 +43,10 @@ const hasBalanceToSell = data => {
  */
 const isGreaterThanTheRestrictionPrice = data => {
   const {
-    buy: { currentPrice: buyCurrentPrice, restrictionPrice: buyRestrictionPrice }
+    buy: {
+      currentPrice: buyCurrentPrice,
+      restrictionPrice: buyRestrictionPrice
+    }
   } = data;
 
   return buyCurrentPrice >= buyRestrictionPrice;

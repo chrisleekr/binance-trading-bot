@@ -559,9 +559,8 @@ class SymbolSettingIcon extends React.Component {
                                       Set the percentage to calculate
                                       restriction price. i.e. if set{' '}
                                       <code>0.9</code> and the highest price{' '}
-                                      <code>$110</code>, restriction price
-                                      will be <code>$99</code> for stop limit
-                                      order.
+                                      <code>$110</code>, restriction price will
+                                      be <code>$99</code> for stop limit order.
                                     </Popover.Content>
                                   </Popover>
                                 }>
