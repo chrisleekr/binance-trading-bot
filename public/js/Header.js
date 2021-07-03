@@ -25,11 +25,7 @@ class Header extends React.Component {
               Binance Auto Trading Bot
             </h1>
           </div>
-          <div className='header-column header-column-search'>
-            <SearchIcon
-              searchSymbolWithName={searchSymbolWithName}
-            />
-          </div>
+
           <div className='header-column header-column-icon'>
 
             <div className='header-column-icon-wrapper github-wrapper'>

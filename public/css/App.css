@@ -527,6 +527,10 @@ input[type='number'] {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16), 0 1px 4px rgba(0, 0, 0, 0.23);
 }
 
+.card-header {
+  background: transparent !important;
+}
+
 .modal-dialog {
   color: var(--font-main-color);
   transition: color 0.5s ease-in-out;
@@ -628,6 +632,9 @@ input[type='number'] {
 }
 
 .btn-manual-trade {
+  -webkit-border-radius: 15px;
+  -moz-border-radius: 15px;
+  border-radius: 15px;
   padding: 0 0.5rem;
   font-size: 0.8rem;
   line-height: 1.5;
@@ -833,6 +840,10 @@ input[type='number'] {
   End: Dust Transfer
 */
 
+.search-container {
+  width: auto !important;
+}
+
 .search-box {
   width: 20px;
   height: 20px;
@@ -904,7 +915,7 @@ input[type='number'] {
   border-left: 0;
   border-top-left-radius: 100px;
   border-bottom-left-radius: 100px;
-  border-top: 2px solid transparent;
+  border-top: 3px solid transparent;
   border-bottom: 2px solid transparent;
   border-right: 2px solid transparent;
   box-shadow: inset 0 0 0 2px

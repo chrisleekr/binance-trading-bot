@@ -90,7 +90,6 @@
       },
       "sell": {
         "enabled": true,
-        "marketEnabled": true,
         "trendDownMarketSell": true,
         "stakeCoinEnabled": true,
         "triggerPercentage": 1.06,

@@ -184,8 +184,6 @@ class SettingIcon extends React.Component {
 
     const { settingIcon, commonStrings } = jsonStrings;
 
-    console.log(this.state)
-
     return (
       <div className='header-column-icon-wrapper setting-wrapper'>
         <button
@@ -1154,8 +1152,8 @@ class SettingIcon extends React.Component {
                             <Form.Check size='sm'>
                               <Form.Check.Input
                                 type='checkbox'
-                                data-state-key='sell.marketEnabled'
-                                checked={configuration.sell.marketEnabled}
+                                data-state-key='sell.trendDownMarketSell'
+                                checked={configuration.sell.trendDownMarketSell}
                                 onChange={this.handleInputChange}
                               />
                               <Form.Check.Label>

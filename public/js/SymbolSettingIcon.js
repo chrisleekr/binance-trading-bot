@@ -1073,8 +1073,8 @@ class SymbolSettingIcon extends React.Component {
                             <Form.Check size='sm'>
                               <Form.Check.Input
                                 type='checkbox'
-                                data-state-key='sell.marketEnabled'
-                                checked={symbolConfiguration.sell.marketEnabled}
+                                data-state-key='sell.trendDownMarketSell'
+                                checked={symbolConfiguration.sell.trendDownMarketSell}
                                 onChange={this.handleInputChange}
                               />
                               <Form.Check.Label>

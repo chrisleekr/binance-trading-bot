@@ -35,7 +35,7 @@ const execute = async (logger, rawData) => {
           orderType: sellStopLossOrderType,
           disableBuyMinutes: sellStopLossDisableBuyMinutes
         },
-        stakeCoinsEnabled
+        stakeCoinEnabled
       }
     },
     action,
@@ -114,7 +114,7 @@ const execute = async (logger, rawData) => {
       return data;
     }
 
-    if (stakeCoinsEnabled) {
+    if (stakeCoinEnabled) {
       const reduceSellTrigger = (triggerPercentage * 100) - 100;
       const amountOfProfitToReduceToStake = (orderQuantity / 100) * reduceSellTrigger
       const calculatedOrderQuantity = parseFloat(

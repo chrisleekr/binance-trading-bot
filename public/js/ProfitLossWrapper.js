@@ -108,6 +108,9 @@ class ProfitLossWrapper extends React.Component {
                     </OverlayTrigger>
                   </div>
                 </div>
+                <div className='flex-column-center'>
+                  <SearchIcon searchSymbolWithName={''} />
+                </div>
                 <div className='flex-column-right pt-2'>
                   {_.isEmpty(symbols) === false ? (
                     <ManualTradeIcon

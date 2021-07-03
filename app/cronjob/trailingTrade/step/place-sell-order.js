@@ -28,7 +28,7 @@ const execute = async (logger, rawData) => {
       filterMinNotional: { minNotional }
     },
     symbolConfiguration: {
-      sell: { enabled: tradingEnabled, stopPercentage, limitPercentage, triggerPercentage, stakeCoinsEnabled },
+      sell: { enabled: tradingEnabled, stopPercentage, limitPercentage, triggerPercentage, stakeCoinEnabled },
       strategyOptions: { huskyOptions: { sellSignal } }
     },
     action,
@@ -117,9 +117,7 @@ const execute = async (logger, rawData) => {
     }
   }
 
-
-
-  if (stakeCoinsEnabled) {
+  if (stakeCoinEnabled) {
     const reduceSellTrigger = (triggerPercentage * 100) - 100;
     const amountOfProfitToReduceToStake = (orderQuantity / 100) * reduceSellTrigger
     const calculatedOrderQuantity = parseFloat(
