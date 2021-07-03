@@ -6,6 +6,7 @@ const { messenger, binance, mongo } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
+  saveLastBuyPrice,
   getAPILimit
 } = require('../../trailingTradeHelper/common');
 
