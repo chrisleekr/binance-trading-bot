@@ -15,9 +15,8 @@ const handleSymbolSettingUpdate = async (logger, ws, payload) => {
   logger.info({ symbolConfiguration }, 'Current symbol configuration');
 
   // Get only editable params
-  const { candles, athCandles, buy, sell } = newSymbolConfiguration;
+  const { candles, buy, sell } = newSymbolConfiguration;
   symbolConfiguration.candles = candles;
-  symbolConfiguration.athCandles = athCandles;
   symbolConfiguration.buy = buy;
   symbolConfiguration.sell = sell;
 

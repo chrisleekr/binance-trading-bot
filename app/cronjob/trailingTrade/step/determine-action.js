@@ -41,15 +41,19 @@ const hasBalanceToSell = data => {
  * @param {*} data
  * @returns
  */
-const isGreaterThanTheRestrictionPrice = data => {
+const isGreaterThanTheATHRestrictionPrice = data => {
   const {
     buy: {
       currentPrice: buyCurrentPrice,
-      restrictionPrice: buyRestrictionPrice
+      athRestrictionPrice: buyATHRestrictionPrice,
+      athRestriction: { enabled: buyATHRestrictionEnabled }
     }
   } = data;
 
-  return buyCurrentPrice >= buyRestrictionPrice;
+  return (
+    buyATHRestrictionEnabled === true &&
+    buyCurrentPrice >= buyATHRestrictionPrice
+  );
 };
 
 /**
@@ -200,7 +204,7 @@ const execute = async (logger, rawData) => {
       );
     }
 
-    if (isGreaterThanTheRestrictionPrice(data)) {
+    if (isGreaterThanTheATHRestrictionPrice(data)) {
       return setBuyActionAndMessage(
         logger,
         data,

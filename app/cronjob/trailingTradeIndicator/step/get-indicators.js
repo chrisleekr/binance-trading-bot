@@ -37,7 +37,15 @@ const execute = async (logger, rawData) => {
     symbol,
     symbolConfiguration: {
       candles: { interval, limit },
-      athCandles: { interval: athInterval, limit: athLimit }
+      buy: {
+        athRestriction: {
+          enabled: buyATHRestrictionEnabled,
+          candles: {
+            interval: buyATHRestrictionCandlesInterval,
+            limit: buyATHRestrictionCandlesLimit
+          }
+        }
+      }
     }
   } = data;
 
@@ -61,21 +69,43 @@ const execute = async (logger, rawData) => {
   const highestPrice = _.max(candlesData.high);
 
   // Retrieve ATH candles
-  logger.info(
-    { debug: true, function: 'athCandles', athInterval, athLimit },
-    'Retrieving ATH candles from API'
-  );
-  const athCandles = await binance.client.candles({
-    symbol,
-    interval: athInterval,
-    limit: athLimit
-  });
 
-  // Flatten candles data to get ATH price
-  const athCandlesData = flattenCandlesData(athCandles);
+  let athPrice = null;
 
-  // ATH (All The High) price
-  const athPrice = _.max(athCandlesData.high);
+  if (buyATHRestrictionEnabled) {
+    logger.info(
+      {
+        debug: true,
+        function: 'athCandles',
+        buyATHRestrictionEnabled,
+        buyATHRestrictionCandlesInterval,
+        buyATHRestrictionCandlesLimit
+      },
+      'Retrieving ATH candles from API'
+    );
+    const athCandles = await binance.client.candles({
+      symbol,
+      interval: buyATHRestrictionCandlesInterval,
+      limit: buyATHRestrictionCandlesLimit
+    });
+
+    // Flatten candles data to get ATH price
+    const athCandlesData = flattenCandlesData(athCandles);
+
+    // ATH (All The High) price
+    athPrice = _.max(athCandlesData.high);
+  } else {
+    logger.info(
+      {
+        debug: true,
+        function: 'athCandles',
+        buyATHRestrictionEnabled,
+        buyATHRestrictionCandlesInterval,
+        buyATHRestrictionCandlesLimit
+      },
+      'ATH Restriction is disabled'
+    );
+  }
 
   logger.info(
     { lowestPrice, highestPrice, athPrice },

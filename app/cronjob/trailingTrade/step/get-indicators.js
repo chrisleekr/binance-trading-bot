@@ -22,7 +22,10 @@ const execute = async (logger, rawData) => {
       buy: {
         triggerPercentage: buyTriggerPercentage,
         limitPercentage: buyLimitPercentage,
-        restrictionPercentage: buyRestrictionPercentage
+        athRestriction: {
+          enabled: buyATHRestrictionEnabled,
+          restrictionPercentage: buyATHRestrictionPercentage
+        }
       },
       sell: {
         triggerPercentage: sellTriggerPercentage,
@@ -64,15 +67,17 @@ const execute = async (logger, rawData) => {
     ...cachedIndicator
   };
 
-
-
   // Cast string to number
   const { highestPrice, lowestPrice, athPrice } = data.indicators;
   const currentPrice = parseFloat(cachedLatestCandle.close);
   const buyTriggerPrice = lowestPrice * buyTriggerPercentage;
   const buyDifference = (1 - currentPrice / buyTriggerPrice) * -100;
   const buyLimitPrice = currentPrice * buyLimitPercentage;
-  const buyRestrictionPrice = athPrice * buyRestrictionPercentage;
+
+  let buyATHRestrictionPrice = null;
+  if (buyATHRestrictionEnabled) {
+    buyATHRestrictionPrice = athPrice * buyATHRestrictionPercentage;
+  }
 
   // Get last buy price
   const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
@@ -155,7 +160,7 @@ const execute = async (logger, rawData) => {
     highestPrice,
     lowestPrice,
     athPrice,
-    restrictionPrice: buyRestrictionPrice,
+    athRestrictionPrice: buyATHRestrictionPrice,
     triggerPrice: buyTriggerPrice,
     difference: buyDifference,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'buy'),

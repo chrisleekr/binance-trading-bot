@@ -79,7 +79,7 @@ class CoinWrapperSellSignal extends React.Component {
           {sell.triggerPrice ? (
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>
-                Trigger price (
+                &#62; Trigger price (
                 {(
                   (symbolConfiguration.sell.triggerPercentage - 1) *
                   100
