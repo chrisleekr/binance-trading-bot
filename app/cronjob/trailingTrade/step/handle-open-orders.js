@@ -2,7 +2,7 @@
 const moment = require('moment');
 const _ = require('lodash');
 
-const { messenger, binance } = require('../../../helpers');
+const { messenger, binance, cache } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI
@@ -27,6 +27,14 @@ const cancelOrder = async (logger, symbol, order) => {
       symbol,
       orderId: order.orderId
     });
+
+    const cachedLastBuyOrder =
+      JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
+    if (!_.isEmpty(cachedLastBuyOrder)) {
+      if (cachedLastBuyOrder.orderId == order.orderId) {
+        await cache.del(`${symbol}-last-buy-order`);
+      }
+    }
     logger.info({ apiResult }, 'Cancelled open orders');
     result = true;
   } catch (e) {

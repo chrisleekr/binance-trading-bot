@@ -194,7 +194,7 @@ const execute = async (logger, rawData) => {
   logger.info({ orderResult }, 'Order result');
 
   // Set last buy order to be checked over 2 minutes
-  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 360);
+  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult));
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

@@ -55,7 +55,7 @@ const execute = async logger => {
         { debug: true, symbol },
         '⏯ TrailingTradeIndicator: Skip process as the symbol is currently locked.'
       );
-      // return;
+      return;
     }
     // Lock symbol for processing
     await lockSymbol(logger, symbol);

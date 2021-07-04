@@ -104,18 +104,15 @@ const setSellActionAndMessage = (logger, rawData, action, processMessage) => {
   return data;
 };
 
-const calculateLastBuyPrice = async (logger, symbol, order, data) => {
-  const {
-    baseAssetBalance: { free: baseAssetFreeBalance }
-  } = data;
-  const { origQty, stopPrice } = order;
+const calculateLastBuyPrice = async (logger, symbol, order) => {
+  const { origQty, price } = order;
   const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
 
   const orgLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', 0);
   const orgQuantity = _.get(lastBuyPriceDoc, 'quantity', 0);
   const orgTotalAmount = (orgLastBuyPrice * orgQuantity);
 
-  const filledQuoteQty = parseFloat(stopPrice);
+  const filledQuoteQty = parseFloat(price);
   const filledQuantity = parseFloat(origQty);
   const filledTotalAmount = (filledQuoteQty * filledQuantity);
   const newQuantity = (orgQuantity + filledQuantity);
@@ -188,57 +185,28 @@ const execute = async (logger, rawData) => {
         'Order is existing in the open orders. All good, remove last buy order.'
       );
 
-      let orderResult;
-      try {
-        orderResult = await binance.client.getOrder({
-          symbol,
-          orderId: lastBuyOrder.orderId
-        });
-        if (orderResult.status === 'FILLED') {
-          await calculateLastBuyPrice(logger, symbol, orderResult);
-          // Remove last buy order from cache
-          await removeLastBuyOrder(logger, symbol);
+      data.openOrders = openOrders;
 
-          data.openOrders = openOrders;
+      data.buy.openOrders = data.openOrders.filter(
+        o => o.side.toLowerCase() === 'buy'
+      );
 
-          data.buy.openOrders = data.openOrders.filter(
-            o => o.side.toLowerCase() === 'buy'
-          );
+      // Get account info
+      data.accountInfo = await getAccountInfoFromAPI(logger);
 
-          // Get account info
-          data.accountInfo = await getAccountInfoFromAPI(logger);
-
-          if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-            messenger.sendMessage(
-              symbol, lastBuyOrder, 'BUY_CONFIRMED');
-            canCheckBuy = true;
-          }
-
-          messenger.errorMessage("Filled at 1.")
-
-          await disableAction(
-            symbol,
-            {
-              disabledBy: 'buy order',
-              message: actions.action_buy_order_filled,
-              canResume: false,
-              canRemoveLastBuyPrice: false
-            },
-            config.get(
-              'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-              10
-            )
-          );
-          return data;
-        }
-      } catch (e) {
-        return setBuyActionAndMessage(
-          logger,
-          data,
-          'buy-order-checking',
-          actions.action_buy_order_checking
-        );
-      }
+      await disableAction(
+        symbol,
+        {
+          disabledBy: 'buy order',
+          message: actions.action_buy_order_filled,
+          canResume: false,
+          canRemoveLastBuyPrice: false
+        },
+        config.get(
+          'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+          5
+        )
+      );
     } else {
 
       let orderResult;
@@ -252,21 +220,13 @@ const execute = async (logger, rawData) => {
           // Remove last buy order from cache
           await removeLastBuyOrder(logger, symbol);
 
-          data.openOrders = openOrders;
-
-          data.buy.openOrders = data.openOrders.filter(
-            o => o.side.toLowerCase() === 'buy'
-          );
-
-          // Get account info
-          data.accountInfo = await getAccountInfoFromAPI(logger);
+          messenger.errorMessage(JSON.stringify(orderResult))
 
           if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
             messenger.sendMessage(
               symbol, lastBuyOrder, 'BUY_CONFIRMED');
             canCheckBuy = true;
           }
-          messenger.errorMessage("Filled at 2.")
           await disableAction(
             symbol,
             {
@@ -280,15 +240,9 @@ const execute = async (logger, rawData) => {
               5
             )
           );
-          return data;
         }
       } catch (e) {
-        return setBuyActionAndMessage(
-          logger,
-          data,
-          'buy-order-checking',
-          actions.action_buy_order_checking
-        );
+
       }
 
       logger.info(

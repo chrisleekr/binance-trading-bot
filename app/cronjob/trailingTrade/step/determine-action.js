@@ -129,13 +129,15 @@ const canSell = data => {
     symbolConfiguration: {
       buy: { lastBuyPriceRemoveThreshold }
     },
-    sell: { currentPrice: sellCurrentPrice, lastBuyPrice, lastQtyBought }
+    sell: { currentPrice: sellCurrentPrice, lastBuyPrice, lastQtyBought },
+    baseAssetBalance: { total: baseAssetTotalBalance }
   } = data;
 
   return (
     lastBuyPrice > 0 &&
     lastQtyBought * sellCurrentPrice > parseFloat(minNotional) &&
-    lastQtyBought * sellCurrentPrice > lastBuyPriceRemoveThreshold
+    lastQtyBought * sellCurrentPrice > lastBuyPriceRemoveThreshold &&
+    baseAssetTotalBalance * sellCurrentPrice > parseFloat(minNotional)
   );
 };
 
