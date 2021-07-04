@@ -2,10 +2,12 @@ const config = require('config');
 const moment = require('moment');
 const _ = require('lodash');
 
-const { cache, messenger } = require('../../../helpers');
+const { cache, messenger, binance, PubSub, mongo } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
+  getLastBuyPrice,
+  saveLastBuyPrice,
   disableAction,
   getAPILimit
 } = require('../../trailingTradeHelper/common');
@@ -102,6 +104,38 @@ const setSellActionAndMessage = (logger, rawData, action, processMessage) => {
   return data;
 };
 
+const calculateLastBuyPrice = async (logger, symbol, order, data) => {
+  const {
+    baseAssetBalance: { free: baseAssetFreeBalance }
+  } = data;
+  const { origQty, stopPrice } = order;
+  const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
+
+  const orgLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', 0);
+  const orgQuantity = _.get(lastBuyPriceDoc, 'quantity', 0);
+  const orgTotalAmount = (orgLastBuyPrice * orgQuantity);
+
+  const filledQuoteQty = parseFloat(stopPrice);
+  const filledQuantity = parseFloat(origQty);
+  const filledTotalAmount = (filledQuoteQty * filledQuantity);
+  const newQuantity = (orgQuantity + filledQuantity);
+  const newTotalAmount = (orgTotalAmount + filledTotalAmount);
+
+  const newLastBuyPrice = (newTotalAmount / newQuantity);
+
+  await saveLastBuyPrice(logger, symbol, {
+    lastBuyPrice: newLastBuyPrice,
+    quantity: newQuantity
+  });
+
+  PubSub.publish('frontend-notification', {
+    type: 'success',
+    title: `New last buy price for ${symbol} has been updated.`
+  });
+
+  return;
+};
+
 /**
  * Check whether the order existing in the open orders
  *
@@ -154,39 +188,109 @@ const execute = async (logger, rawData) => {
         'Order is existing in the open orders. All good, remove last buy order.'
       );
 
-      // Remove last buy order from cache
-      await removeLastBuyOrder(logger, symbol);
+      let orderResult;
+      try {
+        orderResult = await binance.client.getOrder({
+          symbol,
+          orderId: lastBuyOrder.orderId
+        });
+        if (orderResult.status === 'FILLED') {
+          await calculateLastBuyPrice(logger, symbol, orderResult);
+          // Remove last buy order from cache
+          await removeLastBuyOrder(logger, symbol);
 
-      data.openOrders = openOrders;
+          data.openOrders = openOrders;
 
-      data.buy.openOrders = data.openOrders.filter(
-        o => o.side.toLowerCase() === 'buy'
-      );
+          data.buy.openOrders = data.openOrders.filter(
+            o => o.side.toLowerCase() === 'buy'
+          );
 
-      // Get account info
-      data.accountInfo = await getAccountInfoFromAPI(logger);
+          // Get account info
+          data.accountInfo = await getAccountInfoFromAPI(logger);
 
-      if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-        messenger.sendMessage(
-          symbol, lastBuyOrder, 'BUY_CONFIRMED');
-        canCheckBuy = true;
+          if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+            messenger.sendMessage(
+              symbol, lastBuyOrder, 'BUY_CONFIRMED');
+            canCheckBuy = true;
+          }
+
+          messenger.errorMessage("Filled at 1.")
+
+          await disableAction(
+            symbol,
+            {
+              disabledBy: 'buy order',
+              message: actions.action_buy_order_filled,
+              canResume: false,
+              canRemoveLastBuyPrice: false
+            },
+            config.get(
+              'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+              10
+            )
+          );
+          return data;
+        }
+      } catch (e) {
+        return setBuyActionAndMessage(
+          logger,
+          data,
+          'buy-order-checking',
+          actions.action_buy_order_checking
+        );
+      }
+    } else {
+
+      let orderResult;
+      try {
+        orderResult = await binance.client.getOrder({
+          symbol,
+          orderId: lastBuyOrder.orderId
+        });
+        if (orderResult.status === 'FILLED') {
+          await calculateLastBuyPrice(logger, symbol, orderResult);
+          // Remove last buy order from cache
+          await removeLastBuyOrder(logger, symbol);
+
+          data.openOrders = openOrders;
+
+          data.buy.openOrders = data.openOrders.filter(
+            o => o.side.toLowerCase() === 'buy'
+          );
+
+          // Get account info
+          data.accountInfo = await getAccountInfoFromAPI(logger);
+
+          if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+            messenger.sendMessage(
+              symbol, lastBuyOrder, 'BUY_CONFIRMED');
+            canCheckBuy = true;
+          }
+          messenger.errorMessage("Filled at 2.")
+          await disableAction(
+            symbol,
+            {
+              disabledBy: 'buy order',
+              message: actions.action_buy_order_filled,
+              canResume: false,
+              canRemoveLastBuyPrice: false
+            },
+            config.get(
+              'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+              5
+            )
+          );
+          return data;
+        }
+      } catch (e) {
+        return setBuyActionAndMessage(
+          logger,
+          data,
+          'buy-order-checking',
+          actions.action_buy_order_checking
+        );
       }
 
-      // Lock symbol action 10 seconds to avoid API limit
-      await disableAction(
-        symbol,
-        {
-          disabledBy: 'buy order',
-          message: actions.action_buy_disabled_after_buy,
-          canResume: false,
-          canRemoveLastBuyPrice: false
-        },
-        config.get(
-          'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          10
-        )
-      );
-    } else {
       logger.info(
         { debug: true },
         'Order does not exist in the open orders. Wait until it appears.'
@@ -226,24 +330,47 @@ const execute = async (logger, rawData) => {
         'Order is existing in the open orders. All good, remove last sell order.'
       );
 
-      // Remove last sell order from cache
-      await removeLastSellOrder(logger, symbol);
-      data.openOrders = openOrders;
+      let orderResult;
+      try {
+        orderResult = await binance.client.getOrder({
+          symbol,
+          orderId: lastSellOrder.orderId
+        });
+        if (orderResult.status === 'FILLED') {
+          messenger.errorMessage("result: " + JSON.stringify(orderResult))
+          await mongo.deleteOne(logger, 'trailing-trade-symbols', {
+            key: `${symbol}-last-buy-price`
+          });
+          // Remove last buy order from cache
+          await removeLastSellOrder(logger, symbol);
 
-      data.sell.openOrders = data.openOrders.filter(
-        o => o.side.toLowerCase() === 'sell'
-      );
+          data.openOrders = openOrders;
 
-      // Get account info
-      data.accountInfo = await getAccountInfoFromAPI(logger);
+          data.sell.openOrders = data.openOrders.filter(
+            o => o.side.toLowerCase() === 'sell'
+          );
 
-      if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-        messenger.sendMessage(
-          symbol, lastSellOrder, 'SELL_CONFIRMED');
-        canCheckSell = true;
+          // Get account info
+          data.accountInfo = await getAccountInfoFromAPI(logger);
+
+          if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+            messenger.sendMessage(
+              symbol, lastSellOrder, 'SELL_CONFIRMED');
+            canCheckSell = true;
+          }
+
+          return setSellActionAndMessage(
+            logger,
+            data,
+            'sell-order-filled',
+            actions.action_sell_order_filled
+          );
+        }
+      } catch (e) {
+
       }
 
-      // Lock symbol action 10 seconds to avoid API limit
+      // Lock symbol action 5 seconds to avoid API limit
       await disableAction(
         symbol,
         {
@@ -254,10 +381,51 @@ const execute = async (logger, rawData) => {
         },
         config.get(
           'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          10
+          5
         )
       );
     } else {
+
+      let orderResult;
+      try {
+        orderResult = await binance.client.getOrder({
+          symbol,
+          orderId: lastSellOrder.orderId
+        });
+        if (orderResult.status === 'FILLED') {
+          messenger.errorMessage("result: " + JSON.stringify(orderResult))
+          await mongo.deleteOne(logger, 'trailing-trade-symbols', {
+            key: `${symbol}-last-buy-price`
+          });
+          // Remove last buy order from cache
+          await removeLastSellOrder(logger, symbol);
+
+          data.openOrders = openOrders;
+
+          data.sell.openOrders = data.openOrders.filter(
+            o => o.side.toLowerCase() === 'sell'
+          );
+
+          // Get account info
+          data.accountInfo = await getAccountInfoFromAPI(logger);
+
+          if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+            messenger.sendMessage(
+              symbol, lastSellOrder, 'SELL_CONFIRMED');
+            canCheckSell = true;
+          }
+
+          return setSellActionAndMessage(
+            logger,
+            data,
+            'sell-order-filled',
+            actions.action_sell_order_filled
+          );
+        }
+      } catch (e) {
+
+      }
+
       logger.info(
         { debug: true },
         'Order does not exist in the open orders. Wait until it appears.'

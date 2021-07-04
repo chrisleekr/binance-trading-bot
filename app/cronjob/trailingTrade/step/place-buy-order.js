@@ -1,16 +1,20 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, messenger, mongo, cache, PubSub } = require('../../../helpers');
+const { binance, messenger, cache } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 const config = require('config');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
-  getLastBuyPrice,
   isExceedAPILimit,
-  getAPILimit,
-  saveLastBuyPrice
 } = require('../../trailingTradeHelper/common');
+
+const retrieveLastBuyOrder = async (symbol) => {
+  const cachedLastBuyOrder =
+    JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
+
+  return _.isEmpty(cachedLastBuyOrder);
+};
 
 /**
  * Place a buy order if has enough balance
@@ -63,6 +67,11 @@ const execute = async (logger, rawData) => {
 
   const language = config.get('language');
   const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+
+  if (!await retrieveLastBuyOrder(symbol)) {
+    data.buy.processMessage = "cant buy, found open order in cache";
+    return data;
+  }
 
   if (openOrders.length > 0) {
     data.buy.processMessage = action.action_open_orders[1] + symbol + '.' + actions.action_open_orders[2];
@@ -185,7 +194,7 @@ const execute = async (logger, rawData) => {
   logger.info({ orderResult }, 'Order result');
 
   // Set last buy order to be checked over 2 minutes
-  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 120);
+  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 360);
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

@@ -75,18 +75,6 @@ const execute = async (logger, rawData) => {
   const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
   const lastQuantityBought = _.get(lastBuyPriceDoc, 'quantity', null);
   const lastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
-  const lastPricesBought = _.get(lastBuyPriceDoc, 'lastPricesBought', null);
-
-  let average = 0;
-  let averageLastBuyPrices = lastBuyPrice;
-  if (lastPricesBought != null) {
-    lastPricesBought.forEach(price => {
-
-      average += price;
-    });
-
-    averageLastBuyPrices = average / lastPricesBought.length;
-  }
 
 
   const sellTriggerPrice =
@@ -178,8 +166,7 @@ const execute = async (logger, rawData) => {
     currentPrice,
     limitPrice: sellLimitPrice,
     lastBuyPrice,
-    averageLastBuyPrices: averageLastBuyPrices,
-    lastPricesBought: lastPricesBought,
+    lastQtyBought: lastQuantityBought,
     triggerPrice: sellTriggerPrice,
     hardTriggerPrice: sellHardTriggerPrice,
     difference: sellDifference,
@@ -189,8 +176,7 @@ const execute = async (logger, rawData) => {
     currentProfitPercentage: sellCurrentProfitPercentage,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'sell'),
     processMessage: _.get(data, 'sell.processMessage', ''),
-    updatedAt: moment().utc(),
-    lastQtyBought: lastQuantityBought
+    updatedAt: moment().utc()
   };
 
   return data;

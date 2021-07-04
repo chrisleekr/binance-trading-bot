@@ -68,7 +68,7 @@ const execute = async (logger, rawData) => {
       free: baseAssetFreeBalance,
       locked: baseAssetLockedBalance
     },
-    sell: { currentPrice, lastBuyPrice }
+    sell: { currentPrice, lastBuyPrice, lastQtyBought }
   } = data;
 
   if (isLocked) {
@@ -116,12 +116,18 @@ const execute = async (logger, rawData) => {
   // Check one last time for open orders to make sure.
   const lotPrecision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
 
-  const totalBaseAssetBalance =
-    parseFloat(baseAssetFreeBalance) + parseFloat(baseAssetLockedBalance);
+  let totalBaseAssetBalance;
+  if (lastQtyBought == 0 || lastQtyBought == null) {
+    totalBaseAssetBalance =
+      (parseFloat(baseAssetFreeBalance) + parseFloat(baseAssetLockedBalance));
+  } else {
+    totalBaseAssetBalance =
+      (parseFloat(lastQtyBought) + parseFloat(baseAssetLockedBalance));
+  }
 
   const baseAssetQuantity = parseFloat(
     _.floor(
-      totalBaseAssetBalance - totalBaseAssetBalance * (0.1 / 100),
+      ((totalBaseAssetBalance - totalBaseAssetBalance) * (0.1 / 100)),
       lotPrecision
     )
   );
@@ -161,7 +167,35 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  if (baseAssetQuantity * currentPrice < lastBuyPriceRemoveThreshold) {
+  if ((baseAssetQuantity * currentPrice) < parseFloat(minNotional)) {
+    // Final check for open orders
+    refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+    if (refreshedOpenOrders.length > 0) {
+      logger.info('Do not remove last buy price. Found open orders.');
+      return data;
+    }
+
+    processMessage =
+      'Balance is less than the notional value. Delete last buy price.';
+
+    logger.error({ baseAssetQuantity }, processMessage);
+
+    data.sell.processMessage = processMessage;
+    data.sell.updatedAt = moment().utc();
+
+    await removeLastBuyPrice(logger, symbol, processMessage, {
+      lastBuyPrice,
+      baseAssetQuantity,
+      currentPrice,
+      minNotional,
+      openOrders
+    });
+
+
+    return data;
+  }
+
+  if ((baseAssetQuantity * currentPrice) < lastBuyPriceRemoveThreshold) {
     // Final check for open orders
     refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
     if (refreshedOpenOrders.length > 0) {

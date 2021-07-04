@@ -62,14 +62,14 @@
       },
       "strategyOptions": {
         "tradeOptions": {
-          "differenceToBuy": 5,
-          "manyBuys": false
+          "manyBuys": false,
+          "differenceToBuy": 5
         },
         "huskyOptions": {
-          "positive": 1.015,
-          "negative": 1.06,
           "buySignal": true,
-          "sellSignal": false
+          "sellSignal": false,
+          "positive": 1.015,
+          "negative": 1.06
         }
       },
       "buy": {
@@ -83,10 +83,6 @@
         "triggerPercentage": 1.0,
         "stopPercentage": 1.02,
         "limitPercentage": 1.021
-      },
-      "backtest": {
-        "moneyToTest": 100,
-        "daysToTest": 30
       },
       "sell": {
         "enabled": true,

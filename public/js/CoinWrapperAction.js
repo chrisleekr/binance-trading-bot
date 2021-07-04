@@ -22,6 +22,9 @@ class CoinWrapperAction extends React.Component {
       case 'buy-order-checking':
         label = coinWrapper.actions.action_buy_check;
         break;
+      case 'buy-order-filled':
+        label = coinWrapper.actions.action_buy_filled;
+        break;
       case 'buy-order-wait':
         label = coinWrapper.actions.action_buy_wait;
         break;

@@ -2,12 +2,10 @@
 const moment = require('moment');
 const _ = require('lodash');
 
-const { messenger, binance, mongo } = require('../../../helpers');
+const { messenger, binance } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI,
-  saveLastBuyPrice,
-  getAPILimit
+  getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -30,7 +28,6 @@ const cancelOrder = async (logger, symbol, order) => {
       orderId: order.orderId
     });
     logger.info({ apiResult }, 'Cancelled open orders');
-
     result = true;
   } catch (e) {
     logger.info(
@@ -40,36 +37,6 @@ const cancelOrder = async (logger, symbol, order) => {
   }
 
   return result;
-};
-
-const calculateLastBuyPrice = async (logger, symbol, price, quantity) => {
-  const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
-
-  const orgLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', 0);
-  const orgQuantity = _.get(lastBuyPriceDoc, 'quantity', 0);
-  const orgTotalAmount = orgLastBuyPrice * orgQuantity;
-
-  const filledQuoteQty = price;
-  const filledQuantity = quantity;
-  const filledTotalAmount = (filledQuoteQty * filledQuantity);
-
-  const newQuantity = (orgQuantity + filledQuantity);
-  const newTotalAmount = (orgTotalAmount + filledTotalAmount);
-
-  const newLastBuyPrice = (newTotalAmount / newQuantity);
-
-
-  await saveLastBuyPrice(logger, symbol, {
-    lastBuyPrice: newLastBuyPrice,
-    quantity: newQuantity
-  });
-
-  PubSub.publish('frontend-notification', {
-    type: 'success',
-    title: `New last buy price for ${symbol} has been updated.`
-  });
-
-  return;
 };
 
 /**
@@ -148,25 +115,6 @@ const execute = async (logger, rawData) => {
           data.accountInfo = await getAccountInfoFromAPI(logger);
 
           data.action = 'buy-order-checking';
-
-          let orderResult;
-          try {
-            orderResult = await binance.client.getOrder({
-              symbol,
-              orderId: order.orderId
-            });
-            if (orderResult.status === 'FILLED') {
-              await calculateLastBuyPrice(logger, symbol, order.limitPrice, order.quantity);
-            } else {
-              await mongo.deleteOne(logger, 'trailing-trade-symbols', {
-                key: `${symbol}-last-buy-price`
-              });
-              messenger.sendMessage(
-                symbol, null, 'REMOVE_LAST_BUY');
-            }
-          } catch {
-            messenger.errorMessage("Couldn't verify the open order. Trying again.")
-          }
 
           if (_.get(featureToggle, 'notifyDebug', false) === true) {
             messenger.sendMessage(

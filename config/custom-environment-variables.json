@@ -92,6 +92,36 @@
           "__format": "number"
         }
       },
+      "strategyOptions": {
+        "tradeOptions": {
+          "manyBuys": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_MANY_BUYS",
+            "__format": "boolean"
+          },
+          "differenceToBuy": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_DIFFERENCE_TO_BUY",
+            "__format": "number"
+          }
+        },
+        "huskyOptions": {
+          "buySignal": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_SIGNAL",
+            "__format": "boolean"
+          },
+          "sellSignal": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_SIGNAL",
+            "__format": "boolean"
+          },
+          "positive": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_POSITIVE",
+            "__format": "number"
+          },
+          "negative": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_NEGATIVE",
+            "__format": "number"
+          }
+        }
+      },
       "buy": {
         "enabled": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_ENABLED",
@@ -117,6 +147,10 @@
         },
         "trendDownMarketSell": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_ENABLED_ON_DOWNTREND",
+          "__format": "boolean"
+        },
+        "stakeCoinEnabled": {
+          "__name": "BINANCE_JOBS_TRAILING_TRADE_STAKE_COINS",
           "__format": "boolean"
         },
         "triggerPercentage": {

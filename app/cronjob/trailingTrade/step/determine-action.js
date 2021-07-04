@@ -1,8 +1,16 @@
 const moment = require('moment');
-
+const _ = require('lodash');
 const { isActionDisabled, removeOverrideDataForIndicator } = require('../../trailingTradeHelper/common');
 const config = require('config');
-const { messenger, mongo } = require('../../../helpers');
+const { messenger, cache } = require('../../../helpers');
+
+
+const retrieveLastBuyOrder = async (symbol) => {
+  const cachedLastBuyOrder =
+    JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
+
+  return _.isEmpty(cachedLastBuyOrder);
+};
 
 /**
  * Check whether can buy or not
@@ -10,28 +18,37 @@ const { messenger, mongo } = require('../../../helpers');
  * @param {*} data
  * @returns
  */
-const canBuy = data => {
+const canBuy = async (data) => {
   const {
     buy: { currentPrice: buyCurrentPrice, triggerPrice: buyTriggerPrice },
-    sell: { lastBuyPrice },
     indicators: { trendDiff },
-    symbolConfiguration: { strategyOptions: { tradeOptions: { manyBuys }, huskyOptions: { buySignal } } }
+    symbolConfiguration: { strategyOptions: { tradeOptions: { manyBuys }, huskyOptions: { buySignal } } },
+    sell: { lastBuyPrice, lastQtyBought },
+    symbol
   } = data;
+
+  const canBuy = await retrieveLastBuyOrder(symbol);
 
   if (buySignal) {
     if (manyBuys) {
-      return buyCurrentPrice <= buyTriggerPrice &&
+      return canBuy &&
+        buyCurrentPrice <= buyTriggerPrice &&
         Math.sign(trendDiff) == 1;
     } else {
-      return lastBuyPrice <= 0 &&
+      return canBuy &&
+        lastBuyPrice <= 0 &&
+        lastQtyBought <= 0 &&
         buyCurrentPrice <= buyTriggerPrice &&
         Math.sign(trendDiff) == 1;
     }
   } else {
     if (manyBuys) {
-      return buyCurrentPrice <= buyTriggerPrice;
+      return canBuy &&
+        buyCurrentPrice <= buyTriggerPrice;
     } else {
-      return lastBuyPrice <= 0 &&
+      return canBuy &&
+        lastBuyPrice <= 0 &&
+        lastQtyBought <= 0 &&
         buyCurrentPrice <= buyTriggerPrice;
     }
   }
@@ -50,10 +67,11 @@ const hasBalanceToSell = data => {
       filterMinNotional: { minNotional }
     },
     baseAssetBalance: { total: baseAssetTotalBalance },
-    buy: { currentPrice: buyCurrentPrice }
+    buy: { currentPrice: buyCurrentPrice },
+    sell: { lastQtyBought }
   } = data;
 
-  return baseAssetTotalBalance * buyCurrentPrice >= parseFloat(minNotional);
+  return lastQtyBought * buyCurrentPrice >= parseFloat(minNotional);
 };
 
 /**
@@ -111,14 +129,13 @@ const canSell = data => {
     symbolConfiguration: {
       buy: { lastBuyPriceRemoveThreshold }
     },
-    baseAssetBalance: { total: baseAssetTotalBalance },
-    sell: { currentPrice: sellCurrentPrice, lastBuyPrice }
+    sell: { currentPrice: sellCurrentPrice, lastBuyPrice, lastQtyBought }
   } = data;
 
   return (
     lastBuyPrice > 0 &&
-    baseAssetTotalBalance * sellCurrentPrice > parseFloat(minNotional) &&
-    baseAssetTotalBalance * sellCurrentPrice > lastBuyPriceRemoveThreshold
+    lastQtyBought * sellCurrentPrice > parseFloat(minNotional) &&
+    lastQtyBought * sellCurrentPrice > lastBuyPriceRemoveThreshold
   );
 };
 
@@ -237,78 +254,6 @@ const execute = async (logger, rawData) => {
 
   const language = config.get('language');
   const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
-
-  // Check buy signal -
-  //  if last buy price is less than 0
-  //    and current price is less or equal than lowest price
-  //    and current balance has not enough value to sell,
-  //  then buy.
-  if (canBuy(data)) {
-    if (currentPriceIsHigherThanDifferenceToBuy(data)) {
-      const checkDisable = await isActionDisabled(symbol);
-      logger.info(
-        { tag: 'check-disable', checkDisable },
-        'Checked whether symbol is disabled or not.'
-      );
-      if (checkDisable.isDisabled) {
-        return setBuyActionAndMessage(
-          logger,
-          data,
-          'buy-temporary-disabled',
-          actions.action_buy_disabled[1] +
-          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
-        );
-      }
-
-      logger.info(
-        "Buying again!."
-      );
-
-
-      return setBuyActionAndMessage(
-        logger,
-        data,
-        'buy',
-        actions.action_buy
-      );
-    } else {
-      if (hasBalanceToSell(data)) {
-        return setBuyActionAndMessage(
-          logger,
-          data,
-          'wait',
-          actions.action_wait[1] +
-          actions.action_wait[2] + baseAsset + actions.action_wait[3] +
-          actions.action_wait[4] +
-          actions.action_wait[5]
-        );
-      }
-
-      const checkDisable = await isActionDisabled(symbol);
-      logger.info(
-        { tag: 'check-disable', checkDisable },
-        'Checked whether symbol is disabled or not.'
-      );
-      if (checkDisable.isDisabled) {
-        return setBuyActionAndMessage(
-          logger,
-          data,
-          'buy-temporary-disabled',
-          actions.action_buy_disabled[1] +
-          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
-        );
-      }
-
-      return setBuyActionAndMessage(
-        logger,
-        data,
-        'buy',
-        actions.action_buy
-      );
-    }
-  }
 
   // Check sell signal - if
   //  last buy price has a value
@@ -447,6 +392,79 @@ const execute = async (logger, rawData) => {
       'sell-wait',
       actions.sell_wait
     );
+  }
+
+
+  // Check buy signal -
+  //  if last buy price is less than 0
+  //    and current price is less or equal than lowest price
+  //    and current balance has not enough value to sell,
+  //  then buy.
+  if (await canBuy(data)) {
+    if (currentPriceIsHigherThanDifferenceToBuy(data)) {
+      const checkDisable = await isActionDisabled(symbol);
+      logger.info(
+        { tag: 'check-disable', checkDisable },
+        'Checked whether symbol is disabled or not.'
+      );
+      if (checkDisable.isDisabled) {
+        return setBuyActionAndMessage(
+          logger,
+          data,
+          'buy-temporary-disabled',
+          actions.action_buy_disabled[1] +
+          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+        );
+      }
+
+      logger.info(
+        "Buying again!."
+      );
+
+
+      return setBuyActionAndMessage(
+        logger,
+        data,
+        'buy',
+        actions.action_buy
+      );
+    } else {
+      if (hasBalanceToSell(data)) {
+        return setBuyActionAndMessage(
+          logger,
+          data,
+          'wait',
+          actions.action_wait[1] +
+          actions.action_wait[2] + baseAsset + actions.action_wait[3] +
+          actions.action_wait[4] +
+          actions.action_wait[5]
+        );
+      }
+
+      const checkDisable = await isActionDisabled(symbol);
+      logger.info(
+        { tag: 'check-disable', checkDisable },
+        'Checked whether symbol is disabled or not.'
+      );
+      if (checkDisable.isDisabled) {
+        return setBuyActionAndMessage(
+          logger,
+          data,
+          'buy-temporary-disabled',
+          actions.action_buy_disabled[1] +
+          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+        );
+      }
+
+      return setBuyActionAndMessage(
+        logger,
+        data,
+        'buy',
+        actions.action_buy
+      );
+    }
   }
 
   // If cannot buy/sell, then just return data

@@ -87,9 +87,11 @@
     "actions": {
       "action_disabled": "Desativado temporariamente",
       "action_buy_check": "Checando ordem de compra",
+      "action_buy_filled": "Ordem executada com sucesso. Definindo último preço de compra.",
       "action_buy_wait": "Esperando pela ordem de compra",
       "action_selling_stop_loss": "Vendendo moeda por causa do para-perda",
       "action_sell_check": "Checando ordem de venda",
+      "action_sell_filled": "Ordem executada com sucesso. Removendo último preço de compra.",
       "action_sell_wait": "Esperando pela ordem de venda",
       "disabled_by": "Desativado por ",
       "action_sell_disabled": {
@@ -103,10 +105,10 @@
         "3": " Resumir processo de venda após: "
       },
       "action_wait": {
-        "1": "O preço atual atingiu o preço de ativação.",
+        "1": "O preço atual atingiu o preço de ativação. ",
         "2": "E você tem o suficiente de ",
-        "3": "para vender.",
-        "4": "Defina o último preço de compra para começar a vender.",
+        "3": "para vender. ",
+        "4": "Defina o último preço de compra para começar a vender. ",
         "5": "Não processar compra."
       },
       "action_buy_disabled": {
@@ -149,9 +151,11 @@
         "2": "Não irei abrir uma ordem de venda de mercado."
       },
       "action_disabled_stop_loss": "Desativado temporariamente por causa do para-perda.",
-      "action_buy_disabled_after_buy": "Desatibilitei as ações após confirmar a ordem de compra.",
-      "action_sell_disabled_after_sell": "Desatibilitei as ações após confirmar a ordem de venda.",
+      "action_buy_disabled_after_buy": "Desabilitei as ações após confirmar a ordem de compra.",
+      "action_sell_disabled_after_sell": "Desabilitei as ações após confirmar a ordem de venda.",
       "action_buy_order_checking": "A ordem de compra parece posta. Porém, não consigo achá-la nas ordens abertas. Espere até aparecer.",
+      "action_buy_order_filled": "A ordem de compra foi executada com sucesso. Defini a última quantia e o último preço de compra. Esperando o sinal de venda.",
+      "action_sell_order_filled": "A ordem de venda foi executada com sucesso. Removi a última quantia e o último preço de compra.",
       "action_sell_order_checking": "A ordem de venda parece posta. Porém, não consigo achá-la nas ordens abertas. Espere até aparecer.",
       "action_stop_monitoring": {
         "1": "A ordem de ",

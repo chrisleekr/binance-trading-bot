@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, cache, messenger } = require('../../../helpers');
+const { binance, cache, mongo, messenger } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 const config = require('config');
 const {
@@ -32,7 +32,6 @@ const execute = async (logger, rawData) => {
       strategyOptions: { huskyOptions: { sellSignal } }
     },
     action,
-    baseAssetBalance: { free: baseAssetFreeBalance },
     sell: { currentPrice, openOrders, lastQtyBought },
     indicators: { trendDiff }
   } = data;
@@ -151,7 +150,7 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Order result');
 
-  await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult), 15);
+  await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult), 60);
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
