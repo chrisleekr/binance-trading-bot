@@ -57,7 +57,7 @@ class SymbolDeleteIcon extends React.Component {
       if (_.isEmpty(jsonStrings)) {
         return '';
       }
-      const { symbolDelete, commonStrings } = jsonStrings;
+      const { symbol_delete, common_strings } = jsonStrings;
       return (
         <div className='header-column-icon-wrapper symbol-delete-wrapper'>
           <button
@@ -69,28 +69,28 @@ class SymbolDeleteIcon extends React.Component {
 
           <Modal show={this.state.showModal} onHide={this.handleModalClose}>
             <Modal.Header className='pt-1 pb-1'>
-              <Modal.Title>{symbolDelete.remove_symbol} - {symbolInfo.symbol}</Modal.Title>
+              <Modal.Title>{symbol_delete.remove_symbol} - {symbolInfo.symbol}</Modal.Title>
             </Modal.Header>
             <Modal.Body>
-              {symbolDelete.description[1]}
+              {symbol_delete._description[1]}
               <br />
-              {symbolDelete.description[2]}
+              {symbol_delete._description[2]}
               <br />
-              {symbolDelete.description[3]}
+              {symbol_delete._description[3]}
             </Modal.Body>
             <Modal.Footer>
               <Button
                 variant='secondary'
                 size='sm'
                 onClick={this.handleModalClose}>
-                {commonStrings.close}
+                {common_strings._close}
               </Button>
               <Button
                 type='button'
                 variant='danger'
                 size='sm'
                 onClick={this.handleDelete}>
-                {commonStrings.remove}
+                {common_strings._remove}
               </Button>
             </Modal.Footer>
           </Modal>

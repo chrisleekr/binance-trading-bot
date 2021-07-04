@@ -1,0 +1,303 @@
+{
+  "setting_icon": {
+    "global_settings": "全局设置",
+    "global_settings_description": "在此模式下可以进行全局设置。如果符号有不同的设置，更改不会影响它。请在进行调整时知道自己在做什么。",
+    "_symbols": "符号",
+    "placeholder_monitor_symbols": "选择要监控的符号...",
+    "candle_settings": "蜡烛设置",
+    "candle_interval_description": "定义蜡烛间隔以计算最高/最低价格。",
+    "candle_limit_description": "设置蜡烛限制以计算最高/最低价格。",
+    "buy_sell_conf": "买卖设置",
+    "trading_enabled_description": "如果启用，机器人会在检测到买入信号时买入货币。如果禁用，机器人将不会买入，但会继续监控。如果市场波动，您可以禁用它。",
+    "trading_enabled_description_sell": "如果启用，机器人将在检测到卖出信号时卖出货币。如果禁用，机器人将不会卖出。",
+    "trigger_percent_buy": "买入信号的百分比",
+    "trigger_percent_buy_description": "设置百分比以激活买入信号。例如：如果设置为 1.01 且最低价格为 100 美元，则机器人将在当前价格达到 1.01 时买入货币。您不能设置小于 1，因为价格永远不会达到该值。除非有非常急剧的下降。",
+    "trigger_percent_sell": "卖出信号的百分比",
+    "trigger_percent_sell_description": "设置百分比以激活卖出信号。示例：如果设置为 1.06，最低利润将为 6%。如果最后买入的价格为 100 美元，机器人将在当前价格为 106 美元时卖出货币。",
+    "placeholder_trigger_percent": "设置买入信号",
+    "stop_price_percent_description": "设置计算止损价的百分比。示例：如果设置为 1.01 且当前价格为 100 美元，则限价单的止损价将为 101 美元。",
+    "placeholder_enter_stop_price": "设置止损价",
+    "placeholder_enter_limit_price": "设置限价",
+    "limit_price_percent_description": "设置百分比来计算限价。示例：如果您设置了 1,011 并且当前价格为 $100，限价单的限价将为 $101.10。",
+    "stop_price_percent_description_sell": "设置计算止损价格的百分比。例如：如果设置为 0.99 且当前价格为 $106，则止损订单的止损价格将为 $104.94。",
+    "limit_price_percent_description_sell": "设置百分比来计算限价。例如：如果设置为 0.98，当前价格为 $106，限价单的限价将为 $103.88。",
+    "stop_loss_enabled_description": "如果启用，机器人将在达到止损设置的百分比时卖出硬币。您可以启用此功能以防止比预期更大的损失。",
+    "max_loss_percent_description": "设置止损的最大亏损百分比。例如：如果设置为0.80，则表示您的损失不会超过总投资金额的20%。如果您以100美元的价格买入该币，最后的多头价格将设置为 100 美元，止损为 80 美元。如果达到 80 美元，机器人将按照市价单卖出所有可用的货币余额。",
+    "placeholder_enter_max_loss": "设置最大损失",
+    "temporary_disable_buy": "暂时禁止购买（以分钟为单位）",
+    "temporary_disable_buy_description": "定义在止损激活的情况下禁用货币购买的时间。例如：如果设置为 360，则购买将禁用 6 小时。",
+    "placeholder_temporary_disable": "设置禁用分钟数",
+    "note_changes": "请注意，更改将在下一个滴答时生效",
+    "reset_global_settings": "重置为全局设置",
+    "warning_global_save": "警告：您将要保存全局调整",
+    "ask_all_or_global": "您想将设置应用于所有符号还是仅应用于全局？",
+    "delete_symbol_setting": "要删除符号设置吗？",
+    "choosed_all_symbols": "如果你应用到所有并且任何符号有不同的设置，它就会丢失！",
+    "choosed_global": "如果你全局应用并且任何符号有一些不同的配置，它将被设置为自定义！",
+    "apply_all_symbols": "应用于所有符号",
+    "apply_global_only": "全局应用",
+    "_customise": "自定义",
+    "_description": "在此窗口中，您可以覆盖特定交易品种的全局设置。请知道您在做什么。此处应用的设置只会影响该交易品种。",
+    "last_buy_price_remove_threshold_description": {
+      "1": "设置删除以符号结尾的最后买入价的限制",
+      "2": " 当币价跌破限价时，机器人会移除上次买入的价格。如果机器人没有卖出币种，您可以手动添加最后一次买入的价格，但如果低于限额，则会再次被移除。"
+    },
+    "placeholder_last_buy_remove_price_threshold": "设置阈值以从中删除最后购买价格",
+    "max_purchase_amount_for": "购买的最大金额",
+    "max_purchase_amount": "最大购买金额",
+    "min_purchase_amount": "最低购买金额",
+    "min_purchase_amount_for": "最低购买金额",
+    "max_purchase_amount_symbol_description": "设置最大买入量。例如：如果设置为 100，当机器人收到买入信号时，它将买入 100 美元的货币。",
+    "max_purchase_amount_description": "设置以符号结尾的最大购买金额",
+    "placeholder_max_purchase_amount": "设置最大购买金额的限制",
+    "placeholder_min_purchase_amount": "设置最低购买金额的限制",
+    "_cancel": "取消",
+    "_yes": "是的[",
+    "sell_market_order": "按市价单卖出",
+    "sell_market_order_description": "如果您的利润高于卖出触发价格并且趋势开始下降，机器人将按照市价单卖出以最大化利润。",
+    "stake_coins": "积累硬币",
+    "stake_coins_description": "如果选中，机器人会卖出比它买的少一点来积累硬币。例如：如果设置为 0.5% 的利润，机器人将只卖出它所购买数量的 99.5%。",
+    "hard_sell_trigger": "强制出售激活",
+    "hard_sell_trigger_description": "设置强制出售触发价格。例如：如果设置为 1.01，即使趋势上升，机器人也会在利润达到 1% 时自动出售。",
+    "placeholder_hard_sell_trigger": "设置强制激活价格",
+    "use_husky_sell": "在卖出信号上使用赫斯基趋势",
+    "use_husky_sell_description": "如果趋势下降，机器人不会处理购买。它只会在趋势上升时处理。这个功能大大改善了机器人的时机。",
+    "use_husky_buy": "在买入信号中使用赫斯基趋势",
+    "use_husky_buy_description": "如果趋势上升，机器人将不会处理销售。它只会在趋势下降时处理。它的利润通常高于这样定义的。",
+    "force_market_order": "按市价单强制卖出",
+    "weight_green_candle": "绿色蜡烛的重量",
+    "weight_red_candle": "红蜡烛的重量",
+    "weight_green_candle_description": "用于指标计算的绿色蜡烛权重。请不要将此值设置为高于红色蜡烛的权重！价格下跌后，Bot 将失去购买功能。",
+    "weight_red_candle_description": "用于指标计算的红色蜡烛权重。请注意，此值必须大于绿色蜡烛的权重！",
+    "grid_buy_strategy_activate": "激活网格策略",
+    "grid_buy_strategy_activate_description": "将激活多次购买同一种货币。谨慎使用。",
+    "grid_buy_strategy": "差价后再买",
+    "grid_buy_strategy_description": "启用多次购买的可能性，始终计算平均价格。例如：如果设置为 1%，如果上次购买价格之间的差异大于 1%，机器人将再次购买货币。",
+    "strategy_options": "策略调整",
+    "trade_options": "贸易调整"
+  },
+  "dust_transfer": {
+    "convert_small_balances_bnb": "将小额金额转换为 BNB",
+    "description": "您可以每 6 小时将少于 0.003 BTC 的金额转换为 BNB。无法转换此处未列出的货币。",
+    "_loading": "正在加载",
+    "no_asset_convert": "没有要转换的货币。",
+    "_convert": "转换"
+  },
+  "coin_wrapper": {
+    "_actions": {
+      "action_disabled": "暂时禁用",
+      "action_buy_check": "检查采购订单",
+      "action_buy_filled": "订单执行成功。设置最后购买价格。",
+      "action_buy_wait": "等待采购订单",
+      "action_ sell_stop_loss": "止损卖出货币",
+      "action_sell_check": "检查销售订单",
+      "action_sell_filled": "订单成功执行。删除最后购买价格。",
+      "action_sell_wait": "等待销售订单",
+      "disabled_by": "被禁用",
+      "action_sell_disabled": {
+        "1": "当前价格已达到激活销售的价格。",
+        "2": "但是，该操作暂时被禁用",
+        "3": "总结后的销售流程："
+      },
+      "action_sell_disabled_stop_loss": {
+        "1": "当前价格已达到止损价。",
+        "2": "但是，该操作暂时被禁用",
+        "3": " 总结后的销售流程："
+      },
+      "动作等待": {
+        "1": "当前价格已达到激活价格。",
+        "2": "你受够了",
+        "3": "出售。",
+        "4": "设置最后购买价格开始销售。",
+        "5": "不处理购买。"
+      },
+      "action_buy_disabled": {
+        "1": "当前价格已达到购买激活价格。",
+        "2": "但是，该操作暂时被禁用",
+        "3": "后总结购买流程："
+      },
+      "action_buy": "当前价格已达到激活购买的价格。我会尝试购买货币。",
+      "action_sell": "当前价格已达到激活销售的价格。我将出售货币。",
+      "action_sell_stop_loss": "当前价格已达到止损价。我以市价卖出货币。",
+      "sell_wait": "当前价格低于促销激活价格。等待。",
+      "action_open_orders": {
+        "1": "有来自交易品种的未结订单 ",
+        "2": "我不会开新的。"
+      },
+      "action_max_purchase_undefined": "我没有最大购买金额。请在设置中设置一个。",
+      "action_dont_place_order": {
+        "1": "我不能买硬币，因为没有",
+        "2": "买"
+      },
+      "action_dont_place_order_calc": {
+        "1": "我不能买硬币，因为没有",
+        "2": "买",
+        "3": "经过计算。"
+      },
+      "action_trading_for_disabled": {
+        "1": "交易",
+        "2": "已禁用。我不会打开订单。"
+      },
+      "action_api_exceed": "已达到 API 限制，暂不操作。",
+      "action_placed_new_order": "我开启了限价购买订单。",
+      "action_order_minimum_qty": {
+        "1": "订单数量等于或小于最小数量-",
+        "2": "。我不会尝试出售。"
+      },
+      "action_less_than_nominal": "当前值小于最小允许值。我暂时不会出售。",
+      "action_placed_new_sell_order": "我开了一个限价卖单。",
+      "action_unknown_order": {
+        "1": "未知订单类型：",
+        "2": "我不会开市价卖单。"
+      },
+      "action_disabled_stop_loss": "由于止损暂时禁用。",
+      "action_buy_disabled_after_buy": "我在确认采购订单后禁用了操作。",
+      "action_sell_disabled_after_sell": "我在确认卖单后禁用了操作。",
+      "action_buy_order_checking": "采购订单好像已经下单了，但是我在未结订单中找不到它。请等待它出现。",
+      "action_buy_order_filled": "买单成功执行。我设置了最后的金额和最后的买价。等待卖出信号。",
+      "action_sell_order_filled": "卖单已成功执行。我删除了最后一笔金额和最后买入价。",
+      "action_sell_order_checking": "好像已经下卖单了，但是我在未结订单中找不到它。等待它出现。",
+      "action_stop_monitoring": {
+        "1": "顺序",
+        "2": "符号：",
+        "3": "是",
+        "4": "我正在停止监控。"
+      },
+      "action_cancel_success": {
+        "1": "顺序",
+        "2": "已成功取消。如果订单仍然出现，请等待它消失。"
+      },
+      "order_cancelled": "订单已被取消。"
+    },
+    "estimated_value": "估计值",
+    "temporary_disable_sell": "暂时禁止销售",
+    "order_type": "订单类型",
+    "_wait": "等待",
+    "open_order": "开单",
+    "placed_at": "放入",
+    "current_limit_price": "限价",
+    "diff_cancel": "取消的差异",
+    "diff_execute": "执行的差异",
+    "buy_open_orders": "打开采购订单",
+    "buy_signal": "购买标志",
+    "highest_price": "最高价格",
+    "lowest_price": "最低价格",
+    "trigger_price": "触发价格",
+    "diff_buy": "购买的差异",
+    "diff_sell": "销售差异",
+    "sell_open_orders": "打开销售订单",
+    "stop_loss_price": "止损价",
+    "diff_stop_loss": "与止损的差异",
+    "stop_percent": "停止百分比",
+    "limit_percent": "限制百分比",
+    "_type": "类型",
+    "minimum_profit": "最小收益",
+    "max_purchase_amount": "最大购买金额",
+    "_candles": "蜡烛",
+    "trigger_percent": "触发百分比"
+  },
+  "_footer": {
+    "_version": "当前版本",
+    "latest_version": "最新版本"
+  },
+  "profit_loss_wrapper": {
+    "profit_loss_description": "此部分显示了您当前以最后定义的买入价开盘的交易品种列表的大致盈亏。计算只是将每个交易品种的盈亏相加。请注意，它并不代表您的交易历史得失。"
+  },
+  "symbol_delete": {
+    "remove_symbol": "移除符号",
+    "_description": {
+      "1": "您确定要从缓存中删除该符号吗？",
+      "2": "请注意，这只会删除缓存的值。",
+      "3": "如果符号还在被监视，它会再次出现。"
+    }
+  },
+  "symbol_edit_last_buy_price": {
+    "edit_last_buy": "编辑最后购买价格和数量",
+    "placeholder_last_buy": "设置最后购买价格",
+    "placeholder_last_qty_bought": "设置最后购买价格",
+    "edit_last_qty_bought_description": "设置/修改最后购买的数量。如果你没有将它设置在最后价格旁边，机器人将出售所有免费的货币数量，而不仅仅是最后购买的数量。",
+    "edit_last_buy_description": {
+      "1": "设置/修改符号的最后购买价格。",
+      "2": "如果机器人购买了货币，价格会自动设置。",
+      "3": "如果您直接从经纪商处手动买入，您可以设置机器人的最后买入价以定义的利润卖出。",
+      "4": "当设置最后买入价时，机器人将开始监控卖出可能性。",
+      "5": "如果要去掉最后的购买价格，设置0。"
+    }
+  },
+  "symbol_enable_action": {
+    "resume_symbol_action": "恢复符号操作",
+    "_description": {
+      "1": "您确定要恢复符号的操作吗？",
+      "2": "如果市场波动，机器人会在收到买入信号后再次买入。",
+      "3": "谨慎行事。"
+    }
+  },
+  "symbol_manual_trade": {
+    "_trade": "贸易",
+    "manual_trade_for": "手动交易",
+    "_description": {
+      "1": "在这个窗口你可以交易",
+      "2": " 手动。如果你已经有最后购买的价格，那么机器人会计算平均成本并重新计算最后购买的价格。",
+      "3": "为了确保成功记录上次购买价格，机器人将监控采购订单。这可能会增加 API 使用率。"
+    }
+  },
+  "place_manual_trade": {
+    "action_manual_order": "我打开了一个手动订单。",
+    "notify_order_success": {
+      "1": "顺序",
+      "2": "符号：",
+      "3": ". 下单成功。如果订单还没有被执行，它应该会在某个时间出现。",
+      "4": "如果你按可用余额 100% 的卖出按钮，机器人将计算 0.1% 的佣金。"
+    }
+  },
+  "manual_trade": {
+    "trade_all": "全部交易",
+    "manual_trade_for_all": "所有交易品种的手动交易",
+    "_description": {
+      "1": "在此窗口中您可以手动交易所有品种。为简化流程，仅支持市价单。",
+      "2": "如果您在符号上设置 0，机器人将不会为该符号下订单。如果您已经有最后一个买入价，那么机器人将计算平均成本并重新计算最后一个买入价。",
+      "3": "为了确保成功记录上次购买价格，机器人将监控采购订单。这可能会增加 API 使用率。"
+    }
+  },
+  "common_strings": {
+    "_interval": "间隔",
+    "_limit": "限制",
+    "_buy": "买买",
+    "_sell": "销售",
+    "used_weight": "使用的 API 重量 (1m)",
+    "trading_enabled": "交易已启用",
+    "stop_price_percent": "止损价格百分比",
+    "limit_price_percent": "限制价格百分比",
+    "stop_loss": "止损",
+    "stop_loss_enabled": "启用止损",
+    "max_loss_percent": "最大损失百分比",
+    "_close": "关闭",
+    "save_changes": "保存设置",
+    "account_balance": "账户余额",
+    "_total": "总计",
+    "_free": "免费",
+    "_locked": "锁定",
+    "_status": "状态",
+    "_quantity": "数量",
+    "_price": "价格",
+    "stop_price": "止损价",
+    "current_price": "当前价格",
+    "sell_signal": "销售信号",
+    "trading_disabled": "交易禁用",
+    "last_buy_price": "最后买入价",
+    "averaged_price": "平均价格",
+    "profit_loss": "收益/损失",
+    "_settings": "设置",
+    "last_buy_price_remove_threshold": "删除最后购买价格的阈值",
+    "_remove": "删除",
+    "_resume": "恢复",
+    "_market": "市场",
+    "_balance": "余额",
+    "current_balance": "当前余额",
+    "remaining_balance": "剩余余额",
+    "time_remaining": "剩余时间",
+    "_action": "动作",
+    "_strength": "强度",
+    "_trending": "趋势"
+  }
+}

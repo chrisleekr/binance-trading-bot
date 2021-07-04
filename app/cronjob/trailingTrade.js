@@ -24,7 +24,7 @@ const {
   getIndicators,
   handleOpenOrders,
   determineAction,
-  placeManualTrade,
+  place_manual_trade,
   placeBuyOrder,
   placeSellOrder,
   placeSellStopLossOrder,
@@ -131,7 +131,7 @@ const execute = async logger => {
           },
           {
             stepName: 'place-manual-order',
-            stepFunc: placeManualTrade
+            stepFunc: place_manual_trade
           },
           {
             stepName: 'cancel-order',

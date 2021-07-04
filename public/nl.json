@@ -1,8 +1,8 @@
 {
-  "settingIcon": {
+  "setting_icon": {
     "global_settings": "Algemene instellingen",
     "global_settings_description": "In deze modus kunt u algemene instellingen configureren. Als het symbool verschillende instellingen heeft, heeft de wijziging geen invloed. Weet wat u doet bij het maken van aanpassingen.",
-    "symbol": "Symbolen",
+    "_symbols": "Symbolen",
     "placeholder_monitor_symbols": "Kies symbolen om te controleren...",
     "candle_settings": "Kaarsinstellingen",
     "candle_interval_description": "Definieert het kaarsinterval om de hoogste/laagste prijs te berekenen.",
@@ -11,7 +11,7 @@
     "trading_enabled_description": "Indien ingeschakeld, zal de bot de valuta kopen wanneer hij het koopsignaal detecteert. Indien uitgeschakeld, zal de bot niet kopen, maar blijven monitoren. Als de markt volatiel is, kunt u deze uitschakelen.",
     "trading_enabled_description_sell": "Indien ingeschakeld, zal de bot de valuta verkopen wanneer hij het verkoopsignaal detecteert. Indien uitgeschakeld, zal de bot niet verkopen.",
     "trigger_percent_buy": "Percentage voor koopsignaal",
-    "trigger_percent_buy_description": "Stelt het percentage in om het koopsignaal te activeren. Voorbeeld: Als 1.01 is ingesteld en de laagste prijs is $ 100, dan zal de bot de valuta kopen wanneer de huidige prijs 1,01 bereikt. U kunt niet minder dan 1 instellen als prijs zal nooit de waarde bereiken. Tenzij er een zeer scherpe daling is.",
+    "trigger_percent_buy_description": "Stelt het percentage in om het koopsignaal te activeren. Voorbeeld: Als 1.01 is ingesteld en de laagste prijs is $ 100, dan zal de bot de valuta kopen wanneer de huidige prijs 1,01 bereikt. U kunt niet minder dan 1 instellen als prijs zal de waarde nooit bereiken. Tenzij er een zeer scherpe daling is.",
     "trigger_percent_sell": "Percentage voor het verkoopsignaal",
     "trigger_percent_sell_description": "Stelt het percentage in om het verkoopsignaal te activeren. Voorbeeld: Als 1.06 is ingesteld, is de minimale winst 6%. Als de laatst gekochte prijs $ 100 is, zal de bot de valuta verkopen wanneer de huidige prijs $ 106 is.",
     "placeholder_trigger_percent": "Stel het koopsignaal in",
@@ -25,19 +25,19 @@
     "max_loss_percent_description": "Stelt het maximale verliespercentage van de stop-loss in. Voorbeeld: indien ingesteld op 0,80, betekent dit dat u niet meer dan 20% van het totale geïnvesteerde bedrag verliest. Als u de munt heeft gekocht voor de prijs van $ 100, de laatste prijs voor lang wordt ingesteld op $ 100 en stop-loss op $ 80. Als het $ 80 bereikt, verkoopt de bot alle beschikbare valutasaldo in een marktorder.",
     "placeholder_enter_max_loss": "Stel het maximale verlies in",
     "temporary_disable_buy": "Aankoop tijdelijk uitschakelen voor (in minuten)",
-    "temporary_disable_buy_description": "Definieert hoe lang de aankoop van valuta uitgeschakeld moet worden in geval van para-loss activatie. Voorbeeld: Als 360 is ingesteld, wordt de aankoop 6 uur uitgeschakeld.",
+    "temporary_disable_buy_description": "Definieert hoe lang de aankoop van valuta moet worden uitgeschakeld in geval van activering van stop-loss. Voorbeeld: Indien ingesteld op 360, wordt de aankoop 6 uur uitgeschakeld.",
     "placeholder_temporary_disable": "Stel de minuten in om uit te schakelen",
     "note_changes": "Merk op dat de wijzigingen van kracht worden bij het volgende vinkje",
     "reset_global_settings": "Reset naar algemene instellingen",
     "warning_global_save": "Waarschuwing: u staat op het punt de globale aanpassing op te slaan",
     "ask_all_or_global": "Wilt u de instellingen toepassen op alle symbolen of alleen de globale?",
     "delete_symbol_setting": "Wilt u de symboolinstellingen verwijderen?",
-    "choosed_all_symbols": "Als je op alles van toepassing bent en elk symbool heeft een andere instelling, zal het verloren gaan!",
+    "choosed_all_symbols": "Als je op alles van toepassing bent en elk symbool heeft andere instellingen, zal het verloren gaan!",
     "choosed_global": "Als u globaal toepast en een symbool heeft een andere configuratie, wordt het ingesteld op aangepast!",
     "apply_all_symbols": "Toepassen op alle symbolen",
     "apply_global_only": "Globaal toepassen",
-    "customise": "Aanpassen",
-    "description": "In dit venster kunt u de algemene instellingen voor een specifiek symbool overschrijven. Weet wat u doet. De hier toegepaste instellingen hebben alleen invloed op dit symbool.",
+    "_customise": "Aanpassen",
+    "_description": "In dit venster kunt u de algemene instellingen voor een specifiek symbool overschrijven. Weet wat u doet. De hier toegepaste instellingen hebben alleen invloed op dit symbool.",
     "last_buy_price_remove_threshold_description": {
       "1": "Stelt de limiet in voor het verwijderen van de laatste biedprijs voor symbolen die eindigen op",
       "2": " Wanneer de valutaprijs onder de limiet daalt, verwijdert de bot de laatst gekochte prijs. Als de bot de valuta niet heeft verkocht, kunt u handmatig de laatst gekochte prijs toevoegen, maar als deze onder de limiet ligt, zal weer verwijderd worden."
@@ -45,48 +45,53 @@
     "placeholder_last_buy_remove_price_threshold": "Stel de drempel in om de laatste koopprijs te verwijderen",
     "max_purchase_amount_for": "Maximumbedrag om van te kopen",
     "max_purchase_amount": "Maximum aankoopbedrag",
+    "min_purchase_amount": "Minimum aankoopbedrag",
+    "min_purchase_amount_for": "Minimumbedrag om van te kopen",
     "max_purchase_amount_symbol_description": "Stelt het maximale te kopen bedrag in. Voorbeeld: Indien ingesteld op 100, zal de bot, wanneer hij het koopsignaal ontvangt, $ 100 van de valuta kopen.",
     "max_purchase_amount_description": "Stelt het maximale aankoopbedrag in voor symbolen die eindigen op",
-    "placeholder_max_purchase_amount": "Stel de limiet in om de laatste aankoopprijs te verwijderen",
-    "cancel": "Annuleren",
-    "yes": "Ja",
+    "placeholder_max_purchase_amount": "Stel de limiet in voor het maximale aankoopbedrag",
+    "placeholder_min_purchase_amount": "Stel de limiet in voor het minimale aankoopbedrag",
+    "_cancel": "Annuleren",
+    "_yes": "Ja",
     "sell_market_order": "Verkoop op marktorder",
     "sell_market_order_description": "Als uw winst boven de verkooptriggerprijs ligt en de trend begint te dalen, zal de bot verkopen met een marktorder om de winst te maximaliseren.",
     "stake_coins": "Verzamel munten",
     "stake_coins_description": "Als deze optie is aangevinkt, zal de bot iets minder verkopen dan hij heeft gekocht om munten te verzamelen. Voorbeeld: Indien ingesteld op 0,5% winst, zal de bot slechts 99,5% van het gekochte bedrag verkopen.",
-    "hard_sell_trigger": "Gedwongen activering van verkoop",
+    "hard_sell_trigger": "Gedwongen verkoopactivering",
     "hard_sell_trigger_description": "Stelt de triggerprijs voor gedwongen verkoop in. Voorbeeld: Indien ingesteld op 1,01 zal de bot automatisch verkopen wanneer de winst 1% bereikt, zelfs als de trend omhoog gaat.",
     "placeholder_hard_sell_trigger": "Stel de prijs voor geforceerde activering in",
     "use_husky_sell": "Gebruik Husky-trend op verkoopsignaal",
-    "use_husky_sell_description": "De bot zal de aankoop niet verwerken als de trend daalt. Het zal alleen verwerken als de trend stijgt. De timing van de bot is enorm verbeterd met deze functie.",
+    "use_husky_sell_description": "De bot zal de aankoop niet verwerken als de trend daalt. Het zal alleen verwerken als de trend stijgt. De timing van de bot is aanzienlijk verbeterd met deze functie.",
     "use_husky_buy": "Gebruik Husky-trend in koopsignaal",
-    "use_husky_buy_description": "De bot zal de verkoop niet verwerken als de trend omhoog gaat. Hij verwerkt alleen wanneer de trend omlaag gaat. De winst is meestal hoger dan op deze manier is gedefinieerd.",
+    "use_husky_buy_description": "De bot zal de verkoop niet verwerken als de trend omhoog gaat. Het zal alleen verwerken als de trend omlaag gaat. De winst is meestal hoger dan op deze manier is gedefinieerd.",
     "force_market_order": "Verkoop forceren op marktorder",
     "weight_green_candle": "Gewicht van groene kaarsen",
-    "weight_red_candle": "Gewicht van rode kaarsen",
+    "weight_red_candle": "Gewicht van de rode kaarsen",
     "weight_green_candle_description": "Gewicht van groene kaarsen voor indicatorberekening. Stel deze waarde niet hoger in dan het gewicht van rode kaarsen! Bot verliest de koopfunctie na een prijsdaling.",
     "weight_red_candle_description": "Gewicht van rode kaarsen voor indicatorberekening. Deze waarde moet groter zijn dan het gewicht van groene kaarsen!",
     "grid_buy_strategy_activate": "Activeer rasterstrategie",
-    "grid_buy_strategy_activate_description": "Zal meerdere aankopen van dezelfde valuta activeren. Wees voorzichtig.",
+    "grid_buy_strategy_activate_description": "Activeert meerdere aankopen van dezelfde valuta. Wees voorzichtig.",
     "grid_buy_strategy": "Koop opnieuw na verschil",
     "grid_buy_strategy_description": "Maakt de mogelijkheid van meerdere aankopen mogelijk, waarbij altijd de gemiddelde prijs wordt berekend. Bijvoorbeeld: indien ingesteld op 1%, zal de bot de valuta opnieuw kopen als het verschil tussen de laatste aankoopprijs groter is dan 1%.",
     "strategy_options": "Strategie-aanpassingen",
     "trade_options": "Handelsaanpassingen"
   },
-  "dustTransfer": {
+  "dust_transfer": {
     "convert_small_balances_bnb": "Convert kleine bedragen naar BNB",
     "description": "U kunt elke 6 uur bedragen van minder dan 0,003 BTC naar BNB converteren. Het is niet mogelijk om valuta's om te zetten die hier niet worden vermeld.",
-    "loading": "Bezig met laden",
+    "_loading": "Bezig met laden",
     "no_asset_convert": "Er is geen valuta om te converteren.",
-    "convert": "Converteren"
+    "_convert": "Converteren"
   },
-  "coinWrapper": {
-    "actions": {
+  "coin_wrapper": {
+    "_actions": {
       "action_disabled": "Tijdelijk uitgeschakeld",
       "action_buy_check": "Inkooporder controleren",
+      "action_buy_filled": "Bestelling succesvol uitgevoerd. Laatste aankoopprijs instellen.",
       "action_buy_wait": "Wachten op inkooporder",
       "action_selling_stop_loss": "Valuta verkopen vanwege stop-loss",
       "action_sell_check": "Klantorder controleren",
+      "action_sell_filled": "Bestelling succesvol uitgevoerd. Laatste aankoopprijs verwijderd.",
       "action_sell_wait": "Wachten op verkooporder",
       "disabled_by": "Uitgeschakeld door ",
       "action_sell_disabled": {
@@ -100,10 +105,10 @@
         "3": " Vat het verkoopproces samen na: "
       },
       "action_wait": {
-        "1": "De huidige prijs heeft de activeringsprijs bereikt.",
+        "1": "De huidige prijs heeft de activeringsprijs bereikt. ",
         "2": "En je hebt genoeg van",
         "3": "te verkopen.",
-        "4": "Stel de laatste aankoopprijs in om te beginnen met verkopen.",
+        "4": "Stel de laatste aankoopprijs in om te beginnen met verkopen. ",
         "5": "Aankoop niet verwerken."
       },
       "action_buy_disabled": {
@@ -121,7 +126,7 @@
       },
       "action_max_purchase_undefined": "Ik heb geen maximum aankoopbedrag. Stel er een in de instellingen.",
       "action_dont_place_order": {
-        "1": "Ik kan de valuta niet kopen omdat die er niet is",
+        "1": "Ik kan de munt niet kopen omdat die er niet is",
         "2": "kopen"
       },
       "action_dont_place_order_calc": {
@@ -134,7 +139,7 @@
         "2": " is uitgeschakeld. Ik zal geen bestelling openen."
       },
       "action_api_exceed": "De API-limiet is bereikt. Ik zal voorlopig geen actie ondernemen.",
-      "action_placed_new_order": "Ik heb een limietkooporder geopend.",
+      "action_placed_new_order": "Ik heb een aankooplimiet voor een bestelling geopend.",
       "action_order_minimum_qty": {
         "1": "De hoeveelheid voor de bestelling is gelijk aan of kleiner dan de kleinste hoeveelheid - ",
         "2": ". Ik zal niet proberen te verkopen."
@@ -147,8 +152,10 @@
       },
       "action_disabled_stop_loss": "Tijdelijk uitgeschakeld vanwege stop-loss.",
       "action_buy_disabled_after_buy": "Ik heb de acties uitgeschakeld na bevestiging van de inkooporder.",
-      "action_sell_disabled_after_sell": "De acties uitgeschakeld na bevestiging van de verkooporder.",
+      "action_sell_disabled_after_sell": "Ik heb de acties uitgeschakeld na bevestiging van de verkooporder.",
       "action_buy_order_checking": "De inkooporder lijkt te zijn geplaatst. Ik kan deze echter niet vinden in de openstaande bestellingen. Wacht tot deze verschijnt.",
+      "action_buy_order_filled": "De kooporder is succesvol uitgevoerd. Ik heb het laatste bedrag en de laatste koopprijs ingesteld. Wachten op het verkoopsignaal.",
+      "action_sell_order_filled": "De verkooporder is succesvol uitgevoerd. Ik heb het laatste bedrag en de laatste koopprijs verwijderd.",
       "action_sell_order_checking": "De verkooporder lijkt te zijn geplaatst. Ik kan deze echter niet vinden in de openstaande orders. Wacht tot deze verschijnt.",
       "action_stop_monitoring": {
         "1": "De volgorde van",
@@ -158,14 +165,14 @@
       },
       "action_cancel_success": {
         "1": "De volgorde van",
-        "2": " is met succes geannuleerd. Als de bestelling nog steeds verschijnt, wacht u tot deze is verdwenen."
+        "2": " is succesvol geannuleerd. Als de bestelling nog steeds verschijnt, wacht dan tot deze is verdwenen."
       },
       "order_cancelled": "De bestelling is geannuleerd."
     },
     "estimated_value": "Geschatte waarde",
     "temporary_disable_sell": "Verkoop tijdelijk uitschakelen",
     "order_type": "Bestellingstype",
-    "wait": "Wacht",
+    "_wait": "Wachten",
     "open_order": "Open bestelling",
     "placed_at": "Geplaatst in",
     "current_limit_price": "Limietprijs",
@@ -183,28 +190,28 @@
     "diff_stop_loss": "Verschil met stop-loss",
     "stop_percent": "Stop procent",
     "limit_percent": "Percentage van limiet",
-    "type": "type",
+    "_type": "Type",
     "minimum_profit": "Minimale winst",
     "max_purchase_amount": "Maximum aankoopbedrag",
-    "candles": "Kaarsen",
+    "_candles": "Kaarsen",
     "trigger_percent": "Percentage om te activeren"
   },
-  "footer": {
-    "versie": "Huidige versie",
+  "_footer": {
+    "_version": "Huidige versie",
     "latest_version": "Laatste versie"
   },
-  "profitLossWrapper": {
+  "profit_loss_wrapper": {
     "profit_loss_description": "Deze sectie toont ongeveer uw winst/verlies voor de huidige lijst van symbolen die open staan ​​voor verkoop met de laatst gedefinieerde koopprijs. De berekening is eenvoudigweg het toevoegen van uw winst/verlies voor elk symbool. Merk op dat het niet uw handel vertegenwoordigt geschiedenis winsten en verliezen."
   },
-  "symbolDelete": {
+  "symbol_delete": {
     "remove_symbol": "Verwijder symbool",
-    "description": {
+    "_description": {
       "1": "Weet u zeker dat u het symbool uit de cache wilt verwijderen?",
       "2": "Merk op dat hiermee alleen de cachewaarden worden gewist.",
       "3": "Als het symbool nog steeds wordt gecontroleerd, verschijnt het opnieuw."
     }
   },
-  "symbolEditLastBuyPrice": {
+  "symbol_edit_last_buy_price": {
     "edit_last_buy": "Bewerk laatste aankoopprijs en bedrag van",
     "placeholder_last_buy": "Stel de laatste aankoopprijs in",
     "placeholder_last_qty_bought": "Stel de laatste aankoopprijs in",
@@ -217,24 +224,24 @@
       "5": "Als u de laatste aankoopprijs wilt verwijderen, stelt u 0 in."
     }
   },
-  "symbolEnableAction": {
+  "symbol_enable_action": {
     "resume_symbol_action": "Hervat symboolactie",
-    "description": {
+    "_description": {
       "1": "Weet u zeker dat u de actie van het symbool wilt hervatten?",
       "2": "Als de markt volatiel is, zal de bot het opnieuw kopen als het het koopsignaal ontvangt.",
       "3": "Ga voorzichtig te werk."
     }
   },
-  "symbolManualTrade": {
-    "handel": "handel",
+  "symbol_manual_trade": {
+    "_trade": "Handel",
     "manual_trade_for": "Handmatig handelen voor",
-    "description": {
+    "_description": {
       "1": "In dit venster kunt u handelen",
       "2": " handmatig. Als u de laatst gekochte prijs al heeft, berekent de bot de gemiddelde kosten en herberekent de laatst gekochte prijs.",
-      "3": "Om er zeker van te zijn dat de laatste aankoopprijs met succes is geregistreerd, zal de bot de aankooporder controleren. Dit kan het API-gebruik verhogen."
+      "3": "Om er zeker van te zijn dat de laatste aankoopprijs correct is geregistreerd, zal de bot de aankooporder controleren. Dit kan het API-gebruik verhogen."
     }
   },
-  "placeManualTrade": {
+  "place_manual_trade": {
     "action_manual_order": "Ik heb een handmatige bestelling geopend.",
     "notify_order_success": {
       "1": "De volgorde van",
@@ -243,20 +250,20 @@
       "4": "Als u 100% van uw beschikbare saldo op de verkoopknop drukt, berekent de bot de commissie van 0,1%."
     }
   },
-  "handmatige handel": {
+  "manual_trade": {
     "trade_all": "Alles verhandelen",
     "manual_trade_for_all": "Handmatige handel voor alle symbolen",
-    "description": {
+    "_description": {
       "1": "In dit venster kunt u alle symbolen handmatig verhandelen. Om het proces te vereenvoudigen, wordt alleen marktorder ondersteund.",
       "2": "Als je 0 instelt op het symbool, zal de bot geen bestelling plaatsen voor het symbool. Als je al de laatste biedprijs hebt, dan berekent de bot de gemiddelde kosten en herberekent de laatste biedprijs.",
-      "3": "Om er zeker van te zijn dat de laatste aankoopprijs met succes is geregistreerd, zal de bot de aankooporder controleren. Dit kan het API-gebruik verhogen."
+      "3": "Om er zeker van te zijn dat de laatste aankoopprijs correct is geregistreerd, zal de bot de aankooporder controleren. Dit kan het API-gebruik verhogen."
     }
   },
-  "commonStrings": {
-    "interval": "Interval",
-    "limiet": "limiet",
-    "koop": "Koop",
-    "verkopen": "Verkopen",
+  "common_strings": {
+    "_interval": "Interval",
+    "_limit": "Limiet",
+    "_buy": "Koop",
+    "_sell": "Verkoop",
     "used_weight": "Gebruikt API-gewicht (1m)",
     "trading_enabled": "Handelen ingeschakeld",
     "stop_price_percent": "Stop prijspercentage",
@@ -264,32 +271,33 @@
     "stop_loss": "Stop-loss",
     "stop_loss_enabled": "Stop-loss ingeschakeld",
     "max_loss_percent": "Maximum verliespercentage",
-    "close": "Sluiten",
+    "_close": "Sluiten",
     "save_changes": "Instellingen opslaan",
     "account_balance": "Rekeningsaldo",
-    "total": "Totaal",
-    "vrij": "Vrij",
-    "locked": "Vergrendeld",
-    "status": "status",
-    "quantity": "Bedrag",
-    "price": "Prijs",
+    "_totaal": "Totaal",
+    "_free": "Vrij",
+    "_locked": "Vergrendeld",
+    "_status": "Status",
+    "_quantity": "Bedrag",
+    "_price": "Prijs",
     "stop_price": "Stop prijs",
     "current_price": "Huidige prijs",
     "sell_signal": "Verkoopsignaal",
     "trading_disabled": "Trading uitgeschakeld",
     "last_buy_price": "Laatste koopprijs",
+    "averaged_price": "Gemiddelde prijs",
     "profit_loss": "winst/verlies",
-    "instellingen": "Instellingen",
+    "_settings": "Instellingen",
     "last_buy_price_remove_threshold": "Drempel om de laatste koopprijs te verwijderen",
-    "remove": "Verwijder",
-    "resume": "samenvatten",
-    "market": "Markt",
-    "balance": "balans",
+    "_remove": "Verwijderen",
+    "_resume": "Hervatten",
+    "_market": "Markt",
+    "_balance": "Saldo",
     "current_balance": "Huidig ​​saldo",
     "remaining_balance": "Resterend saldo",
     "time_remaining": "remaining",
-    "action": "Actie",
-    "strength": "Kracht",
-    "trending": "trending"
+    "_action": "Actie",
+    "_strength": "Kracht",
+    "_trending": "Trending"
   }
 }

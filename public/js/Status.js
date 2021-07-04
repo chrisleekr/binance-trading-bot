@@ -9,7 +9,7 @@ class Status extends React.Component {
       return '';
     }
 
-    const { commonStrings } = jsonStrings;
+    const { common_strings } = jsonStrings;
 
     if (!apiInfo) {
       return '';
@@ -26,14 +26,14 @@ class Status extends React.Component {
               <button
                 type='button'
                 className='btn btn-sm btn-link btn-status text-uppercase font-weight-bold'>
-                {commonStrings.status}
+                {common_strings._status}
               </button>
             </Accordion.Toggle>
             <Accordion.Collapse eventKey='0'>
               <Card.Body className='status-wrapper-body p-3 card-body'>
                 <ul className='status-wrapper-ul list-unstyled d-flex flex-row mb-0'>
                   <li>
-                    {commonStrings.used_weight}:{' '}
+                    {common_strings.used_weight}:{' '}
                     <HightlightChange className='coin-info-value'>
                       {apiInfo.spot.usedWeight1m}
                     </HightlightChange>

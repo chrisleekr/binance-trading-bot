@@ -12,7 +12,7 @@ const { execute: getOpenOrders } = require('./step/get-open-orders');
 const { execute: getIndicators } = require('./step/get-indicators');
 const { execute: handleOpenOrders } = require('./step/handle-open-orders');
 const { execute: determineAction } = require('./step/determine-action');
-const { execute: placeManualTrade } = require('./step/place-manual-trade');
+const { execute: place_manual_trade } = require('./step/place-manual-trade');
 const { execute: cancelOrder } = require('./step/cancel-order');
 const { execute: placeBuyOrder } = require('./step/place-buy-order');
 const { execute: placeSellOrder } = require('./step/place-sell-order');
@@ -33,7 +33,7 @@ module.exports = {
   getIndicators,
   handleOpenOrders,
   determineAction,
-  placeManualTrade,
+  place_manual_trade,
   cancelOrder,
   placeBuyOrder,
   placeSellOrder,

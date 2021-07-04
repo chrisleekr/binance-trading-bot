@@ -147,8 +147,8 @@ const messengerMessageOrderParams = async (
     `${symbol} Manual ${side.toUpperCase()} Action (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +
-      `- Order Params: \`\`\`${JSON.stringify(params, undefined, 2)}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+    `- Order Params: \`\`\`${JSON.stringify(params, undefined, 2)}\`\`\`\n` +
+    `- Current API Usage: ${getAPILimit(logger)}`
   );
 };
 
@@ -185,12 +185,12 @@ const slackMessageOrderResult = async (
     `${symbol} Manual ${side.toUpperCase()} Result (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +
-      `- Order Result: \`\`\`${JSON.stringify(
-        orderResult,
-        undefined,
-        2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+    `- Order Result: \`\`\`${JSON.stringify(
+      orderResult,
+      undefined,
+      2
+    )}\`\`\`\n` +
+    `- Current API Usage: ${getAPILimit(logger)}`
   );
 };
 
@@ -250,9 +250,9 @@ const execute = async (logger, rawData) => {
     );
     return data;
   }
-const language = config.get('language');
+  const language = config.get('language');
 
-const { coinWrapper: { actions }, placeManualTrade } = require(`../../../../public/${config.get('language')}.json`);
+  const { coin_wrapper: { actions }, place_manual_trade } = require(`../../../../public/${config.get('language')}.json`);
 
   // Assume order is provided with correct value
   const orderParams = await formatOrder(logger, symbol, order);
@@ -276,7 +276,7 @@ const { coinWrapper: { actions }, placeManualTrade } = require(`../../../../publ
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
   slackMessageOrderResult(logger, symbol, order.side, order, orderResult);
-  data.buy.processMessage = placeManualTrade.action_manual_order;
+  data.buy.processMessage = place_manual_trade.action_manual_order;
   data.buy.updatedAt = moment().utc();
 
   return data;

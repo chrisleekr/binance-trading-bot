@@ -53,7 +53,7 @@ const execute = async (logger, rawData) => {
 
   if (action == 'sell-stop-loss' || action == 'sell-profit') {
     const language = config.get('language');
-    const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+    const { coin_wrapper: { actions } } = require(`../../../../public/${language}.json`);
 
     if (openOrders.length > 0) {
       data.sell.processMessage = action.action_open_orders[1] + symbol + '.' + actions.action_open_orders[2];

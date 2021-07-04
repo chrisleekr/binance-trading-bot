@@ -61,7 +61,7 @@ class ProfitLossWrapper extends React.Component {
     if (_.isEmpty(jsonStrings)) {
       return '';
     }
-    const { profitLossWrapper, commonStrings } = jsonStrings;
+    const { profit_loss_wrapper, common_strings } = jsonStrings;
 
     const quoteAssets = Object.values(totalPnL).map((pnl, index) => {
       const percentage =
@@ -90,7 +90,7 @@ class ProfitLossWrapper extends React.Component {
               <div className='d-flex flex-row justify-content-between'>
                 <div className='flex-column-left'>
                   <div className='btn-profit-loss text-uppercase font-weight-bold'>
-                    {commonStrings.profit_loss}{' '}
+                    {common_strings.profit_loss}{' '}
                     <OverlayTrigger
                       trigger='click'
                       key='profit-loss-overlay'
@@ -98,7 +98,7 @@ class ProfitLossWrapper extends React.Component {
                       overlay={
                         <Popover id='profit-loss-overlay-right'>
                           <Popover.Content>
-                            {profitLossWrapper.profit_loss_description}
+                            {profit_loss_wrapper.profit_loss_description}
                           </Popover.Content>
                         </Popover>
                       }>

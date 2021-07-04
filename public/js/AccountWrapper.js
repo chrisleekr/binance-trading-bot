@@ -9,7 +9,7 @@ class AccountWrapper extends React.Component {
       return '';
     }
 
-    const { commonStrings } = jsonStrings;
+    const { common_strings } = jsonStrings;
 
     const assets = accountInfo.balances.map((balance, index) => {
       return (
@@ -31,7 +31,7 @@ class AccountWrapper extends React.Component {
               <button
                 type='button'
                 className='btn btn-sm btn-link btn-account-balance text-uppercase font-weight-bold'>
-                {commonStrings.account_balance}
+                {common_strings.account_balance}
               </button>
             </Accordion.Toggle>
             <Accordion.Collapse eventKey='0'>

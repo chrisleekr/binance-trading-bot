@@ -33,17 +33,17 @@ class Footer extends React.Component {
       return '';
     }
 
-    const { footer } = jsonStrings;
+    const { _footer } = jsonStrings;
 
     return (
       <div className='app-footer'>
         <div className='footer-wrapper'>
           <div className='footer-column mr-1'>
-            {footer.version}: <span className='ml-1'>v{packageVersion}</span> (
+            {_footer._version}: <span className='ml-1'>v{packageVersion}</span> (
             {gitHash})
           </div>
           <div className='footer-column'>
-            {footer.latest_version}:
+            {_footer.latest_version}:
             <a
               href='https://github.com/chrisleekr/binance-trading-bot/releases'
               target='_blank'

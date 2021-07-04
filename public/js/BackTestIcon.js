@@ -91,7 +91,7 @@ class BackTestIcon extends React.Component {
 
     const { symbolConfiguration: { backtest: { result } } } = this.state;
 
-    const { settingIcon, commonStrings } = jsonStrings;
+    const { setting_icon, common_strings } = jsonStrings;
 
     return (
       <div className='coin-info-manual-trade-wrapper'>
@@ -196,7 +196,7 @@ class BackTestIcon extends React.Component {
                     variant='link'
                     eventKey='0'
                     className='p-0 fs-7 text-uppercase'>
-                    {settingIcon.candle_settings}
+                    {setting_icon.candle_settings}
                   </Accordion.Toggle>
                 </Card.Header>
                 <Accordion.Collapse eventKey='0'>
@@ -207,7 +207,7 @@ class BackTestIcon extends React.Component {
                           controlId='field-candles-interval'
                           className='mb-2'>
                           <Form.Label className='mb-0'>
-                            {commonStrings.interval}
+                            {common_strings._interval}
                             <OverlayTrigger
                               trigger='click'
                               key='interval-overlay'
@@ -215,7 +215,7 @@ class BackTestIcon extends React.Component {
                               overlay={
                                 <Popover id='interval-overlay-right'>
                                   <Popover.Content>
-                                    {settingIcon.candle_interval_description}
+                                    {setting_icon.candle_interval_description}
                                   </Popover.Content>
                                 </Popover>
                               }>
@@ -250,7 +250,7 @@ class BackTestIcon extends React.Component {
                           controlId='field-candles-limit'
                           className='mb-2'>
                           <Form.Label className='mb-0'>
-                            {commonStrings.limit}{' '}
+                            {common_strings._limit}{' '}
                             <OverlayTrigger
                               trigger='click'
                               key='limit-overlay'
@@ -258,7 +258,7 @@ class BackTestIcon extends React.Component {
                               overlay={
                                 <Popover id='limit-overlay-right'>
                                   <Popover.Content>
-                                    {settingIcon.candle_limit_description}
+                                    {setting_icon.candle_limit_description}
                                   </Popover.Content>
                                 </Popover>
                               }>
@@ -272,7 +272,7 @@ class BackTestIcon extends React.Component {
                           <Form.Control
                             size='sm'
                             type='number'
-                            placeholder={settingIcon.placeholder_enter_limit_price}
+                            placeholder={setting_icon.placeholder_enter_limit_price}
                             required
                             min='0'
                             step='1'
@@ -296,14 +296,14 @@ class BackTestIcon extends React.Component {
                     variant='link'
                     eventKey='0'
                     className='p-0 fs-7 text-uppercase'>
-                    {settingIcon.buy_sell_conf}
+                    {setting_icon.buy_sell_conf}
                   </Accordion.Toggle>
                 </Card.Header>
                 <Accordion.Collapse eventKey='0'>
                   <Card.Body className='px-2 py-1'>
                     <div className='row'>
                       <div className='col-xs-12 col-sm-6'>
-                        <p className='form-header mb-1'>{commonStrings.buy}</p>
+                        <p className='form-header mb-1'>{common_strings._buy}</p>
                         <Form.Group
                           controlId='field-buy-enabled'
                           className='mb-2'>
@@ -315,7 +315,7 @@ class BackTestIcon extends React.Component {
                               onChange={this.handleInputChange}
                             />
                             <Form.Check.Label>
-                              {commonStrings.trading_enabled}{' '}
+                              {common_strings.trading_enabled}{' '}
                               <OverlayTrigger
                                 trigger='click'
                                 key='buy-enabled-overlay'
@@ -323,7 +323,7 @@ class BackTestIcon extends React.Component {
                                 overlay={
                                   <Popover id='buy-enabled-overlay-right'>
                                     <Popover.Content>
-                                      {settingIcon.trading_enabled_description}
+                                      {setting_icon.trading_enabled_description}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -341,7 +341,7 @@ class BackTestIcon extends React.Component {
                           controlId='field-last-buy-remove-threshold'
                           className='mb-2'>
                           <Form.Label className='mb-0'>
-                            {settingIcon.last_buy_price_remove_threshold}{' '}
+                            {setting_icon.last_buy_price_remove_threshold}{' '}
                             <OverlayTrigger
                               trigger='click'
                               key='last-buy-remove-threshold-overlay'
@@ -349,7 +349,7 @@ class BackTestIcon extends React.Component {
                               overlay={
                                 <Popover id='last-buy-remove-threshold-overlay-right'>
                                   <Popover.Content>
-                                    {settingIcon.last_buy_price_remove_threshold_description}
+                                    {setting_icon.last_buy_price_remove_threshold_description}
                                   </Popover.Content>
                                 </Popover>
                               }>
@@ -363,7 +363,7 @@ class BackTestIcon extends React.Component {
                           <Form.Control
                             size='sm'
                             type='number'
-                            placeholder={settingIcon.placeholder_last_buy_price_remove_threshold}
+                            placeholder={setting_icon.placeholder_last_buy_price_remove_threshold}
                             required
                             min='0.0001'
                             step='0.0001'
@@ -377,7 +377,7 @@ class BackTestIcon extends React.Component {
                           controlId='field-buy-maximum-purchase-amount'
                           className='mb-2'>
                           <Form.Label className='mb-0'>
-                            {settingIcon.max_purchase_amount}{' '}
+                            {setting_icon.max_purchase_amount}{' '}
                             <OverlayTrigger
                               trigger='click'
                               key='buy-maximum-purchase-amount-overlay'
@@ -385,7 +385,7 @@ class BackTestIcon extends React.Component {
                               overlay={
                                 <Popover id='buy-maximum-purchase-amount-overlay-right'>
                                   <Popover.Content>
-                                    {settingIcon.max_purchase_amount_symbol_description}
+                                    {setting_icon.max_purchase_amount_symbol_description}
                                   </Popover.Content>
                                 </Popover>
                               }>
@@ -399,7 +399,7 @@ class BackTestIcon extends React.Component {
                           <Form.Control
                             size='sm'
                             type='number'
-                            placeholder={settingIcon.placeholder_max_purchase_amount}
+                            placeholder={setting_icon.placeholder_max_purchase_amount}
                             required
                             min='0'
                             step='0.0001'
@@ -412,7 +412,7 @@ class BackTestIcon extends React.Component {
                           controlId='field-buy-trigger-percentage'
                           className='mb-2'>
                           <Form.Label className='mb-0'>
-                            {settingIcon.trigger_percent_buy}{' '}
+                            {setting_icon.trigger_percent_buy}{' '}
                             <OverlayTrigger
                               trigger='click'
                               key='buy-trigger-percentage-overlay'
@@ -420,7 +420,7 @@ class BackTestIcon extends React.Component {
                               overlay={
                                 <Popover id='buy-trigger-percentage-overlay-right'>
                                   <Popover.Content>
-                                    {settingIcon.trigger_percent_buy_description}
+                                    {setting_icon.trigger_percent_buy_description}
                                   </Popover.Content>
                                 </Popover>
                               }>
@@ -434,7 +434,7 @@ class BackTestIcon extends React.Component {
                           <Form.Control
                             size='sm'
                             type='number'
-                            placeholder={settingIcon.placeholder_trigger_percent}
+                            placeholder={setting_icon.placeholder_trigger_percent}
                             required
                             min='0'
                             step='0.0001'
@@ -447,7 +447,7 @@ class BackTestIcon extends React.Component {
                           controlId='field-buy-stop-percentage'
                           className='mb-2'>
                           <Form.Label className='mb-0'>
-                            {commonStrings.stop_price_percent}{' '}
+                            {common_strings.stop_price_percent}{' '}
                             <OverlayTrigger
                               trigger='click'
                               key='buy-stop-price-percentage-overlay'
@@ -455,7 +455,7 @@ class BackTestIcon extends React.Component {
                               overlay={
                                 <Popover id='buy-stop-price-percentage-overlay-right'>
                                   <Popover.Content>
-                                    {settingIcon.stop_price_percent_description}
+                                    {setting_icon.stop_price_percent_description}
                                   </Popover.Content>
                                 </Popover>
                               }>
@@ -469,7 +469,7 @@ class BackTestIcon extends React.Component {
                           <Form.Control
                             size='sm'
                             type='number'
-                            placeholder={settingIcon.placeholder_enter_stop_price}
+                            placeholder={setting_icon.placeholder_enter_stop_price}
                             required
                             min='0'
                             step='0.0001'
@@ -483,7 +483,7 @@ class BackTestIcon extends React.Component {
                           controlId='field-buy-limit-percentage'
                           className='mb-2'>
                           <Form.Label className='mb-0'>
-                            {commonStrings.limit_price_percent}{' '}
+                            {common_strings.limit_price_percent}{' '}
                             <OverlayTrigger
                               trigger='click'
                               key='interval-overlay'
@@ -491,7 +491,7 @@ class BackTestIcon extends React.Component {
                               overlay={
                                 <Popover id='interval-overlay-right'>
                                   <Popover.Content>
-                                    {settingIcon.limit_price_percent_description}
+                                    {setting_icon.limit_price_percent_description}
                                   </Popover.Content>
                                 </Popover>
                               }>
@@ -505,7 +505,7 @@ class BackTestIcon extends React.Component {
                           <Form.Control
                             size='sm'
                             type='number'
-                            placeholder={settingIcon.placeholder_enter_limit_price}
+                            placeholder={setting_icon.placeholder_enter_limit_price}
                             required
                             min='0'
                             step='0.0001'
@@ -516,7 +516,7 @@ class BackTestIcon extends React.Component {
                         </Form.Group>
                       </div>
                       <div className='col-xs-12 col-sm-6'>
-                        <p className='form-header mb-1'>{commonStrings.sell}</p>
+                        <p className='form-header mb-1'>{common_strings._sell}</p>
                         <Form.Group
                           controlId='field-sell-enabled'
                           className='mb-2'>
@@ -528,7 +528,7 @@ class BackTestIcon extends React.Component {
                               onChange={this.handleInputChange}
                             />
                             <Form.Check.Label>
-                              {commonStrings.trading_enabled}{' '}
+                              {common_strings.trading_enabled}{' '}
                               <OverlayTrigger
                                 trigger='click'
                                 key='buy-enabled-overlay'
@@ -536,7 +536,7 @@ class BackTestIcon extends React.Component {
                                 overlay={
                                   <Popover id='buy-enabled-overlay-right'>
                                     <Popover.Content>
-                                      {settingIcon.trading_enabled_description}
+                                      {setting_icon.trading_enabled_description}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -553,7 +553,7 @@ class BackTestIcon extends React.Component {
                           controlId='field-sell-last-buy-percentage'
                           className='mb-2'>
                           <Form.Label className='mb-0'>
-                            {settingIcon.trigger_percent_sell}{' '}
+                            {setting_icon.trigger_percent_sell}{' '}
                             <OverlayTrigger
                               trigger='click'
                               key='sell-trigger-percentage-overlay'
@@ -561,7 +561,7 @@ class BackTestIcon extends React.Component {
                               overlay={
                                 <Popover id='sell-trigger-percentage-overlay-right'>
                                   <Popover.Content>
-                                    {settingIcon.trigger_percent_sell_description}
+                                    {setting_icon.trigger_percent_sell_description}
                                   </Popover.Content>
                                 </Popover>
                               }>
@@ -575,7 +575,7 @@ class BackTestIcon extends React.Component {
                           <Form.Control
                             size='sm'
                             type='number'
-                            placeholder={settingIcon.placeholder_trigger_percent}
+                            placeholder={setting_icon.placeholder_trigger_percent}
                             required
                             min='0'
                             step='0.0001'
@@ -588,7 +588,7 @@ class BackTestIcon extends React.Component {
                           controlId='field-sell-stop-percentage'
                           className='mb-2'>
                           <Form.Label className='mb-0'>
-                            {commonStrings.stop_price_percent}{' '}
+                            {common_strings.stop_price_percent}{' '}
                             <OverlayTrigger
                               trigger='click'
                               key='sell-stop-price-percentage-overlay'
@@ -596,7 +596,7 @@ class BackTestIcon extends React.Component {
                               overlay={
                                 <Popover id='sell-stop-price-percentage-overlay-right'>
                                   <Popover.Content>
-                                    {settingIcon.stop_price_percent_description_sell}
+                                    {setting_icon.stop_price_percent_description_sell}
                                   </Popover.Content>
                                 </Popover>
                               }>
@@ -610,7 +610,7 @@ class BackTestIcon extends React.Component {
                           <Form.Control
                             size='sm'
                             type='number'
-                            placeholder={settingIcon.placeholder_enter_stop_price}
+                            placeholder={setting_icon.placeholder_enter_stop_price}
                             required
                             min='0'
                             step='0.0001'
@@ -623,7 +623,7 @@ class BackTestIcon extends React.Component {
                           controlId='field-sell-limit-percentage'
                           className='mb-2'>
                           <Form.Label className='mb-0'>
-                            {commonStrings.limit_price_percent}{' '}
+                            {common_strings.limit_price_percent}{' '}
                             <OverlayTrigger
                               trigger='click'
                               key='sell-limit-price-percentage-overlay'
@@ -631,7 +631,7 @@ class BackTestIcon extends React.Component {
                               overlay={
                                 <Popover id='sell-limit-price-percentage-overlay-right'>
                                   <Popover.Content>
-                                    {settingIcon.limit_price_percent_description_sell}
+                                    {setting_icon.limit_price_percent_description_sell}
                                   </Popover.Content>
                                 </Popover>
                               }>
@@ -645,7 +645,7 @@ class BackTestIcon extends React.Component {
                           <Form.Control
                             size='sm'
                             type='number'
-                            placeholder={settingIcon.placeholder_enter_limit_price}
+                            placeholder={setting_icon.placeholder_enter_limit_price}
                             required
                             min='0'
                             step='0.0001'
@@ -654,7 +654,7 @@ class BackTestIcon extends React.Component {
                             onChange={this.handleInputChange}
                           />
                         </Form.Group>
-                        <p className='form-header mb-1'>{commonStrings.sell} - {commonStrings.stop_loss}</p>
+                        <p className='form-header mb-1'>{common_strings._sell} - {common_strings.stop_loss}</p>
                         <Form.Group
                           controlId='field-sell-stop-loss-enabled'
                           className='mb-2'>
@@ -668,7 +668,7 @@ class BackTestIcon extends React.Component {
                               onChange={this.handleInputChange}
                             />
                             <Form.Check.Label>
-                              {commonStrings.stop_loss_enabled}{' '}
+                              {common_strings.stop_loss_enabled}{' '}
                               <OverlayTrigger
                                 trigger='click'
                                 key='sell-stop-loss-enabled-overlay'
@@ -676,7 +676,7 @@ class BackTestIcon extends React.Component {
                                 overlay={
                                   <Popover id='sell-stop-loss-enabled-overlay-right'>
                                     <Popover.Content>
-                                      {settingIcon.stop_loss_enabled_description}
+                                      {setting_icon.stop_loss_enabled_description}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -693,7 +693,7 @@ class BackTestIcon extends React.Component {
                           controlId='field-sell-stop-loss-max-loss-percentage'
                           className='mb-2'>
                           <Form.Label className='mb-0'>
-                            {commonStrings.max_loss_percent}{' '}
+                            {common_strings.max_loss_percent}{' '}
                             <OverlayTrigger
                               trigger='click'
                               key='sell-stop-loss-max-loss-percentage-overlay'
@@ -701,7 +701,7 @@ class BackTestIcon extends React.Component {
                               overlay={
                                 <Popover id='sell-stop-loss-max-loss-percentage-overlay-right'>
                                   <Popover.Content>
-                                    {settingIcon.max_loss_percent_description}
+                                    {setting_icon.max_loss_percent_description}
                                   </Popover.Content>
                                 </Popover>
                               }>
@@ -715,7 +715,7 @@ class BackTestIcon extends React.Component {
                           <Form.Control
                             size='sm'
                             type='number'
-                            placeholder={settingIcon.placeholder_enter_max_loss}
+                            placeholder={setting_icon.placeholder_enter_max_loss}
                             required
                             max='1'
                             min='0'
@@ -732,7 +732,7 @@ class BackTestIcon extends React.Component {
                           controlId='field-sell-stop-loss-disable-buy-minutes'
                           className='mb-2'>
                           <Form.Label className='mb-0'>
-                            {settingIcon.temporary_disable_buy}{' '}
+                            {setting_icon.temporary_disable_buy}{' '}
                             <OverlayTrigger
                               trigger='click'
                               key='sell-stop-loss-disable-buy-minutes-overlay'
@@ -740,7 +740,7 @@ class BackTestIcon extends React.Component {
                               overlay={
                                 <Popover id='sell-stop-loss-disable-buy-minutes-overlay-right'>
                                   <Popover.Content>
-                                    {settingIcon.temporary_disable_buy_description}
+                                    {setting_icon.temporary_disable_buy_description}
                                   </Popover.Content>
                                 </Popover>
                               }>
@@ -754,7 +754,7 @@ class BackTestIcon extends React.Component {
                           <Form.Control
                             size='sm'
                             type='number'
-                            placeholder={settingIcon.placeholder_enter_max_loss}
+                            placeholder={setting_icon.placeholder_enter_max_loss}
                             required
                             max='99999999'
                             min='1'

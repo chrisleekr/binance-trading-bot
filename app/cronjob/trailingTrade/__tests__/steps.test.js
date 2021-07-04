@@ -13,7 +13,7 @@ describe('steps.js', () => {
       getIndicators: expect.any(Function),
       handleOpenOrders: expect.any(Function),
       determineAction: expect.any(Function),
-      placeManualTrade: expect.any(Function),
+      place_manual_trade: expect.any(Function),
       cancelOrder: expect.any(Function),
       placeBuyOrder: expect.any(Function),
       placeSellOrder: expect.any(Function),

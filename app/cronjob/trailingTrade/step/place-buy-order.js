@@ -66,7 +66,7 @@ const execute = async (logger, rawData) => {
 
 
   const language = config.get('language');
-  const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+  const { coin_wrapper: { actions } } = require(`../../../../public/${language}.json`);
 
   if (!await retrieveLastBuyOrder(symbol)) {
     data.buy.processMessage = "cant buy, found open order in cache";

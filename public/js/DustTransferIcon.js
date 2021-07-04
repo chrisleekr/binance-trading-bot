@@ -85,7 +85,7 @@ class DustTransferIcon extends React.Component {
       return '';
     }
 
-    const { dustTransfer: dustTransferStrings } = jsonStrings;
+    const { dust_transfer } = jsonStrings;
 
     let symbols = null;
     if (_.isEmpty(dustTransfer) === false) {
@@ -112,7 +112,7 @@ class DustTransferIcon extends React.Component {
             type='button'
             className='btn btn-sm btn-link btn-dust-transfer'
             onClick={() => this.handleModalShow()}>
-            {dustTransferStrings.convert_small_balances_bnb}
+            {dust_transfer.convert_small_balances_bnb}
           </button>
         </div>
         <Modal
@@ -121,24 +121,24 @@ class DustTransferIcon extends React.Component {
           backdrop='static'
           size='xl'>
           <Modal.Header closeButton className='pt-1 pb-1'>
-            <Modal.Title>{dustTransferStrings.convert_small_balances_bnb}</Modal.Title>
+            <Modal.Title>{dust_transfer.convert_small_balances_bnb}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
             <p className='d-block text-muted mb-2'>
-              {dustTransferStrings.description}
+              {dust_transfer._description}
             </p>
             <div className='dust-transfer-symbols-parent-wrappers'>
               {loading ? (
                 <div className='text-center w-100'>
                   <Spinner animation='border' role='status'>
-                    <span className='sr-only'>{dustTransferStrings.loading}...</span>
+                    <span className='sr-only'>{dust_transfer._loading}...</span>
                   </Spinner>
                 </div>
               ) : (
                 <div className='dust-transfer-symbols-wrappers'>
                   {_.isEmpty(symbols) ? (
                     <div className='text-center'>
-                      {dustTransferStrings.no_asset_convert}
+                      {dust_transfer.no_asset_convert}
                     </div>
                   ) : (
                     <React.Fragment>
@@ -150,7 +150,7 @@ class DustTransferIcon extends React.Component {
                           type='button'
                           className='btn btn-sm btn-primary w-100 btn-dust-transfer-execute'
                           onClick={() => this.executeDustTransfer()}>
-                          {dustTransferStrings.convert}
+                          {dust_transfer._convert}
                         </button>
                       </div>
                     </React.Fragment>

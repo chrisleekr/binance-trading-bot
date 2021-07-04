@@ -195,7 +195,7 @@ describe('trailingTrade', () => {
         .mockImplementation((_logger, rawData) => ({
           ...rawData,
           ...{
-            placeManualTrade: {
+            place_manual_trade: {
               placed: 'manual-trade'
             }
           }
@@ -281,7 +281,7 @@ describe('trailingTrade', () => {
         getIndicators: mockGetIndicators,
         handleOpenOrders: mockHandleOpenOrders,
         determineAction: mockDetermineAction,
-        placeManualTrade: mockPlaceManualTrade,
+        place_manual_trade: mockPlaceManualTrade,
         cancelOrder: mockCancelOrder,
         placeBuyOrder: mockPlaceBuyOrder,
         placeSellOrder: mockPlaceSellOrder,
@@ -334,7 +334,7 @@ describe('trailingTrade', () => {
             ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             handled: 'open-orders',
-            placeManualTrade: { placed: 'manual-trade' },
+            place_manual_trade: { placed: 'manual-trade' },
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
@@ -370,7 +370,7 @@ describe('trailingTrade', () => {
             ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             handled: 'open-orders',
-            placeManualTrade: { placed: 'manual-trade' },
+            place_manual_trade: { placed: 'manual-trade' },
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
@@ -406,7 +406,7 @@ describe('trailingTrade', () => {
             ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             handled: 'open-orders',
-            placeManualTrade: { placed: 'manual-trade' },
+            place_manual_trade: { placed: 'manual-trade' },
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
@@ -557,7 +557,7 @@ describe('trailingTrade', () => {
         .mockImplementation((_logger, rawData) => ({
           ...rawData,
           ...{
-            placeManualTrade: {
+            place_manual_trade: {
               placed: 'manual-trade'
             }
           }
@@ -643,7 +643,7 @@ describe('trailingTrade', () => {
         getIndicators: mockGetIndicators,
         handleOpenOrders: mockHandleOpenOrders,
         determineAction: mockDetermineAction,
-        placeManualTrade: mockPlaceManualTrade,
+        place_manual_trade: mockPlaceManualTrade,
         cancelOrder: mockCancelOrder,
         placeBuyOrder: mockPlaceBuyOrder,
         placeSellOrder: mockPlaceSellOrder,
@@ -698,7 +698,7 @@ describe('trailingTrade', () => {
             ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             handled: 'open-orders',
-            placeManualTrade: { placed: 'manual-trade' },
+            place_manual_trade: { placed: 'manual-trade' },
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
@@ -736,7 +736,7 @@ describe('trailingTrade', () => {
             ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             handled: 'open-orders',
-            placeManualTrade: { placed: 'manual-trade' },
+            place_manual_trade: { placed: 'manual-trade' },
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
@@ -774,7 +774,7 @@ describe('trailingTrade', () => {
             ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             handled: 'open-orders',
-            placeManualTrade: { placed: 'manual-trade' },
+            place_manual_trade: { placed: 'manual-trade' },
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
@@ -839,7 +839,7 @@ describe('trailingTrade', () => {
         getIndicators: mockGetIndicators,
         handleOpenOrders: mockHandleOpenOrders,
         determineAction: mockDetermineAction,
-        placeManualTrade: mockPlaceManualTrade,
+        place_manual_trade: mockPlaceManualTrade,
         cancelOrder: mockCancelOrder,
         placeBuyOrder: mockPlaceBuyOrder,
         placeSellOrder: mockPlaceSellOrder,

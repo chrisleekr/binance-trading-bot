@@ -54,7 +54,7 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
       return '';
     }
 
-    const { settingIcon, commonStrings } = jsonStrings;
+    const { setting_icon, common_strings } = jsonStrings;
 
     return quoteAssets.map((quoteAsset, index) => {
       return (
@@ -65,7 +65,7 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
             controlId={'field-min-last-buy-remove-threshold-limit-percentage-' + quoteAsset}
             className='mb-2'>
             <Form.Label className='mb-0'>
-              {commonStrings.last_buy_price_remove_threshold}{' '}
+              {common_strings.last_buy_price_remove_threshold}{' '}
               <OverlayTrigger
                 trigger='click'
                 key={'last-buy-remove-threshold-overlay-' + quoteAsset}
@@ -74,10 +74,10 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
                   <Popover
                     id={'last-buy-remove-threshold-overlay-right' + quoteAsset}>
                     <Popover.Content>
-                      {settingIcon.last_buy_price_remove_threshold_description[1]} "
+                      {setting_icon.last_buy_price_remove_threshold_description[1]} "
                       {quoteAsset}".
 
-                      {settingIcon.last_buy_price_remove_threshold_description[2]}
+                      {setting_icon.last_buy_price_remove_threshold_description[2]}
                     </Popover.Content>
                   </Popover>
                 }>
@@ -87,13 +87,13 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
               </OverlayTrigger>
             </Form.Label>
             <Form.Label htmlFor='field-min-last-buy-remove-threshold-limit-percentage' srOnly>
-              {commonStrings.quantity}
+              {common_strings._quantity}
             </Form.Label>
             <InputGroup size='sm'>
               <FormControl
                 size='sm'
                 type='number'
-                placeholder={settingIcon.placeholder_last_buy_remove_price_threshold}
+                placeholder={setting_icon.placeholder_last_buy_remove_price_threshold}
                 required
                 min='0.0001'
                 step='0.0001'

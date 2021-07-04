@@ -1,12 +1,12 @@
 {
-  "settingIcon": {
+  "setting_icon": {
     "global_settings": "Cài đặt chung",
     "global_settings_description": "Trong chế độ này, bạn có thể định cấu hình cài đặt chung. Nếu biểu tượng có cài đặt khác, thay đổi sẽ không ảnh hưởng đến nó. Hãy biết bạn đang làm gì khi thực hiện điều chỉnh.",
-    "symbols": "Biểu tượng",
+    "_symbols": "Ký hiệu",
     "placeholder_monitor_symbols": "Chọn biểu tượng để theo dõi ...",
-    "candle_settings": "Cài đặt nến",
-    "candle_interval_description": "Xác định khoảng thời gian nến để tính giá cao nhất / thấp nhất.",
-    "candle_limit_description": "Đặt giới hạn nến để tính giá cao nhất / thấp nhất.",
+    "cand_settings": "Cài đặt nến",
+    "cand_interval_description": "Xác định khoảng thời gian nến để tính giá cao nhất / thấp nhất.",
+    "cand_limit_description": "Đặt giới hạn nến để tính giá cao nhất / thấp nhất.",
     "buy_sell_conf": "Cài đặt Mua và Bán",
     "trading_enabled_description": "Nếu được bật, bot sẽ mua tiền tệ khi phát hiện ra tín hiệu mua. Nếu bị vô hiệu hóa, bot sẽ không mua nhưng sẽ tiếp tục theo dõi. Nếu thị trường biến động, bạn có thể vô hiệu hóa nó.",
     "trading_enabled_description_sell": "Nếu được bật, bot sẽ bán tiền tệ khi nó phát hiện ra tín hiệu bán. Nếu bị vô hiệu hóa, bot sẽ không bán.",
@@ -24,7 +24,7 @@
     "stop_loss_enabled_description": "Nếu được bật, bot sẽ bán đồng xu khi nó đạt đến tỷ lệ phần trăm đã đặt trong lệnh cắt lỗ. Bạn có thể bật chức năng này để ngăn chặn khoản lỗ lớn hơn dự kiến.",
     "max_loss_percent_description": "Đặt tỷ lệ phần trăm lỗ tối đa của lệnh cắt lỗ. Ví dụ: nếu được đặt thành 0,80, điều đó có nghĩa là bạn sẽ không mất quá 20% tổng số tiền đã đầu tư. Nếu bạn mua đồng xu ở mức giá 100 đô la, giá cuối cùng sẽ được đặt thành 100 đô la và cắt lỗ thành 80 đô la. Nếu nó đạt 80 đô la, bot sẽ bán tất cả số dư tiền tệ có sẵn theo lệnh thị trường. ",
     "placeholder_enter_max_loss": "Đặt mức lỗ tối đa",
-    "temporary_disable_buy": "Tạm thời vô hiệu hóa việc mua hàng trong (trong vài phút)",
+    "pause_disable_buy": "Tạm thời vô hiệu hóa việc mua hàng trong (trong vài phút)",
     "temporary_disable_buy_description": "Xác định thời gian để vô hiệu hoá giao dịch mua tiền tệ trong trường hợp kích hoạt cắt lỗ. Ví dụ: Nếu đặt 360, giao dịch mua sẽ bị vô hiệu hoá trong 6 giờ.",
     "placeholder_temporary_disable": "Đặt số phút để tắt",
     "note_changes": "Lưu ý rằng các thay đổi sẽ có hiệu lực vào lần đánh dấu tiếp theo",
@@ -32,65 +32,70 @@
     "warning_global_save": "Cảnh báo: Bạn sắp lưu điều chỉnh chung",
     "ask_all_or_global": "Bạn muốn áp dụng cài đặt cho tất cả các biểu tượng hay chỉ cho toàn cục?",
     "delete_symbol_setting": "Bạn có muốn xóa cài đặt biểu tượng không?",
-    "choosed_all_symbols": "Nếu bạn áp dụng cho tất cả và bất kỳ biểu tượng nào có cài đặt khác, nó sẽ bị mất!",
-    "choosed_global": "Nếu bạn đăng ký toàn cầu và bất kỳ biểu tượng nào có một số cấu hình khác nhau, nó sẽ được đặt thành tùy chỉnh!",
+    "choosed_all_symbols": "Nếu bạn áp dụng cho tất cả và bất kỳ biểu tượng nào có cài đặt khác nhau, nó sẽ bị mất!",
+    "choosed_global": "Nếu bạn đăng ký toàn cầu và bất kỳ biểu tượng nào có cấu hình khác, nó sẽ được đặt thành tùy chỉnh!",
     "apply_all_symbols": "Áp dụng cho tất cả các ký hiệu",
     "apply_global_only": "Áp dụng trên toàn cầu",
-    "custom": "Tùy chỉnh",
-    "description": "Trong cửa sổ này, bạn có thể ghi đè cài đặt chung cho một biểu tượng cụ thể. Hãy biết bạn đang làm gì. Các cài đặt được áp dụng ở đây sẽ chỉ ảnh hưởng đến biểu tượng này.",
+    "_customise": "Tùy chỉnh",
+    "_description": "Trong cửa sổ này, bạn có thể ghi đè cài đặt chung cho một biểu tượng cụ thể. Vui lòng biết bạn đang làm gì. Các cài đặt được áp dụng ở đây sẽ chỉ ảnh hưởng đến biểu tượng này.",
     "last_buy_price_remove_threshold_description": {
       "1": "Đặt giới hạn cho việc xóa giá chào mua cuối cùng trên các ký hiệu kết thúc bằng",
-      "2": "Khi giá đơn vị tiền tệ giảm xuống dưới giới hạn, bot sẽ xóa giá mua cuối cùng. Nếu bot chưa bán đơn vị tiền tệ, bạn có thể thêm giá mua cuối cùng theo cách thủ công, nhưng nếu giá đó thấp hơn giới hạn, sẽ lại bị xóa. "
+      "2": "Khi giá đơn vị tiền tệ giảm xuống dưới giới hạn, bot sẽ xóa giá mua cuối cùng. Nếu bot chưa bán đơn vị tiền tệ, bạn có thể thêm giá mua cuối cùng theo cách thủ công, nhưng nếu giá đó dưới giới hạn, sẽ lại bị xóa. "
     },
     "placeholder_last_buy_remove_price_threshold": "Đặt ngưỡng để xóa giá mua cuối cùng khỏi",
     "max_purchase_amount_for": "Số tiền tối đa để mua từ",
     "max_purchase_amount": "Số tiền tối đa để mua",
+    "min_purchase_amount": "Số tiền tối thiểu để mua",
+    "min_purchase_amount_for": "Số tiền tối thiểu để mua từ",
     "max_purchase_amount_symbol_description": "Đặt số tiền tối đa để mua. Ví dụ: Nếu được đặt thành 100, khi bot nhận được tín hiệu mua, nó sẽ mua 100 đô la tiền tệ.",
     "max_purchase_amount_description": "Đặt số tiền mua tối đa trên các ký hiệu kết thúc bằng",
-    "placeholder_max_purchase_amount": "Đặt giới hạn để xóa giá mua cuối cùng",
-    "cancel": "Hủy bỏ",
-    "yes": "Đúng",
+    "placeholder_max_purchase_amount": "Đặt giới hạn cho số tiền mua tối đa",
+    "placeholder_min_purchase_amount": "Đặt giới hạn cho số tiền mua tối thiểu",
+    "_cancel": "Hủy",
+    "_yes": "Đúng",
     "sell_market_order": "Bán theo lệnh thị trường",
     "sell_market_order_description": "Nếu lợi nhuận của bạn cao hơn giá kích hoạt bán và xu hướng bắt đầu giảm, bot sẽ bán theo lệnh thị trường để tối đa hóa lợi nhuận.",
     "stake_coins": "Tích lũy tiền",
     "stake_coins_description": "Nếu được chọn, bot sẽ bán ít hơn một chút so với số tiền mà nó đã mua để tích lũy tiền. Ví dụ: Nếu được đặt thành 0,5% lợi nhuận, bot sẽ chỉ bán 99,5% số tiền mà nó đã mua.",
-    "hard_sell_trigger": "Buộc kích hoạt bán hàng",
+    "hard_sell_trigger": "Kích hoạt bán bắt buộc",
     "hard_sell_trigger_description": "Đặt giá kích hoạt bán bắt buộc. Ví dụ: Nếu được đặt thành 1,01, bot sẽ tự động bán khi lợi nhuận đạt 1% ngay cả khi xu hướng tăng lên.",
     "placeholder_hard_sell_trigger": "Đặt giá kích hoạt bắt buộc",
     "use_husky_sell": "Sử dụng xu hướng Husky khi có tín hiệu bán",
     "use_husky_sell_description": "Bot sẽ không xử lý giao dịch mua nếu xu hướng giảm. Nó sẽ chỉ xử lý khi xu hướng tăng. Thời gian của bot được cải thiện đáng kể với chức năng này.",
     "use_husky_buy": "Sử dụng xu hướng Husky trong tín hiệu mua",
-    "use_husky_buy_description": "Bot sẽ không xử lý giao dịch bán nếu xu hướng tăng. Nó sẽ chỉ xử lý khi xu hướng đi xuống. Lợi nhuận của nó thường cao hơn so với định nghĩa như thế này.",
+    "use_husky_buy_description": "Bot sẽ không xử lý giao dịch bán nếu xu hướng đang đi lên. Nó sẽ chỉ xử lý khi xu hướng đi xuống. Lợi nhuận của nó thường cao hơn so với định nghĩa như thế này.",
     "force_market_order": "Buộc bán theo lệnh thị trường",
     "weight_green_candle": "Trọng lượng của nến xanh",
     "weight_red_candle": "Trọng lượng của nến đỏ",
     "weight_green_candle_description": "Trọng lượng của nến xanh để tính toán chỉ báo. Vui lòng không đặt giá trị này cao hơn trọng lượng của nến đỏ! Bot sẽ mất chức năng mua sau khi giảm giá.",
     "weight_red_candle_description": "Trọng lượng của nến đỏ để tính chỉ số. Vui lòng, giá trị này phải lớn hơn trọng lượng của nến xanh!",
     "grid_buy_strategy_activate": "Kích hoạt chiến lược lưới",
-    "grid_buy_strategy_activate_description": "Sẽ kích hoạt nhiều giao dịch mua cùng một loại tiền tệ. Sử dụng cẩn thận.",
+    "grid_buy_strategy_activate_description": "Sẽ kích hoạt nhiều giao dịch mua cùng loại tiền tệ. Sử dụng cẩn thận.",
     "grid_buy_strategy": "Mua lại sau khi chênh lệch",
     "grid_buy_strategy_description": "Cho phép khả năng mua nhiều lần, luôn tính giá trung bình. Ví dụ: Nếu đặt 1%, bot sẽ mua lại đơn vị tiền tệ nếu chênh lệch giữa giá mua cuối cùng lớn hơn 1%.",
     "strategy_options": "Điều chỉnh Chiến lược",
     "trade_options": "Điều chỉnh Thương mại"
   },
-  "dustTransfer": {
+  "dust_transfer": {
     "convert_small_balances_bnb": "Chuyển đổi một lượng nhỏ thành BNB",
     "description": "Bạn có thể chuyển đổi số tiền dưới 0,003 BTC thành BNB cứ sau 6 giờ. Không thể chuyển đổi các loại tiền tệ không được liệt kê ở đây.",
-    "loading": "Đang tải",
+    "_loading": "Đang tải",
     "no_asset_convert": "Không có đơn vị tiền tệ nào để chuyển đổi.",
-    "convert": "Chuyển đổi"
+    "_convert": "Chuyển đổi"
   },
-  "coinWrapper": {
-    "actions": {
+  "coin_wrapper": {
+    "_ Giao dịch": {
       "action_disabled": "Tạm thời bị vô hiệu hóa",
       "action_buy_check": "Kiểm tra đơn đặt hàng",
+      "action_buy_filled": "Đơn đặt hàng đã được thực hiện thành công. Đang đặt giá mua cuối cùng.",
       "action_buy_wait": "Đang chờ đơn đặt hàng",
       "action_selling_stop_loss": "Bán tiền tệ do cắt lỗ",
       "action_sell_check": "Kiểm tra đơn đặt hàng",
+      "action_sell_filled": "Đơn đặt hàng đã được thực hiện thành công. Đang xóa giá mua cuối cùng.",
       "action_sell_wait": "Đang chờ đơn đặt hàng",
       "disable_by": "Bị vô hiệu hóa bởi",
       "action_sell_disabled": {
-        "1": "Giá hiện tại đã đạt đến giá để kích hoạt ưu đãi.",
+        "1": "Giá hiện tại đã đạt đến giá để kích hoạt chương trình giảm giá.",
         "2": "Tuy nhiên, hành động tạm thời bị vô hiệu hóa bởi",
         "3": "Tóm tắt quá trình bán hàng sau:"
       },
@@ -112,7 +117,7 @@
         "3": "Tóm tắt quá trình mua hàng sau:"
       },
       "action_buy": "Giá hiện tại đã đạt đến giá để kích hoạt giao dịch mua. Tôi sẽ cố gắng mua đơn vị tiền tệ.",
-      "action_sell": "Giá hiện tại đã đạt đến giá để kích hoạt bán hàng. Tôi sẽ bán đơn vị tiền tệ.",
+      "action_sell": "Giá hiện tại đã đạt đến giá để kích hoạt bán. Tôi sẽ bán đơn vị tiền tệ.",
       "action_sell_stop_loss": "Giá hiện tại đã đạt đến giá cắt lỗ. Tôi đang bán đơn vị tiền tệ theo giá thị trường.",
       "sell_wait": "Giá hiện tại thấp hơn giá kích hoạt ưu đãi. Đang chờ.",
       "action_open_orders": {
@@ -125,7 +130,7 @@
         "2": "mua"
       },
       "action_dont_place_order_calc": {
-        "1": "Tôi không thể mua tiền tệ vì không có",
+        "1": "Tôi không thể mua đồng xu vì không có",
         "2": "mua",
         "3": "sau khi tính toán."
       },
@@ -134,9 +139,9 @@
         "2": "bị vô hiệu hóa. Tôi sẽ không mở đơn đặt hàng."
       },
       "action_api_exceed": "Đã đạt đến giới hạn API. Tôi sẽ không hành động ngay bây giờ.",
-      "action_placed_new_order": "Tôi đã mở một lệnh mua giới hạn.",
+      "action_placed_new_order": "Tôi đã mở một giao dịch mua giới hạn đơn đặt hàng.",
       "action_order_minimum_qty": {
-        "1": "Số lượng đơn đặt hàng bằng hoặc ít hơn số lượng nhỏ nhất -",
+        "1": "Số lượng đơn đặt hàng bằng hoặc nhỏ hơn số lượng nhỏ nhất -",
         "2": ". Tôi sẽ không cố gắng bán."
       },
       "action_less_than_nominal": "Giá trị hiện tại nhỏ hơn giá trị tối thiểu cho phép. Tôi sẽ chưa bán.",
@@ -147,8 +152,10 @@
       },
       "action_disabled_stop_loss": "Tạm thời bị vô hiệu hóa do dừng lỗ.",
       "action_buy_disabled_ after_buy": "Tôi đã tắt các tác vụ sau khi xác nhận đơn đặt hàng.",
-      "action_sell_disabled_ after_sell": "Đã vô hiệu hóa các hành động sau khi xác nhận lệnh bán.",
+      "action_sell_disabled_ after_sell": "Tôi đã tắt các tác vụ sau khi xác nhận đơn đặt hàng bán.",
       "action_buy_order_checking": "Đơn đặt hàng dường như đã được đặt. Tuy nhiên, tôi không thể tìm thấy nó trong các đơn hàng đang mở. Hãy đợi cho đến khi nó xuất hiện.",
+      "action_buy_order_filled": "Lệnh mua đã được thực hiện thành công. Tôi đã đặt số tiền cuối cùng và giá mua cuối cùng. Đang chờ tín hiệu bán.",
+      "action_sell_order_filled": "Lệnh bán đã được thực hiện thành công. Tôi đã xóa số tiền cuối cùng và giá mua cuối cùng.",
       "action_sell_order_checking": "Lệnh bán dường như đã được đặt. Tuy nhiên, tôi không thể tìm thấy nó trong các lệnh đang mở. Hãy đợi cho đến khi nó xuất hiện.",
       "action_stop_monitoring": {
         "1": "Thứ tự của",
@@ -160,52 +167,52 @@
         "1": "Thứ tự của",
         "2": "đã được hủy thành công. Nếu đơn đặt hàng vẫn xuất hiện, hãy đợi nó biến mất."
       },
-      "order_cancelled": "Đơn đặt hàng đã bị hủy."
+      "order_cancelt": "Đơn đặt hàng đã bị hủy."
     },
     "estimated_value": "Giá trị ước tính",
     "temporary_disable_sell": "Tạm thời vô hiệu hoá tính năng bán",
     "order_type": "Loại đơn hàng",
-    "wait": "Đang chờ",
+    "_wait": "Đang chờ",
     "open_order": "Đơn đặt hàng đang mở",
-    "placed_at": "Đã đặt trong",
+    "put_at": "Đã đặt trong",
     "current_limit_price": "Giá giới hạn",
     "diff_cancel": "Sự khác biệt để hủy bỏ",
     "diff_execute": "Chênh lệch để thực thi",
     "buy_open_orders": "Mở đơn đặt hàng",
     "buy_signal": "Dấu hiệu mua",
-    "highest_price": "Giá cao nhất",
-    "lowest_price": "Giá thấp nhất",
+    "most_price": "Giá cao nhất",
+    "low_price": "Giá thấp nhất",
     "trigger_price": "Giá để kích hoạt",
     "diff_buy": "Sự khác biệt để mua",
     "diff_sell": "Bán chênh lệch",
     "sell_open_orders": "Mở đơn đặt hàng",
-    "stop_loss_price": "Giá cắt lỗ",
+    "stop_loss_price": "Giá dừng",
     "diff_stop_loss": "Chênh lệch để cắt lỗ",
     "stop_percent": "Phần trăm dừng",
     "limit_percent": "Phần trăm của giới hạn",
-    "type": "Loại",
+    "_type": "Loại",
     "minimum_profit": "Lợi nhuận tối thiểu",
     "max_purchase_amount": "Số tiền mua tối đa",
-    "candles": "Nến",
+    "_candles": "Nến",
     "trigger_percent": "Phần trăm kích hoạt"
   },
-  "footer": {
-    "version": "Phiên bản hiện tại",
-    "latest_version": "Phiên bản mới nhất"
+  "_footer": {
+    "_version": "Phiên bản hiện tại",
+    "last_version": "Phiên bản mới nhất"
   },
-  "profitLossWrapper": {
-    "profit_loss_description": "Phần này hiển thị xấp xỉ lãi / lỗ của bạn đối với danh sách hiện tại của các ký hiệu đang mở bán với giá mua được xác định cuối cùng. Việc tính toán chỉ đơn giản là cộng lãi / lỗ của bạn cho mỗi ký hiệu. Lưu ý rằng nó không đại diện cho giao dịch của bạn được và mất trong lịch sử. "
+  "profit_loss_wrapper": {
+    "profit_loss_description": "Phần này hiển thị khoảng lãi / lỗ của bạn đối với danh sách hiện tại của các biểu tượng đang mở bán với giá mua được xác định cuối cùng. Việc tính toán chỉ đơn giản là cộng lãi / lỗ của bạn cho mỗi biểu tượng. Lưu ý rằng nó không đại diện cho giao dịch của bạn được và mất trong lịch sử. "
   },
-  "symbolDelete": {
+  "symbol_delete": {
     "remove_symbol": "Xóa biểu tượng",
-    "description": {
+    "_description": {
       "1": "Bạn có chắc chắn muốn xóa biểu tượng khỏi bộ nhớ cache không?",
       "2": "Lưu ý rằng điều này sẽ chỉ xóa các giá trị được lưu trong bộ nhớ cache.",
       "3": "Nếu biểu tượng vẫn đang được theo dõi, nó sẽ xuất hiện trở lại."
     }
   },
-  "symbolEditLastBuyPrice": {
-    "edit_last_buy": "Chỉnh sửa giá mua cuối cùng và số lượng",
+  "symbol_edit_last_buy_price": {
+    "edit_last_buy": "Chỉnh sửa giá mua cuối cùng và số tiền",
     "placeholder_last_buy": "Đặt giá mua cuối cùng",
     "placeholder_last_qty_bought": "Đặt giá mua cuối cùng",
     "edit_last_qty_bought_description": "Đặt / sửa đổi số tiền đã mua cuối cùng. Nếu bạn không đặt nó bên cạnh giá cuối cùng, bot sẽ bán TẤT CẢ số tiền miễn phí của đơn vị tiền tệ, thay vì chỉ số tiền được mua cuối cùng.",
@@ -217,45 +224,46 @@
       "5": "Nếu bạn muốn xóa giá mua cuối cùng, hãy đặt 0."
     }
   },
-  "symbolEnableAction": {
+  "symbol_enable_action": {
     "resume_symbol_action": "Tiếp tục hành động biểu tượng",
-    "description": {
+    "_description": {
       "1": "Bạn có chắc chắn muốn tiếp tục hành động của biểu tượng không?",
       "2": "Nếu thị trường biến động, bot sẽ mua lại nếu nó nhận được tín hiệu mua.",
       "3": "Tiến hành một cách thận trọng."
     }
   },
-  "symbolManualTrade": {
-    "trade": "Thương mại",
+  "symbol_manual_trade": {
+    "_trade": "Giao dịch",
     "manual_trade_for": "Giao dịch thủ công cho",
-    "description": {
+    "_description": {
       "1": "Trong cửa sổ này, bạn có thể giao dịch",
-      "2": "theo cách thủ công. Nếu bạn đã có giá mua cuối cùng, thì bot sẽ tính chi phí trung bình và tính lại giá mua cuối cùng.",
+      "2": "theo cách thủ công. Nếu bạn đã có giá mua cuối cùng, thì bot sẽ tính toán chi phí trung bình và tính toán lại giá mua cuối cùng.",
       "3": "Để đảm bảo giá mua cuối cùng được ghi lại thành công, bot sẽ theo dõi đơn đặt hàng. Điều này có thể làm tăng việc sử dụng API."
     }
   },
-  "placeManualTrade": {
+  "place_manual_trade": {
     "action_manual_order": "Tôi đã mở một đơn đặt hàng thủ công.",
     "message_order_success": {
       "1": "Thứ tự của",
       "2": "của ký hiệu:",
-      "3": ". Đã đặt thành công. Nếu lệnh chưa được thực hiện, nó sẽ xuất hiện tại một số điểm."
+      "3": ". Đã đặt thành công. Nếu lệnh chưa được thực hiện, nó sẽ xuất hiện tại một số điểm.",
+      "4": "Nếu bạn nhấn nút bán 100% số dư khả dụng của mình, bot sẽ tính 0,1% hoa hồng."
     }
   },
-  "manualTrade": {
+  "manual_trade": {
     "trade_all": "Giao dịch tất cả",
     "manual_trade_for_all": "Giao dịch thủ công cho tất cả các ký hiệu",
-    "description": {
+    "_description": {
       "1": "Trong cửa sổ này, bạn có thể giao dịch tất cả các ký hiệu theo cách thủ công. Để đơn giản hóa quy trình, chỉ hỗ trợ lệnh thị trường.",
-      "2": "Nếu bạn đặt 0 trên biểu tượng, bot sẽ không đặt hàng cho biểu tượng. Nếu bạn đã có giá đặt mua cuối cùng, thì bot sẽ tính chi phí trung bình và sẽ tính lại giá đặt mua cuối cùng.",
+      "2": "Nếu bạn đặt số 0 trên biểu tượng, bot sẽ không đặt hàng cho biểu tượng. Nếu bạn đã có giá đặt mua cuối cùng, thì bot sẽ tính chi phí trung bình và sẽ tính lại giá đặt mua cuối cùng.",
       "3": "Để đảm bảo giá mua cuối cùng được ghi lại thành công, bot sẽ theo dõi đơn đặt hàng. Điều này có thể làm tăng việc sử dụng API."
     }
   },
-  "commonStrings": {
-    "interval": "Khoảng thời gian",
-    "limit": "Giới hạn",
-    "buy": "Mua",
-    "sell": "Giảm giá",
+  "common_strings": {
+    "_interval": "Khoảng thời gian",
+    "_limit": "Giới hạn",
+    "_buy": "Mua",
+    "_sell": "Giảm giá",
     "used_weight": "Trọng lượng API đã sử dụng (1m)",
     "trading_enabled": "Đã bật giao dịch",
     "stop_price_percent": "Phần trăm giá dừng",
@@ -263,32 +271,33 @@
     "stop_loss": "Cắt lỗ",
     "stop_loss_enabled": "Đã bật cắt lỗ",
     "max_loss_percent": "Phần trăm tổn thất tối đa",
-    "close": "Đóng",
+    "_close": "Đóng",
     "save_changes": "Lưu cài đặt",
     "account_balance": "Số dư tài khoản",
-    "total": "Tổng số",
-    "free": "miễn phí miễn phí",
-    "locked": "Đã khóa",
-    "status": "Trạng thái",
-    "quantity": "Số lượng",
-    "price": "Giá",
+    "_total": "Tổng",
+    "_free": "Phí miễn phí",
+    "_locked": "Đã khóa",
+    "_status": "Trạng thái",
+    "_quantity": "Số lượng",
+    "_price": "Giá",
     "stop_price": "Giá dừng",
     "current_price": "Giá hiện tại",
     "sell_signal": "Tín hiệu giảm giá",
     "trading_disabled": "Giao dịch bị vô hiệu hóa",
     "last_buy_price": "Giá mua lần cuối",
+    "average_price": "Giá trung bình",
     "profit_loss": "Lãi / lỗ",
-    "settings": "Cài đặt",
+    "_settings": "Cài đặt",
     "last_buy_price_remove_threshold": "Ngưỡng loại bỏ giá mua cuối cùng",
-    "remove": "Xoá",
-    "resume": "Tóm tắt",
-    "market": "Thị trường",
-    "balance": "Thăng bằng",
+    "_remove": "Xóa",
+    "_resume": "Tiếp tục",
+    "_market": "Thị trường",
+    "_balance": "Cân bằng",
     "current_balance": "Số dư hiện tại",
-    "remaining_balance": "Số dư còn lại",
+    "còn lại_ cân bằng": "Số dư còn lại",
     "time_remaining": "còn lại",
-    "action": "Hành động",
-    "strength": "Sức mạnh",
-    "trending": "Xu hướng"
+    "_action": "Hành động",
+    "_strength": "Sức mạnh",
+    "_trending": "Xu hướng"
   }
 }

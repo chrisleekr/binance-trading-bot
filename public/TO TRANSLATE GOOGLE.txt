@@ -1,8 +1,8 @@
 {
-  "settingIcon": {
+  "setting_icon": {
     "global_settings": "Ajustes Globais",
     "global_settings_description": "Neste modo você pode configurar os ajustes globais. Se o símbolo tiver diferentes ajustes, a mudança não irá afetá-lo. Por favor, saiba o que está fazendo ao fazer ajustes.",
-    "symbols": "Símbolos",
+    "_symbols": "Símbolos",
     "placeholder_monitor_symbols": "Escolha símbolos para monitorar...",
     "candle_settings": "Ajustes de Vela",
     "candle_interval_description": "Define o intervalo da vela para calcular o maior/menor preço.",
@@ -36,8 +36,8 @@
     "choosed_global": "Se você aplicar globalmente e algum símbolo tiver alguma configuração diferente, será definido como customizado!",
     "apply_all_symbols": "Aplicar a todos os símbolos",
     "apply_global_only": "Aplicar globalmente",
-    "customise": "Personalize",
-    "description": "Nesta janela você poderá sobrescrever os ajustes globais em um símbolo em específico. Por favor, saiba o que está fazedndo. As configurações aplicadas aqui irão afetar apenas este símbolo.",
+    "_customise": "Personalize",
+    "_description": "Nesta janela você poderá sobrescrever os ajustes globais em um símbolo em específico. Por favor, saiba o que está fazedndo. As configurações aplicadas aqui irão afetar apenas este símbolo.",
     "last_buy_price_remove_threshold_description": {
       "1": "Define o limite para remover o último preço de compra em símbolos terminados com",
       "2": " Quando o preço da moeda cair para menos que o limite, o bot irá remover o último preço comprado. Se o bot não vendeu a moeda, você pode adicionar manualmente o último preço comprado, mas se estiver abaixo do limite, será removido de novo."
@@ -45,30 +45,53 @@
     "placeholder_last_buy_remove_price_threshold": "Defina o limite para remover o último preço de compra de",
     "max_purchase_amount_for": "Máxima quantia para compra de",
     "max_purchase_amount": "Máxima quantia para compra",
+    "min_purchase_amount": "Mínima quantia para compra",
+    "min_purchase_amount_for": "Mínima quantia para compra de",
     "max_purchase_amount_symbol_description": "Define a máxima quantia para compra. Exemplo: Se definido 100, quando o bot recever o sinal de compra, irá comprar $100 da moeda.",
     "max_purchase_amount_description": "Define a quantia máxima de compra em símbolos terminados com",
-    "placeholder_max_purchase_amount": "Defina o limite para remover o último preço de compra",
-    "cancel": "Cancelar",
-    "yes": "Sim",
+    "placeholder_max_purchase_amount": "Defina o limite para a máxima quantia de compra",
+    "placeholder_min_purchase_amount": "Defina o limite para a mínima quantia de compra",
+    "_cancel": "Cancelar",
+    "_yes": "Sim",
     "sell_market_order": "Vender por ordem de mercado",
-    "sell_market_order_description": "Se selecionado, o bot irá vender a moeda a preço de mercado quando detectar que a tendência está caindo e seus lucros estão maiores que os lucros pré-definidos na ativação de venda",
+    "sell_market_order_description": "Se seu lucro estiver acima do preço de ativação de venda e a tendencia começar a cair, o bot irá vender com uma ordem de mercado para maximizar os lucros.",
     "stake_coins": "Acumular moedas",
-    "stake_coins_description": "Se selecionado, o bot irá vender um pouco menos do que comprou para acumular moedas. Exemplo: Se definido como lucro 0,5% o bot irá vender apenas 99,5% da quantia que comprou"
+    "stake_coins_description": "Se selecionado, o bot irá vender um pouco menos do que comprou para acumular moedas. Exemplo: Se definido como lucro 0,5% o bot irá vender apenas 99,5% da quantia que comprou",
+    "hard_sell_trigger": "Ativação forçada da venda",
+    "hard_sell_trigger_description": "Define o preço de ativação forçada da venda. Exemplo: Se definido 1,01 o bot irá vender automaticamente quando o lucro atingir 1% mesmo se a tendencia for subir.",
+    "placeholder_hard_sell_trigger": "Defina o preço de ativação forçada",
+    "use_husky_sell": "Usar a tendencia Husky no sinal de venda",
+    "use_husky_sell_description": "O bot não irá processar a compra se a tendencia for cair. Apenas processará quando a tendencia estiver subindo. O timing do bot melhora bastante com esta função.",
+    "use_husky_buy": "Usar a tendencia Husky no sinal de compra",
+    "use_husky_buy_description": "O bot não irá processar a venda se a tendencia for subir. Apenas processará quando a tendencia estiver caindo. Seus lucros normalmente são maiores que o definido assim.",
+    "force_market_order": "Forçar venda por ordem de mercado",
+    "weight_green_candle": "Peso das velas verdes",
+    "weight_red_candle": "Peso das velas vermelhas",
+    "weight_green_candle_description": "Peso das velas verdas para o cálculo do indicador. Por favor, não deixe este valor maior que o peso das velas vermelhas! O bot irá perder a função de comprar depois de uma queda no preço.",
+    "weight_red_candle_description": "Peso das velas vermelhas para o cálculo do indicador. Por favor, este valor tem de ser maior que o peso das velas verdes!",
+    "grid_buy_strategy_activate": "Ativar a estratégia de grid",
+    "grid_buy_strategy_activate_description": "Irá ativar a compra múltipla da mesma moeda. Use com cuidado.",
+    "grid_buy_strategy": "Comprar novamente após diferença",
+    "grid_buy_strategy_description": "Ativa a possibilidade de múltiplas compras, sempre calculando a média do preço. Ex: Se definido 1%, o bot irá comprar a moeda novamente se a diferença entre o último preço de compra for maior que 1%.",
+    "strategy_options": "Ajustes de Estratégia",
+    "trade_options": "Ajustes de Negociação"
   },
-  "dustTransfer": {
+  "dust_transfer": {
     "convert_small_balances_bnb": "Converter pequenas quantias em BNB",
     "description": "Você pode converter quantias com valor menor que 0.003 BTC em BNB a cada 6 horas. Não é possível converter moedas que não estejam listadas aqui.",
-    "loading": "Carregando",
+    "_loading": "Carregando",
     "no_asset_convert": "Não há nenhuma moeda para converter.",
-    "convert": "Converter"
+    "_convert": "Converter"
   },
-  "coinWrapper": {
-    "actions": {
+  "coin_wrapper": {
+    "_actions": {
       "action_disabled": "Desativado temporariamente",
       "action_buy_check": "Checando ordem de compra",
+      "action_buy_filled": "Ordem executada com sucesso. Definindo último preço de compra.",
       "action_buy_wait": "Esperando pela ordem de compra",
       "action_selling_stop_loss": "Vendendo moeda por causa do para-perda",
       "action_sell_check": "Checando ordem de venda",
+      "action_sell_filled": "Ordem executada com sucesso. Removendo último preço de compra.",
       "action_sell_wait": "Esperando pela ordem de venda",
       "disabled_by": "Desativado por ",
       "action_sell_disabled": {
@@ -82,10 +105,10 @@
         "3": " Resumir processo de venda após: "
       },
       "action_wait": {
-        "1": "O preço atual atingiu o preço de ativação.",
+        "1": "O preço atual atingiu o preço de ativação. ",
         "2": "E você tem o suficiente de ",
-        "3": "para vender.",
-        "4": "Defina o último preço de compra para começar a vender.",
+        "3": "para vender. ",
+        "4": "Defina o último preço de compra para começar a vender. ",
         "5": "Não processar compra."
       },
       "action_buy_disabled": {
@@ -128,9 +151,11 @@
         "2": "Não irei abrir uma ordem de venda de mercado."
       },
       "action_disabled_stop_loss": "Desativado temporariamente por causa do para-perda.",
-      "action_buy_disabled_after_buy": "Desatibilitei as ações após confirmar a ordem de compra.",
-      "action_sell_disabled_after_sell": "Desatibilitei as ações após confirmar a ordem de venda.",
+      "action_buy_disabled_after_buy": "Desabilitei as ações após confirmar a ordem de compra.",
+      "action_sell_disabled_after_sell": "Desabilitei as ações após confirmar a ordem de venda.",
       "action_buy_order_checking": "A ordem de compra parece posta. Porém, não consigo achá-la nas ordens abertas. Espere até aparecer.",
+      "action_buy_order_filled": "A ordem de compra foi executada com sucesso. Defini a última quantia e o último preço de compra. Esperando o sinal de venda.",
+      "action_sell_order_filled": "A ordem de venda foi executada com sucesso. Removi a última quantia e o último preço de compra.",
       "action_sell_order_checking": "A ordem de venda parece posta. Porém, não consigo achá-la nas ordens abertas. Espere até aparecer.",
       "action_stop_monitoring": {
         "1": "A ordem de ",
@@ -147,7 +172,7 @@
     "estimated_value": "Valor estimado",
     "temporary_disable_sell": "Desabilitar venda temporariamente",
     "order_type": "Tipo de ordem",
-    "wait": "Em espera",
+    "_wait": "Em espera",
     "open_order": "Ordem aberta",
     "placed_at": "Posto em",
     "current_limit_price": "Preço limite",
@@ -165,28 +190,28 @@
     "diff_stop_loss": "Diferença para o para-perdas",
     "stop_percent": "Porcento de parada",
     "limit_percent": "Porcento do limite",
-    "type": "Tipo",
+    "_type": "Tipo",
     "minimum_profit": "Ganho mínimo",
     "max_purchase_amount": "Quantia máxima de compra",
-    "candles": "Velas",
+    "_candles": "Velas",
     "trigger_percent": "Porcentagem para ativar"
   },
-  "footer": {
-    "version": "Versão atual",
+  "_footer": {
+    "_version": "Versão atual",
     "latest_version": "Última versão"
   },
-  "profitLossWrapper": {
+  "profit_loss_wrapper": {
     "profit_loss_description": "Esta sessão mostra aproximadamente seus ganhos/perdas para a lista atual de símbolos abertos a venda com o último preço de compra definido. O cálculo é simplesmente adicionar seus ganhos/perdas para cada símbolo. Note que não representa seu histórico de ganhos e perdas."
   },
-  "symbolDelete": {
+  "symbol_delete": {
     "remove_symbol": "Remover símbolo",
-    "description": {
+    "_description": {
       "1": "Tem certeza que deseja remover o símbolo do cache?",
       "2": "Note que isso irá apenas apagar os valores no cache.",
       "3": "Se o símbolo ainda estiver sendo monitorado, irá aparecer novamente."
     }
   },
-  "symbolEditLastBuyPrice": {
+  "symbol_edit_last_buy_price": {
     "edit_last_buy": "Editar último preço de compra e quantia de",
     "placeholder_last_buy": "Defina o último preço de compra",
     "placeholder_last_qty_bought": "Defina o último preço de compra",
@@ -199,24 +224,24 @@
       "5": "Se quiser remover o último preço de compra, defina 0."
     }
   },
-  "symbolEnableAction": {
+  "symbol_enable_action": {
     "resume_symbol_action": "Resumir ação do símbolo",
-    "description": {
+    "_description": {
       "1": "Tem certeza que deseja resumir a ação do símbolo?",
       "2": "Se o mercado estiver volátil, o bot irá comprá-la de novo se receber o sinal de compra.",
       "3": "Prossiga com precaução."
     }
   },
-  "symbolManualTrade": {
-    "trade": "Negociar",
+  "symbol_manual_trade": {
+    "_trade": "Negociar",
     "manual_trade_for": "Negociação manual para",
-    "description": {
+    "_description": {
       "1": "Nesta janela você poderá negociar ",
       "2": " manualmente. Se você já possui o último preço comprado, então o bot irá calcular o custo médio e recalcular o último preço comprado.",
       "3": "Para ter certeza que o último preço de compra foi gravado com sucesso, o bot irá monitorar a ordem de compra. Isso pode aumentar o uso da API."
     }
   },
-  "placeManualTrade": {
+  "place_manual_trade": {
     "action_manual_order": "Abri uma ordem manual.",
     "notify_order_success": {
       "1": "A ordem de ",
@@ -225,20 +250,20 @@
       "4": "Se você apertar o botão de vender 100% do seu saldo disponível, o bot irá calcular os 0.1% de comissão."
     }
   },
-  "manualTrade": {
+  "manual_trade": {
     "trade_all": "Negociar Todos",
     "manual_trade_for_all": "Negociação manual para todos os símbolos",
-    "description": {
+    "_description": {
       "1": "Nesta janela, você poderá negociar todos os símbolos manualmente. Para simplificar o processo, é apenas suportado a ordem de mercado.",
       "2": "Se você definir 0 no símbolo, o bot não irá abrir uma ordem para o símbolo. Se você já tem o último preço de compra, então o bot irá calcular o custo médio e irá recalcular o último preço de compra.",
       "3": "Para ter certeza que o último preço de compra foi gravado com sucesso, o bot irá monitorar a ordem de compra. Isso pode aumentar o uso da API."
     }
   },
-  "commonStrings": {
-    "interval": "Intervalo",
-    "limit": "Limite",
-    "buy": "Compra",
-    "sell": "Venda",
+  "common_strings": {
+    "_interval": "Intervalo",
+    "_limit": "Limite",
+    "_buy": "Compra",
+    "_sell": "Venda",
     "used_weight": "Peso da API usado (1m)",
     "trading_enabled": "Troca ativada",
     "stop_price_percent": "Porcentagem do preço de parada",
@@ -246,32 +271,33 @@
     "stop_loss": "Para-perda",
     "stop_loss_enabled": "Para-perdas ativado",
     "max_loss_percent": "Porcentagem de perda máxima",
-    "close": "Fechar",
+    "_close": "Fechar",
     "save_changes": "Salvar ajustes",
     "account_balance": "Balanço da conta",
-    "total": "Total",
-    "free": "Livre",
-    "locked": "Bloqueado",
-    "status": "Status",
-    "quantity": "Quantia",
-    "price": "Preço",
+    "_total": "Total",
+    "_free": "Livre",
+    "_locked": "Bloqueado",
+    "_status": "Status",
+    "_quantity": "Quantia",
+    "_price": "Preço",
     "stop_price": "Preço de parada",
     "current_price": "Preço atual",
     "sell_signal": "Sinal de venda",
     "trading_disabled": "Troca desativada",
     "last_buy_price": "Último preço de compra",
+    "averaged_price": "Preço médio",
     "profit_loss": "Ganhos/Perdas",
-    "settings": "Ajustes",
+    "_settings": "Ajustes",
     "last_buy_price_remove_threshold": "Limite para remover o último preço de compra",
-    "remove": "Remover",
-    "resume": "Resumir",
-    "market": "Mercado",
-    "balance": "Saldo",
+    "_remove": "Remover",
+    "_resume": "Resumir",
+    "_market": "Mercado",
+    "_balance": "Saldo",
     "current_balance": "Saldo atual",
     "remaining_balance": "Saldo restante",
     "time_remaining": "restante",
-    "action": "Ação",
-    "strength": "Força",
-    "trending": "Tendência"
+    "_action": "Ação",
+    "_strength": "Força",
+    "_trending": "Tendência"
   }
 }

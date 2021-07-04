@@ -55,7 +55,7 @@ class SettingIconMinPurchaseAmount extends React.Component {
       return '';
     }
 
-    const { settingIcon } = jsonStrings;
+    const { setting_icon } = jsonStrings;
 
     return quoteAssets.map((quoteAsset, index) => {
       return (
@@ -66,7 +66,7 @@ class SettingIconMinPurchaseAmount extends React.Component {
             controlId={'field-min-purchase-amount-percentage-' + quoteAsset}
             className='mb-2'>
             <Form.Label className='mb-0'>
-              {settingIcon.min_purchase_amount_for}{' '}
+              {setting_icon.min_purchase_amount_for}{' '}
               <OverlayTrigger
                 trigger='click'
                 key={'min-purchase-amount-overlay-' + quoteAsset}
@@ -75,7 +75,7 @@ class SettingIconMinPurchaseAmount extends React.Component {
                   <Popover
                     id={'min-purchase-amount-overlay-right' + quoteAsset}>
                     <Popover.Content>
-                      {settingIcon.min_purchase_amount_description} {quoteAsset}
+                      {setting_icon.min_purchase_amount_description} {quoteAsset}
                     </Popover.Content>
                   </Popover>
                 }>
@@ -85,13 +85,13 @@ class SettingIconMinPurchaseAmount extends React.Component {
               </OverlayTrigger>
             </Form.Label>
             <Form.Label htmlFor='field-min-min-purchase-amount-percentage' srOnly>
-              {commonStrings.quantity}
+              {common_strings._quantity}
             </Form.Label>
             <InputGroup size='sm'>
               <FormControl
                 size='sm'
                 type='number'
-                placeholder={settingIcon.placeholder_min_purchase_amount}
+                placeholder={setting_icon.placeholder_min_purchase_amount}
                 required
                 min='0'
                 step='0.0001'

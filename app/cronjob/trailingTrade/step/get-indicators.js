@@ -28,6 +28,9 @@ const execute = async (logger, rawData) => {
         hardPercentage: sellHardTriggerPercentage,
         limitPercentage: sellLimitPercentage,
         stopLoss: { maxLossPercentage: sellMaxLossPercentage }
+      },
+      strategyOptions: {
+        tradeOptions: { manyBuys }
       }
     },
     baseAssetBalance: { total: baseAssetTotalBalance },
@@ -75,6 +78,7 @@ const execute = async (logger, rawData) => {
   const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
   const lastQuantityBought = _.get(lastBuyPriceDoc, 'quantity', null);
   const lastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
+  const lastBoughtPrice = _.get(lastBuyPriceDoc, 'lastBoughtPrice', null);
 
 
   const sellTriggerPrice =
@@ -165,8 +169,10 @@ const execute = async (logger, rawData) => {
   data.sell = {
     currentPrice,
     limitPrice: sellLimitPrice,
+    gridStrategyActivated: manyBuys,
     lastBuyPrice,
     lastQtyBought: lastQuantityBought,
+    lastBoughtPrice,
     triggerPrice: sellTriggerPrice,
     hardTriggerPrice: sellHardTriggerPrice,
     difference: sellDifference,

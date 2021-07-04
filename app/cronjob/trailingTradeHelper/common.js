@@ -276,13 +276,11 @@ const getLastBuyPrice = async (logger, symbol) =>
  * @param {*} symbol
  * @param {*} param2
  */
-const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity }) => {
+const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity, lastBoughtPrice = 0 }) => {
   logger.info(
     { tag: 'save-last-buy-price', symbol, lastBuyPrice, quantity },
     'Save last buy price'
   );
-  messenger.errorMessage("Saving last buy price: " + lastBuyPrice)
-  messenger.errorMessage("Saving last qty: " + quantity)
   return mongo.upsertOne(
     logger,
     'trailing-trade-symbols',
@@ -290,7 +288,8 @@ const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity }) => {
     {
       key: `${symbol}-last-buy-price`,
       lastBuyPrice,
-      quantity
+      quantity,
+      lastBoughtPrice
     }
   );
 };

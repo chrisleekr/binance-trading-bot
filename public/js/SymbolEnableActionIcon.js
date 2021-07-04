@@ -40,7 +40,7 @@ class SymbolEnableActionIcon extends React.Component {
   render() {
     const { symbol, className, jsonStrings } = this.props;
 
-    const { symbolEnableAction, commonStrings } = jsonStrings;
+    const { symbol_enable_action, common_strings } = jsonStrings;
     return (
       <span
         className={
@@ -55,28 +55,28 @@ class SymbolEnableActionIcon extends React.Component {
 
         <Modal show={this.state.showModal} onHide={this.handleModalClose}>
           <Modal.Header className='pt-1 pb-1'>
-            <Modal.Title>{symbolEnableAction.resume_symbol_action} - {symbol}</Modal.Title>
+            <Modal.Title>{symbol_enable_action.resume_symbol_action} - {symbol}</Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            {symbolEnableAction.description[1]}
+            {symbol_enable_action._description[1]}
             <br />
-            {symbolEnableAction.description[2]}
+            {symbol_enable_action._description[2]}
             <br />
-            {symbolEnableAction.description[3]}
+            {symbol_enable_action._description[3]}
           </Modal.Body>
           <Modal.Footer>
             <Button
               variant='secondary'
               size='sm'
               onClick={this.handleModalClose}>
-              {commonStrings.close}
+              {common_strings._close}
             </Button>
             <Button
               type='button'
               variant='danger'
               size='sm'
               onClick={this.handleDelete}>
-              {commonStrings.resume}
+              {common_strings._resume}
             </Button>
           </Modal.Footer>
         </Modal>

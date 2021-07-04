@@ -76,7 +76,7 @@ class SymbolEditLastBuyPriceIcon extends React.Component {
 
   render() {
     const { symbolInfo } = this.state;
-    const { jsonStrings: { symbolEditLastBuyPrice, commonStrings } } = this.props;
+    const { jsonStrings: { symbol_edit_last_buy_price, common_strings } } = this.props;
 
     if (_.isEmpty(symbolInfo)) {
       return '';
@@ -95,17 +95,17 @@ class SymbolEditLastBuyPriceIcon extends React.Component {
           <Form onSubmit={this.handleFormSubmit}>
             <Modal.Header className='pt-1 pb-1'>
               <Modal.Title>
-                {symbolEditLastBuyPrice.edit_last_buy} {symbolInfo.symbol}
+                {symbol_edit_last_buy_price.edit_last_buy} {symbolInfo.symbol}
               </Modal.Title>
             </Modal.Header>
             <Modal.Body>
-              <h2 className='form-header'>{commonStrings.sell_signal}</h2>
+              <h2 className='form-header'>{common_strings.sell_signal}</h2>
               <Form.Group controlId='field-candles-interval'>
-                <Form.Label>{commonStrings.last_buy_price}</Form.Label>
+                <Form.Label>{common_strings.last_buy_price}</Form.Label>
                 <Form.Control
                   size='sm'
                   type='number'
-                  placeholder={symbolEditLastBuyPrice.placeholder_last_buy}
+                  placeholder={symbol_edit_last_buy_price.placeholder_last_buy}
                   required
                   min='0'
                   step='0.00000001'
@@ -114,28 +114,28 @@ class SymbolEditLastBuyPriceIcon extends React.Component {
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
-                  {symbolEditLastBuyPrice.edit_last_buy_description[1]}
+                  {symbol_edit_last_buy_price.edit_last_buy_description[1]}
                   <br />
                   <br />
-                  {symbolEditLastBuyPrice.edit_last_buy_description[2]}
+                  {symbol_edit_last_buy_price.edit_last_buy_description[2]}
                   <br />
                   <br />
-                  {symbolEditLastBuyPrice.edit_last_buy_description[3]}
+                  {symbol_edit_last_buy_price.edit_last_buy_description[3]}
                   <br />
                   <br />
-                  {symbolEditLastBuyPrice.edit_last_buy_description[4]}
+                  {symbol_edit_last_buy_price.edit_last_buy_description[4]}
                   <br />
                   <br />
-                  {symbolEditLastBuyPrice.edit_last_buy_description[5]}
+                  {symbol_edit_last_buy_price.edit_last_buy_description[5]}
                 </Form.Text>
               </Form.Group>
 
               <Form.Group controlId='field-candles-interval'>
-                <Form.Label>{commonStrings.last_qty_bought}</Form.Label>
+                <Form.Label>{common_strings.last_qty_bought}</Form.Label>
                 <Form.Control
                   size='sm'
                   type='number'
-                  placeholder={symbolEditLastBuyPrice.placeholder_last_qty_bought}
+                  placeholder={symbol_edit_last_buy_price.placeholder_last_qty_bought}
                   required
                   min='0'
                   step='0.00000001'
@@ -144,7 +144,7 @@ class SymbolEditLastBuyPriceIcon extends React.Component {
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='text-muted'>
-                  {symbolEditLastBuyPrice.edit_last_qty_bought_description}
+                  {symbol_edit_last_buy_price.edit_last_qty_bought_description}
                 </Form.Text>
               </Form.Group>
             </Modal.Body>
@@ -153,10 +153,10 @@ class SymbolEditLastBuyPriceIcon extends React.Component {
                 variant='secondary'
                 size='sm'
                 onClick={this.handleModalClose}>
-                {commonStrings.close}
+                {common_strings._close}
               </Button>
               <Button type='submit' variant='primary' size='sm'>
-                {commonStrings.save_changes}
+                {common_strings.save_changes}
               </Button>
             </Modal.Footer>
           </Form>

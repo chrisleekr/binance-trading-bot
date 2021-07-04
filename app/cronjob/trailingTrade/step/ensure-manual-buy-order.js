@@ -129,7 +129,7 @@ const slackMessageOrderDeleted = async (
   const type = orderParams.type.toUpperCase();
 
   const language = config.get('language');
-  const { coinWrapper: { actions } } = require(`../../../../public/${language}.json`);
+  const { coin_wrapper: { actions } } = require(`../../../../public/${language}.json`);
 
   PubSub.publish('frontend-notification', {
     type: 'success',
