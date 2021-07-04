@@ -33,7 +33,8 @@ describe('get-indicators.js', () => {
           ) {
             return JSON.stringify({
               highestPrice: 10000,
-              lowestPrice: 8893.03
+              lowestPrice: 8893.03,
+              athPrice: 9000
             });
           }
 
@@ -60,7 +61,11 @@ describe('get-indicators.js', () => {
           symbolConfiguration: {
             buy: {
               triggerPercentage: 1.01,
-              limitPercentage: 1.021
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
             },
             sell: {
               triggerPercentage: 1.06,
@@ -86,7 +91,14 @@ describe('get-indicators.js', () => {
             filterMinNotional: { minNotional: '10.000' }
           },
           symbolConfiguration: {
-            buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
+            buy: {
+              triggerPercentage: 1.01,
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
+            },
             sell: {
               triggerPercentage: 1.06,
               limitPercentage: 0.979,
@@ -103,7 +115,8 @@ describe('get-indicators.js', () => {
           openOrders: [],
           indicators: {
             highestPrice: 10000,
-            lowestPrice: 8893.03
+            lowestPrice: 8893.03,
+            athPrice: 9000
           },
           lastCandle: {
             symbol: 'BTCUSDT',
@@ -114,6 +127,146 @@ describe('get-indicators.js', () => {
             limitPrice: 15881.746889999999,
             highestPrice: 10000,
             lowestPrice: 8893.03,
+            athPrice: 9000,
+            athRestrictionPrice: 8100,
+            triggerPrice: 8981.9603,
+            difference: 73.18146017634923,
+            openOrders: [],
+            processMessage: '',
+            updatedAt: expect.any(Object)
+          },
+          sell: {
+            currentPrice: 15555.09,
+            limitPrice: 15228.43311,
+            lastBuyPrice: null,
+            triggerPrice: null,
+            difference: null,
+            currentProfit: null,
+            currentProfitPercentage: null,
+            openOrders: [],
+            stopLossDifference: null,
+            stopLossTriggerPrice: null,
+            processMessage: '',
+            updatedAt: expect.any(Object)
+          }
+        });
+      });
+    });
+
+    describe('with disabled ATH restriction', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../../helpers');
+        cacheMock = cache;
+        loggerMock = logger;
+
+        mockGetLastBuyPrice = jest.fn().mockResolvedValue(null);
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          getLastBuyPrice: mockGetLastBuyPrice
+        }));
+
+        cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+          if (
+            hash === 'trailing-trade-symbols' &&
+            key === 'BTCUSDT-indicator-data'
+          ) {
+            return JSON.stringify({
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: null
+            });
+          }
+
+          if (
+            hash === 'trailing-trade-symbols' &&
+            key === 'BTCUSDT-latest-candle'
+          ) {
+            return JSON.stringify({
+              symbol: 'BTCUSDT',
+              close: '15555.09000000'
+            });
+          }
+
+          return null;
+        });
+
+        step = require('../get-indicators');
+
+        rawData = {
+          symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
+          symbolConfiguration: {
+            buy: {
+              triggerPercentage: 1.01,
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: false,
+                restrictionPercentage: 0.9
+              }
+            },
+            sell: {
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979,
+              stopLoss: { maxLossPercentage: 0.8 }
+            }
+          },
+          baseAssetBalance: { total: 0.1 },
+          openOrders: []
+        };
+
+        result = await step.execute(logger, rawData);
+      });
+
+      it('triggers getLastBuyPrice', () => {
+        expect(mockGetLastBuyPrice).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
+          symbolConfiguration: {
+            buy: {
+              triggerPercentage: 1.01,
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: false,
+                restrictionPercentage: 0.9
+              }
+            },
+            sell: {
+              triggerPercentage: 1.06,
+              limitPercentage: 0.979,
+              stopLoss: {
+                maxLossPercentage: 0.8
+              }
+            }
+          },
+          baseAssetBalance: {
+            total: 0.1,
+            estimatedValue: 1555.509,
+            isLessThanMinNotionalValue: false
+          },
+          openOrders: [],
+          indicators: {
+            highestPrice: 10000,
+            lowestPrice: 8893.03,
+            athPrice: null
+          },
+          lastCandle: {
+            symbol: 'BTCUSDT',
+            close: '15555.09000000'
+          },
+          buy: {
+            currentPrice: 15555.09,
+            limitPrice: 15881.746889999999,
+            highestPrice: 10000,
+            lowestPrice: 8893.03,
+            athPrice: null,
+            athRestrictionPrice: null,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
             openOrders: [],
@@ -158,7 +311,8 @@ describe('get-indicators.js', () => {
           ) {
             return JSON.stringify({
               highestPrice: 10000,
-              lowestPrice: 8893.03
+              lowestPrice: 8893.03,
+              athPrice: 9000
             });
           }
 
@@ -185,7 +339,11 @@ describe('get-indicators.js', () => {
           symbolConfiguration: {
             buy: {
               triggerPercentage: 1.01,
-              limitPercentage: 1.021
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
             },
             sell: {
               triggerPercentage: 1.06,
@@ -241,7 +399,14 @@ describe('get-indicators.js', () => {
             filterMinNotional: { minNotional: '10.000' }
           },
           symbolConfiguration: {
-            buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
+            buy: {
+              triggerPercentage: 1.01,
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
+            },
             sell: {
               triggerPercentage: 1.06,
               limitPercentage: 0.979,
@@ -304,7 +469,8 @@ describe('get-indicators.js', () => {
           ],
           indicators: {
             highestPrice: 10000,
-            lowestPrice: 8893.03
+            lowestPrice: 8893.03,
+            athPrice: 9000
           },
           lastCandle: {
             symbol: 'BTCUSDT',
@@ -315,6 +481,8 @@ describe('get-indicators.js', () => {
             limitPrice: 15881.746889999999,
             highestPrice: 10000,
             lowestPrice: 8893.03,
+            athPrice: 9000,
+            athRestrictionPrice: 8100,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
             openOrders: [
@@ -404,7 +572,8 @@ describe('get-indicators.js', () => {
           ) {
             return JSON.stringify({
               highestPrice: 10000,
-              lowestPrice: 8893.03
+              lowestPrice: 8893.03,
+              athPrice: 9000
             });
           }
 
@@ -430,7 +599,11 @@ describe('get-indicators.js', () => {
           symbolConfiguration: {
             buy: {
               triggerPercentage: 1.01,
-              limitPercentage: 1.021
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
             },
             sell: {
               triggerPercentage: 1.06,
@@ -484,7 +657,14 @@ describe('get-indicators.js', () => {
             filterMinNotional: { minNotional: '10.000' }
           },
           symbolConfiguration: {
-            buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
+            buy: {
+              triggerPercentage: 1.01,
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
+            },
             sell: {
               triggerPercentage: 1.06,
               limitPercentage: 0.979,
@@ -547,7 +727,8 @@ describe('get-indicators.js', () => {
           ],
           indicators: {
             highestPrice: 10000,
-            lowestPrice: 8893.03
+            lowestPrice: 8893.03,
+            athPrice: 9000
           },
           lastCandle: {
             symbol: 'BTCUSDT',
@@ -559,6 +740,8 @@ describe('get-indicators.js', () => {
             highestPrice: 10000,
             lowestPrice: 8893.03,
             triggerPrice: 8981.9603,
+            athPrice: 9000,
+            athRestrictionPrice: 8100,
             difference: 73.18146017634923,
             openOrders: [
               {
@@ -647,7 +830,8 @@ describe('get-indicators.js', () => {
           ) {
             return JSON.stringify({
               highestPrice: 10000,
-              lowestPrice: 8893.03
+              lowestPrice: 8893.03,
+              athPrice: 9000
             });
           }
 
@@ -674,7 +858,11 @@ describe('get-indicators.js', () => {
           symbolConfiguration: {
             buy: {
               triggerPercentage: 1.01,
-              limitPercentage: 1.011
+              limitPercentage: 1.011,
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
             },
             sell: {
               triggerPercentage: 0.99,
@@ -704,7 +892,14 @@ describe('get-indicators.js', () => {
             filterMinNotional: { minNotional: '10.000' }
           },
           symbolConfiguration: {
-            buy: { triggerPercentage: 1.01, limitPercentage: 1.011 },
+            buy: {
+              triggerPercentage: 1.01,
+              limitPercentage: 1.011,
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
+            },
             sell: {
               triggerPercentage: 0.99,
               limitPercentage: 0.98,
@@ -721,7 +916,8 @@ describe('get-indicators.js', () => {
           openOrders: [],
           indicators: {
             highestPrice: 10000,
-            lowestPrice: 8893.03
+            lowestPrice: 8893.03,
+            athPrice: 9000
           },
           lastCandle: {
             symbol: 'BTCUSDT',
@@ -732,6 +928,8 @@ describe('get-indicators.js', () => {
             limitPrice: 15726.195989999998,
             highestPrice: 10000,
             lowestPrice: 8893.03,
+            athPrice: 9000,
+            athRestrictionPrice: 8100,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
             openOrders: [],
@@ -791,7 +989,11 @@ describe('get-indicators.js', () => {
           symbolConfiguration: {
             buy: {
               triggerPercentage: 1.01,
-              limitPercentage: 1.021
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
             },
             sell: {
               triggerPercentage: 1.06,
@@ -813,7 +1015,14 @@ describe('get-indicators.js', () => {
             filterMinNotional: { minNotional: '10.000' }
           },
           symbolConfiguration: {
-            buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
+            buy: {
+              triggerPercentage: 1.01,
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
+            },
             sell: {
               triggerPercentage: 1.06,
               limitPercentage: 0.979,
@@ -861,7 +1070,11 @@ describe('get-indicators.js', () => {
           symbolConfiguration: {
             buy: {
               triggerPercentage: 1.01,
-              limitPercentage: 1.021
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
             },
             sell: {
               triggerPercentage: 1.06,
@@ -883,7 +1096,14 @@ describe('get-indicators.js', () => {
             filterMinNotional: { minNotional: '10.000' }
           },
           symbolConfiguration: {
-            buy: { triggerPercentage: 1.01, limitPercentage: 1.021 },
+            buy: {
+              triggerPercentage: 1.01,
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
+            },
             sell: {
               triggerPercentage: 1.06,
               limitPercentage: 0.979,

@@ -36,7 +36,7 @@ const hasBalanceToSell = data => {
 };
 
 /**
- * Check whether current price within the buying restriction price or not
+ * Check whether trigger price within the buying restriction price or not
  *
  * @param {*} data
  * @returns
@@ -44,7 +44,7 @@ const hasBalanceToSell = data => {
 const isGreaterThanTheATHRestrictionPrice = data => {
   const {
     buy: {
-      currentPrice: buyCurrentPrice,
+      triggerPrice: buyTriggerPrice,
       athRestrictionPrice: buyATHRestrictionPrice,
       athRestriction: { enabled: buyATHRestrictionEnabled }
     }
@@ -52,7 +52,7 @@ const isGreaterThanTheATHRestrictionPrice = data => {
 
   return (
     buyATHRestrictionEnabled === true &&
-    buyCurrentPrice >= buyATHRestrictionPrice
+    buyTriggerPrice >= buyATHRestrictionPrice
   );
 };
 
@@ -204,15 +204,6 @@ const execute = async (logger, rawData) => {
       );
     }
 
-    if (isGreaterThanTheATHRestrictionPrice(data)) {
-      return setBuyActionAndMessage(
-        logger,
-        data,
-        'wait',
-        `The current price has reached the lowest price; however, it is restricted to buy the coin.`
-      );
-    }
-
     const checkDisable = await isActionDisabled(symbol);
     logger.info(
       { tag: 'check-disable', checkDisable },
@@ -226,6 +217,15 @@ const execute = async (logger, rawData) => {
         'The current price reached the trigger price. ' +
           `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
           `Resume buy process after ${checkDisable.ttl}s.`
+      );
+    }
+
+    if (isGreaterThanTheATHRestrictionPrice(data)) {
+      return setBuyActionAndMessage(
+        logger,
+        data,
+        'wait',
+        `The current price has reached the lowest price; however, it is restricted to buy the coin.`
       );
     }
 

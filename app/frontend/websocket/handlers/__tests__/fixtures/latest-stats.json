@@ -25,7 +25,12 @@
       "maxPurchaseAmounts": {},
       "triggerPercentage": 1,
       "stopPercentage": 1.02,
-      "limitPercentage": 1.021
+      "limitPercentage": 1.021,
+      "athRestriction": {
+        "enabled": true,
+        "candles": { "interval": "1d", "limit": 30 },
+        "restrictionPercentage": 0.9
+      }
     },
     "system": {
       "temporaryDisableActionAfterConfirmingOrder": 20,
@@ -35,7 +40,7 @@
     }
   },
   "common": {
-    "version": "0.0.69",
+    "version": "0.0.71",
     "gitHash": "some-hash",
     "configuration": {
       "enabled": true,
@@ -61,7 +66,12 @@
         "maxPurchaseAmounts": {},
         "triggerPercentage": 1,
         "stopPercentage": 1.02,
-        "limitPercentage": 1.021
+        "limitPercentage": 1.021,
+        "athRestriction": {
+          "enabled": true,
+          "candles": { "interval": "1d", "limit": 30 },
+          "restrictionPercentage": 0.9
+        }
       },
       "system": {
         "temporaryDisableActionAfterConfirmingOrder": 20,
@@ -129,7 +139,12 @@
             "maxPurchaseAmounts": {},
             "triggerPercentage": 1,
             "stopPercentage": 1.02,
-            "limitPercentage": 1.021
+            "limitPercentage": 1.021,
+            "athRestriction": {
+              "enabled": true,
+              "candles": { "interval": "1d", "limit": 30 },
+              "restrictionPercentage": 0.9
+            }
           },
           "system": {
             "temporaryDisableActionAfterConfirmingOrder": 20,
@@ -163,7 +178,12 @@
             "maxPurchaseAmount": 100,
             "triggerPercentage": 1,
             "stopPercentage": 1.02,
-            "limitPercentage": 1.021
+            "limitPercentage": 1.021,
+            "athRestriction": {
+              "enabled": true,
+              "candles": { "interval": "1d", "limit": 30 },
+              "restrictionPercentage": 0.9
+            }
           },
           "system": {
             "temporaryDisableActionAfterConfirmingOrder": 20,
@@ -329,7 +349,12 @@
             "maxPurchaseAmounts": {},
             "triggerPercentage": 1,
             "stopPercentage": 1.02,
-            "limitPercentage": 1.021
+            "limitPercentage": 1.021,
+            "athRestriction": {
+              "enabled": true,
+              "candles": { "interval": "1d", "limit": 30 },
+              "restrictionPercentage": 0.9
+            }
           },
           "system": {
             "temporaryDisableActionAfterConfirmingOrder": 20,
@@ -363,7 +388,12 @@
             "maxPurchaseAmount": 100,
             "triggerPercentage": 1,
             "stopPercentage": 1.02,
-            "limitPercentage": 1.021
+            "limitPercentage": 1.021,
+            "athRestriction": {
+              "enabled": true,
+              "candles": { "interval": "1d", "limit": 30 },
+              "restrictionPercentage": 0.9
+            }
           },
           "system": {
             "temporaryDisableActionAfterConfirmingOrder": 20,
