@@ -50,10 +50,10 @@ const execute = async (logger, rawData) => {
   }
 
   const language = config.get('language');
-  const { coin_wrapper: { actions } } = require(`../../../../public/${language}.json`);
+  const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
 
   if (openOrders.length > 0) {
-    data.sell.processMessage = action.action_open_orders[1] + symbol + '.' + actions.action_open_orders[2];
+    data.sell.processMessage = action.action_open_orders[1] + symbol + '.' + _actions.action_open_orders[2];
     data.sell.updatedAt = moment().utc();
 
     return data;
@@ -75,8 +75,8 @@ const execute = async (logger, rawData) => {
 
   if (orderQuantity <= parseFloat(minQty)) {
     data.sell.processMessage =
-      actions.action_order_minimum_qty[1] + minQty +
-      actions.action_order_minimum_qty[2];
+      _actions.action_order_minimum_qty[1] + minQty +
+      _actions.action_order_minimum_qty[2];
     data.sell.updatedAt = moment().utc();
 
     return data;
@@ -86,21 +86,21 @@ const execute = async (logger, rawData) => {
   }
 
   if (orderQuantity * limitPrice < parseFloat(minNotional)) {
-    data.sell.processMessage = actions.action_less_than_nominal;
+    data.sell.processMessage = _actions.action_less_than_nominal;
     data.sell.updatedAt = moment().utc();
 
     return data;
   }
 
   if (tradingEnabled !== true) {
-    data.buy.processMessage = actions.action_trading_for_disabled[1] + symbol + actions.action_trading_for_disabled[2];
+    data.buy.processMessage = _actions.action_trading_for_disabled[1] + symbol + _actions.action_trading_for_disabled[2];
     data.sell.updatedAt = moment().utc();
 
     return data;
   }
 
   if (isExceedAPILimit(logger)) {
-    data.buy.processMessage = actions.action_api_exceed;
+    data.buy.processMessage = _actions.action_api_exceed;
     data.sell.updatedAt = moment().utc();
 
     return data;
@@ -164,7 +164,7 @@ const execute = async (logger, rawData) => {
   messenger.sendMessage(
     symbol, orderResult, 'PLACE_SELL_DONE'
   );
-  data.buy.processMessage = actions.action_placed_new_sell_order;
+  data.buy.processMessage = _actions.action_placed_new_sell_order;
   data.sell.updatedAt = moment().utc();
 
   return data;

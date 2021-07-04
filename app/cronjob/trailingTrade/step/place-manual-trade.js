@@ -6,8 +6,6 @@ const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
-let actions = {};
-
 /**
  * Format order params for market total
  *
@@ -166,7 +164,8 @@ const slackMessageOrderResult = async (
   symbol,
   side,
   order,
-  orderResult
+  orderResult,
+  actions
 ) => {
   const { type: rawType, marketType } = order[side];
   let type = rawType.toUpperCase();
@@ -252,7 +251,7 @@ const execute = async (logger, rawData) => {
   }
   const language = config.get('language');
 
-  const { coin_wrapper: { actions }, place_manual_trade } = require(`../../../../public/${config.get('language')}.json`);
+  const { coin_wrapper: { _actions }, place_manual_trade } = require(`../../../../public/${config.get('language')}.json`);
 
   // Assume order is provided with correct value
   const orderParams = await formatOrder(logger, symbol, order);
@@ -275,7 +274,7 @@ const execute = async (logger, rawData) => {
   // Refresh account info
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
-  slackMessageOrderResult(logger, symbol, order.side, order, orderResult);
+  slackMessageOrderResult(logger, symbol, order.side, order, orderResult, actions);
   data.buy.processMessage = place_manual_trade.action_manual_order;
   data.buy.updatedAt = moment().utc();
 

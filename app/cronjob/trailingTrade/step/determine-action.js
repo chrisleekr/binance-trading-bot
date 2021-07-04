@@ -255,7 +255,7 @@ const execute = async (logger, rawData) => {
 
 
   const language = config.get('language');
-  const { coin_wrapper: { actions } } = require(`../../../../public/${language}.json`);
+  const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
 
   // Check sell signal - if
   //  last buy price has a value
@@ -274,9 +274,9 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'sell-temporary-disabled',
-          actions.action_sell_disabled[1] +
-          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+          _actions.action_sell_disabled[1] +
+          _actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          _actions.action_sell_disabled[3] + checkDisable.ttl + 's'
         );
       }
       if (trendDownMarketSell) {
@@ -311,9 +311,9 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'sell-temporary-disabled',
-          actions.action_sell_disabled[1] +
-          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+          _actions.action_sell_disabled[1] +
+          _actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          _actions.action_sell_disabled[3] + checkDisable.ttl + 's'
         );
       }
       if (trendDownMarketSell) {
@@ -349,9 +349,9 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'sell-temporary-disabled',
-          actions.action_sell_disabled[1] +
-          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+          _actions.action_sell_disabled[1] +
+          _actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          _actions.action_sell_disabled[3] + checkDisable.ttl + 's'
         );
       }
       // Then sell
@@ -359,7 +359,7 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'sell',
-        actions.action_sell
+        _actions.action_sell
       );
     }
     if (isLowerThanStopLossTriggerPrice(data)) {
@@ -373,9 +373,9 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'sell-temporary-disabled',
-          actions.action_sell_disabled_stop_loss[1] +
-          actions.action_sell_disabled_stop_loss[2] + checkDisable.disabledBy + '.' +
-          actions.action_sell_disabled_stop_loss[3] + checkDisable.ttl + 's'
+          _actions.action_sell_disabled_stop_loss[1] +
+          _actions.action_sell_disabled_stop_loss[2] + checkDisable.disabledBy + '.' +
+          _actions.action_sell_disabled_stop_loss[3] + checkDisable.ttl + 's'
         );
       }
       // Then sell market order
@@ -383,7 +383,7 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'sell-stop-loss',
-        actions.action_sell_stop_loss
+        _actions.action_sell_stop_loss
       );
     }
 
@@ -392,7 +392,7 @@ const execute = async (logger, rawData) => {
       logger,
       data,
       'sell-wait',
-      actions.sell_wait
+      _actions.sell_wait
     );
   }
 
@@ -414,9 +414,9 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'buy-temporary-disabled',
-          actions.action_buy_disabled[1] +
-          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+          _actions.action_buy_disabled[1] +
+          _actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          _actions.action_sell_disabled[3] + checkDisable.ttl + 's'
         );
       }
 
@@ -429,7 +429,7 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'buy',
-        actions.action_buy
+        _actions.action_buy
       );
     } else {
       if (hasBalanceToSell(data)) {
@@ -437,10 +437,10 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'wait',
-          actions.action_wait[1] +
-          actions.action_wait[2] + baseAsset + actions.action_wait[3] +
-          actions.action_wait[4] +
-          actions.action_wait[5]
+          _actions.action_wait[1] +
+          _actions.action_wait[2] + baseAsset + _actions.action_wait[3] +
+          _actions.action_wait[4] +
+          _actions.action_wait[5]
         );
       }
 
@@ -454,9 +454,9 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'buy-temporary-disabled',
-          actions.action_buy_disabled[1] +
-          actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-          actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+          _actions.action_buy_disabled[1] +
+          _actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
+          _actions.action_sell_disabled[3] + checkDisable.ttl + 's'
         );
       }
 
@@ -464,7 +464,7 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'buy',
-        actions.action_buy
+        _actions.action_buy
       );
     }
   }

@@ -8,7 +8,6 @@ const {
   saveLastBuyPrice,
   getAPILimit
 } = require('../../trailingTradeHelper/common');
-let actions = {};
 
 /**
  * Retrieve last buy price and recalculate new last buy price
@@ -129,11 +128,11 @@ const slackMessageOrderDeleted = async (
   const type = orderParams.type.toUpperCase();
 
   const language = config.get('language');
-  const { coin_wrapper: { actions } } = require(`../../../../public/${language}.json`);
+  const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
 
   PubSub.publish('frontend-notification', {
     type: 'success',
-    title: actions.action_stop_monitoring[1] + side + actions.action_stop_monitoring[2] + symbol + actions.action_stop_monitoring[3] + orderResult.status + actions.action_stop_monitoring[4]
+    title: _actions.action_stop_monitoring[1] + side + _actions.action_stop_monitoring[2] + symbol + _actions.action_stop_monitoring[3] + orderResult.status + _actions.action_stop_monitoring[4]
   });
 
   return messenger.errorMessage(

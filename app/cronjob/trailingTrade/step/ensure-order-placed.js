@@ -178,7 +178,7 @@ const execute = async (logger, rawData) => {
 
 
   const language = config.get('language');
-  const { coin_wrapper: { actions } } = require(`../../../../public/${language}.json`);
+  const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
 
   // Ensure buy order placed
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);
@@ -210,7 +210,7 @@ const execute = async (logger, rawData) => {
         symbol,
         {
           disabledBy: 'buy order',
-          message: actions.action_buy_order_filled,
+          message: _actions.action_buy_order_filled,
           canResume: false,
           canRemoveLastBuyPrice: false
         },
@@ -242,7 +242,7 @@ const execute = async (logger, rawData) => {
             symbol,
             {
               disabledBy: 'buy order',
-              message: actions.action_buy_order_filled,
+              message: _actions.action_buy_order_filled,
               canResume: false,
               canRemoveLastBuyPrice: false
             },
@@ -255,7 +255,7 @@ const execute = async (logger, rawData) => {
             logger,
             data,
             'buy-order-filled',
-            actions.action_buy_order_filled
+            _actions.action_buy_order_filled
           );
         }
       } catch (e) {
@@ -281,7 +281,7 @@ const execute = async (logger, rawData) => {
         symbol,
         {
           disabledBy: 'buy order',
-          message: actions.action_buy_order_filled,
+          message: _actions.action_buy_order_filled,
           canResume: false,
           canRemoveLastBuyPrice: false
         },
@@ -295,7 +295,7 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'buy-order-checking',
-        actions.action_buy_order_checking
+        _actions.action_buy_order_checking
       );
     }
   }
@@ -332,7 +332,7 @@ const execute = async (logger, rawData) => {
         symbol,
         {
           disabledBy: 'sell order',
-          message: actions.action_sell_disabled_after_sell,
+          message: _actions.action_sell_disabled_after_sell,
           canResume: false,
           canRemoveLastBuyPrice: false
         },
@@ -368,7 +368,7 @@ const execute = async (logger, rawData) => {
             symbol,
             {
               disabledBy: 'sell order',
-              message: actions.action_sell_disabled_after_sell,
+              message: _actions.action_sell_disabled_after_sell,
               canResume: false,
               canRemoveLastBuyPrice: false
             },
@@ -382,7 +382,7 @@ const execute = async (logger, rawData) => {
             logger,
             data,
             'sell-order-filled',
-            actions.action_sell_order_filled
+            _actions.action_sell_order_filled
           );
         }
       } catch (e) {
@@ -407,7 +407,7 @@ const execute = async (logger, rawData) => {
         symbol,
         {
           disabledBy: 'sell order',
-          message: actions.action_sell_disabled_after_sell,
+          message: _actions.action_sell_disabled_after_sell,
           canResume: false,
           canRemoveLastBuyPrice: false
         },
@@ -421,7 +421,7 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'sell-order-checking',
-        actions.action_sell_order_checking
+        _actions.action_sell_order_checking
       );
     }
   }

@@ -53,10 +53,10 @@ const execute = async (logger, rawData) => {
 
   if (action == 'sell-stop-loss' || action == 'sell-profit') {
     const language = config.get('language');
-    const { coin_wrapper: { actions } } = require(`../../../../public/${language}.json`);
+    const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
 
     if (openOrders.length > 0) {
-      data.sell.processMessage = action.action_open_orders[1] + symbol + '.' + actions.action_open_orders[2];
+      data.sell.processMessage = action.action_open_orders[1] + symbol + '.' + _actions.action_open_orders[2];
       data.sell.updatedAt = moment().utc();
 
       return data;
@@ -73,8 +73,8 @@ const execute = async (logger, rawData) => {
 
     if (orderQuantity <= parseFloat(minQty)) {
       data.sell.processMessage =
-        actions.action_order_minimum_qty[1] + minQty +
-        actions.action_order_minimum_qty[2];
+        _actions.action_order_minimum_qty[1] + minQty +
+        _actions.action_order_minimum_qty[2];
       data.sell.updatedAt = moment().utc();
 
       return data;
@@ -86,21 +86,21 @@ const execute = async (logger, rawData) => {
 
     var calculatedPrice = orderQuantity * currentPrice;
     if (calculatedPrice < parseFloat(minNotional)) {
-      data.sell.processMessage = actions.action_less_than_nominal;
+      data.sell.processMessage = _actions.action_less_than_nominal;
       data.sell.updatedAt = moment().utc();
 
       return data;
     }
 
     if (tradingEnabled !== true) {
-      data.buy.processMessage = actions.action_trading_for_disabled[1] + symbol + actions.action_trading_for_disabled[2];
+      data.buy.processMessage = _actions.action_trading_for_disabled[1] + symbol + _actions.action_trading_for_disabled[2];
       data.sell.updatedAt = moment().utc();
 
       return data;
     }
 
     if (isExceedAPILimit(logger)) {
-      data.buy.processMessage = actions.action_api_exceed;
+      data.buy.processMessage = _actions.action_api_exceed;
       data.sell.updatedAt = moment().utc();
 
       return data;
@@ -109,7 +109,7 @@ const execute = async (logger, rawData) => {
     // Currently, only support market order for stop-loss.
     const allowedOrderTypes = ['market'];
     if (allowedOrderTypes.includes(sellStopLossOrderType) === false) {
-      data.sell.processMessage = actions.action_unknown_order[1] + sellStopLossOrderType + actions.action_unknown_order[2];
+      data.sell.processMessage = _actions.action_unknown_order[1] + sellStopLossOrderType + _actions.action_unknown_order[2];
       data.sell.updatedAt = moment().utc();
 
       return data;
@@ -156,7 +156,7 @@ const execute = async (logger, rawData) => {
         symbol,
         {
           disabledBy: 'stop loss',
-          message: actions.action_disabled_stop_loss,
+          message: _actions.action_disabled_stop_loss,
           canResume: true,
           canRemoveLastBuyPrice: true
         },
@@ -176,7 +176,7 @@ const execute = async (logger, rawData) => {
 
     // Refresh account info
     data.accountInfo = await getAccountInfoFromAPI(logger);
-    data.sell.processMessage = actions.action_sell_stop_loss;
+    data.sell.processMessage = _actions.action_sell_stop_loss;
     data.sell.updatedAt = moment().utc();
 
     return data;

@@ -66,7 +66,7 @@ const execute = async (logger, rawData) => {
 
 
   const language = config.get('language');
-  const { coin_wrapper: { actions } } = require(`../../../../public/${language}.json`);
+  const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
 
   if (!await retrieveLastBuyOrder(symbol)) {
     data.buy.processMessage = "cant buy, found open order in cache";
@@ -74,7 +74,7 @@ const execute = async (logger, rawData) => {
   }
 
   if (openOrders.length > 0) {
-    data.buy.processMessage = action.action_open_orders[1] + symbol + '.' + actions.action_open_orders[2];
+    data.buy.processMessage = action.action_open_orders[1] + symbol + '.' + _actions.action_open_orders[2];
     data.buy.updatedAt = moment().utc();
 
     return data;
@@ -82,7 +82,7 @@ const execute = async (logger, rawData) => {
 
   if (maxPurchaseAmount <= 0) {
     data.buy.processMessage =
-      actions.action_max_purchase_undefined;
+      _actions.action_max_purchase_undefined;
     data.buy.updatedAt = moment().utc();
 
     return data;
@@ -111,7 +111,7 @@ const execute = async (logger, rawData) => {
   }
 
   if (freeBalance < parseFloat(minNotional)) {
-    data.buy.processMessage = actions.action_dont_place_order[1] + quoteAsset + actions.action_dont_place_order[2] + baseAsset + '.';
+    data.buy.processMessage = _actions.action_dont_place_order[1] + quoteAsset + _actions.action_dont_place_order[2] + baseAsset + '.';
     data.buy.updatedAt = moment().utc();
 
     return data;
@@ -140,22 +140,22 @@ const execute = async (logger, rawData) => {
 
   if (orderQuantity * limitPrice < parseFloat(minNotional)) {
     data.buy.processMessage =
-      actions.action_dont_place_order_calc[1] + quoteAsset +
-      actions.action_dont_place_order_calc[2] + baseAsset + actions.action_dont_place_order_calc[3];
+      _actions.action_dont_place_order_calc[1] + quoteAsset +
+      _actions.action_dont_place_order_calc[2] + baseAsset + _actions.action_dont_place_order_calc[3];
     data.buy.updatedAt = moment().utc();
 
     return data;
   }
 
   if (tradingEnabled !== true) {
-    data.buy.processMessage = actions.action_trading_for_disabled[1] + symbol + actions.action_trading_for_disabled[2];
+    data.buy.processMessage = _actions.action_trading_for_disabled[1] + symbol + _actions.action_trading_for_disabled[2];
     data.buy.updatedAt = moment().utc();
 
     return data;
   }
 
   if (isExceedAPILimit(logger)) {
-    data.buy.processMessage = actions.action_api_exceed;
+    data.buy.processMessage = _actions.action_api_exceed;
     data.buy.updatedAt = moment().utc();
 
     return data;
@@ -208,7 +208,7 @@ const execute = async (logger, rawData) => {
   messenger.sendMessage(
     symbol, orderResult, 'PLACE_BUY_DONE'
   );
-  data.buy.processMessage = actions.action_placed_new_order;
+  data.buy.processMessage = _actions.action_placed_new_order;
   data.buy.updatedAt = moment().utc();
 
   // Save last buy price

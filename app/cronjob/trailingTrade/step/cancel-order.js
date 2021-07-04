@@ -37,7 +37,7 @@ const execute = async (logger, rawData) => {
 
 
   const language = config.get('language');
-  const { coin_wrapper: { actions } } = require(`../../../../public/${language}.json`);
+  const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
 
   logger.info(
     { debug: true, function: 'order', orderParams },
@@ -65,14 +65,14 @@ const execute = async (logger, rawData) => {
   PubSub.publish('frontend-notification', {
     type: 'success',
     title:
-      actions.action_cancel_success[1] + symbol + actions.action_cancel_success[2]
+      _actions.action_cancel_success[1] + symbol + _actions.action_cancel_success[2]
   });
 
   messenger.sendMessage(
     symbol, orderResult, 'ORDER_CANCELED'
   );
 
-  data.buy.processMessage = actions.order_cancelled;
+  data.buy.processMessage = _actions.order_cancelled;
   data.buy.updatedAt = moment().utc();
 
   return data;
