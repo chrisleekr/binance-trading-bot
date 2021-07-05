@@ -98,6 +98,23 @@
         "limitPercentage": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_LIMIT_PERCENTAGE",
           "__format": "number"
+        },
+        "athRestriction": {
+          "enabled": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_ATH_RESTRICTION_ENABLE",
+            "__format": "boolean"
+          },
+          "candles": {
+            "interval": "BINANCE_JOBS_TRAILING_TRADE_BUY_ATH_RESTRICTION_CANDLES_INTERVAL",
+            "limit": {
+              "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_ATH_RESTRICTION_CANDLES_LIMIT",
+              "__format": "number"
+            }
+          },
+          "restrictionPercentage": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_ATH_RESTRICTION_RESTRICTION_PERCENTAGE",
+            "__format": "number"
+          }
         }
       },
       "sell": {
