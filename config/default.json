@@ -56,7 +56,15 @@
         "maxPurchaseAmounts": {},
         "triggerPercentage": 1.0,
         "stopPercentage": 1.02,
-        "limitPercentage": 1.021
+        "limitPercentage": 1.021,
+        "athRestriction": {
+          "enabled": true,
+          "candles": {
+            "interval": "1d",
+            "limit": 30
+          },
+          "restrictionPercentage": 0.9
+        }
       },
       "sell": {
         "enabled": true,
@@ -73,6 +81,7 @@
       "system": {
         "temporaryDisableActionAfterConfirmingOrder": 20,
         "checkManualBuyOrderPeriod": 5,
+        "placeManualOrderInterval": 5,
         "refreshAccountInfoPeriod": 1
       }
     },

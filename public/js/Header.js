@@ -3,13 +3,8 @@
 /* eslint-disable no-undef */
 class Header extends React.Component {
   render() {
-    const {
-      configuration,
-      publicURL,
-      sendWebSocket,
-      exchangeSymbols,
-      exchangeFIATs
-    } = this.props;
+    const { configuration, publicURL, sendWebSocket, exchangeSymbols } =
+      this.props;
 
     return (
       <div className='app-header'>
@@ -52,7 +47,6 @@ class Header extends React.Component {
             {_.isEmpty(configuration) === false ? (
               <SettingIcon
                 exchangeSymbols={exchangeSymbols}
-                exchangeFIATs={exchangeFIATs}
                 configuration={configuration}
                 sendWebSocket={sendWebSocket}
               />

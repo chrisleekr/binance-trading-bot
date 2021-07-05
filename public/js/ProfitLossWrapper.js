@@ -2,8 +2,61 @@
 /* eslint-disable react/jsx-no-undef */
 /* eslint-disable no-undef */
 class ProfitLossWrapper extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      canUpdate: true,
+      symbols: {},
+      totalPnL: {}
+    };
+
+    this.setUpdate = this.setUpdate.bind(this);
+  }
+
+  componentDidUpdate(nextProps) {
+    // Only update, when the canUpdate is true.
+    const { canUpdate } = this.state;
+    if (
+      canUpdate === true &&
+      _.get(nextProps, 'symbols', null) !== null &&
+      _.isEqual(_.get(nextProps, 'symbols', null), this.state.symbols) === false
+    ) {
+      const { symbols } = nextProps;
+
+      // Calculate total profit/loss
+      const totalPnL = {};
+      _.forEach(symbols, s => {
+        if (totalPnL[s.quoteAssetBalance.asset] === undefined) {
+          totalPnL[s.quoteAssetBalance.asset] = {
+            asset: s.quoteAssetBalance.asset,
+            amount: 0,
+            profit: 0
+          };
+        }
+
+        totalPnL[s.quoteAssetBalance.asset].amount +=
+          (parseFloat(s.baseAssetBalance.free) +
+            parseFloat(s.baseAssetBalance.free)) *
+          s.sell.lastBuyPrice;
+        totalPnL[s.quoteAssetBalance.asset].profit += s.sell.currentProfit;
+      });
+
+      this.setState({
+        symbols,
+        totalPnL
+      });
+    }
+  }
+
+  setUpdate(newStatus) {
+    this.setState({
+      canUpdate: newStatus
+    });
+  }
+
   render() {
-    const { totalPnL } = this.props;
+    const { sendWebSocket } = this.props;
+    const { totalPnL, symbols } = this.state;
 
     const quoteAssets = Object.values(totalPnL).map((pnl, index) => {
       const percentage =
@@ -16,7 +69,8 @@ class ProfitLossWrapper extends React.Component {
             <span className='profit-loss-asset'>{pnl.asset}</span>{' '}
             <span className='profit-loss-value'>
               {pnl.profit > 0 ? '+' : ''}
-              {pnl.profit.toFixed(5)} ({percentage}%)
+              {pnl.profit.toFixed(5)}
+              <br />({percentage}%)
             </span>
           </div>
         </div>
@@ -54,16 +108,32 @@ class ProfitLossWrapper extends React.Component {
                     </OverlayTrigger>
                   </div>
                 </div>
-                {/* <div className='flex-column-right pt-2'>
-                  <ManualTradeIcon />
-                </div> */}
+                <div className='flex-column-right pt-2'>
+                  {_.isEmpty(symbols) === false ? (
+                    <ManualTradeIcon
+                      symbols={symbols}
+                      setUpdate={this.setUpdate}
+                      sendWebSocket={sendWebSocket}
+                    />
+                  ) : (
+                    ''
+                  )}
+                </div>
               </div>
             </Card.Header>
 
             <Accordion.Collapse eventKey='0'>
               <Card.Body className='d-flex flex-column py-2 px-0 card-body'>
                 <div className='profit-loss-wrappers info-wrapper d-flex flex-row flex-wrap justify-content-start'>
-                  {quoteAssets}
+                  {_.isEmpty(totalPnL) ? (
+                    <div className='text-center w-100'>
+                      <Spinner animation='border' role='status'>
+                        <span className='sr-only'>Loading...</span>
+                      </Spinner>
+                    </div>
+                  ) : (
+                    quoteAssets
+                  )}
                 </div>
               </Card.Body>
             </Accordion.Collapse>

@@ -2,8 +2,8 @@ const _ = require('lodash');
 const moment = require('moment');
 
 const {
-  getOverrideDataForSymbol,
-  removeOverrideDataForSymbol
+  getOverrideDataForIndicator,
+  removeOverrideDataForIndicator
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -15,15 +15,7 @@ const {
 const execute = async (logger, rawData) => {
   const data = rawData;
 
-  const { action, symbol, isLocked } = data;
-
-  if (isLocked) {
-    logger.info(
-      { isLocked },
-      'Symbol is locked, do not process override-action'
-    );
-    return data;
-  }
+  const { action } = data;
 
   if (action !== 'not-determined') {
     logger.info(
@@ -33,18 +25,17 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  const overrideData = await getOverrideDataForSymbol(logger, symbol);
+  const overrideData = await getOverrideDataForIndicator(logger, 'global');
 
   // Override action
   if (
-    (_.get(overrideData, 'action') === 'manual-trade' ||
-      _.get(overrideData, 'action') === 'cancel-order') &&
+    _.get(overrideData, 'action') === 'dust-transfer' &&
     moment(_.get(overrideData, 'actionAt', undefined)) <= moment()
   ) {
     data.action = overrideData.action;
-    data.order = overrideData.order;
+    data.overrideParams = overrideData.params;
     // Remove override data to avoid multiple execution
-    await removeOverrideDataForSymbol(logger, symbol);
+    await removeOverrideDataForIndicator(logger, 'global');
     return data;
   }
 
