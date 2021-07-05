@@ -18,13 +18,17 @@ describe('determine-action.js', () => {
             }
           },
           baseAssetBalance: { total: '1.4500000' },
+          symbolConfiguration: {
+            buy: {
+              athRestriction: {
+                enabled: true
+              }
+            }
+          },
           buy: {
             currentPrice: 184.099,
             triggerPrice: 172.375,
-            athRestrictionPrice: 180.0,
-            athRestriction: {
-              enabled: true
-            }
+            athRestrictionPrice: 180.0
           },
           sell: {
             currentPrice: 184.099,
@@ -52,13 +56,17 @@ describe('determine-action.js', () => {
             }
           },
           baseAssetBalance: { total: '1.4500000' },
+          symbolConfiguration: {
+            buy: {
+              athRestriction: {
+                enabled: true
+              }
+            }
+          },
           buy: {
             currentPrice: 184.099,
             triggerPrice: 172.375,
-            athRestrictionPrice: 180.0,
-            athRestriction: {
-              enabled: true
-            }
+            athRestrictionPrice: 180.0
           },
           sell: {
             currentPrice: 184.099,
@@ -86,13 +94,17 @@ describe('determine-action.js', () => {
             }
           },
           baseAssetBalance: { total: '1.4500000' },
+          symbolConfiguration: {
+            buy: {
+              athRestriction: {
+                enabled: true
+              }
+            }
+          },
           buy: {
             currentPrice: 184.099,
             triggerPrice: 172.375,
-            athRestrictionPrice: 180.0,
-            athRestriction: {
-              enabled: true
-            }
+            athRestrictionPrice: 180.0
           },
           sell: {
             currentPrice: 184.099,
@@ -128,13 +140,17 @@ describe('determine-action.js', () => {
                 }
               },
               baseAssetBalance: { total: '1.0500000' },
+              symbolConfiguration: {
+                buy: {
+                  athRestriction: {
+                    enabled: true
+                  }
+                }
+              },
               buy: {
                 currentPrice: 184.099,
                 triggerPrice: 185.375,
-                athRestrictionPrice: 180.0,
-                athRestriction: {
-                  enabled: true
-                }
+                athRestrictionPrice: 180.0
               },
               sell: {
                 currentPrice: 184.099,
@@ -157,13 +173,17 @@ describe('determine-action.js', () => {
                 }
               },
               baseAssetBalance: { total: '1.0500000' },
+              symbolConfiguration: {
+                buy: {
+                  athRestriction: {
+                    enabled: true
+                  }
+                }
+              },
               buy: {
                 currentPrice: 184.099,
                 triggerPrice: 185.375,
                 athRestrictionPrice: 180.0,
-                athRestriction: {
-                  enabled: true
-                },
                 processMessage:
                   `The current price reached the trigger price. ` +
                   `But you have enough BTC to sell. ` +
@@ -204,13 +224,17 @@ describe('determine-action.js', () => {
                 }
               },
               baseAssetBalance: { total: '0.0500000' },
+              symbolConfiguration: {
+                buy: {
+                  athRestriction: {
+                    enabled: true
+                  }
+                }
+              },
               buy: {
                 currentPrice: 184.099,
                 triggerPrice: 185.375,
-                athRestrictionPrice: 180.0,
-                athRestriction: {
-                  enabled: true
-                }
+                athRestrictionPrice: 180.0
               },
               sell: {
                 currentPrice: 184.099,
@@ -232,13 +256,17 @@ describe('determine-action.js', () => {
                 }
               },
               baseAssetBalance: { total: '0.0500000' },
+              symbolConfiguration: {
+                buy: {
+                  athRestriction: {
+                    enabled: true
+                  }
+                }
+              },
               buy: {
                 currentPrice: 184.099,
                 triggerPrice: 185.375,
                 athRestrictionPrice: 180.0,
-                athRestriction: {
-                  enabled: true
-                },
                 processMessage:
                   `The current price reached the trigger price. ` +
                   `However, the action is temporarily disabled by buy order. ` +
@@ -271,13 +299,17 @@ describe('determine-action.js', () => {
                   }
                 },
                 baseAssetBalance: { total: '0.0500000' },
+                symbolConfiguration: {
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    }
+                  }
+                },
                 buy: {
                   currentPrice: 184.099,
                   triggerPrice: 185.375,
-                  athRestrictionPrice: 180.0,
-                  athRestriction: {
-                    enabled: true
-                  }
+                  athRestrictionPrice: 180.0
                 },
                 sell: {
                   currentPrice: 184.099,
@@ -299,13 +331,17 @@ describe('determine-action.js', () => {
                   }
                 },
                 baseAssetBalance: { total: '0.0500000' },
+                symbolConfiguration: {
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    }
+                  }
+                },
                 buy: {
                   currentPrice: 184.099,
                   triggerPrice: 185.375,
                   athRestrictionPrice: 180.0,
-                  athRestriction: {
-                    enabled: true
-                  },
                   processMessage:
                     'The current price has reached the lowest price; however, it is restricted to buy the coin.',
                   updatedAt: expect.any(Object)
@@ -335,13 +371,17 @@ describe('determine-action.js', () => {
                   }
                 },
                 baseAssetBalance: { total: '0.0500000' },
+                symbolConfiguration: {
+                  buy: {
+                    athRestriction: {
+                      enabled: false
+                    }
+                  }
+                },
                 buy: {
                   currentPrice: 184.099,
                   triggerPrice: 185.375,
-                  athRestrictionPrice: 180.0,
-                  athRestriction: {
-                    enabled: false
-                  }
+                  athRestrictionPrice: 180.0
                 },
                 sell: {
                   currentPrice: 184.099,
@@ -363,13 +403,17 @@ describe('determine-action.js', () => {
                   }
                 },
                 baseAssetBalance: { total: '0.0500000' },
+                symbolConfiguration: {
+                  buy: {
+                    athRestriction: {
+                      enabled: false
+                    }
+                  }
+                },
                 buy: {
                   currentPrice: 184.099,
                   triggerPrice: 185.375,
                   athRestrictionPrice: 180.0,
-                  athRestriction: {
-                    enabled: false
-                  },
                   processMessage:
                     "The current price reached the trigger price. Let's buy it.",
                   updatedAt: expect.any(Object)
@@ -400,13 +444,17 @@ describe('determine-action.js', () => {
                 }
               },
               baseAssetBalance: { total: '0.0500000' },
+              symbolConfiguration: {
+                buy: {
+                  athRestriction: {
+                    enabled: true
+                  }
+                }
+              },
               buy: {
                 currentPrice: 184.099,
                 triggerPrice: 185.375,
-                athRestrictionPrice: 190.0,
-                athRestriction: {
-                  enabled: true
-                }
+                athRestrictionPrice: 190.0
               },
               sell: {
                 currentPrice: 184.099,
@@ -428,13 +476,17 @@ describe('determine-action.js', () => {
                 }
               },
               baseAssetBalance: { total: '0.0500000' },
+              symbolConfiguration: {
+                buy: {
+                  athRestriction: {
+                    enabled: true
+                  }
+                }
+              },
               buy: {
                 currentPrice: 184.099,
                 triggerPrice: 185.375,
                 athRestrictionPrice: 190.0,
-                athRestriction: {
-                  enabled: true
-                },
                 processMessage:
                   "The current price reached the trigger price. Let's buy it.",
                 updatedAt: expect.any(Object)

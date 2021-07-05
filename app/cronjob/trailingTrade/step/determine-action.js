@@ -43,10 +43,14 @@ const hasBalanceToSell = data => {
  */
 const isGreaterThanTheATHRestrictionPrice = data => {
   const {
+    symbolConfiguration: {
+      buy: {
+        athRestriction: { enabled: buyATHRestrictionEnabled }
+      }
+    },
     buy: {
       triggerPrice: buyTriggerPrice,
-      athRestrictionPrice: buyATHRestrictionPrice,
-      athRestriction: { enabled: buyATHRestrictionEnabled }
+      athRestrictionPrice: buyATHRestrictionPrice
     }
   } = data;
 
