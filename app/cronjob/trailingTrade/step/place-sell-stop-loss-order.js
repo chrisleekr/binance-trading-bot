@@ -39,7 +39,6 @@ const execute = async (logger, rawData) => {
       }
     },
     action,
-    baseAssetBalance: { free: baseAssetFreeBalance },
     sell: { currentPrice, openOrders, lastQtyBought }
   } = data;
 

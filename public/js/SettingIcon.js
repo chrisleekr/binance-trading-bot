@@ -7,12 +7,14 @@ class SettingIcon extends React.Component {
 
     this.modalToStateMap = {
       setting: 'showSettingModal',
-      confirm: 'showConfirmModal'
+      confirm: 'showConfirmModal',
+      reset: 'showResetModal'
     };
 
     this.state = {
       showSettingModal: false,
       showConfirmModal: false,
+      showResetModal: false,
       availableSymbols: [],
       quoteAssets: [],
       configuration: {}
@@ -22,13 +24,14 @@ class SettingIcon extends React.Component {
     this.handleModalClose = this.handleModalClose.bind(this);
 
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
+    this.handleResetSettings = this.handleResetSettings.bind(this);
     this.handleInputChange = this.handleInputChange.bind(this);
     this.handleMaxPurchaeAmountChange = this.handleMaxPurchaeAmountChange.bind(this);
     this.handleMinPurchaeAmountChange = this.handleMinPurchaeAmountChange.bind(this);
     this.handleLastBuyPriceRemoveThresholdChange = this.handleLastBuyPriceRemoveThresholdChange.bind(this);
   }
 
-  getQuoteAssets(exchangeSymbols, selectedSymbols, maxPurchaseAmounts, lastBuyPriceRemoveThresholds) {
+  getQuoteAssets(exchangeSymbols, selectedSymbols, maxPurchaseAmounts, lastBuyPriceRemoveThresholds, minPurchaseAmounts) {
     const quoteAssets = [];
 
     selectedSymbols.forEach(symbol => {
@@ -46,9 +49,15 @@ class SettingIcon extends React.Component {
       if (lastBuyPriceRemoveThresholds[quoteAsset] === undefined) {
         lastBuyPriceRemoveThresholds[quoteAsset] = minNotional;
       }
+
+      if (minPurchaseAmounts[quoteAsset] === undefined) {
+        //Define min purchase amount to be min notional + 10% when not set.
+        // (+10% to not easily lose its last buy price if is closer to 10 the max purchase amount)
+        minPurchaseAmounts[quoteAsset] = (minNotional * 1.1).toFixed(minNotional.length);
+      }
     });
 
-    return { quoteAssets, maxPurchaseAmounts, lastBuyPriceRemoveThresholds };
+    return { quoteAssets, maxPurchaseAmounts, lastBuyPriceRemoveThresholds, minPurchaseAmounts };
   }
 
   componentDidUpdate(nextProps) {
@@ -76,17 +85,22 @@ class SettingIcon extends React.Component {
       if (configuration.buy.lastBuyPriceRemoveThresholds === undefined) {
         configuration.buy.lastBuyPriceRemoveThresholds = {};
       }
+      if (configuration.buy.minPurchaseAmounts === undefined) {
+        configuration.buy.minPurchaseAmounts = {};
+      }
 
       // Set max purchase amount
-      const { quoteAssets, maxPurchaseAmounts, lastBuyPriceRemoveThresholds } = this.getQuoteAssets(
+      const { quoteAssets, maxPurchaseAmounts, lastBuyPriceRemoveThresholds, minPurchaseAmounts } = this.getQuoteAssets(
         exchangeSymbols,
         selectedSymbols,
         configuration.buy.maxPurchaseAmounts,
-        configuration.buy.lastBuyPriceRemoveThresholds
+        configuration.buy.lastBuyPriceRemoveThresholds,
+        configuration.buy.minPurchaseAmounts
       );
 
       configuration.buy.maxPurchaseAmounts = maxPurchaseAmounts;
       configuration.buy.lastBuyPriceRemoveThresholds = lastBuyPriceRemoveThresholds;
+      configuration.buy.minPurchaseAmounts = minPurchaseAmounts;
 
       this.setState({
         availableSymbols,
@@ -94,6 +108,15 @@ class SettingIcon extends React.Component {
         configuration
       });
     }
+  }
+
+  handleResetSettings(extraConfiguration = {}) {
+    this.handleModalClose('reset');
+    this.handleModalClose('setting');
+    this.props.sendWebSocket('reset-factory-settings', {
+      ...this.state.configuration,
+      ...extraConfiguration
+    });
   }
 
   handleFormSubmit(extraConfiguration = {}) {
@@ -234,16 +257,19 @@ class SettingIcon extends React.Component {
                                 const {
                                   quoteAssets,
                                   maxPurchaseAmounts,
-                                  lastBuyPriceRemoveThresholds
+                                  lastBuyPriceRemoveThresholds,
+                                  minPurchaseAmounts
                                 } = this.getQuoteAssets(
                                   exchangeSymbols,
                                   selected,
                                   configuration.buy.maxPurchaseAmounts,
                                   configuration.buy.lastBuyPriceRemoveThresholds,
+                                  configuration.buy.minPurchaseAmounts
                                 );
 
                                 configuration.buy.maxPurchaseAmounts = maxPurchaseAmounts;
                                 configuration.buy.lastBuyPriceRemoveThresholds = lastBuyPriceRemoveThresholds;
+                                configuration.buy.minPurchaseAmounts = minPurchaseAmounts;
                                 this.setState({ configuration, quoteAssets });
                               }}
                               size='sm'
@@ -411,8 +437,6 @@ class SettingIcon extends React.Component {
                               </Form.Check.Label>
                             </Form.Check>
                           </Form.Group>
-
-
 
                           <SettingIconMaxPurchaseAmount
                             quoteAssets={quoteAssets}
@@ -965,7 +989,7 @@ class SettingIcon extends React.Component {
                           <p className='form-header mb-1'>{setting_icon.trade_options}</p>
 
                           <Form.Group
-                            controlId='field-buy-stop-percentage'
+                            controlId='field-trade-options-many-buys'
                             className='mb-2'>
                             <Form.Check size='sm'>
                               <Form.Check.Input
@@ -978,10 +1002,10 @@ class SettingIcon extends React.Component {
                                 {setting_icon.grid_buy_strategy_activate}{' '}
                                 <OverlayTrigger
                                   trigger='click'
-                                  key='buy-enabled-overlay'
+                                  key='trade-options-many-buys-overlay'
                                   placement='bottom'
                                   overlay={
-                                    <Popover id='buy-enabled-overlay-right'>
+                                    <Popover id='trade-options-many-buys-overlay-right'>
                                       <Popover.Content>
                                         {setting_icon.grid_buy_strategy_activate_description}
                                       </Popover.Content>
@@ -1080,7 +1104,7 @@ class SettingIcon extends React.Component {
                           <p className='form-header mb-1'>Husky Indicator</p>
 
                           <Form.Group
-                            controlId='field-buy-stop-percentage'
+                            controlId='field-husky-options-buy-signal'
                             className='mb-2'>
                             <Form.Check size='sm'>
                               <Form.Check.Input
@@ -1093,10 +1117,10 @@ class SettingIcon extends React.Component {
                                 {setting_icon.use_husky_buy}{' '}
                                 <OverlayTrigger
                                   trigger='click'
-                                  key='buy-enabled-overlay'
+                                  key='husky-options-buy-signal-overlay'
                                   placement='bottom'
                                   overlay={
-                                    <Popover id='buy-enabled-overlay-right'>
+                                    <Popover id='husky-options-buy-signal-overlay-right'>
                                       <Popover.Content>
                                         {setting_icon.use_husky_buy_description}
                                       </Popover.Content>
@@ -1113,7 +1137,7 @@ class SettingIcon extends React.Component {
                           </Form.Group>
 
                           <Form.Group
-                            controlId='field-buy-stop-percentage'
+                            controlId='field-husky-options-sell-signal'
                             className='mb-2'>
                             <Form.Check size='sm'>
                               <Form.Check.Input
@@ -1126,10 +1150,10 @@ class SettingIcon extends React.Component {
                                 {setting_icon.use_husky_sell}{' '}
                                 <OverlayTrigger
                                   trigger='click'
-                                  key='buy-enabled-overlay'
+                                  key='husky-options-sell-signal-overlay'
                                   placement='bottom'
                                   overlay={
-                                    <Popover id='buy-enabled-overlay-right'>
+                                    <Popover id='husky-options-sell-signal-overlay-right'>
                                       <Popover.Content>
                                         {setting_icon.use_husky_sell_description}
                                       </Popover.Content>
@@ -1276,6 +1300,14 @@ class SettingIcon extends React.Component {
                 {setting_icon.note_changes}
               </div>
               <Button
+                variant='danger'
+                size='sm'
+                onClick={() =>
+                  this.handleModalShow('reset')
+                }>
+                Reset to factory default.
+              </Button>
+              <Button
                 variant='secondary'
                 size='sm'
                 onClick={() => this.handleModalClose('setting')}>
@@ -1289,6 +1321,54 @@ class SettingIcon extends React.Component {
               </Button>
             </Modal.Footer>
           </Form>
+        </Modal>
+
+        <Modal
+          show={this.state.showResetModal}
+          onHide={() => this.handleModalClose('reset')}
+          size='md'>
+          <Modal.Header className='pt-1 pb-1'>
+            <Modal.Title>
+              <span className='text-danger'>⚠ Delete ALL saved configuration</span>
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            This will delete all your data from database.
+            <br />
+            <br />
+            Your settings will be like the first time you started the bot.
+            <br />
+            <br />
+            If there's a symbol with open trade, it will delete it right away, even before trade finishes.
+            <br />
+            <br />
+            Please, don't use this with open trades.
+          </Modal.Body>
+
+          <Modal.Footer>
+            <Button
+              variant='secondary'
+              size='sm'
+              onClick={() => this.handleModalClose('reset')}>
+              {setting_icon._cancel}
+            </Button>
+            <Button
+              variant='primary'
+              size='sm'
+              onClick={() => this.handleResetSettings({
+                action: 'reset-factory-settings'
+              })}>
+              Reset All
+            </Button>
+            <Button
+              variant='primary'
+              size='sm'
+              onClick={() => this.handleResetSettings({
+                action: 'reset-factory-settings-minus-symbols'
+              })}>
+              Reset but keep symbols
+            </Button>
+          </Modal.Footer>
         </Modal>
 
         <Modal

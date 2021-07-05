@@ -28,6 +28,71 @@ const saveGlobalConfiguration = async (logger, configuration) => {
 };
 
 /**
+ * Reset to factory settings
+ *
+ * @param {*} logger
+ */
+const resetToFactorySettings = async (logger, symbols) => {
+
+  //Retrieve initial config from config.
+  const orgConfigValue = config.get('jobs.trailingTrade');
+  const originalSymbols = ['BTCUSDT', 'ETHUSDT', 'ETHBTC', 'XRPBTC'];
+  orgConfigValue.symbols = Object.values(originalSymbols);
+
+  //Now delete it all from mongo any info about symbols.
+  await deleteAllSymbolsFromMongo(logger, symbols);
+
+  //Then save it.
+  await saveGlobalConfiguration(logger, orgConfigValue);
+  return true;
+};
+
+/**
+ * Reset to factory settings but keep saved symbols
+ *
+ * @param {*} logger
+ */
+const resetToFactorySettingsWithSymbols = async (logger, symbols) => {
+  const orgConfigValue = config.get('jobs.trailingTrade');
+
+  //Set the original configuration symbol as your actual monitored symbols.
+  orgConfigValue.symbols = Object.values(symbols);
+
+  //Now delete it all from mongo any info about symbols.
+  await deleteAllSymbolsFromMongo(logger, symbols);
+
+  //Then save it.
+  await saveGlobalConfiguration(logger, orgConfigValue);
+  return true;
+};
+
+/**
+ * Delete all symbols from mongoDB.
+ *
+ * @param {*} logger
+ */
+const deleteAllSymbolsFromMongo = async (logger, symbols) => {
+  //Delete cache values from all symbols to update it all again.
+  const cacheValues = await cache.hgetall('trailing-trade-symbols');
+  Object.keys(cacheValues).forEach(async key => {
+    //if (key.startsWith(symbol)) {
+    await cache.hdel('trailing-trade-symbols', key);
+    // }
+  });
+
+  //Delete all last buy orders.
+  symbols.forEach(async symbol => {
+    await cache.del(`${symbol}-last-buy-order`);
+  });
+
+  //Delete all from mongo.
+  await mongo.deleteAll(logger, 'trailing-trade-symbols');
+
+
+  return false;
+}
+
+/**
  * Get global configuration from mongodb
  *
  * @param {*} logger
@@ -270,26 +335,26 @@ const getMinPurchaseAmount = async (
   globalConfiguration,
   symbolConfiguration
 ) => {
-  const symbolMinimumPuchaseAmount = _.get(
+  const symbolMinimumPurchaseAmount = _.get(
     symbolConfiguration,
     'buy.minPurchaseAmount',
     -1
   );
 
-  if (symbolMinimumPuchaseAmount !== -1) {
+  if (symbolMinimumPurchaseAmount !== -1) {
     logger.info(
-      { symbolMinimumPuchaseAmount },
+      { symbolMinimumPurchaseAmount },
       'Minimum purchase amount is found from symbol configuration.'
     );
-    return symbolMinimumPuchaseAmount;
+    return symbolMinimumPurchaseAmount;
   }
 
   logger.info(
-    { symbolMinimumPuchaseAmount },
+    { symbolMinimumPurchaseAmount },
     'Last Buy Price Remove Threshold is set as -1. Need to calculate and override it'
   );
 
-  let newMinimumPuchaseAmount = -1;
+  let newMinimumPurchaseAmount = -1;
 
   // If old last buy price remove threshold is -1, then should calculate last buy remove threshold based on the notional amount.
   const cachedSymbolInfo =
@@ -303,22 +368,22 @@ const getMinPurchaseAmount = async (
       filterMinNotional: { minNotional }
     } = cachedSymbolInfo;
 
-    newMinimumPuchaseAmount = _.get(
+    newMinimumPurchaseAmount = _.get(
       globalConfiguration,
       `buy.minPurchaseAmounts.${quoteAsset}`,
       -1
     );
 
     logger.info(
-      { quoteAsset, newMinimumPuchaseAmount },
+      { quoteAsset, newMinimumPurchaseAmount },
       'Retrieved minimum purchase amount from global configuration'
     );
 
-    if (newMinimumPuchaseAmount === -1) {
-      newMinimumPuchaseAmount = parseFloat(minNotional);
+    if (newMinimumPurchaseAmount === -1) {
+      newMinimumPurchaseAmount = parseFloat(minNotional);
 
       logger.info(
-        { newMinimumPuchaseAmount, minNotional },
+        { newMinimumPurchaseAmount, minNotional },
         'Could not get minimum purchase amount from global configuration. Using minimum notional from symbol info'
       );
     }
@@ -329,7 +394,7 @@ const getMinPurchaseAmount = async (
     );
   }
 
-  return newMinimumPuchaseAmount;
+  return newMinimumPurchaseAmount;
 };
 /**
  * Get global/symbol configuration
@@ -398,5 +463,7 @@ module.exports = {
   saveSymbolConfiguration,
   deleteAllSymbolConfiguration,
   deleteSymbolConfiguration,
-  getConfiguration
+  getConfiguration,
+  resetToFactorySettings,
+  resetToFactorySettingsWithSymbols
 };

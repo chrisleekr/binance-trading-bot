@@ -296,7 +296,7 @@ input[type='number'] {
   padding: 5px;
   margin: 3px;
   flex: 25% auto;
-  transition: all 0.5s ease-in-out;
+  transition: all 0.5s ease-in-out !important;
 }
 
 .coin-wrapper:hover {
@@ -304,7 +304,7 @@ input[type='number'] {
   -moz-border-radius: 20px;
   border-radius: 20px;
   box-shadow: 0 1px 4px var(--font-secondary-color), 0 1px 4px var(--font-secondary-color);
-  transition: all 0.5s ease-in-out;
+  transition: all 0.5s ease-in-out !important;
 }
 
 @media (max-width: 1200px) {
@@ -323,7 +323,7 @@ input[type='number'] {
 
 .coin-wrapper-even {
   background-color: var(--color-card);
-  transition: background-color 0.5s ease-in-out;
+  transition: all 0.5s ease-in-out;
 }
 
 .coin-info-wrapper {

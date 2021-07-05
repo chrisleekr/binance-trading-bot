@@ -274,7 +274,7 @@ const execute = async (logger, rawData) => {
   // Refresh account info
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
-  slackMessageOrderResult(logger, symbol, order.side, order, orderResult, actions);
+  slackMessageOrderResult(logger, symbol, order.side, order, orderResult, _actions);
   data.buy.processMessage = place_manual_trade.action_manual_order;
   data.buy.updatedAt = moment().utc();
 

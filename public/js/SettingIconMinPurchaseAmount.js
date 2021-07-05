@@ -51,6 +51,8 @@ class SettingIconMinPurchaseAmount extends React.Component {
     const { quoteAssets, jsonStrings } = this.props;
     const { minPurchaseAmounts } = this.state;
 
+
+
     if (_.isEmpty(minPurchaseAmounts) || _.isEmpty(jsonStrings)) {
       return '';
     }
@@ -83,9 +85,6 @@ class SettingIconMinPurchaseAmount extends React.Component {
                   <i className='fa fa-question-circle'></i>
                 </Button>
               </OverlayTrigger>
-            </Form.Label>
-            <Form.Label htmlFor='field-min-min-purchase-amount-percentage' srOnly>
-              {common_strings._quantity}
             </Form.Label>
             <InputGroup size='sm'>
               <FormControl

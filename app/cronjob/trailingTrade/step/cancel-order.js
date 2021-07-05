@@ -72,6 +72,18 @@ const execute = async (logger, rawData) => {
     symbol, orderResult, 'ORDER_CANCELED'
   );
 
+  const cachedLastBuyOrder =
+    JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
+  if (!_.isEmpty(cachedLastBuyOrder)) {
+    await cache.del(`${symbol}-last-buy-order`);
+  }
+
+  const cachedLastSellOrder =
+    JSON.parse(await cache.get(`${symbol}-last-sell-order`)) || {};
+  if (!_.isEmpty(cachedLastSellOrder)) {
+    await cache.del(`${symbol}-last-sell-order`);
+  }
+
   data.buy.processMessage = _actions.order_cancelled;
   data.buy.updatedAt = moment().utc();
 

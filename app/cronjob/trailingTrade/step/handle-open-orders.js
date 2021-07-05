@@ -35,6 +35,15 @@ const cancelOrder = async (logger, symbol, order) => {
         await cache.del(`${symbol}-last-buy-order`);
       }
     }
+
+    const cachedLastSellOrder =
+      JSON.parse(await cache.get(`${symbol}-last-sell-order`)) || {};
+    if (!_.isEmpty(cachedLastSellOrder)) {
+      if (cachedLastBuyOrder.orderId == order.orderId) {
+        await cache.del(`${symbol}-last-sell-order`);
+      }
+    }
+
     logger.info({ apiResult }, 'Cancelled open orders');
     result = true;
   } catch (e) {
@@ -118,6 +127,22 @@ const execute = async (logger, rawData) => {
           data.buy.openOrders = data.openOrders.filter(
             o => o.side.toLowerCase() === 'buy'
           );
+
+          const cachedLastBuyOrder =
+            JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
+          if (!_.isEmpty(cachedLastBuyOrder)) {
+            if (cachedLastBuyOrder.orderId == order.orderId) {
+              await cache.del(`${symbol}-last-buy-order`);
+            }
+          }
+
+          const cachedLastSellOrder =
+            JSON.parse(await cache.get(`${symbol}-last-sell-order`)) || {};
+          if (!_.isEmpty(cachedLastSellOrder)) {
+            if (cachedLastBuyOrder.orderId == order.orderId) {
+              await cache.del(`${symbol}-last-sell-order`);
+            }
+          }
 
           // Refresh account info
           data.accountInfo = await getAccountInfoFromAPI(logger);

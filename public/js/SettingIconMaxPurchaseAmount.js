@@ -55,7 +55,7 @@ class SettingIconMaxPurchaseAmount extends React.Component {
       return '';
     }
 
-    const { setting_icon, common_strings } = jsonStrings;
+    const { setting_icon } = jsonStrings;
 
     return quoteAssets.map((quoteAsset, index) => {
       return (
@@ -83,9 +83,6 @@ class SettingIconMaxPurchaseAmount extends React.Component {
                   <i className='fa fa-question-circle'></i>
                 </Button>
               </OverlayTrigger>
-            </Form.Label>
-            <Form.Label htmlFor='field-min-max-purchase-amount-percentage' srOnly>
-              {common_strings._quantity}
             </Form.Label>
             <InputGroup size='sm'>
               <FormControl

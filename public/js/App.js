@@ -221,9 +221,7 @@ class App extends React.Component {
       if (languageData != undefined) {
         const coinWrappers = symbols.map((symbol, index) => {
           if (searchSymbol != '') {
-            console.log("Search is not null : " + searchSymbol)
             if (symbol.symbol.includes(searchSymbol)) {
-              console.log("Search equals symbol!")
               return (
                 <CoinWrapper
                   extraClassName={

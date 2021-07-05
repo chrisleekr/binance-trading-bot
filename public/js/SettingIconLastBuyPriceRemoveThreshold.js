@@ -86,9 +86,6 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
                 </Button>
               </OverlayTrigger>
             </Form.Label>
-            <Form.Label htmlFor='field-min-last-buy-remove-threshold-limit-percentage' srOnly>
-              {common_strings._quantity}
-            </Form.Label>
             <InputGroup size='sm'>
               <FormControl
                 size='sm'

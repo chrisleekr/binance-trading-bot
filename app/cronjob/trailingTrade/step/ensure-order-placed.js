@@ -8,10 +8,8 @@ const {
   getAccountInfoFromAPI,
   getLastBuyPrice,
   saveLastBuyPrice,
-  disableAction,
-  getAPILimit
+  disableAction
 } = require('../../trailingTradeHelper/common');
-const { lte } = require('lodash');
 
 /**
  * Retrieve last buy order from cache
@@ -105,7 +103,7 @@ const setSellActionAndMessage = (logger, rawData, action, processMessage) => {
   return data;
 };
 
-const calculateLastBuyPrice = async (logger, symbol, order, freeBalance) => {
+const calculateLastBuyPrice = async (logger, symbol, order) => {
   const { origQty, price } = order;
   const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
 
@@ -113,20 +111,13 @@ const calculateLastBuyPrice = async (logger, symbol, order, freeBalance) => {
   const orgQuantity = _.get(lastBuyPriceDoc, 'quantity', 0);
   const orgTotalAmount = (orgLastBuyPrice * orgQuantity);
 
-  const responseFromServer = await binance.client.avgPrice({ symbol }).then(response => messenger.errorMessage("Averaged price from server: " + response));
-  messenger.errorMessage("Averaged price from server: " + responseFromServer);
-
   const filledQuoteQty = parseFloat(price);
   const filledQuantity = parseFloat(origQty);
   const filledTotalAmount = (filledQuoteQty * filledQuantity);
-  let newQuantity = (orgQuantity + filledQuantity);
-  if (newQuantity > parseFloat(freeBalance)) {
-    newQuantity = parseFloat(freeBalance);
-  }
+  const newQuantity = (orgQuantity + filledQuantity);
   const newTotalAmount = (orgTotalAmount + filledTotalAmount);
 
   const newLastBuyPrice = (newTotalAmount / newQuantity);
-  messenger.errorMessage("Averaged price from bot: " + newLastBuyPrice);
 
   const lastBoughtPrice = parseFloat(price);
 
@@ -166,7 +157,7 @@ var canCheckSell = true;
 const execute = async (logger, rawData) => {
   const data = rawData;
 
-  const { symbol, action, featureToggle, baseAssetBalance: { total: baseAssetTotalBalance } } = data;
+  const { symbol, action, featureToggle } = data;
 
   if (action !== 'not-determined') {
     logger.info(
@@ -175,7 +166,6 @@ const execute = async (logger, rawData) => {
     );
     return data;
   }
-
 
   const language = config.get('language');
   const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
@@ -216,7 +206,7 @@ const execute = async (logger, rawData) => {
         },
         config.get(
           'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          10
+          3
         )
       );
     } else {
@@ -228,7 +218,7 @@ const execute = async (logger, rawData) => {
           orderId: lastBuyOrder.orderId
         });
         if (orderResult.status === 'FILLED') {
-          await calculateLastBuyPrice(logger, symbol, orderResult, baseAssetTotalBalance);
+          await calculateLastBuyPrice(logger, symbol, orderResult);
           // Remove last buy order from cache
           await removeLastBuyOrder(logger, symbol);
 
@@ -287,7 +277,7 @@ const execute = async (logger, rawData) => {
         },
         config.get(
           'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          5
+          3
         )
       );
 
@@ -338,7 +328,7 @@ const execute = async (logger, rawData) => {
         },
         config.get(
           'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          10
+          3
         )
       );
     } else {
@@ -413,7 +403,7 @@ const execute = async (logger, rawData) => {
         },
         config.get(
           'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          5
+          3
         )
       );
 

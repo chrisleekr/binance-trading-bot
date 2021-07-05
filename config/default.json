@@ -68,8 +68,8 @@
         "huskyOptions": {
           "buySignal": true,
           "sellSignal": false,
-          "positive": 1.015,
-          "negative": 1.06
+          "positive": 1.01,
+          "negative": 1.03
         }
       },
       "buy": {
@@ -78,8 +78,8 @@
         "lastBuyPriceRemoveThresholds": {},
         "maxPurchaseAmount": -1,
         "maxPurchaseAmounts": {},
-        "minPurchaseAmounts": {},
         "minPurchaseAmount": -1,
+        "minPurchaseAmounts": {},
         "triggerPercentage": 1.0,
         "stopPercentage": 1.02,
         "limitPercentage": 1.021

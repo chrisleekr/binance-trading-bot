@@ -886,7 +886,7 @@ class SymbolSettingIcon extends React.Component {
                           <p className='form-header mb-1'>{setting_icon.trade_options}</p>
 
                           <Form.Group
-                            controlId='field-buy-stop-percentage'
+                            controlId='field-trade-options-many-buys'
                             className='mb-2'>
                             <Form.Check size='sm'>
                               <Form.Check.Input
@@ -899,10 +899,10 @@ class SymbolSettingIcon extends React.Component {
                                 {setting_icon.grid_buy_strategy_activate}{' '}
                                 <OverlayTrigger
                                   trigger='click'
-                                  key='buy-enabled-overlay'
+                                  key='trade-options-many-buys-overlay'
                                   placement='bottom'
                                   overlay={
-                                    <Popover id='buy-enabled-overlay-right'>
+                                    <Popover id='trade-options-many-buys-overlay-right'>
                                       <Popover.Content>
                                         {setting_icon.grid_buy_strategy_activate_description}
                                       </Popover.Content>
@@ -1001,7 +1001,7 @@ class SymbolSettingIcon extends React.Component {
                           <p className='form-header mb-1'>Husky Indicator</p>
 
                           <Form.Group
-                            controlId='field-buy-stop-percentage'
+                            controlId='field-husky-options-buy-signal'
                             className='mb-2'>
                             <Form.Check size='sm'>
                               <Form.Check.Input
@@ -1014,10 +1014,10 @@ class SymbolSettingIcon extends React.Component {
                                 {setting_icon.use_husky_buy}{' '}
                                 <OverlayTrigger
                                   trigger='click'
-                                  key='buy-enabled-overlay'
+                                  key='husky-options-buy-signal-overlay'
                                   placement='bottom'
                                   overlay={
-                                    <Popover id='buy-enabled-overlay-right'>
+                                    <Popover id='husky-options-buy-signal-overlay-right'>
                                       <Popover.Content>
                                         {setting_icon.use_husky_buy_description}
                                       </Popover.Content>
@@ -1034,7 +1034,7 @@ class SymbolSettingIcon extends React.Component {
                           </Form.Group>
 
                           <Form.Group
-                            controlId='field-buy-stop-percentage'
+                            controlId='field-husky-options-sell-signal'
                             className='mb-2'>
                             <Form.Check size='sm'>
                               <Form.Check.Input
@@ -1047,10 +1047,10 @@ class SymbolSettingIcon extends React.Component {
                                 {setting_icon.use_husky_sell}{' '}
                                 <OverlayTrigger
                                   trigger='click'
-                                  key='buy-enabled-overlay'
+                                  key='husky-options-sell-signal-overlay'
                                   placement='bottom'
                                   overlay={
-                                    <Popover id='buy-enabled-overlay-right'>
+                                    <Popover id='husky-options-sell-signal-overlay-right'>
                                       <Popover.Content>
                                         {setting_icon.use_husky_sell_description}
                                       </Popover.Content>
