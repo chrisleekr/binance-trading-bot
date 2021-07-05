@@ -23,15 +23,18 @@ class SettingIcon extends React.Component {
 
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
     this.handleInputChange = this.handleInputChange.bind(this);
-    this.handleMaxPurchaeAmountChange = this.handleMaxPurchaeAmountChange.bind(
-      this
-    );
-    this.handleLastBuyPriceRemoveThresholdChange = this.handleLastBuyPriceRemoveThresholdChange.bind(
-      this
-    );
+    this.handleMaxPurchaeAmountChange =
+      this.handleMaxPurchaeAmountChange.bind(this);
+    this.handleLastBuyPriceRemoveThresholdChange =
+      this.handleLastBuyPriceRemoveThresholdChange.bind(this);
   }
 
-  getQuoteAssets(exchangeSymbols, selectedSymbols, maxPurchaseAmounts, lastBuyPriceRemoveThresholds) {
+  getQuoteAssets(
+    exchangeSymbols,
+    selectedSymbols,
+    maxPurchaseAmounts,
+    lastBuyPriceRemoveThresholds
+  ) {
     const quoteAssets = [];
 
     selectedSymbols.forEach(symbol => {
@@ -81,15 +84,17 @@ class SettingIcon extends React.Component {
       }
 
       // Set max purchase amount
-      const { quoteAssets, maxPurchaseAmounts, lastBuyPriceRemoveThresholds } = this.getQuoteAssets(
-        exchangeSymbols,
-        selectedSymbols,
-        configuration.buy.maxPurchaseAmounts,
-        configuration.buy.lastBuyPriceRemoveThresholds
-      );
+      const { quoteAssets, maxPurchaseAmounts, lastBuyPriceRemoveThresholds } =
+        this.getQuoteAssets(
+          exchangeSymbols,
+          selectedSymbols,
+          configuration.buy.maxPurchaseAmounts,
+          configuration.buy.lastBuyPriceRemoveThresholds
+        );
 
       configuration.buy.maxPurchaseAmounts = maxPurchaseAmounts;
-      configuration.buy.lastBuyPriceRemoveThresholds = lastBuyPriceRemoveThresholds;
+      configuration.buy.lastBuyPriceRemoveThresholds =
+        lastBuyPriceRemoveThresholds;
 
       this.setState({
         availableSymbols,
@@ -126,8 +131,8 @@ class SettingIcon extends React.Component {
       target.type === 'checkbox'
         ? target.checked
         : target.type === 'number'
-          ? +target.value
-          : target.value;
+        ? +target.value
+        : target.value;
     const stateKey = target.getAttribute('data-state-key');
 
     const { configuration } = this.state;
@@ -150,7 +155,10 @@ class SettingIcon extends React.Component {
   }
 
   handleLastBuyPriceRemoveThresholdChange(newLastBuyPriceRemoveThresholds) {
-    console.log('handleLastBuyPriceRemoveThresholdChange => ', newLastBuyPriceRemoveThresholds);
+    console.log(
+      'handleLastBuyPriceRemoveThresholdChange => ',
+      newLastBuyPriceRemoveThresholds
+    );
 
     const { configuration } = this.state;
 
@@ -227,11 +235,13 @@ class SettingIcon extends React.Component {
                                   exchangeSymbols,
                                   selected,
                                   configuration.buy.maxPurchaseAmounts,
-                                  configuration.buy.lastBuyPriceRemoveThresholds,
+                                  configuration.buy.lastBuyPriceRemoveThresholds
                                 );
 
-                                configuration.buy.maxPurchaseAmounts = maxPurchaseAmounts;
-                                configuration.buy.lastBuyPriceRemoveThresholds = lastBuyPriceRemoveThresholds;
+                                configuration.buy.maxPurchaseAmounts =
+                                  maxPurchaseAmounts;
+                                configuration.buy.lastBuyPriceRemoveThresholds =
+                                  lastBuyPriceRemoveThresholds;
                                 this.setState({ configuration, quoteAssets });
                               }}
                               size='sm'
@@ -402,8 +412,6 @@ class SettingIcon extends React.Component {
                               </Form.Check.Label>
                             </Form.Check>
                           </Form.Group>
-
-
 
                           <SettingIconMaxPurchaseAmount
                             quoteAssets={quoteAssets}

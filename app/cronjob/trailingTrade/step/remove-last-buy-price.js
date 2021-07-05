@@ -45,12 +45,12 @@ const removeLastBuyPrice = async (
     `${symbol} Action (${moment().format(
       'HH:mm:ss.SSS'
     )}): Removed last buy price\n` +
-    `- Message: ${processMessage}\n\`\`\`${JSON.stringify(
-      extraMessages,
-      undefined,
-      2
-    )}\`\`\`\n` +
-    `- Current API Usage: ${getAPILimit(logger)}`
+      `- Message: ${processMessage}\n\`\`\`${JSON.stringify(
+        extraMessages,
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
   );
 };
 

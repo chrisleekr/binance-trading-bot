@@ -72,8 +72,8 @@ class SymbolSettingIcon extends React.Component {
       target.type === 'checkbox'
         ? target.checked
         : target.type === 'number'
-          ? +target.value
-          : target.value;
+        ? +target.value
+        : target.value;
     const stateKey = target.getAttribute('data-state-key');
 
     const { symbolConfiguration } = this.state;
@@ -292,10 +292,12 @@ class SymbolSettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='last-buy-remove-threshold-overlay-right'>
                                     <Popover.Content>
-                                      When price of coin drops below the threshold the bot will
-                                      remove the last buy price. If the bot didn't sell the coin,
-                                      you can manually add the last buy price. But if the price is
-                                      still below the threshold, it will remove it again!
+                                      When price of coin drops below the
+                                      threshold the bot will remove the last buy
+                                      price. If the bot didn't sell the coin,
+                                      you can manually add the last buy price.
+                                      But if the price is still below the
+                                      threshold, it will remove it again!
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -314,7 +316,10 @@ class SymbolSettingIcon extends React.Component {
                               min='0.0001'
                               step='0.0001'
                               data-state-key='buy.lastBuyPriceRemoveThreshold'
-                              value={symbolConfiguration.buy.lastBuyPriceRemoveThreshold}
+                              value={
+                                symbolConfiguration.buy
+                                  .lastBuyPriceRemoveThreshold
+                              }
                               onChange={this.handleInputChange}
                             />
                           </Form.Group>
