@@ -82,7 +82,8 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
             }
             className='mb-2'>
             <Form.Label className='mb-0'>
-              Last Buy Price Remove Threshold for {quoteAsset}{' '}
+              Remove last buy price for {quoteAsset} when the estimated value is
+              lower than{' '}
               <OverlayTrigger
                 trigger='click'
                 key={'last-buy-remove-threshold-overlay-' + quoteAsset}
@@ -91,14 +92,12 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
                   <Popover
                     id={'last-buy-remove-threshold-overlay-right' + quoteAsset}>
                     <Popover.Content>
-                      Set the last buy threshold for symbols with quote asset "
-                      {quoteAsset}". The last buy threshold will be applied to
-                      the symbols which ends with "{quoteAsset}" if not
-                      configured the symbol configuration. When price of coin
-                      drops below the threshold the bot will remove the last buy
-                      price. If the bot didn't sell the coin, you can manually
-                      add the last buy price. But if the price is still below
-                      the threshold, it will remove it again!
+                      Set the last buy price removal threshold for symbols with
+                      quote asset "{quoteAsset}". When the estimated value drops
+                      below the threshold, the bot will remove the last buy
+                      price. The threshold will be applied to the symbols which
+                      end with "{quoteAsset}" if not configured in the symbol
+                      configuration.
                     </Popover.Content>
                   </Popover>
                 }>

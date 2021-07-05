@@ -281,50 +281,6 @@ class SymbolSettingIcon extends React.Component {
                           </Form.Group>
 
                           <Form.Group
-                            controlId='field-last-buy-remove-threshold'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Remove last buy when under{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='last-buy-remove-threshold-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='last-buy-remove-threshold-overlay-right'>
-                                    <Popover.Content>
-                                      When price of coin drops below the
-                                      threshold the bot will remove the last buy
-                                      price. If the bot didn't sell the coin,
-                                      you can manually add the last buy price.
-                                      But if the price is still below the
-                                      threshold, it will remove it again!
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter last buy threshold'
-                              required
-                              min='0.0001'
-                              step='0.0001'
-                              data-state-key='buy.lastBuyPriceRemoveThreshold'
-                              value={
-                                symbolConfiguration.buy
-                                  .lastBuyPriceRemoveThreshold
-                              }
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
-
-                          <Form.Group
                             controlId='field-buy-maximum-purchase-amount'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
@@ -365,6 +321,50 @@ class SymbolSettingIcon extends React.Component {
                               onChange={this.handleInputChange}
                             />
                           </Form.Group>
+
+                          <Form.Group
+                            controlId='field-last-buy-remove-threshold'
+                            className='mb-2'>
+                            <Form.Label className='mb-0'>
+                              Remove last buy price when the estimated value is
+                              lower than{' '}
+                              <OverlayTrigger
+                                trigger='click'
+                                key='last-buy-remove-threshold-overlay'
+                                placement='bottom'
+                                overlay={
+                                  <Popover id='last-buy-remove-threshold-overlay-right'>
+                                    <Popover.Content>
+                                      Set the last buy price removal threshold.
+                                      When the estimated value drops below the
+                                      threshold, the bot will remove the last
+                                      buy price.
+                                    </Popover.Content>
+                                  </Popover>
+                                }>
+                                <Button
+                                  variant='link'
+                                  className='p-0 m-0 ml-1 text-info'>
+                                  <i className='fa fa-question-circle'></i>
+                                </Button>
+                              </OverlayTrigger>
+                            </Form.Label>
+                            <Form.Control
+                              size='sm'
+                              type='number'
+                              placeholder='Enter last buy threshold'
+                              required
+                              min='0.0001'
+                              step='0.0001'
+                              data-state-key='buy.lastBuyPriceRemoveThreshold'
+                              value={
+                                symbolConfiguration.buy
+                                  .lastBuyPriceRemoveThreshold
+                              }
+                              onChange={this.handleInputChange}
+                            />
+                          </Form.Group>
+
                           <Form.Group
                             controlId='field-buy-trigger-percentage'
                             className='mb-2'>
