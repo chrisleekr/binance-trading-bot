@@ -124,18 +124,6 @@ const execute = async (logger, rawData) => {
             o => o.side.toLowerCase() === 'buy'
           );
 
-          const cachedLastBuyOrder =
-            JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
-          if (!_.isEmpty(cachedLastBuyOrder)) {
-            await cache.del(`${symbol}-last-buy-order`);
-          }
-
-          const cachedLastSellOrder =
-            JSON.parse(await cache.get(`${symbol}-last-sell-order`)) || {};
-          if (!_.isEmpty(cachedLastSellOrder)) {
-            await cache.del(`${symbol}-last-sell-order`);
-          }
-
           // Refresh account info
           data.accountInfo = await getAccountInfoFromAPI(logger);
 

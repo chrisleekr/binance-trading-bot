@@ -8,8 +8,7 @@ const {
   getAccountInfoFromAPI,
   getLastBuyPrice,
   saveLastBuyPrice,
-  disableAction,
-  isActionDisabled
+  disableAction
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -174,15 +173,6 @@ const execute = async (logger, rawData) => {
   // Ensure buy order placed
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);
   if (_.isEmpty(lastBuyOrder) === false) {
-    if (isActionDisabled(symbol)) {
-      //Return to this to check again after symbol is enabled.
-      return setBuyActionAndMessage(
-        logger,
-        data,
-        'buy-order-checking',
-        _actions.action_buy_order_checking
-      );
-    }
     logger.info({ debug: true, lastBuyOrder }, 'Last buy order found');
 
     // Refresh open orders
@@ -288,15 +278,6 @@ const execute = async (logger, rawData) => {
   // Ensure sell order placed
   const lastSellOrder = await getLastSellOrder(logger, symbol);
   if (_.isEmpty(lastSellOrder) === false) {
-    if (isActionDisabled(symbol)) {
-      //Return to this to check again after symbol is enabled.
-      return setBuyActionAndMessage(
-        logger,
-        data,
-        'sell-order-checking',
-        _actions.action_sell_order_checking
-      );
-    }
     logger.info({ debug: true, lastSellOrder }, 'Last sell order found');
 
     // Refresh open orders
