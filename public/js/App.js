@@ -20,7 +20,8 @@ class App extends React.Component {
       symbols: [],
       accountInfo: {},
       publicURL: '',
-      dustTransfer: {}
+      dustTransfer: {},
+      password: {}
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
@@ -140,7 +141,8 @@ class App extends React.Component {
           configuration: response.common.configuration,
           accountInfo: response.common.accountInfo,
           publicURL: response.common.publicURL,
-          apiInfo: response.common.apiInfo
+          apiInfo: response.common.apiInfo,
+          password: response.common.password
         });
       }
 
@@ -206,7 +208,8 @@ class App extends React.Component {
       accountInfo,
       publicURL,
       apiInfo,
-      dustTransfer
+      dustTransfer,
+      password
     } = this.state;
 
     if (configuration.botOptions != undefined) {
@@ -269,6 +272,14 @@ class App extends React.Component {
                     sendWebSocket={this.sendWebSocket}
                     jsonStrings={languageData}
                   />
+                  {password != {} ? (
+                    <PasswordScreen
+                      password={password}
+                      jsonStrings={languageData}
+                    />
+                  ) : (
+                    ''
+                  )}
                   <ProfitLossWrapper
                     symbols={symbols}
                     sendWebSocket={this.sendWebSocket}

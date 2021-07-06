@@ -259,6 +259,12 @@
       "3": "To make sure the last purchase price was successfully recorded, the bot will monitor the purchase order. This may increase API usage."
     }
   },
+  "pass_screen": {
+    "security_screen": "Security Screen",
+    "enter_pass": "Enter your password",
+    "_pass": "Password",
+    "pass_from_env": "Enter password set in your .env file"
+  },
   "common_strings": {
     "_interval": "Interval",
     "_limit": "Limit",

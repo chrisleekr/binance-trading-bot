@@ -45,6 +45,7 @@
     "token": "BINANCE_TELEGRAM_TOKEN"
   },
   "language": "LANGUAGE",
+  "password": "PASSWORD",
   "localTunnel": {
     "enabled": {
       "__name": "BINANCE_LOCAL_TUNNEL_ENABLED",

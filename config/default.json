@@ -33,6 +33,7 @@
     "token": ""
   },
   "language": "en",
+  "password": "",
   "localTunnel": {
     "enabled": true,
     "subdomain": "default"

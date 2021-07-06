@@ -21,9 +21,8 @@ body {
   overflow-y: scroll; /* Show vertical scrollbar */
   font-size: 0.8rem;
   color: var(--font-main-color);
-  transition: color 0.5s ease-in-out;
   background: var(--color-primary);
-  transition: background 0.5s ease-in-out;
+  transition: all 0.5s ease-in-out;
 }
 
 .divider {
@@ -101,6 +100,7 @@ input[type='number'] {
 
 .app-h1 .binance-img {
   width: 17px;
+  height: 17px;
   vertical-align: text-top;
 }
 
@@ -480,31 +480,29 @@ input[type='number'] {
 
 .modal-body {
   background: var(--color-primary);
-  transition: background 0.5s ease-in-out;
+  transition: all 0.5s ease-in-out;
 }
 
 .modal-content {
   background: var(--color-primary);
-  transition: background 0.5s ease-in-out;
+  transition: all 0.5s ease-in-out;
 }
 
 .modal-footer {
   color: var(--font-main-color);
   background: var(--color-primary);
-  transition: background 0.5s ease-in-out;
-  transition: color 0.5s ease-in-out;
+  transition: all 0.5s ease-in-out;
 }
 
 .form-control {
   color: var(--font-main-color);
   background: var(--color-primary);
-  transition: background 0.5s ease-in-out;
-  transition: color 0.5s ease-in-out;
+  transition: all 0.5s ease-in-out;
 }
 
 .rbt-menu {
   background: var(--color-primary);
-  transition: background 0.5s ease-in-out;
+  transition: all 0.5s ease-in-out;
 }
 
 .rbt-input-main {
@@ -523,8 +521,8 @@ input[type='number'] {
   -moz-border-radius: 15px;
   border-radius: 15px;
   margin: 4px;
-  transition: background 0.5s ease-in-out;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16), 0 1px 4px rgba(0, 0, 0, 0.23);
+  transition: all 0.5s ease-in-out;
 }
 
 .card-header {
@@ -544,8 +542,7 @@ input[type='number'] {
 .rbt-token {
   color: var(--font-secondary-color);
   background: var(--color-token);
-  transition: background 0.5s ease-in-out;
-  transition: color 0.5s ease-in-out;
+  transition: all 0.5s ease-in-out;
 }
 
 .form-header {
@@ -590,8 +587,7 @@ input[type='number'] {
   width: 100%;
   color: var(--font-secondary-color);
   background: var(--color-token);
-  transition: background 0.5s ease-in-out;
-  transition: color 0.5s ease-in-out;
+  transition: all 0.5s ease-in-out;
 }
 
 .input-group > .input-group-append {

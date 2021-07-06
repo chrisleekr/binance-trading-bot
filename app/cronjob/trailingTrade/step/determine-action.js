@@ -77,7 +77,6 @@ const hasBalanceToSell = data => {
     symbolInfo: {
       filterMinNotional: { minNotional }
     },
-    baseAssetBalance: { total: baseAssetTotalBalance },
     buy: { currentPrice: buyCurrentPrice },
     sell: { lastQtyBought }
   } = data;
@@ -244,7 +243,6 @@ const execute = async (logger, rawData) => {
     action,
     symbol,
     isLocked,
-    symbolInfo: { baseAsset },
     symbolConfiguration: { sell: { trendDownMarketSell }, strategyOptions: { tradeOptions: { manyBuys } } }
   } = data;
 
