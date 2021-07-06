@@ -7,12 +7,14 @@ class SettingIcon extends React.Component {
 
     this.modalToStateMap = {
       setting: 'showSettingModal',
-      confirm: 'showConfirmModal'
+      confirm: 'showConfirmModal',
+      reset: 'showResetModal'
     };
 
     this.state = {
       showSettingModal: false,
       showConfirmModal: false,
+      showResetModal: false,
       availableSymbols: [],
       quoteAssets: [],
       configuration: {}
@@ -25,6 +27,8 @@ class SettingIcon extends React.Component {
     this.handleInputChange = this.handleInputChange.bind(this);
     this.handleMaxPurchaeAmountChange =
       this.handleMaxPurchaeAmountChange.bind(this);
+
+    this.handleResetSettings = this.handleResetSettings.bind(this);
   }
 
   getQuoteAssets(exchangeSymbols, selectedSymbols, maxPurchaseAmounts) {
@@ -96,6 +100,15 @@ class SettingIcon extends React.Component {
     });
   }
 
+  handleResetSettings(extraConfiguration = {}) {
+    this.handleModalClose('reset');
+    this.handleModalClose('setting');
+    this.props.sendWebSocket('reset-factory-settings', {
+      ...this.state.configuration,
+      ...extraConfiguration
+    });
+  }
+
   handleModalShow(modal) {
     this.setState({
       [this.modalToStateMap[modal]]: true
@@ -114,8 +127,8 @@ class SettingIcon extends React.Component {
       target.type === 'checkbox'
         ? target.checked
         : target.type === 'number'
-        ? +target.value
-        : target.value;
+          ? +target.value
+          : target.value;
     const stateKey = target.getAttribute('data-state-key');
 
     const { configuration } = this.state;
@@ -1000,6 +1013,14 @@ class SettingIcon extends React.Component {
                 next tick.
               </div>
               <Button
+                variant='danger'
+                size='sm'
+                onClick={() =>
+                  this.handleModalShow('reset')
+                }>
+                Reset to factory default.
+              </Button>
+              <Button
                 variant='secondary'
                 size='sm'
                 onClick={() => this.handleModalClose('setting')}>
@@ -1013,6 +1034,54 @@ class SettingIcon extends React.Component {
               </Button>
             </Modal.Footer>
           </Form>
+        </Modal>
+
+        <Modal
+          show={this.state.showResetModal}
+          onHide={() => this.handleModalClose('reset')}
+          size='md'>
+          <Modal.Header className='pt-1 pb-1'>
+            <Modal.Title>
+              <span className='text-danger'>⚠ Delete ALL saved configuration</span>
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            This will delete all your data from database.
+            <br />
+            <br />
+            Your settings will be like the first time you started the bot.
+            <br />
+            <br />
+            If there's a symbol with open trade, it will delete it right away, even before trade finishes.
+            <br />
+            <br />
+            Please, don't use this with open trades.
+          </Modal.Body>
+
+          <Modal.Footer>
+            <Button
+              variant='secondary'
+              size='sm'
+              onClick={() => this.handleModalClose('reset')}>
+              Cancel
+            </Button>
+            <Button
+              variant='primary'
+              size='sm'
+              onClick={() => this.handleResetSettings({
+                action: 'reset-factory-settings'
+              })}>
+              Reset All
+            </Button>
+            <Button
+              variant='primary'
+              size='sm'
+              onClick={() => this.handleResetSettings({
+                action: 'reset-factory-settings-minus-symbols'
+              })}>
+              Reset but keep symbols
+            </Button>
+          </Modal.Footer>
         </Modal>
 
         <Modal

@@ -6,6 +6,7 @@ const {
   handleSettingUpdate,
   handleSymbolUpdateLastBuyPrice,
   handleSymbolDelete,
+  handleResetFactorySettings,
   handleSymbolSettingUpdate,
   handleSymbolSettingDelete,
   handleSymbolEnableAction,
@@ -62,6 +63,9 @@ const configureWebSocket = async (server, funcLogger) => {
           break;
         case 'symbol-delete':
           await handleSymbolDelete(commandLogger, ws, payload);
+          break;
+        case 'reset-factory-settings':
+          await handleResetFactorySettings(commandLogger, ws, payload);
           break;
         case 'symbol-setting-update':
           await handleSymbolSettingUpdate(commandLogger, ws, payload);
