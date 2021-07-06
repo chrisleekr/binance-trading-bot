@@ -181,7 +181,7 @@ const execute = async (logger, rawData) => {
     }
 
     processMessage =
-      'Balance is less than the notional value. Delete last buy price.';
+      'Balance is less than the last buy price remove threshold. Delete last buy price.';
 
     logger.error({ baseAssetQuantity }, processMessage);
 
