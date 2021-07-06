@@ -1,6 +1,7 @@
 /* eslint-disable react/jsx-no-undef */
 /* eslint-disable no-undef */
 
+let searchSymbol = '';
 class App extends React.Component {
   constructor(props) {
     super(props);
@@ -97,7 +98,7 @@ class App extends React.Component {
       let response = {};
       try {
         response = JSON.parse(evt.data);
-      } catch (_e) {}
+      } catch (_e) { }
 
       if (response.type === 'latest') {
         if (_.isEmpty(response.common.accountInfo)) {
@@ -176,6 +177,11 @@ class App extends React.Component {
     }
   }
 
+  searchSymbolWithName(name) {
+
+    searchSymbol = name;
+  }
+
   componentDidMount() {
     this.connectWebSocket();
 
@@ -200,17 +206,33 @@ class App extends React.Component {
     } = this.state;
 
     const coinWrappers = symbols.map((symbol, index) => {
-      return (
-        <CoinWrapper
-          extraClassName={
-            index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
-          }
-          key={'coin-wrapper-' + symbol.symbol}
-          symbolInfo={symbol}
-          configuration={configuration}
-          sendWebSocket={this.sendWebSocket}
-        />
-      );
+      if (searchSymbol != '') {
+        if (symbol.symbol.includes(searchSymbol)) {
+          return (
+            <CoinWrapper
+              extraClassName={
+                index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
+              }
+              key={'coin-wrapper-' + symbol.symbol}
+              symbolInfo={symbol}
+              configuration={configuration}
+              sendWebSocket={this.sendWebSocket}
+            />
+          );
+        }
+      } else {
+        return (
+          <CoinWrapper
+            extraClassName={
+              index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
+            }
+            key={'coin-wrapper-' + symbol.symbol}
+            symbolInfo={symbol}
+            configuration={configuration}
+            sendWebSocket={this.sendWebSocket}
+          />
+        );
+      }
     });
 
     return (
@@ -232,7 +254,7 @@ class App extends React.Component {
               <ProfitLossWrapper
                 symbols={symbols}
                 sendWebSocket={this.sendWebSocket}
-              />
+                searchSymbolWithName={this.searchSymbolWithName} />
             </div>
             <div className='coin-wrappers'>{coinWrappers}</div>
             <div className='app-body-footer-wrapper'>
