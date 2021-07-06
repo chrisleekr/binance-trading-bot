@@ -18,19 +18,29 @@ This is my fork of Binance Trading Bot. I am just enhancing Chrisleek code.
 
 ## Latest Changes
 
-**- Theme is now darker, sleeker.**
+- **Multilanguage: Bot now supports EN, ES, PT, VI, NL, CH as frontend languages. You can change them on-the-fly by setting the desired language in global configuration.**
 
-**- New "Husky" indicator. Bot now follows its indicator of when to buy and sell. Your profit can be higher than defined profit, but not less!**
+- **Grid strategy: Now bots support buying multiple times the same coin, always averaging the price. You can define and threshold to activate, and you can enable/disable it trough global settings.**
 
-**- Backtest -- WIP -- SOON!**
+- **Theming: Bot now supports dark/light theme, with just a click of a button on the top of the page. More themes is coming later.**
 
-**- Multilanguage! Bot currently supports vi, en, es, pt.**
+- **Notifiers: Bot now supports Telegram to send you messages. Currently telegram languages support are EN, PT, VI. More coming soon. You can enable/disable telegram/slack trough global configuration. NOTE: You will still need to setup their keys in .env file.**
 
-**- Bot now only sells the quantity it bought. NOTE: In the future with multiple buys, it will record every quantity bought.**
+- **Search box: Now you can filter your symbols by simply searching them by name.** :)
 
-**- Telegram notifications!! Now it supports telegram and slack. NOTE: Messages were reworked to feel more "telegram-ish".**
+- **Reset to factory settings: You can now reset bot configuration to original fabric settings. You can choose to reset and keep your current monitored symbols. After a reset, every cache/database related to them is deleted to make the reset a fresh start.**
 
+- **Global Settings / Symbol Setting rework: Now the variable boxes is a little more informative. Their appearance is enhanced.**
 
+- **STAKING: Bot can now stake some coins! It will sell your profit percentage as less amount (if 0,5% profit, it will sell 99,5% of he amount).**
+
+- **NEW INDICATOR!! I've created a new indicator that I call it "Husky Indicator". It is used to know wether the symbol trend is down or up. If is down, don't buy. Is is going up, don't sell. With that logic: Your profits will be higher than your sell trigger defined percentage. And the bot will receive an ability to BUY at the LOWER price AFTER a dip, not buy in a dip. The indicator precision is good. NOTE: The indicator does not increase API LIMIT.** :)
+
+- **Strategy Options: There's a new field called Strategy options that you can control some options related to it (Stake coins, grid strategy, husky indicator options).**
+
+- **BACKTEST: I'm having a problem downloading the zip, extracting it and reading the .CSV file. When I fix this, it will be available to you all.**
+
+- **Faster: I tried to make the bot faster by decreasing the log file size and enabling the symbols to be monitored more (The lock time was 20s, i changed it to 3-10 depending on what action bot is doing). This will change in the future as API usage is increasing. Please let me know if you receive any warnings.**
 
 ## Warnings
 
