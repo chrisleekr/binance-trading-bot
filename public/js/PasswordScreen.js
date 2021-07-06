@@ -61,7 +61,7 @@ class PasswordScreen extends React.Component {
   render() {
     const { password } = this.state;
     if (localStorage.getItem('login') === 'success') {
-      this.handleModalClose();
+      return '';
     }
     return (
       <div className='password-wrapper'>
