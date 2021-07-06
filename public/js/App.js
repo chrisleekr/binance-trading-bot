@@ -234,7 +234,6 @@ class App extends React.Component {
               {password != {} ? (
                 <PasswordScreen
                   password={password}
-                  jsonStrings={languageData}
                 />
               ) : (
                 ''
