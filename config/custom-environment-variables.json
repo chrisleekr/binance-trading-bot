@@ -27,6 +27,7 @@
     },
     "database": "BINANCE_MONGO_DATABASE"
   },
+  "password": "PASSWORD",
   "slack": {
     "enabled": {
       "__name": "BINANCE_SLACK_ENABLED",
