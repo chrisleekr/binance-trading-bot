@@ -7,12 +7,14 @@ class SettingIcon extends React.Component {
 
     this.modalToStateMap = {
       setting: 'showSettingModal',
-      confirm: 'showConfirmModal'
+      confirm: 'showConfirmModal',
+      reset: 'showResetModal'
     };
 
     this.state = {
       showSettingModal: false,
       showConfirmModal: false,
+      showResetModal: false,
       availableSymbols: [],
       quoteAssets: [],
       configuration: {}
@@ -25,6 +27,8 @@ class SettingIcon extends React.Component {
     this.handleInputChange = this.handleInputChange.bind(this);
     this.handleMaxPurchaeAmountChange =
       this.handleMaxPurchaeAmountChange.bind(this);
+
+    this.handleResetSettings = this.handleResetSettings.bind(this);
   }
 
   getQuoteAssets(exchangeSymbols, selectedSymbols, maxPurchaseAmounts) {
@@ -96,6 +100,15 @@ class SettingIcon extends React.Component {
     });
   }
 
+  handleResetSettings(extraConfiguration = {}) {
+    this.handleModalClose('reset');
+    this.handleModalClose('setting');
+    this.props.sendWebSocket('reset-factory-settings', {
+      ...this.state.configuration,
+      ...extraConfiguration
+    });
+  }
+
   handleModalShow(modal) {
     this.setState({
       [this.modalToStateMap[modal]]: true
@@ -114,8 +127,8 @@ class SettingIcon extends React.Component {
       target.type === 'checkbox'
         ? target.checked
         : target.type === 'number'
-        ? +target.value
-        : target.value;
+          ? +target.value
+          : target.value;
     const stateKey = target.getAttribute('data-state-key');
 
     const { configuration } = this.state;
@@ -798,6 +811,14 @@ class SettingIcon extends React.Component {
                 Note that the changes will be displayed in the frontend in the
                 next tick.
               </div>
+              <Button
+                variant='danger'
+                size='sm'
+                onClick={() =>
+                  this.handleModalShow('reset')
+                }>
+                Reset to factory default.
+              </Button>
               <Button
                 variant='secondary'
                 size='sm'

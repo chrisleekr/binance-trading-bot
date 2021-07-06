@@ -28,6 +28,51 @@ const saveGlobalConfiguration = async (logger, configuration) => {
 };
 
 /**
+ * Reset to factory settings but keep saved symbols
+ *
+ * @param {*} logger
+ */
+const resetToFactorySettingsWithSymbols = async (logger, symbols) => {
+  const orgConfigValue = config.get('jobs.trailingTrade');
+
+  //Set the original configuration symbol as your actual monitored symbols.
+  orgConfigValue.symbols = Object.values(symbols);
+
+  //Now delete it all from mongo any info about symbols.
+  await deleteAllSymbolsFromMongo(logger, symbols);
+
+  //Then save it.
+  await saveGlobalConfiguration(logger, orgConfigValue);
+  return true;
+};
+
+/**
+ * Delete all symbols from mongoDB.
+ *
+ * @param {*} logger
+ */
+const deleteAllSymbolsFromMongo = async (logger, symbols) => {
+  //Delete cache values from all symbols to update it all again.
+  const cacheValues = await cache.hgetall('trailing-trade-symbols');
+  Object.keys(cacheValues).forEach(async key => {
+    //if (key.startsWith(symbol)) {
+    await cache.hdel('trailing-trade-symbols', key);
+    // }
+  });
+
+  //Delete all last buy orders.
+  symbols.forEach(async symbol => {
+    await cache.del(`${symbol}-last-buy-order`);
+  });
+
+  //Delete all from mongo.
+  await mongo.deleteAll(logger, 'trailing-trade-symbols');
+
+
+  return false;
+}
+
+/**
  * Get global configuration from mongodb
  *
  * @param {*} logger
