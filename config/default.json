@@ -21,6 +21,7 @@
     "port": 27017,
     "database": "binance-bot"
   },
+  "password": "",
   "slack": {
     "enabled": false,
     "webhookUrl": "",
@@ -43,7 +44,12 @@
     "trailingTrade": {
       "enabled": true,
       "cronTime": "* * * * * *",
-      "symbols": ["BTCUSDT", "ETHUSDT", "ETHBTC", "XRPBTC"],
+      "symbols": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "ETHBTC",
+        "XRPBTC"
+      ],
       "candles": {
         "interval": "1h",
         "limit": 100
@@ -54,7 +60,15 @@
         "maxPurchaseAmounts": {},
         "triggerPercentage": 1.0,
         "stopPercentage": 1.02,
-        "limitPercentage": 1.021
+        "limitPercentage": 1.021,
+        "athRestriction": {
+          "enabled": true,
+          "candles": {
+            "interval": "1d",
+            "limit": 30
+          },
+          "restrictionPercentage": 0.9
+        }
       },
       "sell": {
         "enabled": true,

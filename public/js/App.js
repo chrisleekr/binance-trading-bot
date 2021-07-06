@@ -97,7 +97,7 @@ class App extends React.Component {
       let response = {};
       try {
         response = JSON.parse(evt.data);
-      } catch (_e) {}
+      } catch (_e) { }
 
       if (response.type === 'latest') {
         if (_.isEmpty(response.common.accountInfo)) {
@@ -130,7 +130,8 @@ class App extends React.Component {
           configuration: response.common.configuration,
           accountInfo: response.common.accountInfo,
           publicURL: response.common.publicURL,
-          apiInfo: response.common.apiInfo
+          apiInfo: response.common.apiInfo,
+          password: response.common.password
         });
       }
 
@@ -196,7 +197,8 @@ class App extends React.Component {
       accountInfo,
       publicURL,
       apiInfo,
-      dustTransfer
+      dustTransfer,
+      password
     } = this.state;
 
     const coinWrappers = symbols.map((symbol, index) => {
@@ -229,6 +231,14 @@ class App extends React.Component {
                 dustTransfer={dustTransfer}
                 sendWebSocket={this.sendWebSocket}
               />
+              {password != {} ? (
+                <PasswordScreen
+                  password={password}
+                  jsonStrings={languageData}
+                />
+              ) : (
+                ''
+              )}
               <ProfitLossWrapper
                 symbols={symbols}
                 sendWebSocket={this.sendWebSocket}

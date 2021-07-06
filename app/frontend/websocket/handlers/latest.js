@@ -35,6 +35,10 @@ const handleLatest = async (logger, ws, _payload) => {
   const globalConfiguration = await getGlobalConfiguration(logger);
   logger.info({ globalConfiguration }, 'Configuration from MongoDB');
 
+  const savedPassword = config.get('password');
+
+  const passArray = Array.from(savedPassword);
+
   let common = {};
   try {
     common = {
@@ -44,7 +48,8 @@ const handleLatest = async (logger, ws, _payload) => {
       accountInfo: JSON.parse(cacheTrailingTradeCommon['account-info']),
       exchangeSymbols: JSON.parse(cacheTrailingTradeCommon['exchange-symbols']),
       publicURL: cacheTrailingTradeCommon['local-tunnel-url'],
-      apiInfo: binance.client.getInfo()
+      apiInfo: binance.client.getInfo(),
+      password: passArray
     };
   } catch (e) {
     logger.error({ e }, 'Something wrong with trailing-trade-common cache');
