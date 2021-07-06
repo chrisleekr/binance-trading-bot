@@ -8,7 +8,8 @@ const {
   getAccountInfoFromAPI,
   getLastBuyPrice,
   saveLastBuyPrice,
-  disableAction
+  disableAction,
+  isActionDisabled
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -173,6 +174,15 @@ const execute = async (logger, rawData) => {
   // Ensure buy order placed
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);
   if (_.isEmpty(lastBuyOrder) === false) {
+    if (isActionDisabled(symbol)) {
+      //Return to this to check again after symbol is enabled.
+      return setBuyActionAndMessage(
+        logger,
+        data,
+        'buy-order-checking',
+        _actions.action_buy_order_checking
+      );
+    }
     logger.info({ debug: true, lastBuyOrder }, 'Last buy order found');
 
     // Refresh open orders
@@ -200,7 +210,7 @@ const execute = async (logger, rawData) => {
         symbol,
         {
           disabledBy: 'buy order',
-          message: _actions.action_buy_order_filled,
+          message: _actions.action_buy_order_checking,
           canResume: false,
           canRemoveLastBuyPrice: false
         },
@@ -266,21 +276,6 @@ const execute = async (logger, rawData) => {
         }
       }
 
-      // Lock symbol action 10 seconds to avoid API limit
-      await disableAction(
-        symbol,
-        {
-          disabledBy: 'buy order',
-          message: _actions.action_buy_order_filled,
-          canResume: false,
-          canRemoveLastBuyPrice: false
-        },
-        config.get(
-          'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          3
-        )
-      );
-
       return setBuyActionAndMessage(
         logger,
         data,
@@ -293,6 +288,15 @@ const execute = async (logger, rawData) => {
   // Ensure sell order placed
   const lastSellOrder = await getLastSellOrder(logger, symbol);
   if (_.isEmpty(lastSellOrder) === false) {
+    if (isActionDisabled(symbol)) {
+      //Return to this to check again after symbol is enabled.
+      return setBuyActionAndMessage(
+        logger,
+        data,
+        'sell-order-checking',
+        _actions.action_sell_order_checking
+      );
+    }
     logger.info({ debug: true, lastSellOrder }, 'Last sell order found');
 
     // Refresh open orders
@@ -392,20 +396,6 @@ const execute = async (logger, rawData) => {
           canCheckSell = false;
         }
       }
-
-      await disableAction(
-        symbol,
-        {
-          disabledBy: 'sell order',
-          message: _actions.action_sell_disabled_after_sell,
-          canResume: false,
-          canRemoveLastBuyPrice: false
-        },
-        config.get(
-          'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          3
-        )
-      );
 
       return setSellActionAndMessage(
         logger,

@@ -84,7 +84,7 @@
     "_convert": "Chuyển đổi"
   },
   "coin_wrapper": {
-    "_ Giao dịch": {
+    "_actions": {
       "action_disabled": "Tạm thời bị vô hiệu hóa",
       "action_buy_check": "Kiểm tra đơn đặt hàng",
       "action_buy_filled": "Đơn đặt hàng đã được thực hiện thành công. Đang đặt giá mua cuối cùng.",

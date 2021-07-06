@@ -1,4 +1,5 @@
 
+const { PubSub } = require('../../../helpers');
 const {
   resetToFactorySettings,
   resetToFactorySettingsWithSymbols,
@@ -19,6 +20,12 @@ const handleResetFactorySettings = async (logger, ws, payload) => {
   } else {
     await resetToFactorySettings(logger, config.symbols);
   }
+
+  PubSub.publish('frontend-notification', {
+    type: 'success',
+    title: `Bot is now resetting to default's configuration.
+            Wait for the symbols to appear.`
+  });
 
   ws.send(JSON.stringify({ result: true, type: 'reset-successful' }));
 

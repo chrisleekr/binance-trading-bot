@@ -72,6 +72,11 @@
           "negative": 1.03
         }
       },
+      "botOptions": {
+        "language": "en",
+        "telegram": false,
+        "slack": false
+      },
       "buy": {
         "enabled": true,
         "lastBuyPriceRemoveThreshold": -1,

@@ -1294,6 +1294,142 @@ class SettingIcon extends React.Component {
                   </Accordion.Collapse>
                 </Card>
               </Accordion>
+
+              <Accordion
+                className='accordion-wrapper'
+                defaultActiveKey='0'>
+                <Card className='mt-1'>
+                  <Card.Header className='px-2 py-1'>
+                    <Accordion.Toggle
+                      as={Button}
+                      variant='link'
+                      eventKey='0'
+                      className='p-0 fs-7 text-uppercase'>
+                      BOT OPTIONS
+                    </Accordion.Toggle>
+                  </Card.Header>
+                  <Accordion.Collapse eventKey='0'>
+                    <Card.Body className='px-2 py-1'>
+                      <div className='row'>
+                        <div className='col-xs-12 col-sm-6'>
+                          <p className='form-header mb-1'>LANGUAGE</p>
+
+                          <Form.Group
+                            controlId='field-languages'
+                            className='mb-2'>
+                            <Form.Label className='mb-0'>
+                              Select a language
+                              <OverlayTrigger
+                                trigger='click'
+                                key='languages-overlay'
+                                placement='bottom'
+                                overlay={
+                                  <Popover id='languages-overlay-right'>
+                                    <Popover.Content>
+                                      {setting_icon.candle_interval_description}
+                                    </Popover.Content>
+                                  </Popover>
+                                }>
+                                <Button
+                                  variant='link'
+                                  className='p-0 m-0 ml-1 text-info'>
+                                  <i className='fa fa-question-circle'></i>
+                                </Button>
+                              </OverlayTrigger>
+                            </Form.Label>
+                            <Form.Control
+                              size='sm'
+                              as='select'
+                              required
+                              data-state-key='botOptions.language'
+                              value={configuration.botOptions.language}
+                              onChange={this.handleInputChange}>
+                              <option value='en'>en</option>
+                              <option value='es'>es</option>
+                              <option value='pt'>pt</option>
+                              <option value='vi'>vi</option>
+                              <option value='ch'>ch</option>
+                              <option value='fr'>fr</option>
+                              <option value='nl'>nl</option>
+                            </Form.Control>
+                          </Form.Group>
+
+                          <p className='form-header mb-1'>Slack</p>
+                          <Form.Group
+                            controlId='field-bot-options-slack'
+                            className='mb-2'>
+                            <Form.Check size='sm'>
+                              <Form.Check.Input
+                                type='checkbox'
+                                data-state-key='botOptions.slack'
+                                checked={configuration.botOptions.slack}
+                                onChange={this.handleInputChange}
+                              />
+                              <Form.Check.Label>
+                                Use slack to receive messages?{' '}
+                                <OverlayTrigger
+                                  trigger='click'
+                                  key='bot-options-telegram-overlay'
+                                  placement='bottom'
+                                  overlay={
+                                    <Popover id='bot-options-telegram-overlay-right'>
+                                      <Popover.Content>
+                                        {setting_icon.use_husky_buy_description}
+                                      </Popover.Content>
+                                    </Popover>
+                                  }>
+                                  <Button
+                                    variant='link'
+                                    className='p-0 m-0 ml-1 text-info'>
+                                    <i className='fa fa-question-circle'></i>
+                                  </Button>
+                                </OverlayTrigger>
+                              </Form.Check.Label>
+                            </Form.Check>
+                          </Form.Group>
+                        </div>
+
+                        <div className='col-xs-12 col-sm-6'>
+                          <p className='form-header mb-1'>Telegram</p>
+
+                          <Form.Group
+                            controlId='field-bot-options-telegram'
+                            className='mb-2'>
+                            <Form.Check size='sm'>
+                              <Form.Check.Input
+                                type='checkbox'
+                                data-state-key='botOptions.telegram'
+                                checked={configuration.botOptions.telegram}
+                                onChange={this.handleInputChange}
+                              />
+                              <Form.Check.Label>
+                                Use telegram to receive messages?{' '}
+                                <OverlayTrigger
+                                  trigger='click'
+                                  key='bot-options-telegram-overlay'
+                                  placement='bottom'
+                                  overlay={
+                                    <Popover id='bot-options-telegram-overlay-right'>
+                                      <Popover.Content>
+                                        {setting_icon.use_husky_buy_description}
+                                      </Popover.Content>
+                                    </Popover>
+                                  }>
+                                  <Button
+                                    variant='link'
+                                    className='p-0 m-0 ml-1 text-info'>
+                                    <i className='fa fa-question-circle'></i>
+                                  </Button>
+                                </OverlayTrigger>
+                              </Form.Check.Label>
+                            </Form.Check>
+                          </Form.Group>
+                        </div>
+                      </div>
+                    </Card.Body>
+                  </Accordion.Collapse>
+                </Card>
+              </Accordion>
             </Modal.Body>
             <Modal.Footer>
               <div className='w-100'>

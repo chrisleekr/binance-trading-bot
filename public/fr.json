@@ -253,7 +253,7 @@
   "manual_trade": {
     "trade_all": "Tout échanger",
     "manual_trade_for_all": "Trading manuel pour tous les symboles",
-    "_la description": {
+    "_description": {
       "1": "Dans cette fenêtre, vous pouvez échanger tous les symboles manuellement. Pour simplifier le processus, seul l'ordre au marché est pris en charge.",
       "2": "Si vous définissez 0 sur le symbole, le bot ne passera pas de commande pour le symbole. Si vous avez déjà le dernier prix d'offre, le bot calculera le coût moyen et recalculera le dernier prix d'offre. ",
       "3": "Pour s'assurer que le dernier prix d'achat a été enregistré avec succès, le bot surveillera le bon de commande. Cela peut augmenter l'utilisation de l'API."

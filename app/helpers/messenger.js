@@ -1,7 +1,13 @@
-const config = require('config');
+
 const telegram = require('./telegram');
 const slack = require('./slack');
-const { messenger } = require('.');
+
+let globalConfiguration;
+
+const updateConfiguration = async newConfig => {
+	globalConfiguration = newConfig;
+	return;
+}
 
 /**
  * Send slack message
@@ -16,7 +22,7 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 		quantity = lastOrder.quantity;
 		price = lastOrder.price;
 	}
-	const language = config.get('language');
+	const language = globalConfiguration.botOptions.language;
 
 	switch (language) {
 
@@ -319,21 +325,21 @@ const sendMessage = async (symbol = null, lastOrder = null, action) => {
 			break;
 	}
 
-	if (config.get('slack.enabled') == true) {
+	if (globalConfiguration.botOptions.slack == true) {
 		slack.notifySlack(message);
 	}
-	if (config.get('telegram.enabled') == true) {
+	if (globalConfiguration.botOptions.telegram == true) {
 		telegram.notifyTelegram(message);
 	}
 };
 
 const errorMessage = text => {
-	if (config.get('slack.enabled') == true) {
+	if (globalConfiguration.botOptions.slack == true) {
 		slack.notifySlack(text);
 	}
-	if (config.get('telegram.enabled') == true) {
+	if (globalConfiguration.botOptions.telegram == true) {
 		telegram.notifyTelegram(text);
 	}
 };
 
-module.exports = { sendMessage, errorMessage };
+module.exports = { sendMessage, errorMessage, updateConfiguration };

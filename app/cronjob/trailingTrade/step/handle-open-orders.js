@@ -31,17 +31,13 @@ const cancelOrder = async (logger, symbol, order) => {
     const cachedLastBuyOrder =
       JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
     if (!_.isEmpty(cachedLastBuyOrder)) {
-      if (cachedLastBuyOrder.orderId == order.orderId) {
-        await cache.del(`${symbol}-last-buy-order`);
-      }
+      await cache.del(`${symbol}-last-buy-order`);
     }
 
     const cachedLastSellOrder =
       JSON.parse(await cache.get(`${symbol}-last-sell-order`)) || {};
     if (!_.isEmpty(cachedLastSellOrder)) {
-      if (cachedLastBuyOrder.orderId == order.orderId) {
-        await cache.del(`${symbol}-last-sell-order`);
-      }
+      await cache.del(`${symbol}-last-sell-order`);
     }
 
     logger.info({ apiResult }, 'Cancelled open orders');
@@ -131,17 +127,13 @@ const execute = async (logger, rawData) => {
           const cachedLastBuyOrder =
             JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
           if (!_.isEmpty(cachedLastBuyOrder)) {
-            if (cachedLastBuyOrder.orderId == order.orderId) {
-              await cache.del(`${symbol}-last-buy-order`);
-            }
+            await cache.del(`${symbol}-last-buy-order`);
           }
 
           const cachedLastSellOrder =
             JSON.parse(await cache.get(`${symbol}-last-sell-order`)) || {};
           if (!_.isEmpty(cachedLastSellOrder)) {
-            if (cachedLastBuyOrder.orderId == order.orderId) {
-              await cache.del(`${symbol}-last-sell-order`);
-            }
+            await cache.del(`${symbol}-last-sell-order`);
           }
 
           // Refresh account info

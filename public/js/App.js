@@ -1,7 +1,7 @@
 /* eslint-disable react/jsx-no-undef */
 /* eslint-disable no-undef */
 
-let languageReady = false;
+let languageReady = '';
 let languageData = {};
 let searchSymbol = '';
 class App extends React.Component {
@@ -209,11 +209,11 @@ class App extends React.Component {
       dustTransfer
     } = this.state;
 
-    if (configuration.language != undefined) {
-      if (!languageReady) {
-        languageReady = true;
+    if (configuration.botOptions != undefined) {
+      if (languageReady != configuration.botOptions.language) {
+        languageReady = configuration.botOptions.language;
 
-        fetch(configuration.language + ".json")
+        fetch(configuration.botOptions.language + ".json")
           .then(res => res.json())
           .then(data => languageData = data);
       }

@@ -57,6 +57,8 @@ const setWebSocketCandles = async logger => {
   // Get configuration
   const globalConfiguration = await getGlobalConfiguration(logger);
 
+  await messenger.updateConfiguration(globalConfiguration);
+
   // Retrieve account info from cache
   const accountInfo = await getAccountInfo(logger);
 
