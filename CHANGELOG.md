@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [0.0.72] - 2021-07-07
 
 - Support ATH buy restriction by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#82](https://github.com/chrisleekr/binance-trading-bot/issues/82)
 - Support last buy price removing threshold by [@pedrohusky](https://github.com/pedrohusky) - [#190](https://github.com/chrisleekr/binance-trading-bot/issues/190)
