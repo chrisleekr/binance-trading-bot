@@ -198,67 +198,76 @@ class App extends React.Component {
       publicURL,
       apiInfo,
       dustTransfer,
-      password
+      login,
+      passwordActivated
     } = this.state;
 
-    const coinWrappers = symbols.map((symbol, index) => {
+    if (login === {} || passwordActivated && !login.logged) {
       return (
-        <CoinWrapper
-          extraClassName={
-            index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
-          }
-          key={'coin-wrapper-' + symbol.symbol}
-          symbolInfo={symbol}
-          configuration={configuration}
-          sendWebSocket={this.sendWebSocket}
-        />
+        <div className='app' >
+          <PasswordScreen
+            configuration={configuration}
+            sendWebSocket={this.sendWebSocket}
+          />
+        </div>
       );
-    });
+    }
 
-    return (
-      <div className='app'>
-        <Header
-          configuration={configuration}
-          publicURL={publicURL}
-          exchangeSymbols={exchangeSymbols}
-          sendWebSocket={this.sendWebSocket}
-        />
-        {_.isEmpty(configuration) === false ? (
-          <div className='app-body'>
-            <div className='app-body-header-wrapper'>
-              <AccountWrapper
-                accountInfo={accountInfo}
-                dustTransfer={dustTransfer}
-                sendWebSocket={this.sendWebSocket}
-              />
-              {password != {} ? (
-                <PasswordScreen
-                  password={password}
+    if (login.logged) {
+      const coinWrappers = symbols.map((symbol, index) => {
+        return (
+          <CoinWrapper
+            extraClassName={
+              index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
+            }
+            key={'coin-wrapper-' + symbol.symbol}
+            symbolInfo={symbol}
+            configuration={configuration}
+            sendWebSocket={this.sendWebSocket}
+          />
+        );
+      });
+
+      return (
+        <div className='app'>
+          <Header
+            configuration={configuration}
+            publicURL={publicURL}
+            exchangeSymbols={exchangeSymbols}
+            sendWebSocket={this.sendWebSocket}
+          />
+          {_.isEmpty(configuration) === false ? (
+            <div className='app-body'>
+              <div className='app-body-header-wrapper'>
+                <AccountWrapper
+                  accountInfo={accountInfo}
+                  dustTransfer={dustTransfer}
+                  sendWebSocket={this.sendWebSocket}
                 />
-              ) : (
-                ''
-              )}
-              <ProfitLossWrapper
-                symbols={symbols}
-                sendWebSocket={this.sendWebSocket}
-              />
+                <ProfitLossWrapper
+                  symbols={symbols}
+                  sendWebSocket={this.sendWebSocket}
+                />
+              </div>
+              <div className='coin-wrappers'>{coinWrappers}</div>
+              <div className='app-body-footer-wrapper'>
+                <Status apiInfo={apiInfo} />
+              </div>
             </div>
-            <div className='coin-wrappers'>{coinWrappers}</div>
-            <div className='app-body-footer-wrapper'>
-              <Status apiInfo={apiInfo} />
+          ) : (
+            <div className='app-body app-body-loading'>
+              <Spinner animation='border' role='status'>
+                <span className='sr-only'>Loading...</span>
+              </Spinner>
             </div>
-          </div>
-        ) : (
-          <div className='app-body app-body-loading'>
-            <Spinner animation='border' role='status'>
-              <span className='sr-only'>Loading...</span>
-            </Spinner>
-          </div>
-        )}
+          )}
 
-        <Footer packageVersion={packageVersion} gitHash={gitHash} />
-      </div>
-    );
+          <Footer packageVersion={packageVersion} gitHash={gitHash} />
+        </div>
+      );
+    } else {
+      return '';
+    }
   }
 }
 

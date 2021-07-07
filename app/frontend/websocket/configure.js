@@ -13,7 +13,8 @@ const {
   handleManualTradeAllSymbols,
   handleCancelOrder,
   handleDustTransferGet,
-  handleDustTransferExecute
+  handleDustTransferExecute,
+  handlePassword
 } = require('./handlers');
 
 const handleWarning = (logger, ws, message) => {
@@ -62,6 +63,12 @@ const configureWebSocket = async (server, funcLogger) => {
           break;
         case 'symbol-delete':
           await handleSymbolDelete(commandLogger, ws, payload);
+          break;
+        case 'symbol-delete':
+          await handleSymbolDelete(commandLogger, ws, payload);
+          break;
+        case 'verify-password':
+          await handlePassword(commandLogger, ws, payload);
           break;
         case 'symbol-setting-update':
           await handleSymbolSettingUpdate(commandLogger, ws, payload);

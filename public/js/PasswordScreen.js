@@ -38,31 +38,19 @@ class PasswordScreen extends React.Component {
     const value = event.target.value;
     this.state.password = value;
 
-    const savedPassword = this.props.password;
-    const splittedTypedPassword = Array.from(this.state.password);
-    let verifiedLength = 0;
-
-    try {
-      for (let indexToVerify = 0; indexToVerify < savedPassword.length; indexToVerify++) {
-        if (splittedTypedPassword.length > indexToVerify) {
-          if (savedPassword[indexToVerify] === splittedTypedPassword[indexToVerify]) {
-            verifiedLength++;
-          }
-        }
-      }
-    } finally {
-      if (verifiedLength === savedPassword.length) {
-        this.handleModalClose();
-        localStorage.setItem('login', 'success');
-      }
-    }
+    const { configuration } = this.props;
+    const typedPassword = {
+      pass: Array.from(value),
+      config: configuration
+    };
+    this.props.sendWebSocket('verify-password', {
+      typedPassword
+    });
   }
 
   render() {
     const { password } = this.state;
-    if (localStorage.getItem('login') === 'success') {
-      return '';
-    }
+
     return (
       <div className='password-wrapper'>
         <Modal show={this.state.showModal}>
