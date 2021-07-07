@@ -6,7 +6,6 @@ const {
   getAPILimit,
   isActionDisabled
 } = require('../../trailingTradeHelper/common');
-
 /**
  * Retrieve last buy order from cache
  *
@@ -14,6 +13,7 @@ const {
  * @param {*} symbol
  * @returns
  */
+
 const getLastBuyOrder = async (logger, symbol) => {
   const cachedLastBuyOrder =
     JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
@@ -67,6 +67,9 @@ const execute = async (logger, rawData) => {
     isLocked,
     action,
     symbol,
+    symbolConfiguration: {
+      buy: { lastBuyPriceRemoveThreshold }
+    },
     symbolInfo: {
       filterLotSize: { stepSize, minQty },
       filterMinNotional: { minNotional }
@@ -169,7 +172,7 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  if (baseAssetQuantity * currentPrice < parseFloat(minNotional)) {
+  if (baseAssetQuantity * currentPrice < lastBuyPriceRemoveThreshold) {
     // Final check for open orders
     refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
     if (refreshedOpenOrders.length > 0) {
@@ -178,7 +181,7 @@ const execute = async (logger, rawData) => {
     }
 
     processMessage =
-      'Balance is less than the notional value. Delete last buy price.';
+      'Balance is less than the last buy price remove threshold. Delete last buy price.';
 
     logger.error({ baseAssetQuantity }, processMessage);
 

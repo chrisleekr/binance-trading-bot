@@ -346,6 +346,7 @@ describe('configuration.js', () => {
 
       cache.hget = jest.fn().mockResolvedValue(
         JSON.stringify({
+          quoteAsset: 'USDT',
           filterMinNotional: {
             minNotional: '10.00000000'
           }
@@ -368,9 +369,21 @@ describe('configuration.js', () => {
               maxPurchaseAmounts: {
                 USDT: 100
               },
+              lastBuyPriceRemoveThreshold: -1,
+              lastBuyPriceRemoveThresholds: {
+                USDT: 10
+              },
               triggerPercentage: 1.0,
               stopPercentage: 1.02,
-              limitPercentage: 1.021
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: true,
+                candles: {
+                  interval: '1d',
+                  limit: 30
+                },
+                restrictionPercentage: 0.9
+              }
             },
             sell: {
               enabled: true,
@@ -387,6 +400,7 @@ describe('configuration.js', () => {
             system: {
               temporaryDisableActionAfterConfirmingOrder: 20,
               checkManualBuyOrderPeriod: 5,
+              placeManualOrderInterval: 5,
               refreshAccountInfoPeriod: 1
             }
           };
@@ -418,9 +432,23 @@ describe('configuration.js', () => {
                   BTC: 0.001,
                   BUSD: 100
                 },
+                lastBuyPriceRemoveThreshold: -1,
+                lastBuyPriceRemoveThresholds: {
+                  USDT: 5,
+                  BTC: 0.00005,
+                  BUSD: 5
+                },
                 triggerPercentage: 1.05,
                 stopPercentage: 1.05,
-                limitPercentage: 1.051
+                limitPercentage: 1.051,
+                athRestriction: {
+                  enabled: true,
+                  candles: {
+                    interval: '1d',
+                    limit: 30
+                  },
+                  restrictionPercentage: 0.9
+                }
               },
               sell: {
                 enabled: false,
@@ -437,6 +465,7 @@ describe('configuration.js', () => {
               system: {
                 temporaryDisableActionAfterConfirmingOrder: 10,
                 checkManualBuyOrderPeriod: 10,
+                placeManualOrderInterval: 5,
                 refreshAccountInfoPeriod: 3
               }
             };
@@ -454,6 +483,7 @@ describe('configuration.js', () => {
               buy: {
                 enabled: true,
                 maxPurchaseAmount: 150,
+                lastBuyPriceRemoveThreshold: 4,
                 triggerPercentage: 1.04,
                 stopPercentage: 1.04,
                 limitPercentage: 1.041
@@ -496,9 +526,23 @@ describe('configuration.js', () => {
             enabled: false,
             maxPurchaseAmount: -1,
             maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 },
+            lastBuyPriceRemoveThreshold: -1,
+            lastBuyPriceRemoveThresholds: {
+              USDT: 5,
+              BTC: 0.00005,
+              BUSD: 5
+            },
             triggerPercentage: 1.05,
             stopPercentage: 1.05,
-            limitPercentage: 1.051
+            limitPercentage: 1.051,
+            athRestriction: {
+              enabled: true,
+              candles: {
+                interval: '1d',
+                limit: 30
+              },
+              restrictionPercentage: 0.9
+            }
           },
           sell: {
             enabled: false,
@@ -515,6 +559,7 @@ describe('configuration.js', () => {
           system: {
             temporaryDisableActionAfterConfirmingOrder: 10,
             checkManualBuyOrderPeriod: 10,
+            placeManualOrderInterval: 5,
             refreshAccountInfoPeriod: 3
           }
         });
@@ -566,9 +611,21 @@ describe('configuration.js', () => {
                 maxPurchaseAmounts: {
                   USDT: 100
                 },
+                lastBuyPriceRemoveThreshold: -1,
+                lastBuyPriceRemoveThresholds: {
+                  USDT: 10
+                },
                 triggerPercentage: 1,
                 stopPercentage: 1.02,
-                limitPercentage: 1.021
+                limitPercentage: 1.021,
+                athRestriction: {
+                  enabled: true,
+                  candles: {
+                    interval: '1d',
+                    limit: 30
+                  },
+                  restrictionPercentage: 0.9
+                }
               },
               sell: {
                 enabled: true,
@@ -585,6 +642,7 @@ describe('configuration.js', () => {
               system: {
                 temporaryDisableActionAfterConfirmingOrder: 20,
                 checkManualBuyOrderPeriod: 5,
+                placeManualOrderInterval: 5,
                 refreshAccountInfoPeriod: 1
               }
             }
@@ -600,9 +658,18 @@ describe('configuration.js', () => {
             buy: {
               enabled: true,
               maxPurchaseAmount: 100,
+              lastBuyPriceRemoveThreshold: 10,
               triggerPercentage: 1,
               stopPercentage: 1.02,
-              limitPercentage: 1.021
+              limitPercentage: 1.021,
+              athRestriction: {
+                enabled: true,
+                candles: {
+                  interval: '1d',
+                  limit: 30
+                },
+                restrictionPercentage: 0.9
+              }
             },
             sell: {
               enabled: true,
@@ -619,6 +686,7 @@ describe('configuration.js', () => {
             system: {
               temporaryDisableActionAfterConfirmingOrder: 20,
               checkManualBuyOrderPeriod: 5,
+              placeManualOrderInterval: 5,
               refreshAccountInfoPeriod: 1
             }
           });
@@ -648,9 +716,23 @@ describe('configuration.js', () => {
                     BTC: 0.001,
                     BUSD: 100
                   },
+                  lastBuyPriceRemoveThreshold: -1,
+                  lastBuyPriceRemoveThresholds: {
+                    USDT: 5,
+                    BTC: 0.0004,
+                    BUSD: 3
+                  },
                   triggerPercentage: 1.05,
                   stopPercentage: 1.05,
-                  limitPercentage: 1.051
+                  limitPercentage: 1.051,
+                  athRestriction: {
+                    enabled: true,
+                    candles: {
+                      interval: '1d',
+                      limit: 30
+                    },
+                    restrictionPercentage: 0.9
+                  }
                 },
                 sell: {
                   enabled: false,
@@ -667,6 +749,7 @@ describe('configuration.js', () => {
                 system: {
                   temporaryDisableActionAfterConfirmingOrder: 10,
                   checkManualBuyOrderPeriod: 10,
+                  placeManualOrderInterval: 5,
                   refreshAccountInfoPeriod: 3
                 }
               };
@@ -694,9 +777,18 @@ describe('configuration.js', () => {
             buy: {
               enabled: false,
               maxPurchaseAmount: 100,
+              lastBuyPriceRemoveThreshold: 5,
               triggerPercentage: 1.05,
               stopPercentage: 1.05,
-              limitPercentage: 1.051
+              limitPercentage: 1.051,
+              athRestriction: {
+                enabled: true,
+                candles: {
+                  interval: '1d',
+                  limit: 30
+                },
+                restrictionPercentage: 0.9
+              }
             },
             sell: {
               enabled: false,
@@ -713,6 +805,7 @@ describe('configuration.js', () => {
             system: {
               temporaryDisableActionAfterConfirmingOrder: 10,
               checkManualBuyOrderPeriod: 10,
+              placeManualOrderInterval: 5,
               refreshAccountInfoPeriod: 3
             }
           });
@@ -720,7 +813,7 @@ describe('configuration.js', () => {
       });
 
       describe('when found global/symbol configuration', () => {
-        describe('when symbol configuration buy max purchase amount is not -1', () => {
+        describe('when symbol configuration buy max purchase amount/last buy price remove threshold are not -1', () => {
           beforeEach(async () => {
             mongo.findOne = jest.fn((_logger, collection, filter) => {
               if (
@@ -743,9 +836,23 @@ describe('configuration.js', () => {
                       BTC: 0.001,
                       BUSD: 100
                     },
+                    lastBuyPriceRemoveThreshold: -1,
+                    lastBuyPriceRemoveThresholds: {
+                      USDT: 4,
+                      BTC: 0.0008,
+                      BUSD: 5
+                    },
                     triggerPercentage: 1.05,
                     stopPercentage: 1.05,
-                    limitPercentage: 1.051
+                    limitPercentage: 1.051,
+                    athRestriction: {
+                      enabled: true,
+                      candles: {
+                        interval: '1d',
+                        limit: 30
+                      },
+                      restrictionPercentage: 0.9
+                    }
                   },
                   sell: {
                     enabled: false,
@@ -762,6 +869,7 @@ describe('configuration.js', () => {
                   system: {
                     temporaryDisableActionAfterConfirmingOrder: 10,
                     checkManualBuyOrderPeriod: 10,
+                    placeManualOrderInterval: 5,
                     refreshAccountInfoPeriod: 3
                   }
                 };
@@ -780,9 +888,18 @@ describe('configuration.js', () => {
                   buy: {
                     enabled: true,
                     maxPurchaseAmount: 150,
+                    lastBuyPriceRemoveThreshold: 8,
                     triggerPercentage: 1.04,
                     stopPercentage: 1.04,
-                    limitPercentage: 1.041
+                    limitPercentage: 1.041,
+                    athRestriction: {
+                      enabled: true,
+                      candles: {
+                        interval: '1d',
+                        limit: 30
+                      },
+                      restrictionPercentage: 0.9
+                    }
                   },
                   sell: {
                     enabled: true,
@@ -822,9 +939,18 @@ describe('configuration.js', () => {
               buy: {
                 enabled: true,
                 maxPurchaseAmount: 150,
+                lastBuyPriceRemoveThreshold: 8,
                 triggerPercentage: 1.04,
                 stopPercentage: 1.04,
-                limitPercentage: 1.041
+                limitPercentage: 1.041,
+                athRestriction: {
+                  enabled: true,
+                  candles: {
+                    interval: '1d',
+                    limit: 30
+                  },
+                  restrictionPercentage: 0.9
+                }
               },
               sell: {
                 enabled: true,
@@ -841,13 +967,14 @@ describe('configuration.js', () => {
               system: {
                 temporaryDisableActionAfterConfirmingOrder: 10,
                 checkManualBuyOrderPeriod: 10,
+                placeManualOrderInterval: 5,
                 refreshAccountInfoPeriod: 3
               }
             });
           });
         });
 
-        describe('when global configuration buy max purchase amount is not -1', () => {
+        describe('when global configuration buy max purchase amount/last buy price moreve threshold are not -1', () => {
           beforeEach(async () => {
             cache.hget = jest.fn().mockResolvedValue(
               JSON.stringify({
@@ -878,9 +1005,23 @@ describe('configuration.js', () => {
                       BTC: 0.001,
                       BUSD: 100
                     },
+                    lastBuyPriceRemoveThreshold: 7,
+                    lastBuyPriceRemoveThresholds: {
+                      USDT: 5,
+                      BTC: 0.0004,
+                      BUSD: 4
+                    },
                     triggerPercentage: 1.05,
                     stopPercentage: 1.05,
-                    limitPercentage: 1.051
+                    limitPercentage: 1.051,
+                    athRestriction: {
+                      enabled: true,
+                      candles: {
+                        interval: '1d',
+                        limit: 30
+                      },
+                      restrictionPercentage: 0.9
+                    }
                   },
                   sell: {
                     enabled: false,
@@ -897,6 +1038,7 @@ describe('configuration.js', () => {
                   system: {
                     temporaryDisableActionAfterConfirmingOrder: 10,
                     checkManualBuyOrderPeriod: 10,
+                    placeManualOrderInterval: 5,
                     refreshAccountInfoPeriod: 3
                   }
                 };
@@ -948,9 +1090,18 @@ describe('configuration.js', () => {
               buy: {
                 enabled: true,
                 maxPurchaseAmount: 50,
+                lastBuyPriceRemoveThreshold: 7,
                 triggerPercentage: 1.04,
                 stopPercentage: 1.04,
-                limitPercentage: 1.041
+                limitPercentage: 1.041,
+                athRestriction: {
+                  enabled: true,
+                  candles: {
+                    interval: '1d',
+                    limit: 30
+                  },
+                  restrictionPercentage: 0.9
+                }
               },
               sell: {
                 enabled: true,
@@ -967,6 +1118,7 @@ describe('configuration.js', () => {
               system: {
                 temporaryDisableActionAfterConfirmingOrder: 10,
                 checkManualBuyOrderPeriod: 10,
+                placeManualOrderInterval: 5,
                 refreshAccountInfoPeriod: 3
               }
             });
@@ -1023,9 +1175,18 @@ describe('configuration.js', () => {
               buy: {
                 enabled: false,
                 maxPurchaseAmount: 80,
+                lastBuyPriceRemoveThreshold: 10,
                 triggerPercentage: 1,
                 stopPercentage: 1.02,
-                limitPercentage: 1.021
+                limitPercentage: 1.021,
+                athRestriction: {
+                  enabled: true,
+                  candles: {
+                    interval: '1d',
+                    limit: 30
+                  },
+                  restrictionPercentage: 0.9
+                }
               },
               sell: {
                 enabled: false,
@@ -1045,6 +1206,7 @@ describe('configuration.js', () => {
               system: {
                 temporaryDisableActionAfterConfirmingOrder: 20,
                 checkManualBuyOrderPeriod: 5,
+                placeManualOrderInterval: 5,
                 refreshAccountInfoPeriod: 1
               }
             });
@@ -1094,9 +1256,18 @@ describe('configuration.js', () => {
               buy: {
                 enabled: false,
                 maxPurchaseAmount: -1,
+                lastBuyPriceRemoveThreshold: -1,
                 triggerPercentage: 1,
                 stopPercentage: 1.02,
-                limitPercentage: 1.021
+                limitPercentage: 1.021,
+                athRestriction: {
+                  enabled: true,
+                  candles: {
+                    interval: '1d',
+                    limit: 30
+                  },
+                  restrictionPercentage: 0.9
+                }
               },
               sell: {
                 enabled: false,
@@ -1113,6 +1284,7 @@ describe('configuration.js', () => {
               system: {
                 temporaryDisableActionAfterConfirmingOrder: 20,
                 checkManualBuyOrderPeriod: 5,
+                placeManualOrderInterval: 5,
                 refreshAccountInfoPeriod: 1
               }
             });
