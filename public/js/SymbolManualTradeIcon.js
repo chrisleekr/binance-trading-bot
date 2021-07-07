@@ -472,8 +472,9 @@ class CoinWrapperManualTrade extends React.Component {
                 <div className='manual-trade-row d-flex flex-row justify-content-between mt-1'>
                   <div className='manual-trade-label'>Current price</div>
                   <span className='manual-trade-quote-asset'>
-                    {parseFloat(lastCandle.close).toFixed(baseAssetStepSize)}{' '}
-                    {baseAssetBalance.asset}
+                    1 {baseAssetBalance.asset} ={' '}
+                    {parseFloat(lastCandle.close).toFixed(quoteAssetTickSize)}{' '}
+                    {quoteAssetBalance.asset}
                   </span>
                 </div>
                 <div className='manual-trade-row d-flex flex-row justify-content-between mt-1'>
@@ -765,8 +766,9 @@ class CoinWrapperManualTrade extends React.Component {
                 <div className='manual-trade-row d-flex flex-row justify-content-between mt-1'>
                   <div className='manual-trade-label'>Current price</div>
                   <span className='manual-trade-quote-asset'>
-                    {parseFloat(lastCandle.close).toFixed(baseAssetStepSize)}{' '}
-                    {baseAssetBalance.asset}
+                    1 {baseAssetBalance.asset} ={' '}
+                    {parseFloat(lastCandle.close).toFixed(quoteAssetTickSize)}{' '}
+                    {quoteAssetBalance.asset}
                   </span>
                 </div>
                 <div className='manual-trade-row d-flex flex-row justify-content-between'>
