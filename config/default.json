@@ -76,7 +76,13 @@
       "botOptions": {
         "language": "en",
         "telegram": false,
-        "slack": false
+        "slack": false,
+        "login": {
+          "passwordActivated": false,
+          "logged": false,
+          "elapsedTime": 0,
+          "loginWindowMinutes": 60
+        }
       },
       "buy": {
         "enabled": true,
@@ -104,6 +110,12 @@
           "disableBuyMinutes": 360,
           "orderType": "market"
         }
+      },
+      "overallProfit": {
+        "profitUntilNow": 0,
+        "wins": 0,
+        "losses": 0,
+        "profitPercentage": 0
       },
       "system": {
         "temporaryDisableActionAfterConfirmingOrder": 20,

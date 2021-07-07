@@ -457,11 +457,13 @@ input[type='number'] {
 .coin-info-value-up,
 .coin-info-value-buy {
   color: #02c076;
+  font-size: 110%;
 }
 
 .coin-info-value-down,
 .coin-info-value-sell {
   color: #f84960;
+  font-size: 105%;
 }
 
 .blink {

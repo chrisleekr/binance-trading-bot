@@ -34,36 +34,18 @@ class PasswordScreen extends React.Component {
     });
   }
 
-  verifyPassword(savedPassword, typedPassword) {
-    let verifiedLength = 0;
-
-    //Verifies char by char if the password is equal.
-    try {
-      for (let indexToVerify = 0; indexToVerify < savedPassword.length; indexToVerify++) {
-        if (typedPassword.length > indexToVerify) {
-          if (savedPassword[indexToVerify] === typedPassword[indexToVerify]) {
-            verifiedLength++;
-          }
-        }
-      }
-    } finally {
-      if (verifiedLength === savedPassword.length) {
-        this.handleModalClose();
-        localStorage.setItem('login', 'success');
-      }
-    }
-  }
-
   handleInputChange(event) {
     const value = event.target.value;
     this.state.password = value;
 
-    //Retrieve passwords.
-    const savedPassword = this.props.password;
-    const typedPassword = Array.from(this.state.password);
-
-    //Try to unlock.
-    this.verifyPassword(savedPassword, typedPassword);
+    const { configuration } = this.props;
+    const typedPassword = {
+      pass: Array.from(value),
+      config: configuration
+    };
+    this.props.sendWebSocket('verify-password', {
+      typedPassword
+    });
   }
 
   render() {
@@ -71,10 +53,6 @@ class PasswordScreen extends React.Component {
     const { jsonStrings: { pass_screen } } = this.props;
 
     if (_.isEmpty(this.props.jsonStrings)) {
-      return '';
-    }
-
-    if (localStorage.getItem('login') === 'success') {
       return '';
     }
 

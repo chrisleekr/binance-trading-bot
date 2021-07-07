@@ -21,7 +21,7 @@ class App extends React.Component {
       accountInfo: {},
       publicURL: '',
       dustTransfer: {},
-      password: {}
+      passwordActivated: false
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
@@ -74,8 +74,6 @@ class App extends React.Component {
   searchSymbolWithName(name) {
 
     searchSymbol = name;
-
-    console.log("Set search success " + searchSymbol)
   }
 
   connectWebSocket() {
@@ -142,7 +140,8 @@ class App extends React.Component {
           accountInfo: response.common.accountInfo,
           publicURL: response.common.publicURL,
           apiInfo: response.common.apiInfo,
-          password: response.common.password
+          passwordActivated: response.common.passwordActivated,
+          login: response.common.login
         });
       }
 
@@ -209,7 +208,8 @@ class App extends React.Component {
       publicURL,
       apiInfo,
       dustTransfer,
-      password
+      login,
+      passwordActivated
     } = this.state;
 
     if (configuration.botOptions != undefined) {
@@ -221,10 +221,38 @@ class App extends React.Component {
           .then(data => languageData = data);
       }
 
-      if (languageData != undefined) {
-        const coinWrappers = symbols.map((symbol, index) => {
-          if (searchSymbol != '') {
-            if (symbol.symbol.includes(searchSymbol)) {
+      if (login === {} || passwordActivated && !login.logged) {
+        return (
+          <div className='app' >
+            <PasswordScreen
+              jsonStrings={languageData}
+              configuration={configuration}
+              sendWebSocket={this.sendWebSocket}
+            />
+          </div>
+        );
+      }
+
+      if (login.logged) {
+
+        if (languageData != undefined) {
+          const coinWrappers = symbols.map((symbol, index) => {
+            if (searchSymbol != '') {
+              if (symbol.symbol.includes(searchSymbol)) {
+                return (
+                  <CoinWrapper
+                    extraClassName={
+                      index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
+                    }
+                    key={'coin-wrapper-' + symbol.symbol}
+                    symbolInfo={symbol}
+                    configuration={configuration}
+                    sendWebSocket={this.sendWebSocket}
+                    jsonStrings={languageData}
+                  />
+                );
+              }
+            } else {
               return (
                 <CoinWrapper
                   extraClassName={
@@ -238,80 +266,57 @@ class App extends React.Component {
                 />
               );
             }
-          } else {
-            return (
-              <CoinWrapper
-                extraClassName={
-                  index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
-                }
-                key={'coin-wrapper-' + symbol.symbol}
-                symbolInfo={symbol}
+          });
+
+          return (
+            <div className='app' >
+              <Header
                 configuration={configuration}
+                publicURL={publicURL}
+                exchangeSymbols={exchangeSymbols}
                 sendWebSocket={this.sendWebSocket}
                 jsonStrings={languageData}
               />
-            );
-          }
-        });
-
-        return (
-          <div className='app' >
-            <Header
-              configuration={configuration}
-              publicURL={publicURL}
-              exchangeSymbols={exchangeSymbols}
-              sendWebSocket={this.sendWebSocket}
-              jsonStrings={languageData}
-            />
-            {_.isEmpty(configuration) === false ? (
-              <div className='app-body'>
-                <div className='app-body-header-wrapper'>
-                  <AccountWrapper
-                    accountInfo={accountInfo}
-                    dustTransfer={dustTransfer}
-                    sendWebSocket={this.sendWebSocket}
-                    jsonStrings={languageData}
-                  />
-                  {password != {} ? (
-                    <PasswordScreen
-                      password={password}
+              {_.isEmpty(configuration) === false ? (
+                <div className='app-body'>
+                  <div className='app-body-header-wrapper'>
+                    <AccountWrapper
+                      accountInfo={accountInfo}
+                      dustTransfer={dustTransfer}
+                      sendWebSocket={this.sendWebSocket}
                       jsonStrings={languageData}
                     />
-                  ) : (
-                    ''
-                  )}
-                  <ProfitLossWrapper
-                    symbols={symbols}
-                    sendWebSocket={this.sendWebSocket}
-                    jsonStrings={languageData}
-                    searchSymbolWithName={this.searchSymbolWithName} />
+                    <ProfitLossWrapper
+                      symbols={symbols}
+                      sendWebSocket={this.sendWebSocket}
+                      jsonStrings={languageData}
+                      searchSymbolWithName={this.searchSymbolWithName} />
+                  </div>
+                  <div className='coin-wrappers'>{coinWrappers}</div>
+                  <div className='app-body-footer-wrapper'>
+                    <Status apiInfo={apiInfo} jsonStrings={languageData} />
+                  </div>
                 </div>
-                <div className='coin-wrappers'>{coinWrappers}</div>
-                <div className='app-body-footer-wrapper'>
-                  <Status apiInfo={apiInfo} jsonStrings={languageData} />
+              ) : (
+                <div className='app-body app-body-loading'>
+                  <Spinner animation='border' role='status'>
+                    <span className='sr-only'>Loading...</span>
+                  </Spinner>
                 </div>
-              </div>
-            ) : (
-              <div className='app-body app-body-loading'>
-                <Spinner animation='border' role='status'>
-                  <span className='sr-only'>Loading...</span>
-                </Spinner>
-              </div>
-            )}
+              )}
 
-            <Footer packageVersion={packageVersion} gitHash={gitHash} jsonStrings={languageData} />
-          </div >
-        );
+              <Footer packageVersion={packageVersion} gitHash={gitHash} jsonStrings={languageData} />
+            </div >
+          );
+        } else {
+          return '';
+        }
       } else {
         return '';
       }
     } else {
       return '';
     }
-
-
-
-
   }
 }
 

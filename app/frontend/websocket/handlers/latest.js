@@ -2,7 +2,7 @@ const _ = require('lodash');
 const config = require('config');
 const { version } = require('../../../../package.json');
 
-const { binance, cache } = require('../../../helpers');
+const { binance, cache, messenger } = require('../../../helpers');
 const {
   getGlobalConfiguration,
   getConfiguration
@@ -23,6 +23,16 @@ const getSymbolFromKey = key => {
   };
 };
 
+const timeDiffCalc = async (dateFuture, dateNow) => {
+  let diffInMilliSeconds = Math.abs(dateFuture - dateNow) / 1000;
+
+  // calculate minutes
+  const minutes = Math.floor(diffInMilliSeconds / 60) % 60;
+  diffInMilliSeconds -= minutes * 60;
+
+  return minutes;
+}
+
 const handleLatest = async (logger, ws, _payload) => {
   const cacheTrailingTradeCommon = await cache.hgetall('trailing-trade-common');
   const cacheTrailingTradeSymbols = await cache.hgetall(
@@ -38,9 +48,18 @@ const handleLatest = async (logger, ws, _payload) => {
 
   const savedPassword = config.get('password');
 
-  const passArray = Array.from(savedPassword);
+  if (savedPassword != '' || savedPassword != undefined) {
+    globalConfiguration.botOptions.login.passwordActivated = true;
+  } else {
+    globalConfiguration.botOptions.login.passwordActivated = false;
+  }
 
+  const cachedTempLogin =
+    JSON.parse(await cache.get(`tempLogin`)) || {};
 
+  if (timeDiffCalc(new Date(), cachedTempLogin.elapsedTime) > cachedTempLogin.loginWindowMinutes) {
+    await cache.del(`tempLogin`);
+  }
 
   let common = {};
   try {
@@ -55,7 +74,8 @@ const handleLatest = async (logger, ws, _payload) => {
       exchangeSymbols: JSON.parse(cacheTrailingTradeCommon['exchange-symbols']),
       publicURL: cacheTrailingTradeCommon['local-tunnel-url'],
       apiInfo: binance.client.getInfo(),
-      password: passArray
+      passwordActivated: globalConfiguration.botOptions.login.passwordActivated,
+      login: cachedTempLogin
     };
   } catch (e) {
     logger.error({ e }, 'Something wrong with trailing-trade-common cache');
