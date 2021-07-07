@@ -34,18 +34,14 @@ class PasswordScreen extends React.Component {
     });
   }
 
-  handleInputChange(event) {
-    const value = event.target.value;
-    this.state.password = value;
-
-    const savedPassword = this.props.password;
-    const splittedTypedPassword = Array.from(this.state.password);
+  verifyPassword(savedPassword, typedPassword) {
     let verifiedLength = 0;
 
+    //Verifies char by char if the password is equal.
     try {
       for (let indexToVerify = 0; indexToVerify < savedPassword.length; indexToVerify++) {
-        if (splittedTypedPassword.length > indexToVerify) {
-          if (savedPassword[indexToVerify] === splittedTypedPassword[indexToVerify]) {
+        if (typedPassword.length > indexToVerify) {
+          if (savedPassword[indexToVerify] === typedPassword[indexToVerify]) {
             verifiedLength++;
           }
         }
@@ -58,6 +54,18 @@ class PasswordScreen extends React.Component {
     }
   }
 
+  handleInputChange(event) {
+    const value = event.target.value;
+    this.state.password = value;
+
+    //Retrieve passwords.
+    const savedPassword = this.props.password;
+    const typedPassword = Array.from(this.state.password);
+
+    //Try to unlock.
+    this.verifyPassword(savedPassword, typedPassword);
+  }
+
   render() {
     const { password } = this.state;
     const { jsonStrings: { pass_screen } } = this.props;
@@ -67,7 +75,7 @@ class PasswordScreen extends React.Component {
     }
 
     if (localStorage.getItem('login') === 'success') {
-      this.handleModalClose();
+      return '';
     }
 
     return (

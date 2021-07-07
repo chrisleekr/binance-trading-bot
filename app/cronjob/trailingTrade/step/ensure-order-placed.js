@@ -34,8 +34,13 @@ const getLastBuyOrder = async (logger, symbol) => {
  * @param {*} symbol
  */
 const removeLastBuyOrder = async (logger, symbol) => {
-  await cache.del(`${symbol}-last-buy-order`);
-  logger.info({ debug: true }, 'Deleted last buy order from cache');
+  try {
+    await cache.del(`${symbol}-last-buy-order`);
+    logger.info({ debug: true }, 'Deleted last buy order from cache');
+    return true;
+  } catch (error) {
+    return false;
+  }
 };
 
 /**
@@ -132,7 +137,8 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
     title: `New last buy price for ${symbol} has been updated.`
   });
 
-  return;
+  // Remove last buy order from cache
+  await removeLastBuyOrder(logger, symbol);
 };
 
 /**
@@ -219,8 +225,6 @@ const execute = async (logger, rawData) => {
         });
         if (orderResult.status === 'FILLED') {
           await calculateLastBuyPrice(logger, symbol, orderResult);
-          // Remove last buy order from cache
-          await removeLastBuyOrder(logger, symbol);
 
           if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
             messenger.sendMessage(
@@ -241,6 +245,7 @@ const execute = async (logger, rawData) => {
               10
             )
           );
+
           return setBuyActionAndMessage(
             logger,
             data,

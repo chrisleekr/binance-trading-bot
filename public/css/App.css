@@ -836,6 +836,9 @@ input[type='number'] {
   End: Dust Transfer
 */
 
+/**
+  Start: Search Icon
+*/
 .search-container {
   width: auto !important;
 }
@@ -902,6 +905,10 @@ input[type='number'] {
   color: var(--color-primary);
   cursor: pointer;
 }
+
+/**
+  End: Search Icon
+*/
 
 .gg-color-picker {
   box-sizing: border-box;

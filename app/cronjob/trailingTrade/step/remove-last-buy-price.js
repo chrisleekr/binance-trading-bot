@@ -135,38 +135,38 @@ const execute = async (logger, rawData) => {
   let processMessage = '';
 
   let refreshedOpenOrders = [];
-  if (baseAssetQuantity <= parseFloat(minQty)) {
-    // Final check for open orders
-    refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
-    if (refreshedOpenOrders.length > 0) {
-      logger.info('Do not remove last buy price. Found open orders.');
-      return data;
-    }
-
-    processMessage = 'Balance is not enough to sell. Delete last buy price.';
-
-    logger.error(
-      { baseAssetQuantity },
-
-      processMessage
-    );
-
-    data.sell.processMessage = processMessage;
-    data.sell.updatedAt = moment().utc();
-
-    await removeLastBuyPrice(logger, symbol, processMessage, {
-      lastBuyPrice,
-      baseAssetQuantity,
-      minQty,
-      baseAssetFreeBalance,
-      baseAssetLockedBalance,
-      totalBaseAssetBalance,
-      openOrders
-    });
-
-    return data;
-  }
-
+  /* if (baseAssetQuantity <= parseFloat(minQty)) {
+     // Final check for open orders
+     refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+     if (refreshedOpenOrders.length > 0) {
+       logger.info('Do not remove last buy price. Found open orders.');
+       return data;
+     }
+ 
+     processMessage = 'Balance is not enough to sell. Delete last buy price.';
+ 
+     logger.error(
+       { baseAssetQuantity },
+ 
+       processMessage
+     );
+ 
+     data.sell.processMessage = processMessage;
+     data.sell.updatedAt = moment().utc();
+ 
+     await removeLastBuyPrice(logger, symbol, processMessage, {
+       lastBuyPrice,
+       baseAssetQuantity,
+       minQty,
+       baseAssetFreeBalance,
+       baseAssetLockedBalance,
+       totalBaseAssetBalance,
+       openOrders
+     });
+ 
+     return data;
+   }
+ */
   if ((baseAssetQuantity * currentPrice) < parseFloat(minNotional)) {
     // Final check for open orders
     refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

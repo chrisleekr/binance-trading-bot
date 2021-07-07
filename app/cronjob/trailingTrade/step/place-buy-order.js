@@ -106,8 +106,10 @@ const execute = async (logger, rawData) => {
   }
 
   if (freeBalance < parseFloat(minPurchaseAmount)) {
-    freeBalance = minPurchaseAmount;
-    logger.info({ freeBalance }, 'Free balance after adjust');
+    data.buy.processMessage = 'Free balance is less than min purchase amount. I will not buy.';
+    data.buy.updatedAt = moment().utc();
+
+    return data;
   }
 
   if (freeBalance < parseFloat(minNotional)) {
