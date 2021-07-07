@@ -50,8 +50,10 @@ const execute = async (logger, rawData) => {
 
   await cache.hdel(`trailing-trade-manual-buy-order-${symbol}`, order.orderId);
 
+  messenger.errorMessage("Order cancelled, result: " + JSON.stringify(orderResult))
+
   // Get open orders and update cache
-  data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+  data.openOrder = await getAndCacheOpenOrdersForSymbol(logger, symbol);
   data.buy.openOrders = data.openOrders.filter(
     o => o.side.toLowerCase() === 'buy'
   );
