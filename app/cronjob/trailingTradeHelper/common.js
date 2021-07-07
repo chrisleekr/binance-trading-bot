@@ -238,30 +238,29 @@ const getOpenOrdersBySymbolFromAPI = async (logger, symbol) => {
  * @param {*} symbol
  */
 const getAndCacheOpenOrdersForSymbol = async (logger, symbol) => {
-  const cachedOrders = JSON.parse(await cache.get(`${symbol}-open-orders`)) || [];
+  const cachedOrders = await JSON.parse(await cache.get(`${symbol}-open-orders`)) || {};
 
-  let symbolOpenOrders = cachedOrders;
+  let newCachedOrders = cachedOrders;
 
-  if (symbolOpenOrders == []) {
+  if (_.isEmpty(newCachedOrders)) {
     // Orders do not exist in cache, retrieve them again.
-    symbolOpenOrders = await getOpenOrdersBySymbolFromAPI(logger, symbol);
-
+    newCachedOrders = await getOpenOrdersBySymbolFromAPI(logger, symbol);
     await cache.set(
       `${symbol}-open-orders`,
-      JSON.stringify(symbolOpenOrders),
-      4
+      JSON.stringify(newCachedOrders),
+      5
     );
   }
 
   logger.info(
     {
       symbol,
-      symbolOpenOrders
+      newCachedOrders
     },
     'Open orders from API'
   );
 
-  return symbolOpenOrders;
+  return newCachedOrders;
 };
 
 /**

@@ -33,7 +33,6 @@ class SearchIcon extends React.Component {
   }
 
   render() {
-    document.addEventListener("touchstart", function () { }, true);
     return (
       <form class="search-container" onChange={this.handleInputChange}>
         <input id="search-box" type="text" class="search-box" onkeypress="return event.keyCode != 13;" />

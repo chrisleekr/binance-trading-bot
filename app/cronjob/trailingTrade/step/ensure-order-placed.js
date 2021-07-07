@@ -253,6 +253,16 @@ const execute = async (logger, rawData) => {
             _actions.action_buy_order_filled
           );
         }
+
+        if (orderResult.status === 'CANCELED' || orderResult.status === 'EXPIRED' || orderResult.status === 'REJECTED') {
+          await removeLastBuyOrder(logger, symbol);
+          return setBuyActionAndMessage(
+            logger,
+            data,
+            'buy-order-cancelled',
+            "Canceled"
+          );
+        }
       } catch (e) {
 
       }
@@ -363,6 +373,16 @@ const execute = async (logger, rawData) => {
             data,
             'sell-order-filled',
             _actions.action_sell_order_filled
+          );
+        }
+
+        if (orderResult.status === 'CANCELED' || orderResult.status === 'EXPIRED' || orderResult.status === 'REJECTED') {
+          await removeLastSellOrder(logger, symbol);
+          return setSellActionAndMessage(
+            logger,
+            data,
+            'sell-order-cancelled',
+            "Canceled"
           );
         }
       } catch (e) {

@@ -1425,6 +1425,53 @@ class SettingIcon extends React.Component {
                             </Form.Check>
                           </Form.Group>
                         </div>
+
+                        <div className='col-xs-12 col-sm-6'>
+                          <p className='form-header mb-1'>Security</p>
+
+                          <Form.Group
+                            controlId='field-login-expire'
+                            className='mb-2'>
+                            <Form.Label className='mb-0'>
+                              Login expire time {' '}
+                              <OverlayTrigger
+                                trigger='click'
+                                key='login-expire-overlay'
+                                placement='bottom'
+                                overlay={
+                                  <Popover id='login-expire-overlay-right'>
+                                    <Popover.Content>
+                                      Defines the login expire time. Define 0 to never expire ( NOT RECOMMENDED !!! ) .
+                                    </Popover.Content>
+                                  </Popover>
+                                }>
+                                <Button
+                                  variant='link'
+                                  className='p-0 m-0 ml-1 text-info'>
+                                  <i className='fa fa-question-circle'></i>
+                                </Button>
+                              </OverlayTrigger>
+                            </Form.Label>
+                            <InputGroup size='sm'>
+                              <FormControl
+                                size='sm'
+                                type='number'
+                                placeholder="60 is the default"
+                                required
+                                min='0'
+                                step='1'
+                                data-state-key='botOptions.login.loginWindowMinutes'
+                                value={configuration.botOptions.login.loginWindowMinutes}
+                                onChange={this.handleInputChange}
+                              />
+                              <InputGroup.Append>
+                                <InputGroup.Text>
+                                  Expire after {configuration.botOptions.login.loginWindowMinutes} minutes
+                                </InputGroup.Text>
+                              </InputGroup.Append>
+                            </InputGroup>
+                          </Form.Group>
+                        </div>
                       </div>
                     </Card.Body>
                   </Accordion.Collapse>
