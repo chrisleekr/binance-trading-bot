@@ -114,8 +114,8 @@ class SettingIcon extends React.Component {
       target.type === 'checkbox'
         ? target.checked
         : target.type === 'number'
-        ? +target.value
-        : target.value;
+          ? +target.value
+          : target.value;
     const stateKey = target.getAttribute('data-state-key');
 
     const { configuration } = this.state;
@@ -986,6 +986,66 @@ class SettingIcon extends React.Component {
                               }
                               onChange={this.handleInputChange}
                             />
+                          </Form.Group>
+                        </div>
+                      </div>
+                    </Card.Body>
+                  </Accordion.Collapse>
+                </Card>
+              </Accordion>
+              <Accordion defaultActiveKey='0'>
+                <Card className='mt-1'>
+                  <Card.Header className='px-2 py-1'>
+                    <Accordion.Toggle
+                      as={Button}
+                      variant='link'
+                      eventKey='0'
+                      className='p-0 fs-7 text-uppercase'>
+                      Security
+                    </Accordion.Toggle>
+                  </Card.Header>
+                  <Accordion.Collapse eventKey='0'>
+                    <Card.Body className='px-2 py-1'>
+                      <div className='row'>
+                        <div className='col-6'>
+                          <Form.Group
+                            controlId='field-password-expire-time'
+                            className='mb-2'>
+                            <Form.Label className='mb-0'>
+                              Time to login expire
+                              <OverlayTrigger
+                                trigger='click'
+                                key='password-expire-time-overlay'
+                                placement='bottom'
+                                overlay={
+                                  <Popover id='password-expire-time-overlay-right'>
+                                    <Popover.Content>
+                                      Define a time in minutes to login expires.
+                                      After it expires, you will be prompted to put the password again.
+                                      Define 0 to never expire (NOT RECOMMENDED).
+                                    </Popover.Content>
+                                  </Popover>
+                                }>
+                                <Button
+                                  variant='link'
+                                  className='p-0 m-0 ml-1 text-info'>
+                                  <i className='fa fa-question-circle'></i>
+                                </Button>
+                              </OverlayTrigger>
+                            </Form.Label>
+                            <Form.Control
+                              size='sm'
+                              type='number'
+                              placeholder='60 is the default'
+                              required
+                              min='0'
+                              step='1'
+                              data-state-key='botOptions.login.loginWindowMinutes'
+                              value={
+                                configuration.botOptions.login.loginWindowMinutes
+                              }
+                              onChange={this.handleInputChange}>
+                            </Form.Control>
                           </Form.Group>
                         </div>
                       </div>

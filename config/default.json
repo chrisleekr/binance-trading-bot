@@ -70,6 +70,14 @@
           "restrictionPercentage": 0.9
         }
       },
+      "botOptions": {
+        "login": {
+          "passwordActivated": false,
+          "logged": false,
+          "elapsedTime": 0,
+          "loginWindowMinutes": 60
+        }
+      },
       "sell": {
         "enabled": true,
         "triggerPercentage": 1.06,
