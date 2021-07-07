@@ -131,7 +131,8 @@ class App extends React.Component {
           accountInfo: response.common.accountInfo,
           publicURL: response.common.publicURL,
           apiInfo: response.common.apiInfo,
-          password: response.common.password
+          passwordActivated: response.common.passwordActivated,
+          login: response.common.login
         });
       }
 
@@ -198,8 +199,8 @@ class App extends React.Component {
       publicURL,
       apiInfo,
       dustTransfer,
-      login,
-      passwordActivated
+      passwordActivated,
+      login
     } = this.state;
 
     if (login === {} || passwordActivated && !login.logged) {

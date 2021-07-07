@@ -37,7 +37,16 @@ const handleLatest = async (logger, ws, _payload) => {
 
   const savedPassword = config.get('password');
 
-  const passArray = Array.from(savedPassword);
+  const { botOptions: { login } } = globalConfiguration
+
+  if (savedPassword != '' || savedPassword != undefined) {
+    login.passwordActivated = true;
+  } else {
+    login.passwordActivated = false;
+  }
+
+  const cachedTempLogin =
+    JSON.parse(await cache.get(`tempLogin`)) || {};
 
   let common = {};
   try {
@@ -49,7 +58,8 @@ const handleLatest = async (logger, ws, _payload) => {
       exchangeSymbols: JSON.parse(cacheTrailingTradeCommon['exchange-symbols']),
       publicURL: cacheTrailingTradeCommon['local-tunnel-url'],
       apiInfo: binance.client.getInfo(),
-      password: passArray
+      passwordActivated: login.passwordActivated,
+      login: cachedTempLogin
     };
   } catch (e) {
     logger.error({ e }, 'Something wrong with trailing-trade-common cache');
