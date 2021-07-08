@@ -23,6 +23,15 @@ const getLastBuyOrder = async (logger, symbol) => {
   return cachedLastBuyOrder;
 };
 
+const getLastSellOrder = async (logger, symbol) => {
+  const cachedLastSellOrder =
+    JSON.parse(await cache.get(`${symbol}-last-sell-order`)) || {};
+
+  logger.info({ cachedLastSellOrder }, 'Retrieved last buy order from cache');
+
+  return cachedLastSellOrder;
+};
+
 /**
  * Remove last buy price
  *
@@ -92,6 +101,20 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
+  const lastSellOrder = await getLastSellOrder(logger, symbol);
+  if (_.isEmpty(lastSellOrder) === false) {
+    logger.info(
+      'Do not process to remove last buy price because there is a buy order to be confirmed.'
+    );
+    return data;
+  }
+
+  // If last buy price is null, undefined, 0, NaN or less than 0
+  if (!lastBuyPrice || lastBuyPrice <= 0) {
+    logger.info('Do not process because last buy price does not exist.');
+    return data;
+  }
+
   // If last buy price is null, undefined, 0, NaN or less than 0
   if (!lastBuyPrice || lastBuyPrice <= 0) {
     logger.info('Do not process because last buy price does not exist.');
@@ -142,18 +165,18 @@ const execute = async (logger, rawData) => {
        logger.info('Do not remove last buy price. Found open orders.');
        return data;
      }
- 
+
      processMessage = 'Balance is not enough to sell. Delete last buy price.';
- 
+
      logger.error(
        { baseAssetQuantity },
- 
+
        processMessage
      );
- 
+
      data.sell.processMessage = processMessage;
      data.sell.updatedAt = moment().utc();
- 
+
      await removeLastBuyPrice(logger, symbol, processMessage, {
        lastBuyPrice,
        baseAssetQuantity,
@@ -163,17 +186,11 @@ const execute = async (logger, rawData) => {
        totalBaseAssetBalance,
        openOrders
      });
- 
+
      return data;
    }
  */
   if ((baseAssetQuantity * currentPrice) < parseFloat(minNotional)) {
-    // Final check for open orders
-    refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
-    if (refreshedOpenOrders.length > 0) {
-      logger.info('Do not remove last buy price. Found open orders.');
-      return data;
-    }
 
     processMessage =
       'Balance is less than the notional value. Delete last buy price.';
@@ -196,12 +213,6 @@ const execute = async (logger, rawData) => {
   }
 
   if ((baseAssetQuantity * currentPrice) < lastBuyPriceRemoveThreshold) {
-    // Final check for open orders
-    refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
-    if (refreshedOpenOrders.length > 0) {
-      logger.info('Do not remove last buy price. Found open orders.');
-      return data;
-    }
 
     processMessage =
       'Balance is less than the notional value. Delete last buy price.';

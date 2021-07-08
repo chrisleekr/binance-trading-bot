@@ -39,7 +39,7 @@ const handlePassword = async (logger, ws, payload) => {
 
     PubSub.publish('frontend-notification', {
       type: 'success',
-      title: `Unlocking bot. ${JSON.stringify(typedPassword.config)}`
+      title: `Unlocking bot.`
     });
     ws.send(JSON.stringify({ result: true, type: 'login-success' }));
   }

@@ -136,9 +136,6 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
     type: 'success',
     title: `New last buy price for ${symbol} has been updated.`
   });
-
-  // Remove last buy order from cache
-  await removeLastBuyOrder(logger, symbol);
 };
 
 /**
@@ -245,6 +242,10 @@ const execute = async (logger, rawData) => {
               10
             )
           );
+
+
+          // Remove last buy order from cache
+          await removeLastBuyOrder(logger, symbol);
 
           return setBuyActionAndMessage(
             logger,

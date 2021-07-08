@@ -61,9 +61,9 @@
     "hard_sell_trigger_description": "Define o preço de ativação forçada da venda. Exemplo: Se definido 1,01 o bot irá vender automaticamente quando o lucro atingir 1% mesmo se a tendencia for subir.",
     "placeholder_hard_sell_trigger": "Defina o preço de ativação forçada",
     "use_husky_sell": "Usar a tendencia Husky no sinal de venda",
-    "use_husky_sell_description": "O bot não irá processar a compra se a tendencia for cair. Apenas processará quando a tendencia estiver subindo. O timing do bot melhora bastante com esta função.",
+    "use_husky_buy_description": "O bot não irá processar a compra se a tendencia for cair. Apenas processará quando a tendencia estiver subindo. O timing do bot melhora bastante com esta função.",
     "use_husky_buy": "Usar a tendencia Husky no sinal de compra",
-    "use_husky_buy_description": "O bot não irá processar a venda se a tendencia for subir. Apenas processará quando a tendencia estiver caindo. Seus lucros normalmente são maiores que o definido assim.",
+    "use_husky_sell_description": "O bot não irá processar a venda se a tendencia for subir. Apenas processará quando a tendencia estiver caindo. Seus lucros normalmente são maiores que o definido assim.",
     "force_market_order": "Forçar venda por ordem de mercado",
     "weight_green_candle": "Peso das velas verdes",
     "weight_red_candle": "Peso das velas vermelhas",
@@ -258,6 +258,12 @@
       "2": "Se você definir 0 no símbolo, o bot não irá abrir uma ordem para o símbolo. Se você já tem o último preço de compra, então o bot irá calcular o custo médio e irá recalcular o último preço de compra.",
       "3": "Para ter certeza que o último preço de compra foi gravado com sucesso, o bot irá monitorar a ordem de compra. Isso pode aumentar o uso da API."
     }
+  },
+  "pass_screen": {
+    "security_screen": "Tela de Seguranca",
+    "enter_pass": "Preencha com sua senha",
+    "_pass": "Senha",
+    "pass_from_env": "Preencha com a senha definida no arquivo .env"
   },
   "common_strings": {
     "_interval": "Intervalo",

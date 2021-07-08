@@ -36,11 +36,15 @@ const handleLatest = async (logger, ws, _payload) => {
   const globalConfiguration = await getGlobalConfiguration(logger);
   logger.info({ globalConfiguration }, 'Configuration from MongoDB');
 
-  const savedPassword = config.get('password');
+  let savedPassword = config.get('password');
+
+  if (savedPassword == undefined) {
+    savedPassword = '';
+  }
 
   const { botOptions: { login } } = globalConfiguration
 
-  if (savedPassword != '' || savedPassword != undefined) {
+  if (savedPassword != '') {
     login.passwordActivated = true;
   } else {
     login.passwordActivated = false;
