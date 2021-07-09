@@ -224,6 +224,9 @@ Or use the frontend to adjust configurations after launching the application.
    | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable [local tunnel](https://github.com/localtunnel/localtunnel) | true                                                                                                |
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain                                         | binance                                                                                             |
 
+   *A local tunnel makes the bot accessible from the outside. Please set the subdomain of the local tunnel as a subdomain that only you can remember.*
+
+
 2. Launch/Update the bot with docker-compose
 
    Pull latest code first:

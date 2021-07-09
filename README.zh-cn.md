@@ -193,6 +193,8 @@
    | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable [local tunnel](https://github.com/localtunnel/localtunnel) | true                                                                                                |
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain                                         | binance                                                                                             |
 
+   *本地隧道使机器人可以从外部访问。 请将本地隧道的子域设置为只有您能记住的子域。*
+
 2. Check `docker-compose.yml` for `BINANCE_MODE` environment parameter
 
 3. Launch/Update the bot with docker-compose
