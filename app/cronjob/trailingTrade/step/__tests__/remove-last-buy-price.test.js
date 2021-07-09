@@ -52,6 +52,9 @@ describe('remove-last-buy-price.js', () => {
           action: 'not-determined',
           isLocked: true,
           symbol: 'BTCUPUSDT',
+          symbolConfiguration: {
+            buy: { lastBuyPriceRemoveThreshold: 10 }
+          },
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -98,6 +101,9 @@ describe('remove-last-buy-price.js', () => {
           action: 'buy',
           isLocked: false,
           symbol: 'BTCUPUSDT',
+          symbolConfiguration: {
+            buy: { lastBuyPriceRemoveThreshold: 10 }
+          },
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -150,6 +156,9 @@ describe('remove-last-buy-price.js', () => {
           action: 'not-determined',
           isLocked: false,
           symbol: 'BTCUPUSDT',
+          symbolConfiguration: {
+            buy: { lastBuyPriceRemoveThreshold: 10 }
+          },
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -196,6 +205,9 @@ describe('remove-last-buy-price.js', () => {
           action: 'not-determined',
           isLocked: false,
           symbol: 'BTCUPUSDT',
+          symbolConfiguration: {
+            buy: { lastBuyPriceRemoveThreshold: 10 }
+          },
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -242,6 +254,9 @@ describe('remove-last-buy-price.js', () => {
           action: 'not-determined',
           isLocked: false,
           symbol: 'BTCUPUSDT',
+          symbolConfiguration: {
+            buy: { lastBuyPriceRemoveThreshold: 10 }
+          },
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -304,6 +319,9 @@ describe('remove-last-buy-price.js', () => {
           action: 'not-determined',
           isLocked: false,
           symbol: 'BTCUPUSDT',
+          symbolConfiguration: {
+            buy: { lastBuyPriceRemoveThreshold: 10 }
+          },
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -357,6 +375,9 @@ describe('remove-last-buy-price.js', () => {
             action: 'not-determined',
             isLocked: false,
             symbol: 'BTCUPUSDT',
+            symbolConfiguration: {
+              buy: { lastBuyPriceRemoveThreshold: 10 }
+            },
             symbolInfo: {
               filterLotSize: {
                 stepSize: '0.01000000',
@@ -405,6 +426,9 @@ describe('remove-last-buy-price.js', () => {
               action: 'not-determined',
               isLocked: false,
               symbol: 'ALPHABTC',
+              symbolConfiguration: {
+                buy: { lastBuyPriceRemoveThreshold: 0.0001 }
+              },
               symbolInfo: {
                 filterLotSize: {
                   stepSize: '1.00000000',
@@ -467,6 +491,9 @@ describe('remove-last-buy-price.js', () => {
               action: 'not-determined',
               isLocked: false,
               symbol: 'BTCUPUSDT',
+              symbolConfiguration: {
+                buy: { lastBuyPriceRemoveThreshold: 10 }
+              },
               symbolInfo: {
                 filterLotSize: {
                   stepSize: '0.01000000',
@@ -537,6 +564,9 @@ describe('remove-last-buy-price.js', () => {
             action: 'not-determined',
             isLocked: false,
             symbol: 'BTCUPUSDT',
+            symbolConfiguration: {
+              buy: { lastBuyPriceRemoveThreshold: 10 }
+            },
             symbolInfo: {
               filterLotSize: {
                 stepSize: '0.01000000',
@@ -570,62 +600,118 @@ describe('remove-last-buy-price.js', () => {
       });
 
       describe('when cannot find open orders', () => {
-        beforeEach(async () => {
-          jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-            isActionDisabled: mockIsActionDisabled,
-            getAPILimit: mockGetAPILimit
-          }));
+        describe('last buy price remove threshold is same as minimum notional', () => {
+          beforeEach(async () => {
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              getAndCacheOpenOrdersForSymbol:
+                mockGetAndCacheOpenOrdersForSymbol,
+              isActionDisabled: mockIsActionDisabled,
+              getAPILimit: mockGetAPILimit
+            }));
 
-          const step = require('../remove-last-buy-price');
+            const step = require('../remove-last-buy-price');
 
-          rawData = {
-            action: 'not-determined',
-            isLocked: false,
-            symbol: 'BTCUPUSDT',
-            symbolInfo: {
-              filterLotSize: {
-                stepSize: '0.01000000',
-                minQty: '0.01000000'
+            rawData = {
+              action: 'not-determined',
+              isLocked: false,
+              symbol: 'BTCUPUSDT',
+              symbolConfiguration: {
+                buy: { lastBuyPriceRemoveThreshold: 10 }
               },
-              filterMinNotional: {
-                minNotional: '10.00000000'
-              }
-            },
-            openOrders: [],
-            baseAssetBalance: {
-              free: 0,
-              locked: 0.04
-            },
-            sell: {
-              currentPrice: 200,
-              lastBuyPrice: 160
-            }
-          };
-
-          result = await step.execute(loggerMock, rawData);
-        });
-
-        it('triggers mongo.deleteOne', () => {
-          expect(mongoMock.deleteOne).toHaveBeenCalledWith(
-            loggerMock,
-            'trailing-trade-symbols',
-            { key: 'BTCUPUSDT-last-buy-price' }
-          );
-        });
-
-        it('returns expected data', () => {
-          expect(result).toStrictEqual({
-            ...rawData,
-            ...{
+              symbolInfo: {
+                filterLotSize: {
+                  stepSize: '0.01000000',
+                  minQty: '0.01000000'
+                },
+                filterMinNotional: {
+                  minNotional: '10.00000000'
+                }
+              },
+              openOrders: [],
+              baseAssetBalance: {
+                free: 0,
+                locked: 0.04
+              },
               sell: {
                 currentPrice: 200,
-                lastBuyPrice: 160,
-                processMessage:
-                  'Balance is less than the notional value. Delete last buy price.',
-                updatedAt: expect.any(Object)
+                lastBuyPrice: 160
               }
-            }
+            };
+
+            result = await step.execute(loggerMock, rawData);
+          });
+
+          it('triggers mongo.deleteOne', () => {
+            expect(mongoMock.deleteOne).toHaveBeenCalledWith(
+              loggerMock,
+              'trailing-trade-symbols',
+              { key: 'BTCUPUSDT-last-buy-price' }
+            );
+          });
+
+          it('returns expected data', () => {
+            expect(result).toStrictEqual({
+              ...rawData,
+              ...{
+                sell: {
+                  currentPrice: 200,
+                  lastBuyPrice: 160,
+                  processMessage:
+                    'Balance is less than the last buy price remove threshold. Delete last buy price.',
+                  updatedAt: expect.any(Object)
+                }
+              }
+            });
+          });
+        });
+
+        describe('last buy price remove threshold is less than minimum notional', () => {
+          beforeEach(async () => {
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              getAndCacheOpenOrdersForSymbol:
+                mockGetAndCacheOpenOrdersForSymbol,
+              isActionDisabled: mockIsActionDisabled,
+              getAPILimit: mockGetAPILimit
+            }));
+
+            const step = require('../remove-last-buy-price');
+
+            rawData = {
+              action: 'not-determined',
+              isLocked: false,
+              symbol: 'BTCUPUSDT',
+              symbolConfiguration: {
+                buy: { lastBuyPriceRemoveThreshold: 5 }
+              },
+              symbolInfo: {
+                filterLotSize: {
+                  stepSize: '0.01000000',
+                  minQty: '0.01000000'
+                },
+                filterMinNotional: {
+                  minNotional: '10.00000000'
+                }
+              },
+              openOrders: [],
+              baseAssetBalance: {
+                free: 0,
+                locked: 0.04
+              },
+              sell: {
+                currentPrice: 200,
+                lastBuyPrice: 160
+              }
+            };
+
+            result = await step.execute(loggerMock, rawData);
+          });
+
+          it('does not trigger mongo.deleteOne', () => {
+            expect(mongoMock.deleteOne).not.toHaveBeenCalled();
+          });
+
+          it('returns expected data', () => {
+            expect(result).toStrictEqual(rawData);
           });
         });
       });
@@ -645,6 +731,9 @@ describe('remove-last-buy-price.js', () => {
           action: 'not-determined',
           isLocked: false,
           symbol: 'BTCUPUSDT',
+          symbolConfiguration: {
+            buy: { lastBuyPriceRemoveThreshold: 10 }
+          },
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',

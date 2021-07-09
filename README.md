@@ -271,11 +271,11 @@ Or use the frontend to adjust configurations after launching the application.
 
 | Frontend Mobile | Setting | Manual Trade |
 | --------------- | ------- | ------------ |
-| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/120882974-07604400-c61e-11eb-8509-96eaac88231b.png) | ![Setting](https://user-images.githubusercontent.com/5715919/120882990-1810ba00-c61e-11eb-839b-a866fcb355e4.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/120883027-41314a80-c61e-11eb-84aa-8b8fc55a4732.png) |
+| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/124752399-262e5f00-df6b-11eb-9dc1-e8f06b98aa9a.png) | ![Setting](https://user-images.githubusercontent.com/5715919/124752414-2890b900-df6b-11eb-90f4-7fa79a84bf1d.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/124752425-2c244000-df6b-11eb-97d9-d81e494d7e40.png) |
 
 | Frontend Desktop                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/120882948-e992df00-c61d-11eb-913a-bcb19bbfb5ac.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/124752605-668ddd00-df6b-11eb-887b-8cf79048d798.png) |
 
 ### Sample Trade
 
@@ -289,12 +289,6 @@ Please refer
 [CHANGELOG.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/CHANGELOG.md)
 to view the past changes.
 
-- [x] Update the bot to monitor all coins every second - [#52](https://github.com/chrisleekr/binance-trading-bot/issues/52)
-- [x] Display release version to the frontend - [#59](https://github.com/chrisleekr/binance-trading-bot/issues/59)
-- [x] Improve frontend & settings UI - [#93](https://github.com/chrisleekr/binance-trading-bot/issues/93) [#85](https://github.com/chrisleekr/binance-trading-bot/issues/85)
-- [x] Support all symbols - [#104](https://github.com/chrisleekr/binance-trading-bot/issues/104)
-- [x] Add stop loss feature - [#99](https://github.com/chrisleekr/binance-trading-bot/issues/99)
-- [x] Add manual buy/sell feature -[#100](https://github.com/chrisleekr/binance-trading-bot/issues/100)
 - [ ] Support Grid strategy for buy/sell to mitigate loss/increasing profit - [#158](https://github.com/chrisleekr/binance-trading-bot/issues/158)
 - [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
 - [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
