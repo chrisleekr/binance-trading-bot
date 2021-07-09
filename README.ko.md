@@ -219,6 +219,8 @@
    | BINANCE_LOCAL_TUNNEL_ENABLED   | 로컬터널([local tunnel](https://github.com/localtunnel/localtunnel)) 활성화/비활성화 | true                                                                                           |
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | 외부 링크를 위한 로컬터널(local tunnel) 서브도메인                                   | binance                                                                                        |
 
+   *로컬 터널은 봇을 외부에서 접근이 가능하도록 설정합니다. 로컬 터널의 하위도메인은 자신만 기억할 수 있는 서브도메인으로 설정하시기 바랍니다.*
+
 2. docker-compose를 이용하여 프로그램을 실행하시기 바랍니다.
 
    먼저 최신 코드를 Pull합니다:
