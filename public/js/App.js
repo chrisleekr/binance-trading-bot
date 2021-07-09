@@ -1,7 +1,6 @@
 /* eslint-disable react/jsx-no-undef */
 /* eslint-disable no-undef */
 
-let searchSymbol = '';
 class App extends React.Component {
   constructor(props) {
     super(props);
@@ -18,11 +17,13 @@ class App extends React.Component {
       symbols: [],
       accountInfo: {},
       publicURL: '',
-      dustTransfer: {}
+      dustTransfer: {},
+      searchKeyword: ''
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
     this.sendWebSocket = this.sendWebSocket.bind(this);
+    this.setSearchKeyword = this.setSearchKeyword.bind(this);
 
     this.toast = this.toast.bind(this);
 
@@ -98,7 +99,7 @@ class App extends React.Component {
       let response = {};
       try {
         response = JSON.parse(evt.data);
-      } catch (_e) { }
+      } catch (_e) {}
 
       if (response.type === 'latest') {
         if (_.isEmpty(response.common.accountInfo)) {
@@ -177,9 +178,10 @@ class App extends React.Component {
     }
   }
 
-  searchSymbolWithName(name) {
-
-    searchSymbol = name;
+  setSearchKeyword(searchKeyword) {
+    this.setState({
+      searchKeyword
+    });
   }
 
   componentDidMount() {
@@ -202,29 +204,18 @@ class App extends React.Component {
       accountInfo,
       publicURL,
       apiInfo,
-      dustTransfer
+      dustTransfer,
+      searchKeyword
     } = this.state;
 
-    const coinWrappers = symbols.map((symbol, index) => {
-      if (searchSymbol != '') {
-        if (symbol.symbol.includes(searchSymbol)) {
-          return (
-            <CoinWrapper
-              extraClassName={
-                index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
-              }
-              key={'coin-wrapper-' + symbol.symbol}
-              symbolInfo={symbol}
-              configuration={configuration}
-              sendWebSocket={this.sendWebSocket}
-            />
-          );
-        }
-      } else {
+    let symbolIndex = -1;
+    const coinWrappers = symbols.map((symbol, _index) => {
+      if (symbol.symbol.toLowerCase().includes(searchKeyword.toLowerCase())) {
+        symbolIndex++;
         return (
           <CoinWrapper
             extraClassName={
-              index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
+              symbolIndex % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
             }
             key={'coin-wrapper-' + symbol.symbol}
             symbolInfo={symbol}
@@ -232,6 +223,8 @@ class App extends React.Component {
             sendWebSocket={this.sendWebSocket}
           />
         );
+      } else {
+        return '';
       }
     });
 
@@ -239,9 +232,9 @@ class App extends React.Component {
       <div className='app'>
         <Header
           configuration={configuration}
-          publicURL={publicURL}
           exchangeSymbols={exchangeSymbols}
           sendWebSocket={this.sendWebSocket}
+          setSearchKeyword={this.setSearchKeyword}
         />
         {_.isEmpty(configuration) === false ? (
           <div className='app-body'>
@@ -254,7 +247,7 @@ class App extends React.Component {
               <ProfitLossWrapper
                 symbols={symbols}
                 sendWebSocket={this.sendWebSocket}
-                searchSymbolWithName={this.searchSymbolWithName} />
+              />
             </div>
             <div className='coin-wrappers'>{coinWrappers}</div>
             <div className='app-body-footer-wrapper'>
@@ -269,7 +262,11 @@ class App extends React.Component {
           </div>
         )}
 
-        <Footer packageVersion={packageVersion} gitHash={gitHash} />
+        <Footer
+          packageVersion={packageVersion}
+          gitHash={gitHash}
+          publicURL={publicURL}
+        />
       </div>
     );
   }

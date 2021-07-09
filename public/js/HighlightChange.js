@@ -11,6 +11,13 @@ class HightlightChange extends React.Component {
     };
   }
 
+  componentWillUnmount() {
+    if (this.timerID) {
+      clearTimeout(this.timerID);
+      this.timerID = null;
+    }
+  }
+
   static getDerivedStateFromProps(newProps, state) {
     if (_.isEqual(state.children, newProps.children) === false) {
       return {
@@ -23,7 +30,12 @@ class HightlightChange extends React.Component {
 
   render() {
     if (this.state.changed) {
-      setTimeout(() => this.setState({ changed: false }), 500);
+      this.timerID = setTimeout(() => {
+        if (this.timerID) {
+          this.setState({ changed: false });
+          this.timerID = null;
+        }
+      }, 500);
     }
 
     return (

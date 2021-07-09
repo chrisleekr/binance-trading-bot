@@ -55,7 +55,7 @@ class ProfitLossWrapper extends React.Component {
   }
 
   render() {
-    const { sendWebSocket, searchSymbolWithName } = this.props;
+    const { sendWebSocket } = this.props;
     const { totalPnL, symbols } = this.state;
 
     const quoteAssets = Object.values(totalPnL).map((pnl, index) => {
@@ -107,9 +107,6 @@ class ProfitLossWrapper extends React.Component {
                       </Button>
                     </OverlayTrigger>
                   </div>
-                </div>
-                <div className='flex-column-center'>
-                  <SearchIcon searchSymbolWithName={searchSymbolWithName} />
                 </div>
                 <div className='flex-column-right pt-2'>
                   {_.isEmpty(symbols) === false ? (

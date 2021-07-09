@@ -5,41 +5,38 @@
 class SearchIcon extends React.Component {
   constructor(props) {
     super(props);
-
-    this.state = {
-      searchName: ''
-    };
-
     this.handleInputChange = this.handleInputChange.bind(this);
+    this.handleInputFocus = this.handleInputFocus.bind(this);
+    this.handleInputBlur = this.handleInputBlur.bind(this);
+  }
+
+  handleInputFocus(_event) {
+    this.props.setSearchFocused(true);
+  }
+  handleInputBlur(_event) {
+    this.props.setSearchFocused(false);
   }
 
   handleInputChange(event) {
-    const target = event.target;
-    const value =
-      target.type === 'checkbox'
-        ? target.checked
-        : target.type === 'number'
-          ? +target.value
-          : target.value;
-
-    let { searchName } = this.state;
-
-    searchName = value.toUpperCase();
-
-    this.setState({
-      searchName
-    });
-    this.props.searchSymbolWithName(searchName);
+    const value = event.target.value;
+    this.props.setSearchKeyword(value);
   }
 
   render() {
-    document.addEventListener("touchstart", function () { }, true);
     return (
-      <form class="search-container" onChange={this.handleInputChange}>
-        <input id="search-box" type="text" class="search-box" onkeypress="return event.keyCode != 13;" />
-        <label for="search-box"><span class="fa fa-search search-icon"></span></label>
-        <input type="submit" id="search-submit" />
-      </form>
+      <div className='header-column-icon-wrapper search-box-wrapper'>
+        <input
+          id='search-box'
+          type='text'
+          className='search-box'
+          onFocus={this.handleInputFocus}
+          onBlur={this.handleInputBlur}
+          onChange={this.handleInputChange}
+        />
+        <label htmlFor='search-box'>
+          <span className='fa fa-search search-icon'></span>
+        </label>
+      </div>
     );
   }
 }

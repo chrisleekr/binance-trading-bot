@@ -26,7 +26,7 @@ class Footer extends React.Component {
   }
 
   render() {
-    const { packageVersion, gitHash } = this.props;
+    const { packageVersion, gitHash, publicURL } = this.props;
     const { currentVersion } = this.state;
 
     if (!packageVersion) {
@@ -50,6 +50,32 @@ class Footer extends React.Component {
               v{currentVersion}
             </a>
           </div>
+        </div>
+        <div className='footer-wrapper'>
+          <div className='footer-column footer-column-icon github-wrapper'>
+            <a
+              href='https://github.com/chrisleekr/binance-trading-bot'
+              target='_blank'
+              className='btn btn-sm p-0 pl-1 pr-1'
+              rel='noreferrer'>
+              <i className='fa fa-github'></i>
+            </a>
+          </div>
+
+          {_.isEmpty(publicURL) === false ? (
+            <div className='footer-column footer-column-icon public-url-wrapper'>
+              <a
+                href={publicURL}
+                className='btn btn-sm btn-link p-0 pl-1 pr-1'
+                target='_blank'
+                rel='noreferrer'
+                title={publicURL}>
+                <i className='fa fa-link'></i>
+              </a>
+            </div>
+          ) : (
+            ''
+          )}
         </div>
       </div>
     );
