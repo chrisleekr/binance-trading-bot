@@ -8,7 +8,8 @@ const {
   getAccountInfoFromAPI,
   getLastBuyPrice,
   saveLastBuyPrice,
-  disableAction
+  disableAction,
+  isActionDisabled
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -216,53 +217,55 @@ const execute = async (logger, rawData) => {
 
       let orderResult;
       try {
-        orderResult = await binance.client.getOrder({
-          symbol,
-          orderId: lastBuyOrder.orderId
-        });
-        if (orderResult.status === 'FILLED') {
-          await calculateLastBuyPrice(logger, symbol, orderResult);
-
-          if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-            messenger.sendMessage(
-              symbol, lastBuyOrder, 'BUY_CONFIRMED');
-            canCheckBuy = true;
-          }
-          // Lock symbol action 10 seconds to avoid API limit
-          await disableAction(
+        if (isActionDisabled(symbol)) {
+          orderResult = await binance.client.getOrder({
             symbol,
-            {
-              disabledBy: 'buy order',
-              message: _actions.action_buy_order_filled,
-              canResume: false,
-              canRemoveLastBuyPrice: false
-            },
-            config.get(
-              'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-              10
-            )
-          );
+            orderId: lastBuyOrder.orderId
+          });
+          if (orderResult.status === 'FILLED') {
+            await calculateLastBuyPrice(logger, symbol, orderResult);
+
+            if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+              messenger.sendMessage(
+                symbol, lastBuyOrder, 'BUY_CONFIRMED');
+              canCheckBuy = true;
+            }
+            // Lock symbol action 10 seconds to avoid API limit
+            await disableAction(
+              symbol,
+              {
+                disabledBy: 'buy order',
+                message: _actions.action_buy_order_filled,
+                canResume: false,
+                canRemoveLastBuyPrice: false
+              },
+              config.get(
+                'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+                10
+              )
+            );
 
 
-          // Remove last buy order from cache
-          await removeLastBuyOrder(logger, symbol);
+            // Remove last buy order from cache
+            await removeLastBuyOrder(logger, symbol);
 
-          return setBuyActionAndMessage(
-            logger,
-            data,
-            'buy-order-filled',
-            _actions.action_buy_order_filled
-          );
-        }
+            return setBuyActionAndMessage(
+              logger,
+              data,
+              'buy-order-filled',
+              _actions.action_buy_order_filled
+            );
+          }
 
-        if (orderResult.status === 'CANCELED' || orderResult.status === 'EXPIRED' || orderResult.status === 'REJECTED') {
-          await removeLastBuyOrder(logger, symbol);
-          return setBuyActionAndMessage(
-            logger,
-            data,
-            'buy-order-cancelled',
-            "Canceled"
-          );
+          if (orderResult.status === 'CANCELED' || orderResult.status === 'EXPIRED' || orderResult.status === 'REJECTED') {
+            await removeLastBuyOrder(logger, symbol);
+            return setBuyActionAndMessage(
+              logger,
+              data,
+              'buy-order-cancelled',
+              "Canceled"
+            );
+          }
         }
       } catch (e) {
 
@@ -281,6 +284,21 @@ const execute = async (logger, rawData) => {
           canCheckBuy = false;
         }
       }
+
+      // Lock symbol action 10 seconds to avoid API limit
+      await disableAction(
+        symbol,
+        {
+          disabledBy: 'buy order',
+          message: _actions.action_buy_order_checking,
+          canResume: false,
+          canRemoveLastBuyPrice: false
+        },
+        config.get(
+          'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+          2
+        )
+      );
 
       return setBuyActionAndMessage(
         logger,
@@ -336,55 +354,57 @@ const execute = async (logger, rawData) => {
 
       let orderResult;
       try {
-        orderResult = await binance.client.getOrder({
-          symbol,
-          orderId: lastSellOrder.orderId
-        });
-        if (orderResult.status === 'FILLED') {
-          // Remove last buy order from cache
-          await removeLastSellOrder(logger, symbol);
-
-          await mongo.deleteOne(logger, 'trailing-trade-symbols', {
-            key: `${symbol}-last-buy-price`
+        if (!isActionDisabled(symbol)) {
+          orderResult = await binance.client.getOrder({
+            symbol,
+            orderId: lastSellOrder.orderId
           });
+          if (orderResult.status === 'FILLED') {
+            // Remove last buy order from cache
+            await removeLastSellOrder(logger, symbol);
 
-          if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-            messenger.sendMessage(
-              symbol, lastSellOrder, 'SELL_CONFIRMED');
-            canCheckSell = true;
+            await mongo.deleteOne(logger, 'trailing-trade-symbols', {
+              key: `${symbol}-last-buy-price`
+            });
+
+            if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+              messenger.sendMessage(
+                symbol, lastSellOrder, 'SELL_CONFIRMED');
+              canCheckSell = true;
+            }
+
+            // Lock symbol action 10 seconds to avoid API limit
+            await disableAction(
+              symbol,
+              {
+                disabledBy: 'sell order',
+                message: _actions.action_sell_disabled_after_sell,
+                canResume: false,
+                canRemoveLastBuyPrice: false
+              },
+              config.get(
+                'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+                10
+              )
+            );
+
+            return setSellActionAndMessage(
+              logger,
+              data,
+              'sell-order-filled',
+              _actions.action_sell_order_filled
+            );
           }
 
-          // Lock symbol action 10 seconds to avoid API limit
-          await disableAction(
-            symbol,
-            {
-              disabledBy: 'sell order',
-              message: _actions.action_sell_disabled_after_sell,
-              canResume: false,
-              canRemoveLastBuyPrice: false
-            },
-            config.get(
-              'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-              10
-            )
-          );
-
-          return setSellActionAndMessage(
-            logger,
-            data,
-            'sell-order-filled',
-            _actions.action_sell_order_filled
-          );
-        }
-
-        if (orderResult.status === 'CANCELED' || orderResult.status === 'EXPIRED' || orderResult.status === 'REJECTED') {
-          await removeLastSellOrder(logger, symbol);
-          return setSellActionAndMessage(
-            logger,
-            data,
-            'sell-order-cancelled',
-            "Canceled"
-          );
+          if (orderResult.status === 'CANCELED' || orderResult.status === 'EXPIRED' || orderResult.status === 'REJECTED') {
+            await removeLastSellOrder(logger, symbol);
+            return setSellActionAndMessage(
+              logger,
+              data,
+              'sell-order-cancelled',
+              "Canceled"
+            );
+          }
         }
       } catch (e) {
 
@@ -403,6 +423,21 @@ const execute = async (logger, rawData) => {
           canCheckSell = false;
         }
       }
+
+      // Lock symbol action 10 seconds to avoid API limit
+      await disableAction(
+        symbol,
+        {
+          disabledBy: 'sell order',
+          message: _actions.action_sell_disabled_after_sell,
+          canResume: false,
+          canRemoveLastBuyPrice: false
+        },
+        config.get(
+          'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+          3
+        )
+      );
 
       return setSellActionAndMessage(
         logger,
