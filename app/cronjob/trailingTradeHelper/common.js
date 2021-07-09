@@ -242,8 +242,6 @@ const getAndCacheOpenOrdersForSymbol = async (logger, symbol) => {
 
   let newCachedOrders = cachedOrders;
 
-  messenger.errorMessage("Cached orders: " + newCachedOrders);
-
   if (_.isEmpty(newCachedOrders)) {
     // Orders do not exist in cache, retrieve them again.
     newCachedOrders = await getOpenOrdersBySymbolFromAPI(logger, symbol);
