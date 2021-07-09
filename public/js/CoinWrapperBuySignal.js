@@ -88,7 +88,7 @@ class CoinWrapperBuySignal extends React.Component {
                     <Button
                       variant='link'
                       className='p-0 m-0 ml-1 text-info d-inline-block'
-                      style={{ 'line-height': '17px' }}>
+                      style={{ lineHeight: '17px' }}>
                       <i className='fa fa-question-circle'></i>
                     </Button>
                   </OverlayTrigger>
@@ -177,7 +177,7 @@ class CoinWrapperBuySignal extends React.Component {
                   <Button
                     variant='link'
                     className='p-0 m-0 ml-1 text-warning d-inline-block'
-                    style={{ 'line-height': '17px' }}>
+                    style={{ lineHeight: '17px' }}>
                     <i className='fa fa-info-circle'></i>
                   </Button>
                 </OverlayTrigger>

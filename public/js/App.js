@@ -17,11 +17,13 @@ class App extends React.Component {
       symbols: [],
       accountInfo: {},
       publicURL: '',
-      dustTransfer: {}
+      dustTransfer: {},
+      searchKeyword: ''
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
     this.sendWebSocket = this.sendWebSocket.bind(this);
+    this.setSearchKeyword = this.setSearchKeyword.bind(this);
 
     this.toast = this.toast.bind(this);
 
@@ -176,6 +178,12 @@ class App extends React.Component {
     }
   }
 
+  setSearchKeyword(searchKeyword) {
+    this.setState({
+      searchKeyword
+    });
+  }
+
   componentDidMount() {
     this.connectWebSocket();
 
@@ -196,30 +204,37 @@ class App extends React.Component {
       accountInfo,
       publicURL,
       apiInfo,
-      dustTransfer
+      dustTransfer,
+      searchKeyword
     } = this.state;
 
-    const coinWrappers = symbols.map((symbol, index) => {
-      return (
-        <CoinWrapper
-          extraClassName={
-            index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
-          }
-          key={'coin-wrapper-' + symbol.symbol}
-          symbolInfo={symbol}
-          configuration={configuration}
-          sendWebSocket={this.sendWebSocket}
-        />
-      );
+    let symbolIndex = -1;
+    const coinWrappers = symbols.map((symbol, _index) => {
+      if (symbol.symbol.toLowerCase().includes(searchKeyword.toLowerCase())) {
+        symbolIndex++;
+        return (
+          <CoinWrapper
+            extraClassName={
+              symbolIndex % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
+            }
+            key={'coin-wrapper-' + symbol.symbol}
+            symbolInfo={symbol}
+            configuration={configuration}
+            sendWebSocket={this.sendWebSocket}
+          />
+        );
+      } else {
+        return '';
+      }
     });
 
     return (
       <div className='app'>
         <Header
           configuration={configuration}
-          publicURL={publicURL}
           exchangeSymbols={exchangeSymbols}
           sendWebSocket={this.sendWebSocket}
+          setSearchKeyword={this.setSearchKeyword}
         />
         {_.isEmpty(configuration) === false ? (
           <div className='app-body'>
@@ -247,7 +262,11 @@ class App extends React.Component {
           </div>
         )}
 
-        <Footer packageVersion={packageVersion} gitHash={gitHash} />
+        <Footer
+          packageVersion={packageVersion}
+          gitHash={gitHash}
+          publicURL={publicURL}
+        />
       </div>
     );
   }

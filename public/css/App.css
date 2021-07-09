@@ -108,7 +108,7 @@ input[type='number'] {
 }
 
 .header-wrapper .header-column.header-column-title h1 {
-  line-height: 25px;
+  line-height: 1.5;
 }
 
 .header-wrapper .header-column.header-column-icon {
@@ -133,6 +133,18 @@ input[type='number'] {
   text-align: center;
   display: flex;
   flex-flow: row wrap;
+}
+
+.footer-wrapper .footer-column.footer-column-icon {
+  text-align: right;
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: flex-end;
+}
+
+.footer-wrapper .footer-column.footer-column-icon i {
+  color: #fff;
+  font-size: 20px;
 }
 
 .coin-info-label-with-icon {
@@ -697,4 +709,87 @@ input[type='number'] {
 }
 /**
   End: Dust Transfer
+*/
+
+/**
+  Start: Search Icon
+*/
+.header-column-search-wrapper {
+  max-width: 20%;
+}
+
+.search-box-wrapper {
+  margin-right: 5px;
+  margin-bottom: 5px;
+}
+
+.search-box-wrapper .search-icon {
+  color: #191f2c;
+  transition: color 0.5s ease-in-out;
+  position: relative;
+  left: -16px;
+  cursor: pointer;
+  top: 0;
+}
+
+.search-box-wrapper label {
+  margin: 1px -15px 0 0;
+}
+
+.search-box-wrapper .search-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  background: #cfcfcf;
+}
+
+.search-box-wrapper .search-box:focus {
+  border: none;
+  outline: none;
+  box-shadow: none;
+  padding-left: 15px;
+  cursor: text;
+  background: #cfcfcf;
+  color: #191f2c;
+  width: 99%;
+  transition: all 0.5s ease-in-out;
+}
+
+.search-box-wrapper .search-box:not(:focus) {
+  width: 20px;
+  height: 20px;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  background: #cfcfcf;
+  color: #cfcfcf;
+  transition: all 0.5s ease-in-out !important;
+}
+
+@media (max-width: 490px) {
+  .header-wrapper.search-focused .header-column-icon {
+    width: 100%;
+  }
+
+  .header-wrapper.search-focused .search-box-wrapper {
+    width: 100%;
+  }
+
+  .header-wrapper.search-focused .header-column-title,
+  .header-wrapper.search-focused .setting-wrapper {
+    display: none;
+  }
+
+  .header-wrapper.search-focused .search-box-wrapper {
+    margin-bottom: 5px;
+  }
+
+  .search-box-wrapper .search-box:focus {
+    width: 99%;
+  }
+}
+/**
+  End: Search Icon
 */
