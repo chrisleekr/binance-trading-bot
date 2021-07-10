@@ -58,12 +58,12 @@
     "stake_coins": "Accumulate coins",
     "stake_coins_description": "If checked, the bot will sell a little less than it bought to accumulate coins. Example: If set to 0.5% profit the bot will only sell 99.5% of the amount it bought.",
     "hard_sell_trigger": "Forced sell activation",
-    "hard_sell_trigger_description": "Sets the forced sale trigger price. Example: If set to 1.01 the bot will automatically sell when the profit reaches 1% even if the trend goes up.",
+    "hard_sell_trigger_description": "Sets the forced sell trigger price. Example: If set to 1.01 the bot will automatically sell when the profit reaches 1% even if the trend goes up.",
     "placeholder_hard_sell_trigger": "Set the forced activation price",
     "use_husky_sell": "Use Husky trend on sell signal",
     "use_husky_buy_description": "The bot will not process the purchase if the trend is down. It will only process when the trend is rising. The bot's timing is greatly improved with this function.",
     "use_husky_buy": "Use Husky trend in buy signal",
-    "use_husky_sell_description": "The bot will not process the sale if the trend is going up. It will only process when the trend is going down. Its profits are usually higher than defined like this.",
+    "use_husky_sell_description": "The bot will not process the sell if the trend is going up. It will only process when the trend is going down. Its profits are usually higher than defined like this.",
     "force_market_order": "Force sell by market order",
     "weight_green_candle": "Weight of green candles",
     "weight_red_candle": "Weight of the red candles",
@@ -113,19 +113,19 @@
       "action_buy_filled": "Order executed successfully. Setting last purchase price.",
       "action_buy_wait": "Waiting for purchase order",
       "action_selling_stop_loss": "Selling currency because of stop-loss",
-      "action_sell_check": "Checking sales order",
+      "action_sell_check": "Checking sells order",
       "action_sell_filled": "Order executed successfully. Removing last purchase price.",
-      "action_sell_wait": "Waiting for sales order",
+      "action_sell_wait": "Waiting for sells order",
       "disabled_by": "Disabled by ",
       "action_sell_disabled": {
-        "1": "The current price has reached the price for activating the sale.",
+        "1": "The current price has reached the price for activating the sell.",
         "2": "However, the action is temporarily disabled by ",
-        "3": "Summarize sales process after: "
+        "3": "Summarize sells process after: "
       },
       "action_sell_disabled_stop_loss": {
         "1": "The current price has reached the stop-loss price. ",
         "2": "However, the action is temporarily disabled by ",
-        "3": " Summarize sales process after: "
+        "3": " Summarize sells process after: "
       },
       "action_wait": {
         "1": "The current price has reached the activation price. ",
@@ -140,9 +140,9 @@
         "3": "Summarize purchase process after: "
       },
       "action_buy": "The current price has reached the price for activating the purchase. I will try to buy the currency.",
-      "action_sell": "The current price has reached the price for activating the sale. I will sell the currency.",
+      "action_sell": "The current price has reached the price for activating the sell. I will sell the currency.",
       "action_sell_stop_loss": "The current price has reached the stop-loss price. I am selling the currency at market price.",
-      "sell_wait": "The current price is less than the sale activation price. Waiting.",
+      "sell_wait": "The current price is less than the sell activation price. Waiting.",
       "action_open_orders": {
         "1": "There are open orders from the symbol ",
         "2": "I won't open a new one."
@@ -207,8 +207,8 @@
     "lowest_price": "Lowest price",
     "trigger_price": "Price to trigger",
     "diff_buy": "Difference to buy",
-    "diff_sell": "Difference for sale",
-    "sell_open_orders": "Open sales orders",
+    "diff_sell": "Difference for sell",
+    "sell_open_orders": "Open sell orders",
     "stop_loss_price": "Stop price",
     "diff_stop_loss": "Difference to stop-loss",
     "stop_percent": "Stop percent",
@@ -224,7 +224,7 @@
     "latest_version": "Latest version"
   },
   "profit_loss_wrapper": {
-    "profit_loss_description": "This section shows approximately your profit/loss for the current list of symbols open for sale with the last defined buy price. The calculation is simply adding your profit/loss for each symbol. Note that it does not represent your trading history gains and losses."
+    "profit_loss_description": "This section shows approximately your profit/loss for the current list of symbols open for sell with the last defined buy price. The calculation is simply adding your profit/loss for each symbol. Note that it does not represent your trading history gains and losses."
   },
   "symbol_delete": {
     "remove_symbol": "Remove symbol",
@@ -292,7 +292,7 @@
     "_interval": "Interval",
     "_limit": "Limit",
     "_buy": "Buy",
-    "_sell": "Sale",
+    "_sell": "Sell",
     "used_weight": "Used API weight (1m)",
     "trading_enabled": "Trading enabled",
     "stop_price_percent": "Stop price percentage",
@@ -311,7 +311,7 @@
     "_price": "Price",
     "stop_price": "Stop price",
     "current_price": "Current price",
-    "sell_signal": "Sale Signal",
+    "sell_signal": "Sell Signal",
     "trading_disabled": "Trading disabled",
     "last_buy_price": "Last buy price",
     "averaged_price": "Average price",

@@ -71,6 +71,14 @@
           "sellSignal": false,
           "positive": 1.01,
           "negative": 1.03
+        },
+        "athRestriction": {
+          "enabled": true,
+          "candles": {
+            "interval": "1d",
+            "limit": 30
+          },
+          "restrictionPercentage": 0.9
         }
       },
       "botOptions": {

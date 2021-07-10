@@ -7,6 +7,8 @@
   --font-secondary-color: #2c2c2c;
   --font-link: #135081;
   --font-main-color: #333333;
+  --green: #d8e0d6;
+  --red: #ddd0d0;
 }
 .theme-dark {
   --color-primary: #191F2C;
@@ -15,10 +17,11 @@
   --font-secondary-color: #D1C975;
   --font-link: #00A1E0;
   --font-main-color: #CFCFCF;
+  --green: #28413f;
+  --red: #3a2727;
 }
 
 body {
-  overflow-y: scroll; /* Show vertical scrollbar */
   font-size: 0.8rem;
   color: var(--font-main-color);
   background: var(--color-primary);
@@ -190,6 +193,18 @@ input[type='number'] {
 
 .accordion-wrapper {
   margin-bottom: 10px;
+}
+
+.card-buy {
+  background: var(--green) !important;
+}
+
+.card-sell {
+  background: var(--red) !important;
+}
+
+.accordion-floating {
+  background-color: var(--color-primary);
 }
 
 .account-wrapper-assets {

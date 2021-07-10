@@ -85,7 +85,16 @@ const execute = async (logger, rawData) => {
     symbol,
     symbolConfiguration: {
       candles: { interval, limit },
-      strategyOptions
+      strategyOptions,
+      strategyOptions: {
+        athRestriction: {
+          enabled: buyATHRestrictionEnabled,
+          candles: {
+            interval: buyATHRestrictionCandlesInterval,
+            limit: buyATHRestrictionCandlesLimit
+          }
+        }
+      }
     },
   } = data;
 
@@ -103,20 +112,60 @@ const execute = async (logger, rawData) => {
   // Flatten candles data to get lowest price
   const candlesData = flattenCandlesData(candles);
 
-  const testIndicator = huskyTrend(candlesData, strategyOptions);
+  const huskyIndicator = huskyTrend(candlesData, strategyOptions);
 
   // Get lowest price
   const lowestPrice = _.min(candlesData.low);
 
   const highestPrice = _.max(candlesData.high);
-  logger.info({ lowestPrice, highestPrice }, 'Retrieved lowest/highest price');
+  logger.info({ lowestPrice, highestPrice }, 'Retrieved lowest/highest price and Indicators');
+
+  let athPrice = null;
+
+  if (buyATHRestrictionEnabled) {
+    logger.info(
+      {
+        debug: true,
+        function: 'athCandles',
+        buyATHRestrictionEnabled,
+        buyATHRestrictionCandlesInterval,
+        buyATHRestrictionCandlesLimit
+      },
+      'Retrieving ATH candles from API'
+    );
+    const athCandles = await binance.client.candles({
+      symbol,
+      interval: buyATHRestrictionCandlesInterval,
+      limit: buyATHRestrictionCandlesLimit
+    });
+
+    // Flatten candles data to get ATH price
+    const athCandlesData = flattenCandlesData(athCandles);
+
+    // ATH (All The High) price
+    athPrice = _.max(athCandlesData.high);
+  } else {
+    logger.info(
+      {
+        debug: true,
+        function: 'athCandles',
+        buyATHRestrictionEnabled,
+        buyATHRestrictionCandlesInterval,
+        buyATHRestrictionCandlesLimit
+      },
+      'ATH Restriction is disabled'
+    );
+  }
 
   data.indicators = {
     highestPrice,
     lowestPrice,
-    trend: testIndicator.status,
-    trendDiff: testIndicator.difference,
-    //  RSI: rsiIndicator
+    athPrice,
+    trend: {
+      status: huskyIndicator.status,
+      trendDiff: huskyIndicator.difference,
+      signedTrendDiff: Math.sign(huskyIndicator.difference)
+    }
   };
 
   return data;

@@ -47,8 +47,7 @@ const execute = async (logger, rawData) => {
     },
     action,
     quoteAssetBalance: { free: quoteAssetFreeBalance },
-    buy: { currentPrice, openOrders },
-    indicators: { trendDiff }
+    buy: { currentPrice, openOrders, trend: { signedTrendDiff } }
   } = data;
 
   if (isLocked) {
@@ -164,7 +163,7 @@ const execute = async (logger, rawData) => {
   }
 
   if (buySignal) {
-    if (Math.sign(trendDiff) == -1) {
+    if (signedTrendDiff == -1) {
       data.buy.processMessage = "Trend is going down, cancelling order";
       data.buy.updatedAt = moment().utc();
 

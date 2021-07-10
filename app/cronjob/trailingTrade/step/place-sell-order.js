@@ -33,7 +33,7 @@ const execute = async (logger, rawData) => {
     },
     action,
     sell: { currentPrice, openOrders, lastQtyBought },
-    indicators: { trendDiff }
+    buy: { trend: { signedTrendDiff } }
   } = data;
 
   if (isLocked) {
@@ -108,7 +108,7 @@ const execute = async (logger, rawData) => {
 
 
   if (sellSignal) {
-    if (Math.sign(trendDiff) == 1) {
+    if (signedTrendDiff == 1) {
       data.buy.processMessage = "Trend is going up, cancelling order";
       data.buy.updatedAt = moment().utc();
 

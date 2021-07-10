@@ -20,8 +20,7 @@ const retrieveLastBuyOrder = async (symbol) => {
  */
 const canBuy = async (data) => {
   const {
-    buy: { currentPrice: buyCurrentPrice, triggerPrice: buyTriggerPrice },
-    indicators: { trendDiff },
+    buy: { currentPrice: buyCurrentPrice, triggerPrice: buyTriggerPrice, trend: { signedTrendDiff } },
     symbolConfiguration: { strategyOptions: { tradeOptions: { manyBuys, differenceToBuy }, huskyOptions: { buySignal } } },
     sell: { lastBuyPrice, lastQtyBought },
     symbol
@@ -39,14 +38,14 @@ const canBuy = async (data) => {
       }
       return canBuy &&
         buyCurrentPrice <= buyTriggerPrice &&
-        Math.sign(trendDiff) == 1 &&
+        signedTrendDiff == 1 &&
         percDiff >= differenceToBuy
     } else {
       return canBuy &&
         lastBuyPrice <= 0 &&
         lastQtyBought <= 0 &&
         buyCurrentPrice <= buyTriggerPrice &&
-        Math.sign(trendDiff) == 1;
+        signedTrendDiff == 1;
     }
   } else {
     if (manyBuys) {
@@ -65,6 +64,32 @@ const canBuy = async (data) => {
   }
 
 };
+
+/**
+ * Check whether trigger price within the buying restriction price or not
+ *
+ * @param {*} data
+ * @returns
+ */
+const isGreaterThanTheATHRestrictionPrice = data => {
+  const {
+    symbolConfiguration: {
+      buy: {
+        athRestriction: { enabled: buyATHRestrictionEnabled }
+      }
+    },
+    buy: {
+      triggerPrice: buyTriggerPrice,
+      athRestrictionPrice: buyATHRestrictionPrice
+    }
+  } = data;
+
+  return (
+    buyATHRestrictionEnabled === true &&
+    buyTriggerPrice >= buyATHRestrictionPrice
+  );
+};
+
 
 /**
  * Check whether has enough balance to sell
@@ -159,12 +184,13 @@ const canSell = data => {
  */
 const isHigherThanSellTriggerPrice = data => {
   const {
+    buy: { trend: signedTrendDiff },
     sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice },
     symbolConfiguration: { strategyOptions: { huskyOptions: { sellSignal } } }
   } = data;
 
   if (sellSignal) {
-    return sellCurrentPrice >= sellTriggerPrice && Math.sign(data.indicators.trendDiff) == -1
+    return sellCurrentPrice >= sellTriggerPrice && signedTrendDiff == -1
   } else {
     return sellCurrentPrice >= sellTriggerPrice;
   }
@@ -180,11 +206,12 @@ const isHigherThanHardSellTriggerPrice = data => {
 
 const isHigherThanSellTriggerPriceAndTrendIsDown = data => {
   const {
+    buy: { trend: signedTrendDiff },
     sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice },
     symbolConfiguration: { strategyOptions: { huskyOptions: { sellSignal } } }
   } = data;
 
-  return sellCurrentPrice >= sellTriggerPrice && Math.sign(data.indicators.trendDiff) == -1 && sellSignal;
+  return sellCurrentPrice >= sellTriggerPrice && signedTrendDiff == -1 && sellSignal;
 };
 
 /**
@@ -273,6 +300,17 @@ const execute = async (logger, rawData) => {
   //  then buy.
   if (await canBuy(data)) {
     if (manyBuys) {
+
+      //ATH verify
+      if (isGreaterThanTheATHRestrictionPrice(data)) {
+        return setBuyActionAndMessage(
+          logger,
+          data,
+          'wait',
+          `The current price has reached the lowest price; however, it is restricted to buy the coin.`
+        );
+      }
+
       const checkDisable = await isActionDisabled(symbol);
       logger.info(
         { tag: 'check-disable', checkDisable },

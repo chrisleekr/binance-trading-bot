@@ -68,9 +68,8 @@ const execute = async (logger, rawData) => {
     action,
     isLocked,
     openOrders,
-    buy: { limitPrice: buyLimitPrice },
+    buy: { limitPrice: buyLimitPrice, trend: { signedTrendDiff } },
     sell: { limitPrice: sellLimitPrice },
-    indicators: { trendDiff },
     symbolConfiguration: { strategyOptions: { huskyOptions: { buySignal, sellSignal } } }
   } = data;
 
@@ -100,7 +99,7 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'buy') {
       let isHuskySignalActivated = false;
       if (buySignal) {
-        isHuskySignalActivated = Math.sign(trendDiff) == -1;
+        isHuskySignalActivated = signedTrendDiff == -1;
       }
       if (parseFloat(order.stopPrice) >= buyLimitPrice || isHuskySignalActivated) {
         logger.info(
@@ -157,7 +156,7 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'sell') {
       let isHuskySignalActivated = false;
       if (sellSignal) {
-        isHuskySignalActivated = Math.sign(trendDiff) == 1;
+        isHuskySignalActivated = signedTrendDiff == 1;
       }
       if (parseFloat(order.stopPrice) <= sellLimitPrice || isHuskySignalActivated) {
         logger.info(
