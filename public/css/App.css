@@ -845,6 +845,8 @@ input[type='number'] {
 */
 .search-container {
   width: auto !important;
+  margin-top: 10px !important;
+  height: 20px !important;
 }
 
 .search-box {

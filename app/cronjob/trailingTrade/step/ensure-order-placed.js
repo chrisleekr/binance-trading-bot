@@ -225,6 +225,11 @@ const execute = async (logger, rawData) => {
           if (orderResult.status === 'FILLED') {
             await calculateLastBuyPrice(logger, symbol, orderResult);
 
+            // Remove last buy order from cache
+            await removeLastBuyOrder(logger, symbol);
+
+            data.openOrders = [];
+
             if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
               messenger.sendMessage(
                 symbol, lastBuyOrder, 'BUY_CONFIRMED');
@@ -244,10 +249,6 @@ const execute = async (logger, rawData) => {
                 10
               )
             );
-
-
-            // Remove last buy order from cache
-            await removeLastBuyOrder(logger, symbol);
 
             return setBuyActionAndMessage(
               logger,
@@ -362,6 +363,8 @@ const execute = async (logger, rawData) => {
           if (orderResult.status === 'FILLED') {
             // Remove last buy order from cache
             await removeLastSellOrder(logger, symbol);
+
+            data.openOrders = [];
 
             await mongo.deleteOne(logger, 'trailing-trade-symbols', {
               key: `${symbol}-last-buy-price`

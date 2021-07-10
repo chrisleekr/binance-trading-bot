@@ -63,7 +63,6 @@ class BackTestIcon extends React.Component {
       symbolConfiguration: _.set(symbolConfiguration, stateKey, value)
     });
 
-    console.log(this.state)
   }
 
   handleFormSubmit() {
@@ -74,7 +73,6 @@ class BackTestIcon extends React.Component {
     newSymbolInfo.configuration = this.state.symbolConfiguration;
 
     this.props.sendWebSocket('symbol-backtest', newSymbolInfo);
-    console.log(newSymbolInfo)
     //   this.handleModalClose();
 
 

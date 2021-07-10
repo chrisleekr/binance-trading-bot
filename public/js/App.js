@@ -3,7 +3,6 @@
 
 let languageReady = '';
 let languageData = {};
-let searchSymbol = '';
 class App extends React.Component {
   constructor(props) {
     super(props);
@@ -21,11 +20,15 @@ class App extends React.Component {
       accountInfo: {},
       publicURL: '',
       dustTransfer: {},
-      passwordActivated: false
+      passwordActivated: false,
+      searchKeyword: '',
+      sortType: 'buy'
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
     this.sendWebSocket = this.sendWebSocket.bind(this);
+    this.searchKeyword = this.searchKeyword.bind(this);
+    this.sortSymbols = this.sortSymbols.bind(this);
 
     this.toast = this.toast.bind(this);
 
@@ -71,9 +74,18 @@ class App extends React.Component {
     });
   }
 
-  searchSymbolWithName(name) {
+  searchKeyword(searchKeyword) {
 
-    searchSymbol = name;
+    this.setState({
+      searchKeyword
+    });
+  }
+
+  sortSymbols(sortType) {
+
+    this.setState({
+      sortType
+    });
   }
 
   connectWebSocket() {
@@ -113,26 +125,49 @@ class App extends React.Component {
           return;
         }
 
+        let symbols = response.stats.symbols;
+        switch (this.state.sortType) {
+          case 'name':
+            symbols = _.sortBy(symbols, 'symbol');
+            break;
+
+          case 'buy':
+            symbols = _.sortBy(symbols, 'buy.difference');
+            break;
+
+          case 'sell':
+            symbols = _.sortBy(symbols, 'sell.difference');
+            break;
+
+          case 'profit':
+            symbols = _.sortBy(symbols, 'sell.currentProfitPercentage');
+            break;
+
+          case 'default':
+            symbols = _.sortBy(response.stats.symbols, s => {
+              if (s.buy.openOrders.length > 0) {
+                const openOrder = s.buy.openOrders[0];
+                if (openOrder.differenceToCancel) {
+                  return (openOrder.differenceToCancel + 3000) * -10;
+                }
+              }
+              if (s.sell.openOrders.length > 0) {
+                const openOrder = s.sell.openOrders[0];
+                if (openOrder.differenceToCancel) {
+                  return (openOrder.differenceToCancel + 2000) * -10;
+                }
+              }
+              if (s.sell.difference) {
+                return (s.sell.difference + 1000) * -10;
+              }
+              return s.buy.difference;
+            })
+            break;
+        }
+
         // Set states
         self.setState({
-          symbols: _.sortBy(response.stats.symbols, s => {
-            if (s.buy.openOrders.length > 0) {
-              const openOrder = s.buy.openOrders[0];
-              if (openOrder.differenceToCancel) {
-                return (openOrder.differenceToCancel + 3000) * -10;
-              }
-            }
-            if (s.sell.openOrders.length > 0) {
-              const openOrder = s.sell.openOrders[0];
-              if (openOrder.differenceToCancel) {
-                return (openOrder.differenceToCancel + 2000) * -10;
-              }
-            }
-            if (s.sell.difference) {
-              return (s.sell.difference + 1000) * -10;
-            }
-            return s.buy.difference;
-          }),
+          symbols,
           packageVersion: response.common.version,
           gitHash: response.common.gitHash,
           exchangeSymbols: response.common.exchangeSymbols,
@@ -209,7 +244,8 @@ class App extends React.Component {
       apiInfo,
       dustTransfer,
       login,
-      passwordActivated
+      passwordActivated,
+      searchKeyword
     } = this.state;
 
     if (configuration.botOptions != undefined) {
@@ -237,8 +273,8 @@ class App extends React.Component {
 
         if (languageData != undefined) {
           const coinWrappers = symbols.map((symbol, index) => {
-            if (searchSymbol != '') {
-              if (symbol.symbol.includes(searchSymbol)) {
+            if (searchKeyword != '') {
+              if (symbol.symbol.includes(searchKeyword)) {
                 return (
                   <CoinWrapper
                     extraClassName={
@@ -290,7 +326,11 @@ class App extends React.Component {
                       symbols={symbols}
                       sendWebSocket={this.sendWebSocket}
                       jsonStrings={languageData}
-                      searchSymbolWithName={this.searchSymbolWithName} />
+                    />
+                    <MonitorOptionsWrapper
+                      jsonStrings={languageData}
+                      searchKeyword={this.searchKeyword}
+                      sortSymbols={this.sortSymbols} />
                   </div>
                   <div className='coin-wrappers'>{coinWrappers}</div>
                   <div className='app-body-footer-wrapper'>

@@ -55,7 +55,7 @@ class ProfitLossWrapper extends React.Component {
   }
 
   render() {
-    const { jsonStrings, sendWebSocket, searchSymbolWithName } = this.props;
+    const { jsonStrings, sendWebSocket, searchKeyword, sortSymbols, configuration } = this.props;
     const { totalPnL, symbols } = this.state;
 
     if (_.isEmpty(jsonStrings)) {
@@ -107,9 +107,6 @@ class ProfitLossWrapper extends React.Component {
                       </Button>
                     </OverlayTrigger>
                   </div>
-                </div>
-                <div className='flex-column-center'>
-                  <SearchIcon searchSymbolWithName={searchSymbolWithName} />
                 </div>
                 <div className='flex-column-right pt-2'>
                   {_.isEmpty(symbols) === false ? (

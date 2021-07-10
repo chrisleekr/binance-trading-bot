@@ -3,7 +3,7 @@
 /* eslint-disable no-undef */
 class AccountWrapper extends React.Component {
   render() {
-    const { accountInfo, dustTransfer, sendWebSocket, jsonStrings } = this.props;
+    const { accountInfo, dustTransfer, sendWebSocket, jsonStrings, sortSymbols } = this.props;
 
     if (_.isEmpty(jsonStrings)) {
       return '';

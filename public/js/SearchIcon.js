@@ -29,7 +29,7 @@ class SearchIcon extends React.Component {
     this.setState({
       searchName
     });
-    this.props.searchSymbolWithName(searchName);
+    this.props.searchKeyword(searchName);
   }
 
   render() {

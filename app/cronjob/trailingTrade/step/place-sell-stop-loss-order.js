@@ -157,12 +157,13 @@ const execute = async (logger, rawData) => {
           disabledBy: 'stop loss',
           message: _actions.action_disabled_stop_loss,
           canResume: true,
-          canRemoveLastBuyPrice: true
+          canRemoveLastBuyPrice: false
         },
         sellStopLossDisableBuyMinutes * 60
       );
     }
 
+    //Delete last buy price
     await mongo.deleteOne(logger, 'trailing-trade-symbols', {
       key: `${symbol}-last-buy-price`
     });
