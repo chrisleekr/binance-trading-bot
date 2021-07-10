@@ -210,7 +210,7 @@ const execute = async (logger, rawData) => {
         },
         config.get(
           'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          3
+          10
         )
       );
     } else {
@@ -260,6 +260,7 @@ const execute = async (logger, rawData) => {
 
           if (orderResult.status === 'CANCELED' || orderResult.status === 'EXPIRED' || orderResult.status === 'REJECTED') {
             await removeLastBuyOrder(logger, symbol);
+            data.openOrders = [];
             return setBuyActionAndMessage(
               logger,
               data,
@@ -297,7 +298,7 @@ const execute = async (logger, rawData) => {
         },
         config.get(
           'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          2
+          10
         )
       );
 
@@ -348,14 +349,14 @@ const execute = async (logger, rawData) => {
         },
         config.get(
           'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          3
+          10
         )
       );
     } else {
 
       let orderResult;
       try {
-        if (!isActionDisabled(symbol)) {
+        if (! await isActionDisabled(symbol)) {
           orderResult = await binance.client.getOrder({
             symbol,
             orderId: lastSellOrder.orderId
@@ -401,6 +402,7 @@ const execute = async (logger, rawData) => {
 
           if (orderResult.status === 'CANCELED' || orderResult.status === 'EXPIRED' || orderResult.status === 'REJECTED') {
             await removeLastSellOrder(logger, symbol);
+            data.openOrders = [];
             return setSellActionAndMessage(
               logger,
               data,
@@ -438,7 +440,7 @@ const execute = async (logger, rawData) => {
         },
         config.get(
           'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          3
+          10
         )
       );
 

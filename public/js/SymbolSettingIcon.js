@@ -222,7 +222,7 @@ class SymbolSettingIcon extends React.Component {
               </Accordion>
 
               <div className='row'>
-                <div className='col-6'>
+                <div className='col-6 buy'>
                   <Accordion defaultActiveKey='0'
                     className='accordion-wrapper'>
                     <Card className='mt-1 card-buy'>
@@ -570,66 +570,8 @@ class SymbolSettingIcon extends React.Component {
                       </Accordion.Collapse>
                     </Card>
                   </Accordion>
-
-                  <Accordion defaultActiveKey='0'
-                    className='accordion-wrapper accordion-floating'>
-                    <Card className='mt-1'>
-                      <Card.Header className='px-2 py-1'>
-                        <Accordion.Toggle
-                          as={Button}
-                          variant='link'
-                          eventKey='0'
-                          className='p-0 fs-7 text-uppercase'>
-                          {setting_icon.stake_coins} ?
-                        </Accordion.Toggle>
-                      </Card.Header>
-                      <Accordion.Collapse eventKey='0'>
-                        <Card.Body className='px-2 py-1'>
-                          <div className='row'>
-                            <div className='col-12'>
-                              <Form.Group
-                                controlId='field-sell-stake-coins-enabled'
-                                className='mb-2'>
-                                <Form.Check size='sm'>
-                                  <Form.Check.Input
-                                    type='checkbox'
-                                    data-state-key='sell.stakeCoinEnabled'
-                                    checked={
-                                      symbolConfiguration.sell.stakeCoinEnabled
-                                    }
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <Form.Check.Label>
-                                    {setting_icon.stake_coins} {' '}
-                                    <OverlayTrigger
-                                      trigger='click'
-                                      key='sell-stake-coins-enabled-overlay'
-                                      placement='bottom'
-                                      overlay={
-                                        <Popover id='sell-stake-coins-enabled-overlay-right'>
-                                          <Popover.Content>
-                                            {setting_icon.stake_coins_description}
-                                          </Popover.Content>
-                                        </Popover>
-                                      }>
-                                      <Button
-                                        variant='link'
-                                        className='p-0 m-0 ml-1 text-info'>
-                                        <i className='fa fa-question-circle'></i>
-                                      </Button>
-                                    </OverlayTrigger>
-                                  </Form.Check.Label>
-                                </Form.Check>
-                              </Form.Group>
-                            </div>
-                          </div>
-                        </Card.Body>
-                      </Accordion.Collapse>
-                    </Card>
-                  </Accordion>
-
                 </div>
-                <div className='col-6'>
+                <div className='col-6 sell'>
                   <Accordion defaultActiveKey='0'
                     className='accordion-wrapper'>
                     <Card className='mt-1 card-sell'>
@@ -1126,7 +1068,7 @@ class SymbolSettingIcon extends React.Component {
                           variant='link'
                           eventKey='0'
                           className='p-0 fs-7 text-uppercase'>
-                          ATH (All Time High) Buy Restriction
+                          {setting_icon.stake_coins} ?
                         </Accordion.Toggle>
                       </Card.Header>
                       <Accordion.Collapse eventKey='0'>
@@ -1134,36 +1076,27 @@ class SymbolSettingIcon extends React.Component {
                           <div className='row'>
                             <div className='col-12'>
                               <Form.Group
-                                controlId='field-buy-ath-restriction-enabled'
+                                controlId='field-sell-stake-coins-enabled'
                                 className='mb-2'>
                                 <Form.Check size='sm'>
                                   <Form.Check.Input
                                     type='checkbox'
-                                    data-state-key='strategyOptions.athRestriction.enabled'
+                                    data-state-key='sell.stakeCoinEnabled'
                                     checked={
-                                      symbolConfiguration.strategyOptions.athRestriction.enabled
+                                      symbolConfiguration.sell.stakeCoinEnabled
                                     }
                                     onChange={this.handleInputChange}
                                   />
                                   <Form.Check.Label>
-                                    ATH Buy Restriction Enabled{' '}
+                                    {setting_icon.stake_coins} {' '}
                                     <OverlayTrigger
                                       trigger='click'
-                                      key='buy-ath-restriction-enabled-overlay'
+                                      key='sell-stake-coins-enabled-overlay'
                                       placement='bottom'
                                       overlay={
-                                        <Popover id='buy-ath-restriction-enabled-overlay-right'>
+                                        <Popover id='sell-stake-coins-enabled-overlay-right'>
                                           <Popover.Content>
-                                            If enabled, the bot will retrieve ATH
-                                            (All Time High) price of the coin based
-                                            on the interval/candle configuration. If
-                                            the buy trigger price is higher than ATH
-                                            buy restriction price, which is
-                                            calculated by ATH Restriction price
-                                            percentage, the bot will not place a buy
-                                            order. The bot will place an order when
-                                            the trigger price is lower than ATH buy
-                                            restriction price.
+                                            {setting_icon.stake_coins_description}
                                           </Popover.Content>
                                         </Popover>
                                       }>
@@ -1175,142 +1108,6 @@ class SymbolSettingIcon extends React.Component {
                                     </OverlayTrigger>
                                   </Form.Check.Label>
                                 </Form.Check>
-                              </Form.Group>
-                            </div>
-                          </div>
-                          <div className='row'>
-                            <div className='col-6'>
-                              <Form.Group
-                                controlId='field-ath-candles-interval'
-                                className='mb-2'>
-                                <Form.Label className='mb-0'>
-                                  Interval
-                                  <OverlayTrigger
-                                    trigger='click'
-                                    key='interval-overlay'
-                                    placement='bottom'
-                                    overlay={
-                                      <Popover id='interval-overlay-right'>
-                                        <Popover.Content>
-                                          Set candle interval for calculating the
-                                          ATH (All The High) price.
-                                        </Popover.Content>
-                                      </Popover>
-                                    }>
-                                    <Button
-                                      variant='link'
-                                      className='p-0 m-0 ml-1 text-info'>
-                                      <i className='fa fa-question-circle'></i>
-                                    </Button>
-                                  </OverlayTrigger>
-                                </Form.Label>
-                                <Form.Control
-                                  size='sm'
-                                  as='select'
-                                  required
-                                  data-state-key='strategyOptions.athRestriction.candles.interval'
-                                  value={
-                                    symbolConfiguration.strategyOptions.athRestriction.candles
-                                      .interval
-                                  }
-                                  onChange={this.handleInputChange}>
-                                  <option value='1m'>1m</option>
-                                  <option value='3m'>3m</option>
-                                  <option value='5m'>5m</option>
-                                  <option value='15m'>15m</option>
-                                  <option value='30m'>30m</option>
-                                  <option value='1h'>1h</option>
-                                  <option value='2h'>2h</option>
-                                  <option value='4h'>4h</option>
-                                  <option value='1d'>1d</option>
-                                </Form.Control>
-                              </Form.Group>
-                            </div>
-                            <div className='col-6'>
-                              <Form.Group
-                                controlId='field-ath-candles-limit'
-                                className='mb-2'>
-                                <Form.Label className='mb-0'>
-                                  Limit
-                                  <OverlayTrigger
-                                    trigger='click'
-                                    key='limit-overlay'
-                                    placement='bottom'
-                                    overlay={
-                                      <Popover id='limit-overlay-right'>
-                                        <Popover.Content>
-                                          Set the number of candles to retrieve for
-                                          calculating the ATH (All The High) price.
-                                        </Popover.Content>
-                                      </Popover>
-                                    }>
-                                    <Button
-                                      variant='link'
-                                      className='p-0 m-0 ml-1 text-info'>
-                                      <i className='fa fa-question-circle'></i>
-                                    </Button>
-                                  </OverlayTrigger>
-                                </Form.Label>
-                                <Form.Control
-                                  size='sm'
-                                  type='number'
-                                  placeholder='Enter limit'
-                                  required
-                                  min='0'
-                                  step='1'
-                                  data-state-key='strategyOptions.athRestriction.candles.limit'
-                                  value={
-                                    symbolConfiguration.strategyOptions.athRestriction.candles.limit
-                                  }
-                                  onChange={this.handleInputChange}
-                                />
-                              </Form.Group>
-                            </div>
-                          </div>
-                          <div className='row'>
-                            <div className='col-12'>
-                              <Form.Group
-                                controlId='field-buy-restriction-percentage'
-                                className='mb-2'>
-                                <Form.Label className='mb-0'>
-                                  Restriction price percentage{' '}
-                                  <OverlayTrigger
-                                    trigger='click'
-                                    key='interval-overlay'
-                                    placement='bottom'
-                                    overlay={
-                                      <Popover id='interval-overlay-right'>
-                                        <Popover.Content>
-                                          Set the percentage to calculate
-                                          restriction price. i.e. if set{' '}
-                                          <code>0.9</code> and the ATH(All Time
-                                          High) price <code>$110</code>, restriction
-                                          price will be <code>$99</code> for stop
-                                          limit order.
-                                        </Popover.Content>
-                                      </Popover>
-                                    }>
-                                    <Button
-                                      variant='link'
-                                      className='p-0 m-0 ml-1 text-info'>
-                                      <i className='fa fa-question-circle'></i>
-                                    </Button>
-                                  </OverlayTrigger>
-                                </Form.Label>
-                                <Form.Control
-                                  size='sm'
-                                  type='number'
-                                  placeholder='Enter restriction price percentage'
-                                  required
-                                  min='0'
-                                  step='0.0001'
-                                  data-state-key='buy.athRestriction.restrictionPercentage'
-                                  value={
-                                    symbolConfiguration.strategyOptions.athRestriction
-                                      .restrictionPercentage
-                                  }
-                                  onChange={this.handleInputChange}
-                                />
                               </Form.Group>
                             </div>
                           </div>
@@ -1537,7 +1334,210 @@ class SymbolSettingIcon extends React.Component {
                     </Card>
                   </Accordion>
 
+                  <Accordion
+                    className='accordion-wrapper accordion-floating'>
+                    <Card className='mt-1'>
+                      <Card.Header className='px-2 py-1'>
+                        <Accordion.Toggle
+                          as={Button}
+                          variant='link'
+                          eventKey='0'
+                          className='p-0 fs-7 text-uppercase'>
+                          ATH (All Time High) Buy Restriction
+                        </Accordion.Toggle>
+                      </Card.Header>
+                      <Accordion.Collapse eventKey='0'>
+                        <Card.Body className='px-2 py-1'>
+                          <div className='row'>
+                            <div className='col-12'>
+                              <Form.Group
+                                controlId='field-buy-ath-restriction-enabled'
+                                className='mb-2'>
+                                <Form.Check size='sm'>
+                                  <Form.Check.Input
+                                    type='checkbox'
+                                    data-state-key='strategyOptions.athRestriction.enabled'
+                                    checked={
+                                      symbolConfiguration.strategyOptions.athRestriction.enabled
+                                    }
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <Form.Check.Label>
+                                    ATH Buy Restriction Enabled{' '}
+                                    <OverlayTrigger
+                                      trigger='click'
+                                      key='buy-ath-restriction-enabled-overlay'
+                                      placement='bottom'
+                                      overlay={
+                                        <Popover id='buy-ath-restriction-enabled-overlay-right'>
+                                          <Popover.Content>
+                                            If enabled, the bot will retrieve ATH
+                                            (All Time High) price of the coin based
+                                            on the interval/candle configuration. If
+                                            the buy trigger price is higher than ATH
+                                            buy restriction price, which is
+                                            calculated by ATH Restriction price
+                                            percentage, the bot will not place a buy
+                                            order. The bot will place an order when
+                                            the trigger price is lower than ATH buy
+                                            restriction price.
+                                          </Popover.Content>
+                                        </Popover>
+                                      }>
+                                      <Button
+                                        variant='link'
+                                        className='p-0 m-0 ml-1 text-info'>
+                                        <i className='fa fa-question-circle'></i>
+                                      </Button>
+                                    </OverlayTrigger>
+                                  </Form.Check.Label>
+                                </Form.Check>
+                              </Form.Group>
+                            </div>
+                          </div>
+                          <div className='row'>
+                            <div className='col-6'>
+                              <Form.Group
+                                controlId='field-ath-candles-interval'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  Interval
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='interval-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='interval-overlay-right'>
+                                        <Popover.Content>
+                                          Set candle interval for calculating the
+                                          ATH (All The High) price.
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <Form.Control
+                                  size='sm'
+                                  as='select'
+                                  required
+                                  data-state-key='strategyOptions.athRestriction.candles.interval'
+                                  value={
+                                    symbolConfiguration.strategyOptions.athRestriction.candles
+                                      .interval
+                                  }
+                                  onChange={this.handleInputChange}>
+                                  <option value='1m'>1m</option>
+                                  <option value='3m'>3m</option>
+                                  <option value='5m'>5m</option>
+                                  <option value='15m'>15m</option>
+                                  <option value='30m'>30m</option>
+                                  <option value='1h'>1h</option>
+                                  <option value='2h'>2h</option>
+                                  <option value='4h'>4h</option>
+                                  <option value='1d'>1d</option>
+                                </Form.Control>
+                              </Form.Group>
+                            </div>
+                            <div className='col-6'>
+                              <Form.Group
+                                controlId='field-ath-candles-limit'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  Limit
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='limit-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='limit-overlay-right'>
+                                        <Popover.Content>
+                                          Set the number of candles to retrieve for
+                                          calculating the ATH (All The High) price.
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <Form.Control
+                                  size='sm'
+                                  type='number'
+                                  placeholder='Enter limit'
+                                  required
+                                  min='0'
+                                  step='1'
+                                  data-state-key='strategyOptions.athRestriction.candles.limit'
+                                  value={
+                                    symbolConfiguration.strategyOptions.athRestriction.candles.limit
+                                  }
+                                  onChange={this.handleInputChange}
+                                />
+                              </Form.Group>
+                            </div>
+                          </div>
+                          <div className='row'>
+                            <div className='col-12'>
+                              <Form.Group
+                                controlId='field-buy-restriction-percentage'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  Restriction price percentage{' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='interval-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='interval-overlay-right'>
+                                        <Popover.Content>
+                                          Set the percentage to calculate
+                                          restriction price. i.e. if set{' '}
+                                          <code>0.9</code> and the ATH(All Time
+                                          High) price <code>$110</code>, restriction
+                                          price will be <code>$99</code> for stop
+                                          limit order.
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <Form.Control
+                                  size='sm'
+                                  type='number'
+                                  placeholder='Enter restriction price percentage'
+                                  required
+                                  min='0'
+                                  step='0.0001'
+                                  data-state-key='buy.athRestriction.restrictionPercentage'
+                                  value={
+                                    symbolConfiguration.strategyOptions.athRestriction
+                                      .restrictionPercentage
+                                  }
+                                  onChange={this.handleInputChange}
+                                />
+                              </Form.Group>
+                            </div>
+                          </div>
+                        </Card.Body>
+                      </Accordion.Collapse>
+                    </Card>
+                  </Accordion>
 
+                </div>
+                <div className='col-12'>
                   <Accordion
                     className='accordion-wrapper accordion-floating'>
                     <Card className='mt-1'>
@@ -1671,6 +1671,7 @@ class SymbolSettingIcon extends React.Component {
                       </Accordion.Collapse>
                     </Card>
                   </Accordion>
+
                 </div>
               </div>
 

@@ -946,3 +946,8 @@ input[type='number'] {
   border-right: 2px solid transparent;
   box-shadow: inset 0 0 0 2px
 }
+
+.sort-icon {
+  width: 75%;
+  height: 75%;
+}

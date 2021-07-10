@@ -91,7 +91,8 @@
           "logged": false,
           "elapsedTime": 0,
           "loginWindowMinutes": 60
-        }
+        },
+        "theme": "theme-dark"
       },
       "buy": {
         "enabled": true,

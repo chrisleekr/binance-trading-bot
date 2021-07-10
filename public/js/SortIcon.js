@@ -26,14 +26,13 @@ class SortIcon extends React.Component {
       sortType: value
     });
     this.props.sortSymbols(value);
-    console.log(value)
   }
 
   render() {
     const { sortType } = this.state;
     return (
       <Form.Group
-        controlId='field-candles-interval'
+        controlId='sort-icon'
         className='mb-2'>
         <Form.Control
           size='sm'

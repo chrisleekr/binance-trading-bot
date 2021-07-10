@@ -16,7 +16,6 @@ class CoinWrapperBuySignal extends React.Component {
 
     const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
-    console.log(this.props)
     return (
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title'>
