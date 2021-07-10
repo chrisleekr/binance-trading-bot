@@ -30,7 +30,6 @@ class SortIcon extends React.Component {
   }
 
   render() {
-    const { configuration } = this.props;
     const { sortType } = this.state;
     return (
       <Form.Group

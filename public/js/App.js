@@ -143,7 +143,7 @@ class App extends React.Component {
             symbols = _.sortBy(symbols, 'sell.currentProfitPercentage');
             break;
 
-          case 'default':
+          default:
             symbols = _.sortBy(response.stats.symbols, s => {
               if (s.buy.openOrders.length > 0) {
                 const openOrder = s.buy.openOrders[0];

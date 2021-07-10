@@ -78,7 +78,7 @@
   },
   "dust_transfer": {
     "convert_small_balances_bnb": "Convert kleine bedragen naar BNB",
-    "description": "U kunt elke 6 uur bedragen van minder dan 0,003 BTC naar BNB converteren. Het is niet mogelijk om valuta's om te zetten die hier niet worden vermeld.",
+    "_description": "U kunt elke 6 uur bedragen van minder dan 0,003 BTC naar BNB converteren. Het is niet mogelijk om valuta's om te zetten die hier niet worden vermeld.",
     "_loading": "Bezig met laden",
     "no_asset_convert": "Er is geen valuta om te converteren.",
     "_convert": "Converteren"
@@ -299,5 +299,12 @@
     "_action": "Actie",
     "_strength": "Kracht",
     "_trending": "Trending"
+  },
+  "sort_icon": {
+    "_default": "Standaard",
+    "_name": "Naam (alfabetisch)",
+    "_buy": "Koop verschil",
+    "_sell": "Verschil verkopen",
+    "_profit": "Winst"
   }
 }

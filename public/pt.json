@@ -78,7 +78,7 @@
   },
   "dust_transfer": {
     "convert_small_balances_bnb": "Converter pequenas quantias em BNB",
-    "description": "Você pode converter quantias com valor menor que 0.003 BTC em BNB a cada 6 horas. Não é possível converter moedas que não estejam listadas aqui.",
+    "_description": "Você pode converter quantias com valor menor que 0.003 BTC em BNB a cada 6 horas. Não é possível converter moedas que não estejam listadas aqui.",
     "_loading": "Carregando",
     "no_asset_convert": "Não há nenhuma moeda para converter.",
     "_convert": "Converter"
@@ -305,5 +305,12 @@
     "_action": "Ação",
     "_strength": "Força",
     "_trending": "Tendência"
+  },
+  "sort_icon": {
+    "_default": "Padrão",
+    "_name": "Nome (Alfabeticamente)",
+    "_buy": "Diferença de compra",
+    "_sell": "Diferença de venda",
+    "_profit": "Lucro"
   }
 }

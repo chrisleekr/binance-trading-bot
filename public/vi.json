@@ -78,7 +78,7 @@
   },
   "dust_transfer": {
     "convert_small_balances_bnb": "Chuyển đổi một lượng nhỏ thành BNB",
-    "description": "Bạn có thể chuyển đổi số tiền dưới 0,003 BTC thành BNB cứ sau 6 giờ. Không thể chuyển đổi các loại tiền tệ không được liệt kê ở đây.",
+    "_description": "Bạn có thể chuyển đổi số tiền dưới 0,003 BTC thành BNB cứ sau 6 giờ. Không thể chuyển đổi các loại tiền tệ không được liệt kê ở đây.",
     "_loading": "Đang tải",
     "no_asset_convert": "Không có đơn vị tiền tệ nào để chuyển đổi.",
     "_convert": "Chuyển đổi"
@@ -299,5 +299,12 @@
     "_action": "Hành động",
     "_strength": "Sức mạnh",
     "_trending": "Xu hướng"
+  },
+  "sort_icon": {
+    "_default": "Mặc định mặc định",
+    "_name": "Tên (Theo thứ tự bảng chữ cái)",
+    "_buy": "Mua chênh lệch",
+    "_sell": "Bán chênh lệch",
+    "_profit": "Lợi nhuận"
   }
 }

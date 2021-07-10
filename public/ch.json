@@ -78,7 +78,7 @@
   },
   "dust_transfer": {
     "convert_small_balances_bnb": "将小额金额转换为 BNB",
-    "description": "您可以每 6 小时将少于 0.003 BTC 的金额转换为 BNB。无法转换此处未列出的货币。",
+    "_description": "您可以每 6 小时将少于 0.003 BTC 的金额转换为 BNB。无法转换此处未列出的货币。",
     "_loading": "正在加载",
     "no_asset_convert": "没有要转换的货币。",
     "_convert": "转换"
