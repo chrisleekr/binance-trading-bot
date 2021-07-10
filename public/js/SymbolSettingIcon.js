@@ -222,7 +222,7 @@ class SymbolSettingIcon extends React.Component {
               </Accordion>
 
               <div className='row'>
-                <div className='col-6 buy'>
+                <div className='col-xs-12 col-sm-6'>
                   <Accordion defaultActiveKey='0'
                     className='accordion-wrapper'>
                     <Card className='mt-1 card-buy'>
@@ -571,7 +571,7 @@ class SymbolSettingIcon extends React.Component {
                     </Card>
                   </Accordion>
                 </div>
-                <div className='col-6 sell'>
+                <div className='col-xs-12 col-sm-6'>
                   <Accordion defaultActiveKey='0'
                     className='accordion-wrapper'>
                     <Card className='mt-1 card-sell'>
