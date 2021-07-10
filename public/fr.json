@@ -74,7 +74,30 @@
     "grid_buy_strategy": "Acheter à nouveau après différence",
     "grid_buy_strategy_description": "Active la possibilité d'achats multiples, en calculant toujours le prix moyen. Ex: Si défini à 1%, le bot achètera à nouveau la devise si la différence entre le dernier prix d'achat est supérieure à 1%.",
     "strategy_options": "Ajustements de stratégie",
-    "trade_options": "Ajustements commerciaux"
+    "trade_options": "Ajustements commerciaux",
+    "bot_options": {
+      "bot_options": "Options de bot",
+      "_language": "Langue",
+      "select_language": "Sélectionnez la langue du bot",
+      "use_slack": "Utilisez Slack pour recevoir des messages",
+      "use_telegram": "Utiliser Telegram pour recevoir des messages",
+      "_security": "Sécurité",
+      "login_expire_time": "Temps d'expiration de la connexion",
+      "login_expire_time_description": "Définit l'heure d'expiration de la connexion. Définissez 0 pour ne jamais expirer (NON RECOMMANDÉ)",
+      "expire_after": "Expire après :",
+      "_minutes": "minutes"
+    },
+    "usine de réinitialisation": {
+      "reset_factory": "Réinitialiser les paramètres d'usine",
+      "delete_all": "Supprimer toutes les données stockées",
+      "delete_all_keep_symbols": "Supprimer tout, conserver les symboles",
+      "delete_all_description": {
+        "1": "Cela supprimera toutes vos données de cache et de base de données.",
+        "2": "Vos paramètres seront comme la première fois que vous avez démarré le bot.",
+        "3": "Si vous avez un ordre d'achat/vente ouvert, cette fonction supprimera toutes les données le concernant.",
+        "4": "Veuillez ne pas utiliser cette fonction avec des commandes ouvertes."
+      }
+    }
   },
   "dust_transfer": {
     "convert_small_balances_bnb": "Convertir de petits montants en BNB",
@@ -258,6 +281,12 @@
       "2": "Si vous définissez 0 sur le symbole, le bot ne passera pas de commande pour le symbole. Si vous avez déjà le dernier prix d'offre, le bot calculera le coût moyen et recalculera le dernier prix d'offre. ",
       "3": "Pour s'assurer que le dernier prix d'achat a été enregistré avec succès, le bot surveillera le bon de commande. Cela peut augmenter l'utilisation de l'API."
     }
+  },
+  "pass_screen": {
+    "security_screen": "Écran de sécurité",
+    "enter_pass": "Remplissez votre mot de passe",
+    "_pass": "Mot de passe",
+    "pass_from_env": "Remplir avec le mot de passe défini dans le fichier .env"
   },
   "common_strings": {
     "_interval": "Intervalle",

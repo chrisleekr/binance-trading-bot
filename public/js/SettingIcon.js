@@ -1305,37 +1305,20 @@ class SettingIcon extends React.Component {
                       variant='link'
                       eventKey='0'
                       className='p-0 fs-7 text-uppercase'>
-                      BOT OPTIONS
+                      {setting_icon.bot_options.bot_options}
                     </Accordion.Toggle>
                   </Card.Header>
                   <Accordion.Collapse eventKey='0'>
                     <Card.Body className='px-2 py-1'>
                       <div className='row'>
                         <div className='col-xs-12 col-sm-6'>
-                          <p className='form-header mb-1'>LANGUAGE</p>
+                          <p className='form-header mb-1'>{setting_icon.bot_options._language}</p>
 
                           <Form.Group
                             controlId='field-languages'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
-                              Select a language
-                              <OverlayTrigger
-                                trigger='click'
-                                key='languages-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='languages-overlay-right'>
-                                    <Popover.Content>
-                                      {setting_icon.candle_interval_description}
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
+                              {setting_icon.bot_options.select_language}
                             </Form.Label>
                             <Form.Control
                               size='sm'
@@ -1366,24 +1349,7 @@ class SettingIcon extends React.Component {
                                 onChange={this.handleInputChange}
                               />
                               <Form.Check.Label>
-                                Use slack to receive messages?{' '}
-                                <OverlayTrigger
-                                  trigger='click'
-                                  key='bot-options-telegram-overlay'
-                                  placement='bottom'
-                                  overlay={
-                                    <Popover id='bot-options-telegram-overlay-right'>
-                                      <Popover.Content>
-                                        {setting_icon.use_husky_buy_description}
-                                      </Popover.Content>
-                                    </Popover>
-                                  }>
-                                  <Button
-                                    variant='link'
-                                    className='p-0 m-0 ml-1 text-info'>
-                                    <i className='fa fa-question-circle'></i>
-                                  </Button>
-                                </OverlayTrigger>
+                                {setting_icon.bot_options.use_slack}?{' '}
                               </Form.Check.Label>
                             </Form.Check>
                           </Form.Group>
@@ -1403,37 +1369,20 @@ class SettingIcon extends React.Component {
                                 onChange={this.handleInputChange}
                               />
                               <Form.Check.Label>
-                                Use telegram to receive messages?{' '}
-                                <OverlayTrigger
-                                  trigger='click'
-                                  key='bot-options-telegram-overlay'
-                                  placement='bottom'
-                                  overlay={
-                                    <Popover id='bot-options-telegram-overlay-right'>
-                                      <Popover.Content>
-                                        {setting_icon.use_husky_buy_description}
-                                      </Popover.Content>
-                                    </Popover>
-                                  }>
-                                  <Button
-                                    variant='link'
-                                    className='p-0 m-0 ml-1 text-info'>
-                                    <i className='fa fa-question-circle'></i>
-                                  </Button>
-                                </OverlayTrigger>
+                                {setting_icon.bot_options.use_telegram}?{' '}
                               </Form.Check.Label>
                             </Form.Check>
                           </Form.Group>
                         </div>
 
                         <div className='col-xs-12 col-sm-6'>
-                          <p className='form-header mb-1'>Security</p>
+                          <p className='form-header mb-1'>{setting_icon.bot_options._security}</p>
 
                           <Form.Group
                             controlId='field-login-expire'
                             className='mb-2'>
                             <Form.Label className='mb-0'>
-                              Login expire time {' '}
+                              {setting_icon.bot_options.login_expire_time} {' '}
                               <OverlayTrigger
                                 trigger='click'
                                 key='login-expire-overlay'
@@ -1441,7 +1390,7 @@ class SettingIcon extends React.Component {
                                 overlay={
                                   <Popover id='login-expire-overlay-right'>
                                     <Popover.Content>
-                                      Defines the login expire time. Define 0 to never expire ( NOT RECOMMENDED !!! ) .
+                                      {setting_icon.bot_options.login_expire_time_description}
                                     </Popover.Content>
                                   </Popover>
                                 }>
@@ -1466,7 +1415,7 @@ class SettingIcon extends React.Component {
                               />
                               <InputGroup.Append>
                                 <InputGroup.Text>
-                                  Expire after {configuration.botOptions.login.loginWindowMinutes} minutes
+                                  {setting_icon.bot_options.expire_after} {configuration.botOptions.login.loginWindowMinutes} {setting_icon.bot_options._minutes}.
                                 </InputGroup.Text>
                               </InputGroup.Append>
                             </InputGroup>
@@ -1488,7 +1437,7 @@ class SettingIcon extends React.Component {
                 onClick={() =>
                   this.handleModalShow('reset')
                 }>
-                Reset to factory default.
+                {setting_icon.reset_factory.reset_factory}
               </Button>
               <Button
                 variant='secondary'
@@ -1512,20 +1461,20 @@ class SettingIcon extends React.Component {
           size='md'>
           <Modal.Header className='pt-1 pb-1'>
             <Modal.Title>
-              <span className='text-danger'>⚠ Delete ALL saved configuration</span>
+              <span className='text-danger'>⚠ {setting_icon.reset_factory.delete_all}</span>
             </Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            This will delete all your data from database.
+            {setting_icon.reset_factory.delete_all_description[1]}
             <br />
             <br />
-            Your settings will be like the first time you started the bot.
+            {setting_icon.reset_factory.delete_all_description[2]}
             <br />
             <br />
-            If there's a symbol with open trade, it will delete it right away, even before trade finishes.
+            {setting_icon.reset_factory.delete_all_description[3]}
             <br />
             <br />
-            Please, don't use this with open trades.
+            {setting_icon.reset_factory.delete_all_description[4]}
           </Modal.Body>
 
           <Modal.Footer>
@@ -1549,7 +1498,7 @@ class SettingIcon extends React.Component {
               onClick={() => this.handleResetSettings({
                 action: 'reset-factory-settings-minus-symbols'
               })}>
-              Reset but keep symbols
+              {setting_icon.reset_factory.delete_all_keeps_symbols}
             </Button>
           </Modal.Footer>
         </Modal>

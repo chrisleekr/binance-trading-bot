@@ -74,7 +74,30 @@
     "grid_buy_strategy": "Mua lại sau khi chênh lệch",
     "grid_buy_strategy_description": "Cho phép khả năng mua nhiều lần, luôn tính giá trung bình. Ví dụ: Nếu đặt 1%, bot sẽ mua lại đơn vị tiền tệ nếu chênh lệch giữa giá mua cuối cùng lớn hơn 1%.",
     "strategy_options": "Điều chỉnh Chiến lược",
-    "trade_options": "Điều chỉnh Thương mại"
+    "trade_options": "Điều chỉnh Thương mại",
+    "bot_options": {
+      "bot_options": "Tùy chọn bot",
+      "_language": "Ngôn ngữ ngôn ngữ",
+      "select_language": "Chọn Ngôn ngữ Bot",
+      "use_slack": "Sử dụng Slack để nhận tin nhắn",
+      "use_telegram": "Sử dụng Telegram để nhận tin nhắn",
+      "_security": "Bảo mật",
+      "login_expire_time": "Thời gian đăng nhập hết hạn",
+      "login_expire_time_description": "Đặt thời gian để đăng nhập hết hạn. Đặt 0 để không bao giờ hết hạn (KHÔNG ĐƯỢC ĐỀ XUẤT)",
+      "expire_ after": "Hết hạn sau:",
+      "_minutes": "phút"
+    },
+    "reset_factory": {
+      "reset_factory": "Đặt lại về cài đặt gốc",
+      "delete_all": "Xóa tất cả dữ liệu được lưu trữ",
+      "delete_all_keep_symbols": "Xóa tất cả, giữ lại các ký hiệu",
+      "delete_all_description": {
+        "1": "Thao tác này sẽ xóa tất cả dữ liệu bộ nhớ cache và cơ sở dữ liệu của bạn.",
+        "2": "Cài đặt của bạn sẽ giống như lần đầu tiên bạn khởi động bot.",
+        "3": "Nếu bạn có một lệnh mua / bán đang mở, chức năng này sẽ xóa tất cả dữ liệu về lệnh đó.",
+        "4": "Vui lòng không sử dụng chức năng này với các lệnh đang mở."
+      }
+    }
   },
   "dust_transfer": {
     "convert_small_balances_bnb": "Chuyển đổi một lượng nhỏ thành BNB",
@@ -258,6 +281,12 @@
       "2": "Nếu bạn đặt số 0 trên biểu tượng, bot sẽ không đặt hàng cho biểu tượng. Nếu bạn đã có giá đặt mua cuối cùng, thì bot sẽ tính chi phí trung bình và sẽ tính lại giá đặt mua cuối cùng.",
       "3": "Để đảm bảo giá mua cuối cùng được ghi lại thành công, bot sẽ theo dõi đơn đặt hàng. Điều này có thể làm tăng việc sử dụng API."
     }
+  },
+  "pass_screen": {
+    "security_screen": "Màn hình bảo mật",
+    "enter_pass": "Điền mật khẩu của bạn",
+    "_pass": "Mật khẩu",
+    "pass_from_env": "Điền mật khẩu được xác định trong tệp .env"
   },
   "common_strings": {
     "_interval": "Khoảng thời gian",

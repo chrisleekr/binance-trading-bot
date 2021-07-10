@@ -74,7 +74,30 @@
     "grid_buy_strategy": "差价后再买",
     "grid_buy_strategy_description": "启用多次购买的可能性，始终计算平均价格。例如：如果设置为 1%，如果上次购买价格之间的差异大于 1%，机器人将再次购买货币。",
     "strategy_options": "策略调整",
-    "trade_options": "贸易调整"
+    "trade_options": "贸易调整",
+    "bot_options": {
+      "bot_options": "机器人选项",
+      "_language": "语言",
+      "select_language": "选择机器人语言",
+      "use_slack": "使用 Slack 接收消息",
+      "use_telegram": "使用 Telegram 接收消息",
+      "_security": "安全",
+      "login_expire_time": "登录到期时间",
+      "login_expire_time_description": "设置登录过期的时间。设置 0 为永不过期（不推荐）",
+      "expire_after": "过期时间：",
+      "_minutes": "分钟"
+    },
+    "reset_factory": {
+      "reset_factory": "恢复出厂设置",
+      "delete_all": "删除所有存储的数据",
+      "delete_all_keep_symbols": "删除所有，保留符号",
+      "delete_all_description": {
+        "1": "这将删除你所有的缓存和数据库数据。",
+        "2": "你的设置就像你第一次启动机器人一样。",
+        "3": "如果您有未结的买/卖订单，此功能将删除有关它的所有数据。",
+        "4": "请不要在未结订单中使用此功能。"
+      }
+    }
   },
   "dust_transfer": {
     "convert_small_balances_bnb": "将小额金额转换为 BNB",
@@ -258,6 +281,12 @@
       "2": "如果您在符号上设置 0，机器人将不会为该符号下订单。如果您已经有最后一个买入价，那么机器人将计算平均成本并重新计算最后一个买入价。",
       "3": "为了确保成功记录上次购买价格，机器人将监控采购订单。这可能会增加 API 使用率。"
     }
+  },
+  "pass_screen": {
+    "security_screen": "安全屏幕",
+    "enter_pass": "填写您的密码",
+    "_pass": "密码",
+    "pass_from_env": "填写.env文件中定义的密码"
   },
   "common_strings": {
     "_interval": "间隔",

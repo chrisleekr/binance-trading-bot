@@ -74,7 +74,30 @@
     "grid_buy_strategy": "Comprar novamente após diferença",
     "grid_buy_strategy_description": "Ativa a possibilidade de múltiplas compras, sempre calculando a média do preço. Ex: Se definido 1%, o bot irá comprar a moeda novamente se a diferença entre o último preço de compra for maior que 1%.",
     "strategy_options": "Ajustes de Estratégia",
-    "trade_options": "Ajustes de Negociação"
+    "trade_options": "Ajustes de Negociação",
+    "bot_options": {
+      "bot_options": "Opções do Bot",
+      "_language": "Língua",
+      "select_language": "Selecione a língua do Bot",
+      "use_slack": "Usar Slack para receber mensagens",
+      "use_telegram": "Usar Telegram para receber mensagens",
+      "_security": "Segurança",
+      "login_expire_time": "Tempo para o login expirar",
+      "login_expire_time_description": "Define o tempo para o login expirar. Defina 0 para nunca expirar ( NÃO RECOMENDADO )",
+      "expire_after": "Expira após:",
+      "_minutes": "minutos"
+    },
+    "reset_factory": {
+      "reset_factory": "Resetar para os ajustes de fábrica",
+      "delete_all": "Deletar todos os dados armazenados",
+      "delete_all_keep_symbols": "Deletar tudo, manter os símbolos",
+      "delete_all_description": {
+        "1": "Isto irá deletar todos os seus dados do cache e database.",
+        "2": "Suas configurações serão como na primeira vez que iniciou o bot.",
+        "3": "Se tiver uma ordem de comra/venda aberta, esta função irá deletar todos os dados sobre ela.",
+        "4": "Por favor, não use esta função com ordens abertas."
+      }
+    }
   },
   "dust_transfer": {
     "convert_small_balances_bnb": "Converter pequenas quantias em BNB",

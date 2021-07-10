@@ -259,6 +259,12 @@
       "3": "Para asegurarse de que el último precio de compra se haya registrado correctamente, el bot supervisará la orden de compra. Esto puede aumentar el uso de la API"
     }
   },
+  "pass_screen": {
+    "security_screen": "Pantalla de seguridad",
+    "enter_pass": "Introduzca su contraseña",
+    "_pass": "Contraseña",
+    "pass_from_env": "Complete con la contraseña definida en el archivo .env"
+  },
   "common_strings": {
     "_interval": "Intervalo",
     "_limit": "Límite",

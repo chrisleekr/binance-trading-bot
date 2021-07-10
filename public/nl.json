@@ -74,7 +74,30 @@
     "grid_buy_strategy": "Koop opnieuw na verschil",
     "grid_buy_strategy_description": "Maakt de mogelijkheid van meerdere aankopen mogelijk, waarbij altijd de gemiddelde prijs wordt berekend. Bijvoorbeeld: indien ingesteld op 1%, zal de bot de valuta opnieuw kopen als het verschil tussen de laatste aankoopprijs groter is dan 1%.",
     "strategy_options": "Strategie-aanpassingen",
-    "trade_options": "Handelsaanpassingen"
+    "trade_options": "Handelsaanpassingen",
+    "bot_options": {
+      "bot_options": "Bot-opties",
+      "_language": "Taal",
+      "select_language": "Selecteer bottaal",
+      "use_slack": "Gebruik Slack om berichten te ontvangen",
+      "use_telegram": "Gebruik Telegram om berichten te ontvangen",
+      "_security": "Beveiliging",
+      "login_expire_time": "Tijd om in te loggen verloopt",
+      "login_expire_time_description": "Stelt de tijd in waarop de login verloopt. Stel 0 in om nooit te verlopen (NIET AANBEVOLEN)",
+      "expire_after": "Vervallen na:",
+      "_minuten": "minuten"
+    },
+    "reset_factory": {
+      "reset_factory": "Reset naar fabrieksinstellingen",
+      "delete_all": "Verwijder alle opgeslagen gegevens",
+      "delete_all_keep_symbols": "Alles verwijderen, symbolen behouden",
+      "delete_all_description": {
+        "1": "Hiermee worden al uw cache- en databasegegevens verwijderd.",
+        "2": "Je instellingen zijn zoals de eerste keer dat je de bot startte.",
+        "3": "Als u een openstaande koop-/verkooporder heeft, verwijdert deze functie alle gegevens hierover.",
+        "4": "Gebruik deze functie niet bij openstaande bestellingen."
+      }
+    }
   },
   "dust_transfer": {
     "convert_small_balances_bnb": "Convert kleine bedragen naar BNB",
@@ -258,6 +281,12 @@
       "2": "Als je 0 instelt op het symbool, zal de bot geen bestelling plaatsen voor het symbool. Als je al de laatste biedprijs hebt, dan berekent de bot de gemiddelde kosten en herberekent de laatste biedprijs.",
       "3": "Om er zeker van te zijn dat de laatste aankoopprijs correct is geregistreerd, zal de bot de aankooporder controleren. Dit kan het API-gebruik verhogen."
     }
+  },
+  "pass_screen": {
+    "security_screen": "Beveiligingsscherm",
+    "enter_pass": "Vul uw wachtwoord in",
+    "_pass": "Wachtwoord",
+    "pass_from_env": "Vul het wachtwoord in dat is gedefinieerd in het .env-bestand"
   },
   "common_strings": {
     "_interval": "Interval",
