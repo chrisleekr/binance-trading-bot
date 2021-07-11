@@ -38,7 +38,8 @@ class Header extends React.Component {
             </div>
 
             <ThemeChanger
-              configuration={configuration} />
+              configuration={configuration}
+              sendWebSocket={sendWebSocket} />
 
             {_.isEmpty(publicURL) === false ? (
               <div className='header-column-icon-wrapper public-url-wrapper'>
