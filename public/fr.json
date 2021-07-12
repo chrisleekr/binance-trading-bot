@@ -24,7 +24,7 @@
     "stop_loss_enabled_description": "Si activé, le bot vendra la pièce lorsqu'il atteindra le pourcentage défini en stop-loss. Vous pouvez activer cette fonction pour éviter des pertes plus importantes que prévu.",
     "max_loss_percent_description": "Définit le pourcentage de perte maximum du stop-loss. Exemple : s'il est défini sur 0,80, cela signifie que vous ne perdrez pas plus de 20 % du montant total investi. Si vous avez acheté la pièce au prix de 100 $, le dernier prix long sera fixé à 100 $ et le stop-loss à 80 $. S'il atteint 80 $, le bot vendra tout le solde de devises disponible dans un ordre de marché. ",
     "placeholder_enter_max_loss": "Définir la perte maximale",
-    "temporary_disable_buy": "Désactiver temporairement l'achat pendant (en minutes)",
+    "temporary_disable_buy": "Désactiver temporairement l'achat pendant",
     "temporary_disable_buy_description": "Définit combien de temps désactiver l'achat de devises en cas d'activation du stop-loss. Exemple : Si défini sur 360, l'achat sera désactivé pendant 6 heures.",
     "placeholder_temporary_disable": "Définir les minutes à désactiver",
     "note_changes": "Notez que les modifications prendront effet au prochain tick",

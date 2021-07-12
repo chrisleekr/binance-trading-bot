@@ -24,7 +24,7 @@
     "stop_loss_enabled_description": "Se ativado, o bot irá vender a moeda quando chegar a porcentagem definida no para-perdas. Você pode ativar essa função para previnir perdas maiores que o esperado.",
     "max_loss_percent_description": "Define a porcentagem de perda máxima do para-perda. Exemplo: se difinido 0.80, significa que você não irá perder mais de 20% do valor total investido. Se você comprou a moeda ao preço de $100, o último preço comprado será definido para $100, e o para-perdas para $80. Se atingir $80, o bot irá vender todo o balanço disponível da moeda em uma ordem de mercado.",
     "placeholder_enter_max_loss": "Defina a perda máxima",
-    "temporary_disable_buy": "Desabilitar compra temporariamente por (em minutos)",
+    "temporary_disable_buy": "Desabilitar compra temporariamente por",
     "temporary_disable_buy_description": "Define por quanto tempo desativar a compra da moeda em caso de ativação do para-perda. Exemplo: Se definido 360, a compra será desabilitada por 6 horas.",
     "placeholder_temporary_disable": "Defina os minutos para desativar",
     "note_changes": "Note que as mudanças entrarão em efeito no próximo tique",

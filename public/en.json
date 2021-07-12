@@ -24,7 +24,7 @@
     "stop_loss_enabled_description": "If enabled, the bot will sell the coin when it reaches the percentage set in stop-loss. You can enable this function to prevent bigger losses than expected.",
     "max_loss_percent_description": "Sets the maximum loss percentage of the stop-loss. Example: if set to 0.80, it means you will not lose more than 20% of the total invested amount. If you bought the coin at the price of $100, the last price long will be set to $100, and stop-loss to $80. If it hits $80, the bot will sell all available currency balance in a market order.",
     "placeholder_enter_max_loss": "Set the maximum loss",
-    "temporary_disable_buy": "Temporarily disable purchase for (in minutes)",
+    "temporary_disable_buy": "Temporarily disable purchase for",
     "temporary_disable_buy_description": "Defines how long to disable currency purchase in case of stop-loss activation. Example: If set 360, purchase will be disabled for 6 hours.",
     "placeholder_temporary_disable": "Set the minutes to disable",
     "note_changes": "Note that the changes will take effect on the next tick",

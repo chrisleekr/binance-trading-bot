@@ -24,7 +24,7 @@
     "stop_loss_enabled_description": "如果启用，机器人将在达到止损设置的百分比时卖出硬币。您可以启用此功能以防止比预期更大的损失。",
     "max_loss_percent_description": "设置止损的最大亏损百分比。例如：如果设置为0.80，则表示您的损失不会超过总投资金额的20%。如果您以100美元的价格买入该币，最后的多头价格将设置为 100 美元，止损为 80 美元。如果达到 80 美元，机器人将按照市价单卖出所有可用的货币余额。",
     "placeholder_enter_max_loss": "设置最大损失",
-    "temporary_disable_buy": "暂时禁止购买（以分钟为单位）",
+    "temporary_disable_buy": "暂时禁止购买",
     "temporary_disable_buy_description": "定义在止损激活的情况下禁用货币购买的时间。例如：如果设置为 360，则购买将禁用 6 小时。",
     "placeholder_temporary_disable": "设置禁用分钟数",
     "note_changes": "请注意，更改将在下一个滴答时生效",

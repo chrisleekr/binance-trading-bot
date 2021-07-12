@@ -24,7 +24,7 @@
     "stop_loss_enabled_description": "Indien ingeschakeld, zal de bot de munt verkopen wanneer deze het percentage bereikt dat is ingesteld in stop-loss. U kunt deze functie inschakelen om grotere verliezen dan verwacht te voorkomen.",
     "max_loss_percent_description": "Stelt het maximale verliespercentage van de stop-loss in. Voorbeeld: indien ingesteld op 0,80, betekent dit dat u niet meer dan 20% van het totale geïnvesteerde bedrag verliest. Als u de munt heeft gekocht voor de prijs van $ 100, de laatste prijs voor lang wordt ingesteld op $ 100 en stop-loss op $ 80. Als het $ 80 bereikt, verkoopt de bot alle beschikbare valutasaldo in een marktorder.",
     "placeholder_enter_max_loss": "Stel het maximale verlies in",
-    "temporary_disable_buy": "Aankoop tijdelijk uitschakelen voor (in minuten)",
+    "temporary_disable_buy": "Aankoop tijdelijk uitschakelen voor",
     "temporary_disable_buy_description": "Definieert hoe lang de aankoop van valuta moet worden uitgeschakeld in geval van activering van stop-loss. Voorbeeld: Indien ingesteld op 360, wordt de aankoop 6 uur uitgeschakeld.",
     "placeholder_temporary_disable": "Stel de minuten in om uit te schakelen",
     "note_changes": "Merk op dat de wijzigingen van kracht worden bij het volgende vinkje",

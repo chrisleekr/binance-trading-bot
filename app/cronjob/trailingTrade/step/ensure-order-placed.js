@@ -81,7 +81,7 @@ const getLastBuyOrder = async (logger, symbol) => {
  * @param {*} symbol
  */
 const addPastTrade = async (symbol, oldOrder, newOrder) => {
-  const cachedTrades =
+  let cachedTrades =
     JSON.parse(await cache.get(`past-trades`)) || [];
 
   const { price: oldPrice, qty: oldQty } = oldOrder;
@@ -97,7 +97,11 @@ const addPastTrade = async (symbol, oldOrder, newOrder) => {
     date: new Date()
   }
 
-  cachedTrades.push(+trade);
+  if (cachedTrades == null) {
+    cachedTrades = [];
+  }
+
+  cachedTrades.push(trade);
 
   messenger.errorMessage("Past trades: " + JSON.stringify(cachedTrades))
 
@@ -265,7 +269,7 @@ const execute = async (logger, rawData) => {
     } else {
 
       const removeStatuses = ['CANCELED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'];
-      let orderResult;
+      let orderResult = {};
       try {
         orderResult = await binance.client.getOrder({
           symbol,
@@ -278,37 +282,39 @@ const execute = async (logger, rawData) => {
         );
       }
 
-      // If filled, then calculate average cost and quantity and save new last buy pirce.
-      if (orderResult.status === 'FILLED') {
-        logger.info(
-          { lastBuyOrder },
-          'The order is filled, caluclate last buy price.'
-        );
-        await calculateLastBuyPrice(logger, symbol, orderResult);
+      if (orderResult !== {}) {
+        // If filled, then calculate average cost and quantity and save new last buy pirce.
+        if (orderResult.status === 'FILLED') {
+          logger.info(
+            { lastBuyOrder },
+            'The order is filled, caluclate last buy price.'
+          );
+          await calculateLastBuyPrice(logger, symbol, orderResult);
 
-        // If order is no longer available, then delete from cache
-        await removeLastBuyOrder(logger, symbol);
+          // If order is no longer available, then delete from cache
+          await removeLastBuyOrder(logger, symbol);
 
-        // Lock symbol action 20 seconds to avoid API limit
-        await disableAction(
-          symbol,
-          {
-            disabledBy: 'buy order filled',
-            message: 'Disabled action after confirming the buy order.',
-            canResume: false,
-            canRemoveLastBuyPrice: false
-          },
-          config.get(
-            'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-            20
-          )
-        );
+          // Lock symbol action 20 seconds to avoid API limit
+          await disableAction(
+            symbol,
+            {
+              disabledBy: 'buy order filled',
+              message: 'Disabled action after confirming the buy order.',
+              canResume: false,
+              canRemoveLastBuyPrice: false
+            },
+            config.get(
+              'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+              20
+            )
+          );
 
-      } else if (removeStatuses.includes(orderResult.status) === true) {
-        // If order is no longer available, then delete from cache
-        await removeLastBuyOrder(logger, symbol);
+        } else if (removeStatuses.includes(orderResult.status) === true) {
+          // If order is no longer available, then delete from cache
+          await removeLastBuyOrder(logger, symbol);
+        }
+
       }
-
 
       logger.info(
         { debug: true },

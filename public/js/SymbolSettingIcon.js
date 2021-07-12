@@ -541,7 +541,7 @@ class SymbolSettingIcon extends React.Component {
                       <Accordion.Collapse eventKey='0'>
                         <Card.Body className='px-2 py-1'>
                           <div className='row'>
-                            <div className='col-6'>
+                            <div className='col-12'>
                               <Form.Group
                                 controlId='field-sell-enabled'
                                 className='mb-2'>
@@ -575,141 +575,6 @@ class SymbolSettingIcon extends React.Component {
                                 </Form.Check>
                               </Form.Group>
                             </div>
-                            <div className='col-6'>
-                              <p className='form-header mb-1'>{common_strings._sell} - {common_strings.stop_loss}</p>
-                              <Form.Group
-                                controlId='field-sell-stop-loss-enabled'
-                                className='mb-2'>
-                                <Form.Check size='sm'>
-                                  <Form.Check.Input
-                                    type='checkbox'
-                                    data-state-key='sell.stopLoss.enabled'
-                                    checked={symbolConfiguration.sell.stopLoss.enabled}
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <Form.Check.Label>
-                                    {common_strings.stop_loss_enabled}{' '}
-                                    <OverlayTrigger
-                                      trigger='click'
-                                      key='sell-stop-loss-enabled-overlay'
-                                      placement='bottom'
-                                      overlay={
-                                        <Popover id='sell-stop-loss-enabled-overlay-right'>
-                                          <Popover.Content>
-                                            {setting_icon.stop_loss_enabled_description}
-                                          </Popover.Content>
-                                        </Popover>
-                                      }>
-                                      <Button
-                                        variant='link'
-                                        className='p-0 m-0 ml-1 text-info'>
-                                        <i className='fa fa-question-circle'></i>
-                                      </Button>
-                                    </OverlayTrigger>
-                                  </Form.Check.Label>
-                                </Form.Check>
-                              </Form.Group>
-
-                            </div>
-
-                            <div className='col-6'>
-                              <Form.Group
-                                controlId='field-sell-stop-loss-max-loss-percentage'
-                                className='mb-2'>
-                                <Form.Label className='mb-0'>
-                                  {common_strings.max_loss_percent}{' '}
-                                  <OverlayTrigger
-                                    trigger='click'
-                                    key='sell-stop-loss-max-loss-percentage-overlay'
-                                    placement='bottom'
-                                    overlay={
-                                      <Popover id='sell-stop-loss-max-loss-percentage-overlay-right'>
-                                        <Popover.Content>
-                                          {setting_icon.max_loss_percent_description}
-                                        </Popover.Content>
-                                      </Popover>
-                                    }>
-                                    <Button
-                                      variant='link'
-                                      className='p-0 m-0 ml-1 text-info'>
-                                      <i className='fa fa-question-circle'></i>
-                                    </Button>
-                                  </OverlayTrigger>
-                                </Form.Label>
-                                <InputGroup size='sm'>
-
-                                  <FormControl
-                                    size='sm'
-                                    type='number'
-                                    placeholder={setting_icon.placeholder_enter_max_loss}
-                                    required
-                                    max='1'
-                                    min='0'
-                                    step='0.0001'
-                                    data-state-key='sell.stopLoss.maxLossPercentage'
-                                    value={
-                                      symbolConfiguration.sell.stopLoss.maxLossPercentage
-                                    }
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <InputGroup.Append>
-                                    <InputGroup.Text>
-                                      {((symbolConfiguration.sell.stopLoss.maxLossPercentage * 100) - 100).toFixed(2)}%
-                                    </InputGroup.Text>
-                                  </InputGroup.Append>
-                                </InputGroup>
-                              </Form.Group>
-
-                            </div>
-                            <div className='col-6'>
-                              <Form.Group
-                                controlId='field-sell-stop-loss-disable-buy-minutes'
-                                className='mb-2'>
-                                <Form.Label className='mb-0'>
-                                  {setting_icon.temporary_disable_buy}{' '}
-                                  <OverlayTrigger
-                                    trigger='click'
-                                    key='sell-stop-loss-disable-buy-minutes-overlay'
-                                    placement='bottom'
-                                    overlay={
-                                      <Popover id='sell-stop-loss-disable-buy-minutes-overlay-right'>
-                                        <Popover.Content>
-                                          {setting_icon.temporary_disable_buy_description}
-                                        </Popover.Content>
-                                      </Popover>
-                                    }>
-                                    <Button
-                                      variant='link'
-                                      className='p-0 m-0 ml-1 text-info'>
-                                      <i className='fa fa-question-circle'></i>
-                                    </Button>
-                                  </OverlayTrigger>
-                                </Form.Label>
-                                <InputGroup size='sm'>
-
-                                  <FormControl
-                                    size='sm'
-                                    type='number'
-                                    placeholder={setting_icon.placeholder_temporary_disable}
-                                    required
-                                    max='99999999'
-                                    min='1'
-                                    step='1'
-                                    data-state-key='sell.stopLoss.disableBuyMinutes'
-                                    value={
-                                      symbolConfiguration.sell.stopLoss.disableBuyMinutes
-                                    }
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <InputGroup.Append>
-                                    <InputGroup.Text>
-                                      {(symbolConfiguration.sell.stopLoss.disableBuyMinutes / 60).toFixed(2)} hours disabled.
-                                    </InputGroup.Text>
-                                  </InputGroup.Append>
-                                </InputGroup>
-                              </Form.Group>
-                            </div>
-
                             <div className='col-6'>
                               <Form.Group
                                 controlId='field-sell-stop-percentage'
@@ -854,15 +719,211 @@ class SymbolSettingIcon extends React.Component {
                                 </InputGroup>
                               </Form.Group>
                             </div>
+
+                            <div className='col-12'>
+                              <Form.Group
+                                controlId='field-sell-stop-loss-enabled'
+                                className='mb-2'>
+                                <Form.Check size='sm'>
+                                  <Form.Check.Input
+                                    type='checkbox'
+                                    data-state-key='sell.stopLoss.enabled'
+                                    checked={symbolConfiguration.sell.stopLoss.enabled}
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <Form.Check.Label>
+                                    {common_strings.stop_loss_enabled}{' '}
+                                    <OverlayTrigger
+                                      trigger='click'
+                                      key='sell-stop-loss-enabled-overlay'
+                                      placement='bottom'
+                                      overlay={
+                                        <Popover id='sell-stop-loss-enabled-overlay-right'>
+                                          <Popover.Content>
+                                            {setting_icon.stop_loss_enabled_description}
+                                          </Popover.Content>
+                                        </Popover>
+                                      }>
+                                      <Button
+                                        variant='link'
+                                        className='p-0 m-0 ml-1 text-info'>
+                                        <i className='fa fa-question-circle'></i>
+                                      </Button>
+                                    </OverlayTrigger>
+                                  </Form.Check.Label>
+                                </Form.Check>
+                              </Form.Group>
+
+                            </div>
+
+                            <div className='col-6'>
+                              <Form.Group
+                                controlId='field-sell-stop-loss-max-loss-percentage'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  {common_strings.max_loss_percent}{' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='sell-stop-loss-max-loss-percentage-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='sell-stop-loss-max-loss-percentage-overlay-right'>
+                                        <Popover.Content>
+                                          {setting_icon.max_loss_percent_description}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <InputGroup size='sm'>
+
+                                  <FormControl
+                                    size='sm'
+                                    type='number'
+                                    placeholder={setting_icon.placeholder_enter_max_loss}
+                                    required
+                                    max='1'
+                                    min='0'
+                                    step='0.0001'
+                                    data-state-key='sell.stopLoss.maxLossPercentage'
+                                    value={
+                                      symbolConfiguration.sell.stopLoss.maxLossPercentage
+                                    }
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <InputGroup.Append>
+                                    <InputGroup.Text>
+                                      {((symbolConfiguration.sell.stopLoss.maxLossPercentage * 100) - 100).toFixed(2)}%
+                                    </InputGroup.Text>
+                                  </InputGroup.Append>
+                                </InputGroup>
+                              </Form.Group>
+
+                            </div>
+                            <div className='col-6'>
+                              <Form.Group
+                                controlId='field-sell-stop-loss-disable-buy-minutes'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  {setting_icon.temporary_disable_buy}{' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='sell-stop-loss-disable-buy-minutes-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='sell-stop-loss-disable-buy-minutes-overlay-right'>
+                                        <Popover.Content>
+                                          {setting_icon.temporary_disable_buy_description}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <InputGroup size='sm'>
+
+                                  <FormControl
+                                    size='sm'
+                                    type='number'
+                                    placeholder={setting_icon.placeholder_temporary_disable}
+                                    required
+                                    max='99999999'
+                                    min='1'
+                                    step='1'
+                                    data-state-key='sell.stopLoss.disableBuyMinutes'
+                                    value={
+                                      symbolConfiguration.sell.stopLoss.disableBuyMinutes
+                                    }
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <InputGroup.Append>
+                                    <InputGroup.Text>
+                                      {(symbolConfiguration.sell.stopLoss.disableBuyMinutes / 60).toFixed(2)} hours disabled.
+                                    </InputGroup.Text>
+                                  </InputGroup.Append>
+                                </InputGroup>
+                              </Form.Group>
+                            </div>
                           </div>
                         </Card.Body>
                       </Accordion.Collapse>
                     </Card>
                   </Accordion>
+
+
                 </div>
               </div>
 
+              <div className='row'>
+                <div className='col-12'>
+                  <Accordion
+                    className='accordion-wrapper accordion-floating'>
+                    <Card className='mt-1'>
+                      <Card.Header className='px-2 py-1'>
+                        <Accordion.Toggle
+                          as={Button}
+                          variant='link'
+                          eventKey='0'
+                          className='p-0 fs-7 text-uppercase'>
+                          {setting_icon.stake_coins} ?
+                        </Accordion.Toggle>
+                      </Card.Header>
+                      <Accordion.Collapse eventKey='0'>
+                        <Card.Body className='px-2 py-1'>
+                          <div className='row'>
+                            <div className='col-12'>
+                              <Form.Group
+                                controlId='field-sell-stake-coins-enabled'
+                                className='mb-2'>
+                                <Form.Check size='sm'>
+                                  <Form.Check.Input
+                                    type='checkbox'
+                                    data-state-key='sell.stakeCoinEnabled'
+                                    checked={
+                                      symbolConfiguration.sell.stakeCoinEnabled
+                                    }
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <Form.Check.Label>
+                                    {setting_icon.stake_coins} {' '}
+                                    <OverlayTrigger
+                                      trigger='click'
+                                      key='sell-stake-coins-enabled-overlay'
+                                      placement='bottom'
+                                      overlay={
+                                        <Popover id='sell-stake-coins-enabled-overlay-right'>
+                                          <Popover.Content>
+                                            {setting_icon.stake_coins_description}
+                                          </Popover.Content>
+                                        </Popover>
+                                      }>
+                                      <Button
+                                        variant='link'
+                                        className='p-0 m-0 ml-1 text-info'>
+                                        <i className='fa fa-question-circle'></i>
+                                      </Button>
+                                    </OverlayTrigger>
+                                  </Form.Check.Label>
+                                </Form.Check>
+                              </Form.Group>
+                            </div>
+                          </div>
+                        </Card.Body>
+                      </Accordion.Collapse>
+                    </Card>
+                  </Accordion>
 
+                </div>
+              </div>
               <div className='row'>
                 <div className='col-xs-12 col-sm-6'>
 
@@ -976,46 +1037,123 @@ class SymbolSettingIcon extends React.Component {
                           variant='link'
                           eventKey='0'
                           className='p-0 fs-7 text-uppercase'>
-                          {setting_icon.stake_coins} ?
+                          {setting_icon.bot_options.bot_options}
                         </Accordion.Toggle>
                       </Card.Header>
                       <Accordion.Collapse eventKey='0'>
                         <Card.Body className='px-2 py-1'>
                           <div className='row'>
                             <div className='col-12'>
+                              <p className='form-header mb-1'>{setting_icon.bot_options._language}</p>
+
                               <Form.Group
-                                controlId='field-sell-stake-coins-enabled'
+                                controlId='field-languages'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  {setting_icon.bot_options.select_language}
+                                </Form.Label>
+                                <Form.Control
+                                  size='sm'
+                                  as='select'
+                                  required
+                                  data-state-key='botOptions.language'
+                                  value={symbolConfiguration.botOptions.language}
+                                  onChange={this.handleInputChange}>
+                                  <option value='en'>en</option>
+                                  <option value='es'>es</option>
+                                  <option value='pt'>pt</option>
+                                  <option value='vi'>vi</option>
+                                  <option value='ch'>ch</option>
+                                  <option value='fr'>fr</option>
+                                  <option value='nl'>nl</option>
+                                </Form.Control>
+                              </Form.Group>
+                            </div>
+                          </div>
+                          <div className='row'>
+                            <div className='col-6'>
+                              <p className='form-header mb-1'>Slack</p>
+                              <Form.Group
+                                controlId='field-bot-options-slack'
                                 className='mb-2'>
                                 <Form.Check size='sm'>
                                   <Form.Check.Input
                                     type='checkbox'
-                                    data-state-key='sell.stakeCoinEnabled'
-                                    checked={
-                                      symbolConfiguration.sell.stakeCoinEnabled
-                                    }
+                                    data-state-key='botOptions.slack'
+                                    checked={symbolConfiguration.botOptions.slack}
                                     onChange={this.handleInputChange}
                                   />
                                   <Form.Check.Label>
-                                    {setting_icon.stake_coins} {' '}
-                                    <OverlayTrigger
-                                      trigger='click'
-                                      key='sell-stake-coins-enabled-overlay'
-                                      placement='bottom'
-                                      overlay={
-                                        <Popover id='sell-stake-coins-enabled-overlay-right'>
-                                          <Popover.Content>
-                                            {setting_icon.stake_coins_description}
-                                          </Popover.Content>
-                                        </Popover>
-                                      }>
-                                      <Button
-                                        variant='link'
-                                        className='p-0 m-0 ml-1 text-info'>
-                                        <i className='fa fa-question-circle'></i>
-                                      </Button>
-                                    </OverlayTrigger>
+                                    {setting_icon.bot_options.use_slack}?{' '}
                                   </Form.Check.Label>
                                 </Form.Check>
+                              </Form.Group>
+                            </div>
+                            <div className='col-6'>
+                              <p className='form-header mb-1'>Telegram</p>
+
+                              <Form.Group
+                                controlId='field-bot-options-telegram'
+                                className='mb-2'>
+                                <Form.Check size='sm'>
+                                  <Form.Check.Input
+                                    type='checkbox'
+                                    data-state-key='botOptions.telegram'
+                                    checked={symbolConfiguration.botOptions.telegram}
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <Form.Check.Label>
+                                    {setting_icon.bot_options.use_telegram}?{' '}
+                                  </Form.Check.Label>
+                                </Form.Check>
+                              </Form.Group>
+                            </div>
+                          </div>
+                          <div className='row'>
+                            <div className='col-12'>
+                              <p className='form-header mb-1'>{setting_icon.bot_options._security}</p>
+
+                              <Form.Group
+                                controlId='field-login-expire'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  {setting_icon.bot_options.login_expire_time} {' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='login-expire-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='login-expire-overlay-right'>
+                                        <Popover.Content>
+                                          {setting_icon.bot_options.login_expire_time_description}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <InputGroup size='sm'>
+                                  <FormControl
+                                    size='sm'
+                                    type='number'
+                                    placeholder="60 is the default"
+                                    required
+                                    min='0'
+                                    step='1'
+                                    data-state-key='botOptions.login.loginWindowMinutes'
+                                    value={symbolConfiguration.botOptions.login.loginWindowMinutes}
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <InputGroup.Append>
+                                    <InputGroup.Text>
+                                      {setting_icon.bot_options.expire_after} {symbolConfiguration.botOptions.login.loginWindowMinutes} {setting_icon.bot_options._minutes}.
+                                    </InputGroup.Text>
+                                  </InputGroup.Append>
+                                </InputGroup>
                               </Form.Group>
                             </div>
                           </div>
@@ -1482,142 +1620,6 @@ class SymbolSettingIcon extends React.Component {
                                   }
                                   onChange={this.handleInputChange}
                                 />
-                              </Form.Group>
-                            </div>
-                          </div>
-                        </Card.Body>
-                      </Accordion.Collapse>
-                    </Card>
-                  </Accordion>
-
-                </div>
-                <div className='col-12'>
-                  <Accordion
-                    className='accordion-wrapper accordion-floating'>
-                    <Card className='mt-1'>
-                      <Card.Header className='px-2 py-1'>
-                        <Accordion.Toggle
-                          as={Button}
-                          variant='link'
-                          eventKey='0'
-                          className='p-0 fs-7 text-uppercase'>
-                          {setting_icon.bot_options.bot_options}
-                        </Accordion.Toggle>
-                      </Card.Header>
-                      <Accordion.Collapse eventKey='0'>
-                        <Card.Body className='px-2 py-1'>
-                          <div className='row'>
-                            <div className='col-12'>
-                              <p className='form-header mb-1'>{setting_icon.bot_options._language}</p>
-
-                              <Form.Group
-                                controlId='field-languages'
-                                className='mb-2'>
-                                <Form.Label className='mb-0'>
-                                  {setting_icon.bot_options.select_language}
-                                </Form.Label>
-                                <Form.Control
-                                  size='sm'
-                                  as='select'
-                                  required
-                                  data-state-key='botOptions.language'
-                                  value={symbolConfiguration.botOptions.language}
-                                  onChange={this.handleInputChange}>
-                                  <option value='en'>en</option>
-                                  <option value='es'>es</option>
-                                  <option value='pt'>pt</option>
-                                  <option value='vi'>vi</option>
-                                  <option value='ch'>ch</option>
-                                  <option value='fr'>fr</option>
-                                  <option value='nl'>nl</option>
-                                </Form.Control>
-                              </Form.Group>
-                            </div>
-                          </div>
-                          <div className='row'>
-                            <div className='col-6'>
-                              <p className='form-header mb-1'>Slack</p>
-                              <Form.Group
-                                controlId='field-bot-options-slack'
-                                className='mb-2'>
-                                <Form.Check size='sm'>
-                                  <Form.Check.Input
-                                    type='checkbox'
-                                    data-state-key='botOptions.slack'
-                                    checked={symbolConfiguration.botOptions.slack}
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <Form.Check.Label>
-                                    {setting_icon.bot_options.use_slack}?{' '}
-                                  </Form.Check.Label>
-                                </Form.Check>
-                              </Form.Group>
-                            </div>
-                            <div className='col-6'>
-                              <p className='form-header mb-1'>Telegram</p>
-
-                              <Form.Group
-                                controlId='field-bot-options-telegram'
-                                className='mb-2'>
-                                <Form.Check size='sm'>
-                                  <Form.Check.Input
-                                    type='checkbox'
-                                    data-state-key='botOptions.telegram'
-                                    checked={symbolConfiguration.botOptions.telegram}
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <Form.Check.Label>
-                                    {setting_icon.bot_options.use_telegram}?{' '}
-                                  </Form.Check.Label>
-                                </Form.Check>
-                              </Form.Group>
-                            </div>
-                          </div>
-                          <div className='row'>
-                            <div className='col-12'>
-                              <p className='form-header mb-1'>{setting_icon.bot_options._security}</p>
-
-                              <Form.Group
-                                controlId='field-login-expire'
-                                className='mb-2'>
-                                <Form.Label className='mb-0'>
-                                  {setting_icon.bot_options.login_expire_time} {' '}
-                                  <OverlayTrigger
-                                    trigger='click'
-                                    key='login-expire-overlay'
-                                    placement='bottom'
-                                    overlay={
-                                      <Popover id='login-expire-overlay-right'>
-                                        <Popover.Content>
-                                          {setting_icon.bot_options.login_expire_time_description}
-                                        </Popover.Content>
-                                      </Popover>
-                                    }>
-                                    <Button
-                                      variant='link'
-                                      className='p-0 m-0 ml-1 text-info'>
-                                      <i className='fa fa-question-circle'></i>
-                                    </Button>
-                                  </OverlayTrigger>
-                                </Form.Label>
-                                <InputGroup size='sm'>
-                                  <FormControl
-                                    size='sm'
-                                    type='number'
-                                    placeholder="60 is the default"
-                                    required
-                                    min='0'
-                                    step='1'
-                                    data-state-key='botOptions.login.loginWindowMinutes'
-                                    value={symbolConfiguration.botOptions.login.loginWindowMinutes}
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <InputGroup.Append>
-                                    <InputGroup.Text>
-                                      {setting_icon.bot_options.expire_after} {symbolConfiguration.botOptions.login.loginWindowMinutes} {setting_icon.bot_options._minutes}.
-                                    </InputGroup.Text>
-                                  </InputGroup.Append>
-                                </InputGroup>
                               </Form.Group>
                             </div>
                           </div>
