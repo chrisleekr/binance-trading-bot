@@ -441,18 +441,6 @@ class SettingIcon extends React.Component {
                               </Form.Group>
                             </div>
                             <div className='col-6'>
-                              <SettingIconMaxPurchaseAmount
-                                quoteAssets={quoteAssets}
-                                maxPurchaseAmounts={
-                                  configuration.buy.maxPurchaseAmounts
-                                }
-                                jsonStrings={jsonStrings}
-                                handleMaxPurchaeAmountChange={
-                                  this.handleMaxPurchaeAmountChange
-                                }
-                              />
-                            </div>
-                            <div className='col-6'>
                               <SettingIconMinPurchaseAmount
                                 quoteAssets={quoteAssets}
                                 minPurchaseAmounts={
@@ -461,6 +449,18 @@ class SettingIcon extends React.Component {
                                 jsonStrings={jsonStrings}
                                 handleMinPurchaeAmountChange={
                                   this.handleMinPurchaeAmountChange
+                                }
+                              />
+                            </div>
+                            <div className='col-6'>
+                              <SettingIconMaxPurchaseAmount
+                                quoteAssets={quoteAssets}
+                                maxPurchaseAmounts={
+                                  configuration.buy.maxPurchaseAmounts
+                                }
+                                jsonStrings={jsonStrings}
+                                handleMaxPurchaeAmountChange={
+                                  this.handleMaxPurchaeAmountChange
                                 }
                               />
                             </div>
@@ -478,54 +478,6 @@ class SettingIcon extends React.Component {
                             </div>
                           </div>
                           <div className='row'>
-                            <div className='col-6'>
-                              <Form.Group
-                                controlId='field-buy-trigger-percentage'
-                                className='mb-2'>
-                                <Form.Label className='mb-0'>
-                                  {setting_icon.trigger_percent_buy}{' '}
-                                  <OverlayTrigger
-                                    trigger='click'
-                                    key='buy-trigger-percentage-overlay'
-                                    placement='bottom'
-                                    overlay={
-                                      <Popover id='buy-trigger-percentage-overlay-right'>
-                                        <Popover.Content>
-                                          {setting_icon.trigger_percent_buy_description}
-                                        </Popover.Content>
-                                      </Popover>
-                                    }>
-                                    <Button
-                                      variant='link'
-                                      className='p-0 m-0 ml-1 text-info'>
-                                      <i className='fa fa-question-circle'></i>
-                                    </Button>
-                                  </OverlayTrigger>
-                                </Form.Label>
-                                <Form.Label htmlFor='field-min-sell-stop-loss-percentage' srOnly>
-                                  {common_strings._quantity}
-                                </Form.Label>
-                                <InputGroup size='sm'>
-
-                                  <FormControl
-                                    size='sm'
-                                    type='number'
-                                    placeholder={setting_icon.placeholder_trigger_percent}
-                                    required
-                                    min='0'
-                                    step='0.0001'
-                                    data-state-key='buy.triggerPercentage'
-                                    value={configuration.buy.triggerPercentage}
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <InputGroup.Append>
-                                    <InputGroup.Text>
-                                      {((configuration.buy.triggerPercentage - 1) * 100).toFixed(2)}%
-                                    </InputGroup.Text>
-                                  </InputGroup.Append>
-                                </InputGroup>
-                              </Form.Group>
-                            </div>
                             <div className='col-6'>
                               <Form.Group
                                 controlId='field-buy-stop-percentage'
@@ -574,7 +526,7 @@ class SettingIcon extends React.Component {
                                 </InputGroup>
                               </Form.Group>
                             </div>
-                            <div className='col-12'>
+                            <div className='col-6'>
                               <Form.Group
                                 controlId='field-buy-limit-percentage'
                                 className='mb-2'>
@@ -622,6 +574,54 @@ class SettingIcon extends React.Component {
                                 </InputGroup>
                               </Form.Group>
                             </div>
+                            <div className='col-12'>
+                              <Form.Group
+                                controlId='field-buy-trigger-percentage'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  {setting_icon.trigger_percent_buy}{' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='buy-trigger-percentage-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='buy-trigger-percentage-overlay-right'>
+                                        <Popover.Content>
+                                          {setting_icon.trigger_percent_buy_description}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <Form.Label htmlFor='field-min-sell-stop-loss-percentage' srOnly>
+                                  {common_strings._quantity}
+                                </Form.Label>
+                                <InputGroup size='sm'>
+
+                                  <FormControl
+                                    size='sm'
+                                    type='number'
+                                    placeholder={setting_icon.placeholder_trigger_percent}
+                                    required
+                                    min='0'
+                                    step='0.0001'
+                                    data-state-key='buy.triggerPercentage'
+                                    value={configuration.buy.triggerPercentage}
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <InputGroup.Append>
+                                    <InputGroup.Text>
+                                      {((configuration.buy.triggerPercentage - 1) * 100).toFixed(2)}%
+                                    </InputGroup.Text>
+                                  </InputGroup.Append>
+                                </InputGroup>
+                              </Form.Group>
+                            </div>
                           </div>
                         </Card.Body>
                       </Accordion.Collapse>
@@ -645,7 +645,8 @@ class SettingIcon extends React.Component {
                       <Accordion.Collapse eventKey='0'>
                         <Card.Body className='px-2 py-1'>
                           <div className='row'>
-                            <div className='col-12'>
+
+                            <div className='col-6'>
                               <Form.Group
                                 controlId='field-sell-enabled'
                                 className='mb-2'>
@@ -679,198 +680,9 @@ class SettingIcon extends React.Component {
                                 </Form.Check>
                               </Form.Group>
                             </div>
+
                             <div className='col-6'>
-                              <Form.Group
-                                controlId='field-sell-last-buy-percentage'
-                                className='mb-2'>
-                                <Form.Label className='mb-0'>
-                                  {setting_icon.trigger_percent_sell}{' '}
-                                  <OverlayTrigger
-                                    trigger='click'
-                                    key='sell-trigger-percentage-overlay'
-                                    placement='bottom'
-                                    overlay={
-                                      <Popover id='sell-trigger-percentage-overlay-right'>
-                                        <Popover.Content>
-                                          {setting_icon.trigger_percent_sell_description}
-                                        </Popover.Content>
-                                      </Popover>
-                                    }>
-                                    <Button
-                                      variant='link'
-                                      className='p-0 m-0 ml-1 text-info'>
-                                      <i className='fa fa-question-circle'></i>
-                                    </Button>
-                                  </OverlayTrigger>
-                                </Form.Label>
-                                <Form.Label htmlFor='field-min-sell-trigger-percentage' srOnly>
-                                  {common_strings._quantity}
-                                </Form.Label>
-                                <InputGroup size='sm'>
 
-                                  <FormControl
-                                    size='sm'
-                                    type='number'
-                                    placeholder={setting_icon.placeholder_trigger_percent}
-                                    required
-                                    min='0'
-                                    step='0.0001'
-                                    data-state-key='sell.triggerPercentage'
-                                    value={configuration.sell.triggerPercentage}
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <InputGroup.Append>
-                                    <InputGroup.Text>
-                                      {((configuration.sell.triggerPercentage * 100) - 100).toFixed(2)}%
-                                    </InputGroup.Text>
-                                  </InputGroup.Append>
-                                </InputGroup>
-                              </Form.Group>
-                            </div>
-                            <div className='col-6'>
-                              <Form.Group
-                                controlId='field-sell-stop-percentage'
-                                className='mb-2'>
-                                <Form.Label className='mb-0'>
-                                  {common_strings.stop_price_percent}{' '}
-                                  <OverlayTrigger
-                                    trigger='click'
-                                    key='sell-stop-price-percentage-overlay'
-                                    placement='bottom'
-                                    overlay={
-                                      <Popover id='sell-stop-price-percentage-overlay-right'>
-                                        <Popover.Content>
-                                          {setting_icon.stop_price_percent_description_sell}
-                                        </Popover.Content>
-                                      </Popover>
-                                    }>
-                                    <Button
-                                      variant='link'
-                                      className='p-0 m-0 ml-1 text-info'>
-                                      <i className='fa fa-question-circle'></i>
-                                    </Button>
-                                  </OverlayTrigger>
-                                </Form.Label>
-                                <Form.Label htmlFor='field-min-sell-stop-price-percentage' srOnly>
-                                  {common_strings._quantity}
-                                </Form.Label>
-                                <InputGroup size='sm'>
-
-                                  <FormControl
-                                    size='sm'
-                                    type='number'
-                                    placeholder={setting_icon.placeholder_enter_stop_price}
-                                    required
-                                    min='0'
-                                    step='0.0001'
-                                    data-state-key='sell.stopPercentage'
-                                    value={configuration.sell.stopPercentage}
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <InputGroup.Append>
-                                    <InputGroup.Text>
-                                      {((configuration.sell.stopPercentage * 100) - 100).toFixed(2)}%
-                                    </InputGroup.Text>
-                                  </InputGroup.Append>
-                                </InputGroup>
-                              </Form.Group>
-
-                            </div>
-                            <div className='col-6'>
-                              <Form.Group
-                                controlId='field-sell-stop-percentage'
-                                className='mb-2'>
-                                <Form.Label className='mb-0'>
-                                  {common_strings.limit_price_percent}{' '}
-                                  <OverlayTrigger
-                                    trigger='click'
-                                    key='sell-limit-price-percentage-overlay'
-                                    placement='bottom'
-                                    overlay={
-                                      <Popover id='sell-limit-price-percentage-overlay-right'>
-                                        <Popover.Content>
-                                          {setting_icon.limit_price_percent_description_sell}
-                                        </Popover.Content>
-                                      </Popover>
-                                    }>
-                                    <Button
-                                      variant='link'
-                                      className='p-0 m-0 ml-1 text-info'>
-                                      <i className='fa fa-question-circle'></i>
-                                    </Button>
-                                  </OverlayTrigger>
-                                </Form.Label>
-                                <Form.Label htmlFor='field-min-sell-limit-price-percentage' srOnly>
-                                  {common_strings._quantity}
-                                </Form.Label>
-                                <InputGroup size='sm'>
-
-                                  <FormControl
-                                    size='sm'
-                                    type='number'
-                                    placeholder={setting_icon.placeholder_enter_limit_price}
-                                    required
-                                    min='0'
-                                    step='0.0001'
-                                    data-state-key='sell.limitPercentage'
-                                    value={configuration.sell.limitPercentage}
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <InputGroup.Append>
-                                    <InputGroup.Text>
-                                      {((configuration.sell.limitPercentage * 100) - 100).toFixed(2)}%
-                                    </InputGroup.Text>
-                                  </InputGroup.Append>
-                                </InputGroup>
-                              </Form.Group>
-
-                            </div>
-                            <div className='col-6'>
-                              <Form.Group
-                                controlId='field-sell-hard-percentage'
-                                className='mb-2'>
-                                <Form.Label className='mb-0'>
-                                  {setting_icon.hard_sell_trigger} {' '}
-                                  <OverlayTrigger
-                                    trigger='click'
-                                    key='sell-hard-price-percentage-overlay'
-                                    placement='bottom'
-                                    overlay={
-                                      <Popover id='sell-hard-price-percentage-overlay-right'>
-                                        <Popover.Content>
-                                          {setting_icon.hard_sell_trigger_description}
-                                        </Popover.Content>
-                                      </Popover>
-                                    }>
-                                    <Button
-                                      variant='link'
-                                      className='p-0 m-0 ml-1 text-info'>
-                                      <i className='fa fa-question-circle'></i>
-                                    </Button>
-                                  </OverlayTrigger>
-                                </Form.Label>
-                                <InputGroup size='sm'>
-                                  <FormControl
-                                    size='sm'
-                                    type='number'
-                                    placeholder={setting_icon.placeholder_hard_sell_trigger}
-                                    required
-                                    min='0'
-                                    step='0.0001'
-                                    data-state-key='sell.hardPercentage'
-                                    value={configuration.sell.hardPercentage}
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <InputGroup.Append>
-                                    <InputGroup.Text>
-                                      {((configuration.sell.hardPercentage * 100) - 100).toFixed(2)}%
-                                    </InputGroup.Text>
-                                  </InputGroup.Append>
-                                </InputGroup>
-                              </Form.Group>
-
-                            </div>
-                            <div className='col-12'>
                               <p className='form-header mb-1'>{common_strings._sell} - {common_strings.stop_loss}</p>
                               <Form.Group
                                 controlId='field-sell-stop-loss-enabled'
@@ -904,7 +716,6 @@ class SettingIcon extends React.Component {
                                   </Form.Check.Label>
                                 </Form.Check>
                               </Form.Group>
-
                             </div>
                             <div className='col-6'>
                               <Form.Group
@@ -1004,6 +815,153 @@ class SettingIcon extends React.Component {
                               </Form.Group>
                             </div>
 
+                            <div className='col-6'>
+                              <Form.Group
+                                controlId='field-sell-stop-percentage'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  {common_strings.stop_price_percent}{' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='sell-stop-price-percentage-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='sell-stop-price-percentage-overlay-right'>
+                                        <Popover.Content>
+                                          {setting_icon.stop_price_percent_description_sell}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <Form.Label htmlFor='field-min-sell-stop-price-percentage' srOnly>
+                                  {common_strings._quantity}
+                                </Form.Label>
+                                <InputGroup size='sm'>
+
+                                  <FormControl
+                                    size='sm'
+                                    type='number'
+                                    placeholder={setting_icon.placeholder_enter_stop_price}
+                                    required
+                                    min='0'
+                                    step='0.0001'
+                                    data-state-key='sell.stopPercentage'
+                                    value={configuration.sell.stopPercentage}
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <InputGroup.Append>
+                                    <InputGroup.Text>
+                                      {((configuration.sell.stopPercentage * 100) - 100).toFixed(2)}%
+                                    </InputGroup.Text>
+                                  </InputGroup.Append>
+                                </InputGroup>
+                              </Form.Group>
+
+                            </div>
+                            <div className='col-6'>
+
+                              <Form.Group
+                                controlId='field-sell-limit-percentage'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  {common_strings.limit_price_percent}{' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='sell-limit-price-percentage-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='sell-limit-price-percentage-overlay-right'>
+                                        <Popover.Content>
+                                          {setting_icon.limit_price_percent_description_sell}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <Form.Label htmlFor='field-min-sell-limit-price-percentage' srOnly>
+                                  {common_strings._quantity}
+                                </Form.Label>
+                                <InputGroup size='sm'>
+
+                                  <FormControl
+                                    size='sm'
+                                    type='number'
+                                    placeholder={setting_icon.placeholder_enter_limit_price}
+                                    required
+                                    min='0'
+                                    step='0.0001'
+                                    data-state-key='sell.limitPercentage'
+                                    value={configuration.sell.limitPercentage}
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <InputGroup.Append>
+                                    <InputGroup.Text>
+                                      {((configuration.sell.limitPercentage * 100) - 100).toFixed(2)}%
+                                    </InputGroup.Text>
+                                  </InputGroup.Append>
+                                </InputGroup>
+                              </Form.Group>
+                            </div>
+                            <div className='col-12'>
+
+                              <Form.Group
+                                controlId='field-sell-last-buy-percentage'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  {setting_icon.trigger_percent_sell}{' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='sell-trigger-percentage-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='sell-trigger-percentage-overlay-right'>
+                                        <Popover.Content>
+                                          {setting_icon.trigger_percent_sell_description}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <Form.Label htmlFor='field-min-sell-trigger-percentage' srOnly>
+                                  {common_strings._quantity}
+                                </Form.Label>
+                                <InputGroup size='sm'>
+
+                                  <FormControl
+                                    size='sm'
+                                    type='number'
+                                    placeholder={setting_icon.placeholder_trigger_percent}
+                                    required
+                                    min='0'
+                                    step='0.0001'
+                                    data-state-key='sell.triggerPercentage'
+                                    value={configuration.sell.triggerPercentage}
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <InputGroup.Append>
+                                    <InputGroup.Text>
+                                      {((configuration.sell.triggerPercentage * 100) - 100).toFixed(2)}%
+                                    </InputGroup.Text>
+                                  </InputGroup.Append>
+                                </InputGroup>
+                              </Form.Group>
+                            </div>
                           </div>
                         </Card.Body>
                       </Accordion.Collapse>
@@ -1386,6 +1344,51 @@ class SettingIcon extends React.Component {
                                   </Form.Check.Label>
                                 </Form.Check>
                               </Form.Group>
+
+                              <p className='form-header mb-1'>Hard Sell Trigger</p>
+                              <Form.Group
+                                controlId='field-sell-hard-percentage'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  {setting_icon.hard_sell_trigger} {' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='sell-hard-price-percentage-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='sell-hard-price-percentage-overlay-right'>
+                                        <Popover.Content>
+                                          {setting_icon.hard_sell_trigger_description}
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fa fa-question-circle'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <InputGroup size='sm'>
+                                  <FormControl
+                                    size='sm'
+                                    type='number'
+                                    placeholder={setting_icon.placeholder_hard_sell_trigger}
+                                    required
+                                    min='0'
+                                    step='0.0001'
+                                    data-state-key='sell.hardPercentage'
+                                    value={configuration.sell.hardPercentage}
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <InputGroup.Append>
+                                    <InputGroup.Text>
+                                      {((configuration.sell.hardPercentage * 100) - 100).toFixed(2)}%
+                                    </InputGroup.Text>
+                                  </InputGroup.Append>
+                                </InputGroup>
+                              </Form.Group>
+
                             </div>
                           </div>
                         </Card.Body>
@@ -1536,7 +1539,8 @@ class SettingIcon extends React.Component {
                                   step='1'
                                   data-state-key='strategyOptions.athRestriction.candles.limit'
                                   value={
-                                    configuration.strategyOptions.athRestriction.candles.limit
+                                    configuration.strategyOptions.athRestriction.candles
+                                      .limit
                                   }
                                   onChange={this.handleInputChange}
                                 />
@@ -1580,7 +1584,7 @@ class SettingIcon extends React.Component {
                                   required
                                   min='0'
                                   step='0.0001'
-                                  data-state-key='buy.athRestriction.restrictionPercentage'
+                                  data-state-key='strategyOptions.athRestriction.restrictionPercentage'
                                   value={
                                     configuration.strategyOptions.athRestriction
                                       .restrictionPercentage

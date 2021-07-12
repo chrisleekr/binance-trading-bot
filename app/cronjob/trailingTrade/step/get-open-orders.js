@@ -13,7 +13,7 @@ const execute = async (logger, rawData) => {
   const { symbol } = data;
 
   data.openOrders =
-    JSON.parse(await cache.get(`${symbol}-open-orders`)) || [];
+    JSON.parse(await cache.hget('trailing-trade-orders', symbol)) || [];
 
   logger.info({ openOrders: data.openOrders }, 'Retrieved open orders');
 

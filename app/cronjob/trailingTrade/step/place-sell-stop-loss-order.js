@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, messenger, mongo } = require('../../../helpers');
+const { binance, messenger, mongo, cache } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
@@ -163,10 +163,7 @@ const execute = async (logger, rawData) => {
       );
     }
 
-    //Delete last buy price
-    await mongo.deleteOne(logger, 'trailing-trade-symbols', {
-      key: `${symbol}-last-buy-price`
-    });
+    await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult), 30);
 
     // Get open orders and update cache
     data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

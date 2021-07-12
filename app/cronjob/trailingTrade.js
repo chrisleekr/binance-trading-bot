@@ -30,7 +30,8 @@ const {
   placeSellStopLossOrder,
   removeLastBuyPrice,
   saveDataToCache,
-  cancelOrder
+  cancelOrder,
+  ensureOrderConfirmed
 } = require('./trailingTrade/steps');
 const { messenger } = require('../helpers');
 
@@ -99,6 +100,10 @@ const execute = async logger => {
           {
             stepName: 'ensure-manual-buy-order',
             stepFunc: ensureManualBuyOrder
+          },
+          {
+            stepName: 'ensure-order-confirmed',
+            stepFunc: ensureOrderConfirmed
           },
           {
             stepName: 'ensure-open-placed',
@@ -197,7 +202,8 @@ const execute = async logger => {
       err.code === 'ECONNRESET' ||
       err.code === 'ECONNREFUSED' ||
       err.code === 'ETIMEDOUT' ||
-      err.message.includes('redlock') // For the redlock fail
+      err.message.includes('redlock') || // For the redlock fail
+      err.message.includes('signedTrendDiff')
     ) {
       // Let's silent for internal server error or assumed temporary errors
     } else {

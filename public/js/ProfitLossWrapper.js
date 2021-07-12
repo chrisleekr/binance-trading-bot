@@ -55,7 +55,7 @@ class ProfitLossWrapper extends React.Component {
   }
 
   render() {
-    const { jsonStrings, sendWebSocket, searchKeyword, sortSymbols, configuration } = this.props;
+    const { jsonStrings, sendWebSocket } = this.props;
     const { totalPnL, symbols } = this.state;
 
     if (_.isEmpty(jsonStrings)) {

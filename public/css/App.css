@@ -484,7 +484,7 @@ input[type='number'] {
 }
 
 .blink {
-  animation: blinker 0.5s ease;
+  animation: blinker 0.5s ease-in-out;
 }
 
 @keyframes blinker {
@@ -833,6 +833,14 @@ input[type='number'] {
   }
 }
 
+.past-trades-profit {
+  background-color: var(--green);
+}
+
+.past-trades-loss {
+  background-color: var(--red);
+}
+
 /**
   End: Profit Loss
 */
@@ -951,3 +959,79 @@ input[type='number'] {
   width: 75%;
   height: 75%;
 }
+
+@keyframes changeColorRed {
+
+  50% {
+    color: #ff0000;
+  }
+}
+
+@keyframes changeColorGreen {
+  50% {
+    color: #09ff00;
+  }
+}
+
+.gg-chevron-double-up {
+  box-sizing: border-box;
+  position: relative;
+  display: block;
+  transform: scale(var(--ggs,1));
+  width: 22px;
+  height: 22px;
+
+  animation-duration: 1s;
+  animation-name: changeColorGreen;
+  animation-iteration-count: infinite;
+  animation-direction: forward;
+}
+.gg-chevron-double-up::after,
+.gg-chevron-double-up::before {
+  content: "";
+  display: block;
+  box-sizing: border-box;
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+  transform: rotate(45deg);
+  left: 7px;
+  bottom: 3px
+}
+.gg-chevron-double-up::after {
+  bottom: 8px
+}
+
+.gg-chevron-double-down {
+  box-sizing: border-box;
+  position: relative;
+  display: block;
+  transform: scale(var(--ggs,1));
+  width: 22px;
+  height: 22px;
+  animation-duration: 1s;
+  animation-name: changeColorRed;
+  animation-iteration-count: infinite;
+  animation-direction: forward;
+ }
+
+ .gg-chevron-double-down::after,
+ .gg-chevron-double-down::before {
+  content: "";
+  display: block;
+  box-sizing: border-box;
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-bottom: 2px solid;
+  border-right: 2px solid;
+  transform: rotate(45deg);
+  left: 7px;
+  top: 3px
+ }
+
+ .gg-chevron-double-down::after {
+  top: 8px
+ }

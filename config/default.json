@@ -121,12 +121,7 @@
           "orderType": "market"
         }
       },
-      "overallProfit": {
-        "profitUntilNow": 0,
-        "wins": 0,
-        "losses": 0,
-        "profitPercentage": 0
-      },
+      "pastTrades": {},
       "system": {
         "temporaryDisableActionAfterConfirmingOrder": 20,
         "checkManualBuyOrderPeriod": 5,

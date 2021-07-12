@@ -82,7 +82,6 @@ class BackTestIcon extends React.Component {
     const { showModal, symbolConfiguration } = this.state;
     const { symbolInfo, jsonStrings } = this.props;
 
-
     if (_.isEmpty(symbolInfo) || _.isEmpty(symbolConfiguration) || _.isEmpty(jsonStrings)) {
       return '';
     };
@@ -91,6 +90,7 @@ class BackTestIcon extends React.Component {
 
     const { setting_icon, common_strings } = jsonStrings;
 
+    return '';
     return (
       <div className='coin-info-manual-trade-wrapper'>
         <div className='coin-info-column coin-info-column-manual-trade d-flex flex-row justify-content-start align-content-between border-bottom-0 mb-0 pb-0'>

@@ -80,7 +80,6 @@ const execute = async (logger, rawData) => {
     );
     return data;
   }
-
   if (action !== 'not-determined') {
     logger.info(
       { action },
@@ -99,7 +98,7 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'buy') {
       let isHuskySignalActivated = false;
       if (buySignal) {
-        isHuskySignalActivated = signedTrendDiff == -1;
+        isHuskySignalActivated = (signedTrendDiff == -1);
       }
       if (parseFloat(order.stopPrice) >= buyLimitPrice || isHuskySignalActivated) {
         logger.info(
@@ -136,6 +135,8 @@ const execute = async (logger, rawData) => {
           // Reset buy open orders
           data.buy.openOrders = [];
 
+          messenger.errorMessage("Order removed. " + symbol)
+
           // Set action as buy
           data.action = 'buy';
 
@@ -154,11 +155,11 @@ const execute = async (logger, rawData) => {
 
     // Is the stop price is less than current limit price?
     if (order.side.toLowerCase() === 'sell') {
-      let isHuskySignalActivated = false;
+      let isHuskySellSignalActivated = false;
       if (sellSignal) {
-        isHuskySignalActivated = signedTrendDiff == 1;
+        isHuskySellSignalActivated = (signedTrendDiff == 1);
       }
-      if (parseFloat(order.stopPrice) <= sellLimitPrice || isHuskySignalActivated) {
+      if (parseFloat(order.stopPrice) <= sellLimitPrice || isHuskySellSignalActivated) {
         logger.info(
           { stopPrice: order.stopPrice, sellLimitPrice },
           'Stop price is less than sell limit price, cancel current sell order'
@@ -193,6 +194,8 @@ const execute = async (logger, rawData) => {
         } else {
           // Reset sell open orders
           data.sell.openOrders = [];
+
+          messenger.errorMessage("Order sell removed. " + symbol)
 
           // Set action as sell
           data.action = 'sell';

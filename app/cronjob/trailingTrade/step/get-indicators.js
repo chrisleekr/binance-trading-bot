@@ -92,19 +92,19 @@ const execute = async (logger, rawData) => {
 
 
   const sellTriggerPrice =
-    lastBuyPrice > 0 ? lastBuyPrice * sellTriggerPercentage : null;
+    lastBuyPrice > 0 ? (lastBuyPrice * sellTriggerPercentage) * 1.002 : null;
   const sellHardTriggerPrice =
-    lastBuyPrice > 0 ? lastBuyPrice * sellHardTriggerPercentage : null;
+    lastBuyPrice > 0 ? (lastBuyPrice * sellHardTriggerPercentage) * 1.002 : null;
   const sellDifference =
-    lastBuyPrice > 0 ? (1 - sellTriggerPrice / currentPrice) * 100 : null;
-  const sellLimitPrice = currentPrice * sellLimitPercentage;
+    lastBuyPrice > 0 ? (1 - ((sellTriggerPrice / currentPrice) * 1.002)) * 100 : null;
+  const sellLimitPrice = (currentPrice * sellLimitPercentage) * 1.002;
 
   // Get stop loss trigger price
   const sellStopLossTriggerPrice =
-    lastBuyPrice > 0 ? lastBuyPrice * sellMaxLossPercentage : null;
+    lastBuyPrice > 0 ? (lastBuyPrice * sellMaxLossPercentage) * 1.002 : null;
   const sellStopLossDifference =
     lastBuyPrice > 0
-      ? (1 - sellStopLossTriggerPrice / currentPrice) * 100
+      ? (1 - ((sellStopLossTriggerPrice / currentPrice) * 1.002)) * 100
       : null;
 
   // Estimate value
@@ -114,11 +114,11 @@ const execute = async (logger, rawData) => {
 
   const sellCurrentProfit =
     lastBuyPrice > 0
-      ? (currentPrice - lastBuyPrice) * baseAssetTotalBalance
+      ? ((currentPrice - lastBuyPrice) * 0.998) * baseAssetTotalBalance
       : null;
 
   const sellCurrentProfitPercentage =
-    lastBuyPrice > 0 ? (1 - lastBuyPrice / currentPrice) * 100 : null;
+    lastBuyPrice > 0 ? (1 - ((lastBuyPrice / currentPrice) * 1.002)) * 100 : null;
 
   // Reorganise open orders
   const newOpenOrders = openOrders.map(order => {

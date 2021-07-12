@@ -217,7 +217,7 @@ const execute = async (logger, rawData) => {
 
   if ((baseAssetQuantity * currentPrice) < lastBuyPriceRemoveThreshold) {
 
-    messenger.errorMessage("Removed last buy price by last threshold. " + symbol)
+    messenger.errorMessage("Removed last buy price by last threshold.")
 
     processMessage =
       'Balance is less than the notional value. Delete last buy price.';

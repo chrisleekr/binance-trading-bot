@@ -22,7 +22,8 @@ class App extends React.Component {
       dustTransfer: {},
       passwordActivated: false,
       searchKeyword: '',
-      sortType: 'buy'
+      sortType: 'default',
+      pastTrades: {}
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
@@ -176,7 +177,8 @@ class App extends React.Component {
           publicURL: response.common.publicURL,
           apiInfo: response.common.apiInfo,
           passwordActivated: response.common.passwordActivated,
-          login: response.common.login
+          login: response.common.login,
+          pastTrades: response.common.pastTrades
         });
       }
 
@@ -245,7 +247,8 @@ class App extends React.Component {
       dustTransfer,
       login,
       passwordActivated,
-      searchKeyword
+      searchKeyword,
+      pastTrades
     } = this.state;
 
     if (configuration.botOptions != undefined) {
@@ -344,6 +347,11 @@ class App extends React.Component {
                   </Spinner>
                 </div>
               )}
+
+              <PastTradesWrapper
+                pastTrades={pastTrades}
+                jsonStrings={languageData}
+              />
 
               <Footer packageVersion={packageVersion} gitHash={gitHash} jsonStrings={languageData} />
             </div >

@@ -39,6 +39,19 @@ class CoinWrapperSymbol extends React.Component {
             className='coin-symbol'>
             {symbol}
           </a>
+          {_.isEmpty(symbolInfo.buy.trend) == false ? (
+            [symbolInfo.buy.trend.signedTrendDiff == 1 ? (
+              <i class="gg-chevron-double-up"></i>
+            ) : (
+              [symbolInfo.buy.trend.signedTrendDiff == -1 ? (
+                <i class="gg-chevron-double-down"></i>
+              ) : (
+                ''
+              )]
+            )]
+          ) : (
+            ''
+          )}
         </div>
         <div className='coin-info-column coin-info-column-icon'>
 

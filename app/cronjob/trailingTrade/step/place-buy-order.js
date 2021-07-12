@@ -11,7 +11,9 @@ const {
 
 const retrieveLastBuyOrder = async (symbol) => {
   const cachedLastBuyOrder =
-    JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
+    JSON.parse(await cache.get(
+      `${symbol}-last-buy-order`
+    )) || {};
 
   return _.isEmpty(cachedLastBuyOrder);
 };
@@ -43,7 +45,8 @@ const execute = async (logger, rawData) => {
         stopPercentage,
         limitPercentage
       },
-      strategyOptions: { huskyOptions: { buySignal } }
+      strategyOptions: { huskyOptions: { buySignal } },
+      system: { checkManualBuyOrderPeriod }
     },
     action,
     quoteAssetBalance: { free: quoteAssetFreeBalance },
@@ -195,7 +198,7 @@ const execute = async (logger, rawData) => {
   logger.info({ orderResult }, 'Order result');
 
   // Set last buy order to be checked over 18 minutes until callback is received.
-  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 1080);
+  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 720);
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
@@ -209,6 +212,8 @@ const execute = async (logger, rawData) => {
   messenger.sendMessage(
     symbol, orderResult, 'PLACE_BUY_DONE'
   );
+
+
   data.buy.processMessage = _actions.action_placed_new_order;
   data.buy.updatedAt = moment().utc();
 

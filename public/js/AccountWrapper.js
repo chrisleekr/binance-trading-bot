@@ -3,7 +3,7 @@
 /* eslint-disable no-undef */
 class AccountWrapper extends React.Component {
   render() {
-    const { accountInfo, dustTransfer, sendWebSocket, jsonStrings, sortSymbols } = this.props;
+    const { accountInfo, dustTransfer, sendWebSocket, jsonStrings } = this.props;
 
     if (_.isEmpty(jsonStrings)) {
       return '';
@@ -16,7 +16,8 @@ class AccountWrapper extends React.Component {
         <AccountWrapperAsset
           key={`account-wrapper-` + index}
           balance={balance}
-          jsonStrings={jsonStrings}></AccountWrapperAsset>
+          jsonStrings={jsonStrings}>
+        </AccountWrapperAsset>
       );
     });
 

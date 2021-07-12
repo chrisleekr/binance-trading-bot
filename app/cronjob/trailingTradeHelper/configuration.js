@@ -73,12 +73,8 @@ const resetToFactorySettingsWithSymbols = async (logger, symbols) => {
  */
 const deleteAllSymbolsFromMongo = async (logger, symbols) => {
   //Delete cache values from all symbols to update it all again.
-  const cacheValues = await cache.hgetall('trailing-trade-symbols');
-  Object.keys(cacheValues).forEach(async key => {
-    //if (key.startsWith(symbol)) {
-    await cache.hdel('trailing-trade-symbols', key);
-    // }
-  });
+  await cache.del('trailing-trade-common');
+  await cache.del('trailing-trade-symbols');
 
   //Delete all last buy orders.
   symbols.forEach(async symbol => {

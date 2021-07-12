@@ -2,7 +2,7 @@ const moment = require('moment');
 const _ = require('lodash');
 const { isActionDisabled } = require('../../trailingTradeHelper/common');
 const config = require('config');
-const { cache } = require('../../../helpers');
+const { cache, messenger } = require('../../../helpers');
 
 
 const retrieveLastBuyOrder = async (symbol) => {
@@ -184,7 +184,7 @@ const canSell = data => {
  */
 const isHigherThanSellTriggerPrice = data => {
   const {
-    buy: { trend: signedTrendDiff },
+    buy: { trend: { signedTrendDiff } },
     sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice },
     symbolConfiguration: { strategyOptions: { huskyOptions: { sellSignal } } }
   } = data;
@@ -206,7 +206,7 @@ const isHigherThanHardSellTriggerPrice = data => {
 
 const isHigherThanSellTriggerPriceAndTrendIsDown = data => {
   const {
-    buy: { trend: signedTrendDiff },
+    indicators: { trend: { signedTrendDiff } },
     sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice },
     symbolConfiguration: { strategyOptions: { huskyOptions: { sellSignal } } }
   } = data;
@@ -272,6 +272,10 @@ const execute = async (logger, rawData) => {
     isLocked,
     symbolConfiguration: { sell: { trendDownMarketSell }, strategyOptions: { tradeOptions: { manyBuys } } }
   } = data;
+
+  if (_.isEmpty(data.buy) || _.isEmpty(data.buy.trend)) {
+    return data;
+  }
 
   if (isLocked) {
     logger.info(

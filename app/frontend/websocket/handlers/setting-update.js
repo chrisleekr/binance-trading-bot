@@ -23,7 +23,7 @@ const handleSettingUpdate = async (logger, ws, payload) => {
 
   const mergedConfiguration = {
     ...cachedConfiguration,
-    ..._.pick(newConfiguration, ['symbols', 'candles', 'buy', 'sell', 'strategyOptions', 'botOptions'])
+    ..._.pick(newConfiguration, ['symbols', 'candles', 'buy', 'sell', 'strategyOptions', 'botOptions', 'pastTrades'])
   };
 
   // Set max purchase amount to be -1, which mean max purchase amount

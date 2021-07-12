@@ -15,7 +15,7 @@ const {
  */
 const execute = async (logger, rawData) => {
   const data = rawData;
-  const { symbol, isLocked, action, order, sell: { lastBuyPrice } } = data;
+  const { symbol, isLocked, action, order } = data;
 
   if (isLocked) {
     logger.info({ isLocked }, 'Symbol is locked, do not process cancel-order');
@@ -74,11 +74,11 @@ const execute = async (logger, rawData) => {
     symbol, orderResult, 'ORDER_CANCELED'
   );
 
-  const cachedLastBuyOrder =
-    JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
-  if (!_.isEmpty(cachedLastBuyOrder)) {
-    await cache.del(`${symbol}-last-buy-order`);
-  }
+  //const cachedLastBuyOrder =
+  //   JSON.parse(await cache.hget(`${symbol}-last-buy-order`)) || {};
+  // if (!_.isEmpty(cachedLastBuyOrder)) {
+  //  await cache.hdel(`${symbol}-last-buy-order`);
+  // }
 
   const cachedLastSellOrder =
     JSON.parse(await cache.get(`${symbol}-last-sell-order`)) || {};

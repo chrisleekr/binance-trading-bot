@@ -114,6 +114,12 @@ const execute = async (logger, rawData) => {
 
   const huskyIndicator = huskyTrend(candlesData, strategyOptions);
 
+  const trend = {
+    status: huskyIndicator.status,
+    trendDiff: huskyIndicator.difference,
+    signedTrendDiff: Math.sign(huskyIndicator.difference)
+  };
+
   // Get lowest price
   const lowestPrice = _.min(candlesData.low);
 
@@ -161,11 +167,7 @@ const execute = async (logger, rawData) => {
     highestPrice,
     lowestPrice,
     athPrice,
-    trend: {
-      status: huskyIndicator.status,
-      trendDiff: huskyIndicator.difference,
-      signedTrendDiff: Math.sign(huskyIndicator.difference)
-    }
+    trend
   };
 
   return data;

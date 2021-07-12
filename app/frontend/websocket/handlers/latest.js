@@ -2,7 +2,7 @@ const _ = require('lodash');
 const config = require('config');
 const { version } = require('../../../../package.json');
 
-const { binance, cache, messenger } = require('../../../helpers');
+const { binance, cache } = require('../../../helpers');
 const {
   getGlobalConfiguration,
   getConfiguration
@@ -44,6 +44,8 @@ const handleLatest = async (logger, ws, _payload) => {
 
   const { botOptions: { login } } = globalConfiguration
 
+  const cachedTrades = JSON.parse(await cache.get(`past-trades`)) || {};
+
   if (savedPassword != '') {
     login.passwordActivated = true;
   } else {
@@ -67,7 +69,8 @@ const handleLatest = async (logger, ws, _payload) => {
       publicURL: cacheTrailingTradeCommon['local-tunnel-url'],
       apiInfo: binance.client.getInfo(),
       passwordActivated: login.passwordActivated,
-      login: cachedTempLogin
+      login: cachedTempLogin,
+      pastTrades: cachedTrades
     };
   } catch (e) {
     logger.error({ e }, 'Something wrong with trailing-trade-common cache');

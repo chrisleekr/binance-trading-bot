@@ -42,9 +42,14 @@ class CoinWrapperBuySignal extends React.Component {
         {symbolConfiguration.strategyOptions.huskyOptions.buySignal ? (
           <div className='coin-info-column coin-info-column-right coin-info-column-balance'>
             <span className='coin-info-label'>{common_strings._trending} Husky:</span>
-            <HightlightChange className='coin-info-value'>
-              {buy.trend.status} - {common_strings._strength}: {buy.trend.trendDiff}%
-            </HightlightChange>
+            {!_.isEmpty(buy.trend) ? (
+              <HightlightChange className='coin-info-value'>
+                {buy.trend.status} - {common_strings._strength}: {buy.trend.trendDiff}%
+              </HightlightChange>
+            ) : (
+              'Not enough data, wait.'
+            )}
+
           </div >
         ) : (
           ''

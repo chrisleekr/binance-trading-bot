@@ -12,7 +12,6 @@ class ThemeChanger extends React.Component {
   }
 
   themeChange() {
-    const { configuration: { botOptions } } = this.props;
     let newConfig = this.props.configuration;
 
     if (newConfig.botOptions.theme === 'theme-dark') {
@@ -26,9 +25,6 @@ class ThemeChanger extends React.Component {
     this.props.sendWebSocket('setting-update', {
       ...newConfig
     });
-
-    console.log(newConfig)
-    console.log(document.documentElement.className)
   }
 
   render() {
