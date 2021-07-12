@@ -7,9 +7,6 @@ const { execute: getOverrideAction } = require('./step/get-override-action');
 const {
   execute: ensureManualBuyOrder
 } = require('./step/ensure-manual-buy-order');
-const {
-  execute: ensureOrderConfirmed
-} = require('./step/ensure-order-confirmed');
 const { execute: ensureOrderPlaced } = require('./step/ensure-order-placed');
 const { execute: getOpenOrders } = require('./step/get-open-orders');
 const { execute: getIndicators } = require('./step/get-indicators');
@@ -31,7 +28,6 @@ module.exports = {
   getBalances,
   getOverrideAction,
   ensureManualBuyOrder,
-  ensureOrderConfirmed,
   ensureOrderPlaced,
   getOpenOrders,
   getIndicators,

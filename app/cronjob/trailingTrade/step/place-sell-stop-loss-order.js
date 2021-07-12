@@ -39,7 +39,7 @@ const execute = async (logger, rawData) => {
       }
     },
     action,
-    sell: { currentPrice, openOrders, lastQtyBought }
+    sell: { currentPrice, openOrders, lastQtyBought, lastBuyPrice }
   } = data;
 
   if (isLocked) {
@@ -162,6 +162,8 @@ const execute = async (logger, rawData) => {
         sellStopLossDisableBuyMinutes * 60
       );
     }
+
+    orderResult.finalProfit = (currentPrice * lastQtyBought) - (lastBuyPrice * lastQtyBought);
 
     await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult), 30);
 

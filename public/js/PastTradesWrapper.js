@@ -54,12 +54,19 @@ class PastTradesWrapper extends React.Component {
       return (
         <div
           key={`past-trade-` + index}
-          className={'profit-loss-wrapper pt-2 pl-2 pr-2 pb-0' + classNameExtension}>
-          <div className='profit-loss-wrapper-body'>
-            <span className='profit-loss-asset'>{trade.symbol}</span>{' '}
+          className='profit-loss-wrapper pt-2 pl-2 pr-2 pb-0'>
+          <div className={'profit-loss-wrapper-body' + classNameExtension}>
+            <span className='profit-loss-asset'>{trade.symbol}</span>
             <span className='profit-loss-value'>
-              {trade.profit}
-              {trade.date}
+              {profitIsNegative == 1 ? (
+                "+ " + parseFloat(trade.profit).toFixed(3)
+              ) : (
+                [profitIsNegative == -1 ? (
+                  "- " + parseFloat(trade.profit).toFixed(3)
+                ) : (
+                  ''
+                )]
+              )}
             </span>
           </div>
         </div>

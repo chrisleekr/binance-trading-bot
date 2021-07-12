@@ -830,7 +830,7 @@ class SettingIcon extends React.Component {
                             </div>
 
                             <div className='col-12'>
-
+                              <p className='form-header mb-1'>{common_strings._sell} - {common_strings.stop_loss}</p>
                               <Form.Group
                                 controlId='field-sell-stop-loss-enabled'
                                 className='mb-2'>

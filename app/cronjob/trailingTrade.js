@@ -30,8 +30,7 @@ const {
   placeSellStopLossOrder,
   removeLastBuyPrice,
   saveDataToCache,
-  cancelOrder,
-  ensureOrderConfirmed
+  cancelOrder
 } = require('./trailingTrade/steps');
 const { messenger } = require('../helpers');
 
@@ -100,10 +99,6 @@ const execute = async logger => {
           {
             stepName: 'ensure-manual-buy-order',
             stepFunc: ensureManualBuyOrder
-          },
-          {
-            stepName: 'ensure-order-confirmed',
-            stepFunc: ensureOrderConfirmed
           },
           {
             stepName: 'ensure-open-placed',

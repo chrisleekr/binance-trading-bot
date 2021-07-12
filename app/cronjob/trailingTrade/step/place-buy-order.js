@@ -197,8 +197,8 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Order result');
 
-  // Set last buy order to be checked over 2 minutes until callback is received.
-  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 120);
+  // Set last buy order to be checked over infinite minutes until callback is received.
+  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult));
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

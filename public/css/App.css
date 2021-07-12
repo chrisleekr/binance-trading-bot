@@ -834,11 +834,11 @@ input[type='number'] {
 }
 
 .past-trades-profit {
-  background-color: var(--green);
+  background-color: var(--green) !important;
 }
 
 .past-trades-loss {
-  background-color: var(--red);
+  background-color: var(--red) !important;
 }
 
 /**

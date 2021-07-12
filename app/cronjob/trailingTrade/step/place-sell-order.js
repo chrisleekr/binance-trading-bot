@@ -32,7 +32,7 @@ const execute = async (logger, rawData) => {
       strategyOptions: { huskyOptions: { sellSignal } }
     },
     action,
-    sell: { currentPrice, openOrders, lastQtyBought },
+    sell: { currentPrice, openOrders, lastQtyBought, lastBuyPrice },
     buy: { trend: { signedTrendDiff } }
   } = data;
 
@@ -149,6 +149,8 @@ const execute = async (logger, rawData) => {
   const orderResult = await binance.client.order(orderParams);
 
   logger.info({ orderResult }, 'Order result');
+
+  orderResult.finalProfit = (currentPrice * lastQtyBought) - (lastBuyPrice * lastQtyBought);
 
   await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult), 60);
 
