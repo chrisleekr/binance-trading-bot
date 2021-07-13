@@ -820,17 +820,20 @@ input[type='number'] {
   flex: 1 40%;
   font-weight: bold;
 }
-.value-down {
-  color: rgb(238, 29, 29);
-}
-.value-up {
-  color: rgb(39, 221, 39);
-}
 
 .profit-loss-value {
   flex: 1 60%;
   text-align: right;
+  font-weight: bold;
 }
+
+.value-loss {
+  color: rgb(207, 70, 70);
+}
+.value-profit {
+  color: rgb(39, 221, 39);
+}
+
 
 @media (max-width: 1200px) {
   .profit-loss-wrapper {

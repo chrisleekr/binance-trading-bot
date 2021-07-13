@@ -1262,6 +1262,26 @@ class SettingIcon extends React.Component {
                               </Form.Group>
                             </div>
                           </div>
+                          <div className='row'>
+                            <div className='col-12'>
+                              <p className='form-header mb-1'>Fees</p>
+                              <Form.Group
+                                controlId='field-bot-options-calc-fees'
+                                className='mb-2'>
+                                <Form.Check size='sm'>
+                                  <Form.Check.Input
+                                    type='checkbox'
+                                    data-state-key='botOptions.calcFees'
+                                    checked={configuration.botOptions.calcFees}
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <Form.Check.Label>
+                                    Calculate fees at profit?{' '}
+                                  </Form.Check.Label>
+                                </Form.Check>
+                              </Form.Group>
+                            </div>
+                          </div>
                         </Card.Body>
                       </Accordion.Collapse>
                     </Card>

@@ -17,6 +17,7 @@ const { handleCancelOrder } = require('./cancel-order');
 const { handleDustTransferGet } = require('./dust-transfer-get');
 const { handleDustTransferExecute } = require('./dust-transfer-execute');
 const { handlePassword } = require('./handle-password');
+const { handlePastTradesErase } = require('./past-trades-erase')
 
 module.exports = {
   handleLatest,
@@ -24,6 +25,7 @@ module.exports = {
   handleSymbolUpdateLastBuyPrice,
   handleSymbolBackTest,
   handleSymbolDelete,
+  handlePastTradesErase,
   handleResetFactorySettings,
   handleSymbolSettingUpdate,
   handleSymbolSettingDelete,

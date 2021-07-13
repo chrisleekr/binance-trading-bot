@@ -305,16 +305,6 @@ const execute = async (logger, rawData) => {
   if (await canBuy(data)) {
     if (manyBuys) {
 
-      //ATH verify
-      if (isGreaterThanTheATHRestrictionPrice(data)) {
-        return setBuyActionAndMessage(
-          logger,
-          data,
-          'wait',
-          `The current price has reached the lowest price; however, it is restricted to buy the coin.`
-        );
-      }
-
       const checkDisable = await isActionDisabled(symbol);
       logger.info(
         { tag: 'check-disable', checkDisable },
@@ -344,6 +334,17 @@ const execute = async (logger, rawData) => {
       );
     } else {
       if (!hasBalanceToSell(data)) {
+
+        //ATH verify
+        if (isGreaterThanTheATHRestrictionPrice(data)) {
+          return setBuyActionAndMessage(
+            logger,
+            data,
+            'wait',
+            `The current price has reached the lowest price; however, it is restricted to buy the coin.`
+          );
+        }
+
         const checkDisable = await isActionDisabled(symbol);
         logger.info(
           { tag: 'check-disable', checkDisable },

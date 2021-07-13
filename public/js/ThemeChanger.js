@@ -5,35 +5,30 @@ class ThemeChanger extends React.Component {
   constructor(props) {
     super(props);
 
-    this.state = {
-      configuration: {}
-    }
     this.themeChange = this.themeChange.bind(this);
   }
 
   themeChange() {
-    let newConfig = this.props.configuration;
+    const newConfig = this.props.configuration;
 
     if (newConfig.botOptions.theme === 'theme-dark') {
       newConfig.botOptions.theme = 'theme-light';
     } else {
       newConfig.botOptions.theme = 'theme-dark';
     }
-
     this.props.sendWebSocket('setting-update', {
       ...newConfig
     });
   }
 
   render() {
-
     const { configuration: { botOptions } } = this.props;
 
     const theme = botOptions.theme;
 
     if (theme !== document.documentElement.className) {
       document.documentElement.className = theme;
-    }
+    };
 
     return (
       <div className='header-column-icon-wrapper setting-wrapper'>

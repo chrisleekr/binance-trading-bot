@@ -85,6 +85,7 @@
         "language": "en",
         "telegram": false,
         "slack": false,
+        "calcFees": true,
         "sortType": 0,
         "login": {
           "passwordActivated": false,

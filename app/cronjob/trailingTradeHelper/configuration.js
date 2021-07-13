@@ -48,6 +48,21 @@ const resetToFactorySettings = async (logger, symbols) => {
 };
 
 /**
+ * Reset past trades
+ *
+ * @param {*} logger
+ */
+const erasePastTrades = async (logger) => {
+  try {
+    logger.info("Erasing past trade")
+    await cache.del(`past-trades`);
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
+/**
  * Reset to factory settings but keep saved symbols
  *
  * @param {*} logger
@@ -461,5 +476,6 @@ module.exports = {
   deleteSymbolConfiguration,
   getConfiguration,
   resetToFactorySettings,
-  resetToFactorySettingsWithSymbols
+  resetToFactorySettingsWithSymbols,
+  erasePastTrades
 };

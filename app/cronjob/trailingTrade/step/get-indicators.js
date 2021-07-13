@@ -29,6 +29,9 @@ const execute = async (logger, rawData) => {
         limitPercentage: sellLimitPercentage,
         stopLoss: { maxLossPercentage: sellMaxLossPercentage }
       },
+      botOptions: {
+        calcFees
+      },
       strategyOptions: {
         tradeOptions: { manyBuys },
         athRestriction: {
@@ -90,21 +93,27 @@ const execute = async (logger, rawData) => {
   const lastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
   const lastBoughtPrice = _.get(lastBuyPriceDoc, 'lastBoughtPrice', null);
 
+  let feeMultiplier = 1;
+
+  if (calcFees) {
+    feeMultiplier = 1.002;
+  }
+
 
   const sellTriggerPrice =
-    lastBuyPrice > 0 ? (lastBuyPrice * sellTriggerPercentage) * 1.002 : null;
+    lastBuyPrice > 0 ? (lastBuyPrice * sellTriggerPercentage) * feeMultiplier : null;
   const sellHardTriggerPrice =
-    lastBuyPrice > 0 ? (lastBuyPrice * sellHardTriggerPercentage) * 1.002 : null;
+    lastBuyPrice > 0 ? (lastBuyPrice * sellHardTriggerPercentage) * feeMultiplier : null;
   const sellDifference =
-    lastBuyPrice > 0 ? (1 - ((sellTriggerPrice / currentPrice) * 1.002)) * 100 : null;
-  const sellLimitPrice = (currentPrice * sellLimitPercentage) * 1.002;
+    lastBuyPrice > 0 ? (1 - ((sellTriggerPrice / currentPrice) * feeMultiplier)) * 100 : null;
+  const sellLimitPrice = (currentPrice * sellLimitPercentage) * feeMultiplier;
 
   // Get stop loss trigger price
   const sellStopLossTriggerPrice =
-    lastBuyPrice > 0 ? (lastBuyPrice * sellMaxLossPercentage) * 1.002 : null;
+    lastBuyPrice > 0 ? (lastBuyPrice * sellMaxLossPercentage) * feeMultiplier : null;
   const sellStopLossDifference =
     lastBuyPrice > 0
-      ? (1 - ((sellStopLossTriggerPrice / currentPrice) * 1.002)) * 100
+      ? (1 - ((sellStopLossTriggerPrice / currentPrice) * feeMultiplier)) * 100
       : null;
 
   // Estimate value
@@ -114,11 +123,11 @@ const execute = async (logger, rawData) => {
 
   const sellCurrentProfit =
     lastBuyPrice > 0
-      ? ((currentPrice - lastBuyPrice) * 0.998) * baseAssetTotalBalance
+      ? ((currentPrice - lastBuyPrice) * feeMultiplier) * baseAssetTotalBalance
       : null;
 
   const sellCurrentProfitPercentage =
-    lastBuyPrice > 0 ? (1 - ((lastBuyPrice / currentPrice) * 1.002)) * 100 : null;
+    lastBuyPrice > 0 ? (1 - ((lastBuyPrice / currentPrice) * feeMultiplier)) * 100 : null;
 
   // Reorganise open orders
   const newOpenOrders = openOrders.map(order => {

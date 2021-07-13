@@ -351,6 +351,7 @@ class App extends React.Component {
               <PastTradesWrapper
                 pastTrades={pastTrades}
                 jsonStrings={languageData}
+                sendWebSocket={this.sendWebSocket}
               />
 
               <Footer packageVersion={packageVersion} gitHash={gitHash} jsonStrings={languageData} />

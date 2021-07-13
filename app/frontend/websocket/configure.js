@@ -7,6 +7,7 @@ const {
   handleSymbolUpdateLastBuyPrice,
   handleSymbolBackTest,
   handleSymbolDelete,
+  handlePastTradesErase,
   handleResetFactorySettings,
   handleSymbolSettingUpdate,
   handleSymbolSettingDelete,
@@ -68,6 +69,9 @@ const configureWebSocket = async (server, funcLogger) => {
           break;
         case 'symbol-delete':
           await handleSymbolDelete(commandLogger, ws, payload);
+          break;
+        case 'past-trades-erase':
+          await handlePastTradesErase(commandLogger, ws, payload);
           break;
         case 'reset-factory-settings':
           await handleResetFactorySettings(commandLogger, ws, payload);

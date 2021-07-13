@@ -8,33 +8,10 @@ class PastTradesWrapper extends React.Component {
       canUpdate: true,
       pastTrades: {}
     };
-
-    this.setUpdate = this.setUpdate.bind(this);
-  }
-
-  componentDidUpdate(nextProps) {
-    // Only update, when the canUpdate is true.
-    const { canUpdate } = this.state;
-    if (
-      canUpdate === true &&
-      _.get(nextProps, 'symbols', null) !== null &&
-      _.isEqual(_.get(nextProps, 'symbols', null), this.state.symbols) === false
-    ) {
-
-
-      console.log("Can update")
-
-    }
-  }
-
-  setUpdate(newStatus) {
-    this.setState({
-      canUpdate: newStatus
-    });
   }
 
   render() {
-    const { jsonStrings, pastTrades } = this.props;
+    const { jsonStrings, pastTrades, sendWebSocket } = this.props;
 
     if (_.isEmpty(jsonStrings)) {
       return '';
@@ -79,9 +56,9 @@ class PastTradesWrapper extends React.Component {
     const toDisplayDownOrUp = finalProfit.toFixed(3) + " $ ";
     let classNameExt = '';
     if (Math.sign(finalProfit) == -1) {
-      classNameExt = ' value-down';
+      classNameExt = ' value-loss';
     } else if (Math.sign(finalProfit == 1)) {
-      classNameExt = ' value-up';
+      classNameExt = ' value-profit';
     }
 
 
@@ -97,7 +74,12 @@ class PastTradesWrapper extends React.Component {
                   </div>
                 </div>
                 <div className='flex-column-right pt-2'>
-                  <span className='profit-loss-asset'>Overall Profit:  <span className={'profit-loss-asset' + classNameExt}> {toDisplayDownOrUp}</span></span>
+                  <PastTradesWrapperEraserIcon
+                    sendWebSocket={sendWebSocket} />
+                </div>
+                <div className='flex-column-right pt-2'>
+                  <span className='profit-loss-asset'>Overall Profit: </span>
+                  <span className={'profit-loss-value' + classNameExt}> {toDisplayDownOrUp}</span>
                 </div>
               </div>
             </Card.Header>
