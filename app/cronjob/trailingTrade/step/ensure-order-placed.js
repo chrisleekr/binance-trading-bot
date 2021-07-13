@@ -319,14 +319,6 @@ const execute = async (logger, rawData) => {
         messenger.sendMessage(
           symbol, lastBuyOrder, 'BUY_NOT_FOUND');
       }
-
-      return setBuyActionAndMessage(
-        logger,
-        data,
-        'buy-order-checking',
-        'The buy order seems placed; however, it does not appear in the open orders. ' +
-        'Wait for the buy order to appear in open orders.'
-      );
     }
   }
 
@@ -394,11 +386,11 @@ const execute = async (logger, rawData) => {
         );
 
 
-        //Save past trade
-        await addPastTrade(symbol, lastSellOrder);
-
         // If order is no longer available, then delete from cache
         await removeLastSellOrder(logger, symbol);
+
+        //Save past trade
+        await addPastTrade(symbol, lastSellOrder);
 
         //Remove last buy price
         await mongo.deleteOne(logger, 'trailing-trade-symbols', {
@@ -447,14 +439,6 @@ const execute = async (logger, rawData) => {
         messenger.sendMessage(
           symbol, lastBuyOrder, 'SELL_NOT_FOUND');
       }
-
-      return setSellActionAndMessage(
-        logger,
-        data,
-        'sell-order-checking',
-        'The sell order seems placed; however, it does not appear in the open orders. ' +
-        'Wait for the sell order to appear in open orders.'
-      );
     }
   }
 

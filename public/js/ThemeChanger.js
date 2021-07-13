@@ -15,10 +15,8 @@ class ThemeChanger extends React.Component {
     let newConfig = this.props.configuration;
 
     if (newConfig.botOptions.theme === 'theme-dark') {
-      document.documentElement.className = 'theme-light';
       newConfig.botOptions.theme = 'theme-light';
     } else {
-      document.documentElement.className = 'theme-dark';
       newConfig.botOptions.theme = 'theme-dark';
     }
 

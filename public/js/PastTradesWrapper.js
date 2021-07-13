@@ -76,6 +76,14 @@ class PastTradesWrapper extends React.Component {
       );
     });
 
+    const toDisplayDownOrUp = finalProfit.toFixed(3) + " $ ";
+    let classNameExt = '';
+    if (Math.sign(finalProfit) == -1) {
+      classNameExt = ' value-down';
+    } else if (Math.sign(finalProfit == 1)) {
+      classNameExt = ' value-up';
+    }
+
 
     return (
       <div className='accordion-wrapper profit-loss-accordion-wrapper'>
@@ -89,7 +97,7 @@ class PastTradesWrapper extends React.Component {
                   </div>
                 </div>
                 <div className='flex-column-right pt-2'>
-                  <span className='profit-loss-asset'>Overall Profit: {finalProfit.toFixed(3)} $</span>
+                  <span className='profit-loss-asset'>Overall Profit:  <span className={'profit-loss-asset' + classNameExt}> {toDisplayDownOrUp}</span></span>
                 </div>
               </div>
             </Card.Header>
