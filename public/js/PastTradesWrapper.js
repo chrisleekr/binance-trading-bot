@@ -65,7 +65,7 @@ class PastTradesWrapper extends React.Component {
                 "+ " + parseFloat(trade.profit).toFixed(3)
               ) : (
                 [profitIsNegative == -1 ? (
-                  "- " + parseFloat(trade.profit).toFixed(3)
+                  parseFloat(trade.profit).toFixed(3)
                 ) : (
                   ''
                 )]

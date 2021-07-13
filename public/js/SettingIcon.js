@@ -1808,7 +1808,7 @@ class SettingIcon extends React.Component {
               onClick={() => this.handleResetSettings({
                 action: 'reset-factory-settings-minus-symbols'
               })}>
-              {setting_icon.reset_factory.delete_all_keeps_symbols}
+              {setting_icon.reset_factory.delete_all_keep_symbols}
             </Button>
           </Modal.Footer>
         </Modal>
