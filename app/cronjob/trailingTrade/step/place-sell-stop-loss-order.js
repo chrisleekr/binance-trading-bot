@@ -178,6 +178,11 @@ const execute = async (logger, rawData) => {
     data.sell.processMessage = _actions.action_sell_stop_loss;
     data.sell.updatedAt = moment().utc();
 
+    //Remove last buy price
+    await mongo.deleteOne(logger, 'trailing-trade-symbols', {
+      key: `${symbol}-last-buy-price`
+    });
+
     return data;
   } else {
     logger.info(

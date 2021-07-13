@@ -41,6 +41,8 @@ class PastTradesWrapper extends React.Component {
     }
     const { profit_loss_wrapper, common_strings } = jsonStrings;
 
+    let finalProfit = 0;
+
     const trades = Object.values(pastTrades).map((trade, index) => {
 
       const profitIsNegative = Math.sign(trade.profit);
@@ -51,6 +53,7 @@ class PastTradesWrapper extends React.Component {
       if (profitIsNegative === -1) {
         classNameExtension = ' past-trades-loss'
       }
+      finalProfit += parseFloat(trade.profit);
       return (
         <div
           key={`past-trade-` + index}
@@ -76,19 +79,20 @@ class PastTradesWrapper extends React.Component {
 
     return (
       <div className='accordion-wrapper profit-loss-accordion-wrapper'>
-        <Accordion eventKey='0'>
+        <Accordion defaultActiveKey='0'>
           <Card>
-            <Accordion.Toggle
-              as={Card.Header}
-              eventKey='0'
-              className='px-2 py-1'>
-              <button
-                type='button'
-                className='btn btn-sm btn-link btn-status text-uppercase font-weight-bold'>
-                Past Trades
-              </button>
-            </Accordion.Toggle>
-
+            <Card.Header className='px-2 py-1'>
+              <div className='d-flex flex-row justify-content-between'>
+                <div className='flex-column-left'>
+                  <div className='btn-profit-loss text-uppercase font-weight-bold'>
+                    Past Trades {' '}
+                  </div>
+                </div>
+                <div className='flex-column-right pt-2'>
+                  <span className='profit-loss-asset'>Overall Profit: {finalProfit.toFixed(3)} $</span>
+                </div>
+              </div>
+            </Card.Header>
             <Accordion.Collapse eventKey='0'>
               <Card.Body className='d-flex flex-column py-2 px-0 card-body'>
                 <div className='profit-loss-wrappers info-wrapper d-flex flex-row flex-wrap justify-content-start'>
