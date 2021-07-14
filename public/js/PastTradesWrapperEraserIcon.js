@@ -46,7 +46,7 @@ class PastTradesWrapperEraserIcon extends React.Component {
 
         <Modal show={this.state.showModal} onHide={this.handleModalClose}>
           <Modal.Header className='pt-1 pb-1'>
-            <Modal.Title>Oi - Hi</Modal.Title>
+            <Modal.Title>Erase Past Trades </Modal.Title>
           </Modal.Header>
           <Modal.Body>
             It will erase your past trades. It can't be undone.
