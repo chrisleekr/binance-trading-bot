@@ -10,7 +10,8 @@ const {
   lockSymbol,
   isSymbolLocked,
   unlockSymbol,
-  getAPILimit
+  getAPILimit,
+  isExceedAPILimit
 } = require('./trailingTradeHelper/common');
 
 const {
@@ -36,6 +37,9 @@ const { messenger } = require('../helpers');
 
 const execute = async logger => {
   try {
+    if (isExceedAPILimit(logger)) {
+      return;
+    }
     // Retrieve global configuration
     const globalConfiguration = await getGlobalConfiguration(logger);
 

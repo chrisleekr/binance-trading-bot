@@ -38,7 +38,7 @@ const handleLatest = async (logger, ws, _payload) => {
 
   let savedPassword = config.get('password');
 
-  if (savedPassword == undefined) {
+  if (savedPassword === undefined || savedPassword === null) {
     savedPassword = '';
   }
 
@@ -46,10 +46,10 @@ const handleLatest = async (logger, ws, _payload) => {
 
   const cachedTrades = JSON.parse(await cache.get(`past-trades`)) || {};
 
-  if (savedPassword != '') {
-    login.passwordActivated = true;
-  } else {
+  if (savedPassword === '') {
     login.passwordActivated = false;
+  } else {
+    login.passwordActivated = true;
   }
 
   const cachedTempLogin =

@@ -6,8 +6,7 @@ const config = require('config');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
-  isExceedAPILimit,
-  getAPILimit
+  isExceedAPILimit
 } = require('../../trailingTradeHelper/common');
 
 /**

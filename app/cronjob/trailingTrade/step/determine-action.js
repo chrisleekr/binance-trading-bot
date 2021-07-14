@@ -2,7 +2,7 @@ const moment = require('moment');
 const _ = require('lodash');
 const { isActionDisabled } = require('../../trailingTradeHelper/common');
 const config = require('config');
-const { cache, messenger } = require('../../../helpers');
+const { cache } = require('../../../helpers');
 
 
 const retrieveLastBuyOrder = async (symbol) => {
@@ -28,18 +28,18 @@ const canBuy = async (data) => {
 
   const canBuy = await retrieveLastBuyOrder(symbol);
 
-  let percDiff = 200;
+  let percentDifference = 200;
 
 
   if (buySignal) {
     if (manyBuys) {
       if (lastBuyPrice > 0) {
-        percDiff = 100 * ((lastBuyPrice - buyCurrentPrice) / ((lastBuyPrice + buyCurrentPrice) / 2));
+        percentDifference = 100 * ((lastBuyPrice - buyCurrentPrice) / ((lastBuyPrice + buyCurrentPrice) / 2));
       }
       return canBuy &&
         buyCurrentPrice <= buyTriggerPrice &&
         signedTrendDiff == 1 &&
-        percDiff >= differenceToBuy
+        percentDifference >= differenceToBuy
     } else {
       return canBuy &&
         lastBuyPrice <= 0 &&
@@ -50,11 +50,11 @@ const canBuy = async (data) => {
   } else {
     if (manyBuys) {
       if (lastBuyPrice > 0) {
-        percDiff = 100 * ((lastBuyPrice - buyCurrentPrice) / ((lastBuyPrice + buyCurrentPrice) / 2));
+        percentDifference = 100 * ((lastBuyPrice - buyCurrentPrice) / ((lastBuyPrice + buyCurrentPrice) / 2));
       }
       return canBuy &&
         buyCurrentPrice <= buyTriggerPrice &&
-        percDiff >= differenceToBuy
+        percentDifference >= differenceToBuy
     } else {
       return canBuy &&
         lastBuyPrice <= 0 &&
@@ -74,7 +74,7 @@ const canBuy = async (data) => {
 const isGreaterThanTheATHRestrictionPrice = data => {
   const {
     symbolConfiguration: {
-      buy: {
+      strategyOptions: {
         athRestriction: { enabled: buyATHRestrictionEnabled }
       }
     },
@@ -126,9 +126,9 @@ const currentPriceIsHigherThanDifferenceToBuy = data => {
     return false;
   }
 
-  const percDiff = 100 * ((lastBuyPrice - buyCurrentPrice) / ((lastBuyPrice + buyCurrentPrice) / 2));
+  const percentDifference = 100 * ((lastBuyPrice - buyCurrentPrice) / ((lastBuyPrice + buyCurrentPrice) / 2));
 
-  return percDiff >= differenceToBuy;
+  return percentDifference >= differenceToBuy;
 };
 
 /**
@@ -303,6 +303,17 @@ const execute = async (logger, rawData) => {
   //    and current balance has not enough value to sell,
   //  then buy.
   if (await canBuy(data)) {
+    
+    //ATH verify
+    if (isGreaterThanTheATHRestrictionPrice(data)) {
+      return setBuyActionAndMessage(
+        logger,
+        data,
+        'wait',
+        `The current price has reached the lowest price; however, it is restricted to buy the coin.`
+      );
+    }
+
     if (manyBuys) {
 
       const checkDisable = await isActionDisabled(symbol);
@@ -334,16 +345,6 @@ const execute = async (logger, rawData) => {
       );
     } else {
       if (!hasBalanceToSell(data)) {
-
-        //ATH verify
-        if (isGreaterThanTheATHRestrictionPrice(data)) {
-          return setBuyActionAndMessage(
-            logger,
-            data,
-            'wait',
-            `The current price has reached the lowest price; however, it is restricted to buy the coin.`
-          );
-        }
 
         const checkDisable = await isActionDisabled(symbol);
         logger.info(

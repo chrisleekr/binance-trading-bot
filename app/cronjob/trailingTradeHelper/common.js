@@ -9,7 +9,7 @@ const isValidCachedExchangeSymbols = exchangeSymbols =>
   ) !== null;
 
 /**
- * Retreive cached exhcnage symbols.
+ * Retrieve cached exchange symbols.
  *  If not cached, retrieve exchange info from API and cache it.
  *
  * @param {*} logger
@@ -163,7 +163,7 @@ const getAccountInfoFromAPI = async logger => {
 };
 
 /**
- * Retreive account info from cache
+ * Retrieve account info from cache
  *  If empty, retrieve from API
  *
  * @param {*} logger
@@ -190,22 +190,27 @@ const getAccountInfo = async logger => {
   return getAccountInfoFromAPI(logger);
 };
 
+let lastGetOrderTime = '';
 /**
  * Get open orders
  *
  * @param {*} logger
  */
 const getOpenOrdersFromAPI = async logger => {
-  logger.info(
-    { debug: true, function: 'openOrders' },
-    'Retrieving open orders from API'
-  );
-  const openOrders = await binance.client.openOrders({
-    recvWindow: 10000
-  });
-  logger.info({ openOrders }, 'Retrieved open orders from API');
-
-  return openOrders;
+  var now = new Date();
+  var difference = (now - lastGetOrderTime) / 1000;
+  if (difference > 3 || lastGetOrderTime === '') {
+    logger.info(
+      { debug: true, function: 'openOrders' },
+      'Retrieving open orders from API'
+    );
+    const openOrders = await binance.client.openOrders({
+      recvWindow: 10000
+    });
+    logger.info({ openOrders }, 'Retrieved open orders from API');
+    lastGetOrderTime = new Date();
+    return openOrders;
+  }
 };
 
 /**
@@ -404,7 +409,7 @@ const getAPILimit = logger => {
  */
 const isExceedAPILimit = logger => {
   const usedWeight1m = getAPILimit(logger);
-  return usedWeight1m > 1180;
+  return usedWeight1m > 1160;
 };
 
 /**

@@ -80,7 +80,7 @@ const execute = async (logger, rawData) => {
     );
     return data;
   }
-  if (action !== 'not-determined') {
+  if (action !== 'not-determined' || _.isEmpty(openOrders)) {
     logger.info(
       { action },
       'Action is already defined, do not try to handle open orders.'

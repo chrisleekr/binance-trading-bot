@@ -193,8 +193,8 @@ const isOrderExistingInOpenOrders = (_logger, order, openOrders) =>
  * @param {*} logger
  * @param {*} rawData
  */
-var canCheckBuy = true;
-var canCheckSell = true;
+let lastBuyCheck = '';
+let lastSellCheck = '';
 const execute = async (logger, rawData) => {
   const data = rawData;
 
@@ -211,211 +211,36 @@ const execute = async (logger, rawData) => {
   // Ensure buy order placed
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);
   if (_.isEmpty(lastBuyOrder) === false) {
-    logger.info({ debug: true, lastBuyOrder }, 'Last buy order found');
+    var difference = (new Date() - lastBuyCheck) / 1000;
+    if (difference > 2.5) {
+      logger.info({ debug: true, lastBuyOrder }, 'Last buy order found');
 
-    // Refresh open orders
-    const openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+      // Refresh open orders
+      const openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
 
-    // Assume open order is not executed, make sure the order is in the open orders.
-    // If executed that is ok, after some seconds later, the cached last order will be expired anyway and sell.
-    if (isOrderExistingInOpenOrders(logger, lastBuyOrder, openOrders)) {
-      logger.info(
-        { debug: true },
-        'Order is existing in the open orders. All good, remove last buy order.'
-      );
-
-      data.openOrders = openOrders;
-
-      data.buy.openOrders = data.openOrders.filter(
-        o => o.side.toLowerCase() === 'buy'
-      );
-
-      // Get account info
-      data.accountInfo = await getAccountInfoFromAPI(logger);
-
-      // Lock symbol action 20 seconds to avoid API limit
-      await disableAction(
-        symbol,
-        {
-          disabledBy: 'buy order',
-          message: 'Disabled action after confirming the buy order.',
-          canResume: false,
-          canRemoveLastBuyPrice: false
-        },
-        config.get(
-          'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          20
-        )
-      );
-
-    } else {
-
-      const removeStatuses = ['CANCELED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'];
-      let orderResult = {};
-      try {
-        orderResult = await binance.client.getOrder({
-          symbol,
-          orderId: lastBuyOrder.orderId
-        });
-      } catch (e) {
-        logger.error(
-          { e },
-          'The order could not be found or error occurred querying the order.'
-        );
-      }
-
-      if (orderResult !== {}) {
-        // If filled, then calculate average cost and quantity and save new last buy pirce.
-        if (orderResult.status === 'FILLED') {
-          logger.info(
-            { lastBuyOrder },
-            'The order is filled, caluclate last buy price.'
-          );
-          await calculateLastBuyPrice(logger, symbol, orderResult);
-
-          // If order is no longer available, then delete from cache
-          await removeLastBuyOrder(logger, symbol);
-
-          if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-            messenger.sendMessage(
-              symbol, lastBuyOrder, 'BUY_CONFIRMED');
-          }
-
-          // Lock symbol action 20 seconds to avoid API limit
-          await disableAction(
-            symbol,
-            {
-              disabledBy: 'buy order filled',
-              message: 'Disabled action after confirming the buy order.',
-              canResume: false,
-              canRemoveLastBuyPrice: false
-            },
-            config.get(
-              'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-              20
-            )
-          );
-
-          return setBuyActionAndMessage(
-            logger,
-            data,
-            'buy-order-filled',
-            'The buy order was filled.'
-          );
-
-        } else if (removeStatuses.includes(orderResult.status) === true) {
-          // If order is no longer available, then delete from cache
-          await removeLastBuyOrder(logger, symbol);
-        }
-
-      }
-
-      logger.info(
-        { debug: true },
-        'Order does not exist in the open orders. Wait until it appears.'
-      );
-
-      if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-        messenger.sendMessage(
-          symbol, lastBuyOrder, 'BUY_NOT_FOUND');
-      }
-
-      return setBuyActionAndMessage(
-        logger,
-        data,
-        'buy-order-checking',
-        'The buy order seems placed; however, it does not appear in the open orders. ' +
-        'Wait for the buy order to appear in open orders.'
-      );
-    }
-  }
-
-  // Ensure sell order placed
-  const lastSellOrder = await getLastSellOrder(logger, symbol);
-  if (_.isEmpty(lastSellOrder) === false) {
-    logger.info({ debug: true, lastSellOrder }, 'Last sell order found');
-
-    // Refresh open orders
-    const openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
-
-    // Assume open order is not executed, make sure the order is in the open orders.
-    // If executed that is ok, after some seconds later, the cached last order will be expired anyway and sell.
-    if (isOrderExistingInOpenOrders(logger, lastSellOrder, openOrders)) {
-      logger.info(
-        { debug: true },
-        'Order is existing in the open orders. All good, remove last sell order.'
-      );
-
-      data.openOrders = openOrders;
-
-      data.sell.openOrders = data.openOrders.filter(
-        o => o.side.toLowerCase() === 'sell'
-      );
-
-      // Get account info
-      data.accountInfo = await getAccountInfoFromAPI(logger);
-
-      // Lock symbol action 20 seconds to avoid API limit
-      await disableAction(
-        symbol,
-        {
-          disabledBy: 'sell order',
-          message: 'Disabled action after confirming the sell order.',
-          canResume: false,
-          canRemoveLastBuyPrice: false
-        },
-        config.get(
-          'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-          20
-        )
-      );
-    } else {
-
-
-      const removeStatuses = ['CANCELED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'];
-      let orderResult;
-      try {
-        orderResult = await binance.client.getOrder({
-          symbol,
-          orderId: lastSellOrder.orderId
-        });
-      } catch (e) {
-        logger.error(
-          { e },
-          'The order could not be found or error occurred querying the order.'
-        );
-      }
-
-      // If filled, then calculate average cost and quantity and save new last buy pirce.
-      if (orderResult.status === 'FILLED') {
+      // Assume open order is not executed, make sure the order is in the open orders.
+      // If executed that is ok, after some seconds later, the cached last order will be expired anyway and sell.
+      if (isOrderExistingInOpenOrders(logger, lastBuyOrder, openOrders)) {
         logger.info(
-          { lastSellOrder },
-          'The order is filled, caluclate last buy price.'
+          { debug: true },
+          'Order is existing in the open orders. All good, remove last buy order.'
         );
 
+        data.openOrders = openOrders;
 
-        // If order is no longer available, then delete from cache
-        await removeLastSellOrder(logger, symbol);
+        data.buy.openOrders = data.openOrders.filter(
+          o => o.side.toLowerCase() === 'buy'
+        );
 
-        //Save past trade
-        await addPastTrade(symbol, lastSellOrder);
-
-        //Remove last buy price
-        await mongo.deleteOne(logger, 'trailing-trade-symbols', {
-          key: `${symbol}-last-buy-price`
-        });
-
-        if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-          messenger.sendMessage(
-            symbol, lastBuyOrder, 'SELL_CONFIRMED');
-        }
+        // Get account info
+        data.accountInfo = await getAccountInfoFromAPI(logger);
 
         // Lock symbol action 20 seconds to avoid API limit
         await disableAction(
           symbol,
           {
-            disabledBy: 'sell order filled',
-            message: 'Disabled action after confirming the sell order.',
+            disabledBy: 'buy order',
+            message: 'Disabled action after confirming the buy order.',
             canResume: false,
             canRemoveLastBuyPrice: false
           },
@@ -425,37 +250,221 @@ const execute = async (logger, rawData) => {
           )
         );
 
+      } else {
+
+        const removeStatuses = ['CANCELED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'];
+        let orderResult = {};
+        try {
+          orderResult = await binance.client.getOrder({
+            symbol,
+            orderId: lastBuyOrder.orderId
+          });
+        } catch (e) {
+          logger.error(
+            { e },
+            'The order could not be found or error occurred querying the order.'
+          );
+        }
+
+        if (orderResult !== {}) {
+          // If filled, then calculate average cost and quantity and save new last buy price.
+          if (orderResult.status === 'FILLED') {
+            logger.info(
+              { lastBuyOrder },
+              'The order is filled, calculate last buy price.'
+            );
+            await calculateLastBuyPrice(logger, symbol, orderResult);
+
+            // If order is no longer available, then delete from cache
+            await removeLastBuyOrder(logger, symbol);
+
+            if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+              messenger.sendMessage(
+                symbol, lastBuyOrder, 'BUY_CONFIRMED');
+            }
+
+            // Lock symbol action 20 seconds to avoid API limit
+            await disableAction(
+              symbol,
+              {
+                disabledBy: 'buy order filled',
+                message: 'Disabled action after confirming the buy order.',
+                canResume: false,
+                canRemoveLastBuyPrice: false
+              },
+              config.get(
+                'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+                20
+              )
+            );
+
+            return setBuyActionAndMessage(
+              logger,
+              data,
+              'buy-order-filled',
+              'The buy order was filled.'
+            );
+
+          } else if (removeStatuses.includes(orderResult.status) === true) {
+            // If order is no longer available, then delete from cache
+            await removeLastBuyOrder(logger, symbol);
+          }
+
+        }
+
+        logger.info(
+          { debug: true },
+          'Order does not exist in the open orders. Wait until it appears.'
+        );
+
+        if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+          messenger.sendMessage(
+            symbol, lastBuyOrder, 'BUY_NOT_FOUND');
+        }
+
+        return setBuyActionAndMessage(
+          logger,
+          data,
+          'buy-order-checking',
+          'The buy order seems placed; however, it does not appear in the open orders. ' +
+          'Wait for the buy order to appear in open orders.'
+        );
+      }
+    }
+    lastBuyCheck = new Date();
+  }
+
+  // Ensure sell order placed
+  const lastSellOrder = await getLastSellOrder(logger, symbol);
+  if (_.isEmpty(lastSellOrder) === false) {
+    var difference = (new Date() - lastSellCheck) / 1000;
+    if (difference > 2.5) {
+      logger.info({ debug: true, lastSellOrder }, 'Last sell order found');
+
+      // Refresh open orders
+      const openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+
+      // Assume open order is not executed, make sure the order is in the open orders.
+      // If executed that is ok, after some seconds later, the cached last order will be expired anyway and sell.
+      if (isOrderExistingInOpenOrders(logger, lastSellOrder, openOrders)) {
+        logger.info(
+          { debug: true },
+          'Order is existing in the open orders. All good, remove last sell order.'
+        );
+
+        data.openOrders = openOrders;
+
+        data.sell.openOrders = data.openOrders.filter(
+          o => o.side.toLowerCase() === 'sell'
+        );
+
+        // Get account info
+        data.accountInfo = await getAccountInfoFromAPI(logger);
+
+        // Lock symbol action 20 seconds to avoid API limit
+        await disableAction(
+          symbol,
+          {
+            disabledBy: 'sell order',
+            message: 'Disabled action after confirming the sell order.',
+            canResume: false,
+            canRemoveLastBuyPrice: false
+          },
+          config.get(
+            'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+            20
+          )
+        );
+      } else {
+
+
+        const removeStatuses = ['CANCELED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'];
+        let orderResult;
+        try {
+          orderResult = await binance.client.getOrder({
+            symbol,
+            orderId: lastSellOrder.orderId
+          });
+        } catch (e) {
+          logger.error(
+            { e },
+            'The order could not be found or error occurred querying the order.'
+          );
+        }
+
+        // If filled, then calculate average cost and quantity and save new last buy price.
+        if (orderResult.status === 'FILLED') {
+          logger.info(
+            { lastSellOrder },
+            'The order is filled, calculate last buy price.'
+          );
+
+
+          // If order is no longer available, then delete from cache
+          await removeLastSellOrder(logger, symbol);
+
+          //Save past trade
+          await addPastTrade(symbol, lastSellOrder);
+
+          //Remove last buy price
+          await mongo.deleteOne(logger, 'trailing-trade-symbols', {
+            key: `${symbol}-last-buy-price`
+          });
+
+          if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+            messenger.sendMessage(
+              symbol, lastBuyOrder, 'SELL_CONFIRMED');
+          }
+
+          // Lock symbol action 20 seconds to avoid API limit
+          await disableAction(
+            symbol,
+            {
+              disabledBy: 'sell order filled',
+              message: 'Disabled action after confirming the sell order.',
+              canResume: false,
+              canRemoveLastBuyPrice: false
+            },
+            config.get(
+              'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
+              20
+            )
+          );
+
+          return setSellActionAndMessage(
+            logger,
+            data,
+            'sell-order-filled',
+            'The sell order was filled.'
+          );
+
+        } else if (removeStatuses.includes(orderResult.status) === true) {
+          // If order is no longer available, then delete from cache
+          await removeLastSellOrder(logger, symbol);
+        }
+
+
+        logger.info(
+          { debug: true },
+          'Order does not exist in the open orders. Wait until it appears.'
+        );
+
+        if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+          messenger.sendMessage(
+            symbol, lastBuyOrder, 'SELL_NOT_FOUND');
+        }
+
         return setSellActionAndMessage(
           logger,
           data,
-          'sell-order-filled',
-          'The sell order was filled.'
+          'sell-order-checking',
+          'The sell order seems placed; however, it does not appear in the open orders. ' +
+          'Wait for the sell order to appear in open orders.'
         );
-
-      } else if (removeStatuses.includes(orderResult.status) === true) {
-        // If order is no longer available, then delete from cache
-        await removeLastSellOrder(logger, symbol);
       }
-
-
-      logger.info(
-        { debug: true },
-        'Order does not exist in the open orders. Wait until it appears.'
-      );
-
-      if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-        messenger.sendMessage(
-          symbol, lastBuyOrder, 'SELL_NOT_FOUND');
-      }
-
-      return setSellActionAndMessage(
-        logger,
-        data,
-        'sell-order-checking',
-        'The sell order seems placed; however, it does not appear in the open orders. ' +
-        'Wait for the sell order to appear in open orders.'
-      );
     }
+
+    lastSellCheck = new Date();
   }
 
   return data;

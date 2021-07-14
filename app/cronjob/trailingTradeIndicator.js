@@ -5,7 +5,8 @@ const {
   lockSymbol,
   isSymbolLocked,
   unlockSymbol,
-  getAPILimit
+  getAPILimit,
+  isExceedAPILimit
 } = require('./trailingTradeHelper/common');
 
 const {
@@ -25,7 +26,7 @@ const execute = async logger => {
   // Retrieve feature toggles
   const featureToggle = config.get('featureToggle');
 
-  // Define sekeleton of data structure
+  // Define skeleton of data structure
   let data = {
     action: 'not-determined',
     featureToggle,
@@ -38,6 +39,10 @@ const execute = async logger => {
     overrideParams: {},
     apiLimit: { start: getAPILimit(logger), end: null }
   };
+
+  if (isExceedAPILimit(logger)) {
+    return data;
+  }
 
   try {
     data = await getGlobalConfiguration(logger, data);

@@ -2,8 +2,6 @@ const _ = require('lodash');
 const moment = require('moment');
 const { mongo, cache, messenger } = require('../../../helpers');
 const {
-  getAndCacheOpenOrdersForSymbol,
-  getAPILimit,
   isActionDisabled
 } = require('../../trailingTradeHelper/common');
 /**
@@ -165,20 +163,20 @@ const execute = async (logger, rawData) => {
         logger.info('Do not remove last buy price. Found open orders.');
         return data;
       }
-  
-  
+
+
       messenger.errorMessage("Removed last buy price by min quantity. " + symbol)
       processMessage = 'Balance is not enough to sell. Delete last buy price.';
-  
+
       logger.error(
         { baseAssetQuantity },
-  
+
         processMessage
       );
-  
+
       data.sell.processMessage = processMessage;
       data.sell.updatedAt = moment().utc();
-  
+
       await removeLastBuyPrice(logger, symbol, processMessage, {
         lastBuyPrice,
         baseAssetQuantity,
@@ -188,7 +186,7 @@ const execute = async (logger, rawData) => {
         totalBaseAssetBalance,
         openOrders
       });
-  
+
       return data;
     }
   */

@@ -129,7 +129,7 @@ const execute = async (logger, rawData) => {
   const sellCurrentProfitPercentage =
     lastBuyPrice > 0 ? (1 - ((lastBuyPrice / currentPrice) * feeMultiplier)) * 100 : null;
 
-  // Reorganise open orders
+  // Reorganize open orders
   const newOpenOrders = openOrders.map(order => {
     const newOrder = order;
     newOrder.currentPrice = currentPrice;
