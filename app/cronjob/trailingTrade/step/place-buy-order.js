@@ -207,7 +207,7 @@ const execute = async (logger, rawData) => {
   );
 
   // Refresh account info
-  data.accountInfo = await getAccountInfoFromAPI(logger);
+  data.accountInfo = await getAccountInfoFromAPI(logger, true);
 
   messenger.sendMessage(
     symbol, orderResult, 'PLACE_BUY_DONE'

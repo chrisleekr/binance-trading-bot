@@ -123,7 +123,7 @@ const execute = async (logger, rawData) => {
           );
 
           // Refresh account info
-          data.accountInfo = await getAccountInfoFromAPI(logger);
+          data.accountInfo = await getAccountInfoFromAPI(logger, true);
 
           data.action = 'buy-order-checking';
 
@@ -141,7 +141,7 @@ const execute = async (logger, rawData) => {
           data.action = 'buy';
 
           // Get account information again because the order is cancelled
-          data.accountInfo = await getAccountInfoFromAPI(logger);
+          data.accountInfo = await getAccountInfoFromAPI(logger, true);
         }
       } else {
         logger.info(
@@ -182,7 +182,7 @@ const execute = async (logger, rawData) => {
           );
 
           // Refresh account info
-          data.accountInfo = await getAccountInfoFromAPI(logger);
+          data.accountInfo = await getAccountInfoFromAPI(logger, true);
 
           data.action = 'sell-order-checking';
 
@@ -201,7 +201,7 @@ const execute = async (logger, rawData) => {
           data.action = 'sell';
 
           // Get account information again because the order is cancelled
-          data.accountInfo = await getAccountInfoFromAPI(logger);
+          data.accountInfo = await getAccountInfoFromAPI(logger, true);
         }
       } else {
         logger.info(

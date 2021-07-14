@@ -24,7 +24,7 @@ class CoinWrapperSellAveragedPrice extends React.Component {
           {sell.lastBoughtPrice > 0 ? (
             <div className='coin-info-value  coin-info-value'>
               <HightlightChange className='coin-info-value coin-info-value'>
-                {sell.lastBoughtPrice.toFixed(precision)}
+                {parseFloat(sell.lastBoughtPrice).toFixed(precision)}
               </HightlightChange>
             </div>
           ) : (

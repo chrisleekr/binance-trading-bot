@@ -39,7 +39,7 @@ class CoinWrapperBuySignal extends React.Component {
           )}
         </div>
 
-        {symbolConfiguration.strategyOptions.huskyOptions.buySignal ? (
+        {symbolConfiguration.strategyOptions.huskyOptions.buySignal && _.isEmpty(buy.trend) === false ? (
           <div className='coin-info-column coin-info-column-right coin-info-column-balance'>
             <span className='coin-info-label'>{common_strings._trending} Husky:</span>
             {!_.isEmpty(buy.trend) ? (

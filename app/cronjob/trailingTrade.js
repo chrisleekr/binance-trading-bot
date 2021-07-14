@@ -66,7 +66,7 @@ const execute = async logger => {
           await lockSymbol(logger, symbol);
         }
 
-        // Define sekeleton of data structure
+        // Define skeleton of data structure
         let data = {
           symbol,
           isLocked,

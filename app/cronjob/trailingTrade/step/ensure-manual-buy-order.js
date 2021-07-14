@@ -164,6 +164,8 @@ const execute = async (logger, rawData) => {
     }
   } = data;
 
+  return data;
+
   const manualBuyOrders = await cache.hgetall(
     `trailing-trade-manual-buy-order-${symbol}`
   );
@@ -235,7 +237,7 @@ const execute = async (logger, rawData) => {
           return data;
         }
 
-        // If filled, then calculate average cost and quantity and save new last buy pirce.
+        // If filled, then calculate average cost and quantity and save new last buy price.
         if (orderResult.status === 'FILLED') {
           logger.info(
             { buyOrder },

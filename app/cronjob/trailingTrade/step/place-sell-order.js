@@ -151,7 +151,7 @@ const execute = async (logger, rawData) => {
 
   orderResult.finalProfit = (currentPrice * lastQtyBought) - (lastBuyPrice * lastQtyBought);
 
-  await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult), 60);
+  await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult));
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
@@ -160,7 +160,7 @@ const execute = async (logger, rawData) => {
   );
 
   // Refresh account info
-  data.accountInfo = await getAccountInfoFromAPI(logger);
+  data.accountInfo = await getAccountInfoFromAPI(logger, true);
 
   messenger.sendMessage(
     symbol, orderResult, 'PLACE_SELL_DONE'

@@ -132,8 +132,8 @@ class CoinWrapperManualTrade extends React.Component {
       // Quote amount must be more than 0 and must be less than the quote asset balance.
       if (
         order.buy.marketType === 'total' &&
-        order.buy.quoteOrderQty > 0 &&
-        order.buy.quoteOrderQty <= quoteAssetBalanceFree
+        order.buy.quantity > 0 &&
+        order.buy.quantity <= quoteAssetBalanceFree
       ) {
         order.buy.isValid = true;
       }
@@ -141,8 +141,8 @@ class CoinWrapperManualTrade extends React.Component {
       // Quantity must be more than 0 and total amount must be less than the quote asset balance.
       if (
         order.buy.marketType === 'amount' &&
-        order.buy.marketQuantity > 0 &&
-        order.buy.marketQuantity * currentPrice <= quoteAssetBalanceFree
+        order.buy.quantity > 0 &&
+        order.buy.quantity * currentPrice <= quoteAssetBalanceFree
       ) {
         order.buy.isValid = true;
       }
@@ -152,8 +152,8 @@ class CoinWrapperManualTrade extends React.Component {
       // Quote amount must be more than 0 and quantity must be less than the base asset balance.
       if (
         order.sell.marketType === 'total' &&
-        order.sell.quoteOrderQty > 0 &&
-        order.sell.quoteOrderQty / currentPrice <= baseAssetBalanceFree
+        order.sell.quantity > 0 &&
+        order.sell.quantity / currentPrice <= baseAssetBalanceFree
       ) {
         order.sell.isValid = true;
       }
@@ -161,8 +161,8 @@ class CoinWrapperManualTrade extends React.Component {
       // Quantity must be more than 0 and must be less than the base asset balance.
       if (
         order.sell.marketType === 'amount' &&
-        order.sell.marketQuantity > 0 &&
-        order.sell.marketQuantity <= baseAssetBalanceFree
+        order.sell.quantity > 0 &&
+        order.sell.quantity <= baseAssetBalanceFree
       ) {
         order.sell.isValid = true;
       }
@@ -363,7 +363,7 @@ class CoinWrapperManualTrade extends React.Component {
       side === 'buy' &&
       orderParams.marketType === 'total'
     ) {
-      orderParams.quoteOrderQty = this.calculatePercentageMarketBuyTotal({
+      orderParams.quantity = this.calculatePercentageMarketBuyTotal({
         quoteAssetBalance,
         quoteAssetTickSize,
         percentage,
@@ -374,7 +374,7 @@ class CoinWrapperManualTrade extends React.Component {
       side === 'buy' &&
       orderParams.marketType === 'amount'
     ) {
-      orderParams.marketQuantity = this.calculatePercentageMarketBuyAmount({
+      orderParams.quantity = this.calculatePercentageMarketBuyAmount({
         quoteAssetBalance,
         lastCandle,
         baseAssetStepSize,
@@ -386,7 +386,7 @@ class CoinWrapperManualTrade extends React.Component {
       side === 'sell' &&
       orderParams.marketType === 'total'
     ) {
-      orderParams.quoteOrderQty = this.calculatePercentageMarketSellTotal({
+      orderParams.quantity = this.calculatePercentageMarketSellTotal({
         baseAssetBalance,
         lastCandle,
         quoteAssetTickSize,
@@ -398,7 +398,7 @@ class CoinWrapperManualTrade extends React.Component {
       side === 'sell' &&
       orderParams.marketType === 'amount'
     ) {
-      orderParams.marketQuantity = this.calculatePercentageMarketSellAmount({
+      orderParams.quantity = this.calculatePercentageMarketSellAmount({
         baseAssetBalance,
         baseAssetStepSize,
         percentage,
@@ -635,8 +635,8 @@ class CoinWrapperManualTrade extends React.Component {
                               placeholder={common_strings._quantity}
                               step={filterPrice.tickSize}
                               className='text-right'
-                              data-state-key='buy.quoteOrderQty'
-                              value={order.buy.quoteOrderQty}
+                              data-state-key='buy.quantity'
+                              value={order.buy.quantity}
                               onClick={this.handleClick}
                               onChange={this.handleInputChange}
                             />
@@ -650,8 +650,8 @@ class CoinWrapperManualTrade extends React.Component {
                               step={filterLotSize.stepSize}
                               placeholder={common_strings._quantity}
                               className='text-right'
-                              data-state-key='buy.marketQuantity'
-                              value={order.buy.marketQuantity}
+                              data-state-key='buy.quantity'
+                              value={order.buy.quantity}
                               onClick={this.handleClick}
                               onChange={this.handleInputChange}
                             />
@@ -928,8 +928,8 @@ class CoinWrapperManualTrade extends React.Component {
                               placeholder={common_strings._quantity}
                               step={filterPrice.tickSize}
                               className='text-right'
-                              data-state-key='sell.quoteOrderQty'
-                              value={order.sell.quoteOrderQty}
+                              data-state-key='sell.quantity'
+                              value={order.sell.quantity}
                               onClick={this.handleClick}
                               onChange={this.handleInputChange}
                             />
@@ -943,8 +943,8 @@ class CoinWrapperManualTrade extends React.Component {
                               step={filterLotSize.stepSize}
                               placeholder={common_strings._total}
                               className='text-right'
-                              data-state-key='sell.marketQuantity'
-                              value={order.sell.marketQuantity}
+                              data-state-key='sell.quantity'
+                              value={order.sell.quantity}
                               onClick={this.handleClick}
                               onChange={this.handleInputChange}
                             />

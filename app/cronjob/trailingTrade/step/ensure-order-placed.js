@@ -20,8 +20,12 @@ const {
  * @param {*} order
  */
 const calculateLastBuyPrice = async (logger, symbol, order) => {
-
-  const { origQty, price } = order;
+  let orderPrice = parseFloat(order.price);
+  const { origQty } = order;
+  if (orderPrice == 0) {
+    const { cummulativeQuoteQty } = order;
+    orderPrice = (cummulativeQuoteQty / origQty);
+  }
   const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
   const orgLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', 0);
   const orgQuantity = _.get(lastBuyPriceDoc, 'quantity', 0);
@@ -32,7 +36,7 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
     'Existing last buy price'
   );
 
-  const filledQuoteQty = parseFloat(price);
+  const filledQuoteQty = parseFloat(orderPrice);
   const filledQuantity = parseFloat(origQty);
   const filledAmount = (filledQuoteQty * filledQuantity);
 
@@ -49,7 +53,7 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
   await saveLastBuyPrice(logger, symbol, {
     lastBuyPrice: newLastBuyPrice,
     quantity: newQuantity,
-    lastBoughtPrice: price
+    lastBoughtPrice: parseFloat(orderPrice)
   });
 
   PubSub.publish('frontend-notification', {
@@ -212,7 +216,7 @@ const execute = async (logger, rawData) => {
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);
   if (_.isEmpty(lastBuyOrder) === false) {
     var difference = (new Date() - lastBuyCheck) / 1000;
-    if (difference > 2.5) {
+    if (difference > 2.5 || lastBuyCheck === '') {
       logger.info({ debug: true, lastBuyOrder }, 'Last buy order found');
 
       // Refresh open orders
@@ -264,6 +268,9 @@ const execute = async (logger, rawData) => {
             { e },
             'The order could not be found or error occurred querying the order.'
           );
+          // If order is no longer available, then delete from cache
+          await removeLastBuyOrder(logger, symbol);
+          messenger.errorMessage("Removed order by this error: " + e)
         }
 
         if (orderResult !== {}) {
@@ -330,15 +337,15 @@ const execute = async (logger, rawData) => {
           'Wait for the buy order to appear in open orders.'
         );
       }
+      lastBuyCheck = new Date();
     }
-    lastBuyCheck = new Date();
   }
 
   // Ensure sell order placed
   const lastSellOrder = await getLastSellOrder(logger, symbol);
   if (_.isEmpty(lastSellOrder) === false) {
     var difference = (new Date() - lastSellCheck) / 1000;
-    if (difference > 2.5) {
+    if (difference > 2.5 || lastSellCheck === '') {
       logger.info({ debug: true, lastSellOrder }, 'Last sell order found');
 
       // Refresh open orders
@@ -390,6 +397,9 @@ const execute = async (logger, rawData) => {
             { e },
             'The order could not be found or error occurred querying the order.'
           );
+          // If order is no longer available, then delete from cache
+          await removeLastSellOrder(logger, symbol);
+          messenger.errorMessage("Removed sell order by this error: " + e)
         }
 
         // If filled, then calculate average cost and quantity and save new last buy price.
@@ -462,9 +472,8 @@ const execute = async (logger, rawData) => {
           'Wait for the sell order to appear in open orders.'
         );
       }
+      lastSellCheck = new Date();
     }
-
-    lastSellCheck = new Date();
   }
 
   return data;

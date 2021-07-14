@@ -91,22 +91,6 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  const lastBuyOrder = await getLastBuyOrder(logger, symbol);
-  if (_.isEmpty(lastBuyOrder) === false) {
-    logger.info(
-      'Do not process to remove last buy price because there is a buy order to be confirmed.'
-    );
-    return data;
-  }
-
-  const lastSellOrder = await getLastSellOrder(logger, symbol);
-  if (_.isEmpty(lastSellOrder) === false) {
-    logger.info(
-      'Do not process to remove last buy price because there is a buy order to be confirmed.'
-    );
-    return data;
-  }
-
   // If last buy price is null, undefined, 0, NaN or less than 0
   if (!lastBuyPrice || lastBuyPrice <= 0) {
     logger.info('Do not process because last buy price does not exist.');
@@ -152,6 +136,23 @@ const execute = async (logger, rawData) => {
       lotPrecision
     )
   );
+
+  //One more verify
+  const lastBuyOrder = await getLastBuyOrder(logger, symbol);
+  if (_.isEmpty(lastBuyOrder) === false) {
+    logger.info(
+      'Do not process to remove last buy price because there is a buy order to be confirmed.'
+    );
+    return data;
+  }
+
+  const lastSellOrder = await getLastSellOrder(logger, symbol);
+  if (_.isEmpty(lastSellOrder) === false) {
+    logger.info(
+      'Do not process to remove last buy price because there is a buy order to be confirmed.'
+    );
+    return data;
+  }
 
   let processMessage = '';
 
