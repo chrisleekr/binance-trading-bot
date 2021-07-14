@@ -49,25 +49,21 @@ class PastTradesWrapperEraserIcon extends React.Component {
             <Modal.Title>Oi - Hi</Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            Hi
-            <br />
-            Oi
-            <br />
-            Guten
+            It will erase your past trades. It can't be undone.
           </Modal.Body>
           <Modal.Footer>
             <Button
               variant='secondary'
               size='sm'
               onClick={this.handleModalClose}>
-              Close?
+              Cancel
             </Button>
             <Button
               type='button'
               variant='danger'
               size='sm'
               onClick={this.handleDelete}>
-              Piroca?
+              Erase
             </Button>
           </Modal.Footer>
         </Modal>
