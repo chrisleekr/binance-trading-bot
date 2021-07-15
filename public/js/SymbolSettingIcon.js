@@ -1614,7 +1614,7 @@ class SymbolSettingIcon extends React.Component {
                                   required
                                   min='0'
                                   step='0.0001'
-                                  data-state-key='buy.athRestriction.restrictionPercentage'
+                                  data-state-key='strategyOptions.athRestriction.restrictionPercentage'
                                   value={
                                     symbolConfiguration.strategyOptions.athRestriction
                                       .restrictionPercentage

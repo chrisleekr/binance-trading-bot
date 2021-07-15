@@ -93,27 +93,33 @@ const execute = async (logger, rawData) => {
   const lastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
   const lastBoughtPrice = _.get(lastBuyPriceDoc, 'lastBoughtPrice', null);
 
-  let feeMultiplier = 1;
+  let feeMultiplier = {
+    roundUp: 1,
+    roundDown: 1
+  };
 
   if (calcFees) {
-    feeMultiplier = 1.002;
+    feeMultiplier = {
+      roundUp: 1.002,
+      roundDown: 0.998
+    };
   }
 
 
   const sellTriggerPrice =
-    lastBuyPrice > 0 ? (lastBuyPrice * sellTriggerPercentage) * feeMultiplier : null;
+    lastBuyPrice > 0 ? (lastBuyPrice * sellTriggerPercentage) * feeMultiplier.roundUp : null;
   const sellHardTriggerPrice =
-    lastBuyPrice > 0 ? (lastBuyPrice * sellHardTriggerPercentage) * feeMultiplier : null;
+    lastBuyPrice > 0 ? (lastBuyPrice * sellHardTriggerPercentage) * feeMultiplier.roundUp : null;
   const sellDifference =
-    lastBuyPrice > 0 ? (1 - ((sellTriggerPrice / currentPrice) * feeMultiplier)) * 100 : null;
-  const sellLimitPrice = (currentPrice * sellLimitPercentage) * feeMultiplier;
+    lastBuyPrice > 0 ? (1 - (sellTriggerPrice / currentPrice)) * 100 : null;
+  const sellLimitPrice = (currentPrice * sellLimitPercentage) * feeMultiplier.roundUp;
 
   // Get stop loss trigger price
   const sellStopLossTriggerPrice =
-    lastBuyPrice > 0 ? (lastBuyPrice * sellMaxLossPercentage) * feeMultiplier : null;
+    lastBuyPrice > 0 ? (lastBuyPrice * sellMaxLossPercentage) * feeMultiplier.roundUp : null;
   const sellStopLossDifference =
     lastBuyPrice > 0
-      ? (1 - ((sellStopLossTriggerPrice / currentPrice) * feeMultiplier)) * 100
+      ? (1 - ((sellStopLossTriggerPrice / currentPrice) * feeMultiplier.roundDown)) * 100
       : null;
 
   // Estimate value
@@ -123,11 +129,11 @@ const execute = async (logger, rawData) => {
 
   const sellCurrentProfit =
     lastBuyPrice > 0
-      ? ((currentPrice - lastBuyPrice) * feeMultiplier) * baseAssetTotalBalance
+      ? ((currentPrice - lastBuyPrice) * feeMultiplier.roundUp) * baseAssetTotalBalance
       : null;
 
   const sellCurrentProfitPercentage =
-    lastBuyPrice > 0 ? (1 - ((lastBuyPrice / currentPrice) * feeMultiplier)) * 100 : null;
+    lastBuyPrice > 0 ? (1 - ((lastBuyPrice / currentPrice) * feeMultiplier.roundUp)) * 100 : null;
 
   // Reorganize open orders
   const newOpenOrders = openOrders.map(order => {
