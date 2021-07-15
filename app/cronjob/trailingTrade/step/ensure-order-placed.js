@@ -426,21 +426,6 @@ const execute = async (logger, rawData) => {
               symbol, lastBuyOrder, 'SELL_CONFIRMED');
           }
 
-          // Lock symbol action 20 seconds to avoid API limit
-          await disableAction(
-            symbol,
-            {
-              disabledBy: 'sell order filled',
-              message: 'Disabled action after confirming the sell order.',
-              canResume: false,
-              canRemoveLastBuyPrice: false
-            },
-            config.get(
-              'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-              20
-            )
-          );
-
           return setSellActionAndMessage(
             logger,
             data,
