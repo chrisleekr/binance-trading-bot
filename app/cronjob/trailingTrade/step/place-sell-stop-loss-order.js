@@ -162,6 +162,7 @@ const execute = async (logger, rawData) => {
     }
 
     orderResult.finalProfit = (currentPrice * lastQtyBought) - (lastBuyPrice * lastQtyBought);
+    orderResult.finalProfitPercent = (orderResult.finalProfit / (lastBuyPrice * lastQtyBought)) * 100;
 
     await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult));
 

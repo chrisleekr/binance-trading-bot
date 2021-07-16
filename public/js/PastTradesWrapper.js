@@ -39,10 +39,10 @@ class PastTradesWrapper extends React.Component {
             <span className='profit-loss-asset'>{trade.symbol}</span>
             <span className='profit-loss-value'>
               {profitIsNegative == 1 ? (
-                "+ " + parseFloat(trade.profit).toFixed(3)
+                "+ " + parseFloat(trade.profit).toFixed(3) + " " + "(" + trade.percent + "%)"
               ) : (
                 [profitIsNegative == -1 ? (
-                  parseFloat(trade.profit).toFixed(3)
+                  parseFloat(trade.profit).toFixed(3) + " " + "(" + trade.percent + "%)"
                 ) : (
                   ''
                 )]

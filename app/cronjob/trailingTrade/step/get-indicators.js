@@ -112,7 +112,7 @@ const execute = async (logger, rawData) => {
     lastBuyPrice > 0 ? (lastBuyPrice * sellHardTriggerPercentage) * feeMultiplier.roundUp : null;
   const sellDifference =
     lastBuyPrice > 0 ? (1 - (sellTriggerPrice / currentPrice)) * 100 : null;
-  const sellLimitPrice = (currentPrice * sellLimitPercentage) * feeMultiplier.roundUp;
+  const sellLimitPrice = (currentPrice * sellLimitPercentage);
 
   // Get stop loss trigger price
   const sellStopLossTriggerPrice =

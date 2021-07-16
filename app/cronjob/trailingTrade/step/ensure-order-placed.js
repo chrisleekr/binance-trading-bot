@@ -87,11 +87,12 @@ const getLastBuyOrder = async (logger, symbol) => {
 const addPastTrade = async (symbol, oldOrder) => {
   let cachedTrades = JSON.parse(await cache.get(`past-trades`)) || [];
 
-  const { finalProfit } = oldOrder;
+  const { finalProfit, finalProfitPercent } = oldOrder;
 
   const trade = {
     symbol,
     profit: parseFloat(finalProfit.toFixed(7)),
+    percent: parseFloat(finalProfitPercent.toFixed(2)),
     date: new Date().toLocaleString()
   }
 

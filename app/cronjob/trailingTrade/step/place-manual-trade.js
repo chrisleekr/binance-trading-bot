@@ -257,6 +257,7 @@ const execute = async (logger, rawData) => {
   logger.info({ orderResult }, 'Order result');
   if (orderResult.side.toLowerCase() === 'sell') {
     orderResult.finalProfit = (currentPrice * lastQtyBought) - (lastBuyPrice * lastQtyBought);
+    orderResult.finalProfitPercent = (orderResult.finalProfit / (lastBuyPrice * lastQtyBought)) * 100;
   }
   await recordOrder(logger, orderResult);
 
