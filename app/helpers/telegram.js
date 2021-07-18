@@ -353,19 +353,31 @@ bot.on('callback_query', async (ctx) => {
 
       case 'active-orders':
         try {
-          let openOrders = botTrailingTradeIndicatorData.openOrders;
-          openOrders.forEach(data => {
-            //  const { symbol, profit, percent, date } = data;
-            const order = `Order Nº${i}\n` +
-              `Symbol: ${symbol}\n`
-            // `Profit: *${profit.toFixed(3)}* $ - (*${percent.toFixed(2)}*%)\n` +
-            //  `Date: ${date}`
-            openOrders += '\n\n' + order;
-
+          let openOrders = [];
+          botTrailingTradeData.forEach(dataSymbol => {
+            if (dataSymbol.openOrders.length > 0) {
+              openOrders.push(dataSymbol.openOrders[0]);
+            }
           });
-          ctx.reply(pastTrades, { parse_mode: "MARKDOWN" });
+          let i = 0;
+          let orders = '';
+          openOrders.forEach(openOrder => {
+            const { symbol, price, stopPrice, currentPrice } = openOrder;
+            const order = `Order Nº${i}\n` +
+              `Symbol: ${symbol}\n` +
+              `Price to execute: *${price}* $\n` +
+              `Stop Price: ${stopPrice}\n` +
+              `Current Price: ${currentPrice}`;
+            orders += '\n\n' + order;
+            i++;
+          });
+          if (openOrders.length === 0) {
+            ctx.reply(`You *don't* have *open orders*.`, { parse_mode: "MARKDOWN" });
+          } else {
+            ctx.reply(orders, { parse_mode: "MARKDOWN" });
+          }
         } catch (error) {
-          ctx.reply("*Error* parsing data. Maybe you *don't* have *open orders*.", { parse_mode: "MARKDOWN" });
+          ctx.reply("*Error* parsing data. Maybe you *don't* have *open orders*. " + error, { parse_mode: "MARKDOWN" });
         }
 
         break;
