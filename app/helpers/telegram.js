@@ -9,6 +9,7 @@ const _ = require('lodash');
 const token = config.get('telegram.token');
 // read the doc from https://github.com/yagop/node-telegram-bot-api to know how to catch the chatId
 const chatId = config.get('telegram.chatid');
+const bot = new Telegraf(token)
 
 let botTrailingTradeIndicatorData = {};
 const updateTelegramBotTrailingTradeIndicatorData = async (data) => {
@@ -41,11 +42,6 @@ const find = (array, symbol) => {
   return result;
 };
 
-const bot = new Telegraf(token)
-//bot.start((ctx) => ctx.reply('Welcome'))
-//bot.help((ctx) => ctx.reply('Send me a sticker'))
-//bot.on('sticker', (ctx) => ctx.reply('👍'))
-//bot.hears('hi', (ctx) => ctx.reply('Hey there'))
 
 const notifyTelegram = (message) => {
   bot.telegram.sendMessage(chatId, message, { parse_mode: "MARKDOWN" })
@@ -82,8 +78,6 @@ const manualTradeKeyboardOrderSide = Keyboard.make([
   [Key.callback('Back to main menu', 'back-menu-action')]
 ]).inline()
 
-
-
 const manualTradeKeyboardOrderConfirm = Keyboard.make([
   [Key.callback('Confirm', 'order-confirm')],
   [Key.callback('Cancel', 'action-cancel')],
@@ -114,7 +108,6 @@ bot.hears(['Jarvis', 'jarvis', 'jrvs', 'jrvis', 'JARVIS', 'bot', 'BOT', 'Bot', '
 
     const cachedDate =
       JSON.parse(await cache.get(`last-seen-telegram`)) || {};
-    const substring = cachedDate.substring(2, cachedDate.length);
 
     const dateDifference = (((new Date() - new Date(cachedDate)) / 1000) / 60).toFixed(1);
 
@@ -162,7 +155,6 @@ bot.on('text', async (ctx) => {
 })
 
 bot.on('callback_query', async (ctx) => {
-
   try {
     const action = ctx.callbackQuery.data;
     if (action.includes('select-symbol') || action.includes('symbol-manual')) {
@@ -204,11 +196,9 @@ bot.on('callback_query', async (ctx) => {
       case 'back-symbols-list-action':
         ctx.reply(`Again, which one?`, symbolsKeyboard)
         break;
-
       //END Symbol Details
 
       //Manual Trade
-
       case 'manual-trade':
         const { symbols: symbolList } = botTrailingTradeIndicatorData.globalConfiguration;
         const symbolListKeyboardManual = [];
@@ -272,85 +262,33 @@ bot.on('callback_query', async (ctx) => {
         ctx.reply(`Selected ${orderLimitSelected} as Limit Price. Now, select the quantity. You can select one option from here, or type 'Quantity: X' where X is your defined quantity.`, await generateOrderPercentKeyboard());
         break;
 
-
       case `order-confirm`:
-
         try {
-          const binance = require('./binance');
-
+          //Update data
           symbolDataSelected = find(botTrailingTradeData, symbolSelected);
-          const { sell: { currentPrice }, symbolInfo: { filterLotSize: { stepSize }, filterPrice: { tickSize }, } } = symbolDataSelected;
+          //
 
-
-          const precision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
-          const pricePrecision =
-            parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
-
-          let orderAmount = 0;
-          if (orderSideSelected === 'buy') {
-            orderAmount = (parseFloat(orderAmountSelected) / currentPrice).toFixed(precision);
-          } else {
-            orderAmount = parseFloat(orderAmountSelected).toFixed(precision);
-          }
-
-
-          let orderResult;
-          let order;
-          if (orderTypeSelected === 'limit') {
-            order = {
-              symbol: symbolSelected,
-              side: upperCase(orderSideSelected),
-              type: upperCase(orderTypeSelected),
-              quantity: orderAmount,
-              price: parseFloat(_.floor(orderLimitSelected, pricePrecision))
-            };
-          } else {
-            order = {
-              symbol: symbolSelected,
-              side: upperCase(orderSideSelected),
-              type: upperCase(orderTypeSelected),
-              quantity: orderAmount
-            };
-          }
-          try {
-            orderResult = await binance.client.order(order);
-            ctx.reply('I had open the order for you. Good profits.');
-            if (orderSideSelected === 'buy') {
-              await cache.set(`${symbolSelected}-last-buy-order`, JSON.stringify(orderResult));
-            } else {
-              await cache.set(`${symbolSelected}-last-sell-order`, JSON.stringify(orderResult));
-            }
-          } catch (error) {
-            ctx.reply('Binance refused with this error: ' + error);
-          }
+          await formatOrder(ctx, symbolDataSelected);
         } catch (error) {
           ctx.reply('Could not open the order. Error: ' + error);
         }
-
         break;
-
-
       //END Manual Trade
 
-      //Back Menu
-
+      //Back Menu - Cancel
       case 'back-menu-action':
         ctx.reply('What do you want to do?', mainMenuKeyboard)
         break;
-
 
       case 'action-cancel':
         ctx.reply('I had canceled the action. Need anything more?', Keyboard.make([
           [Key.callback('Main menu', 'back-menu-action')]
         ]).inline())
-
         break;
-
       //END Back Menu
 
 
       //Open Orders
-
       case 'active-orders':
         try {
           let openOrders = [];
@@ -379,18 +317,15 @@ bot.on('callback_query', async (ctx) => {
         } catch (error) {
           ctx.reply("*Error* parsing data. Maybe you *don't* have *open orders*. " + error, { parse_mode: "MARKDOWN" });
         }
-
         break;
-
       //END Open Orders
 
       //Past Trades
-
       case 'past-trades':
-
         try {
+          const cachedTrades = JSON.parse(await cache.get(`past-trades`)) || [];
           let pastTrades = '';
-          botLatestData.forEach(data => {
+          cachedTrades.forEach(data => {
             const { symbol, profit, percent, date } = data;
             const trade = `Symbol: ${symbol}\n` +
               `Profit: *${profit.toFixed(3)}* $ - (*${percent.toFixed(2)}*%)\n` +
@@ -451,7 +386,8 @@ bot.on('callback_query', async (ctx) => {
       //Last Trade Done
       case 'last-trade':
         try {
-          const lastTrade = botLatestData[(botLatestData.length - 1)];
+          const cachedTrades = JSON.parse(await cache.get(`past-trades`)) || [];
+          const lastTrade = cachedTrades[(cachedTrades.length - 1)];
           const { symbol, profit, percent, date } = lastTrade;
           const trade = `Symbol: ${symbol}\n` +
             `Profit: *${profit.toFixed(3)}* $ - (*${percent.toFixed(2)}*%)\n` +
@@ -464,21 +400,23 @@ bot.on('callback_query', async (ctx) => {
         break;
       //END Last Trade Done
 
+      //Reset bot cache
       case 'reset-cache':
         const { deleteAllCache } = require('../cronjob/trailingTradeHelper/configuration');
         const { symbols: symbolsToDeleteFromCache } = botTrailingTradeIndicatorData.globalConfiguration;
         await deleteAllCache(symbolsToDeleteFromCache);
         ctx.reply('Done. Anything more?', mainMenuKeyboard);
-
         break;
+      //END Reset bot cache
 
       default:
         break;
     }
   } catch (error) {
-    ctx.answerCbQuery('ERROR')
     ctx.reply('error' + error);
   }
+
+  ctx.answerCbQuery(ctx.callbackQueryId);
 })
 
 const generateLimitKeyboard = async () => {
@@ -544,6 +482,56 @@ const generateOrderPercentKeyboard = async (isSell = false) => {
     [Key.callback('Back to main menu', 'back-menu-action')]
   ]).inline()
   //End Order percent keyboard
+}
+
+const formatOrder = async (ctx, data) => {
+  const binance = require('./binance');
+
+  symbolDataSelected = find(botTrailingTradeData, symbolSelected);
+  const { sell: { currentPrice }, symbolInfo: { filterLotSize: { stepSize }, filterPrice: { tickSize } } } = data;
+
+
+  const precision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
+  const pricePrecision =
+    parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
+
+  let orderAmount = 0;
+  if (orderSideSelected === 'buy') {
+    orderAmount = (parseFloat(orderAmountSelected) / currentPrice).toFixed(precision);
+  } else {
+    orderAmount = parseFloat(orderAmountSelected).toFixed(precision);
+  }
+
+
+  let orderResult;
+  let order;
+  if (orderTypeSelected === 'limit') {
+    order = {
+      symbol: symbolSelected,
+      side: upperCase(orderSideSelected),
+      type: upperCase(orderTypeSelected),
+      quantity: orderAmount,
+      price: parseFloat(_.floor(orderLimitSelected, pricePrecision))
+    };
+  } else {
+    order = {
+      symbol: symbolSelected,
+      side: upperCase(orderSideSelected),
+      type: upperCase(orderTypeSelected),
+      quantity: orderAmount
+    };
+  }
+  try {
+    orderResult = await binance.client.order(order);
+    ctx.reply('I had open the order for you. Good profits.');
+    if (orderSideSelected === 'buy') {
+      await cache.set(`${symbolSelected}-last-buy-order`, JSON.stringify(orderResult));
+    } else {
+      await cache.set(`${symbolSelected}-last-sell-order`, JSON.stringify(orderResult));
+    }
+  } catch (error) {
+    ctx.reply('Binance refused with this error: ' + error);
+  }
 }
 
 bot.launch()
