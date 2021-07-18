@@ -12,6 +12,7 @@ const {
   getLastBuyPrice,
   isActionDisabled
 } = require('../../../cronjob/trailingTradeHelper/common');
+const { updateTelegramBotLatestData } = require('../../../helpers/telegram');
 
 const getSymbolFromKey = key => {
   const fragments = key.split('-');
@@ -117,6 +118,9 @@ const handleLatest = async (logger, ws, _payload) => {
     },
     'stats'
   );
+
+
+  await updateTelegramBotLatestData(cachedTrades);
 
   ws.send(
     JSON.stringify({

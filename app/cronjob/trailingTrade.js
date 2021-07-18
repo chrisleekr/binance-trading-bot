@@ -34,6 +34,7 @@ const {
   cancelOrder
 } = require('./trailingTrade/steps');
 const { messenger } = require('../helpers');
+const { updateTelegramBotData, updateTelegramBotTrailingTradeData } = require('../helpers/telegram');
 
 const execute = async logger => {
   try {
@@ -186,6 +187,8 @@ const execute = async logger => {
           { debug: true, symbol },
           '⏹ TrailingTrade: Finish process (Debug)...'
         );
+
+        await updateTelegramBotTrailingTradeData(data);
 
         logger.info({ symbol, data }, 'TrailingTrade: Finish process...');
       })

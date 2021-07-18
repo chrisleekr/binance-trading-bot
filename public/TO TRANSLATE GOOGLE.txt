@@ -24,7 +24,7 @@
     "stop_loss_enabled_description": "Se ativado, o bot irá vender a moeda quando chegar a porcentagem definida no para-perdas. Você pode ativar essa função para previnir perdas maiores que o esperado.",
     "max_loss_percent_description": "Define a porcentagem de perda máxima do para-perda. Exemplo: se difinido 0.80, significa que você não irá perder mais de 20% do valor total investido. Se você comprou a moeda ao preço de $100, o último preço comprado será definido para $100, e o para-perdas para $80. Se atingir $80, o bot irá vender todo o balanço disponível da moeda em uma ordem de mercado.",
     "placeholder_enter_max_loss": "Defina a perda máxima",
-    "temporary_disable_buy": "Desabilitar compra temporariamente por (em minutos)",
+    "temporary_disable_buy": "Desabilitar compra temporariamente por",
     "temporary_disable_buy_description": "Define por quanto tempo desativar a compra da moeda em caso de ativação do para-perda. Exemplo: Se definido 360, a compra será desabilitada por 6 horas.",
     "placeholder_temporary_disable": "Defina os minutos para desativar",
     "note_changes": "Note que as mudanças entrarão em efeito no próximo tique",
@@ -61,9 +61,9 @@
     "hard_sell_trigger_description": "Define o preço de ativação forçada da venda. Exemplo: Se definido 1,01 o bot irá vender automaticamente quando o lucro atingir 1% mesmo se a tendencia for subir.",
     "placeholder_hard_sell_trigger": "Defina o preço de ativação forçada",
     "use_husky_sell": "Usar a tendencia Husky no sinal de venda",
-    "use_husky_sell_description": "O bot não irá processar a compra se a tendencia for cair. Apenas processará quando a tendencia estiver subindo. O timing do bot melhora bastante com esta função.",
+    "use_husky_buy_description": "O bot não irá processar a compra se a tendencia for cair. Apenas processará quando a tendencia estiver subindo. O timing do bot melhora bastante com esta função.",
     "use_husky_buy": "Usar a tendencia Husky no sinal de compra",
-    "use_husky_buy_description": "O bot não irá processar a venda se a tendencia for subir. Apenas processará quando a tendencia estiver caindo. Seus lucros normalmente são maiores que o definido assim.",
+    "use_husky_sell_description": "O bot não irá processar a venda se a tendencia for subir. Apenas processará quando a tendencia estiver caindo. Seus lucros normalmente são maiores que o definido assim.",
     "force_market_order": "Forçar venda por ordem de mercado",
     "weight_green_candle": "Peso das velas verdes",
     "weight_red_candle": "Peso das velas vermelhas",
@@ -74,11 +74,34 @@
     "grid_buy_strategy": "Comprar novamente após diferença",
     "grid_buy_strategy_description": "Ativa a possibilidade de múltiplas compras, sempre calculando a média do preço. Ex: Se definido 1%, o bot irá comprar a moeda novamente se a diferença entre o último preço de compra for maior que 1%.",
     "strategy_options": "Ajustes de Estratégia",
-    "trade_options": "Ajustes de Negociação"
+    "trade_options": "Ajustes de Negociação",
+    "bot_options": {
+      "bot_options": "Opções do Bot",
+      "_language": "Língua",
+      "select_language": "Selecione a língua do Bot",
+      "use_slack": "Usar Slack para receber mensagens",
+      "use_telegram": "Usar Telegram para receber mensagens",
+      "_security": "Segurança",
+      "login_expire_time": "Tempo para o login expirar",
+      "login_expire_time_description": "Define o tempo para o login expirar. Defina 0 para nunca expirar ( NÃO RECOMENDADO )",
+      "expire_after": "Expira após:",
+      "_minutes": "minutos"
+    },
+    "reset_factory": {
+      "reset_factory": "Resetar para os ajustes de fábrica",
+      "delete_all": "Deletar todos os dados armazenados",
+      "delete_all_keep_symbols": "Deletar tudo, manter os símbolos",
+      "delete_all_description": {
+        "1": "Isto irá deletar todos os seus dados do cache e database.",
+        "2": "Suas configurações serão como na primeira vez que iniciou o bot.",
+        "3": "Se tiver uma ordem de comra/venda aberta, esta função irá deletar todos os dados sobre ela.",
+        "4": "Por favor, não use esta função com ordens abertas."
+      }
+    }
   },
   "dust_transfer": {
     "convert_small_balances_bnb": "Converter pequenas quantias em BNB",
-    "description": "Você pode converter quantias com valor menor que 0.003 BTC em BNB a cada 6 horas. Não é possível converter moedas que não estejam listadas aqui.",
+    "_description": "Você pode converter quantias com valor menor que 0.003 BTC em BNB a cada 6 horas. Não é possível converter moedas que não estejam listadas aqui.",
     "_loading": "Carregando",
     "no_asset_convert": "Não há nenhuma moeda para converter.",
     "_convert": "Converter"
@@ -259,6 +282,12 @@
       "3": "Para ter certeza que o último preço de compra foi gravado com sucesso, o bot irá monitorar a ordem de compra. Isso pode aumentar o uso da API."
     }
   },
+  "pass_screen": {
+    "security_screen": "Tela de Seguranca",
+    "enter_pass": "Preencha com sua senha",
+    "_pass": "Senha",
+    "pass_from_env": "Preencha com a senha definida no arquivo .env"
+  },
   "common_strings": {
     "_interval": "Intervalo",
     "_limit": "Limite",
@@ -299,5 +328,12 @@
     "_action": "Ação",
     "_strength": "Força",
     "_trending": "Tendência"
+  },
+  "sort_icon": {
+    "_default": "Padrão",
+    "_name": "Nome (Alfabeticamente)",
+    "_buy": "Diferença de compra",
+    "_sell": "Diferença de venda",
+    "_profit": "Lucro"
   }
 }

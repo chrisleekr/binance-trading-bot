@@ -197,9 +197,6 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Order result');
 
-  // Set last buy order to be checked over infinite minutes until callback is received.
-  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult));
-
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
   data.buy.openOrders = data.openOrders.filter(
@@ -213,6 +210,8 @@ const execute = async (logger, rawData) => {
     symbol, orderResult, 'PLACE_BUY_DONE'
   );
 
+  // Set last buy order to be checked over infinite minutes until callback is received.
+  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult));
 
   data.buy.processMessage = _actions.action_placed_new_order;
   data.buy.updatedAt = moment().utc();

@@ -21,6 +21,7 @@ const {
   saveDataToCache
 } = require('./trailingTradeIndicator/steps');
 const { messenger } = require('../helpers');
+const { updateTelegramBotTrailingTradeIndicatorData } = require('../helpers/telegram');
 
 const execute = async logger => {
   // Retrieve feature toggles
@@ -117,6 +118,8 @@ const execute = async logger => {
       { debug: true, symbol },
       '⏹ TrailingTradeIndicator: Finish process (Debug)...'
     );
+
+    await updateTelegramBotTrailingTradeIndicatorData(data);
 
     logger.info({ symbol, data }, 'TrailingTradeIndicator: Finish process...');
   } catch (err) {

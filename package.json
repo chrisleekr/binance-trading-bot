@@ -51,6 +51,8 @@
     "nodejs-file-downloader": "^4.7.1",
     "pubsub-js": "^1.9.3",
     "redlock": "^4.2.0",
+    "telegraf": "^4.4.0",
+    "telegram-keyboard": "^2.2.6",
     "uuid": "^8.3.2",
     "ws": "^7.4.6"
   },

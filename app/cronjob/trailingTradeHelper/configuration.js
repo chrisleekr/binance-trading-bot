@@ -86,7 +86,7 @@ const resetToFactorySettingsWithSymbols = async (logger, symbols) => {
  *
  * @param {*} logger
  */
-const deleteAllSymbolsFromMongo = async (logger, symbols) => {
+ const deleteAllSymbolsFromMongo = async (logger, symbols) => {
   //Delete cache values from all symbols to update it all again.
   await cache.del('trailing-trade-common');
   await cache.del('trailing-trade-symbols');
@@ -100,7 +100,26 @@ const deleteAllSymbolsFromMongo = async (logger, symbols) => {
   await mongo.deleteAll(logger, 'trailing-trade-symbols');
 
 
-  return false;
+  return true;
+}
+
+/**
+ * Delete all cache.
+ *
+ * @param {*} logger
+ */
+ const deleteAllCache = async (symbols) => {
+  //Delete cache values from all symbols to update it all again.
+  await cache.del('trailing-trade-common');
+  await cache.del('trailing-trade-symbols');
+
+  //Delete all last buy orders.
+   symbols.forEach(async symbol => {
+     await cache.del(`${symbol}-last-buy-order`);
+   });
+
+
+  return true;
 }
 
 /**
@@ -477,5 +496,6 @@ module.exports = {
   getConfiguration,
   resetToFactorySettings,
   resetToFactorySettingsWithSymbols,
-  erasePastTrades
+  erasePastTrades,
+  deleteAllCache
 };
