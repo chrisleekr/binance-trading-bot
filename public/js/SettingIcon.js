@@ -15,7 +15,9 @@ class SettingIcon extends React.Component {
       showConfirmModal: false,
       availableSymbols: [],
       quoteAssets: [],
-      configuration: {}
+      minNotionals: {},
+      configuration: {},
+      validation: {}
     };
 
     this.handleModalShow = this.handleModalShow.bind(this);
@@ -23,19 +25,21 @@ class SettingIcon extends React.Component {
 
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
     this.handleInputChange = this.handleInputChange.bind(this);
-    this.handleMaxPurchaeAmountChange =
-      this.handleMaxPurchaeAmountChange.bind(this);
+    this.handleGridTradeChange = this.handleGridTradeChange.bind(this);
     this.handleLastBuyPriceRemoveThresholdChange =
       this.handleLastBuyPriceRemoveThresholdChange.bind(this);
+
+    this.handleSetValidation = this.handleSetValidation.bind(this);
   }
 
   getQuoteAssets(
     exchangeSymbols,
     selectedSymbols,
-    maxPurchaseAmounts,
     lastBuyPriceRemoveThresholds
   ) {
     const quoteAssets = [];
+
+    const minNotionals = {};
 
     selectedSymbols.forEach(symbol => {
       const symbolInfo = exchangeSymbols[symbol];
@@ -45,16 +49,15 @@ class SettingIcon extends React.Component {
       const { quoteAsset, minNotional } = symbolInfo;
       if (quoteAssets.includes(quoteAsset) === false) {
         quoteAssets.push(quoteAsset);
+        minNotionals[quoteAsset] = minNotional;
       }
-      if (maxPurchaseAmounts[quoteAsset] === undefined) {
-        maxPurchaseAmounts[quoteAsset] = minNotional * 10;
-      }
+
       if (lastBuyPriceRemoveThresholds[quoteAsset] === undefined) {
         lastBuyPriceRemoveThresholds[quoteAsset] = minNotional;
       }
     });
 
-    return { quoteAssets, maxPurchaseAmounts, lastBuyPriceRemoveThresholds };
+    return { quoteAssets, minNotionals, lastBuyPriceRemoveThresholds };
   }
 
   componentDidUpdate(nextProps) {
@@ -76,29 +79,24 @@ class SettingIcon extends React.Component {
         []
       );
 
-      if (configuration.buy.maxPurchaseAmounts === undefined) {
-        configuration.buy.maxPurchaseAmounts = {};
-      }
       if (configuration.buy.lastBuyPriceRemoveThresholds === undefined) {
         configuration.buy.lastBuyPriceRemoveThresholds = {};
       }
 
-      // Set max purchase amount
-      const { quoteAssets, maxPurchaseAmounts, lastBuyPriceRemoveThresholds } =
+      const { quoteAssets, minNotionals, lastBuyPriceRemoveThresholds } =
         this.getQuoteAssets(
           exchangeSymbols,
           selectedSymbols,
-          configuration.buy.maxPurchaseAmounts,
           configuration.buy.lastBuyPriceRemoveThresholds
         );
 
-      configuration.buy.maxPurchaseAmounts = maxPurchaseAmounts;
       configuration.buy.lastBuyPriceRemoveThresholds =
         lastBuyPriceRemoveThresholds;
 
       this.setState({
         availableSymbols,
         quoteAssets,
+        minNotionals,
         configuration
       });
     }
@@ -142,24 +140,15 @@ class SettingIcon extends React.Component {
     });
   }
 
-  handleMaxPurchaeAmountChange(newMaxPurchaseAmounts) {
+  handleGridTradeChange(type, newGrid) {
     const { configuration } = this.state;
 
     this.setState({
-      configuration: _.set(
-        configuration,
-        'buy.maxPurchaseAmounts',
-        newMaxPurchaseAmounts
-      )
+      configuration: _.set(configuration, `${type}.gridTrade`, newGrid)
     });
   }
 
   handleLastBuyPriceRemoveThresholdChange(newLastBuyPriceRemoveThresholds) {
-    console.log(
-      'handleLastBuyPriceRemoveThresholdChange => ',
-      newLastBuyPriceRemoveThresholds
-    );
-
     const { configuration } = this.state;
 
     this.setState({
@@ -171,13 +160,27 @@ class SettingIcon extends React.Component {
     });
   }
 
+  handleSetValidation(type, isValid) {
+    const { validation } = this.state;
+    this.setState({ validation: { ...validation, [type]: isValid } });
+  }
+
   render() {
-    const { configuration, availableSymbols, quoteAssets } = this.state;
+    const {
+      configuration,
+      availableSymbols,
+      quoteAssets,
+      minNotionals,
+      validation
+    } = this.state;
     const { symbols: selectedSymbols } = configuration;
 
     if (_.isEmpty(configuration)) {
       return '';
     }
+
+    // Check validation if contains any false
+    const isValid = Object.values(validation).includes(false) === false;
 
     return (
       <div className='header-column-icon-wrapper setting-wrapper'>
@@ -229,20 +232,26 @@ class SettingIcon extends React.Component {
 
                                 const {
                                   quoteAssets,
-                                  maxPurchaseAmounts,
+                                  minNotionals,
                                   lastBuyPriceRemoveThresholds
                                 } = this.getQuoteAssets(
                                   exchangeSymbols,
                                   selected,
-                                  configuration.buy.maxPurchaseAmounts,
                                   configuration.buy.lastBuyPriceRemoveThresholds
                                 );
 
-                                configuration.buy.maxPurchaseAmounts =
-                                  maxPurchaseAmounts;
+                                console.log('Typeahead quoteAssets => ', {
+                                  quoteAssets,
+                                  minNotionals
+                                });
+
                                 configuration.buy.lastBuyPriceRemoveThresholds =
                                   lastBuyPriceRemoveThresholds;
-                                this.setState({ configuration, quoteAssets });
+                                this.setState({
+                                  configuration,
+                                  quoteAssets,
+                                  minNotionals
+                                });
                               }}
                               size='sm'
                               options={availableSymbols}
@@ -412,364 +421,260 @@ class SettingIcon extends React.Component {
                             </Form.Check>
                           </Form.Group>
                         </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <SettingIconMaxPurchaseAmount
+                        <div className='col-12'>
+                          <SettingIconGridBuy
+                            gridTrade={configuration.buy.gridTrade}
                             quoteAssets={quoteAssets}
-                            maxPurchaseAmounts={
-                              configuration.buy.maxPurchaseAmounts
-                            }
-                            handleMaxPurchaeAmountChange={
-                              this.handleMaxPurchaeAmountChange
-                            }
-                          />
-                        </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <SettingIconLastBuyPriceRemoveThreshold
-                            quoteAssets={quoteAssets}
-                            lastBuyPriceRemoveThresholds={
-                              configuration.buy.lastBuyPriceRemoveThresholds
-                            }
-                            handleLastBuyPriceRemoveThresholdChange={
-                              this.handleLastBuyPriceRemoveThresholdChange
-                            }
+                            minNotionals={minNotionals}
+                            handleSetValidation={this.handleSetValidation}
+                            handleGridTradeChange={this.handleGridTradeChange}
                           />
                         </div>
                         <div className='col-12'>
                           <hr />
                         </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-buy-trigger-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Trigger percentage{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='buy-trigger-percentage-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='buy-trigger-percentage-overlay-right'>
-                                    <Popover.Content>
-                                      Set the trigger percentage for buying.
-                                      i.e. if set <code>1.01</code> and the
-                                      lowest price is <code>$100</code>, then
-                                      the bot will buy the coin when the current
-                                      price reaches <code>$101</code>. You
-                                      cannot set less than <code>1</code>,
-                                      because it will never reach the trigger
-                                      price unless there is a deep decline
-                                      before the next process.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
+                        <div className='col-12'>
+                          <Accordion defaultActiveKey='0'>
+                            <Card className='mt-1'>
+                              <Card.Header className='px-2 py-1'>
+                                <Accordion.Toggle
+                                  as={Button}
                                   variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter trigger percentage'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='buy.triggerPercentage'
-                              value={configuration.buy.triggerPercentage}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
+                                  eventKey='0'
+                                  className='p-0 fs-7 text-uppercase'>
+                                  Last buy price removal threshold
+                                </Accordion.Toggle>
+                              </Card.Header>
+                              <Accordion.Collapse eventKey='0'>
+                                <Card.Body className='px-2 py-1'>
+                                  <div className='row'>
+                                    <SettingIconLastBuyPriceRemoveThreshold
+                                      quoteAssets={quoteAssets}
+                                      lastBuyPriceRemoveThresholds={
+                                        configuration.buy
+                                          .lastBuyPriceRemoveThresholds
+                                      }
+                                      handleLastBuyPriceRemoveThresholdChange={
+                                        this
+                                          .handleLastBuyPriceRemoveThresholdChange
+                                      }
+                                    />
+                                  </div>
+                                </Card.Body>
+                              </Accordion.Collapse>
+                            </Card>
+                          </Accordion>
                         </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-buy-stop-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Stop price percentage{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='buy-stop-price-percentage-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='buy-stop-price-percentage-overlay-right'>
-                                    <Popover.Content>
-                                      Set the percentage to calculate stop
-                                      price. i.e. if set <code>1.01</code> and
-                                      current price <code>$100</code>, stop
-                                      price will be <code>$101</code> for stop
-                                      limit order.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
+
+                        <div className='col-12'>
+                          <Accordion defaultActiveKey='0'>
+                            <Card className='mt-1'>
+                              <Card.Header className='px-2 py-1'>
+                                <Accordion.Toggle
+                                  as={Button}
                                   variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter stop price percentage'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='buy.stopPercentage'
-                              value={configuration.buy.stopPercentage}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
-                        </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-buy-limit-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Limit price percentage{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='interval-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='interval-overlay-right'>
-                                    <Popover.Content>
-                                      Set the percentage to calculate limit
-                                      price. i.e. if set <code>1.011</code> and
-                                      current price <code>$100</code>, limit
-                                      price will be <code>$101.10</code> for
-                                      stop limit order.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter limit price percentage'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='buy.limitPercentage'
-                              value={configuration.buy.limitPercentage}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
+                                  eventKey='0'
+                                  className='p-0 fs-7 text-uppercase'>
+                                  Buy Restriction with ATH (All Time High)
+                                </Accordion.Toggle>
+                              </Card.Header>
+                              <Accordion.Collapse eventKey='0'>
+                                <Card.Body className='px-2 py-1'>
+                                  <div className='row'>
+                                    <div className='col-12'>
+                                      <Form.Group
+                                        controlId='field-buy-ath-restriction-enabled'
+                                        className='mb-2'>
+                                        <Form.Check size='sm'>
+                                          <Form.Check.Input
+                                            type='checkbox'
+                                            data-state-key='buy.athRestriction.enabled'
+                                            checked={
+                                              configuration.buy.athRestriction
+                                                .enabled
+                                            }
+                                            onChange={this.handleInputChange}
+                                          />
+                                          <Form.Check.Label>
+                                            ATH Buy Restriction Enabled{' '}
+                                            <OverlayTrigger
+                                              trigger='click'
+                                              key='buy-ath-restriction-enabled-overlay'
+                                              placement='bottom'
+                                              overlay={
+                                                <Popover id='buy-ath-restriction-enabled-overlay-right'>
+                                                  <Popover.Content>
+                                                    If enabled, the bot will
+                                                    retrieve ATH (All Time High)
+                                                    price of the coin based on
+                                                    the interval/candle
+                                                    configuration. If the buy
+                                                    trigger price is higher than
+                                                    ATH buy restriction price,
+                                                    which is calculated by ATH
+                                                    Restriction price
+                                                    percentage, the bot will not
+                                                    place a buy order. The bot
+                                                    will place an order when the
+                                                    trigger price is lower than
+                                                    ATH buy restriction price.
+                                                  </Popover.Content>
+                                                </Popover>
+                                              }>
+                                              <Button
+                                                variant='link'
+                                                className='p-0 m-0 ml-1 text-info'>
+                                                <i className='fa fa-question-circle'></i>
+                                              </Button>
+                                            </OverlayTrigger>
+                                          </Form.Check.Label>
+                                        </Form.Check>
+                                      </Form.Group>
+                                    </div>
+                                    <div className='col-xs-12 col-sm-6'>
+                                      <Form.Group
+                                        controlId='field-ath-candles-interval'
+                                        className='mb-2'>
+                                        <Form.Label className='mb-0'>
+                                          Interval
+                                          <OverlayTrigger
+                                            trigger='click'
+                                            key='interval-overlay'
+                                            placement='bottom'
+                                            overlay={
+                                              <Popover id='interval-overlay-right'>
+                                                <Popover.Content>
+                                                  Set candle interval for
+                                                  calculating the ATH (All The
+                                                  High) price.
+                                                </Popover.Content>
+                                              </Popover>
+                                            }>
+                                            <Button
+                                              variant='link'
+                                              className='p-0 m-0 ml-1 text-info'>
+                                              <i className='fa fa-question-circle'></i>
+                                            </Button>
+                                          </OverlayTrigger>
+                                        </Form.Label>
+                                        <Form.Control
+                                          size='sm'
+                                          as='select'
+                                          required
+                                          data-state-key='buy.athRestriction.candles.interval'
+                                          value={
+                                            configuration.buy.athRestriction
+                                              .candles.interval
+                                          }
+                                          onChange={this.handleInputChange}>
+                                          <option value='1m'>1m</option>
+                                          <option value='3m'>3m</option>
+                                          <option value='5m'>5m</option>
+                                          <option value='15m'>15m</option>
+                                          <option value='30m'>30m</option>
+                                          <option value='1h'>1h</option>
+                                          <option value='2h'>2h</option>
+                                          <option value='4h'>4h</option>
+                                          <option value='1d'>1d</option>
+                                        </Form.Control>
+                                      </Form.Group>
+                                    </div>
+                                    <div className='col-xs-12 col-sm-6'>
+                                      <Form.Group
+                                        controlId='field-ath-candles-limit'
+                                        className='mb-2'>
+                                        <Form.Label className='mb-0'>
+                                          Limit
+                                          <OverlayTrigger
+                                            trigger='click'
+                                            key='limit-overlay'
+                                            placement='bottom'
+                                            overlay={
+                                              <Popover id='limit-overlay-right'>
+                                                <Popover.Content>
+                                                  Set the number of candles to
+                                                  retrieve for calculating the
+                                                  ATH (All The High) price.
+                                                </Popover.Content>
+                                              </Popover>
+                                            }>
+                                            <Button
+                                              variant='link'
+                                              className='p-0 m-0 ml-1 text-info'>
+                                              <i className='fa fa-question-circle'></i>
+                                            </Button>
+                                          </OverlayTrigger>
+                                        </Form.Label>
+                                        <Form.Control
+                                          size='sm'
+                                          type='number'
+                                          placeholder='Enter limit'
+                                          required
+                                          min='0'
+                                          step='1'
+                                          data-state-key='buy.athRestriction.candles.limit'
+                                          value={
+                                            configuration.buy.athRestriction
+                                              .candles.limit
+                                          }
+                                          onChange={this.handleInputChange}
+                                        />
+                                      </Form.Group>
+                                    </div>
+                                    <div className='col-xs-12 col-sm-6'>
+                                      <Form.Group
+                                        controlId='field-buy-restriction-percentage'
+                                        className='mb-2'>
+                                        <Form.Label className='mb-0'>
+                                          Restriction price percentage{' '}
+                                          <OverlayTrigger
+                                            trigger='click'
+                                            key='interval-overlay'
+                                            placement='bottom'
+                                            overlay={
+                                              <Popover id='interval-overlay-right'>
+                                                <Popover.Content>
+                                                  Set the percentage to
+                                                  calculate restriction price.
+                                                  i.e. if set <code>0.9</code>{' '}
+                                                  and the ATH(All Time High)
+                                                  price <code>$110</code>,
+                                                  restriction price will be{' '}
+                                                  <code>$99</code> for stop
+                                                  limit order.
+                                                </Popover.Content>
+                                              </Popover>
+                                            }>
+                                            <Button
+                                              variant='link'
+                                              className='p-0 m-0 ml-1 text-info'>
+                                              <i className='fa fa-question-circle'></i>
+                                            </Button>
+                                          </OverlayTrigger>
+                                        </Form.Label>
+                                        <Form.Control
+                                          size='sm'
+                                          type='number'
+                                          placeholder='Enter restriction price percentage'
+                                          required
+                                          min='0'
+                                          step='0.0001'
+                                          data-state-key='buy.athRestriction.restrictionPercentage'
+                                          value={
+                                            configuration.buy.athRestriction
+                                              .restrictionPercentage
+                                          }
+                                          onChange={this.handleInputChange}
+                                        />
+                                      </Form.Group>
+                                    </div>
+                                  </div>
+                                </Card.Body>
+                              </Accordion.Collapse>
+                            </Card>
+                          </Accordion>
                         </div>
                       </div>
-
-                      <Accordion defaultActiveKey='0'>
-                        <Card className='mt-1'>
-                          <Card.Header className='px-2 py-1'>
-                            <Accordion.Toggle
-                              as={Button}
-                              variant='link'
-                              eventKey='0'
-                              className='p-0 fs-7 text-uppercase'>
-                              Buy Restriction with ATH (All Time High)
-                            </Accordion.Toggle>
-                          </Card.Header>
-                          <Accordion.Collapse eventKey='0'>
-                            <Card.Body className='px-2 py-1'>
-                              <div className='row'>
-                                <div className='col-12'>
-                                  <Form.Group
-                                    controlId='field-buy-ath-restriction-enabled'
-                                    className='mb-2'>
-                                    <Form.Check size='sm'>
-                                      <Form.Check.Input
-                                        type='checkbox'
-                                        data-state-key='buy.athRestriction.enabled'
-                                        checked={
-                                          configuration.buy.athRestriction
-                                            .enabled
-                                        }
-                                        onChange={this.handleInputChange}
-                                      />
-                                      <Form.Check.Label>
-                                        ATH Buy Restriction Enabled{' '}
-                                        <OverlayTrigger
-                                          trigger='click'
-                                          key='buy-ath-restriction-enabled-overlay'
-                                          placement='bottom'
-                                          overlay={
-                                            <Popover id='buy-ath-restriction-enabled-overlay-right'>
-                                              <Popover.Content>
-                                                If enabled, the bot will
-                                                retrieve ATH (All Time High)
-                                                price of the coin based on the
-                                                interval/candle configuration.
-                                                If the buy trigger price is
-                                                higher than ATH buy restriction
-                                                price, which is calculated by
-                                                ATH Restriction price
-                                                percentage, the bot will not
-                                                place a buy order. The bot will
-                                                place an order when the trigger
-                                                price is lower than ATH buy
-                                                restriction price.
-                                              </Popover.Content>
-                                            </Popover>
-                                          }>
-                                          <Button
-                                            variant='link'
-                                            className='p-0 m-0 ml-1 text-info'>
-                                            <i className='fa fa-question-circle'></i>
-                                          </Button>
-                                        </OverlayTrigger>
-                                      </Form.Check.Label>
-                                    </Form.Check>
-                                  </Form.Group>
-                                </div>
-                                <div className='col-xs-12 col-sm-6'>
-                                  <Form.Group
-                                    controlId='field-ath-candles-interval'
-                                    className='mb-2'>
-                                    <Form.Label className='mb-0'>
-                                      Interval
-                                      <OverlayTrigger
-                                        trigger='click'
-                                        key='interval-overlay'
-                                        placement='bottom'
-                                        overlay={
-                                          <Popover id='interval-overlay-right'>
-                                            <Popover.Content>
-                                              Set candle interval for
-                                              calculating the ATH (All The High)
-                                              price.
-                                            </Popover.Content>
-                                          </Popover>
-                                        }>
-                                        <Button
-                                          variant='link'
-                                          className='p-0 m-0 ml-1 text-info'>
-                                          <i className='fa fa-question-circle'></i>
-                                        </Button>
-                                      </OverlayTrigger>
-                                    </Form.Label>
-                                    <Form.Control
-                                      size='sm'
-                                      as='select'
-                                      required
-                                      data-state-key='buy.athRestriction.candles.interval'
-                                      value={
-                                        configuration.buy.athRestriction.candles
-                                          .interval
-                                      }
-                                      onChange={this.handleInputChange}>
-                                      <option value='1m'>1m</option>
-                                      <option value='3m'>3m</option>
-                                      <option value='5m'>5m</option>
-                                      <option value='15m'>15m</option>
-                                      <option value='30m'>30m</option>
-                                      <option value='1h'>1h</option>
-                                      <option value='2h'>2h</option>
-                                      <option value='4h'>4h</option>
-                                      <option value='1d'>1d</option>
-                                    </Form.Control>
-                                  </Form.Group>
-                                </div>
-                                <div className='col-xs-12 col-sm-6'>
-                                  <Form.Group
-                                    controlId='field-ath-candles-limit'
-                                    className='mb-2'>
-                                    <Form.Label className='mb-0'>
-                                      Limit
-                                      <OverlayTrigger
-                                        trigger='click'
-                                        key='limit-overlay'
-                                        placement='bottom'
-                                        overlay={
-                                          <Popover id='limit-overlay-right'>
-                                            <Popover.Content>
-                                              Set the number of candles to
-                                              retrieve for calculating the ATH
-                                              (All The High) price.
-                                            </Popover.Content>
-                                          </Popover>
-                                        }>
-                                        <Button
-                                          variant='link'
-                                          className='p-0 m-0 ml-1 text-info'>
-                                          <i className='fa fa-question-circle'></i>
-                                        </Button>
-                                      </OverlayTrigger>
-                                    </Form.Label>
-                                    <Form.Control
-                                      size='sm'
-                                      type='number'
-                                      placeholder='Enter limit'
-                                      required
-                                      min='0'
-                                      step='1'
-                                      data-state-key='buy.athRestriction.candles.limit'
-                                      value={
-                                        configuration.buy.athRestriction.candles
-                                          .limit
-                                      }
-                                      onChange={this.handleInputChange}
-                                    />
-                                  </Form.Group>
-                                </div>
-                                <div className='col-xs-12 col-sm-6'>
-                                  <Form.Group
-                                    controlId='field-buy-restriction-percentage'
-                                    className='mb-2'>
-                                    <Form.Label className='mb-0'>
-                                      Restriction price percentage{' '}
-                                      <OverlayTrigger
-                                        trigger='click'
-                                        key='interval-overlay'
-                                        placement='bottom'
-                                        overlay={
-                                          <Popover id='interval-overlay-right'>
-                                            <Popover.Content>
-                                              Set the percentage to calculate
-                                              restriction price. i.e. if set{' '}
-                                              <code>0.9</code> and the ATH(All
-                                              Time High) price <code>$110</code>
-                                              , restriction price will be{' '}
-                                              <code>$99</code> for stop limit
-                                              order.
-                                            </Popover.Content>
-                                          </Popover>
-                                        }>
-                                        <Button
-                                          variant='link'
-                                          className='p-0 m-0 ml-1 text-info'>
-                                          <i className='fa fa-question-circle'></i>
-                                        </Button>
-                                      </OverlayTrigger>
-                                    </Form.Label>
-                                    <Form.Control
-                                      size='sm'
-                                      type='number'
-                                      placeholder='Enter restriction price percentage'
-                                      required
-                                      min='0'
-                                      step='0.0001'
-                                      data-state-key='buy.athRestriction.restrictionPercentage'
-                                      value={
-                                        configuration.buy.athRestriction
-                                          .restrictionPercentage
-                                      }
-                                      onChange={this.handleInputChange}
-                                    />
-                                  </Form.Group>
-                                </div>
-                              </div>
-                            </Card.Body>
-                          </Accordion.Collapse>
-                        </Card>
-                      </Accordion>
                     </Card.Body>
                   </Accordion.Collapse>
                 </Card>
@@ -828,129 +733,16 @@ class SettingIcon extends React.Component {
                             </Form.Check>
                           </Form.Group>
                         </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-sell-last-buy-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Trigger percentage{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='sell-trigger-percentage-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='sell-trigger-percentage-overlay-right'>
-                                    <Popover.Content>
-                                      Set the trigger percentage for minimum
-                                      profit. i.e. if set <code>1.06</code>,
-                                      minimum profit will be <code>6%</code>. So
-                                      if the last buy price is <code>$100</code>
-                                      , then the bot will sell the coin when the
-                                      current price reaches <code>$106</code>.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter trigger percentage'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='sell.triggerPercentage'
-                              value={configuration.sell.triggerPercentage}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
+                        <div className='col-12'>
+                          <SettingIconGridSell
+                            gridTrade={configuration.sell.gridTrade}
+                            quoteAssets={quoteAssets}
+                            handleSetValidation={this.handleSetValidation}
+                            handleGridTradeChange={this.handleGridTradeChange}
+                          />
                         </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-sell-stop-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Stop price percentage{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='sell-stop-price-percentage-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='sell-stop-price-percentage-overlay-right'>
-                                    <Popover.Content>
-                                      Set the percentage to calculate stop
-                                      price. i.e. if set <code>0.99</code> and
-                                      current price <code>$106</code>, stop
-                                      price will be <code>$104.94</code> for
-                                      stop limit order.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter stop price percentage'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='sell.stopPercentage'
-                              value={configuration.sell.stopPercentage}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
-                        </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-sell-stop-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Limit price percentage{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='sell-limit-price-percentage-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='sell-limit-price-percentage-overlay-right'>
-                                    <Popover.Content>
-                                      Set the percentage to calculate limit
-                                      price. i.e. if set <code>0.98</code> and
-                                      current price <code>$106</code>, limit
-                                      price will be <code>$103.88</code> for
-                                      stop limit order.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter limit price percentage'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='sell.limitPercentage'
-                              value={configuration.sell.limitPercentage}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
+                        <div className='col-12'>
+                          <hr />
                         </div>
                         <div className='col-12'>
                           <Accordion defaultActiveKey='0'>
@@ -1137,6 +929,7 @@ class SettingIcon extends React.Component {
               <Button
                 variant='primary'
                 size='sm'
+                disabled={!isValid}
                 onClick={() => this.handleModalShow('confirm')}>
                 Save Changes
               </Button>

@@ -74,7 +74,7 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
       return (
         <div
           key={quoteAsset + '-' + index}
-          className='coin-info-last-buy-remove-threshold-wrapper'>
+          className='col-xs-12 col-sm-6 coin-info-last-buy-remove-threshold-wrapper'>
           <Form.Group
             controlId={
               'field-min-last-buy-remove-threshold-limit-percentage-' +

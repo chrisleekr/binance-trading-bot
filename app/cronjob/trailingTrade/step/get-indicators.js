@@ -20,16 +20,15 @@ const execute = async (logger, rawData) => {
     },
     symbolConfiguration: {
       buy: {
-        triggerPercentage: buyTriggerPercentage,
-        limitPercentage: buyLimitPercentage,
+        currentGridTradeIndex: currentBuyGridTradeIndex,
+        currentGridTrade: currentBuyGridTrade,
         athRestriction: {
           enabled: buyATHRestrictionEnabled,
           restrictionPercentage: buyATHRestrictionPercentage
         }
       },
       sell: {
-        triggerPercentage: sellTriggerPercentage,
-        limitPercentage: sellLimitPercentage,
+        currentGridTrade: currentSellGridTrade,
         stopLoss: { maxLossPercentage: sellMaxLossPercentage }
       }
     },
@@ -67,27 +66,61 @@ const execute = async (logger, rawData) => {
     ...cachedIndicator
   };
 
-  // Cast string to number
   const { highestPrice, lowestPrice, athPrice } = data.indicators;
-  const currentPrice = parseFloat(cachedLatestCandle.close);
-  const buyTriggerPrice = lowestPrice * buyTriggerPercentage;
-  const buyDifference = (1 - currentPrice / buyTriggerPrice) * -100;
-  const buyLimitPrice = currentPrice * buyLimitPercentage;
 
-  let buyATHRestrictionPrice = null;
-  if (buyATHRestrictionEnabled) {
-    buyATHRestrictionPrice = athPrice * buyATHRestrictionPercentage;
-  }
+  // Get current price
+  const currentPrice = parseFloat(cachedLatestCandle.close);
 
   // Get last buy price
   const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
   const lastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
 
-  const sellTriggerPrice =
-    lastBuyPrice > 0 ? lastBuyPrice * sellTriggerPercentage : null;
-  const sellDifference =
-    lastBuyPrice > 0 ? (1 - sellTriggerPrice / currentPrice) * 100 : null;
-  const sellLimitPrice = currentPrice * sellLimitPercentage;
+  // #### Buy related variables
+  // Set trigger price to be null which will prevent to buy.
+  let buyTriggerPrice = null;
+  let buyDifference = null;
+  let buyLimitPrice = null;
+  if (currentBuyGridTrade !== null) {
+    const {
+      triggerPercentage: buyTriggerPercentage,
+      limitPercentage: buyLimitPercentage
+    } = currentBuyGridTrade;
+
+    // If grid trade index is 0 or last buy price is null, then use lowest price as trigger price.
+    // If grid trade index is not 0 and last buy price is not null, then use last buy price
+    const triggerPrice =
+      currentBuyGridTradeIndex !== 0 && lastBuyPrice !== null
+        ? lastBuyPrice
+        : lowestPrice;
+
+    buyTriggerPrice = triggerPrice * buyTriggerPercentage;
+    buyDifference = (1 - currentPrice / buyTriggerPrice) * -100;
+    buyLimitPrice = currentPrice * buyLimitPercentage;
+  }
+
+  let buyATHRestrictionPrice = null;
+  if (buyATHRestrictionEnabled) {
+    buyATHRestrictionPrice = athPrice * buyATHRestrictionPercentage;
+  }
+  // ##############################
+
+  // #### Sell related variables
+  // Set trigger price to be null which will prevent to sell.
+  let sellTriggerPrice = null;
+  let sellDifference = null;
+  let sellLimitPrice = null;
+
+  if (lastBuyPrice > 0 && currentSellGridTrade !== null) {
+    const {
+      triggerPercentage: sellTriggerPercentage,
+      limitPercentage: sellLimitPercentage
+    } = currentSellGridTrade;
+
+    sellTriggerPrice = lastBuyPrice * sellTriggerPercentage;
+    sellDifference = (1 - sellTriggerPrice / currentPrice) * 100;
+    sellLimitPrice = currentPrice * sellLimitPercentage;
+  }
+  // ##############################
 
   // Get stop loss trigger price
   const sellStopLossTriggerPrice =
@@ -121,22 +154,22 @@ const execute = async (logger, rawData) => {
     }
 
     if (order.side.toLowerCase() === 'buy') {
-      newOrder.limitPrice = buyLimitPrice;
-      newOrder.limitPercentage = buyLimitPercentage;
       newOrder.differenceToExecute =
         (1 - parseFloat(order.stopPrice / currentPrice)) * 100;
 
       newOrder.differenceToCancel =
-        (1 - parseFloat(order.stopPrice / buyLimitPrice)) * 100;
+        buyLimitPrice > 0
+          ? (1 - parseFloat(order.stopPrice / buyLimitPrice)) * 100
+          : null;
     }
 
     if (order.side.toLowerCase() === 'sell') {
-      newOrder.limitPrice = sellLimitPrice;
-      newOrder.limitPercentage = sellLimitPercentage;
       newOrder.differenceToExecute =
         (1 - parseFloat(order.stopPrice / currentPrice)) * 100;
       newOrder.differenceToCancel =
-        (1 - parseFloat(order.stopPrice / sellLimitPrice)) * 100;
+        sellLimitPrice > 0
+          ? (1 - parseFloat(order.stopPrice / sellLimitPrice)) * 100
+          : null;
 
       newOrder.minimumProfit = null;
       newOrder.minimumProfitPercentage = null;

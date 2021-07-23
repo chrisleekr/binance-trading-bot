@@ -11,29 +11,54 @@ describe('determine-action.js', () => {
       beforeEach(async () => {
         rawData = {
           action: 'not-determined',
+          symbol: 'BTCUSDT',
           isLocked: true,
           symbolInfo: {
+            baseAsset: 'BTC',
             filterMinNotional: {
               minNotional: '10.00000000'
             }
           },
-          baseAssetBalance: { total: '1.4500000' },
+          baseAssetBalance: {
+            total: 0.000312
+          },
           symbolConfiguration: {
             buy: {
               athRestriction: {
                 enabled: true
+              },
+              currentGridTradeIndex: 1,
+              currentGridTrade: {
+                triggerPercentage: 0.9,
+                stopPercentage: 1.025,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                executed: false,
+                executedOrder: null
+              }
+            },
+            sell: {
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.03,
+                stopPercentage: 0.985,
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                executed: false,
+                executedOrder: null
               }
             }
           },
           buy: {
-            currentPrice: 184.099,
-            triggerPrice: 172.375,
-            athRestrictionPrice: 180.0
+            currentPrice: 31786.08,
+            triggerPrice: 28924.92,
+            athRestrictionPrice: 29572.2
           },
           sell: {
-            currentPrice: 184.099,
-            lastBuyPrice: null,
-            triggerPrice: null
+            currentPrice: 31786.08,
+            triggerPrice: 33102.964,
+            lastBuyPrice: 32138.799999999996,
+            stopLossTriggerPrice: 25711.039999999997
           }
         };
 
@@ -49,29 +74,54 @@ describe('determine-action.js', () => {
       beforeEach(async () => {
         rawData = {
           action: 'buy-order-wait',
+          symbol: 'BTCUSDT',
           isLocked: false,
           symbolInfo: {
+            baseAsset: 'BTC',
             filterMinNotional: {
               minNotional: '10.00000000'
             }
           },
-          baseAssetBalance: { total: '1.4500000' },
+          baseAssetBalance: {
+            total: 0.000312
+          },
           symbolConfiguration: {
             buy: {
               athRestriction: {
                 enabled: true
+              },
+              currentGridTradeIndex: 1,
+              currentGridTrade: {
+                triggerPercentage: 0.9,
+                stopPercentage: 1.025,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                executed: false,
+                executedOrder: null
+              }
+            },
+            sell: {
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.03,
+                stopPercentage: 0.985,
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                executed: false,
+                executedOrder: null
               }
             }
           },
           buy: {
-            currentPrice: 184.099,
-            triggerPrice: 172.375,
-            athRestrictionPrice: 180.0
+            currentPrice: 31786.08,
+            triggerPrice: 28924.92,
+            athRestrictionPrice: 29572.2
           },
           sell: {
-            currentPrice: 184.099,
-            lastBuyPrice: null,
-            triggerPrice: null
+            currentPrice: 31786.08,
+            triggerPrice: 33102.964,
+            lastBuyPrice: 32138.799999999996,
+            stopLossTriggerPrice: 25711.039999999997
           }
         };
 
@@ -87,29 +137,54 @@ describe('determine-action.js', () => {
       beforeEach(async () => {
         rawData = {
           action: 'buy',
+          symbol: 'BTCUSDT',
           isLocked: false,
           symbolInfo: {
+            baseAsset: 'BTC',
             filterMinNotional: {
               minNotional: '10.00000000'
             }
           },
-          baseAssetBalance: { total: '1.4500000' },
+          baseAssetBalance: {
+            total: 0.000312
+          },
           symbolConfiguration: {
             buy: {
               athRestriction: {
                 enabled: true
+              },
+              currentGridTradeIndex: 1,
+              currentGridTrade: {
+                triggerPercentage: 0.9,
+                stopPercentage: 1.025,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                executed: false,
+                executedOrder: null
+              }
+            },
+            sell: {
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.03,
+                stopPercentage: 0.985,
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                executed: false,
+                executedOrder: null
               }
             }
           },
           buy: {
-            currentPrice: 184.099,
-            triggerPrice: 172.375,
-            athRestrictionPrice: 180.0
+            currentPrice: 31786.08,
+            triggerPrice: 28924.92,
+            athRestrictionPrice: 29572.2
           },
           sell: {
-            currentPrice: 184.099,
-            lastBuyPrice: null,
-            triggerPrice: null
+            currentPrice: 31786.08,
+            triggerPrice: 33102.964,
+            lastBuyPrice: 32138.799999999996,
+            stopLossTriggerPrice: 25711.039999999997
           }
         };
 
@@ -132,6 +207,7 @@ describe('determine-action.js', () => {
 
             rawData = {
               action: 'not-determined',
+              symbol: 'BTCUSDT',
               isLocked: false,
               symbolInfo: {
                 baseAsset: 'BTC',
@@ -139,23 +215,49 @@ describe('determine-action.js', () => {
                   minNotional: '10.00000000'
                 }
               },
-              baseAssetBalance: { total: '1.0500000' },
+              baseAssetBalance: {
+                total: 0.0005
+              },
               symbolConfiguration: {
                 buy: {
                   athRestriction: {
                     enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                },
+                sell: {
+                  stopLoss: {
+                    enabled: false
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 0.8,
+                    executed: false,
+                    executedOrder: null
                   }
                 }
               },
               buy: {
-                currentPrice: 184.099,
-                triggerPrice: 185.375,
-                athRestrictionPrice: 180.0
+                currentPrice: 28000,
+                triggerPrice: 28000,
+                athRestrictionPrice: 29572.2
               },
               sell: {
-                currentPrice: 184.099,
+                currentPrice: 28000,
+                triggerPrice: null,
                 lastBuyPrice: null,
-                triggerPrice: null
+                stopLossTriggerPrice: null
               }
             };
 
@@ -165,6 +267,7 @@ describe('determine-action.js', () => {
           it('returns expected result', () => {
             expect(result).toStrictEqual({
               action: 'wait',
+              symbol: 'BTCUSDT',
               isLocked: false,
               symbolInfo: {
                 baseAsset: 'BTC',
@@ -172,29 +275,53 @@ describe('determine-action.js', () => {
                   minNotional: '10.00000000'
                 }
               },
-              baseAssetBalance: { total: '1.0500000' },
+              baseAssetBalance: {
+                total: 0.0005
+              },
               symbolConfiguration: {
                 buy: {
                   athRestriction: {
                     enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                },
+                sell: {
+                  stopLoss: {
+                    enabled: false
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 0.8,
+                    executed: false,
+                    executedOrder: null
                   }
                 }
               },
               buy: {
-                currentPrice: 184.099,
-                triggerPrice: 185.375,
-                athRestrictionPrice: 180.0,
+                currentPrice: 28000,
+                triggerPrice: 28000,
+                athRestrictionPrice: 29572.2,
                 processMessage:
-                  `The current price reached the trigger price. ` +
-                  `But you have enough BTC to sell. ` +
-                  `Set the last buy price to start selling. ` +
-                  `Do not process buy.`,
+                  `The current price reached the trigger price. But you have enough BTC to sell. ` +
+                  `Set the last buy price to start selling. Do not process buy.`,
                 updatedAt: expect.any(Object)
               },
               sell: {
-                currentPrice: 184.099,
+                currentPrice: 28000,
+                triggerPrice: null,
                 lastBuyPrice: null,
-                triggerPrice: null
+                stopLossTriggerPrice: null
               }
             });
           });
@@ -217,29 +344,57 @@ describe('determine-action.js', () => {
 
             rawData = {
               action: 'not-determined',
+              symbol: 'BTCUSDT',
               isLocked: false,
               symbolInfo: {
+                baseAsset: 'BTC',
                 filterMinNotional: {
                   minNotional: '10.00000000'
                 }
               },
-              baseAssetBalance: { total: '0.0500000' },
+              baseAssetBalance: {
+                total: 0.0003
+              },
               symbolConfiguration: {
                 buy: {
                   athRestriction: {
                     enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                },
+                sell: {
+                  stopLoss: {
+                    enabled: false
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 0.8,
+                    executed: false,
+                    executedOrder: null
                   }
                 }
               },
               buy: {
-                currentPrice: 184.099,
-                triggerPrice: 185.375,
-                athRestrictionPrice: 180.0
+                currentPrice: 28000,
+                triggerPrice: 28000,
+                athRestrictionPrice: 29572.2
               },
               sell: {
-                currentPrice: 184.099,
+                currentPrice: 28000,
+                triggerPrice: null,
                 lastBuyPrice: null,
-                triggerPrice: null
+                stopLossTriggerPrice: null
               }
             };
 
@@ -249,24 +404,51 @@ describe('determine-action.js', () => {
           it('returns expected result', () => {
             expect(result).toStrictEqual({
               action: 'buy-temporary-disabled',
+              symbol: 'BTCUSDT',
               isLocked: false,
               symbolInfo: {
+                baseAsset: 'BTC',
                 filterMinNotional: {
                   minNotional: '10.00000000'
                 }
               },
-              baseAssetBalance: { total: '0.0500000' },
+              baseAssetBalance: {
+                total: 0.0003
+              },
               symbolConfiguration: {
                 buy: {
                   athRestriction: {
                     enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                },
+                sell: {
+                  stopLoss: {
+                    enabled: false
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 0.8,
+                    executed: false,
+                    executedOrder: null
                   }
                 }
               },
               buy: {
-                currentPrice: 184.099,
-                triggerPrice: 185.375,
-                athRestrictionPrice: 180.0,
+                currentPrice: 28000,
+                triggerPrice: 28000,
+                athRestrictionPrice: 29572.2,
                 processMessage:
                   `The current price reached the trigger price. ` +
                   `However, the action is temporarily disabled by buy order. ` +
@@ -274,9 +456,10 @@ describe('determine-action.js', () => {
                 updatedAt: expect.any(Object)
               },
               sell: {
-                currentPrice: 184.099,
+                currentPrice: 28000,
+                triggerPrice: null,
                 lastBuyPrice: null,
-                triggerPrice: null
+                stopLossTriggerPrice: null
               }
             });
           });
@@ -284,145 +467,517 @@ describe('determine-action.js', () => {
 
         describe('when the trigger price is higher than the ATH restriction price', () => {
           describe('when the ATH restriction is enabled', () => {
-            beforeEach(async () => {
-              cache.getWithTTL = jest.fn().mockResolvedValue([
-                [null, -2],
-                [null, null]
-              ]);
+            describe('currentGridTradeIndex is 0', () => {
+              beforeEach(async () => {
+                cache.getWithTTL = jest.fn().mockResolvedValue([
+                  [null, -2],
+                  [null, null]
+                ]);
 
-              rawData = {
-                action: 'not-determined',
-                isLocked: false,
-                symbolInfo: {
-                  filterMinNotional: {
-                    minNotional: '10.00000000'
-                  }
-                },
-                baseAssetBalance: { total: '0.0500000' },
-                symbolConfiguration: {
-                  buy: {
-                    athRestriction: {
-                      enabled: true
+                rawData = {
+                  action: 'not-determined',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolInfo: {
+                    baseAsset: 'BTC',
+                    filterMinNotional: {
+                      minNotional: '10.00000000'
                     }
+                  },
+                  baseAssetBalance: {
+                    total: 0.0003
+                  },
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: true
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1,
+                        stopPercentage: 1.025,
+                        limitPercentage: 1.026,
+                        maxPurchaseAmount: 10,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    },
+                    sell: {
+                      stopLoss: {
+                        enabled: false
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1.03,
+                        stopPercentage: 0.985,
+                        limitPercentage: 0.984,
+                        quantityPercentage: 0.8,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    }
+                  },
+                  buy: {
+                    currentPrice: 28000,
+                    triggerPrice: 28000,
+                    athRestrictionPrice: 27000
+                  },
+                  sell: {
+                    currentPrice: 28000,
+                    triggerPrice: null,
+                    lastBuyPrice: null,
+                    stopLossTriggerPrice: null
                   }
-                },
-                buy: {
-                  currentPrice: 184.099,
-                  triggerPrice: 185.375,
-                  athRestrictionPrice: 180.0
-                },
-                sell: {
-                  currentPrice: 184.099,
-                  lastBuyPrice: null,
-                  triggerPrice: null
-                }
-              };
+                };
 
-              result = await step.execute(logger, rawData);
+                result = await step.execute(logger, rawData);
+              });
+
+              it('returns expected result', () => {
+                expect(result).toStrictEqual({
+                  action: 'wait',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolInfo: {
+                    baseAsset: 'BTC',
+                    filterMinNotional: {
+                      minNotional: '10.00000000'
+                    }
+                  },
+                  baseAssetBalance: {
+                    total: 0.0003
+                  },
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: true
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1,
+                        stopPercentage: 1.025,
+                        limitPercentage: 1.026,
+                        maxPurchaseAmount: 10,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    },
+                    sell: {
+                      stopLoss: {
+                        enabled: false
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1.03,
+                        stopPercentage: 0.985,
+                        limitPercentage: 0.984,
+                        quantityPercentage: 0.8,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    }
+                  },
+                  buy: {
+                    currentPrice: 28000,
+                    triggerPrice: 28000,
+                    athRestrictionPrice: 27000,
+                    processMessage:
+                      'The current price has reached the lowest price; however, it is restricted to buy the coin.',
+                    updatedAt: expect.any(Object)
+                  },
+                  sell: {
+                    currentPrice: 28000,
+                    triggerPrice: null,
+                    lastBuyPrice: null,
+                    stopLossTriggerPrice: null
+                  }
+                });
+              });
             });
 
-            it('returns expected result', () => {
-              expect(result).toStrictEqual({
-                action: 'wait',
-                isLocked: false,
-                symbolInfo: {
-                  filterMinNotional: {
-                    minNotional: '10.00000000'
-                  }
-                },
-                baseAssetBalance: { total: '0.0500000' },
-                symbolConfiguration: {
-                  buy: {
-                    athRestriction: {
-                      enabled: true
+            describe('currentGridTradeIndex is 1', () => {
+              beforeEach(async () => {
+                cache.getWithTTL = jest.fn().mockResolvedValue([
+                  [null, -2],
+                  [null, null]
+                ]);
+
+                rawData = {
+                  action: 'not-determined',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolInfo: {
+                    baseAsset: 'BTC',
+                    filterMinNotional: {
+                      minNotional: '10.00000000'
                     }
+                  },
+                  baseAssetBalance: {
+                    total: 0.0003
+                  },
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: true
+                      },
+                      currentGridTradeIndex: 1,
+                      currentGridTrade: {
+                        triggerPercentage: 0.8,
+                        stopPercentage: 1.025,
+                        limitPercentage: 1.026,
+                        maxPurchaseAmount: 10,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    },
+                    sell: {
+                      stopLoss: {
+                        enabled: false
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1.03,
+                        stopPercentage: 0.985,
+                        limitPercentage: 0.984,
+                        quantityPercentage: 0.8,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    }
+                  },
+                  buy: {
+                    currentPrice: 28000,
+                    triggerPrice: 28000,
+                    athRestrictionPrice: 27000
+                  },
+                  sell: {
+                    currentPrice: 28000,
+                    triggerPrice: null,
+                    lastBuyPrice: null,
+                    stopLossTriggerPrice: null
                   }
-                },
-                buy: {
-                  currentPrice: 184.099,
-                  triggerPrice: 185.375,
-                  athRestrictionPrice: 180.0,
-                  processMessage:
-                    'The current price has reached the lowest price; however, it is restricted to buy the coin.',
-                  updatedAt: expect.any(Object)
-                },
-                sell: {
-                  currentPrice: 184.099,
-                  lastBuyPrice: null,
-                  triggerPrice: null
-                }
+                };
+
+                result = await step.execute(logger, rawData);
+              });
+
+              it('returns expected result', () => {
+                expect(result).toStrictEqual({
+                  action: 'buy',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolInfo: {
+                    baseAsset: 'BTC',
+                    filterMinNotional: {
+                      minNotional: '10.00000000'
+                    }
+                  },
+                  baseAssetBalance: {
+                    total: 0.0003
+                  },
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: true
+                      },
+                      currentGridTradeIndex: 1,
+                      currentGridTrade: {
+                        triggerPercentage: 0.8,
+                        stopPercentage: 1.025,
+                        limitPercentage: 1.026,
+                        maxPurchaseAmount: 10,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    },
+                    sell: {
+                      stopLoss: {
+                        enabled: false
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1.03,
+                        stopPercentage: 0.985,
+                        limitPercentage: 0.984,
+                        quantityPercentage: 0.8,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    }
+                  },
+                  buy: {
+                    currentPrice: 28000,
+                    triggerPrice: 28000,
+                    athRestrictionPrice: 27000,
+                    processMessage:
+                      "The current price reached the trigger price for the grid trade #2. Let's buy it.",
+                    updatedAt: expect.any(Object)
+                  },
+                  sell: {
+                    currentPrice: 28000,
+                    triggerPrice: null,
+                    lastBuyPrice: null,
+                    stopLossTriggerPrice: null
+                  }
+                });
               });
             });
           });
 
           describe('when the ATH restriction is disabled', () => {
-            beforeEach(async () => {
-              cache.getWithTTL = jest.fn().mockResolvedValue([
-                [null, -2],
-                [null, null]
-              ]);
+            describe('currentGridTradeIndex is 0', () => {
+              beforeEach(async () => {
+                cache.getWithTTL = jest.fn().mockResolvedValue([
+                  [null, -2],
+                  [null, null]
+                ]);
 
-              rawData = {
-                action: 'not-determined',
-                isLocked: false,
-                symbolInfo: {
-                  filterMinNotional: {
-                    minNotional: '10.00000000'
-                  }
-                },
-                baseAssetBalance: { total: '0.0500000' },
-                symbolConfiguration: {
-                  buy: {
-                    athRestriction: {
-                      enabled: false
+                rawData = {
+                  action: 'not-determined',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolInfo: {
+                    baseAsset: 'BTC',
+                    filterMinNotional: {
+                      minNotional: '10.00000000'
                     }
+                  },
+                  baseAssetBalance: {
+                    total: 0.0003
+                  },
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: false
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1,
+                        stopPercentage: 1.025,
+                        limitPercentage: 1.026,
+                        maxPurchaseAmount: 10,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    },
+                    sell: {
+                      stopLoss: {
+                        enabled: false
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1.03,
+                        stopPercentage: 0.985,
+                        limitPercentage: 0.984,
+                        quantityPercentage: 0.8,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    }
+                  },
+                  buy: {
+                    currentPrice: 28000,
+                    triggerPrice: 28000,
+                    athRestrictionPrice: 27000
+                  },
+                  sell: {
+                    currentPrice: 28000,
+                    triggerPrice: null,
+                    lastBuyPrice: null,
+                    stopLossTriggerPrice: null
                   }
-                },
-                buy: {
-                  currentPrice: 184.099,
-                  triggerPrice: 185.375,
-                  athRestrictionPrice: 180.0
-                },
-                sell: {
-                  currentPrice: 184.099,
-                  lastBuyPrice: null,
-                  triggerPrice: null
-                }
-              };
+                };
 
-              result = await step.execute(logger, rawData);
+                result = await step.execute(logger, rawData);
+              });
+
+              it('returns expected result', () => {
+                expect(result).toStrictEqual({
+                  action: 'buy',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolInfo: {
+                    baseAsset: 'BTC',
+                    filterMinNotional: {
+                      minNotional: '10.00000000'
+                    }
+                  },
+                  baseAssetBalance: {
+                    total: 0.0003
+                  },
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: false
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1,
+                        stopPercentage: 1.025,
+                        limitPercentage: 1.026,
+                        maxPurchaseAmount: 10,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    },
+                    sell: {
+                      stopLoss: {
+                        enabled: false
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1.03,
+                        stopPercentage: 0.985,
+                        limitPercentage: 0.984,
+                        quantityPercentage: 0.8,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    }
+                  },
+                  buy: {
+                    currentPrice: 28000,
+                    triggerPrice: 28000,
+                    athRestrictionPrice: 27000,
+                    processMessage:
+                      "The current price reached the trigger price for the grid trade #1. Let's buy it.",
+                    updatedAt: expect.any(Object)
+                  },
+                  sell: {
+                    currentPrice: 28000,
+                    triggerPrice: null,
+                    lastBuyPrice: null,
+                    stopLossTriggerPrice: null
+                  }
+                });
+              });
             });
 
-            it('returns expected result', () => {
-              expect(result).toStrictEqual({
-                action: 'buy',
-                isLocked: false,
-                symbolInfo: {
-                  filterMinNotional: {
-                    minNotional: '10.00000000'
-                  }
-                },
-                baseAssetBalance: { total: '0.0500000' },
-                symbolConfiguration: {
-                  buy: {
-                    athRestriction: {
-                      enabled: false
+            describe('currentGridTradeIndex is 1', () => {
+              beforeEach(async () => {
+                cache.getWithTTL = jest.fn().mockResolvedValue([
+                  [null, -2],
+                  [null, null]
+                ]);
+
+                rawData = {
+                  action: 'not-determined',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolInfo: {
+                    baseAsset: 'BTC',
+                    filterMinNotional: {
+                      minNotional: '10.00000000'
                     }
+                  },
+                  baseAssetBalance: {
+                    total: 0.0003
+                  },
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: false
+                      },
+                      currentGridTradeIndex: 1,
+                      currentGridTrade: {
+                        triggerPercentage: 0.8,
+                        stopPercentage: 1.025,
+                        limitPercentage: 1.026,
+                        maxPurchaseAmount: 10,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    },
+                    sell: {
+                      stopLoss: {
+                        enabled: false
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1.03,
+                        stopPercentage: 0.985,
+                        limitPercentage: 0.984,
+                        quantityPercentage: 0.8,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    }
+                  },
+                  buy: {
+                    currentPrice: 28000,
+                    triggerPrice: 28000,
+                    athRestrictionPrice: 27000
+                  },
+                  sell: {
+                    currentPrice: 28000,
+                    triggerPrice: null,
+                    lastBuyPrice: null,
+                    stopLossTriggerPrice: null
                   }
-                },
-                buy: {
-                  currentPrice: 184.099,
-                  triggerPrice: 185.375,
-                  athRestrictionPrice: 180.0,
-                  processMessage:
-                    "The current price reached the trigger price. Let's buy it.",
-                  updatedAt: expect.any(Object)
-                },
-                sell: {
-                  currentPrice: 184.099,
-                  lastBuyPrice: null,
-                  triggerPrice: null
-                }
+                };
+
+                result = await step.execute(logger, rawData);
+              });
+
+              it('returns expected result', () => {
+                expect(result).toStrictEqual({
+                  action: 'buy',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolInfo: {
+                    baseAsset: 'BTC',
+                    filterMinNotional: {
+                      minNotional: '10.00000000'
+                    }
+                  },
+                  baseAssetBalance: {
+                    total: 0.0003
+                  },
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: false
+                      },
+                      currentGridTradeIndex: 1,
+                      currentGridTrade: {
+                        triggerPercentage: 0.8,
+                        stopPercentage: 1.025,
+                        limitPercentage: 1.026,
+                        maxPurchaseAmount: 10,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    },
+                    sell: {
+                      stopLoss: {
+                        enabled: false
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1.03,
+                        stopPercentage: 0.985,
+                        limitPercentage: 0.984,
+                        quantityPercentage: 0.8,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    }
+                  },
+                  buy: {
+                    currentPrice: 28000,
+                    triggerPrice: 28000,
+                    athRestrictionPrice: 27000,
+                    processMessage:
+                      "The current price reached the trigger price for the grid trade #2. Let's buy it.",
+                    updatedAt: expect.any(Object)
+                  },
+                  sell: {
+                    currentPrice: 28000,
+                    triggerPrice: null,
+                    lastBuyPrice: null,
+                    stopLossTriggerPrice: null
+                  }
+                });
               });
             });
           });
@@ -437,29 +992,57 @@ describe('determine-action.js', () => {
 
             rawData = {
               action: 'not-determined',
+              symbol: 'BTCUSDT',
               isLocked: false,
               symbolInfo: {
+                baseAsset: 'BTC',
                 filterMinNotional: {
                   minNotional: '10.00000000'
                 }
               },
-              baseAssetBalance: { total: '0.0500000' },
+              baseAssetBalance: {
+                total: 0.0003
+              },
               symbolConfiguration: {
                 buy: {
                   athRestriction: {
                     enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                },
+                sell: {
+                  stopLoss: {
+                    enabled: false
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 0.8,
+                    executed: false,
+                    executedOrder: null
                   }
                 }
               },
               buy: {
-                currentPrice: 184.099,
-                triggerPrice: 185.375,
-                athRestrictionPrice: 190.0
+                currentPrice: 28000,
+                triggerPrice: 28000,
+                athRestrictionPrice: 28001
               },
               sell: {
-                currentPrice: 184.099,
+                currentPrice: 28000,
+                triggerPrice: null,
                 lastBuyPrice: null,
-                triggerPrice: null
+                stopLossTriggerPrice: null
               }
             };
 
@@ -469,32 +1052,60 @@ describe('determine-action.js', () => {
           it('returns expected result', () => {
             expect(result).toStrictEqual({
               action: 'buy',
+              symbol: 'BTCUSDT',
               isLocked: false,
               symbolInfo: {
+                baseAsset: 'BTC',
                 filterMinNotional: {
                   minNotional: '10.00000000'
                 }
               },
-              baseAssetBalance: { total: '0.0500000' },
+              baseAssetBalance: {
+                total: 0.0003
+              },
               symbolConfiguration: {
                 buy: {
                   athRestriction: {
                     enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                },
+                sell: {
+                  stopLoss: {
+                    enabled: false
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 0.8,
+                    executed: false,
+                    executedOrder: null
                   }
                 }
               },
               buy: {
-                currentPrice: 184.099,
-                triggerPrice: 185.375,
-                athRestrictionPrice: 190.0,
+                currentPrice: 28000,
+                triggerPrice: 28000,
+                athRestrictionPrice: 28001,
                 processMessage:
-                  "The current price reached the trigger price. Let's buy it.",
+                  "The current price reached the trigger price for the grid trade #1. Let's buy it.",
                 updatedAt: expect.any(Object)
               },
               sell: {
-                currentPrice: 184.099,
+                currentPrice: 28000,
                 lastBuyPrice: null,
-                triggerPrice: null
+                triggerPrice: null,
+                stopLossTriggerPrice: null
               }
             });
           });
@@ -506,21 +1117,57 @@ describe('determine-action.js', () => {
           beforeEach(() => {
             rawData = {
               action: 'not-determined',
+              symbol: 'BTCUSDT',
               isLocked: false,
               symbolInfo: {
+                baseAsset: 'BTC',
                 filterMinNotional: {
                   minNotional: '10.00000000'
                 }
               },
-              baseAssetBalance: { total: '1.0500000' },
+              baseAssetBalance: {
+                total: 0.0006
+              },
+              symbolConfiguration: {
+                buy: {
+                  athRestriction: {
+                    enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                },
+                sell: {
+                  stopLoss: {
+                    enabled: false
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 0.8,
+                    executed: false,
+                    executedOrder: null
+                  }
+                }
+              },
               buy: {
-                currentPrice: 184.099,
-                triggerPrice: 185.375
+                currentPrice: 31000,
+                triggerPrice: 28000,
+                athRestrictionPrice: 27000
               },
               sell: {
-                currentPrice: 184.099,
-                lastBuyPrice: 175.0,
-                triggerPrice: 183.75
+                currentPrice: 31000,
+                triggerPrice: 30900,
+                lastBuyPrice: 30000,
+                stopLossTriggerPrice: 24000
               }
             };
           });
@@ -546,21 +1193,57 @@ describe('determine-action.js', () => {
             it('returns expected result', () => {
               expect(result).toStrictEqual({
                 action: 'sell-temporary-disabled',
+                symbol: 'BTCUSDT',
                 isLocked: false,
                 symbolInfo: {
+                  baseAsset: 'BTC',
                   filterMinNotional: {
                     minNotional: '10.00000000'
                   }
                 },
-                baseAssetBalance: { total: '1.0500000' },
+                baseAssetBalance: {
+                  total: 0.0006
+                },
+                symbolConfiguration: {
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 10,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  sell: {
+                    stopLoss: {
+                      enabled: false
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.03,
+                      stopPercentage: 0.985,
+                      limitPercentage: 0.984,
+                      quantityPercentage: 0.8,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  }
+                },
                 buy: {
-                  currentPrice: 184.099,
-                  triggerPrice: 185.375
+                  currentPrice: 31000,
+                  triggerPrice: 28000,
+                  athRestrictionPrice: 27000
                 },
                 sell: {
-                  currentPrice: 184.099,
-                  lastBuyPrice: 175.0,
-                  triggerPrice: 183.75,
+                  currentPrice: 31000,
+                  triggerPrice: 30900,
+                  lastBuyPrice: 30000,
+                  stopLossTriggerPrice: 24000,
                   processMessage:
                     `The current price is reached the sell trigger price. ` +
                     `However, the action is temporarily disabled by sell order. ` +
@@ -584,21 +1267,57 @@ describe('determine-action.js', () => {
             it('returns expected result', () => {
               expect(result).toStrictEqual({
                 action: 'sell',
+                symbol: 'BTCUSDT',
                 isLocked: false,
                 symbolInfo: {
+                  baseAsset: 'BTC',
                   filterMinNotional: {
                     minNotional: '10.00000000'
                   }
                 },
-                baseAssetBalance: { total: '1.0500000' },
+                baseAssetBalance: {
+                  total: 0.0006
+                },
+                symbolConfiguration: {
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 10,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  sell: {
+                    stopLoss: {
+                      enabled: false
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.03,
+                      stopPercentage: 0.985,
+                      limitPercentage: 0.984,
+                      quantityPercentage: 0.8,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  }
+                },
                 buy: {
-                  currentPrice: 184.099,
-                  triggerPrice: 185.375
+                  currentPrice: 31000,
+                  triggerPrice: 28000,
+                  athRestrictionPrice: 27000
                 },
                 sell: {
-                  currentPrice: 184.099,
-                  lastBuyPrice: 175.0,
-                  triggerPrice: 183.75,
+                  currentPrice: 31000,
+                  triggerPrice: 30900,
+                  lastBuyPrice: 30000,
+                  stopLossTriggerPrice: 24000,
                   processMessage:
                     "The current price is more than the trigger price. Let's sell.",
                   updatedAt: expect.any(Object)
@@ -613,27 +1332,57 @@ describe('determine-action.js', () => {
             beforeEach(async () => {
               rawData = {
                 action: 'not-determined',
+                symbol: 'BTCUSDT',
                 isLocked: false,
-                symbolConfiguration: {
-                  sell: {
-                    stopLoss: { enabled: false }
-                  }
-                },
                 symbolInfo: {
+                  baseAsset: 'BTC',
                   filterMinNotional: {
                     minNotional: '10.00000000'
                   }
                 },
-                baseAssetBalance: { total: '1.0500000' },
+                baseAssetBalance: {
+                  total: 0.0006
+                },
+                symbolConfiguration: {
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 10,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  sell: {
+                    stopLoss: {
+                      enabled: false
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.03,
+                      stopPercentage: 0.985,
+                      limitPercentage: 0.984,
+                      quantityPercentage: 0.8,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  }
+                },
                 buy: {
-                  currentPrice: 160.099,
-                  triggerPrice: 185.375
+                  currentPrice: 29000,
+                  triggerPrice: 28000,
+                  athRestrictionPrice: 27000
                 },
                 sell: {
-                  currentPrice: 160.099,
-                  lastBuyPrice: 175.0,
-                  triggerPrice: 170.75,
-                  stopLossTriggerPrice: 165
+                  currentPrice: 29000,
+                  triggerPrice: 30900,
+                  lastBuyPrice: 30000,
+                  stopLossTriggerPrice: 29500
                 }
               };
               result = await step.execute(logger, rawData);
@@ -642,28 +1391,60 @@ describe('determine-action.js', () => {
             it('returns expected result', () => {
               expect(result).toStrictEqual({
                 action: 'sell-wait',
+                symbol: 'BTCUSDT',
                 isLocked: false,
-                symbolConfiguration: {
-                  sell: {
-                    stopLoss: { enabled: false }
-                  }
-                },
                 symbolInfo: {
+                  baseAsset: 'BTC',
                   filterMinNotional: {
                     minNotional: '10.00000000'
                   }
                 },
-                baseAssetBalance: { total: '1.0500000' },
+                baseAssetBalance: {
+                  total: 0.0006
+                },
+                symbolConfiguration: {
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 10,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  sell: {
+                    stopLoss: {
+                      enabled: false
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.03,
+                      stopPercentage: 0.985,
+                      limitPercentage: 0.984,
+                      quantityPercentage: 0.8,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  }
+                },
                 buy: {
-                  currentPrice: 160.099,
-                  triggerPrice: 185.375
+                  currentPrice: 29000,
+                  triggerPrice: 28000,
+                  athRestrictionPrice: 27000
                 },
                 sell: {
-                  currentPrice: 160.099,
-                  lastBuyPrice: 175.0,
-                  triggerPrice: 170.75,
-                  stopLossTriggerPrice: 165,
-                  processMessage: `The current price is lower than the selling trigger price. Wait.`,
+                  currentPrice: 29000,
+                  triggerPrice: 30900,
+                  lastBuyPrice: 30000,
+                  stopLossTriggerPrice: 29500,
+                  processMessage:
+                    `The current price is lower than the selling trigger price ` +
+                    `for the grid trade #1. Wait.`,
                   updatedAt: expect.any(Object)
                 }
               });
@@ -674,27 +1455,57 @@ describe('determine-action.js', () => {
             beforeEach(() => {
               rawData = {
                 action: 'not-determined',
+                symbol: 'BTCUSDT',
                 isLocked: false,
-                symbolConfiguration: {
-                  sell: {
-                    stopLoss: { enabled: true }
-                  }
-                },
                 symbolInfo: {
+                  baseAsset: 'BTC',
                   filterMinNotional: {
                     minNotional: '10.00000000'
                   }
                 },
-                baseAssetBalance: { total: '1.0500000' },
+                baseAssetBalance: {
+                  total: 0.0006
+                },
+                symbolConfiguration: {
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 10,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  sell: {
+                    stopLoss: {
+                      enabled: true
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.03,
+                      stopPercentage: 0.985,
+                      limitPercentage: 0.984,
+                      quantityPercentage: 0.8,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  }
+                },
                 buy: {
-                  currentPrice: 160.099,
-                  triggerPrice: 185.375
+                  currentPrice: 29000,
+                  triggerPrice: 28000,
+                  athRestrictionPrice: 27000
                 },
                 sell: {
-                  currentPrice: 160.099,
-                  lastBuyPrice: 175.0,
-                  triggerPrice: 170.75,
-                  stopLossTriggerPrice: 165
+                  currentPrice: 29000,
+                  triggerPrice: 30900,
+                  lastBuyPrice: 30000,
+                  stopLossTriggerPrice: 29500
                 }
               };
             });
@@ -721,27 +1532,57 @@ describe('determine-action.js', () => {
               it('returns expected result', () => {
                 expect(result).toStrictEqual({
                   action: 'sell-temporary-disabled',
+                  symbol: 'BTCUSDT',
                   isLocked: false,
-                  symbolConfiguration: {
-                    sell: {
-                      stopLoss: { enabled: true }
-                    }
-                  },
                   symbolInfo: {
+                    baseAsset: 'BTC',
                     filterMinNotional: {
                       minNotional: '10.00000000'
                     }
                   },
-                  baseAssetBalance: { total: '1.0500000' },
+                  baseAssetBalance: {
+                    total: 0.0006
+                  },
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: true
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1,
+                        stopPercentage: 1.025,
+                        limitPercentage: 1.026,
+                        maxPurchaseAmount: 10,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    },
+                    sell: {
+                      stopLoss: {
+                        enabled: true
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1.03,
+                        stopPercentage: 0.985,
+                        limitPercentage: 0.984,
+                        quantityPercentage: 0.8,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    }
+                  },
                   buy: {
-                    currentPrice: 160.099,
-                    triggerPrice: 185.375
+                    currentPrice: 29000,
+                    triggerPrice: 28000,
+                    athRestrictionPrice: 27000
                   },
                   sell: {
-                    currentPrice: 160.099,
-                    lastBuyPrice: 175.0,
-                    triggerPrice: 170.75,
-                    stopLossTriggerPrice: 165,
+                    currentPrice: 29000,
+                    triggerPrice: 30900,
+                    lastBuyPrice: 30000,
+                    stopLossTriggerPrice: 29500,
                     processMessage:
                       `The current price is reached the stop-loss price. ` +
                       `However, the action is temporarily disabled by sell order. ` +
@@ -765,27 +1606,57 @@ describe('determine-action.js', () => {
               it('returns expected result', () => {
                 expect(result).toStrictEqual({
                   action: 'sell-stop-loss',
+                  symbol: 'BTCUSDT',
                   isLocked: false,
-                  symbolConfiguration: {
-                    sell: {
-                      stopLoss: { enabled: true }
-                    }
-                  },
                   symbolInfo: {
+                    baseAsset: 'BTC',
                     filterMinNotional: {
                       minNotional: '10.00000000'
                     }
                   },
-                  baseAssetBalance: { total: '1.0500000' },
+                  baseAssetBalance: {
+                    total: 0.0006
+                  },
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: true
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1,
+                        stopPercentage: 1.025,
+                        limitPercentage: 1.026,
+                        maxPurchaseAmount: 10,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    },
+                    sell: {
+                      stopLoss: {
+                        enabled: true
+                      },
+                      currentGridTradeIndex: 0,
+                      currentGridTrade: {
+                        triggerPercentage: 1.03,
+                        stopPercentage: 0.985,
+                        limitPercentage: 0.984,
+                        quantityPercentage: 0.8,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    }
+                  },
                   buy: {
-                    currentPrice: 160.099,
-                    triggerPrice: 185.375
+                    currentPrice: 29000,
+                    triggerPrice: 28000,
+                    athRestrictionPrice: 27000
                   },
                   sell: {
-                    currentPrice: 160.099,
-                    lastBuyPrice: 175.0,
-                    triggerPrice: 170.75,
-                    stopLossTriggerPrice: 165,
+                    currentPrice: 29000,
+                    triggerPrice: 30900,
+                    lastBuyPrice: 30000,
+                    stopLossTriggerPrice: 29500,
                     processMessage: `The current price is reached the stop-loss price. Place market sell order.`,
                     updatedAt: expect.any(Object)
                   }
@@ -799,26 +1670,57 @@ describe('determine-action.js', () => {
           beforeEach(async () => {
             rawData = {
               action: 'not-determined',
+              symbol: 'BTCUSDT',
               isLocked: false,
-              symbolConfiguration: {
-                sell: {
-                  stopLoss: { enabled: false }
-                }
-              },
               symbolInfo: {
+                baseAsset: 'BTC',
                 filterMinNotional: {
                   minNotional: '10.00000000'
                 }
               },
-              baseAssetBalance: { total: '1.0500000' },
+              baseAssetBalance: {
+                total: 0.0006
+              },
+              symbolConfiguration: {
+                buy: {
+                  athRestriction: {
+                    enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                },
+                sell: {
+                  stopLoss: {
+                    enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 0.8,
+                    executed: false,
+                    executedOrder: null
+                  }
+                }
+              },
               buy: {
-                currentPrice: 184.099,
-                triggerPrice: 185.375
+                currentPrice: 27000,
+                triggerPrice: 26000,
+                athRestrictionPrice: 25000
               },
               sell: {
-                currentPrice: 184.099,
-                lastBuyPrice: 178,
-                triggerPrice: 186.9
+                currentPrice: 27000,
+                triggerPrice: 28840,
+                lastBuyPrice: 28000,
+                stopLossTriggerPrice: 22400
               }
             };
 
@@ -828,28 +1730,59 @@ describe('determine-action.js', () => {
           it('returns expected result', () => {
             expect(result).toStrictEqual({
               action: 'sell-wait',
+              symbol: 'BTCUSDT',
               isLocked: false,
-              symbolConfiguration: {
-                sell: {
-                  stopLoss: { enabled: false }
-                }
-              },
               symbolInfo: {
+                baseAsset: 'BTC',
                 filterMinNotional: {
                   minNotional: '10.00000000'
                 }
               },
-              baseAssetBalance: { total: '1.0500000' },
+              baseAssetBalance: {
+                total: 0.0006
+              },
+              symbolConfiguration: {
+                buy: {
+                  athRestriction: {
+                    enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                },
+                sell: {
+                  stopLoss: {
+                    enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 0.8,
+                    executed: false,
+                    executedOrder: null
+                  }
+                }
+              },
               buy: {
-                currentPrice: 184.099,
-                triggerPrice: 185.375
+                currentPrice: 27000,
+                triggerPrice: 26000,
+                athRestrictionPrice: 25000
               },
               sell: {
-                currentPrice: 184.099,
-                lastBuyPrice: 178,
-                triggerPrice: 186.9,
+                currentPrice: 27000,
+                triggerPrice: 28840,
+                lastBuyPrice: 28000,
+                stopLossTriggerPrice: 22400,
                 processMessage:
-                  'The current price is lower than the selling trigger price. Wait.',
+                  'The current price is lower than the selling trigger price for the grid trade #1. Wait.',
                 updatedAt: expect.any(Object)
               }
             });
@@ -861,21 +1794,57 @@ describe('determine-action.js', () => {
         beforeEach(async () => {
           rawData = {
             action: 'not-determined',
+            symbol: 'BTCUSDT',
             isLocked: false,
             symbolInfo: {
+              baseAsset: 'BTC',
               filterMinNotional: {
                 minNotional: '10.00000000'
               }
             },
-            baseAssetBalance: { total: '0.0500000' },
+            baseAssetBalance: {
+              total: 0.0006
+            },
+            symbolConfiguration: {
+              buy: {
+                athRestriction: {
+                  enabled: true
+                },
+                currentGridTradeIndex: 0,
+                currentGridTrade: {
+                  triggerPercentage: 1,
+                  stopPercentage: 1.025,
+                  limitPercentage: 1.026,
+                  maxPurchaseAmount: 10,
+                  executed: false,
+                  executedOrder: null
+                }
+              },
+              sell: {
+                stopLoss: {
+                  enabled: true
+                },
+                currentGridTradeIndex: 0,
+                currentGridTrade: {
+                  triggerPercentage: 1.03,
+                  stopPercentage: 0.985,
+                  limitPercentage: 0.984,
+                  quantityPercentage: 0.8,
+                  executed: false,
+                  executedOrder: null
+                }
+              }
+            },
             buy: {
-              currentPrice: 184.099,
-              triggerPrice: 180.375
+              currentPrice: 27000,
+              triggerPrice: 26000,
+              athRestrictionPrice: 25000
             },
             sell: {
-              currentPrice: 184.099,
+              currentPrice: 27000,
+              triggerPrice: null,
               lastBuyPrice: null,
-              triggerPrice: null
+              stopLossTriggerPrice: null
             }
           };
 
@@ -885,21 +1854,57 @@ describe('determine-action.js', () => {
         it('returns expected result', () => {
           expect(result).toStrictEqual({
             action: 'not-determined',
+            symbol: 'BTCUSDT',
             isLocked: false,
             symbolInfo: {
+              baseAsset: 'BTC',
               filterMinNotional: {
                 minNotional: '10.00000000'
               }
             },
-            baseAssetBalance: { total: '0.0500000' },
+            baseAssetBalance: {
+              total: 0.0006
+            },
+            symbolConfiguration: {
+              buy: {
+                athRestriction: {
+                  enabled: true
+                },
+                currentGridTradeIndex: 0,
+                currentGridTrade: {
+                  triggerPercentage: 1,
+                  stopPercentage: 1.025,
+                  limitPercentage: 1.026,
+                  maxPurchaseAmount: 10,
+                  executed: false,
+                  executedOrder: null
+                }
+              },
+              sell: {
+                stopLoss: {
+                  enabled: true
+                },
+                currentGridTradeIndex: 0,
+                currentGridTrade: {
+                  triggerPercentage: 1.03,
+                  stopPercentage: 0.985,
+                  limitPercentage: 0.984,
+                  quantityPercentage: 0.8,
+                  executed: false,
+                  executedOrder: null
+                }
+              }
+            },
             buy: {
-              currentPrice: 184.099,
-              triggerPrice: 180.375
+              currentPrice: 27000,
+              triggerPrice: 26000,
+              athRestrictionPrice: 25000
             },
             sell: {
-              currentPrice: 184.099,
+              currentPrice: 27000,
+              triggerPrice: null,
               lastBuyPrice: null,
-              triggerPrice: null
+              stopLossTriggerPrice: null
             }
           });
         });

@@ -5,20 +5,30 @@ const { isActionDisabled } = require('../../trailingTradeHelper/common');
 /**
  * Check whether can buy or not
  *
+ *  - last buy price must be more than 0.
+ *  - buy trigger price must be buy trigger price.
+ *  - current grid trade must not be null.
+ *  - if
+ *
  * @param {*} data
  * @returns
  */
 const canBuy = data => {
   const {
-    buy: { currentPrice: buyCurrentPrice, triggerPrice: buyTriggerPrice },
-    sell: { lastBuyPrice }
+    symbolConfiguration: {
+      buy: { currentGridTrade }
+    },
+    buy: { currentPrice: buyCurrentPrice, triggerPrice: buyTriggerPrice }
   } = data;
 
-  return lastBuyPrice <= 0 && buyCurrentPrice <= buyTriggerPrice;
+  return buyCurrentPrice <= buyTriggerPrice && currentGridTrade !== null;
 };
 
 /**
  * Check whether has enough balance to sell
+ *
+ *  - If current gird trade index is 0, and has enough balance to sell,
+ *    then it should not execute
  *
  * @param {*} data
  * @returns
@@ -29,14 +39,24 @@ const hasBalanceToSell = data => {
       filterMinNotional: { minNotional }
     },
     baseAssetBalance: { total: baseAssetTotalBalance },
-    buy: { currentPrice: buyCurrentPrice }
+    buy: { currentPrice: buyCurrentPrice },
+    symbolConfiguration: {
+      buy: { currentGridTradeIndex: currentBuyGridTradeIndex }
+    }
   } = data;
 
-  return baseAssetTotalBalance * buyCurrentPrice >= parseFloat(minNotional);
+  return (
+    currentBuyGridTradeIndex === 0 &&
+    baseAssetTotalBalance * buyCurrentPrice >= parseFloat(minNotional)
+  );
 };
 
 /**
  * Check whether trigger price within the buying restriction price or not
+ *
+ *  - current grid trade must be first grid trade.
+ *  - ATH restriction must be enabled.
+ *  - buy trigger price must be higher than ATH restriction price.
  *
  * @param {*} data
  * @returns
@@ -45,6 +65,7 @@ const isGreaterThanTheATHRestrictionPrice = data => {
   const {
     symbolConfiguration: {
       buy: {
+        currentGridTradeIndex,
         athRestriction: { enabled: buyATHRestrictionEnabled }
       }
     },
@@ -55,6 +76,7 @@ const isGreaterThanTheATHRestrictionPrice = data => {
   } = data;
 
   return (
+    currentGridTradeIndex === 0 &&
     buyATHRestrictionEnabled === true &&
     buyTriggerPrice >= buyATHRestrictionPrice
   );
@@ -82,6 +104,10 @@ const setBuyActionAndMessage = (logger, rawData, action, processMessage) => {
 /**
  * Check whether can sell or not
  *
+ *  - last buy price must be more than 0.
+ *  - current balance must be more than the minimum notional value
+ *  - current grid trade must not be null.
+ *
  * @param {*} data
  * @returns
  */
@@ -90,13 +116,17 @@ const canSell = data => {
     symbolInfo: {
       filterMinNotional: { minNotional }
     },
+    symbolConfiguration: {
+      sell: { currentGridTrade }
+    },
     baseAssetBalance: { total: baseAssetTotalBalance },
     sell: { currentPrice: sellCurrentPrice, lastBuyPrice }
   } = data;
 
   return (
     lastBuyPrice > 0 &&
-    baseAssetTotalBalance * sellCurrentPrice > parseFloat(minNotional)
+    baseAssetTotalBalance * sellCurrentPrice > parseFloat(minNotional) &&
+    currentGridTrade !== null
   );
 };
 
@@ -170,8 +200,15 @@ const execute = async (logger, rawData) => {
     action,
     symbol,
     isLocked,
-    symbolInfo: { baseAsset }
+    symbolInfo: { baseAsset },
+    symbolConfiguration: {
+      buy: { currentGridTradeIndex: currentBuyGridTradeIndex },
+      sell: { currentGridTradeIndex: currentSellGridTradeIndex }
+    }
   } = data;
+
+  const humanisedBuyGridTradeIndex = currentBuyGridTradeIndex + 1;
+  const humanisedSellGridTradeIndex = currentSellGridTradeIndex + 1;
 
   if (isLocked) {
     logger.info(
@@ -237,7 +274,7 @@ const execute = async (logger, rawData) => {
       logger,
       data,
       'buy',
-      "The current price reached the trigger price. Let's buy it."
+      `The current price reached the trigger price for the grid trade #${humanisedBuyGridTradeIndex}. Let's buy it.`
     );
   }
 
@@ -300,7 +337,8 @@ const execute = async (logger, rawData) => {
       logger,
       data,
       'sell-wait',
-      'The current price is lower than the selling trigger price. Wait.'
+      `The current price is lower than the selling trigger price ` +
+        `for the grid trade #${humanisedSellGridTradeIndex}. Wait.`
     );
   }
 

@@ -2,7 +2,7 @@
 /* eslint-disable react/jsx-no-undef */
 /* eslint-disable no-undef */
 
-class CoinWrapperManualTrade extends React.Component {
+class SymbolManualTradeIcon extends React.Component {
   constructor(props) {
     super(props);
 

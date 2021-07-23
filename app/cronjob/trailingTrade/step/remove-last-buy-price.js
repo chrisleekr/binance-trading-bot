@@ -6,6 +6,11 @@ const {
   getAPILimit,
   isActionDisabled
 } = require('../../trailingTradeHelper/common');
+
+const {
+  deleteSymbolGridTrade
+} = require('../../trailingTradeHelper/configuration');
+
 /**
  * Retrieve last buy order from cache
  *
@@ -37,9 +42,13 @@ const removeLastBuyPrice = async (
   processMessage,
   extraMessages
 ) => {
+  // Delete the last buy price from the database
   await mongo.deleteOne(logger, 'trailing-trade-symbols', {
     key: `${symbol}-last-buy-price`
   });
+
+  // Delete symbol grid trade
+  await deleteSymbolGridTrade(logger, symbol);
 
   slack.sendMessage(
     `${symbol} Action (${moment().format(
