@@ -1,7 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
 const { binance, slack, cache } = require('../../../helpers');
-const { roundDown } = require('../../trailingTradeHelper/util');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,

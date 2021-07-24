@@ -15,6 +15,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
   let mockGetAPILimit;
   let mockIsExceedAPILimit;
   let mockIsActionDisabled;
+  let mockDisableAction;
 
   let mockSaveSymbolGridTrade;
 
@@ -61,6 +62,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
         isDiabled: false,
         ttl: -2
       });
+      mockDisableAction = jest.fn().mockResolvedValue(true);
 
       mockSaveSymbolGridTrade = jest.fn().mockResolvedValue(true);
     });
@@ -71,7 +73,8 @@ describe('ensure-grid-trade-order-executed.js', () => {
           calculateLastBuyPrice: mockCalculateLastBuyPrice,
           getAPILimit: mockGetAPILimit,
           isExceedAPILimit: mockIsExceedAPILimit,
-          isActionDisabled: mockIsActionDisabled
+          isActionDisabled: mockIsActionDisabled,
+          disableAction: mockDisableAction
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -83,7 +86,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
         rawData = {
           symbol: 'BTCUSDT',
           action: 'buy',
-          featureToggle: { notifyOrderExecute: true },
+          featureToggle: { notifyOrderExecute: true, notifyDebug: true },
           symbolConfiguration: {
             buy: {
               gridTrade: [
@@ -125,7 +128,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 }
               ]
             },
-            system: { checkOrderExecutePeriod: 10 }
+            system: {
+              checkOrderExecutePeriod: 10,
+              temporaryDisableActionAfterConfirmingOrder: 20
+            }
           }
         };
 
@@ -146,6 +152,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
       it('does not trigger binance.client.getOrder', () => {
         expect(binanceMock.client.getOrder).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger disableAction', () => {
+        expect(mockDisableAction).not.toHaveBeenCalled();
       });
 
       it('returns epxected result', () => {
@@ -161,7 +171,8 @@ describe('ensure-grid-trade-order-executed.js', () => {
           calculateLastBuyPrice: mockCalculateLastBuyPrice,
           getAPILimit: mockGetAPILimit,
           isExceedAPILimit: mockIsExceedAPILimit,
-          isActionDisabled: mockIsActionDisabled
+          isActionDisabled: mockIsActionDisabled,
+          disableAction: mockDisableAction
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -173,7 +184,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
         rawData = {
           symbol: 'BTCUSDT',
           action: 'not-determined',
-          featureToggle: { notifyOrderExecute: true },
+          featureToggle: { notifyOrderExecute: true, notifyDebug: true },
           symbolConfiguration: {
             buy: {
               gridTrade: [
@@ -215,7 +226,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 }
               ]
             },
-            system: { checkOrderExecutePeriod: 10 }
+            system: {
+              checkOrderExecutePeriod: 10,
+              temporaryDisableActionAfterConfirmingOrder: 20
+            }
           }
         };
 
@@ -236,6 +250,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
       it('does not trigger binance.client.getOrder', () => {
         expect(binanceMock.client.getOrder).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger disableAction', () => {
+        expect(mockDisableAction).not.toHaveBeenCalled();
       });
 
       it('returns epxected result', () => {
@@ -254,7 +272,8 @@ describe('ensure-grid-trade-order-executed.js', () => {
           calculateLastBuyPrice: mockCalculateLastBuyPrice,
           getAPILimit: mockGetAPILimit,
           isExceedAPILimit: mockIsExceedAPILimit,
-          isActionDisabled: mockIsActionDisabled
+          isActionDisabled: mockIsActionDisabled,
+          disableAction: mockDisableAction
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -266,7 +285,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
         rawData = {
           symbol: 'BTCUSDT',
           action: 'not-determined',
-          featureToggle: { notifyOrderExecute: true },
+          featureToggle: { notifyOrderExecute: true, notifyDebug: true },
           symbolConfiguration: {
             buy: {
               gridTrade: [
@@ -308,7 +327,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 }
               ]
             },
-            system: { checkOrderExecutePeriod: 10 }
+            system: {
+              checkOrderExecutePeriod: 10,
+              temporaryDisableActionAfterConfirmingOrder: 20
+            }
           }
         };
 
@@ -331,6 +353,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
         expect(binanceMock.client.getOrder).not.toHaveBeenCalled();
       });
 
+      it('does not trigger disableAction', () => {
+        expect(mockDisableAction).not.toHaveBeenCalled();
+      });
+
       it('returns epxected result', () => {
         expect(result).toStrictEqual(rawData);
       });
@@ -342,11 +368,13 @@ describe('ensure-grid-trade-order-executed.js', () => {
           desc: 'last buy order is empty',
           symbol: 'BNBUSDT',
           lastBuyOrder: null,
-          getOrder: null
+          getOrder: null,
+          saveSymbolGridTrade: null
         },
         {
-          desc: 'last buy order is FILLED',
+          desc: 'last buy order is FILLED - currentGridTradeIndex: 0',
           symbol: 'BNBUSDT',
+          notifyDebug: true,
           lastBuyOrder: {
             symbol: 'BNBUSDT',
             side: 'BUY',
@@ -359,10 +387,126 @@ describe('ensure-grid-trade-order-executed.js', () => {
             currentGridTradeIndex: 0,
             nextCheck: '2020-01-01T23:59:00.000Z'
           },
-          getOrder: null
+          getOrder: null,
+          saveSymbolGridTrade: {
+            buy: [
+              {
+                executed: true,
+                executedOrder: {
+                  currentGridTradeIndex: 0,
+                  nextCheck: '2020-01-01T23:59:00.000Z',
+                  orderId: 2705449295,
+                  origQty: '0.03320000',
+                  price: '302.09000000',
+                  side: 'BUY',
+                  status: 'FILLED',
+                  stopPrice: '301.80000000',
+                  symbol: 'BNBUSDT',
+                  type: 'STOP_LOSS_LIMIT'
+                },
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 1
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 0.8
+              }
+            ],
+            sell: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                stopPercentage: 0.985,
+                triggerPercentage: 1.03
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.974,
+                quantityPercentage: 1,
+                stopPercentage: 0.975,
+                triggerPercentage: 1.05
+              }
+            ]
+          }
         },
         {
-          desc: 'last buy order is NEW and still NEW',
+          desc: 'last buy order is FILLED - currentGridTradeIndex: 1',
+          symbol: 'BNBUSDT',
+          notifyDebug: false,
+          lastBuyOrder: {
+            symbol: 'BNBUSDT',
+            side: 'BUY',
+            status: 'FILLED',
+            type: 'STOP_LOSS_LIMIT',
+            orderId: 2705449295,
+            price: '302.09000000',
+            origQty: '0.03320000',
+            stopPrice: '301.80000000',
+            currentGridTradeIndex: 1,
+            nextCheck: '2020-01-01T23:59:00.000Z'
+          },
+          getOrder: null,
+          saveSymbolGridTrade: {
+            buy: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 1
+              },
+              {
+                executed: true,
+                executedOrder: {
+                  currentGridTradeIndex: 1,
+                  nextCheck: '2020-01-01T23:59:00.000Z',
+                  orderId: 2705449295,
+                  origQty: '0.03320000',
+                  price: '302.09000000',
+                  side: 'BUY',
+                  status: 'FILLED',
+                  stopPrice: '301.80000000',
+                  symbol: 'BNBUSDT',
+                  type: 'STOP_LOSS_LIMIT'
+                },
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 0.8
+              }
+            ],
+            sell: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                stopPercentage: 0.985,
+                triggerPercentage: 1.03
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.974,
+                quantityPercentage: 1,
+                stopPercentage: 0.975,
+                triggerPercentage: 1.05
+              }
+            ]
+          }
+        },
+        {
+          desc: 'last buy order is NEW and still NEW before checking the order',
           symbol: 'BNBUSDT',
           lastBuyOrder: {
             symbol: 'BNBUSDT',
@@ -376,10 +520,11 @@ describe('ensure-grid-trade-order-executed.js', () => {
             currentGridTradeIndex: 0,
             nextCheck: '2020-01-02T00:01:00.000Z'
           },
-          getOrder: null
+          getOrder: null,
+          saveSymbolGridTrade: null
         },
         {
-          desc: 'last buy order is NEW and still NEW',
+          desc: 'last buy order is NEW and still NEW after checking the order',
           symbol: 'BNBUSDT',
           lastBuyOrder: {
             symbol: 'BNBUSDT',
@@ -402,7 +547,8 @@ describe('ensure-grid-trade-order-executed.js', () => {
             price: '302.09000000',
             origQty: '0.03320000',
             stopPrice: '301.80000000'
-          }
+          },
+          saveSymbolGridTrade: null
         },
         ...['CANCELED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'].map(
           status => ({
@@ -429,12 +575,14 @@ describe('ensure-grid-trade-order-executed.js', () => {
               price: '302.09000000',
               origQty: '0.03320000',
               stopPrice: '301.80000000'
-            }
+            },
+            saveSymbolGridTrade: null
           })
         ),
         {
           desc: 'last buy order is NEW and now FILLED',
           symbol: 'BNBUSDT',
+          notifyDebug: false,
           lastBuyOrder: {
             symbol: 'BNBUSDT',
             side: 'BUY',
@@ -456,6 +604,131 @@ describe('ensure-grid-trade-order-executed.js', () => {
             price: '302.09000000',
             origQty: '0.03320000',
             stopPrice: '301.80000000'
+          },
+          saveSymbolGridTrade: {
+            buy: [
+              {
+                executed: true,
+                executedOrder: {
+                  currentGridTradeIndex: 0,
+                  nextCheck: '2020-01-01T23:59:00.000Z',
+                  orderId: 2705449295,
+                  origQty: '0.03320000',
+                  price: '302.09000000',
+                  side: 'BUY',
+                  status: 'FILLED',
+                  stopPrice: '301.80000000',
+                  symbol: 'BNBUSDT',
+                  type: 'STOP_LOSS_LIMIT'
+                },
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 1
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 0.8
+              }
+            ],
+            sell: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                stopPercentage: 0.985,
+                triggerPercentage: 1.03
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.974,
+                quantityPercentage: 1,
+                stopPercentage: 0.975,
+                triggerPercentage: 1.05
+              }
+            ]
+          }
+        },
+        {
+          desc: 'last buy order is NEW and now FILLED - currentGridTradeIndex: 1',
+          symbol: 'BNBUSDT',
+          notifyDebug: true,
+          lastBuyOrder: {
+            symbol: 'BNBUSDT',
+            side: 'BUY',
+            status: 'NEW',
+            type: 'STOP_LOSS_LIMIT',
+            orderId: 2705449295,
+            price: '302.09000000',
+            origQty: '0.03320000',
+            stopPrice: '301.80000000',
+            currentGridTradeIndex: 1,
+            nextCheck: '2020-01-01T23:59:00.000Z'
+          },
+          getOrder: {
+            symbol: 'BNBUSDT',
+            side: 'BUY',
+            status: 'FILLED',
+            type: 'STOP_LOSS_LIMIT',
+            orderId: 2705449295,
+            price: '302.09000000',
+            origQty: '0.03320000',
+            stopPrice: '301.80000000'
+          },
+          saveSymbolGridTrade: {
+            buy: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 1
+              },
+              {
+                executed: true,
+                executedOrder: {
+                  currentGridTradeIndex: 1,
+                  nextCheck: '2020-01-01T23:59:00.000Z',
+                  orderId: 2705449295,
+                  origQty: '0.03320000',
+                  price: '302.09000000',
+                  side: 'BUY',
+                  status: 'FILLED',
+                  stopPrice: '301.80000000',
+                  symbol: 'BNBUSDT',
+                  type: 'STOP_LOSS_LIMIT'
+                },
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 0.8
+              }
+            ],
+            sell: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                stopPercentage: 0.985,
+                triggerPercentage: 1.03
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.974,
+                quantityPercentage: 1,
+                stopPercentage: 0.975,
+                triggerPercentage: 1.05
+              }
+            ]
           }
         },
         {
@@ -473,7 +746,8 @@ describe('ensure-grid-trade-order-executed.js', () => {
             currentGridTradeIndex: 0,
             nextCheck: '2020-01-01T23:59:00.000Z'
           },
-          getOrder: 'error'
+          getOrder: 'error',
+          saveSymbolGridTrade: null
         }
       ].forEach((t, index) => {
         describe(`${t.desc}`, () => {
@@ -499,7 +773,8 @@ describe('ensure-grid-trade-order-executed.js', () => {
               calculateLastBuyPrice: mockCalculateLastBuyPrice,
               getAPILimit: mockGetAPILimit,
               isExceedAPILimit: mockIsExceedAPILimit,
-              isActionDisabled: mockIsActionDisabled
+              isActionDisabled: mockIsActionDisabled,
+              disableAction: mockDisableAction
             }));
 
             jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -511,7 +786,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
             rawData = {
               symbol: t.symbol,
               action: 'not-determined',
-              featureToggle: { notifyOrderExecute: index % 2 },
+              featureToggle: {
+                notifyOrderExecute: index % 2,
+                notifyDebug: t.notifyDebug || false
+              },
               symbolConfiguration: {
                 buy: {
                   gridTrade: [
@@ -553,7 +831,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
                     }
                   ]
                 },
-                system: { checkOrderExecutePeriod: 10 }
+                system: {
+                  checkOrderExecutePeriod: 10,
+                  temporaryDisableActionAfterConfirmingOrder: 20
+                }
               }
             };
 
@@ -579,6 +860,14 @@ describe('ensure-grid-trade-order-executed.js', () => {
             it('does not trigger cache.del as order not found', () => {
               expect(cacheMock.del).not.toHaveBeenCalled();
             });
+
+            it('does not trigger saveSymbolGridTrade', () => {
+              expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
+            });
+
+            it('does not trigger disableAction', () => {
+              expect(mockDisableAction).not.toHaveBeenCalled();
+            });
           } else if (t.lastBuyOrder.status.includes('FILLED')) {
             // do filled thing
             it('triggers calculated last buy price as order filled', () => {
@@ -590,28 +879,30 @@ describe('ensure-grid-trade-order-executed.js', () => {
             });
 
             it('triggers save symbol grid trade as order filled', () => {
-              const newGridTrade = {
-                buy: rawData.symbolConfiguration.buy.gridTrade,
-                sell: rawData.symbolConfiguration.sell.gridTrade
-              };
-
-              newGridTrade.buy[
-                t.lastBuyOrder.currentGridTradeIndex
-              ].executed = true;
-              newGridTrade.buy[
-                t.lastBuyOrder.currentGridTradeIndex
-              ].executedOrder = t.lastBuyOrder;
-
               expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
                 loggerMock,
                 t.symbol,
-                newGridTrade
+                t.saveSymbolGridTrade
               );
             });
 
             it('triggers cache.del as order filled', () => {
               expect(cacheMock.del).toHaveBeenCalledWith(
                 `${t.symbol}-grid-trade-last-buy-order`
+              );
+            });
+
+            it('triggers disableAction', () => {
+              expect(mockDisableAction).toHaveBeenCalledWith(
+                t.symbol,
+                {
+                  disabledBy: 'buy filled order',
+                  message:
+                    'Disabled action after founding filled grid trade order .',
+                  canResume: false,
+                  canRemoveLastBuyPrice: false
+                },
+                20
               );
             });
           } else {
@@ -628,8 +919,16 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 );
               });
 
+              it('does not trigger saveSymbolGridTrade as order throws error', () => {
+                expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
+              });
+
               it('does not trigger cache.del for last buy order as order throws error', () => {
                 expect(cacheMock.del).not.toHaveBeenCalled();
+              });
+
+              it('does not trigger disableAction as order throws error', () => {
+                expect(mockDisableAction).not.toHaveBeenCalled();
               });
             } else if (
               Date.parse(t.lastBuyOrder.nextCheck) < Date.parse(momentDateTime)
@@ -653,28 +952,30 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 });
 
                 it('triggers save symbol grid trade as order filled after getting order result', () => {
-                  const newGridTrade = {
-                    buy: rawData.symbolConfiguration.buy.gridTrade,
-                    sell: rawData.symbolConfiguration.sell.gridTrade
-                  };
-
-                  newGridTrade.buy[
-                    t.lastBuyOrder.currentGridTradeIndex
-                  ].executed = true;
-                  newGridTrade.buy[
-                    t.lastBuyOrder.currentGridTradeIndex
-                  ].executedOrder = t.getOrder;
-
                   expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
                     loggerMock,
                     t.symbol,
-                    newGridTrade
+                    t.saveSymbolGridTrade
                   );
                 });
 
                 it('triggers cache.del as order filled after getting order result', () => {
                   expect(cacheMock.del).toHaveBeenCalledWith(
                     `${t.symbol}-grid-trade-last-buy-order`
+                  );
+                });
+
+                it('triggers disableAction after getting order result', () => {
+                  expect(mockDisableAction).toHaveBeenCalledWith(
+                    t.symbol,
+                    {
+                      disabledBy: 'buy filled order',
+                      message:
+                        'Disabled action after founding filled grid trade order .',
+                      canResume: false,
+                      canRemoveLastBuyPrice: false
+                    },
+                    20
                   );
                 });
               } else if (
@@ -687,6 +988,14 @@ describe('ensure-grid-trade-order-executed.js', () => {
                   expect(cacheMock.del).toHaveBeenCalledWith(
                     `${t.symbol}-grid-trade-last-buy-order`
                   );
+                });
+
+                it('does not trigger saveSymbolGridTrade due to cancelled order', () => {
+                  expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
+                });
+
+                it('does not trigger disableAction due to cancelled order', () => {
+                  expect(mockDisableAction).not.toHaveBeenCalled();
                 });
               } else {
                 // do else thing
@@ -706,6 +1015,14 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 it('does not trigger cache.del for last buy order as not filled', () => {
                   expect(cacheMock.del).not.toHaveBeenCalled();
                 });
+
+                it('does not trigger saveSymbolGridTrade as not filled', () => {
+                  expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
+                });
+
+                it('does not trigger disableAction as not filled', () => {
+                  expect(mockDisableAction).not.toHaveBeenCalled();
+                });
               }
             } else if (
               Date.parse(t.lastBuyOrder.nextCheck) > Date.parse(momentDateTime)
@@ -721,6 +1038,14 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
               it('does not trigger cache.del because time is not yet to check', () => {
                 expect(cacheMock.del).not.toHaveBeenCalled();
+              });
+
+              it('does not trigger saveSymbolGridTrade because time is not yet to check', () => {
+                expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
+              });
+
+              it('does not trigger disableAction because time is not yet to check', () => {
+                expect(mockDisableAction).not.toHaveBeenCalled();
               });
             }
           }
@@ -738,11 +1063,13 @@ describe('ensure-grid-trade-order-executed.js', () => {
           desc: 'last sell order is empty',
           symbol: 'BNBUSDT',
           lastBuyOrder: null,
-          getOrder: null
+          getOrder: null,
+          saveSymbolGridTrade: null
         },
         {
-          desc: 'last sell order is FILLED',
+          desc: 'last sell order is FILLED - currentGridTradeIndex: 0',
           symbol: 'BNBUSDT',
+          notifyDebug: true,
           lastBuyOrder: {
             symbol: 'BNBUSDT',
             side: 'SELL',
@@ -755,10 +1082,126 @@ describe('ensure-grid-trade-order-executed.js', () => {
             currentGridTradeIndex: 0,
             nextCheck: '2020-01-01T23:59:00.000Z'
           },
-          getOrder: null
+          getOrder: null,
+          saveSymbolGridTrade: {
+            buy: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 1
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 0.8
+              }
+            ],
+            sell: [
+              {
+                executed: true,
+                executedOrder: {
+                  currentGridTradeIndex: 0,
+                  nextCheck: '2020-01-01T23:59:00.000Z',
+                  orderId: 2705449295,
+                  origQty: '0.03320000',
+                  price: '302.09000000',
+                  side: 'SELL',
+                  status: 'FILLED',
+                  stopPrice: '301.80000000',
+                  symbol: 'BNBUSDT',
+                  type: 'STOP_LOSS_LIMIT'
+                },
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                stopPercentage: 0.985,
+                triggerPercentage: 1.03
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.974,
+                quantityPercentage: 1,
+                stopPercentage: 0.975,
+                triggerPercentage: 1.05
+              }
+            ]
+          }
         },
         {
-          desc: 'last sell order is NEW and still NEW',
+          desc: 'last sell order is FILLED - currentGridTradeIndex: 1',
+          symbol: 'BNBUSDT',
+          notifyDebug: true,
+          lastBuyOrder: {
+            symbol: 'BNBUSDT',
+            side: 'SELL',
+            status: 'FILLED',
+            type: 'STOP_LOSS_LIMIT',
+            orderId: 2705449295,
+            price: '302.09000000',
+            origQty: '0.03320000',
+            stopPrice: '301.80000000',
+            currentGridTradeIndex: 1,
+            nextCheck: '2020-01-01T23:59:00.000Z'
+          },
+          getOrder: null,
+          saveSymbolGridTrade: {
+            buy: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 1
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 0.8
+              }
+            ],
+            sell: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                stopPercentage: 0.985,
+                triggerPercentage: 1.03
+              },
+              {
+                executed: true,
+                executedOrder: {
+                  currentGridTradeIndex: 1,
+                  nextCheck: '2020-01-01T23:59:00.000Z',
+                  orderId: 2705449295,
+                  origQty: '0.03320000',
+                  price: '302.09000000',
+                  side: 'SELL',
+                  status: 'FILLED',
+                  stopPrice: '301.80000000',
+                  symbol: 'BNBUSDT',
+                  type: 'STOP_LOSS_LIMIT'
+                },
+                limitPercentage: 0.974,
+                quantityPercentage: 1,
+                stopPercentage: 0.975,
+                triggerPercentage: 1.05
+              }
+            ]
+          }
+        },
+        {
+          desc: 'last sell order is NEW and still NEW before checking the order',
           symbol: 'BNBUSDT',
           lastBuyOrder: {
             symbol: 'BNBUSDT',
@@ -772,10 +1215,11 @@ describe('ensure-grid-trade-order-executed.js', () => {
             currentGridTradeIndex: 0,
             nextCheck: '2020-01-02T00:01:00.000Z'
           },
-          getOrder: null
+          getOrder: null,
+          saveSymbolGridTrade: null
         },
         {
-          desc: 'last sell order is NEW and still NEW',
+          desc: 'last sell order is NEW and still NEW after checking the order',
           symbol: 'BNBUSDT',
           lastBuyOrder: {
             symbol: 'BNBUSDT',
@@ -798,7 +1242,8 @@ describe('ensure-grid-trade-order-executed.js', () => {
             price: '302.09000000',
             origQty: '0.03320000',
             stopPrice: '301.80000000'
-          }
+          },
+          saveSymbolGridTrade: null
         },
         ...['CANCELED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'].map(
           status => ({
@@ -825,12 +1270,14 @@ describe('ensure-grid-trade-order-executed.js', () => {
               price: '302.09000000',
               origQty: '0.03320000',
               stopPrice: '301.80000000'
-            }
+            },
+            saveSymbolGridTrade: null
           })
         ),
         {
-          desc: 'last sell order is NEW and now FILLED',
+          desc: 'last sell order is NEW and now FILLED - currentGridTradeIndex: 0',
           symbol: 'BNBUSDT',
+          notifyDebug: true,
           lastBuyOrder: {
             symbol: 'BNBUSDT',
             side: 'SELL',
@@ -852,6 +1299,131 @@ describe('ensure-grid-trade-order-executed.js', () => {
             price: '302.09000000',
             origQty: '0.03320000',
             stopPrice: '301.80000000'
+          },
+          saveSymbolGridTrade: {
+            buy: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 1
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 0.8
+              }
+            ],
+            sell: [
+              {
+                executed: true,
+                executedOrder: {
+                  currentGridTradeIndex: 0,
+                  nextCheck: '2020-01-01T23:59:00.000Z',
+                  orderId: 2705449295,
+                  origQty: '0.03320000',
+                  price: '302.09000000',
+                  side: 'SELL',
+                  status: 'FILLED',
+                  stopPrice: '301.80000000',
+                  symbol: 'BNBUSDT',
+                  type: 'STOP_LOSS_LIMIT'
+                },
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                stopPercentage: 0.985,
+                triggerPercentage: 1.03
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.974,
+                quantityPercentage: 1,
+                stopPercentage: 0.975,
+                triggerPercentage: 1.05
+              }
+            ]
+          }
+        },
+        {
+          desc: 'last sell order is NEW and now FILLED - currentGridTradeIndex: 1',
+          symbol: 'BNBUSDT',
+          notifyDebug: false,
+          lastBuyOrder: {
+            symbol: 'BNBUSDT',
+            side: 'SELL',
+            status: 'NEW',
+            type: 'STOP_LOSS_LIMIT',
+            orderId: 2705449295,
+            price: '302.09000000',
+            origQty: '0.03320000',
+            stopPrice: '301.80000000',
+            currentGridTradeIndex: 1,
+            nextCheck: '2020-01-01T23:59:00.000Z'
+          },
+          getOrder: {
+            symbol: 'BNBUSDT',
+            side: 'SELL',
+            status: 'FILLED',
+            type: 'STOP_LOSS_LIMIT',
+            orderId: 2705449295,
+            price: '302.09000000',
+            origQty: '0.03320000',
+            stopPrice: '301.80000000'
+          },
+          saveSymbolGridTrade: {
+            buy: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 1
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 0.8
+              }
+            ],
+            sell: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                stopPercentage: 0.985,
+                triggerPercentage: 1.03
+              },
+              {
+                executed: true,
+                executedOrder: {
+                  currentGridTradeIndex: 1,
+                  nextCheck: '2020-01-01T23:59:00.000Z',
+                  orderId: 2705449295,
+                  origQty: '0.03320000',
+                  price: '302.09000000',
+                  side: 'SELL',
+                  status: 'FILLED',
+                  stopPrice: '301.80000000',
+                  symbol: 'BNBUSDT',
+                  type: 'STOP_LOSS_LIMIT'
+                },
+                limitPercentage: 0.974,
+                quantityPercentage: 1,
+                stopPercentage: 0.975,
+                triggerPercentage: 1.05
+              }
+            ]
           }
         },
         {
@@ -869,7 +1441,8 @@ describe('ensure-grid-trade-order-executed.js', () => {
             currentGridTradeIndex: 0,
             nextCheck: '2020-01-01T23:59:00.000Z'
           },
-          getOrder: 'error'
+          getOrder: 'error',
+          saveSymbolGridTrade: {}
         }
       ].forEach((t, index) => {
         describe(`${t.desc}`, () => {
@@ -895,7 +1468,8 @@ describe('ensure-grid-trade-order-executed.js', () => {
               calculateLastBuyPrice: mockCalculateLastBuyPrice,
               getAPILimit: mockGetAPILimit,
               isExceedAPILimit: mockIsExceedAPILimit,
-              isActionDisabled: mockIsActionDisabled
+              isActionDisabled: mockIsActionDisabled,
+              disableAction: mockDisableAction
             }));
 
             jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -907,7 +1481,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
             rawData = {
               symbol: t.symbol,
               action: 'not-determined',
-              featureToggle: { notifyOrderExecute: index % 2 },
+              featureToggle: {
+                notifyOrderExecute: index % 2,
+                notifyDebug: index % 2
+              },
               symbolConfiguration: {
                 buy: {
                   gridTrade: [
@@ -949,7 +1526,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
                     }
                   ]
                 },
-                system: { checkOrderExecutePeriod: 10 }
+                system: {
+                  checkOrderExecutePeriod: 10,
+                  temporaryDisableActionAfterConfirmingOrder: 20
+                }
               }
             };
 
@@ -975,32 +1555,38 @@ describe('ensure-grid-trade-order-executed.js', () => {
             it('does not trigger cache.del as order not found', () => {
               expect(cacheMock.del).not.toHaveBeenCalled();
             });
+
+            it('does not trigger disableAction', () => {
+              expect(mockDisableAction).not.toHaveBeenCalled();
+            });
           } else if (t.lastBuyOrder.status.includes('FILLED')) {
             // do filled thing
 
             it('triggers save symbol grid trade as order filled', () => {
-              const newGridTrade = {
-                buy: rawData.symbolConfiguration.buy.gridTrade,
-                sell: rawData.symbolConfiguration.sell.gridTrade
-              };
-
-              newGridTrade.sell[
-                t.lastBuyOrder.currentGridTradeIndex
-              ].executed = true;
-              newGridTrade.sell[
-                t.lastBuyOrder.currentGridTradeIndex
-              ].executedOrder = t.lastBuyOrder;
-
               expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
                 loggerMock,
                 t.symbol,
-                newGridTrade
+                t.saveSymbolGridTrade
               );
             });
 
             it('triggers cache.del as order filled', () => {
               expect(cacheMock.del).toHaveBeenCalledWith(
                 `${t.symbol}-grid-trade-last-sell-order`
+              );
+            });
+
+            it('triggers disableAction', () => {
+              expect(mockDisableAction).toHaveBeenCalledWith(
+                t.symbol,
+                {
+                  disabledBy: 'sell filled order',
+                  message:
+                    'Disabled action after founding filled grid trade order .',
+                  canResume: false,
+                  canRemoveLastBuyPrice: false
+                },
+                20
               );
             });
           } else {
@@ -1017,8 +1603,16 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 );
               });
 
+              it('does not trigger saveSymbolGridTrade as order throws error', () => {
+                expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
+              });
+
               it('does not trigger cache.del for last sell order as order throws error', () => {
                 expect(cacheMock.del).not.toHaveBeenCalled();
+              });
+
+              it('does not trigger disableAction as order throws error', () => {
+                expect(mockDisableAction).not.toHaveBeenCalled();
               });
             } else if (
               Date.parse(t.lastBuyOrder.nextCheck) < Date.parse(momentDateTime)
@@ -1034,28 +1628,30 @@ describe('ensure-grid-trade-order-executed.js', () => {
               if (t.getOrder.status === 'FILLED') {
                 // do filled thing
                 it('triggers save symbol grid trade as order filled after getting order result', () => {
-                  const newGridTrade = {
-                    buy: rawData.symbolConfiguration.buy.gridTrade,
-                    sell: rawData.symbolConfiguration.sell.gridTrade
-                  };
-
-                  newGridTrade.sell[
-                    t.lastBuyOrder.currentGridTradeIndex
-                  ].executed = true;
-                  newGridTrade.sell[
-                    t.lastBuyOrder.currentGridTradeIndex
-                  ].executedOrder = t.getOrder;
-
                   expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
                     loggerMock,
                     t.symbol,
-                    newGridTrade
+                    t.saveSymbolGridTrade
                   );
                 });
 
                 it('triggers cache.del as order filled after getting order result', () => {
                   expect(cacheMock.del).toHaveBeenCalledWith(
                     `${t.symbol}-grid-trade-last-sell-order`
+                  );
+                });
+
+                it('triggers disableAction after getting order result', () => {
+                  expect(mockDisableAction).toHaveBeenCalledWith(
+                    t.symbol,
+                    {
+                      disabledBy: 'sell filled order',
+                      message:
+                        'Disabled action after founding filled grid trade order .',
+                      canResume: false,
+                      canRemoveLastBuyPrice: false
+                    },
+                    20
                   );
                 });
               } else if (
@@ -1068,6 +1664,14 @@ describe('ensure-grid-trade-order-executed.js', () => {
                   expect(cacheMock.del).toHaveBeenCalledWith(
                     `${t.symbol}-grid-trade-last-sell-order`
                   );
+                });
+
+                it('does not trigger saveSymbolGridTrade due to cancelled order', () => {
+                  expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
+                });
+
+                it('does not trigger disableAction due to cancelled order', () => {
+                  expect(mockDisableAction).not.toHaveBeenCalled();
                 });
               } else {
                 // do else thing
@@ -1087,6 +1691,14 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 it('does not trigger cache.del for last sell order as not filled', () => {
                   expect(cacheMock.del).not.toHaveBeenCalled();
                 });
+
+                it('does not trigger saveSymbolGridTrade as not filled', () => {
+                  expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
+                });
+
+                it('does not trigger disableAction as not filled', () => {
+                  expect(mockDisableAction).not.toHaveBeenCalled();
+                });
               }
             } else if (
               Date.parse(t.lastBuyOrder.nextCheck) > Date.parse(momentDateTime)
@@ -1102,6 +1714,14 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
               it('does not trigger cache.del because time is not yet to check', () => {
                 expect(cacheMock.del).not.toHaveBeenCalled();
+              });
+
+              it('does not trigger saveSymbolGridTrade because time is not yet to check', () => {
+                expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
+              });
+
+              it('does not trigger disableAction because time is not yet to check', () => {
+                expect(mockDisableAction).not.toHaveBeenCalled();
               });
             }
           }

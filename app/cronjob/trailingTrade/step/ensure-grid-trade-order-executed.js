@@ -6,7 +6,8 @@ const {
   calculateLastBuyPrice,
   getAPILimit,
   isExceedAPILimit,
-  isActionDisabled
+  isActionDisabled,
+  disableAction
 } = require('../../trailingTradeHelper/common');
 
 const {
@@ -168,13 +169,14 @@ const slackMessageOrderDeleted = async (
 const saveGridTrade = async (logger, rawData, order) => {
   const {
     symbol,
+    featureToggle: { notifyDebug },
     symbolConfiguration: {
       buy: { gridTrade: buyGridTrade },
       sell: { gridTrade: sellGridTrade }
     }
   } = rawData;
   // Assummed grid trade in the symbol configuration is already up to date.
-  const { side, currentGridTradeIndex } = order;
+  const { side, type, currentGridTradeIndex } = order;
 
   const newGridTrade = {
     buy: buyGridTrade,
@@ -184,6 +186,7 @@ const saveGridTrade = async (logger, rawData, order) => {
     { side, currentGridTradeIndex, newGridTrade },
     'Grid trade before updating'
   );
+
   const selectedSide = side.toLowerCase();
 
   const currentGridTrade = newGridTrade[selectedSide][currentGridTradeIndex];
@@ -193,6 +196,20 @@ const saveGridTrade = async (logger, rawData, order) => {
 
   newGridTrade[selectedSide][currentGridTradeIndex] = currentGridTrade;
   logger.info({ symbol, newGridTrade }, 'Saving grid trade');
+
+  if (notifyDebug) {
+    slack.sendMessage(
+      `${symbol} ${side.toUpperCase()} Grid Trade Updated (${moment().format(
+        'HH:mm:ss.SSS'
+      )}): *${type}*\n` +
+        `- New Gird Trade: \`\`\`${JSON.stringify(
+          newGridTrade,
+          undefined,
+          2
+        )}\`\`\`\n` +
+        `- Current API Usage: ${getAPILimit(logger)}`
+    );
+  }
   return saveSymbolGridTrade(logger, symbol, newGridTrade);
 };
 
@@ -208,9 +225,12 @@ const execute = async (logger, rawData) => {
   const {
     symbol,
     action,
-    featureToggle: { notifyOrderExecute },
+    featureToggle: { notifyOrderExecute, notifyDebug },
     symbolConfiguration: {
-      system: { checkOrderExecutePeriod }
+      system: {
+        checkOrderExecutePeriod,
+        temporaryDisableActionAfterConfirmingOrder
+      }
     }
   } = data;
 
@@ -264,7 +284,25 @@ const execute = async (logger, rawData) => {
       await calculateLastBuyPrice(logger, symbol, lastBuyOrder);
 
       // Save grid trade to the database
-      await saveGridTrade(logger, data, lastBuyOrder);
+      const saveGridTradeResult = await saveGridTrade(
+        logger,
+        data,
+        lastBuyOrder
+      );
+
+      if (notifyDebug) {
+        slack.sendMessage(
+          `${symbol} BUY Grid Trade Updated Result (${moment().format(
+            'HH:mm:ss.SSS'
+          )}): \n` +
+            `- Save Grid Trade Result: \`\`\`${JSON.stringify(
+              saveGridTradeResult,
+              undefined,
+              2
+            )}\`\`\`\n` +
+            `- Current API Usage: ${getAPILimit(logger)}`
+        );
+      }
 
       // Remove grid trade last order
       await removeGridTradeLastOrder(logger, symbol, 'buy');
@@ -276,6 +314,18 @@ const execute = async (logger, rawData) => {
         lastBuyOrder,
         lastBuyOrder,
         notifyOrderExecute
+      );
+
+      // Lock symbol action configured seconds to avoid immediate action
+      await disableAction(
+        symbol,
+        {
+          disabledBy: 'buy filled order',
+          message: 'Disabled action after founding filled grid trade order .',
+          canResume: false,
+          canRemoveLastBuyPrice: false
+        },
+        temporaryDisableActionAfterConfirmingOrder
       );
     } else {
       // If not filled, check orders is time to check or not
@@ -327,10 +377,24 @@ const execute = async (logger, rawData) => {
           await calculateLastBuyPrice(logger, symbol, orderResult);
 
           // Save grid trade to the database
-          await saveGridTrade(logger, data, {
+          const saveGridTradeResult = await saveGridTrade(logger, data, {
             ...lastBuyOrder,
             ...orderResult
           });
+
+          if (notifyDebug) {
+            slack.sendMessage(
+              `${symbol} BUY Grid Trade Updated Result (${moment().format(
+                'HH:mm:ss.SSS'
+              )}): \n` +
+                `- Save Grid Trade Result: \`\`\`${JSON.stringify(
+                  saveGridTradeResult,
+                  undefined,
+                  2
+                )}\`\`\`\n` +
+                `- Current API Usage: ${getAPILimit(logger)}`
+            );
+          }
 
           // Remove grid trade last order
           await removeGridTradeLastOrder(logger, symbol, 'buy');
@@ -342,6 +406,19 @@ const execute = async (logger, rawData) => {
             lastBuyOrder,
             orderResult,
             notifyOrderExecute
+          );
+
+          // Lock symbol action configured seconds to avoid immediate action
+          await disableAction(
+            symbol,
+            {
+              disabledBy: 'buy filled order',
+              message:
+                'Disabled action after founding filled grid trade order .',
+              canResume: false,
+              canRemoveLastBuyPrice: false
+            },
+            temporaryDisableActionAfterConfirmingOrder
           );
         } else if (removeStatuses.includes(orderResult.status) === true) {
           // If order is no longer available, then delete from cache
@@ -399,7 +476,24 @@ const execute = async (logger, rawData) => {
       logger.info({ lastSellOrder }, 'Order has already filled.');
 
       // Save grid trade to the database
-      await saveGridTrade(logger, data, lastSellOrder);
+      const saveGridTradeResult = await saveGridTrade(
+        logger,
+        data,
+        lastSellOrder
+      );
+      if (notifyDebug) {
+        slack.sendMessage(
+          `${symbol} SELL Grid Trade Updated Result (${moment().format(
+            'HH:mm:ss.SSS'
+          )}): \n` +
+            `- Save Grid Trade Result: \`\`\`${JSON.stringify(
+              saveGridTradeResult,
+              undefined,
+              2
+            )}\`\`\`\n` +
+            `- Current API Usage: ${getAPILimit(logger)}`
+        );
+      }
 
       // Remove grid trade last order
       await removeGridTradeLastOrder(logger, symbol, 'sell');
@@ -411,6 +505,18 @@ const execute = async (logger, rawData) => {
         lastSellOrder,
         lastSellOrder,
         notifyOrderExecute
+      );
+
+      // Lock symbol action configured seconds to avoid immediate action
+      await disableAction(
+        symbol,
+        {
+          disabledBy: 'sell filled order',
+          message: 'Disabled action after founding filled grid trade order .',
+          canResume: false,
+          canRemoveLastBuyPrice: false
+        },
+        temporaryDisableActionAfterConfirmingOrder
       );
     } else {
       // If not filled, check orders is time to check or not
@@ -457,10 +563,24 @@ const execute = async (logger, rawData) => {
           logger.info({ lastSellOrder }, 'The order is filled.');
 
           // Save grid trade to the database
-          await saveGridTrade(logger, data, {
+          const saveGridTradeResult = await saveGridTrade(logger, data, {
             ...lastSellOrder,
             ...orderResult
           });
+
+          if (notifyDebug) {
+            slack.sendMessage(
+              `${symbol} SELL Grid Trade Updated Result (${moment().format(
+                'HH:mm:ss.SSS'
+              )}): \n` +
+                `- Save Grid Trade Result: \`\`\`${JSON.stringify(
+                  saveGridTradeResult,
+                  undefined,
+                  2
+                )}\`\`\`\n` +
+                `- Current API Usage: ${getAPILimit(logger)}`
+            );
+          }
 
           // Remove grid trade last order
           await removeGridTradeLastOrder(logger, symbol, 'sell');
@@ -472,6 +592,19 @@ const execute = async (logger, rawData) => {
             lastSellOrder,
             orderResult,
             notifyOrderExecute
+          );
+
+          // Lock symbol action configured seconds to avoid immediate action
+          await disableAction(
+            symbol,
+            {
+              disabledBy: 'sell filled order',
+              message:
+                'Disabled action after founding filled grid trade order .',
+              canResume: false,
+              canRemoveLastBuyPrice: false
+            },
+            temporaryDisableActionAfterConfirmingOrder
           );
         } else if (removeStatuses.includes(orderResult.status) === true) {
           // If order is no longer available, then delete from cache
