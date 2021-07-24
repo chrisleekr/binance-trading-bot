@@ -13,6 +13,7 @@ describe('place-sell-stop-loss-order.js', () => {
   let mockIsExceedAPILimit;
   let mockDisableAction;
   let mockGetAPILimit;
+  let mockSaveOrder;
 
   describe('execute', () => {
     beforeEach(() => {
@@ -31,6 +32,7 @@ describe('place-sell-stop-loss-order.js', () => {
       mockIsExceedAPILimit = jest.fn().mockReturnValue(false);
       mockDisableAction = jest.fn().mockResolvedValue(true);
       mockGetAPILimit = jest.fn().mockReturnValueOnce(10);
+      mockSaveOrder = jest.fn().mockResolvedValue(true);
     });
 
     describe('when symbol is locked', () => {
@@ -45,7 +47,8 @@ describe('place-sell-stop-loss-order.js', () => {
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrder: mockSaveOrder
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -91,6 +94,10 @@ describe('place-sell-stop-loss-order.js', () => {
         expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
       });
 
+      it('does not trigger saveOrder', () => {
+        expect(mockSaveOrder).not.toHaveBeenCalled();
+      });
+
       it('retruns expected value', () => {
         expect(result).toStrictEqual(rawData);
       });
@@ -108,7 +115,8 @@ describe('place-sell-stop-loss-order.js', () => {
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrder: mockSaveOrder
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -154,6 +162,10 @@ describe('place-sell-stop-loss-order.js', () => {
         expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
       });
 
+      it('does not trigger saveOrder', () => {
+        expect(mockSaveOrder).not.toHaveBeenCalled();
+      });
+
       it('retruns expected value', () => {
         expect(result).toStrictEqual(rawData);
       });
@@ -171,7 +183,8 @@ describe('place-sell-stop-loss-order.js', () => {
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrder: mockSaveOrder
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -229,6 +242,10 @@ describe('place-sell-stop-loss-order.js', () => {
         expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
       });
 
+      it('does not trigger saveOrder', () => {
+        expect(mockSaveOrder).not.toHaveBeenCalled();
+      });
+
       it('retruns expected value', () => {
         expect(result).toStrictEqual({
           ...rawData,
@@ -267,7 +284,8 @@ describe('place-sell-stop-loss-order.js', () => {
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             disableAction: mockDisableAction,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrder: mockSaveOrder
           }));
 
           const step = require('../place-sell-stop-loss-order');
@@ -316,6 +334,10 @@ describe('place-sell-stop-loss-order.js', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
+        it('does not trigger saveOrder', () => {
+          expect(mockSaveOrder).not.toHaveBeenCalled();
+        });
+
         it('retruns expected value', () => {
           expect(result).toStrictEqual({
             ...rawData,
@@ -345,7 +367,8 @@ describe('place-sell-stop-loss-order.js', () => {
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             disableAction: mockDisableAction,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrder: mockSaveOrder
           }));
 
           const step = require('../place-sell-stop-loss-order');
@@ -394,6 +417,10 @@ describe('place-sell-stop-loss-order.js', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
+        it('does not trigger saveOrder', () => {
+          expect(mockSaveOrder).not.toHaveBeenCalled();
+        });
+
         it('retruns expected value', () => {
           expect(result).toStrictEqual({
             ...rawData,
@@ -423,7 +450,8 @@ describe('place-sell-stop-loss-order.js', () => {
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             disableAction: mockDisableAction,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrder: mockSaveOrder
           }));
 
           const step = require('../place-sell-stop-loss-order');
@@ -472,6 +500,10 @@ describe('place-sell-stop-loss-order.js', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
+        it('does not trigger saveOrder', () => {
+          expect(mockSaveOrder).not.toHaveBeenCalled();
+        });
+
         it('retruns expected value', () => {
           expect(result).toStrictEqual({
             ...rawData,
@@ -503,7 +535,8 @@ describe('place-sell-stop-loss-order.js', () => {
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             disableAction: mockDisableAction,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrder: mockSaveOrder
           }));
 
           const step = require('../place-sell-stop-loss-order');
@@ -552,6 +585,10 @@ describe('place-sell-stop-loss-order.js', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
+        it('does not trigger saveOrder', () => {
+          expect(mockSaveOrder).not.toHaveBeenCalled();
+        });
+
         it('retruns expected value', () => {
           expect(result).toStrictEqual({
             ...rawData,
@@ -580,7 +617,8 @@ describe('place-sell-stop-loss-order.js', () => {
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             disableAction: mockDisableAction,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrder: mockSaveOrder
           }));
 
           const step = require('../place-sell-stop-loss-order');
@@ -629,6 +667,10 @@ describe('place-sell-stop-loss-order.js', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
+        it('does not trigger saveOrder', () => {
+          expect(mockSaveOrder).not.toHaveBeenCalled();
+        });
+
         it('retruns expected value', () => {
           expect(result).toStrictEqual({
             ...rawData,
@@ -657,7 +699,8 @@ describe('place-sell-stop-loss-order.js', () => {
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             disableAction: mockDisableAction,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrder: mockSaveOrder
           }));
 
           const step = require('../place-sell-stop-loss-order');
@@ -706,6 +749,10 @@ describe('place-sell-stop-loss-order.js', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
+        it('does not trigger saveOrder', () => {
+          expect(mockSaveOrder).not.toHaveBeenCalled();
+        });
+
         it('retruns expected value', () => {
           expect(result).toStrictEqual({
             ...rawData,
@@ -735,7 +782,8 @@ describe('place-sell-stop-loss-order.js', () => {
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrder: mockSaveOrder
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -784,6 +832,10 @@ describe('place-sell-stop-loss-order.js', () => {
         expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
       });
 
+      it('does not trigger saveOrder', () => {
+        expect(mockSaveOrder).not.toHaveBeenCalled();
+      });
+
       it('retruns expected value', () => {
         expect(result).toStrictEqual({
           ...rawData,
@@ -814,7 +866,8 @@ describe('place-sell-stop-loss-order.js', () => {
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrder: mockSaveOrder
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -861,6 +914,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
       it('does not trigger getAccountInfoFromAPI', () => {
         expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveOrder', () => {
+        expect(mockSaveOrder).not.toHaveBeenCalled();
       });
 
       it('retruns expected value', () => {
@@ -891,7 +948,8 @@ describe('place-sell-stop-loss-order.js', () => {
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrder: mockSaveOrder
         }));
 
         const step = require('../place-sell-stop-loss-order');
@@ -938,6 +996,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
       it('does not trigger getAccountInfoFromAPI', () => {
         expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveOrder', () => {
+        expect(mockSaveOrder).not.toHaveBeenCalled();
       });
 
       it('retruns expected value', () => {
@@ -973,13 +1035,22 @@ describe('place-sell-stop-loss-order.js', () => {
               account: 'info'
             });
 
+            binanceMock.client.order = jest.fn().mockResolvedValue({
+              symbol: 'BTCUPUSDT',
+              orderId: 2701762317,
+              orderListId: -1,
+              clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+              transactTime: 1626946722520
+            });
+
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAndCacheOpenOrdersForSymbol:
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrder: mockSaveOrder
             }));
 
             const step = require('../place-sell-stop-loss-order');
@@ -1046,6 +1117,23 @@ describe('place-sell-stop-loss-order.js', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
           });
 
+          it('triggers saveOrder', () => {
+            expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+              order: {
+                symbol: 'BTCUPUSDT',
+                orderId: 2701762317,
+                orderListId: -1,
+                clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                transactTime: 1626946722520
+              },
+              botStatus: {
+                savedAt: expect.any(String),
+                savedBy: 'place-sell-stop-loss-order',
+                savedMessage: 'The sell STOP-LOSS order is placed.'
+              }
+            });
+          });
+
           it('retruns expected value', () => {
             expect(result).toStrictEqual({
               ...rawData,
@@ -1093,13 +1181,22 @@ describe('place-sell-stop-loss-order.js', () => {
               account: 'info'
             });
 
+            binanceMock.client.order = jest.fn().mockResolvedValue({
+              symbol: 'ALPHABTC',
+              orderId: 2701762317,
+              orderListId: -1,
+              clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+              transactTime: 1626946722520
+            });
+
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAndCacheOpenOrdersForSymbol:
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrder: mockSaveOrder
             }));
 
             const step = require('../place-sell-stop-loss-order');
@@ -1166,6 +1263,23 @@ describe('place-sell-stop-loss-order.js', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
           });
 
+          it('triggers saveOrder', () => {
+            expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+              order: {
+                symbol: 'ALPHABTC',
+                orderId: 2701762317,
+                orderListId: -1,
+                clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                transactTime: 1626946722520
+              },
+              botStatus: {
+                savedAt: expect.any(String),
+                savedBy: 'place-sell-stop-loss-order',
+                savedMessage: 'The sell STOP-LOSS order is placed.'
+              }
+            });
+          });
+
           it('retruns expected value', () => {
             expect(result).toStrictEqual({
               ...rawData,
@@ -1213,13 +1327,22 @@ describe('place-sell-stop-loss-order.js', () => {
               account: 'info'
             });
 
+            binanceMock.client.order = jest.fn().mockResolvedValue({
+              symbol: 'BTCBRL',
+              orderId: 2701762317,
+              orderListId: -1,
+              clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+              transactTime: 1626946722520
+            });
+
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAndCacheOpenOrdersForSymbol:
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrder: mockSaveOrder
             }));
 
             const step = require('../place-sell-stop-loss-order');
@@ -1286,6 +1409,23 @@ describe('place-sell-stop-loss-order.js', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
           });
 
+          it('triggers saveOrder', () => {
+            expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+              order: {
+                symbol: 'BTCBRL',
+                orderId: 2701762317,
+                orderListId: -1,
+                clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                transactTime: 1626946722520
+              },
+              botStatus: {
+                savedAt: expect.any(String),
+                savedBy: 'place-sell-stop-loss-order',
+                savedMessage: 'The sell STOP-LOSS order is placed.'
+              }
+            });
+          });
+
           it('retruns expected value', () => {
             expect(result).toStrictEqual({
               ...rawData,
@@ -1335,13 +1475,22 @@ describe('place-sell-stop-loss-order.js', () => {
               account: 'info'
             });
 
+            binanceMock.client.order = jest.fn().mockResolvedValue({
+              symbol: 'BTCUPUSDT',
+              orderId: 2701762317,
+              orderListId: -1,
+              clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+              transactTime: 1626946722520
+            });
+
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAndCacheOpenOrdersForSymbol:
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrder: mockSaveOrder
             }));
 
             const step = require('../place-sell-stop-loss-order');
@@ -1408,6 +1557,23 @@ describe('place-sell-stop-loss-order.js', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
           });
 
+          it('triggers saveOrder', () => {
+            expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+              order: {
+                symbol: 'BTCUPUSDT',
+                orderId: 2701762317,
+                orderListId: -1,
+                clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                transactTime: 1626946722520
+              },
+              botStatus: {
+                savedAt: expect.any(String),
+                savedBy: 'place-sell-stop-loss-order',
+                savedMessage: 'The sell STOP-LOSS order is placed.'
+              }
+            });
+          });
+
           it('retruns expected value', () => {
             expect(result).toStrictEqual({
               ...rawData,
@@ -1455,13 +1621,22 @@ describe('place-sell-stop-loss-order.js', () => {
               account: 'info'
             });
 
+            binanceMock.client.order = jest.fn().mockResolvedValue({
+              symbol: 'ALPHABTC',
+              orderId: 2701762317,
+              orderListId: -1,
+              clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+              transactTime: 1626946722520
+            });
+
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAndCacheOpenOrdersForSymbol:
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrder: mockSaveOrder
             }));
 
             const step = require('../place-sell-stop-loss-order');
@@ -1528,6 +1703,23 @@ describe('place-sell-stop-loss-order.js', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
           });
 
+          it('triggers saveOrder', () => {
+            expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+              order: {
+                symbol: 'ALPHABTC',
+                orderId: 2701762317,
+                orderListId: -1,
+                clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                transactTime: 1626946722520
+              },
+              botStatus: {
+                savedAt: expect.any(String),
+                savedBy: 'place-sell-stop-loss-order',
+                savedMessage: 'The sell STOP-LOSS order is placed.'
+              }
+            });
+          });
+
           it('retruns expected value', () => {
             expect(result).toStrictEqual({
               ...rawData,
@@ -1575,13 +1767,22 @@ describe('place-sell-stop-loss-order.js', () => {
               account: 'info'
             });
 
+            binanceMock.client.order = jest.fn().mockResolvedValue({
+              symbol: 'BTCBRL',
+              orderId: 2701762317,
+              orderListId: -1,
+              clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+              transactTime: 1626946722520
+            });
+
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAndCacheOpenOrdersForSymbol:
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrder: mockSaveOrder
             }));
 
             const step = require('../place-sell-stop-loss-order');
@@ -1646,6 +1847,23 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveOrder', () => {
+            expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+              order: {
+                symbol: 'BTCBRL',
+                orderId: 2701762317,
+                orderListId: -1,
+                clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                transactTime: 1626946722520
+              },
+              botStatus: {
+                savedAt: expect.any(String),
+                savedBy: 'place-sell-stop-loss-order',
+                savedMessage: 'The sell STOP-LOSS order is placed.'
+              }
+            });
           });
 
           it('retruns expected value', () => {

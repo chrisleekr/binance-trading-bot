@@ -6,7 +6,8 @@ const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
   isExceedAPILimit,
-  getAPILimit
+  getAPILimit,
+  saveOrder
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -188,6 +189,18 @@ const execute = async (logger, rawData) => {
       nextCheck: moment().add(checkOrderExecutePeriod, 'seconds')
     })
   );
+
+  // Save order
+  await saveOrder(logger, {
+    order: {
+      ...orderResult
+    },
+    botStatus: {
+      savedAt: moment().format(),
+      savedBy: 'place-sell-order',
+      savedMessage: 'The sell order is placed.'
+    }
+  });
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

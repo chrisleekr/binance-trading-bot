@@ -1363,4 +1363,46 @@ describe('common.js', () => {
       });
     });
   });
+
+  describe('saveOrder', () => {
+    beforeEach(async () => {
+      const { mongo, logger } = require('../../../helpers');
+
+      mongoMock = mongo;
+      loggerMock = logger;
+
+      mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
+
+      commonHelper = require('../common');
+      result = await commonHelper.saveOrder(loggerMock, {
+        order: {
+          orderId: 123456
+        },
+        botStatus: {
+          some: 'value'
+        }
+      });
+    });
+
+    it('triggers mongo.upsertOne', () => {
+      expect(mongoMock.upsertOne).toHaveBeenCalledWith(
+        loggerMock,
+        'trailing-trade-orders',
+        { key: 123456 },
+        {
+          key: 123456,
+          order: {
+            orderId: 123456
+          },
+          botStatus: {
+            some: 'value'
+          }
+        }
+      );
+    });
+
+    it('returns expected value', () => {
+      expect(result).toBeTruthy();
+    });
+  });
 });

@@ -13,6 +13,7 @@ describe('ensure-order-placed.js', () => {
   let mockGetAccountInfoFromAPI;
   let mockDisableAction;
   let mockGetAPILimit;
+  let mockSaveOrder;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -33,6 +34,7 @@ describe('ensure-order-placed.js', () => {
 
     mockDisableAction = jest.fn().mockResolvedValue(true);
     mockGetAPILimit = jest.fn().mockReturnValue(10);
+    mockSaveOrder = jest.fn().mockResolvedValue(true);
   });
 
   describe('when there is no order', () => {
@@ -57,7 +59,8 @@ describe('ensure-order-placed.js', () => {
         getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
         getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
         disableAction: mockDisableAction,
-        getAPILimit: mockGetAPILimit
+        getAPILimit: mockGetAPILimit,
+        saveOrder: mockSaveOrder
       }));
 
       rawData = {
@@ -98,6 +101,10 @@ describe('ensure-order-placed.js', () => {
 
     it('does not trigger cache.del', () => {
       expect(cacheMock.del).not.toHaveBeenCalled();
+    });
+
+    it('does not trigger saveOrder', () => {
+      expect(mockSaveOrder).not.toHaveBeenCalled();
     });
 
     it('returns expected result', () => {
@@ -160,7 +167,8 @@ describe('ensure-order-placed.js', () => {
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           disableAction: mockDisableAction,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrder: mockSaveOrder
         }));
       });
 
@@ -207,6 +215,21 @@ describe('ensure-order-placed.js', () => {
 
         it('does not trigger slack.sendMessage', () => {
           expect(slackMock.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('triggers saveOrder', () => {
+          expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+            order: {
+              orderId: 123,
+              symbol: 'BTCUSDT',
+              status: 'NEW'
+            },
+            botStatus: {
+              savedAt: expect.any(String),
+              savedBy: 'ensure-order-placed',
+              savedMessage: 'The order is found in the open orders.'
+            }
+          });
         });
 
         it('triggers disableAction', () => {
@@ -297,6 +320,21 @@ describe('ensure-order-placed.js', () => {
 
         it('triggers slack.sendMessage', () => {
           expect(slackMock.sendMessage).toHaveBeenCalled();
+        });
+
+        it('triggers saveOrder', () => {
+          expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+            order: {
+              orderId: 123,
+              symbol: 'BTCUSDT',
+              status: 'NEW'
+            },
+            botStatus: {
+              savedAt: expect.any(String),
+              savedBy: 'ensure-order-placed',
+              savedMessage: 'The order is found in the open orders.'
+            }
+          });
         });
 
         it('triggers disableAction', () => {
@@ -382,7 +420,8 @@ describe('ensure-order-placed.js', () => {
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           disableAction: mockDisableAction,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrder: mockSaveOrder
         }));
       });
 
@@ -431,6 +470,10 @@ describe('ensure-order-placed.js', () => {
 
         it('does not trigger slack.sendMessage', () => {
           expect(slackMock.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveOrder', () => {
+          expect(mockSaveOrder).not.toHaveBeenCalled();
         });
 
         it('returns expected result', () => {
@@ -497,6 +540,10 @@ describe('ensure-order-placed.js', () => {
 
         it('triggers slack.sendMessage', () => {
           expect(slackMock.sendMessage).toHaveBeenCalled();
+        });
+
+        it('does not trigger saveOrder', () => {
+          expect(mockSaveOrder).not.toHaveBeenCalled();
         });
 
         it('returns expected result', () => {
@@ -566,7 +613,8 @@ describe('ensure-order-placed.js', () => {
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             disableAction: mockDisableAction,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrder: mockSaveOrder
           }));
 
           rawData = {
@@ -616,6 +664,21 @@ describe('ensure-order-placed.js', () => {
 
         it('does not trigger slack.sendMessage', () => {
           expect(slackMock.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('triggers saveOrder', () => {
+          expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+            order: {
+              orderId: 123,
+              symbol: 'BTCUSDT',
+              status: 'NEW'
+            },
+            botStatus: {
+              savedAt: expect.any(String),
+              savedBy: 'ensure-order-placed',
+              savedMessage: 'The order is found in the open orders.'
+            }
+          });
         });
 
         it('triggers disableAction', () => {
@@ -707,7 +770,8 @@ describe('ensure-order-placed.js', () => {
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             disableAction: mockDisableAction,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrder: mockSaveOrder
           }));
 
           rawData = {
@@ -757,6 +821,21 @@ describe('ensure-order-placed.js', () => {
 
         it('triggers slack.sendMessage', () => {
           expect(slackMock.sendMessage).toHaveBeenCalled();
+        });
+
+        it('triggers saveOrder', () => {
+          expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+            order: {
+              orderId: 123,
+              symbol: 'BTCUSDT',
+              status: 'NEW'
+            },
+            botStatus: {
+              savedAt: expect.any(String),
+              savedBy: 'ensure-order-placed',
+              savedMessage: 'The order is found in the open orders.'
+            }
+          });
         });
 
         it('triggers disableAction', () => {
@@ -843,7 +922,8 @@ describe('ensure-order-placed.js', () => {
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             disableAction: mockDisableAction,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrder: mockSaveOrder
           }));
 
           rawData = {
@@ -886,6 +966,10 @@ describe('ensure-order-placed.js', () => {
 
         it('does not trigger slack.sendMessage', () => {
           expect(slackMock.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveORder', () => {
+          expect(mockSaveOrder).not.toHaveBeenCalled();
         });
 
         it('returns expected result', () => {
@@ -943,7 +1027,8 @@ describe('ensure-order-placed.js', () => {
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             disableAction: mockDisableAction,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrder: mockSaveOrder
           }));
 
           rawData = {
@@ -986,6 +1071,10 @@ describe('ensure-order-placed.js', () => {
 
         it('triggers slack.sendMessage', () => {
           expect(slackMock.sendMessage).toHaveBeenCalled();
+        });
+
+        it('does not trigger saveOrder', () => {
+          expect(mockSaveOrder).not.toHaveBeenCalled();
         });
 
         it('returns expected result', () => {
@@ -1031,7 +1120,8 @@ describe('ensure-order-placed.js', () => {
         getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
         getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
         disableAction: mockDisableAction,
-        getAPILimit: mockGetAPILimit
+        getAPILimit: mockGetAPILimit,
+        saveOrder: mockSaveOrder
       }));
 
       rawData = {
@@ -1056,6 +1146,10 @@ describe('ensure-order-placed.js', () => {
 
     it('does not trigger cache.get for sell order', () => {
       expect(cacheMock.get).not.toHaveBeenCalled();
+    });
+
+    it('does not trigger saveOrder', () => {
+      expect(mockSaveOrder).not.toHaveBeenCalled();
     });
 
     it('returns expected result', () => {

@@ -3,7 +3,8 @@ const { binance, slack, cache, PubSub } = require('../../../helpers');
 const {
   getAPILimit,
   getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI
+  getAccountInfoFromAPI,
+  saveOrder
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -208,6 +209,18 @@ const recordOrder = async (logger, orderResult, checkManualBuyOrderPeriod) => {
         nextCheck: moment().add(checkManualBuyOrderPeriod, 'seconds')
       })
     );
+
+    // Save order
+    await saveOrder(logger, {
+      order: {
+        ...orderResult
+      },
+      botStatus: {
+        savedAt: moment().format(),
+        savedBy: 'place-manual-trade',
+        savedMessage: 'The manual order is placed.'
+      }
+    });
   } else {
     logger.info({ orderResult }, 'Do not record order as it is not BUY order');
   }

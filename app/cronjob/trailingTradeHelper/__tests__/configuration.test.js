@@ -1888,12 +1888,8 @@ describe('configuration.js', () => {
         it('returns expected value', () => {
           expect(result).toStrictEqual({
             buy: {
-              currentGridTrade: {
-                executed: false,
-                executedOrder: null,
-                triggerPercentage: 1
-              },
-              currentGridTradeIndex: 0,
+              currentGridTrade: null,
+              currentGridTradeIndex: -1,
               gridTrade: [
                 {
                   executed: false,

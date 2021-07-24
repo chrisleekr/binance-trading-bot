@@ -246,15 +246,8 @@
               "candles": { "interval": "1d", "limit": 30 },
               "restrictionPercentage": 0.9
             },
-            "currentGridTradeIndex": 0,
-            "currentGridTrade": {
-              "triggerPercentage": 1,
-              "stopPercentage": 1.02,
-              "limitPercentage": 1.021,
-              "maxPurchaseAmount": 100,
-              "executed": false,
-              "executedOrder": null
-            }
+            "currentGridTradeIndex": -1,
+            "currentGridTrade": null
           },
           "system": {
             "temporaryDisableActionAfterConfirmingOrder": 20,

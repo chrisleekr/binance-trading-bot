@@ -6,7 +6,8 @@ const {
   getAccountInfoFromAPI,
   isExceedAPILimit,
   disableAction,
-  getAPILimit
+  getAPILimit,
+  saveOrder
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -141,6 +142,18 @@ const execute = async (logger, rawData) => {
   const orderResult = await binance.client.order(orderParams);
 
   logger.info({ orderResult }, 'Market order result');
+
+  // Save order
+  await saveOrder(logger, {
+    order: {
+      ...orderResult
+    },
+    botStatus: {
+      savedAt: moment().format(),
+      savedBy: 'place-sell-stop-loss-order',
+      savedMessage: 'The sell STOP-LOSS order is placed.'
+    }
+  });
 
   // Temporary disable action
   await disableAction(

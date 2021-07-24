@@ -524,6 +524,30 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
   );
 };
 
+/**
+ * Save order to mongodb
+ *
+ * @param {*} logger
+ * @param {*} data
+ */
+const saveOrder = async (logger, data) => {
+  logger.info({ tag: 'save-order', data }, 'Save order');
+
+  // Order ID must be included.
+  const {
+    order: { orderId }
+  } = data;
+  return mongo.upsertOne(
+    logger,
+    'trailing-trade-orders',
+    { key: orderId },
+    {
+      key: orderId,
+      ...data
+    }
+  );
+};
+
 module.exports = {
   cacheExchangeSymbols,
   getAccountInfoFromAPI,
@@ -546,5 +570,6 @@ module.exports = {
   removeOverrideDataForSymbol,
   getOverrideDataForIndicator,
   removeOverrideDataForIndicator,
-  calculateLastBuyPrice
+  calculateLastBuyPrice,
+  saveOrder
 };

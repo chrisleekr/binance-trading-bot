@@ -485,6 +485,15 @@ const postProcessConfiguration = async (
 
       currentGridTradeIndex = 1;
       [, currentGridTrade] = overridenGridTrade;
+    } else if (
+      side === 'buy' &&
+      lastBuyPrice > 0 &&
+      overridenGridTrade[1] === undefined
+    ) {
+      // If none of grid trade is executed, side is buy, last buy is recorded, 2nd grid trade is not defined
+
+      currentGridTradeIndex = -1;
+      currentGridTrade = null;
     } else {
       // Otherwise, get first grid trade as current grid trade
 
