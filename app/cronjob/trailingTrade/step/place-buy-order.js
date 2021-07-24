@@ -109,11 +109,8 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  const stopPrice = roundDown(
-    currentPrice * stopPercentage,
-    priceTickPrecision
-  );
-  const limitPrice = roundDown(
+  const stopPrice = _.floor(currentPrice * stopPercentage, priceTickPrecision);
+  const limitPrice = _.floor(
     currentPrice * limitPercentage,
     priceTickPrecision
   );

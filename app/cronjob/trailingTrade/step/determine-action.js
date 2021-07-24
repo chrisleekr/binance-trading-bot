@@ -5,10 +5,8 @@ const { isActionDisabled } = require('../../trailingTradeHelper/common');
 /**
  * Check whether can buy or not
  *
- *  - last buy price must be more than 0.
- *  - buy trigger price must be buy trigger price.
- *  - current grid trade must not be null.
- *  - if
+ *  - current price must be less than trigger price.
+ *  - current grid trade must be defined.
  *
  * @param {*} data
  * @returns

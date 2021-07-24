@@ -177,19 +177,21 @@ class SettingIconGridBuy extends React.Component {
         }, {})
       };
 
+      const humanisedIndex = index + 1;
+
       if (index === 0 && grid.triggerPercentage < 1) {
         // If it is the first grid trade and the trigger percentage is less than 1,
         isValid = false;
         v.triggerPercentage = false;
         v.messages.push(
-          `The trigger percentage for Grid #${index} cannot be less than 1.`
+          `The trigger percentage for Grid #${humanisedIndex} cannot be less than 1.`
         );
       } else if (index !== 0 && grid.triggerPercentage >= 1) {
         // If it is not the first grid trade and the trigger percentage is more than 1,
         isValid = false;
         v.triggerPercentage = false;
         v.messages.push(
-          `The trigger percentage for Grid #${index} cannot be equal or above 1.`
+          `The trigger percentage for Grid #${humanisedIndex} cannot be equal or above 1.`
         );
       }
 
