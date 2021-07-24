@@ -1,6 +1,8 @@
 /* eslint-disable no-lonely-if */
 /* eslint-disable global-require */
 
+const _ = require('lodash');
+
 describe('ensure-grid-trade-order-executed.js', () => {
   let result;
   let rawData;
@@ -801,7 +803,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
               );
             });
 
-            it('triggers disableAction', () => {
+            it('triggers disableAction as order filled', () => {
               expect(mockDisableAction).toHaveBeenCalledWith(
                 t.symbol,
                 {
@@ -815,9 +817,13 @@ describe('ensure-grid-trade-order-executed.js', () => {
               );
             });
 
-            it('triggers saveOrder', () => {
+            it('triggers saveOrder as order filled', () => {
+              const { lastBuyOrder } = t;
+
+              const order = _.cloneDeep(lastBuyOrder);
+
               expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
-                order: t.lastBuyOrder,
+                order,
                 botStatus: {
                   savedAt: expect.any(String),
                   savedBy: 'ensure-grid-trade-order-executed',
@@ -853,11 +859,12 @@ describe('ensure-grid-trade-order-executed.js', () => {
               });
 
               it('triggers saveOrder as order throws error', () => {
+                const { lastBuyOrder } = t;
+
+                const order = _.cloneDeep(lastBuyOrder);
+
                 expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
-                  order: {
-                    ...t.lastBuyOrder,
-                    nextCheck: expect.any(Object)
-                  },
+                  order,
                   botStatus: {
                     savedAt: expect.any(String),
                     savedBy: 'ensure-grid-trade-order-executed',
@@ -991,11 +998,14 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 });
 
                 it('triggers saveOrder as not filled', () => {
+                  const { lastBuyOrder } = t;
+
+                  const order = _.cloneDeep(lastBuyOrder);
+                  _.unset(order, ['nextCheck']);
+                  _.unset(order, ['currentGridTradeIndex']);
+
                   expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
-                    order: {
-                      ...t.lastBuyOrder,
-                      nextCheck: expect.any(Object)
-                    },
+                    order,
                     botStatus: {
                       savedAt: expect.any(String),
                       savedBy: 'ensure-grid-trade-order-executed',
@@ -1565,7 +1575,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
               );
             });
 
-            it('triggers disableAction', () => {
+            it('triggers disableAction as order filled', () => {
               expect(mockDisableAction).toHaveBeenCalledWith(
                 t.symbol,
                 {
@@ -1579,9 +1589,13 @@ describe('ensure-grid-trade-order-executed.js', () => {
               );
             });
 
-            it('triggers saveOrder', () => {
+            it('triggers saveOrder as order filled', () => {
+              const { lastSellOrder } = t;
+
+              const order = _.cloneDeep(lastSellOrder);
+
               expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
-                order: t.lastSellOrder,
+                order,
                 botStatus: {
                   savedAt: expect.any(String),
                   savedBy: 'ensure-grid-trade-order-executed',
@@ -1617,8 +1631,12 @@ describe('ensure-grid-trade-order-executed.js', () => {
               });
 
               it('triggers saveOrder as order throws error', () => {
+                const { lastSellOrder } = t;
+
+                const order = _.cloneDeep(lastSellOrder);
+
                 expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
-                  order: { ...t.lastSellOrder, nextCheck: expect.any(Object) },
+                  order,
                   botStatus: {
                     savedAt: expect.any(String),
                     savedBy: 'ensure-grid-trade-order-executed',
@@ -1744,11 +1762,14 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 });
 
                 it('triggers saveOrder as not filled', () => {
+                  const { lastSellOrder } = t;
+
+                  const order = _.cloneDeep(lastSellOrder);
+                  _.unset(order, ['nextCheck']);
+                  _.unset(order, ['currentGridTradeIndex']);
+
                   expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
-                    order: {
-                      ...t.lastSellOrder,
-                      nextCheck: expect.any(Object)
-                    },
+                    order,
                     botStatus: {
                       savedAt: expect.any(String),
                       savedBy: 'ensure-grid-trade-order-executed',

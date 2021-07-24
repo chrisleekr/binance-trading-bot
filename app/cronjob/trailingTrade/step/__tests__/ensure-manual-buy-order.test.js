@@ -695,8 +695,7 @@ describe('ensure-manual-buy-order.js', () => {
           it('triggers saveOrder', () => {
             expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
               order: {
-                ...testData.getOrderResult,
-                nextCheck: expect.any(Object)
+                ...testData.getOrderResult
               },
               botStatus: {
                 savedAt: expect.any(String),
@@ -772,7 +771,7 @@ describe('ensure-manual-buy-order.js', () => {
               status: 'NEW',
               type: 'LIMIT',
               side: 'BUY',
-              nextCheck: expect.any(Object)
+              nextCheck: expect.any(String)
             },
             botStatus: {
               savedAt: expect.any(String),

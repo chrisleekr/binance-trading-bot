@@ -364,7 +364,7 @@ const execute = async (logger, rawData) => {
 
           // Save order
           await saveOrder(logger, {
-            order: { ...lastBuyOrder, nextCheck: updatedNextCheck },
+            order: { ...lastBuyOrder },
             botStatus: {
               savedAt: moment().format(),
               savedBy: 'ensure-grid-trade-order-executed',
@@ -495,9 +495,7 @@ const execute = async (logger, rawData) => {
           // Save order
           await saveOrder(logger, {
             order: {
-              ...orderResult,
-              currentGridTradeIndex: lastBuyOrder.currentGridTradeIndex,
-              nextCheck: updatedNextCheck
+              ...orderResult
             },
             botStatus: {
               savedAt: moment().format(),
@@ -622,8 +620,7 @@ const execute = async (logger, rawData) => {
           // Save order
           await saveOrder(logger, {
             order: {
-              ...lastSellOrder,
-              nextCheck: updatedNextCheck
+              ...lastSellOrder
             },
             botStatus: {
               savedAt: moment().format(),
@@ -749,9 +746,7 @@ const execute = async (logger, rawData) => {
           // Save order
           await saveOrder(logger, {
             order: {
-              ...orderResult,
-              currentGridTradeIndex: lastSellOrder.currentGridTradeIndex,
-              nextCheck: updatedNextCheck
+              ...orderResult
             },
             botStatus: {
               savedAt: moment().format(),

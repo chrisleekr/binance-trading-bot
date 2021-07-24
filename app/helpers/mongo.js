@@ -106,6 +106,7 @@ const deleteOne = async (funcLogger, collectionName, filter) => {
 };
 
 module.exports = {
+  client,
   connect,
   findAll,
   findOne,

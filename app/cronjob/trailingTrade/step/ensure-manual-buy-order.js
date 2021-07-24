@@ -181,7 +181,7 @@ const execute = async (logger, rawData) => {
 
           // Save order
           await saveOrder(logger, {
-            order: { ...buyOrder, nextCheck: updatedNextCheck },
+            order: { ...buyOrder },
             botStatus: {
               savedAt: moment().format(),
               savedBy: 'ensure-manual-buy-order',
@@ -276,7 +276,7 @@ const execute = async (logger, rawData) => {
 
           // Save order
           await saveOrder(logger, {
-            order: { ...orderResult, nextCheck: updatedNextCheck },
+            order: { ...orderResult },
             botStatus: {
               savedAt: moment().format(),
               savedBy: 'ensure-manual-buy-order',
