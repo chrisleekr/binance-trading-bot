@@ -166,10 +166,7 @@ class CoinWrapperSellSignal extends React.Component {
                   - Sell quantity percentage:
                 </span>
                 <div className='coin-info-value'>
-                  {grid.quantityPercentage === 1
-                    ? (grid.quantityPercentage * 100).toFixed(2)
-                    : ((1 - grid.quantityPercentage) * 100).toFixed(2)}
-                  %
+                  {(grid.quantityPercentage * 100).toFixed(2)}%
                 </div>
               </div>
             </div>
