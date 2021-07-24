@@ -1,5 +1,7 @@
+const _ = require('lodash');
 const moment = require('moment');
 
+const { cache } = require('../../../helpers');
 const { isActionDisabled } = require('../../trailingTradeHelper/common');
 
 /**
@@ -186,6 +188,27 @@ const setSellActionAndMessage = (logger, rawData, action, processMessage) => {
 };
 
 /**
+ * Retrieve last grid order from cache
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} side
+ * @returns
+ */
+const getGridTradeLastOrder = async (logger, symbol, side) => {
+  const cachedLastOrder =
+    JSON.parse(await cache.get(`${symbol}-grid-trade-last-${side}-order`)) ||
+    {};
+
+  logger.info(
+    { cachedLastOrder },
+    `Retrieved grid trade last ${side} order from cache`
+  );
+
+  return cachedLastOrder;
+};
+
+/**
  * Determine action for trade
  *
  * @param {*} logger
@@ -231,6 +254,17 @@ const execute = async (logger, rawData) => {
   //    and current price is lower than the restriction price
   //  then buy.
   if (canBuy(data)) {
+    if (
+      _.isEmpty(await getGridTradeLastOrder(logger, symbol, 'buy')) === false
+    ) {
+      return setBuyActionAndMessage(
+        logger,
+        data,
+        'buy-order-wait',
+        `There is a last gird trade buy order. Wait.`
+      );
+    }
+
     if (hasBalanceToSell(data)) {
       return setBuyActionAndMessage(
         logger,
@@ -280,6 +314,16 @@ const execute = async (logger, rawData) => {
   //  last buy price has a value
   //  and total balance is enough to sell
   if (canSell(data)) {
+    if (
+      _.isEmpty(await getGridTradeLastOrder(logger, symbol, 'sell')) === false
+    ) {
+      return setSellActionAndMessage(
+        logger,
+        data,
+        'sell-order-wait',
+        `There is a last gird trade sell order. Wait.`
+      );
+    }
     // And if current price is higher or equal than trigger price
     if (isHigherThanSellTriggerPrice(data)) {
       const checkDisable = await isActionDisabled(symbol);

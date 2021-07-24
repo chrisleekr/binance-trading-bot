@@ -14,7 +14,6 @@ describe('ensure-grid-trade-order-executed.js', () => {
   let mockCalculateLastBuyPrice;
   let mockGetAPILimit;
   let mockIsExceedAPILimit;
-  let mockIsActionDisabled;
   let mockDisableAction;
 
   let mockSaveSymbolGridTrade;
@@ -58,10 +57,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
       mockCalculateLastBuyPrice = jest.fn().mockResolvedValue(true);
       mockGetAPILimit = jest.fn().mockResolvedValue(10);
       mockIsExceedAPILimit = jest.fn().mockReturnValue(false);
-      mockIsActionDisabled = jest.fn().mockResolvedValue({
-        isDiabled: false,
-        ttl: -2
-      });
+
       mockDisableAction = jest.fn().mockResolvedValue(true);
 
       mockSaveSymbolGridTrade = jest.fn().mockResolvedValue(true);
@@ -73,7 +69,6 @@ describe('ensure-grid-trade-order-executed.js', () => {
           calculateLastBuyPrice: mockCalculateLastBuyPrice,
           getAPILimit: mockGetAPILimit,
           isExceedAPILimit: mockIsExceedAPILimit,
-          isActionDisabled: mockIsActionDisabled,
           disableAction: mockDisableAction
         }));
 
@@ -171,108 +166,6 @@ describe('ensure-grid-trade-order-executed.js', () => {
           calculateLastBuyPrice: mockCalculateLastBuyPrice,
           getAPILimit: mockGetAPILimit,
           isExceedAPILimit: mockIsExceedAPILimit,
-          isActionDisabled: mockIsActionDisabled,
-          disableAction: mockDisableAction
-        }));
-
-        jest.mock('../../../trailingTradeHelper/configuration', () => ({
-          saveSymbolGridTrade: mockSaveSymbolGridTrade
-        }));
-
-        const step = require('../ensure-grid-trade-order-executed');
-
-        rawData = {
-          symbol: 'BTCUSDT',
-          action: 'not-determined',
-          featureToggle: { notifyOrderExecute: true, notifyDebug: true },
-          symbolConfiguration: {
-            buy: {
-              gridTrade: [
-                {
-                  triggerPercentage: 1,
-                  stopPercentage: 1.025,
-                  limitPercentage: 1.026,
-                  maxPurchaseAmount: 10,
-                  executed: false,
-                  executedOrder: null
-                },
-                {
-                  triggerPercentage: 0.8,
-                  stopPercentage: 1.025,
-                  limitPercentage: 1.026,
-                  maxPurchaseAmount: 10,
-                  executed: false,
-                  executedOrder: null
-                }
-              ]
-            },
-            sell: {
-              gridTrade: [
-                {
-                  triggerPercentage: 1.03,
-                  stopPercentage: 0.985,
-                  limitPercentage: 0.984,
-                  quantityPercentage: 0.8,
-                  executed: false,
-                  executedOrder: null
-                },
-                {
-                  triggerPercentage: 1.05,
-                  stopPercentage: 0.975,
-                  limitPercentage: 0.974,
-                  quantityPercentage: 1,
-                  executed: false,
-                  executedOrder: null
-                }
-              ]
-            },
-            system: {
-              checkOrderExecutePeriod: 10,
-              temporaryDisableActionAfterConfirmingOrder: 20
-            }
-          }
-        };
-
-        result = await step.execute(loggerMock, rawData);
-      });
-
-      it('does not trigger cache.get', () => {
-        expect(cacheMock.get).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger cache.set', () => {
-        expect(cacheMock.set).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger cache.del', () => {
-        expect(cacheMock.del).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger binance.client.getOrder', () => {
-        expect(binanceMock.client.getOrder).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger disableAction', () => {
-        expect(mockDisableAction).not.toHaveBeenCalled();
-      });
-
-      it('returns epxected result', () => {
-        expect(result).toStrictEqual(rawData);
-      });
-    });
-
-    describe('when action is disabled', () => {
-      beforeEach(async () => {
-        mockIsActionDisabled = jest.fn().mockResolvedValue({
-          isDisabled: true,
-          canRemoveLastBuyPrice: false
-        });
-
-        jest.mock('../../../trailingTradeHelper/common', () => ({
-          calculateLastBuyPrice: mockCalculateLastBuyPrice,
-          getAPILimit: mockGetAPILimit,
-          isExceedAPILimit: mockIsExceedAPILimit,
-          isActionDisabled: mockIsActionDisabled,
           disableAction: mockDisableAction
         }));
 
@@ -773,7 +666,6 @@ describe('ensure-grid-trade-order-executed.js', () => {
               calculateLastBuyPrice: mockCalculateLastBuyPrice,
               getAPILimit: mockGetAPILimit,
               isExceedAPILimit: mockIsExceedAPILimit,
-              isActionDisabled: mockIsActionDisabled,
               disableAction: mockDisableAction
             }));
 
@@ -1468,7 +1360,6 @@ describe('ensure-grid-trade-order-executed.js', () => {
               calculateLastBuyPrice: mockCalculateLastBuyPrice,
               getAPILimit: mockGetAPILimit,
               isExceedAPILimit: mockIsExceedAPILimit,
-              isActionDisabled: mockIsActionDisabled,
               disableAction: mockDisableAction
             }));
 

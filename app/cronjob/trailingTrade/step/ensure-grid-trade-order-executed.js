@@ -6,7 +6,6 @@ const {
   calculateLastBuyPrice,
   getAPILimit,
   isExceedAPILimit,
-  isActionDisabled,
   disableAction
 } = require('../../trailingTradeHelper/common');
 
@@ -246,19 +245,6 @@ const execute = async (logger, rawData) => {
     logger.info(
       { action },
       'The API limit is exceed, do not try to ensure grid order executed.'
-    );
-    return data;
-  }
-
-  const checkDisable = await isActionDisabled(symbol);
-  logger.info(
-    { tag: 'check-disable', checkDisable },
-    'Checked whether symbol is disabled or not.'
-  );
-  if (checkDisable.isDisabled) {
-    logger.info(
-      { action },
-      'The action is disabled, do not try to ensure gird order executed.'
     );
     return data;
   }
