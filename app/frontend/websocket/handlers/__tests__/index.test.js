@@ -9,6 +9,7 @@ describe('index', () => {
       handleSymbolDelete: expect.any(Function),
       handleSymbolSettingUpdate: expect.any(Function),
       handleSymbolSettingDelete: expect.any(Function),
+      handleSymbolGridTradeDelete: expect.any(Function),
       handleSymbolEnableAction: expect.any(Function),
       handleManualTradeAllSymbols: expect.any(Function),
       handleManualTrade: expect.any(Function),

@@ -18,6 +18,7 @@ describe('websocket/configure.js', () => {
   let mockHandleSymbolDelete;
   let mockHandleSymbolSettingUpdate;
   let mockHandleSymbolSettingDelete;
+  let mockHandleSymbolGridTradeDelete;
   let mockHandleSymbolEnableAction;
   let mockHandleManualTrade;
   let mockHandleManualTradeAllSymbols;
@@ -90,6 +91,7 @@ describe('websocket/configure.js', () => {
     mockHandleSymbolDelete = jest.fn().mockResolvedValue(true);
     mockHandleSymbolSettingUpdate = jest.fn().mockResolvedValue(true);
     mockHandleSymbolSettingDelete = jest.fn().mockResolvedValue(true);
+    mockHandleSymbolGridTradeDelete = jest.fn().mockResolvedValue(true);
     mockHandleSymbolEnableAction = jest.fn().mockResolvedValue(true);
     mockHandleManualTrade = jest.fn().mockResolvedValue(true);
     mockHandleManualTradeAllSymbols = jest.fn().mockResolvedValue(true);
@@ -104,6 +106,7 @@ describe('websocket/configure.js', () => {
       handleSymbolDelete: mockHandleSymbolDelete,
       handleSymbolSettingUpdate: mockHandleSymbolSettingUpdate,
       handleSymbolSettingDelete: mockHandleSymbolSettingDelete,
+      handleSymbolGridTradeDelete: mockHandleSymbolGridTradeDelete,
       handleSymbolEnableAction: mockHandleSymbolEnableAction,
       handleManualTrade: mockHandleManualTrade,
       handleManualTradeAllSymbols: mockHandleManualTradeAllSymbols,
@@ -581,6 +584,54 @@ describe('websocket/configure.js', () => {
         expect.any(Object),
         {
           command: 'symbol-setting-delete'
+        }
+      );
+    });
+
+    it('returns wss', () => {
+      expect(wss).not.toBeNull();
+    });
+  });
+
+  describe('when message command is symbol-grid-trade-delete', () => {
+    beforeEach(() => {
+      mockWebSocketServerWebSocketOn = jest
+        .fn()
+        .mockImplementation((_event, cb) => {
+          cb(
+            JSON.stringify({
+              command: 'symbol-grid-trade-delete'
+            })
+          );
+        });
+
+      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
+
+      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
+        cb({
+          on: mockWebSocketServerWebSocketOn,
+          send: mockWebSocketServerWebSocketSend
+        });
+      });
+
+      WebSocket.Server.mockImplementation(() => ({
+        on: mockWebSocketServerOn,
+        handleUpgrade: mockWebSocketServerHandleUpgrade,
+        emit: mockWebSocketServerEmit
+      }));
+
+      const { logger } = require('../../../helpers');
+
+      const { configureWebSocket } = require('../configure');
+      configureWebSocket(mockExpressServer, logger);
+    });
+
+    it('triggers handleSymbolGridTradeDelete', () => {
+      expect(mockHandleSymbolGridTradeDelete).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.any(Object),
+        {
+          command: 'symbol-grid-trade-delete'
         }
       );
     });

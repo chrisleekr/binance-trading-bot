@@ -8,6 +8,7 @@ const {
   handleSymbolDelete,
   handleSymbolSettingUpdate,
   handleSymbolSettingDelete,
+  handleSymbolGridTradeDelete,
   handleSymbolEnableAction,
   handleManualTrade,
   handleManualTradeAllSymbols,
@@ -68,6 +69,9 @@ const configureWebSocket = async (server, funcLogger) => {
           break;
         case 'symbol-setting-delete':
           await handleSymbolSettingDelete(commandLogger, ws, payload);
+          break;
+        case 'symbol-grid-trade-delete':
+          await handleSymbolGridTradeDelete(commandLogger, ws, payload);
           break;
         case 'symbol-enable-action':
           await handleSymbolEnableAction(commandLogger, ws, payload);

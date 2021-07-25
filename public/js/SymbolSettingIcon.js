@@ -7,12 +7,14 @@ class SymbolSettingIcon extends React.Component {
 
     this.modalToStateMap = {
       setting: 'showSettingModal',
-      confirm: 'showConfirmModal'
+      confirm: 'showConfirmModal',
+      gridTrade: 'showResetGridTradeModal'
     };
 
     this.state = {
       showSettingModal: false,
       showConfirmModal: false,
+      showResetGridTradeModal: false,
       symbolConfiguration: {},
       validation: {}
     };
@@ -91,7 +93,17 @@ class SymbolSettingIcon extends React.Component {
 
     this.handleModalClose('confirm');
     this.handleModalClose('setting');
+    this.handleModalClose('gridTrade');
     this.props.sendWebSocket('symbol-setting-delete', symbolInfo);
+  }
+
+  resetGridTrade() {
+    const { symbolInfo } = this.props;
+
+    this.handleModalClose('confirm');
+    this.handleModalClose('setting');
+    this.handleModalClose('gridTrade');
+    this.props.sendWebSocket('symbol-grid-trade-delete', symbolInfo);
   }
 
   handleGridTradeChange(type, newGrid) {
@@ -819,19 +831,51 @@ class SymbolSettingIcon extends React.Component {
                   </Accordion.Collapse>
                 </Card>
               </Accordion>
+
+              <Accordion defaultActiveKey='0'>
+                <Card className='mt-1'>
+                  <Card.Header className='px-2 py-1'>
+                    <Accordion.Toggle
+                      as={Button}
+                      variant='link'
+                      eventKey='0'
+                      className='p-0 fs-7 text-uppercase'>
+                      Actions
+                    </Accordion.Toggle>
+                  </Card.Header>
+                  <Accordion.Collapse eventKey='0'>
+                    <Card.Body className='px-2 py-2'>
+                      <div className='row'>
+                        <div className='col-12'>
+                          <Button
+                            variant='danger'
+                            size='sm'
+                            type='button'
+                            className='mr-2'
+                            onClick={() => this.handleModalShow('confirm')}>
+                            Reset to Global Setting
+                          </Button>
+
+                          <Button
+                            variant='danger'
+                            size='sm'
+                            type='button'
+                            onClick={() => this.handleModalShow('gridTrade')}>
+                            Reset Grid Trade
+                          </Button>
+                        </div>
+                      </div>
+                    </Card.Body>
+                  </Accordion.Collapse>
+                </Card>
+              </Accordion>
             </Modal.Body>
             <Modal.Footer>
               <div className='w-100'>
                 Note that the changes will be displayed in the frontend in the
                 next tick.
               </div>
-              <Button
-                variant='danger'
-                size='sm'
-                type='button'
-                onClick={() => this.handleModalShow('confirm')}>
-                Reset to Global Setting
-              </Button>
+
               <Button
                 variant='secondary'
                 size='sm'
@@ -874,6 +918,39 @@ class SymbolSettingIcon extends React.Component {
               variant='success'
               size='sm'
               onClick={() => this.resetToGlobalConfiguration()}>
+              Yes
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
+        <Modal
+          show={this.state.showResetGridTradeModal}
+          onHide={() => this.handleModalClose('gridTrade')}
+          size='md'>
+          <Modal.Header className='pt-1 pb-1'>
+            <Modal.Title>
+              <span className='text-danger'>⚠ Reset Grid Trade</span>
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            You are about to reset the existing grid trades. If the grid trade
+            is already executed, the execution history will be removed.
+            <br />
+            <br />
+            Do you want to reset the grid trade history for the selected symbol?
+          </Modal.Body>
+
+          <Modal.Footer>
+            <Button
+              variant='secondary'
+              size='sm'
+              onClick={() => this.handleModalClose('gridTrade')}>
+              Cancel
+            </Button>
+            <Button
+              variant='success'
+              size='sm'
+              onClick={() => this.resetGridTrade()}>
               Yes
             </Button>
           </Modal.Footer>
