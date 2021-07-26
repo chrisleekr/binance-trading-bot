@@ -87,7 +87,7 @@
       "expire_after": "Expire après :",
       "_minutes": "minutes"
     },
-    "usine de réinitialisation": {
+    "reset_factory": {
       "reset_factory": "Réinitialiser les paramètres d'usine",
       "delete_all": "Supprimer toutes les données stockées",
       "delete_all_keep_symbols": "Supprimer tout, conserver les symboles",
