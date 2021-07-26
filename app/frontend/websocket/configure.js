@@ -46,7 +46,7 @@ const configureWebSocket = async (server, funcLogger) => {
         payload = null;
       }
       if (payload === null || payload.command === undefined) {
-        ws.send(handleWarning(logger, ws, 'Command is not provided.'));
+        handleWarning(logger, ws, 'Command is not provided.');
         return;
       }
 
