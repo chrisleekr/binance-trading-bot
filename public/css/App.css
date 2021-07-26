@@ -532,6 +532,20 @@ input[type='number'] {
   text-decoration: none;
 }
 
+.btn-trigger-grid-trade {
+  padding: 0 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  background-color: rgba(40, 167, 69, 0.95);
+  color: #fff;
+}
+
+.btn-trigger-grid-trade:hover {
+  background-color: rgba(40, 167, 69, 0.85);
+  color: #fff;
+  text-decoration: none;
+}
+
 .btn-manual-buy {
   background-color: rgb(2, 192, 118);
 }

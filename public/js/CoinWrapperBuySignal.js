@@ -28,7 +28,8 @@ class CoinWrapperBuySignal extends React.Component {
         symbolConfiguration,
         buy,
         sell
-      }
+      },
+      sendWebSocket
     } = this.props;
     const { collapsed } = this.state;
 
@@ -43,9 +44,17 @@ class CoinWrapperBuySignal extends React.Component {
         <React.Fragment key={'coin-wrapper-buy-grid-row-' + symbol + '-' + i}>
           <div className='coin-info-column-grid'>
             <div className='coin-info-column coin-info-column-price'>
-              <span className='coin-info-label'>Grid Trade #{i + 1}</span>
+              <div className='coin-info-label'>Grid Trade #{i + 1}</div>
 
               <div className='coin-info-value'>
+                {buy.openOrders.length === 0 && currentGridTradeIndex === i ? (
+                  <SymbolTriggerBuyIcon
+                    symbol={symbol}
+                    sendWebSocket={sendWebSocket}></SymbolTriggerBuyIcon>
+                ) : (
+                  ''
+                )}
+
                 <OverlayTrigger
                   trigger='click'
                   key={'buy-signal-' + symbol + '-' + i + '-overlay'}

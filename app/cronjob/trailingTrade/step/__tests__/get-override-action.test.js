@@ -183,6 +183,54 @@ describe('get-override-action.js', () => {
         });
       });
 
+      describe('when action is buy', () => {
+        beforeEach(async () => {
+          const { logger } = require('../../../../helpers');
+
+          loggerMock = logger;
+
+          mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
+            action: 'buy'
+          });
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+            removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol
+          }));
+
+          rawData = {
+            action: 'not-determined',
+            symbol: 'BTCUSDT',
+            isLocked: false
+          };
+
+          const step = require('../get-override-action');
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers getOverrideDataForSymbol', () => {
+          expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
+
+        it('triggers removeOverrideDataForSymbol', () => {
+          expect(mockRemoveOverrideDataForSymbol).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
+
+        it('retruns expected result', () => {
+          expect(result).toStrictEqual({
+            action: 'buy',
+            symbol: 'BTCUSDT',
+            isLocked: false,
+            order: {}
+          });
+        });
+      });
+
       describe('when action is not matching', () => {
         beforeEach(async () => {
           const { logger } = require('../../../../helpers');
