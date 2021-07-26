@@ -215,10 +215,7 @@ const execute = async (logger, rawData) => {
         interval: '5m',
         predictedValue: predictionCoinValue
       };
-
-      messenger.errorMessage(
-        'prediction done for ' + symbol + ' ' + JSON.stringify(prediction)
-      );
+      
       await cache.set(
         `${symbol}-last-prediction`,
         JSON.stringify(prediction),
