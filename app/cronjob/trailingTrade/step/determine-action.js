@@ -140,7 +140,7 @@ const predictedValueIsTrue = data => {
       currentPrice
     },
     symbolConfiguration: {
-      buy: { predictedValue }
+      buy: { predictValue }
     }
   } = data;
 
@@ -151,7 +151,7 @@ const predictedValueIsTrue = data => {
     // Math.sign(prediction.predictedValue - currentPrice) === 1 &&
     difference > 0.2 &&
     trendDiff > 0.25 &&
-    predictedValue === true
+    predictValue === true
   );
 };
 
