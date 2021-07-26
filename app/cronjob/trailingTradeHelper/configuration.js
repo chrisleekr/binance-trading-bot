@@ -28,38 +28,76 @@ const saveGlobalConfiguration = async (logger, configuration) => {
 };
 
 /**
- * Reset to factory settings
- *
- * @param {*} logger
- */
-const resetToFactorySettings = async (logger, symbols) => {
-
-  //Retrieve initial config from config.
-  const orgConfigValue = config.get('jobs.trailingTrade');
-  const originalSymbols = ['BTCUSDT', 'ETHUSDT', 'ETHBTC', 'XRPBTC'];
-  orgConfigValue.symbols = Object.values(originalSymbols);
-
-  //Now delete it all from mongo any info about symbols.
-  await deleteAllSymbolsFromMongo(logger, symbols);
-
-  //Then save it.
-  await saveGlobalConfiguration(logger, orgConfigValue);
-  return true;
-};
-
-/**
  * Reset past trades
  *
  * @param {*} logger
  */
-const erasePastTrades = async (logger) => {
+const erasePastTrades = async logger => {
   try {
-    logger.info("Erasing past trade")
+    logger.info('Erasing past trade');
     await cache.del(`past-trades`);
     return true;
   } catch (error) {
     return false;
   }
+};
+
+/**
+ * Delete all symbols from mongoDB.
+ *
+ * @param {*} logger
+ */
+const deleteAllSymbolsFromMongo = async (logger, symbols) => {
+  // Delete cache values from all symbols to update it all again.
+  await cache.del('trailing-trade-common');
+  await cache.del('trailing-trade-symbols');
+
+  // Delete all last buy orders.
+  symbols.forEach(async symbol => {
+    await cache.del(`${symbol}-last-buy-order`);
+  });
+
+  // Delete all from mongo.
+  await mongo.deleteAll(logger, 'trailing-trade-symbols');
+
+  return true;
+};
+
+/**
+ * Delete all cache.
+ *
+ * @param {*} logger
+ */
+const deleteAllCache = async symbols => {
+  // Delete cache values from all symbols to update it all again.
+  await cache.del('trailing-trade-common');
+  await cache.del('trailing-trade-symbols');
+
+  // Delete all last buy orders.
+  symbols.forEach(async symbol => {
+    await cache.del(`${symbol}-last-buy-order`);
+  });
+
+  return true;
+};
+
+/**
+ * Reset to factory settings
+ *
+ * @param {*} logger
+ */
+const resetToFactorySettings = async (logger, symbols) => {
+  // Retrieve initial config from config.
+  const orgConfigValue = config.get('jobs.trailingTrade');
+  const originalSymbols = ['BTCUSDT', 'ETHUSDT', 'ETHBTC', 'XRPBTC'];
+  orgConfigValue.symbols = Object.values(originalSymbols);
+
+  // Now delete it all from mongo any info about symbols.
+  await deleteAllSymbolsFromMongo(logger, symbols);
+
+  // Then save it.
+  await saveGlobalConfiguration(logger, orgConfigValue);
+  return true;
 };
 
 /**
@@ -70,57 +108,16 @@ const erasePastTrades = async (logger) => {
 const resetToFactorySettingsWithSymbols = async (logger, symbols) => {
   const orgConfigValue = config.get('jobs.trailingTrade');
 
-  //Set the original configuration symbol as your actual monitored symbols.
+  // Set the original configuration symbol as your actual monitored symbols.
   orgConfigValue.symbols = Object.values(symbols);
 
-  //Now delete it all from mongo any info about symbols.
+  // Now delete it all from mongo any info about symbols.
   await deleteAllSymbolsFromMongo(logger, symbols);
 
-  //Then save it.
+  // Then save it.
   await saveGlobalConfiguration(logger, orgConfigValue);
   return true;
 };
-
-/**
- * Delete all symbols from mongoDB.
- *
- * @param {*} logger
- */
- const deleteAllSymbolsFromMongo = async (logger, symbols) => {
-  //Delete cache values from all symbols to update it all again.
-  await cache.del('trailing-trade-common');
-  await cache.del('trailing-trade-symbols');
-
-  //Delete all last buy orders.
-  symbols.forEach(async symbol => {
-    await cache.del(`${symbol}-last-buy-order`);
-  });
-
-  //Delete all from mongo.
-  await mongo.deleteAll(logger, 'trailing-trade-symbols');
-
-
-  return true;
-}
-
-/**
- * Delete all cache.
- *
- * @param {*} logger
- */
- const deleteAllCache = async (symbols) => {
-  //Delete cache values from all symbols to update it all again.
-  await cache.del('trailing-trade-common');
-  await cache.del('trailing-trade-symbols');
-
-  //Delete all last buy orders.
-   symbols.forEach(async symbol => {
-     await cache.del(`${symbol}-last-buy-order`);
-   });
-
-
-  return true;
-}
 
 /**
  * Get global configuration from mongodb
@@ -178,7 +175,6 @@ const getSymbolConfiguration = async (logger, symbol = null) => {
     logger.info('Could not find symbol configuration.');
     return {};
   }
-
 
   return configValue;
 };
@@ -318,7 +314,8 @@ const getLastBuyPriceRemoveThreshold = async (
 
   let newBuyLastBuyPriceRemoveThreshold = -1;
 
-  // If old last buy price remove threshold is -1, then should calculate last buy remove threshold based on the notional amount.
+  // If old last buy price remove threshold is -1,
+  // then should calculate last buy remove threshold based on the notional amount.
   const cachedSymbolInfo =
     JSON.parse(
       await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
@@ -386,7 +383,8 @@ const getMinPurchaseAmount = async (
 
   let newMinimumPurchaseAmount = -1;
 
-  // If old last buy price remove threshold is -1, then should calculate last buy remove threshold based on the notional amount.
+  // If old last buy price remove threshold is -1,
+  // then should calculate last buy remove threshold based on the notional amount.
   const cachedSymbolInfo =
     JSON.parse(
       await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)

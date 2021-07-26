@@ -72,8 +72,8 @@ class SymbolSettingIcon extends React.Component {
       target.type === 'checkbox'
         ? target.checked
         : target.type === 'number'
-          ? +target.value
-          : target.value;
+        ? +target.value
+        : target.value;
     const stateKey = target.getAttribute('data-state-key');
 
     const { symbolConfiguration } = this.state;
@@ -115,12 +115,13 @@ class SymbolSettingIcon extends React.Component {
           size='xl'>
           <Form onSubmit={this.handleFormSubmit}>
             <Modal.Header className='pt-1 pb-1'>
-              <Modal.Title>{setting_icon._customise} {symbolInfo.symbol} {common_strings._settings}</Modal.Title>
+              <Modal.Title>
+                {setting_icon._customise} {symbolInfo.symbol}{' '}
+                {common_strings._settings}
+              </Modal.Title>
             </Modal.Header>
             <Modal.Body>
-              <span className='text-muted'>
-                {setting_icon._description}
-              </span>
+              <span className='text-muted'>{setting_icon._description}</span>
               <Accordion defaultActiveKey='0'>
                 <Card className='mt-1'>
                   <Card.Header className='px-2 py-1'>
@@ -205,7 +206,9 @@ class SymbolSettingIcon extends React.Component {
                             <Form.Control
                               size='sm'
                               type='number'
-                              placeholder={setting_icon.placeholder_enter_limit_price}
+                              placeholder={
+                                setting_icon.placeholder_enter_limit_price
+                              }
                               required
                               min='0'
                               step='1'
@@ -223,8 +226,7 @@ class SymbolSettingIcon extends React.Component {
 
               <div className='row'>
                 <div className='col-xs-12 col-sm-6'>
-                  <Accordion defaultActiveKey='0'
-                    className='accordion-wrapper'>
+                  <Accordion defaultActiveKey='0' className='accordion-wrapper'>
                     <Card className='mt-1 card-buy'>
                       <Card.Header className='px-2 py-1'>
                         <Accordion.Toggle
@@ -258,7 +260,9 @@ class SymbolSettingIcon extends React.Component {
                                       overlay={
                                         <Popover id='buy-enabled-overlay-right'>
                                           <Popover.Content>
-                                            {setting_icon.trading_enabled_description}
+                                            {
+                                              setting_icon.trading_enabled_description
+                                            }
                                           </Popover.Content>
                                         </Popover>
                                       }>
@@ -285,7 +289,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='buy-minimum-purchase-amount-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.min_purchase_amount_symbol_description}
+                                          {
+                                            setting_icon.min_purchase_amount_symbol_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -296,30 +302,38 @@ class SymbolSettingIcon extends React.Component {
                                     </Button>
                                   </OverlayTrigger>
                                 </Form.Label>
-                                <Form.Label htmlFor='field-min-sell-stop-loss-percentage' srOnly>
+                                <Form.Label
+                                  htmlFor='field-min-sell-stop-loss-percentage'
+                                  srOnly>
                                   {common_strings._quantity}
                                 </Form.Label>
                                 <InputGroup size='sm'>
-
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder={setting_icon.placeholder_min_purchase_amount}
+                                    placeholder={
+                                      setting_icon.placeholder_min_purchase_amount
+                                    }
                                     required
                                     min='0'
                                     step='0.0001'
                                     data-state-key='buy.minPurchaseAmount'
-                                    value={symbolConfiguration.buy.minPurchaseAmount}
+                                    value={
+                                      symbolConfiguration.buy.minPurchaseAmount
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      ${symbolConfiguration.buy.minPurchaseAmount}
+                                      $
+                                      {
+                                        symbolConfiguration.buy
+                                          .minPurchaseAmount
+                                      }
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
                               </Form.Group>
-
                             </div>
                             <div className='col-6'>
                               <Form.Group
@@ -334,7 +348,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='buy-maximum-purchase-amount-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.max_purchase_amount_symbol_description}
+                                          {
+                                            setting_icon.max_purchase_amount_symbol_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -345,34 +361,40 @@ class SymbolSettingIcon extends React.Component {
                                     </Button>
                                   </OverlayTrigger>
                                 </Form.Label>
-                                <Form.Label htmlFor='field-min-sell-stop-loss-percentage' srOnly>
+                                <Form.Label
+                                  htmlFor='field-min-sell-stop-loss-percentage'
+                                  srOnly>
                                   {common_strings._quantity}
                                 </Form.Label>
                                 <InputGroup size='sm'>
-
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder={setting_icon.placeholder_max_purchase_amount}
+                                    placeholder={
+                                      setting_icon.placeholder_max_purchase_amount
+                                    }
                                     required
                                     min='0'
                                     step='0.0001'
                                     data-state-key='buy.maxPurchaseAmount'
-                                    value={symbolConfiguration.buy.maxPurchaseAmount}
+                                    value={
+                                      symbolConfiguration.buy.maxPurchaseAmount
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      ${symbolConfiguration.buy.maxPurchaseAmount}
+                                      $
+                                      {
+                                        symbolConfiguration.buy
+                                          .maxPurchaseAmount
+                                      }
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
                               </Form.Group>
-
                             </div>
-                            <div className='col-12'>
-
-                            </div>
+                            <div className='col-12'></div>
                           </div>
                           <div className='row'>
                             <div className='col-6'>
@@ -388,7 +410,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='buy-stop-price-percentage-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.stop_price_percent_description}
+                                          {
+                                            setting_icon.stop_price_percent_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -399,25 +423,35 @@ class SymbolSettingIcon extends React.Component {
                                     </Button>
                                   </OverlayTrigger>
                                 </Form.Label>
-                                <Form.Label htmlFor='field-min-buy-stop-price-percentage' srOnly>
+                                <Form.Label
+                                  htmlFor='field-min-buy-stop-price-percentage'
+                                  srOnly>
                                   {common_strings._quantity}
                                 </Form.Label>
                                 <InputGroup size='sm'>
-
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder={setting_icon.placeholder_enter_stop_price}
+                                    placeholder={
+                                      setting_icon.placeholder_enter_stop_price
+                                    }
                                     required
                                     min='0'
                                     step='0.0001'
                                     data-state-key='buy.stopPercentage'
-                                    value={symbolConfiguration.buy.stopPercentage}
+                                    value={
+                                      symbolConfiguration.buy.stopPercentage
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {((symbolConfiguration.buy.stopPercentage * 100) - 100).toFixed(2)}%
+                                      {(
+                                        symbolConfiguration.buy.stopPercentage *
+                                          100 -
+                                        100
+                                      ).toFixed(2)}
+                                      %
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
@@ -436,7 +470,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='interval-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.limit_price_percent_description}
+                                          {
+                                            setting_icon.limit_price_percent_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -447,25 +483,36 @@ class SymbolSettingIcon extends React.Component {
                                     </Button>
                                   </OverlayTrigger>
                                 </Form.Label>
-                                <Form.Label htmlFor='field-min-buy-limit-percentage' srOnly>
+                                <Form.Label
+                                  htmlFor='field-min-buy-limit-percentage'
+                                  srOnly>
                                   {common_strings._quantity}
                                 </Form.Label>
                                 <InputGroup size='sm'>
-
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder={setting_icon.placeholder_enter_limit_price}
+                                    placeholder={
+                                      setting_icon.placeholder_enter_limit_price
+                                    }
                                     required
                                     min='0'
                                     step='0.0001'
                                     data-state-key='buy.limitPercentage'
-                                    value={symbolConfiguration.buy.limitPercentage}
+                                    value={
+                                      symbolConfiguration.buy.limitPercentage
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {((symbolConfiguration.buy.limitPercentage * 100) - 100).toFixed(2)}%
+                                      {(
+                                        symbolConfiguration.buy
+                                          .limitPercentage *
+                                          100 -
+                                        100
+                                      ).toFixed(2)}
+                                      %
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
@@ -484,7 +531,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='buy-trigger-percentage-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.trigger_percent_buy_description}
+                                          {
+                                            setting_icon.trigger_percent_buy_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -495,25 +544,36 @@ class SymbolSettingIcon extends React.Component {
                                     </Button>
                                   </OverlayTrigger>
                                 </Form.Label>
-                                <Form.Label htmlFor='field-min-sell-stop-loss-percentage' srOnly>
+                                <Form.Label
+                                  htmlFor='field-min-sell-stop-loss-percentage'
+                                  srOnly>
                                   {common_strings._quantity}
                                 </Form.Label>
                                 <InputGroup size='sm'>
-
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder={setting_icon.placeholder_trigger_percent}
+                                    placeholder={
+                                      setting_icon.placeholder_trigger_percent
+                                    }
                                     required
                                     min='0'
                                     step='0.0001'
                                     data-state-key='buy.triggerPercentage'
-                                    value={symbolConfiguration.buy.triggerPercentage}
+                                    value={
+                                      symbolConfiguration.buy.triggerPercentage
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {((symbolConfiguration.buy.triggerPercentage - 1) * 100).toFixed(2)}%
+                                      {(
+                                        (symbolConfiguration.buy
+                                          .triggerPercentage -
+                                          1) *
+                                        100
+                                      ).toFixed(2)}
+                                      %
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
@@ -526,8 +586,7 @@ class SymbolSettingIcon extends React.Component {
                   </Accordion>
                 </div>
                 <div className='col-xs-12 col-sm-6'>
-                  <Accordion defaultActiveKey='0'
-                    className='accordion-wrapper'>
+                  <Accordion defaultActiveKey='0' className='accordion-wrapper'>
                     <Card className='mt-1 card-sell'>
                       <Card.Header className='px-2 py-1'>
                         <Accordion.Toggle
@@ -561,7 +620,9 @@ class SymbolSettingIcon extends React.Component {
                                       overlay={
                                         <Popover id='sell-enabled-overlay-right'>
                                           <Popover.Content>
-                                            {setting_icon.trading_enabled_description_sell}
+                                            {
+                                              setting_icon.trading_enabled_description_sell
+                                            }
                                           </Popover.Content>
                                         </Popover>
                                       }>
@@ -588,7 +649,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='sell-stop-price-percentage-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.stop_price_percent_description_sell}
+                                          {
+                                            setting_icon.stop_price_percent_description_sell
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -599,25 +662,36 @@ class SymbolSettingIcon extends React.Component {
                                     </Button>
                                   </OverlayTrigger>
                                 </Form.Label>
-                                <Form.Label htmlFor='field-min-sell-stop-price-percentage' srOnly>
+                                <Form.Label
+                                  htmlFor='field-min-sell-stop-price-percentage'
+                                  srOnly>
                                   {common_strings._quantity}
                                 </Form.Label>
                                 <InputGroup size='sm'>
-
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder={setting_icon.placeholder_enter_stop_price}
+                                    placeholder={
+                                      setting_icon.placeholder_enter_stop_price
+                                    }
                                     required
                                     min='0'
                                     step='0.0001'
                                     data-state-key='sell.stopPercentage'
-                                    value={symbolConfiguration.sell.stopPercentage}
+                                    value={
+                                      symbolConfiguration.sell.stopPercentage
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {((symbolConfiguration.sell.stopPercentage * 100) - 100).toFixed(2)}%
+                                      {(
+                                        symbolConfiguration.sell
+                                          .stopPercentage *
+                                          100 -
+                                        100
+                                      ).toFixed(2)}
+                                      %
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
@@ -636,7 +710,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='sell-limit-price-percentage-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.limit_price_percent_description_sell}
+                                          {
+                                            setting_icon.limit_price_percent_description_sell
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -647,25 +723,36 @@ class SymbolSettingIcon extends React.Component {
                                     </Button>
                                   </OverlayTrigger>
                                 </Form.Label>
-                                <Form.Label htmlFor='field-min-sell-limit-price-percentage' srOnly>
+                                <Form.Label
+                                  htmlFor='field-min-sell-limit-price-percentage'
+                                  srOnly>
                                   {common_strings._quantity}
                                 </Form.Label>
                                 <InputGroup size='sm'>
-
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder={setting_icon.placeholder_enter_limit_price}
+                                    placeholder={
+                                      setting_icon.placeholder_enter_limit_price
+                                    }
                                     required
                                     min='0'
                                     step='0.0001'
                                     data-state-key='sell.limitPercentage'
-                                    value={symbolConfiguration.sell.limitPercentage}
+                                    value={
+                                      symbolConfiguration.sell.limitPercentage
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {((symbolConfiguration.sell.limitPercentage * 100) - 100).toFixed(2)}%
+                                      {(
+                                        symbolConfiguration.sell
+                                          .limitPercentage *
+                                          100 -
+                                        100
+                                      ).toFixed(2)}
+                                      %
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
@@ -684,7 +771,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='sell-trigger-percentage-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.trigger_percent_sell_description}
+                                          {
+                                            setting_icon.trigger_percent_sell_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -695,25 +784,36 @@ class SymbolSettingIcon extends React.Component {
                                     </Button>
                                   </OverlayTrigger>
                                 </Form.Label>
-                                <Form.Label htmlFor='field-min-sell-trigger-percentage' srOnly>
+                                <Form.Label
+                                  htmlFor='field-min-sell-trigger-percentage'
+                                  srOnly>
                                   {common_strings._quantity}
                                 </Form.Label>
                                 <InputGroup size='sm'>
-
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder={setting_icon.placeholder_trigger_percent}
+                                    placeholder={
+                                      setting_icon.placeholder_trigger_percent
+                                    }
                                     required
                                     min='0'
                                     step='0.0001'
                                     data-state-key='sell.triggerPercentage'
-                                    value={symbolConfiguration.sell.triggerPercentage}
+                                    value={
+                                      symbolConfiguration.sell.triggerPercentage
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {((symbolConfiguration.sell.triggerPercentage * 100) - 100).toFixed(2)}%
+                                      {(
+                                        symbolConfiguration.sell
+                                          .triggerPercentage *
+                                          100 -
+                                        100
+                                      ).toFixed(2)}
+                                      %
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
@@ -721,7 +821,10 @@ class SymbolSettingIcon extends React.Component {
                             </div>
 
                             <div className='col-12'>
-                              <p className='form-header mb-1'>{common_strings._sell} - {common_strings.stop_loss}</p>
+                              <p className='form-header mb-1'>
+                                {common_strings._sell} -{' '}
+                                {common_strings.stop_loss}
+                              </p>
                               <Form.Group
                                 controlId='field-sell-stop-loss-enabled'
                                 className='mb-2'>
@@ -729,7 +832,9 @@ class SymbolSettingIcon extends React.Component {
                                   <Form.Check.Input
                                     type='checkbox'
                                     data-state-key='sell.stopLoss.enabled'
-                                    checked={symbolConfiguration.sell.stopLoss.enabled}
+                                    checked={
+                                      symbolConfiguration.sell.stopLoss.enabled
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <Form.Check.Label>
@@ -741,7 +846,9 @@ class SymbolSettingIcon extends React.Component {
                                       overlay={
                                         <Popover id='sell-stop-loss-enabled-overlay-right'>
                                           <Popover.Content>
-                                            {setting_icon.stop_loss_enabled_description}
+                                            {
+                                              setting_icon.stop_loss_enabled_description
+                                            }
                                           </Popover.Content>
                                         </Popover>
                                       }>
@@ -754,7 +861,6 @@ class SymbolSettingIcon extends React.Component {
                                   </Form.Check.Label>
                                 </Form.Check>
                               </Form.Group>
-
                             </div>
 
                             <div className='col-6'>
@@ -770,7 +876,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='sell-stop-loss-max-loss-percentage-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.max_loss_percent_description}
+                                          {
+                                            setting_icon.max_loss_percent_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -782,29 +890,36 @@ class SymbolSettingIcon extends React.Component {
                                   </OverlayTrigger>
                                 </Form.Label>
                                 <InputGroup size='sm'>
-
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder={setting_icon.placeholder_enter_max_loss}
+                                    placeholder={
+                                      setting_icon.placeholder_enter_max_loss
+                                    }
                                     required
                                     max='1'
                                     min='0'
                                     step='0.0001'
                                     data-state-key='sell.stopLoss.maxLossPercentage'
                                     value={
-                                      symbolConfiguration.sell.stopLoss.maxLossPercentage
+                                      symbolConfiguration.sell.stopLoss
+                                        .maxLossPercentage
                                     }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {((symbolConfiguration.sell.stopLoss.maxLossPercentage * 100) - 100).toFixed(2)}%
+                                      {(
+                                        symbolConfiguration.sell.stopLoss
+                                          .maxLossPercentage *
+                                          100 -
+                                        100
+                                      ).toFixed(2)}
+                                      %
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
                               </Form.Group>
-
                             </div>
                             <div className='col-6'>
                               <Form.Group
@@ -819,7 +934,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='sell-stop-loss-disable-buy-minutes-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.temporary_disable_buy_description}
+                                          {
+                                            setting_icon.temporary_disable_buy_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -831,24 +948,30 @@ class SymbolSettingIcon extends React.Component {
                                   </OverlayTrigger>
                                 </Form.Label>
                                 <InputGroup size='sm'>
-
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder={setting_icon.placeholder_temporary_disable}
+                                    placeholder={
+                                      setting_icon.placeholder_temporary_disable
+                                    }
                                     required
                                     max='99999999'
                                     min='1'
                                     step='1'
                                     data-state-key='sell.stopLoss.disableBuyMinutes'
                                     value={
-                                      symbolConfiguration.sell.stopLoss.disableBuyMinutes
+                                      symbolConfiguration.sell.stopLoss
+                                        .disableBuyMinutes
                                     }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {(symbolConfiguration.sell.stopLoss.disableBuyMinutes / 60).toFixed(2)} hours disabled.
+                                      {(
+                                        symbolConfiguration.sell.stopLoss
+                                          .disableBuyMinutes / 60
+                                      ).toFixed(2)}{' '}
+                                      hours disabled.
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
@@ -859,77 +982,12 @@ class SymbolSettingIcon extends React.Component {
                       </Accordion.Collapse>
                     </Card>
                   </Accordion>
-
-
                 </div>
               </div>
 
-              <div className='row'>
-                <div className='col-12'>
-                  <Accordion
-                    className='accordion-wrapper accordion-floating'>
-                    <Card className='mt-1'>
-                      <Card.Header className='px-2 py-1'>
-                        <Accordion.Toggle
-                          as={Button}
-                          variant='link'
-                          eventKey='0'
-                          className='p-0 fs-7 text-uppercase'>
-                          {setting_icon.stake_coins} ?
-                        </Accordion.Toggle>
-                      </Card.Header>
-                      <Accordion.Collapse eventKey='0'>
-                        <Card.Body className='px-2 py-1'>
-                          <div className='row'>
-                            <div className='col-12'>
-                              <Form.Group
-                                controlId='field-sell-stake-coins-enabled'
-                                className='mb-2'>
-                                <Form.Check size='sm'>
-                                  <Form.Check.Input
-                                    type='checkbox'
-                                    data-state-key='sell.stakeCoinEnabled'
-                                    checked={
-                                      symbolConfiguration.sell.stakeCoinEnabled
-                                    }
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <Form.Check.Label>
-                                    {setting_icon.stake_coins} {' '}
-                                    <OverlayTrigger
-                                      trigger='click'
-                                      key='sell-stake-coins-enabled-overlay'
-                                      placement='bottom'
-                                      overlay={
-                                        <Popover id='sell-stake-coins-enabled-overlay-right'>
-                                          <Popover.Content>
-                                            {setting_icon.stake_coins_description}
-                                          </Popover.Content>
-                                        </Popover>
-                                      }>
-                                      <Button
-                                        variant='link'
-                                        className='p-0 m-0 ml-1 text-info'>
-                                        <i className='fa fa-question-circle'></i>
-                                      </Button>
-                                    </OverlayTrigger>
-                                  </Form.Check.Label>
-                                </Form.Check>
-                              </Form.Group>
-                            </div>
-                          </div>
-                        </Card.Body>
-                      </Accordion.Collapse>
-                    </Card>
-                  </Accordion>
-
-                </div>
-              </div>
               <div className='row'>
                 <div className='col-xs-12 col-sm-6'>
-
-                  <Accordion
-                    className='accordion-wrapper accordion-floating'>
+                  <Accordion className='accordion-wrapper accordion-floating'>
                     <Card className='mt-1'>
                       <Card.Header className='px-2 py-1'>
                         <Accordion.Toggle
@@ -951,7 +1009,10 @@ class SymbolSettingIcon extends React.Component {
                                   <Form.Check.Input
                                     type='checkbox'
                                     data-state-key='strategyOptions.tradeOptions.manyBuys'
-                                    checked={symbolConfiguration.strategyOptions.tradeOptions.manyBuys}
+                                    checked={
+                                      symbolConfiguration.strategyOptions
+                                        .tradeOptions.manyBuys
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <Form.Check.Label>
@@ -963,7 +1024,9 @@ class SymbolSettingIcon extends React.Component {
                                       overlay={
                                         <Popover id='trade-options-many-buys-overlay-right'>
                                           <Popover.Content>
-                                            {setting_icon.grid_buy_strategy_activate_description}
+                                            {
+                                              setting_icon.grid_buy_strategy_activate_description
+                                            }
                                           </Popover.Content>
                                         </Popover>
                                       }>
@@ -992,7 +1055,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='buy-after-difference-amount-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.grid_buy_strategy_description}
+                                          {
+                                            setting_icon.grid_buy_strategy_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -1007,17 +1072,24 @@ class SymbolSettingIcon extends React.Component {
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder="5"
+                                    placeholder='5'
                                     required
                                     min='0'
                                     step='0.0001'
                                     data-state-key='strategyOptions.tradeOptions.differenceToBuy'
-                                    value={symbolConfiguration.strategyOptions.tradeOptions.differenceToBuy}
+                                    value={
+                                      symbolConfiguration.strategyOptions
+                                        .tradeOptions.differenceToBuy
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {symbolConfiguration.strategyOptions.tradeOptions.differenceToBuy}%
+                                      {
+                                        symbolConfiguration.strategyOptions
+                                          .tradeOptions.differenceToBuy
+                                      }
+                                      %
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
@@ -1029,8 +1101,7 @@ class SymbolSettingIcon extends React.Component {
                     </Card>
                   </Accordion>
 
-                  <Accordion
-                    className='accordion-wrapper accordion-floating'>
+                  <Accordion className='accordion-wrapper accordion-floating'>
                     <Card className='mt-1'>
                       <Card.Header className='px-2 py-1'>
                         <Accordion.Toggle
@@ -1045,7 +1116,9 @@ class SymbolSettingIcon extends React.Component {
                         <Card.Body className='px-2 py-1'>
                           <div className='row'>
                             <div className='col-12'>
-                              <p className='form-header mb-1'>{setting_icon.bot_options._language}</p>
+                              <p className='form-header mb-1'>
+                                {setting_icon.bot_options._language}
+                              </p>
 
                               <Form.Group
                                 controlId='field-languages'
@@ -1058,7 +1131,9 @@ class SymbolSettingIcon extends React.Component {
                                   as='select'
                                   required
                                   data-state-key='botOptions.language'
-                                  value={symbolConfiguration.botOptions.language}
+                                  value={
+                                    symbolConfiguration.botOptions.language
+                                  }
                                   onChange={this.handleInputChange}>
                                   <option value='en'>en</option>
                                   <option value='es'>es</option>
@@ -1081,7 +1156,9 @@ class SymbolSettingIcon extends React.Component {
                                   <Form.Check.Input
                                     type='checkbox'
                                     data-state-key='botOptions.slack'
-                                    checked={symbolConfiguration.botOptions.slack}
+                                    checked={
+                                      symbolConfiguration.botOptions.slack
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <Form.Check.Label>
@@ -1100,7 +1177,9 @@ class SymbolSettingIcon extends React.Component {
                                   <Form.Check.Input
                                     type='checkbox'
                                     data-state-key='botOptions.telegram'
-                                    checked={symbolConfiguration.botOptions.telegram}
+                                    checked={
+                                      symbolConfiguration.botOptions.telegram
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <Form.Check.Label>
@@ -1112,13 +1191,15 @@ class SymbolSettingIcon extends React.Component {
                           </div>
                           <div className='row'>
                             <div className='col-12'>
-                              <p className='form-header mb-1'>{setting_icon.bot_options._security}</p>
+                              <p className='form-header mb-1'>
+                                {setting_icon.bot_options._security}
+                              </p>
 
                               <Form.Group
                                 controlId='field-login-expire'
                                 className='mb-2'>
                                 <Form.Label className='mb-0'>
-                                  {setting_icon.bot_options.login_expire_time} {' '}
+                                  {setting_icon.bot_options.login_expire_time}{' '}
                                   <OverlayTrigger
                                     trigger='click'
                                     key='login-expire-overlay'
@@ -1126,7 +1207,10 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='login-expire-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.bot_options.login_expire_time_description}
+                                          {
+                                            setting_icon.bot_options
+                                              .login_expire_time_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -1141,17 +1225,25 @@ class SymbolSettingIcon extends React.Component {
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder="60 is the default"
+                                    placeholder='60 is the default'
                                     required
                                     min='0'
                                     step='1'
                                     data-state-key='botOptions.login.loginWindowMinutes'
-                                    value={symbolConfiguration.botOptions.login.loginWindowMinutes}
+                                    value={
+                                      symbolConfiguration.botOptions.login
+                                        .loginWindowMinutes
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {setting_icon.bot_options.expire_after} {symbolConfiguration.botOptions.login.loginWindowMinutes} {setting_icon.bot_options._minutes}.
+                                      {setting_icon.bot_options.expire_after}{' '}
+                                      {
+                                        symbolConfiguration.botOptions.login
+                                          .loginWindowMinutes
+                                      }{' '}
+                                      {setting_icon.bot_options._minutes}.
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
@@ -1163,11 +1255,67 @@ class SymbolSettingIcon extends React.Component {
                     </Card>
                   </Accordion>
 
+                  <Accordion className='accordion-wrapper accordion-floating'>
+                    <Card className='mt-1'>
+                      <Card.Header className='px-2 py-1'>
+                        <Accordion.Toggle
+                          as={Button}
+                          variant='link'
+                          eventKey='0'
+                          className='p-0 fs-7 text-uppercase'>
+                          {setting_icon.stake_coins} ?
+                        </Accordion.Toggle>
+                      </Card.Header>
+                      <Accordion.Collapse eventKey='0'>
+                        <Card.Body className='px-2 py-1'>
+                          <div className='row'>
+                            <div className='col-12'>
+                              <Form.Group
+                                controlId='field-sell-stake-coins-enabled'
+                                className='mb-2'>
+                                <Form.Check size='sm'>
+                                  <Form.Check.Input
+                                    type='checkbox'
+                                    data-state-key='sell.stakeCoinEnabled'
+                                    checked={
+                                      symbolConfiguration.sell.stakeCoinEnabled
+                                    }
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <Form.Check.Label>
+                                    {setting_icon.stake_coins}{' '}
+                                    <OverlayTrigger
+                                      trigger='click'
+                                      key='sell-stake-coins-enabled-overlay'
+                                      placement='bottom'
+                                      overlay={
+                                        <Popover id='sell-stake-coins-enabled-overlay-right'>
+                                          <Popover.Content>
+                                            {
+                                              setting_icon.stake_coins_description
+                                            }
+                                          </Popover.Content>
+                                        </Popover>
+                                      }>
+                                      <Button
+                                        variant='link'
+                                        className='p-0 m-0 ml-1 text-info'>
+                                        <i className='fa fa-question-circle'></i>
+                                      </Button>
+                                    </OverlayTrigger>
+                                  </Form.Check.Label>
+                                </Form.Check>
+                              </Form.Group>
+                            </div>
+                          </div>
+                        </Card.Body>
+                      </Accordion.Collapse>
+                    </Card>
+                  </Accordion>
                 </div>
 
                 <div className='col-xs-12 col-sm-6'>
-                  <Accordion
-                    className='accordion-wrapper accordion-floating'>
+                  <Accordion className='accordion-wrapper accordion-floating'>
                     <Card className='mt-1'>
                       <Card.Header className='px-2 py-1'>
                         <Accordion.Toggle
@@ -1189,7 +1337,10 @@ class SymbolSettingIcon extends React.Component {
                                   <Form.Check.Input
                                     type='checkbox'
                                     data-state-key='strategyOptions.huskyOptions.buySignal'
-                                    checked={symbolConfiguration.strategyOptions.huskyOptions.buySignal}
+                                    checked={
+                                      symbolConfiguration.strategyOptions
+                                        .huskyOptions.buySignal
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <Form.Check.Label>
@@ -1201,7 +1352,9 @@ class SymbolSettingIcon extends React.Component {
                                       overlay={
                                         <Popover id='husky-options-buy-signal-overlay-right'>
                                           <Popover.Content>
-                                            {setting_icon.use_husky_buy_description}
+                                            {
+                                              setting_icon.use_husky_buy_description
+                                            }
                                           </Popover.Content>
                                         </Popover>
                                       }>
@@ -1223,7 +1376,10 @@ class SymbolSettingIcon extends React.Component {
                                   <Form.Check.Input
                                     type='checkbox'
                                     data-state-key='strategyOptions.huskyOptions.sellSignal'
-                                    checked={symbolConfiguration.strategyOptions.huskyOptions.sellSignal}
+                                    checked={
+                                      symbolConfiguration.strategyOptions
+                                        .huskyOptions.sellSignal
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <Form.Check.Label>
@@ -1235,7 +1391,9 @@ class SymbolSettingIcon extends React.Component {
                                       overlay={
                                         <Popover id='husky-options-sell-signal-overlay-right'>
                                           <Popover.Content>
-                                            {setting_icon.use_husky_sell_description}
+                                            {
+                                              setting_icon.use_husky_sell_description
+                                            }
                                           </Popover.Content>
                                         </Popover>
                                       }>
@@ -1264,7 +1422,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='husky-positive-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.weight_green_candle_description}
+                                          {
+                                            setting_icon.weight_green_candle_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -1279,17 +1439,26 @@ class SymbolSettingIcon extends React.Component {
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder="1"
+                                    placeholder='1'
                                     required
                                     min='0'
                                     step='0.0001'
                                     data-state-key='strategyOptions.huskyOptions.positive'
-                                    value={symbolConfiguration.strategyOptions.huskyOptions.positive}
+                                    value={
+                                      symbolConfiguration.strategyOptions
+                                        .huskyOptions.positive
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {((symbolConfiguration.strategyOptions.huskyOptions.positive - 1) * 100).toFixed(2)}% heavier than negative
+                                      {(
+                                        (symbolConfiguration.strategyOptions
+                                          .huskyOptions.positive -
+                                          1) *
+                                        100
+                                      ).toFixed(2)}
+                                      % heavier than negative
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
@@ -1299,7 +1468,7 @@ class SymbolSettingIcon extends React.Component {
                                 controlId='field-husky-negative'
                                 className='mb-2'>
                                 <Form.Label className='mb-0'>
-                                  {setting_icon.weight_red_candle} {' '}
+                                  {setting_icon.weight_red_candle}{' '}
                                   <OverlayTrigger
                                     trigger='click'
                                     key='husky-negative-overlay'
@@ -1307,7 +1476,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='husky-negative-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.weight_red_candle_description}
+                                          {
+                                            setting_icon.weight_red_candle_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -1322,17 +1493,26 @@ class SymbolSettingIcon extends React.Component {
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder="1.25"
+                                    placeholder='1.25'
                                     required
                                     min='0'
                                     step='0.0001'
                                     data-state-key='strategyOptions.huskyOptions.negative'
-                                    value={symbolConfiguration.strategyOptions.huskyOptions.negative}
+                                    value={
+                                      symbolConfiguration.strategyOptions
+                                        .huskyOptions.negative
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {((symbolConfiguration.strategyOptions.huskyOptions.negative - 1) * 100).toFixed(2)}% heavier than positive
+                                      {(
+                                        (symbolConfiguration.strategyOptions
+                                          .huskyOptions.negative -
+                                          1) *
+                                        100
+                                      ).toFixed(2)}
+                                      % heavier than positive
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
@@ -1341,7 +1521,9 @@ class SymbolSettingIcon extends React.Component {
                           </div>
                           <div className='row'>
                             <div className='col-12'>
-                              <p className='form-header mb-1'>{setting_icon.force_market_order} ?</p>
+                              <p className='form-header mb-1'>
+                                {setting_icon.force_market_order} ?
+                              </p>
                               <Form.Group
                                 controlId='field-sell-market-enabled'
                                 className='mb-2'>
@@ -1349,7 +1531,10 @@ class SymbolSettingIcon extends React.Component {
                                   <Form.Check.Input
                                     type='checkbox'
                                     data-state-key='sell.trendDownMarketSell'
-                                    checked={symbolConfiguration.sell.trendDownMarketSell}
+                                    checked={
+                                      symbolConfiguration.sell
+                                        .trendDownMarketSell
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <Form.Check.Label>
@@ -1361,7 +1546,9 @@ class SymbolSettingIcon extends React.Component {
                                       overlay={
                                         <Popover id='sell-market-enabled-overlay-right'>
                                           <Popover.Content>
-                                            {setting_icon.sell_market_order_description}
+                                            {
+                                              setting_icon.sell_market_order_description
+                                            }
                                           </Popover.Content>
                                         </Popover>
                                       }>
@@ -1375,12 +1562,14 @@ class SymbolSettingIcon extends React.Component {
                                 </Form.Check>
                               </Form.Group>
 
-                              <p className='form-header mb-1'>Hard Sell Trigger</p>
+                              <p className='form-header mb-1'>
+                                Hard Sell Trigger
+                              </p>
                               <Form.Group
                                 controlId='field-sell-hard-percentage'
                                 className='mb-2'>
                                 <Form.Label className='mb-0'>
-                                  {setting_icon.hard_sell_trigger} {' '}
+                                  {setting_icon.hard_sell_trigger}{' '}
                                   <OverlayTrigger
                                     trigger='click'
                                     key='sell-hard-price-percentage-overlay'
@@ -1388,7 +1577,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='sell-hard-price-percentage-overlay-right'>
                                         <Popover.Content>
-                                          {setting_icon.hard_sell_trigger_description}
+                                          {
+                                            setting_icon.hard_sell_trigger_description
+                                          }
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -1403,32 +1594,97 @@ class SymbolSettingIcon extends React.Component {
                                   <FormControl
                                     size='sm'
                                     type='number'
-                                    placeholder={setting_icon.placeholder_hard_sell_trigger}
+                                    placeholder={
+                                      setting_icon.placeholder_hard_sell_trigger
+                                    }
                                     required
                                     min='0'
                                     step='0.0001'
                                     data-state-key='sell.hardPercentage'
-                                    value={symbolConfiguration.sell.hardPercentage}
+                                    value={
+                                      symbolConfiguration.sell.hardPercentage
+                                    }
                                     onChange={this.handleInputChange}
                                   />
                                   <InputGroup.Append>
                                     <InputGroup.Text>
-                                      {((symbolConfiguration.sell.hardPercentage * 100) - 100).toFixed(2)}%
+                                      {(
+                                        symbolConfiguration.sell
+                                          .hardPercentage *
+                                          100 -
+                                        100
+                                      ).toFixed(2)}
+                                      %
                                     </InputGroup.Text>
                                   </InputGroup.Append>
                                 </InputGroup>
                               </Form.Group>
-
                             </div>
-
                           </div>
                         </Card.Body>
                       </Accordion.Collapse>
                     </Card>
                   </Accordion>
 
-                  <Accordion
-                    className='accordion-wrapper accordion-floating'>
+                  <Accordion className='accordion-wrapper accordion-floating'>
+                    <Card className='mt-1'>
+                      <Card.Header className='px-2 py-1'>
+                        <Accordion.Toggle
+                          as={Button}
+                          variant='link'
+                          eventKey='0'
+                          className='p-0 fs-7 text-uppercase'>
+                          Prediction
+                        </Accordion.Toggle>
+                      </Card.Header>
+                      <Accordion.Collapse eventKey='0'>
+                        <Card.Body className='px-2 py-1'>
+                          <div className='row'>
+                            <div className='col-12'>
+                              <Form.Group
+                                controlId='field-sell-stake-coins-enabled'
+                                className='mb-2'>
+                                <Form.Check size='sm'>
+                                  <Form.Check.Input
+                                    type='checkbox'
+                                    data-state-key='buy.predictValue'
+                                    checked={
+                                      symbolConfiguration.buy.predictValue
+                                    }
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <Form.Check.Label>
+                                    Predict coin value{' '}
+                                    <OverlayTrigger
+                                      trigger='click'
+                                      key='sell-stake-coins-enabled-overlay'
+                                      placement='bottom'
+                                      overlay={
+                                        <Popover id='sell-stake-coins-enabled-overlay-right'>
+                                          <Popover.Content>
+                                            When enabled, will predict the coin
+                                            value 5 minutes in the future using
+                                            the last 100 minutes as training.
+                                          </Popover.Content>
+                                        </Popover>
+                                      }>
+                                      <Button
+                                        variant='link'
+                                        className='p-0 m-0 ml-1 text-info'>
+                                        <i className='fa fa-question-circle'></i>
+                                      </Button>
+                                    </OverlayTrigger>
+                                  </Form.Check.Label>
+                                </Form.Check>
+                              </Form.Group>
+                            </div>
+                          </div>
+                        </Card.Body>
+                      </Accordion.Collapse>
+                    </Card>
+                  </Accordion>
+
+                  <Accordion className='accordion-wrapper accordion-floating'>
                     <Card className='mt-1'>
                       <Card.Header className='px-2 py-1'>
                         <Accordion.Toggle
@@ -1451,7 +1707,8 @@ class SymbolSettingIcon extends React.Component {
                                     type='checkbox'
                                     data-state-key='strategyOptions.athRestriction.enabled'
                                     checked={
-                                      symbolConfiguration.strategyOptions.athRestriction.enabled
+                                      symbolConfiguration.strategyOptions
+                                        .athRestriction.enabled
                                     }
                                     onChange={this.handleInputChange}
                                   />
@@ -1464,16 +1721,18 @@ class SymbolSettingIcon extends React.Component {
                                       overlay={
                                         <Popover id='buy-ath-restriction-enabled-overlay-right'>
                                           <Popover.Content>
-                                            If enabled, the bot will retrieve ATH
-                                            (All Time High) price of the coin based
-                                            on the interval/candle configuration. If
-                                            the buy trigger price is higher than ATH
-                                            buy restriction price, which is
+                                            If enabled, the bot will retrieve
+                                            ATH (All Time High) price of the
+                                            coin based on the interval/candle
+                                            configuration. If the buy trigger
+                                            price is higher than ATH buy
+                                            restriction price, which is
                                             calculated by ATH Restriction price
-                                            percentage, the bot will not place a buy
-                                            order. The bot will place an order when
-                                            the trigger price is lower than ATH buy
-                                            restriction price.
+                                            percentage, the bot will not place a
+                                            buy order. The bot will place an
+                                            order when the trigger price is
+                                            lower than ATH buy restriction
+                                            price.
                                           </Popover.Content>
                                         </Popover>
                                       }>
@@ -1502,8 +1761,8 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='interval-overlay-right'>
                                         <Popover.Content>
-                                          Set candle interval for calculating the
-                                          ATH (All The High) price.
+                                          Set candle interval for calculating
+                                          the ATH (All The High) price.
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -1520,8 +1779,8 @@ class SymbolSettingIcon extends React.Component {
                                   required
                                   data-state-key='strategyOptions.athRestriction.candles.interval'
                                   value={
-                                    symbolConfiguration.strategyOptions.athRestriction.candles
-                                      .interval
+                                    symbolConfiguration.strategyOptions
+                                      .athRestriction.candles.interval
                                   }
                                   onChange={this.handleInputChange}>
                                   <option value='1m'>1m</option>
@@ -1549,8 +1808,9 @@ class SymbolSettingIcon extends React.Component {
                                     overlay={
                                       <Popover id='limit-overlay-right'>
                                         <Popover.Content>
-                                          Set the number of candles to retrieve for
-                                          calculating the ATH (All The High) price.
+                                          Set the number of candles to retrieve
+                                          for calculating the ATH (All The High)
+                                          price.
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -1570,7 +1830,8 @@ class SymbolSettingIcon extends React.Component {
                                   step='1'
                                   data-state-key='strategyOptions.athRestriction.candles.limit'
                                   value={
-                                    symbolConfiguration.strategyOptions.athRestriction.candles.limit
+                                    symbolConfiguration.strategyOptions
+                                      .athRestriction.candles.limit
                                   }
                                   onChange={this.handleInputChange}
                                 />
@@ -1594,9 +1855,9 @@ class SymbolSettingIcon extends React.Component {
                                           Set the percentage to calculate
                                           restriction price. i.e. if set{' '}
                                           <code>0.9</code> and the ATH(All Time
-                                          High) price <code>$110</code>, restriction
-                                          price will be <code>$99</code> for stop
-                                          limit order.
+                                          High) price <code>$110</code>,
+                                          restriction price will be{' '}
+                                          <code>$99</code> for stop limit order.
                                         </Popover.Content>
                                       </Popover>
                                     }>
@@ -1616,8 +1877,8 @@ class SymbolSettingIcon extends React.Component {
                                   step='0.0001'
                                   data-state-key='strategyOptions.athRestriction.restrictionPercentage'
                                   value={
-                                    symbolConfiguration.strategyOptions.athRestriction
-                                      .restrictionPercentage
+                                    symbolConfiguration.strategyOptions
+                                      .athRestriction.restrictionPercentage
                                   }
                                   onChange={this.handleInputChange}
                                 />
@@ -1628,15 +1889,11 @@ class SymbolSettingIcon extends React.Component {
                       </Accordion.Collapse>
                     </Card>
                   </Accordion>
-
                 </div>
               </div>
-
             </Modal.Body>
             <Modal.Footer>
-              <div className='w-100'>
-                {setting_icon.note_changes}
-              </div>
+              <div className='w-100'>{setting_icon.note_changes}</div>
               <Button
                 variant='danger'
                 size='sm'
@@ -1664,7 +1921,9 @@ class SymbolSettingIcon extends React.Component {
           size='md'>
           <Modal.Header className='pt-1 pb-1'>
             <Modal.Title>
-              <span className='text-danger'>⚠ {setting_icon.reset_global_settings}</span>
+              <span className='text-danger'>
+                ⚠ {setting_icon.reset_global_settings}
+              </span>
             </Modal.Title>
           </Modal.Header>
           <Modal.Body>

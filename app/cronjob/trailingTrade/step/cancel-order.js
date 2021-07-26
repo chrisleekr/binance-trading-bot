@@ -74,12 +74,14 @@ const execute = async (logger, rawData) => {
     symbol, orderResult, 'ORDER_CANCELED'
   );
 
-  //const cachedLastBuyOrder =
-  //   JSON.parse(await cache.hget(`${symbol}-last-buy-order`)) || {};
-  // if (!_.isEmpty(cachedLastBuyOrder)) {
-  //  await cache.hdel(`${symbol}-last-buy-order`);
-  // }
 
+
+ /* const cachedLastBuyOrder =
+     JSON.parse(await cache.hget(`${symbol}-last-buy-order`)) || {};
+   if (!_.isEmpty(cachedLastBuyOrder)) {
+    await cache.hdel(`${symbol}-last-buy-order`);
+   }
+*/
   const cachedLastSellOrder =
     JSON.parse(await cache.get(`${symbol}-last-sell-order`)) || {};
   if (!_.isEmpty(cachedLastSellOrder)) {

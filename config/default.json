@@ -97,6 +97,7 @@
       },
       "buy": {
         "enabled": true,
+        "predictValue": false,
         "lastBuyPriceRemoveThreshold": -1,
         "lastBuyPriceRemoveThresholds": {},
         "maxPurchaseAmount": -1,

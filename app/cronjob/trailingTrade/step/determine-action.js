@@ -1,11 +1,10 @@
 const moment = require('moment');
 const _ = require('lodash');
-const { isActionDisabled } = require('../../trailingTradeHelper/common');
 const config = require('config');
-const { cache } = require('../../../helpers');
+const { isActionDisabled } = require('../../trailingTradeHelper/common');
+const { cache, messenger } = require('../../../helpers');
 
-
-const retrieveLastBuyOrder = async (symbol) => {
+const retrieveLastBuyOrder = async symbol => {
   const cachedLastBuyOrder =
     JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
 
@@ -18,51 +17,69 @@ const retrieveLastBuyOrder = async (symbol) => {
  * @param {*} data
  * @returns
  */
-const canBuy = async (data) => {
+const canBuy = async data => {
   const {
-    buy: { currentPrice: buyCurrentPrice, triggerPrice: buyTriggerPrice, trend: { signedTrendDiff } },
-    symbolConfiguration: { strategyOptions: { tradeOptions: { manyBuys, differenceToBuy }, huskyOptions: { buySignal } } },
+    buy: {
+      currentPrice: buyCurrentPrice,
+      triggerPrice: buyTriggerPrice,
+      trend: { signedTrendDiff }
+    },
+    symbolConfiguration: {
+      strategyOptions: {
+        tradeOptions: { manyBuys, differenceToBuy },
+        huskyOptions: { buySignal }
+      }
+    },
     sell: { lastBuyPrice, lastQtyBought },
     symbol
   } = data;
 
-  const canBuy = await retrieveLastBuyOrder(symbol);
+  const canBuyIt = await retrieveLastBuyOrder(symbol);
 
   let percentDifference = 200;
-
 
   if (buySignal) {
     if (manyBuys) {
       if (lastBuyPrice > 0) {
-        percentDifference = 100 * ((lastBuyPrice - buyCurrentPrice) / ((lastBuyPrice + buyCurrentPrice) / 2));
+        percentDifference =
+          100 *
+          ((lastBuyPrice - buyCurrentPrice) /
+            ((lastBuyPrice + buyCurrentPrice) / 2));
       }
-      return canBuy &&
+      return (
+        canBuyIt &&
         buyCurrentPrice <= buyTriggerPrice &&
-        signedTrendDiff == 1 &&
+        signedTrendDiff === 1 &&
         percentDifference >= differenceToBuy
-    } else {
-      return canBuy &&
-        lastBuyPrice <= 0 &&
-        lastQtyBought <= 0 &&
-        buyCurrentPrice <= buyTriggerPrice &&
-        signedTrendDiff == 1;
+      );
     }
-  } else {
-    if (manyBuys) {
-      if (lastBuyPrice > 0) {
-        percentDifference = 100 * ((lastBuyPrice - buyCurrentPrice) / ((lastBuyPrice + buyCurrentPrice) / 2));
-      }
-      return canBuy &&
-        buyCurrentPrice <= buyTriggerPrice &&
-        percentDifference >= differenceToBuy
-    } else {
-      return canBuy &&
-        lastBuyPrice <= 0 &&
-        lastQtyBought <= 0 &&
-        buyCurrentPrice <= buyTriggerPrice;
-    }
+    return (
+      canBuyIt &&
+      lastBuyPrice <= 0 &&
+      lastQtyBought <= 0 &&
+      buyCurrentPrice <= buyTriggerPrice &&
+      signedTrendDiff === 1
+    );
   }
-
+  if (manyBuys) {
+    if (lastBuyPrice > 0) {
+      percentDifference =
+        100 *
+        ((lastBuyPrice - buyCurrentPrice) /
+          ((lastBuyPrice + buyCurrentPrice) / 2));
+    }
+    return (
+      canBuyIt &&
+      buyCurrentPrice <= buyTriggerPrice &&
+      percentDifference >= differenceToBuy
+    );
+  }
+  return (
+    canBuyIt &&
+    lastBuyPrice <= 0 &&
+    lastQtyBought <= 0 &&
+    buyCurrentPrice <= buyTriggerPrice
+  );
 };
 
 /**
@@ -90,7 +107,6 @@ const isGreaterThanTheATHRestrictionPrice = data => {
   );
 };
 
-
 /**
  * Check whether has enough balance to sell
  *
@@ -110,6 +126,36 @@ const hasBalanceToSell = data => {
 };
 
 /**
+ * Check whether prediction is correct
+ *
+ * @param {*} data
+ * @returns
+ */
+const predictedValueIsTrue = data => {
+  const {
+    buy: {
+      prediction,
+      difference,
+      trend: { trendDiff },
+      currentPrice
+    },
+    symbolConfiguration: {
+      buy: { predictedValue }
+    }
+  } = data;
+
+  const predictionDiff = 100 - (currentPrice / prediction.predictedValue) * 100;
+
+  return (
+    predictionDiff > 0.35 &&
+    // Math.sign(prediction.predictedValue - currentPrice) === 1 &&
+    difference > 0.2 &&
+    trendDiff > 0.25 &&
+    predictedValue === true
+  );
+};
+
+/**
  * Check whether current price difference is higher than defined, to buy again
  *
  * @param {*} data
@@ -119,14 +165,20 @@ const currentPriceIsHigherThanDifferenceToBuy = data => {
   const {
     buy: { currentPrice: buyCurrentPrice },
     sell: { lastBuyPrice },
-    symbolConfiguration: { strategyOptions: { tradeOptions: { manyBuys, differenceToBuy } } }
+    symbolConfiguration: {
+      strategyOptions: {
+        tradeOptions: { manyBuys, differenceToBuy }
+      }
+    }
   } = data;
 
-  if (lastBuyPrice == 0 || lastBuyPrice == null || manyBuys == false) {
+  if (lastBuyPrice === 0 || lastBuyPrice == null || manyBuys === false) {
     return false;
   }
 
-  const percentDifference = 100 * ((lastBuyPrice - buyCurrentPrice) / ((lastBuyPrice + buyCurrentPrice) / 2));
+  const percentDifference =
+    100 *
+    ((lastBuyPrice - buyCurrentPrice) / ((lastBuyPrice + buyCurrentPrice) / 2));
 
   return percentDifference >= differenceToBuy;
 };
@@ -184,34 +236,50 @@ const canSell = data => {
  */
 const isHigherThanSellTriggerPrice = data => {
   const {
-    buy: { trend: { signedTrendDiff } },
+    buy: {
+      trend: { signedTrendDiff }
+    },
     sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice },
-    symbolConfiguration: { strategyOptions: { huskyOptions: { sellSignal } } }
+    symbolConfiguration: {
+      strategyOptions: {
+        huskyOptions: { sellSignal }
+      }
+    }
   } = data;
 
   if (sellSignal) {
-    return sellCurrentPrice >= sellTriggerPrice && signedTrendDiff == -1
-  } else {
-    return sellCurrentPrice >= sellTriggerPrice;
+    return sellCurrentPrice >= sellTriggerPrice && signedTrendDiff === -1;
   }
+  return sellCurrentPrice >= sellTriggerPrice;
 };
 
 const isHigherThanHardSellTriggerPrice = data => {
   const {
-    sell: { currentPrice: sellCurrentPrice, hardTriggerPrice: hardSellTriggerPrice }
+    sell: {
+      currentPrice: sellCurrentPrice,
+      hardTriggerPrice: hardSellTriggerPrice
+    }
   } = data;
 
-  return sellCurrentPrice >= hardSellTriggerPrice
+  return sellCurrentPrice >= hardSellTriggerPrice;
 };
 
 const isHigherThanSellTriggerPriceAndTrendIsDown = data => {
   const {
-    indicators: { trend: { signedTrendDiff } },
+    indicators: {
+      trend: { signedTrendDiff }
+    },
     sell: { currentPrice: sellCurrentPrice, triggerPrice: sellTriggerPrice },
-    symbolConfiguration: { strategyOptions: { huskyOptions: { sellSignal } } }
+    symbolConfiguration: {
+      strategyOptions: {
+        huskyOptions: { sellSignal }
+      }
+    }
   } = data;
 
-  return sellCurrentPrice >= sellTriggerPrice && signedTrendDiff == -1 && sellSignal;
+  return (
+    sellCurrentPrice >= sellTriggerPrice && signedTrendDiff === -1 && sellSignal
+  );
 };
 
 /**
@@ -270,7 +338,12 @@ const execute = async (logger, rawData) => {
     action,
     symbol,
     isLocked,
-    symbolConfiguration: { sell: { trendDownMarketSell }, strategyOptions: { tradeOptions: { manyBuys } } }
+    symbolConfiguration: {
+      sell: { trendDownMarketSell },
+      strategyOptions: {
+        tradeOptions: { manyBuys }
+      }
+    }
   } = data;
 
   if (_.isEmpty(data.buy) || _.isEmpty(data.buy.trend)) {
@@ -293,29 +366,19 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-
   const language = config.get('language');
-  const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
+  const {
+    coin_wrapper: { _actions }
+  } = require(`../../../../public/${language}.json`);
 
   // Check buy signal -
   //  if last buy price is less than 0
   //    and current price is less or equal than lowest price
   //    and current balance has not enough value to sell,
   //  then buy.
-  if (await canBuy(data)) {
-    
-    //ATH verify
-    if (isGreaterThanTheATHRestrictionPrice(data)) {
-      return setBuyActionAndMessage(
-        logger,
-        data,
-        'wait',
-        `The current price has reached the lowest price; however, it is restricted to buy the coin.`
-      );
-    }
 
-    if (manyBuys) {
-
+  if (predictedValueIsTrue(data)) {
+    if (!hasBalanceToSell(data)) {
       const checkDisable = await isActionDisabled(symbol);
       logger.info(
         { tag: 'check-disable', checkDisable },
@@ -326,49 +389,71 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'buy-temporary-disabled',
-          _actions.action_buy_disabled[1] +
-          _actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-          _actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+          `${
+            _actions.action_buy_disabled[1] +
+            _actions.action_sell_disabled[2] +
+            checkDisable.disabledBy
+          }.${_actions.action_sell_disabled[3]}${checkDisable.ttl}s`
         );
       }
 
-      logger.info(
-        "Buying again!."
-      );
-
-
+      return setBuyActionAndMessage(logger, data, 'buy', _actions.action_buy);
+    }
+  }
+  if (await canBuy(data)) {
+    // ATH verify
+    if (isGreaterThanTheATHRestrictionPrice(data)) {
       return setBuyActionAndMessage(
         logger,
         data,
-        'buy',
-        _actions.action_buy
+        'wait',
+        `The current price has reached the lowest price; however, it is restricted to buy the coin.`
       );
-    } else {
-      if (!hasBalanceToSell(data)) {
+    }
 
-        const checkDisable = await isActionDisabled(symbol);
-        logger.info(
-          { tag: 'check-disable', checkDisable },
-          'Checked whether symbol is disabled or not.'
-        );
-        if (checkDisable.isDisabled) {
-          return setBuyActionAndMessage(
-            logger,
-            data,
-            'buy-temporary-disabled',
-            _actions.action_buy_disabled[1] +
-            _actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-            _actions.action_sell_disabled[3] + checkDisable.ttl + 's'
-          );
-        }
-
+    if (manyBuys) {
+      const checkDisable = await isActionDisabled(symbol);
+      logger.info(
+        { tag: 'check-disable', checkDisable },
+        'Checked whether symbol is disabled or not.'
+      );
+      if (checkDisable.isDisabled) {
         return setBuyActionAndMessage(
           logger,
           data,
-          'buy',
-          _actions.action_buy
+          'buy-temporary-disabled',
+          `${
+            _actions.action_buy_disabled[1] +
+            _actions.action_sell_disabled[2] +
+            checkDisable.disabledBy
+          }.${_actions.action_sell_disabled[3]}${checkDisable.ttl}s`
         );
       }
+
+      logger.info('Buying again!.');
+
+      return setBuyActionAndMessage(logger, data, 'buy', _actions.action_buy);
+    }
+    if (!hasBalanceToSell(data)) {
+      const checkDisable = await isActionDisabled(symbol);
+      logger.info(
+        { tag: 'check-disable', checkDisable },
+        'Checked whether symbol is disabled or not.'
+      );
+      if (checkDisable.isDisabled) {
+        return setBuyActionAndMessage(
+          logger,
+          data,
+          'buy-temporary-disabled',
+          `${
+            _actions.action_buy_disabled[1] +
+            _actions.action_sell_disabled[2] +
+            checkDisable.disabledBy
+          }.${_actions.action_sell_disabled[3]}${checkDisable.ttl}s`
+        );
+      }
+
+      return setBuyActionAndMessage(logger, data, 'buy', _actions.action_buy);
     }
   }
 
@@ -376,8 +461,7 @@ const execute = async (logger, rawData) => {
   //  last buy price has a value
   //  and total balance is enough to sell
   if (canSell(data)) {
-
-    //And its above the HARD sell trigger.
+    // And its above the HARD sell trigger.
     if (isHigherThanHardSellTriggerPrice(data)) {
       const checkDisable = await isActionDisabled(symbol);
       logger.info(
@@ -389,9 +473,11 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'sell-temporary-disabled',
-          _actions.action_sell_disabled[1] +
-          _actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-          _actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+          `${
+            _actions.action_sell_disabled[1] +
+            _actions.action_sell_disabled[2] +
+            checkDisable.disabledBy
+          }.${_actions.action_sell_disabled[3]}${checkDisable.ttl}s`
         );
       }
       if (trendDownMarketSell) {
@@ -400,22 +486,19 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'sell-profit',
-          "Selling because of hard profit. At market order."
-        );
-      } else {
-        // Then sell limit order
-        return setSellActionAndMessage(
-          logger,
-          data,
-          'sell',
-          "Selling because of hard profit. At limit order."
+          'Selling because of hard profit. At market order.'
         );
       }
-
+      // Then sell limit order
+      return setSellActionAndMessage(
+        logger,
+        data,
+        'sell',
+        'Selling because of hard profit. At limit order.'
+      );
     }
 
     if (isHigherThanSellTriggerPriceAndTrendIsDown(data)) {
-
       const checkDisable = await isActionDisabled(symbol);
       logger.info(
         { tag: 'check-disable', checkDisable },
@@ -426,9 +509,11 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'sell-temporary-disabled',
-          _actions.action_sell_disabled[1] +
-          _actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-          _actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+          `${
+            _actions.action_sell_disabled[1] +
+            _actions.action_sell_disabled[2] +
+            checkDisable.disabledBy
+          }.${_actions.action_sell_disabled[3]}${checkDisable.ttl}s`
         );
       }
       if (trendDownMarketSell) {
@@ -437,23 +522,20 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'sell-profit',
-          "Selling because trend is down and current price is higher than defined profit. Market Order."
-        );
-      } else {
-        //Sell at limit order
-        return setSellActionAndMessage(
-          logger,
-          data,
-          'sell',
-          "Selling because trend is down and current price is higher than defined profit. Limit order."
+          'Selling because trend is down and current price is higher than defined profit. Market Order.'
         );
       }
+      // Sell at limit order
+      return setSellActionAndMessage(
+        logger,
+        data,
+        'sell',
+        'Selling because trend is down and current price is higher than defined profit. Limit order.'
+      );
     }
-
 
     // And if current price is higher or equal than trigger price
     if (isHigherThanSellTriggerPrice(data)) {
-
       const checkDisable = await isActionDisabled(symbol);
       logger.info(
         { tag: 'check-disable', checkDisable },
@@ -464,9 +546,11 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'sell-temporary-disabled',
-          _actions.action_sell_disabled[1] +
-          _actions.action_sell_disabled[2] + checkDisable.disabledBy + '.' +
-          _actions.action_sell_disabled[3] + checkDisable.ttl + 's'
+          `${
+            _actions.action_sell_disabled[1] +
+            _actions.action_sell_disabled[2] +
+            checkDisable.disabledBy
+          }.${_actions.action_sell_disabled[3]}${checkDisable.ttl}s`
         );
       }
       // Then sell
@@ -488,9 +572,11 @@ const execute = async (logger, rawData) => {
           logger,
           data,
           'sell-temporary-disabled',
-          _actions.action_sell_disabled_stop_loss[1] +
-          _actions.action_sell_disabled_stop_loss[2] + checkDisable.disabledBy + '.' +
-          _actions.action_sell_disabled_stop_loss[3] + checkDisable.ttl + 's'
+          `${
+            _actions.action_sell_disabled_stop_loss[1] +
+            _actions.action_sell_disabled_stop_loss[2] +
+            checkDisable.disabledBy
+          }.${_actions.action_sell_disabled_stop_loss[3]}${checkDisable.ttl}s`
         );
       }
       // Then sell market order

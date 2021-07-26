@@ -12,7 +12,6 @@ const {
   getLastBuyPrice,
   isActionDisabled
 } = require('../../../cronjob/trailingTradeHelper/common');
-const { updateTelegramBotLatestData } = require('../../../helpers/telegram');
 
 const getSymbolFromKey = key => {
   const fragments = key.split('-');
@@ -43,7 +42,9 @@ const handleLatest = async (logger, ws, _payload) => {
     savedPassword = '';
   }
 
-  const { botOptions: { login } } = globalConfiguration
+  const {
+    botOptions: { login }
+  } = globalConfiguration;
 
   const cachedTrades = JSON.parse(await cache.get(`past-trades`)) || {};
 
@@ -53,13 +54,12 @@ const handleLatest = async (logger, ws, _payload) => {
     login.passwordActivated = true;
   }
 
-  const cachedTempLogin =
-    JSON.parse(await cache.get(`tempLogin`)) || {};
+  const cachedTempLogin = JSON.parse(await cache.get(`tempLogin`)) || {};
 
   let common = {};
   try {
-    if (globalConfiguration.language != config.get('language')) {
-      globalConfiguration.language = config.get('language')
+    if (globalConfiguration.language !== config.get('language')) {
+      globalConfiguration.language = config.get('language');
     }
     common = {
       version,
@@ -118,9 +118,6 @@ const handleLatest = async (logger, ws, _payload) => {
     },
     'stats'
   );
-
-
-  await updateTelegramBotLatestData(cachedTrades);
 
   ws.send(
     JSON.stringify({

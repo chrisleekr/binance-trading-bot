@@ -2,7 +2,18 @@
   "extends": ["airbnb", "prettier", "plugin:jest/recommended"],
   "plugins": ["prettier", "jest"],
   "rules": {
-    "prettier/prettier": ["error"],
+    "prettier/prettier": [
+      "error",
+      {
+        "printWidth": 80,
+        "trailingComma": "none",
+        "semi": true,
+        "jsxSingleQuote": true,
+        "singleQuote": true,
+        "useTabs": false,
+        "endOfLine": "auto"
+      }
+    ],
     "comma-dangle": ["error", "never"],
     "max-len": ["error", { "code": 120 }],
     "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }]
@@ -14,5 +25,8 @@
   },
   "parserOptions": {
     "ecmaVersion": 2020
-  }
+  },
+  "[javascript]": {
+    "editor.formatOnSave": true
+}
 }

@@ -2,15 +2,36 @@ const config = require('config');
 const moment = require('moment');
 const _ = require('lodash');
 
-const { cache, messenger, binance, PubSub, mongo } = require('../../../helpers');
+const {
+  cache,
+  messenger,
+  binance,
+  PubSub,
+  mongo
+} = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
   disableAction,
-  getAPILimit,
   getLastBuyPrice,
   saveLastBuyPrice
 } = require('../../trailingTradeHelper/common');
+
+/**
+ * Remove last buy order from cache
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ */
+const removeLastBuyOrder = async (logger, symbol, orderResult = undefined) => {
+  try {
+    if (orderResult !== undefined) {
+      await calculateLastBuyPrice(logger, symbol, orderResult);
+    }
+    await cache.del(`${symbol}-last-buy-order`);
+    logger.info({ debug: true }, 'Deleted last buy order from cache');
+  } catch (error) {}
+};
 
 /**
  * Retrieve last buy price and recalculate new last buy price
@@ -19,37 +40,49 @@ const {
  * @param {*} symbol
  * @param {*} order
  */
+const lastAddedOrder = {
+  price: 0,
+  qty: 0
+};
 const calculateLastBuyPrice = async (logger, symbol, order) => {
   let orderPrice = parseFloat(order.price);
   const { origQty } = order;
-  if (orderPrice == 0) {
+  if (orderPrice === 0) {
     const { cummulativeQuoteQty } = order;
-    orderPrice = (cummulativeQuoteQty / origQty);
+    orderPrice = cummulativeQuoteQty / origQty;
   }
   const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
   const orgLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', 0);
   const orgQuantity = _.get(lastBuyPriceDoc, 'quantity', 0);
-  const orgTotalAmount = (orgLastBuyPrice * orgQuantity);
+  const orgTotalAmount = orgLastBuyPrice * orgQuantity;
+
+  let newQuantity = origQty;
+  let newTotalAmount = orderPrice;
+  let newLastBuyPrice = newTotalAmount;
 
   logger.info(
     { orgLastBuyPrice, orgQuantity, orgTotalAmount },
     'Existing last buy price'
   );
 
-  const filledQuoteQty = parseFloat(orderPrice);
-  const filledQuantity = parseFloat(origQty);
-  const filledAmount = (filledQuoteQty * filledQuantity);
+  if (lastAddedOrder.price !== orderPrice && lastAddedOrder.qty !== origQty) {
+    const filledQuoteQty = parseFloat(orderPrice);
+    const filledQuantity = parseFloat(origQty);
+    const filledAmount = filledQuoteQty * filledQuantity;
 
-  const newQuantity = (orgQuantity + filledQuantity);
-  const newTotalAmount = (orgTotalAmount + filledAmount);
+    newQuantity = orgQuantity + filledQuantity;
+    newTotalAmount = orgTotalAmount + filledAmount;
 
+    newLastBuyPrice = newTotalAmount / newQuantity;
 
-  const newLastBuyPrice = (newTotalAmount / newQuantity);
+    logger.info(
+      { newLastBuyPrice, newTotalAmount, newQuantity },
+      'New last buy price'
+    );
 
-  logger.info(
-    { newLastBuyPrice, newTotalAmount, newQuantity },
-    'New last buy price'
-  );
+    lastAddedOrder.price = orderPrice;
+    lastAddedOrder.qty = origQty;
+  }
   await saveLastBuyPrice(logger, symbol, {
     lastBuyPrice: newLastBuyPrice,
     quantity: newQuantity,
@@ -79,13 +112,38 @@ const getLastBuyOrder = async (logger, symbol) => {
 };
 
 /**
+ *Sanitize past trades (removing duplicates)
+ * @param {*} symbol
+ * @param {*} oldOrder
+ */
+const sanitizePastTrades = async pastTrades => {
+  let i = 1;
+  pastTrades.forEach(trade => {
+    if (i < pastTrades.length) {
+      const oldDate = trade.date;
+      const newDate = pastTrades[i].date;
+      const oldSymbol = trade.symbol;
+      const newSymbol = pastTrades[i].symbol;
+      if ((new Date(newDate) - new Date(oldDate)) / 1000 < 3 && oldSymbol === newSymbol) {
+        if (i > -1) {
+          pastTrades.splice(i, 1);
+        }
+      }
+    }
+    i += 1;
+  });
+
+  return pastTrades;
+};
+
+/**
  * Add to past Trades
  *
  * @param {*} logger
  * @param {*} symbol
  */
 const addPastTrade = async (symbol, oldOrder) => {
-  let cachedTrades = JSON.parse(await cache.get(`past-trades`)) || [];
+  const cachedTrades = JSON.parse(await cache.get(`past-trades`)) || [];
 
   const { finalProfit, finalProfitPercent } = oldOrder;
 
@@ -94,26 +152,15 @@ const addPastTrade = async (symbol, oldOrder) => {
     profit: parseFloat(finalProfit.toFixed(7)),
     percent: parseFloat(finalProfitPercent.toFixed(2)),
     date: new Date().toLocaleString()
-  }
+  };
 
   cachedTrades.push(trade);
 
-  messenger.errorMessage("Cached trades: " + JSON.stringify(cachedTrades))
+  messenger.errorMessage(`Cached trades: ${JSON.stringify(cachedTrades)}`);
 
-  await cache.set(`past-trades`, JSON.stringify(cachedTrades));
+  const sanitizedTrades = await sanitizePastTrades(cachedTrades);
 
-  return;
-}
-
-/**
- * Remove last buy order from cache
- *
- * @param {*} logger
- * @param {*} symbol
- */
-const removeLastBuyOrder = async (logger, symbol) => {
-  await cache.del(`${symbol}-last-buy-order`);
-  logger.info({ debug: true }, 'Deleted last buy order from cache');
+  await cache.set(`past-trades`, JSON.stringify(sanitizedTrades));
 };
 
 /**
@@ -158,8 +205,14 @@ const getLastSellOrder = async (logger, symbol) => {
  * @param {*} symbol
  */
 const removeLastSellOrder = async (logger, symbol) => {
-  await cache.del(`${symbol}-last-sell-order`);
-  logger.info({ debug: true }, 'Deleted last sell order from cache');
+  try {
+    await cache.del(`${symbol}-last-sell-order`);
+
+    logger.info({ debug: true }, 'Deleted last sell order from cache');
+    return true;
+  } catch (error) {
+    return false;
+  }
 };
 
 /**
@@ -216,7 +269,7 @@ const execute = async (logger, rawData) => {
   // Ensure buy order placed
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);
   if (_.isEmpty(lastBuyOrder) === false) {
-    var difference = (new Date() - lastBuyCheck) / 1000;
+    const difference = (new Date() - lastBuyCheck) / 1000;
     if (difference > 2.5 || lastBuyCheck === '') {
       logger.info({ debug: true, lastBuyOrder }, 'Last buy order found');
 
@@ -240,7 +293,7 @@ const execute = async (logger, rawData) => {
         // Get account info
         data.accountInfo = await getAccountInfoFromAPI(logger);
 
-        // Lock symbol action 20 seconds to avoid API limit
+        /*  // Lock symbol action 20 seconds to avoid API limit
         await disableAction(
           symbol,
           {
@@ -249,15 +302,16 @@ const execute = async (logger, rawData) => {
             canResume: false,
             canRemoveLastBuyPrice: false
           },
-          config.get(
-            'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-            20
-          )
+          1
         );
-
+        */
       } else {
-
-        const removeStatuses = ['CANCELED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'];
+        const removeStatuses = [
+          'CANCELED',
+          'REJECTED',
+          'EXPIRED',
+          'PENDING_CANCEL'
+        ];
         let orderResult = {};
         try {
           orderResult = await binance.client.getOrder({
@@ -271,7 +325,7 @@ const execute = async (logger, rawData) => {
           );
           // If order is no longer available, then delete from cache
           await removeLastBuyOrder(logger, symbol);
-          messenger.errorMessage("Removed order by this error: " + e)
+          messenger.errorMessage(`Removed order by this error: ${e}`);
         }
 
         if (orderResult !== {}) {
@@ -281,14 +335,12 @@ const execute = async (logger, rawData) => {
               { lastBuyOrder },
               'The order is filled, calculate last buy price.'
             );
-            await calculateLastBuyPrice(logger, symbol, orderResult);
 
             // If order is no longer available, then delete from cache
-            await removeLastBuyOrder(logger, symbol);
+            await removeLastBuyOrder(logger, symbol, orderResult);
 
             if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-              messenger.sendMessage(
-                symbol, lastBuyOrder, 'BUY_CONFIRMED');
+              messenger.sendMessage(symbol, lastBuyOrder, 'BUY_CONFIRMED');
             }
 
             // Lock symbol action 20 seconds to avoid API limit
@@ -300,10 +352,7 @@ const execute = async (logger, rawData) => {
                 canResume: false,
                 canRemoveLastBuyPrice: false
               },
-              config.get(
-                'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-                20
-              )
+              5
             );
 
             return setBuyActionAndMessage(
@@ -312,12 +361,11 @@ const execute = async (logger, rawData) => {
               'buy-order-filled',
               'The buy order was filled.'
             );
-
-          } else if (removeStatuses.includes(orderResult.status) === true) {
+          }
+          if (removeStatuses.includes(orderResult.status) === true) {
             // If order is no longer available, then delete from cache
             await removeLastBuyOrder(logger, symbol);
           }
-
         }
 
         logger.info(
@@ -326,8 +374,7 @@ const execute = async (logger, rawData) => {
         );
 
         if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-          messenger.sendMessage(
-            symbol, lastBuyOrder, 'BUY_NOT_FOUND');
+          messenger.sendMessage(symbol, lastBuyOrder, 'BUY_NOT_FOUND');
         }
 
         return setBuyActionAndMessage(
@@ -335,7 +382,7 @@ const execute = async (logger, rawData) => {
           data,
           'buy-order-checking',
           'The buy order seems placed; however, it does not appear in the open orders. ' +
-          'Wait for the buy order to appear in open orders.'
+            'Wait for the buy order to appear in open orders.'
         );
       }
       lastBuyCheck = new Date();
@@ -345,7 +392,7 @@ const execute = async (logger, rawData) => {
   // Ensure sell order placed
   const lastSellOrder = await getLastSellOrder(logger, symbol);
   if (_.isEmpty(lastSellOrder) === false) {
-    var difference = (new Date() - lastSellCheck) / 1000;
+    const difference = (new Date() - lastSellCheck) / 1000;
     if (difference > 2.5 || lastSellCheck === '') {
       logger.info({ debug: true, lastSellOrder }, 'Last sell order found');
 
@@ -378,15 +425,15 @@ const execute = async (logger, rawData) => {
             canResume: false,
             canRemoveLastBuyPrice: false
           },
-          config.get(
-            'jobs.trailingTrade.system.temporaryDisableActionAfterConfirmingOrder',
-            20
-          )
+          2
         );
       } else {
-
-
-        const removeStatuses = ['CANCELED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'];
+        const removeStatuses = [
+          'CANCELED',
+          'REJECTED',
+          'EXPIRED',
+          'PENDING_CANCEL'
+        ];
         let orderResult;
         try {
           orderResult = await binance.client.getOrder({
@@ -400,7 +447,7 @@ const execute = async (logger, rawData) => {
           );
           // If order is no longer available, then delete from cache
           await removeLastSellOrder(logger, symbol);
-          messenger.errorMessage("Removed sell order by this error: " + e)
+          messenger.errorMessage(`Removed sell order by this error: ${e}`);
         }
 
         // If filled, then calculate average cost and quantity and save new last buy price.
@@ -410,22 +457,32 @@ const execute = async (logger, rawData) => {
             'The order is filled, calculate last buy price.'
           );
 
-
-          // If order is no longer available, then delete from cache
-          await removeLastSellOrder(logger, symbol);
-
-          //Save past trade
+          // Save past trade
           await addPastTrade(symbol, lastSellOrder);
 
-          //Remove last buy price
+          // If order is no longer available, then delete from cache
+          await removeLastSellOrder(logger, symbol, lastSellOrder);
+
+          // Remove last buy price
           await mongo.deleteOne(logger, 'trailing-trade-symbols', {
             key: `${symbol}-last-buy-price`
           });
 
           if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-            messenger.sendMessage(
-              symbol, lastBuyOrder, 'SELL_CONFIRMED');
+            messenger.sendMessage(symbol, lastBuyOrder, 'SELL_CONFIRMED');
           }
+
+          // Lock symbol action 20 seconds to avoid API limit
+          await disableAction(
+            symbol,
+            {
+              disabledBy: 'sell order filled',
+              message: 'Disabled action after selling.',
+              canResume: false,
+              canRemoveLastBuyPrice: false
+            },
+            5
+          );
 
           return setSellActionAndMessage(
             logger,
@@ -433,12 +490,11 @@ const execute = async (logger, rawData) => {
             'sell-order-filled',
             'The sell order was filled.'
           );
-
-        } else if (removeStatuses.includes(orderResult.status) === true) {
+        }
+        if (removeStatuses.includes(orderResult.status) === true) {
           // If order is no longer available, then delete from cache
           await removeLastSellOrder(logger, symbol);
         }
-
 
         logger.info(
           { debug: true },
@@ -446,8 +502,7 @@ const execute = async (logger, rawData) => {
         );
 
         if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-          messenger.sendMessage(
-            symbol, lastBuyOrder, 'SELL_NOT_FOUND');
+          messenger.sendMessage(symbol, lastBuyOrder, 'SELL_NOT_FOUND');
         }
 
         return setSellActionAndMessage(
@@ -455,7 +510,7 @@ const execute = async (logger, rawData) => {
           data,
           'sell-order-checking',
           'The sell order seems placed; however, it does not appear in the open orders. ' +
-          'Wait for the sell order to appear in open orders.'
+            'Wait for the sell order to appear in open orders.'
         );
       }
       lastSellCheck = new Date();

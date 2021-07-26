@@ -20,15 +20,21 @@ class PastTradesWrapper extends React.Component {
 
     let finalProfit = 0;
 
+    let wins = 0;
+    let losses = 0;
+    let winPercent = 100;
+    let profitPercent = 0;
     const trades = Object.values(pastTrades).map((trade, index) => {
-
       const profitIsNegative = Math.sign(trade.profit);
       let classNameExtension = '';
+      profitPercent += trade.percent;
       if (profitIsNegative === 1) {
-        classNameExtension = ' past-trades-profit'
+        classNameExtension = ' past-trades-profit';
+        wins += 1;
       }
       if (profitIsNegative === -1) {
-        classNameExtension = ' past-trades-loss'
+        classNameExtension = ' past-trades-loss';
+        losses += 1;
       }
       finalProfit += parseFloat(trade.profit);
       return (
@@ -38,29 +44,44 @@ class PastTradesWrapper extends React.Component {
           <div className={'profit-loss-wrapper-body' + classNameExtension}>
             <span className='profit-loss-asset'>{trade.symbol}</span>
             <span className='profit-loss-value'>
-              {profitIsNegative == 1 ? (
-                "+ " + parseFloat(trade.profit).toFixed(3) + " " + "(" + trade.percent + "%)"
-              ) : (
-                [profitIsNegative == -1 ? (
-                  parseFloat(trade.profit).toFixed(3) + " " + "(" + trade.percent + "%)"
-                ) : (
-                  ''
-                )]
-              )}
+              {profitIsNegative === 1
+                ? '+ ' +
+                  parseFloat(trade.profit).toFixed(3) +
+                  ' ' +
+                  '(' +
+                  trade.percent +
+                  '%)'
+                : [
+                    profitIsNegative === -1
+                      ? parseFloat(trade.profit).toFixed(3) +
+                        ' ' +
+                        '(' +
+                        trade.percent +
+                        '%)'
+                      : ''
+                  ]}
             </span>
           </div>
         </div>
       );
     });
 
-    const toDisplayDownOrUp = finalProfit.toFixed(3) + " $ ";
-    let classNameExt = '';
-    if (Math.sign(finalProfit) == -1) {
-      classNameExt = ' value-loss';
-    } else if (Math.sign(finalProfit == 1)) {
-      classNameExt = ' value-profit';
+    let multiplier = 0;
+    if (wins - losses > 0) {
+      multiplier = 100;
+    } else {
+      multiplier = -100;
     }
 
+    winPercent = ((wins / pastTrades.length) * 100).toFixed(2);
+
+    const toDisplayDownOrUp = finalProfit.toFixed(3) + ' $ ';
+    let classNameExt = '';
+    if (Math.sign(finalProfit) === -1) {
+      classNameExt = ' value-loss';
+    } else {
+      classNameExt = ' value-profit';
+    }
 
     return (
       <div className='accordion-wrapper profit-loss-accordion-wrapper'>
@@ -70,16 +91,21 @@ class PastTradesWrapper extends React.Component {
               <div className='d-flex flex-row justify-content-between'>
                 <div className='flex-column-left'>
                   <div className='btn-profit-loss text-uppercase font-weight-bold'>
-                    Past Trades {' '}
+                    Past Trades{' '}
                   </div>
                 </div>
                 <div className='flex-column-right pt-2'>
-                  <PastTradesWrapperEraserIcon
-                    sendWebSocket={sendWebSocket} />
+                  <PastTradesWrapperEraserIcon sendWebSocket={sendWebSocket} />
                 </div>
                 <div className='flex-column-right pt-2'>
-                  <span className='profit-loss-asset'>Overall Profit: </span>
-                  <span className={'profit-loss-value' + classNameExt}> {toDisplayDownOrUp}</span>
+                  <span className='profit-loss-asset'>
+                    Trades: {pastTrades.length} | Wins: {wins} / Losses:{' '}
+                    {losses} - Percentage: {winPercent}% | Overall Profit:{' '}
+                  </span>
+                  <span className={'profit-loss-value' + classNameExt}>
+                    {' '}
+                    {toDisplayDownOrUp} ({profitPercent.toFixed(2)}%)
+                  </span>
                 </div>
               </div>
             </Card.Header>

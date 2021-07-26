@@ -40,6 +40,7 @@ const cancelOrder = async (logger, symbol, order) => {
       await cache.del(`${symbol}-last-sell-order`);
     }
 
+
     logger.info({ apiResult }, 'Cancelled open orders');
     result = true;
   } catch (e) {
@@ -68,9 +69,16 @@ const execute = async (logger, rawData) => {
     action,
     isLocked,
     openOrders,
-    buy: { limitPrice: buyLimitPrice, trend: { signedTrendDiff } },
+    buy: {
+      limitPrice: buyLimitPrice,
+      trend: { signedTrendDiff }
+    },
     sell: { limitPrice: sellLimitPrice },
-    symbolConfiguration: { strategyOptions: { huskyOptions: { buySignal, sellSignal } } }
+    symbolConfiguration: {
+      strategyOptions: {
+        huskyOptions: { buySignal, sellSignal }
+      }
+    }
   } = data;
 
   if (isLocked) {
@@ -98,13 +106,16 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'buy') {
       let isHuskySignalActivated = false;
       if (buySignal) {
-        isHuskySignalActivated = (signedTrendDiff == -1);
+        isHuskySignalActivated = signedTrendDiff == -1;
       }
-      if (parseFloat(order.stopPrice) >= buyLimitPrice || isHuskySignalActivated) {
+      if (
+        parseFloat(order.stopPrice) >= buyLimitPrice ||
+        isHuskySignalActivated
+      ) {
         logger.info(
           { stopPrice: order.stopPrice, buyLimitPrice },
           'Stop price is higher than buy limit price, cancel current buy order'
-        )
+        );
 
         // Cancel current order
         const cancelResult = await cancelOrder(logger, symbol, order);
@@ -128,14 +139,14 @@ const execute = async (logger, rawData) => {
           data.action = 'buy-order-checking';
 
           if (_.get(featureToggle, 'notifyDebug', false) === true) {
-            messenger.sendMessage(
-              symbol, order, 'CANCEL_BUY_FAILED');
+            messenger.sendMessage(symbol, order, 'CANCEL_BUY_FAILED');
           }
+
         } else {
           // Reset buy open orders
           data.buy.openOrders = [];
 
-          messenger.errorMessage("Order removed. " + symbol)
+          messenger.errorMessage('Order removed. ' + symbol);
 
           // Set action as buy
           data.action = 'buy';
@@ -157,9 +168,12 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'sell') {
       let isHuskySellSignalActivated = false;
       if (sellSignal) {
-        isHuskySellSignalActivated = (signedTrendDiff == 1);
+        isHuskySellSignalActivated = signedTrendDiff == 1;
       }
-      if (parseFloat(order.stopPrice) <= sellLimitPrice || isHuskySellSignalActivated) {
+      if (
+        parseFloat(order.stopPrice) <= sellLimitPrice ||
+        isHuskySellSignalActivated
+      ) {
         logger.info(
           { stopPrice: order.stopPrice, sellLimitPrice },
           'Stop price is less than sell limit price, cancel current sell order'
@@ -187,15 +201,13 @@ const execute = async (logger, rawData) => {
           data.action = 'sell-order-checking';
 
           if (_.get(featureToggle, 'notifyDebug', false) === true) {
-            messenger.sendMessage(
-              symbol, order, 'CANCEL_SELL_FAILED');
+            messenger.sendMessage(symbol, order, 'CANCEL_SELL_FAILED');
           }
-
         } else {
           // Reset sell open orders
           data.sell.openOrders = [];
 
-          messenger.errorMessage("Order sell removed. " + symbol)
+          messenger.errorMessage('Order sell removed. ' + symbol);
 
           // Set action as sell
           data.action = 'sell';

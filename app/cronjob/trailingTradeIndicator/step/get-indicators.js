@@ -1,5 +1,6 @@
 const _ = require('lodash');
-const { binance, messenger } = require('../../../helpers');
+const tf = require('@tensorflow/tfjs');
+const { binance, cache, messenger } = require('../../../helpers');
 
 /**
  * Flatten candle data
@@ -28,20 +29,21 @@ const flattenCandlesData = candles => {
 };
 
 const huskyTrend = (candles, strategyOptions) => {
-
   const candleLows = candles.close;
 
-  const { huskyOptions: { positive, negative } } = strategyOptions;
-  var newCandle = 1;
-  var diff = 0;
-  var status = "not enough data";
+  const {
+    huskyOptions: { positive, negative }
+  } = strategyOptions;
+  let newCandle = 1;
+  let diff = 0;
+  let status = 'not enough data';
   const positiveMultiplier = positive;
   const negativeMultiplier = -negative;
 
   candleLows.forEach(candle => {
-    var newCandleToTest = candleLows[newCandle];
-    if (newCandleToTest != undefined) {
-      var calc = 0;
+    const newCandleToTest = candleLows[newCandle];
+    if (newCandleToTest !== undefined) {
+      let calc = 0;
       if (candle <= newCandleToTest) {
         calc = (newCandleToTest - candle) * positiveMultiplier;
       } else {
@@ -52,25 +54,26 @@ const huskyTrend = (candles, strategyOptions) => {
 
       diff += finalCalc;
     }
-    newCandle++;
+    newCandle += 1;
   });
 
   const difference = diff.toFixed(2);
 
+  // eslint-disable-next-line default-case
   switch (Math.sign(difference)) {
     case -1:
-      status = "FALLING";
+      status = 'FALLING';
       break;
     case 0:
-      status = "TREND IS TURNING";
+      status = 'TURNING';
       break;
     case 1:
-      status = "UP";
+      status = 'UP';
       break;
   }
 
   return { status, difference };
-}
+};
 
 /**
  * Get symbol information, buy/sell indicators
@@ -85,6 +88,7 @@ const execute = async (logger, rawData) => {
     symbol,
     symbolConfiguration: {
       candles: { interval, limit },
+      buy: { predictValue },
       strategyOptions,
       strategyOptions: {
         athRestriction: {
@@ -95,7 +99,7 @@ const execute = async (logger, rawData) => {
           }
         }
       }
-    },
+    }
   } = data;
 
   // Retrieve candles
@@ -124,7 +128,10 @@ const execute = async (logger, rawData) => {
   const lowestPrice = _.min(candlesData.low);
 
   const highestPrice = _.max(candlesData.high);
-  logger.info({ lowestPrice, highestPrice }, 'Retrieved lowest/highest price and Indicators');
+  logger.info(
+    { lowestPrice, highestPrice },
+    'Retrieved lowest/highest price and Indicators'
+  );
 
   let athPrice = null;
 
@@ -163,11 +170,74 @@ const execute = async (logger, rawData) => {
     );
   }
 
+  if (predictValue === true) {
+    const cachedPredictionTime =
+      JSON.parse(await cache.get(`${symbol}-last-prediction`)) || undefined;
+    if (cachedPredictionTime === undefined) {
+      const candlesp = [];
+      const diffWeight = [];
+      const bc = await binance.client.candles({
+        symbol,
+        interval: '5m',
+        limit: 20
+      });
+      bc.forEach(c => {
+        diffWeight.push(100 - (parseFloat(c.open) / parseFloat(c.close)) * 100);
+        candlesp.push(parseFloat(c.close));
+      });
+
+      prediction = {
+        interval: '',
+        predictedValue: 0
+      };
+      // create model object
+      const model = tf.sequential({
+        layers: [tf.layers.dense({ units: 1, inputShape: [1] })]
+      });
+      // compile model object
+      model.compile({
+        optimizer: tf.train.sgd(0.1),
+        loss: tf.losses.meanSquaredError
+      });
+      // training datasets
+      // In our training datasets, we take room numbers and corresponding price to rent
+      const xs = tf.tensor1d(diffWeight);
+      const ys = tf.tensor1d(candlesp);
+      // Train model with fit().method
+      await model.fit(xs, ys, { epochs: 1500, batchSize: 8 });
+      // Run inference with predict() method.
+
+      const predictionCoinValue = _.mean(
+        await model.predict(tf.tensor1d(diffWeight)).dataSync()
+      );
+
+      prediction = {
+        interval: '5m',
+        predictedValue: predictionCoinValue
+      };
+
+      messenger.errorMessage(
+        'prediction done for ' + symbol + ' ' + JSON.stringify(prediction)
+      );
+      await cache.set(
+        `${symbol}-last-prediction`,
+        JSON.stringify(prediction),
+        265
+      );
+    } else {
+      prediction = {
+        interval: cachedPredictionTime.interval,
+        predictedValue: cachedPredictionTime.predictedValue
+      };
+    }
+  }
+
   data.indicators = {
     highestPrice,
     lowestPrice,
     athPrice,
-    trend
+    trend,
+    prediction
   };
 
   return data;

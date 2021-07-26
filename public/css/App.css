@@ -1,9 +1,9 @@
 /* Dark Mode styles */
 
 .theme-light {
-  --color-primary: #EBEBEB;
-  --color-card: #E0E0E0;
-  --color-token: #CCCCCC;
+  --color-primary: #ebebeb;
+  --color-card: #e0e0e0;
+  --color-token: #cccccc;
   --font-secondary-color: #2c2c2c;
   --font-link: #135081;
   --font-main-color: #333333;
@@ -11,12 +11,12 @@
   --red: #ddd0d0;
 }
 .theme-dark {
-  --color-primary: #191F2C;
+  --color-primary: #191f2c;
   --color-card: #283041;
-  --color-token: #3A4763;
-  --font-secondary-color: #D1C975;
-  --font-link: #00A1E0;
-  --font-main-color: #CFCFCF;
+  --color-token: #3a4763;
+  --font-secondary-color: #d1c975;
+  --font-link: #00a1e0;
+  --font-main-color: #cfcfcf;
   --green: #28413f;
   --red: #3a2727;
 }
@@ -39,8 +39,8 @@ body {
 
 /* Hide scrollbar for IE, Edge and Firefox */
 .body {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
 }
 
 /* Disable scrolling */
@@ -329,7 +329,8 @@ input[type='number'] {
   -webkit-border-radius: 20px;
   -moz-border-radius: 20px;
   border-radius: 20px;
-  box-shadow: 0 1px 4px var(--font-secondary-color), 0 1px 4px var(--font-secondary-color);
+  box-shadow: 0 1px 4px var(--font-secondary-color),
+    0 1px 4px var(--font-secondary-color);
   transition: all 0.5s ease-in-out !important;
 }
 
@@ -454,13 +455,17 @@ input[type='number'] {
 }
 
 .coin-info-sub-label {
-  border-bottom: 1px dotted var(--font-main-color);;
+  border-bottom: 1px dotted var(--font-main-color);
 }
 
 .coin-info-label,
 .coin-info-value {
   width: 50%;
   flex: 1 auto;
+}
+
+.coin-predict {
+  color: #00a1e0 !important;
 }
 
 .coin-info-column-title .coin-info-label {
@@ -588,7 +593,6 @@ input[type='number'] {
   color: #f84960;
 }
 
-
 .coin-setting-customised {
   color: #deb887;
 }
@@ -670,7 +674,7 @@ input[type='number'] {
 }
 
 .btn-manual-trade:hover {
-  color: #CFCFCF !important;
+  color: #cfcfcf !important;
   background-color: rgba(86, 44, 163, 0.855) !important;
   transition: all 0.5s ease-in-out !important;
   text-decoration: none;
@@ -828,12 +832,11 @@ input[type='number'] {
 }
 
 .value-loss {
-  color: rgb(207, 70, 70);
+  color: rgb(207, 70, 70) !important;
 }
 .value-profit {
-  color: rgb(39, 221, 39);
+  color: rgb(39, 221, 39) !important;
 }
-
 
 @media (max-width: 1200px) {
   .profit-loss-wrapper {
@@ -897,55 +900,60 @@ input[type='number'] {
   margin-left: 5px;
   width: 20px;
   height: 20px;
-  border-radius: 20px;border: none;
+  border-radius: 20px;
+  border: none;
   cursor: pointer;
   background: var(--font-main-color);
   transition: all ease-in-out !important;
 }
-  .search-box label .search-icon {
-    color: var(--color-primary);
-    transition: color 0.5s ease-in-out
-  }
+.search-box label .search-icon {
+  color: var(--color-primary);
+  transition: color 0.5s ease-in-out;
+}
 
 .search-box:hover {
-    color: var(--font-main-color);
-    background: var(--color-primary);
-    box-shadow: 0 0 0 5px var(--font-secondary-color);
+  color: var(--font-main-color);
+  background: var(--color-primary);
+  box-shadow: 0 0 0 5px var(--font-secondary-color);
 
   transition: all 0.5s ease-in-out !important;
 }
 .search-box label .search-icon {
   color: var(--color-primary);
   transition: color 0.5s ease-in-out !important;
-   }
+}
 
-  .search-box:focus {
-    border: none;outline: none;
-    box-shadow: none;
-    padding-left: 15px;
-    cursor: text;
-    width: 150px;
-    border-radius: auto;
-    background: var(--font-main-color);
-    color: var(--color-primary);
-    transition: all 0.5s ease-in-out;
-  }
-  .search-box label .search-icon {
-    color: var(--color-primary);
-    transition: color 0.5s ease-in-out !important;
-   }
+.search-box:focus {
+  border: none;
+  outline: none;
+  box-shadow: none;
+  padding-left: 15px;
+  cursor: text;
+  width: 150px;
+  border-radius: auto;
+  background: var(--font-main-color);
+  color: var(--color-primary);
+  transition: all 0.5s ease-in-out;
+}
+.search-box label .search-icon {
+  color: var(--color-primary);
+  transition: color 0.5s ease-in-out !important;
+}
 
-  .search-box:not(:focus) {
-    width: 20px;height: 20px;
-    border-radius: 20px;border: none;
-    cursor: pointer;
-    background: var(--font-main-color);
-    color: var(--font-main-color);
-    transition: all 0.5s ease-in-out !important;
-     }
+.search-box:not(:focus) {
+  width: 20px;
+  height: 20px;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  background: var(--font-main-color);
+  color: var(--font-main-color);
+  transition: all 0.5s ease-in-out !important;
+}
 
 #search-submit {
-  position: relative;left: -5000px;
+  position: relative;
+  left: -5000px;
   transition: all 0.5s ease-in-out !important;
 }
 
@@ -964,7 +972,7 @@ input[type='number'] {
   box-sizing: border-box;
   position: relative;
   display: block;
-  transform: rotate(-45deg) scale(var(--ggs,1));
+  transform: rotate(-45deg) scale(var(--ggs, 1));
   width: 18px;
   height: 10px;
   border-left: 0;
@@ -973,11 +981,10 @@ input[type='number'] {
   border-top: 3px solid transparent;
   border-bottom: 2px solid transparent;
   border-right: 2px solid transparent;
-  box-shadow: inset 0 0 0 2px
+  box-shadow: inset 0 0 0 2px;
 }
 
 @keyframes changeColorRed {
-
   50% {
     color: #ff0000;
   }
@@ -993,7 +1000,7 @@ input[type='number'] {
   box-sizing: border-box;
   position: relative;
   display: block;
-  transform: scale(var(--ggs,1));
+  transform: scale(var(--ggs, 1));
   width: 22px;
   height: 22px;
 
@@ -1004,7 +1011,7 @@ input[type='number'] {
 }
 .gg-chevron-double-up::after,
 .gg-chevron-double-up::before {
-  content: "";
+  content: '';
   display: block;
   box-sizing: border-box;
   position: absolute;
@@ -1014,28 +1021,28 @@ input[type='number'] {
   border-left: 2px solid;
   transform: rotate(45deg);
   left: 7px;
-  bottom: 3px
+  bottom: 3px;
 }
 .gg-chevron-double-up::after {
-  bottom: 8px
+  bottom: 8px;
 }
 
 .gg-chevron-double-down {
   box-sizing: border-box;
   position: relative;
   display: block;
-  transform: scale(var(--ggs,1));
+  transform: scale(var(--ggs, 1));
   width: 22px;
   height: 22px;
   animation-duration: 1s;
   animation-name: changeColorRed;
   animation-iteration-count: infinite;
   animation-direction: forward;
- }
+}
 
- .gg-chevron-double-down::after,
- .gg-chevron-double-down::before {
-  content: "";
+.gg-chevron-double-down::after,
+.gg-chevron-double-down::before {
+  content: '';
   display: block;
   box-sizing: border-box;
   position: absolute;
@@ -1045,9 +1052,9 @@ input[type='number'] {
   border-right: 2px solid;
   transform: rotate(45deg);
   left: 7px;
-  top: 3px
- }
+  top: 3px;
+}
 
- .gg-chevron-double-down::after {
-  top: 8px
- }
+.gg-chevron-double-down::after {
+  top: 8px;
+}

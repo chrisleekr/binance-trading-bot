@@ -29,9 +29,7 @@ const execute = async (logger, rawData) => {
         limitPercentage: sellLimitPercentage,
         stopLoss: { maxLossPercentage: sellMaxLossPercentage }
       },
-      botOptions: {
-        calcFees
-      },
+      botOptions: { calcFees },
       strategyOptions: {
         tradeOptions: { manyBuys },
         athRestriction: {
@@ -75,13 +73,14 @@ const execute = async (logger, rawData) => {
   };
 
   // Cast string to number
-  const { highestPrice, lowestPrice, athPrice, trend } = data.indicators;
+  const { highestPrice, lowestPrice, athPrice, trend, prediction } =
+    data.indicators;
   const currentPrice = parseFloat(cachedLatestCandle.close);
   const buyTriggerPrice = lowestPrice * buyTriggerPercentage;
   const buyDifference = (1 - currentPrice / buyTriggerPrice) * -100;
   const buyLimitPrice = currentPrice * buyLimitPercentage;
 
-  //ATH calc
+  // ATH calc
   let buyATHRestrictionPrice = null;
   if (buyATHRestrictionEnabled) {
     buyATHRestrictionPrice = athPrice * buyATHRestrictionPercentage;
@@ -105,21 +104,28 @@ const execute = async (logger, rawData) => {
     };
   }
 
-
   const sellTriggerPrice =
-    lastBuyPrice > 0 ? (lastBuyPrice * sellTriggerPercentage) * feeMultiplier.roundUp : null;
+    lastBuyPrice > 0
+      ? lastBuyPrice * sellTriggerPercentage * feeMultiplier.roundUp
+      : null;
   const sellHardTriggerPrice =
-    lastBuyPrice > 0 ? (lastBuyPrice * sellHardTriggerPercentage) * feeMultiplier.roundUp : null;
+    lastBuyPrice > 0
+      ? lastBuyPrice * sellHardTriggerPercentage * feeMultiplier.roundUp
+      : null;
   const sellDifference =
-    lastBuyPrice > 0 ? (1 - (sellTriggerPrice / currentPrice)) * 100 : null;
-  const sellLimitPrice = (currentPrice * sellLimitPercentage);
+    lastBuyPrice > 0 ? (1 - sellTriggerPrice / currentPrice) * 100 : null;
+  const sellLimitPrice = currentPrice * sellLimitPercentage;
 
   // Get stop loss trigger price
   const sellStopLossTriggerPrice =
-    lastBuyPrice > 0 ? (lastBuyPrice * sellMaxLossPercentage) * feeMultiplier.roundUp : null;
+    lastBuyPrice > 0
+      ? lastBuyPrice * sellMaxLossPercentage * feeMultiplier.roundUp
+      : null;
   const sellStopLossDifference =
     lastBuyPrice > 0
-      ? (1 - ((sellStopLossTriggerPrice / currentPrice) * feeMultiplier.roundDown)) * 100
+      ? (1 -
+          (sellStopLossTriggerPrice / currentPrice) * feeMultiplier.roundDown) *
+        100
       : null;
 
   // Estimate value
@@ -129,11 +135,15 @@ const execute = async (logger, rawData) => {
 
   const sellCurrentProfit =
     lastBuyPrice > 0
-      ? ((currentPrice - lastBuyPrice) * feeMultiplier.roundUp) * baseAssetTotalBalance
+      ? (currentPrice - lastBuyPrice) *
+        feeMultiplier.roundUp *
+        baseAssetTotalBalance
       : null;
 
   const sellCurrentProfitPercentage =
-    lastBuyPrice > 0 ? (1 - ((lastBuyPrice / currentPrice) * feeMultiplier.roundUp)) * 100 : null;
+    lastBuyPrice > 0
+      ? (1 - (lastBuyPrice / currentPrice) * feeMultiplier.roundUp) * 100
+      : null;
 
   // Reorganize open orders
   const newOpenOrders = openOrders.map(order => {
@@ -185,6 +195,7 @@ const execute = async (logger, rawData) => {
     highestPrice,
     lowestPrice,
     trend,
+    prediction,
     athPrice,
     athRestrictionPrice: buyATHRestrictionPrice,
     triggerPrice: buyTriggerPrice,
