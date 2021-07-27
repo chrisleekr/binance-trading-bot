@@ -499,7 +499,7 @@ describe('configuration.js', () => {
     });
   });
 
-  describe('getGridBuyMaxPurchaseAmount', () => {
+  describe('getGridTradeBuy', () => {
     let cachedSymbolInfo;
     let globalConfiguration;
     let symbolConfiguration;
@@ -519,7 +519,7 @@ describe('configuration.js', () => {
           buy: { gridTrade: [] }
         };
 
-        result = configuration.getGridBuyMaxPurchaseAmount(
+        result = configuration.getGridTradeBuy(
           logger,
           cachedSymbolInfo,
           globalConfiguration,
@@ -528,7 +528,7 @@ describe('configuration.js', () => {
       });
 
       it('returns expected value', () => {
-        expect(result).toStrictEqual([]);
+        expect(result).toStrictEqual([{ maxPurchaseAmount: 10 }]);
       });
     });
 
@@ -540,7 +540,12 @@ describe('configuration.js', () => {
         };
 
         globalConfiguration = {
-          buy: { gridTrade: [{ maxPurchaseAmounts: { USDT: 10 } }] }
+          buy: {
+            gridTrade: [
+              { maxPurchaseAmounts: { USDT: 10 } },
+              { maxPurchaseAmounts: { USDT: 10 } }
+            ]
+          }
         };
 
         symbolConfiguration = {
@@ -554,7 +559,7 @@ describe('configuration.js', () => {
           }
         };
 
-        result = configuration.getGridBuyMaxPurchaseAmount(
+        result = configuration.getGridTradeBuy(
           logger,
           cachedSymbolInfo,
           globalConfiguration,
@@ -577,7 +582,12 @@ describe('configuration.js', () => {
           cachedSymbolInfo = {};
 
           globalConfiguration = {
-            buy: { gridTrade: [{ maxPurchaseAmounts: {} }] }
+            buy: {
+              gridTrade: [
+                { maxPurchaseAmounts: {} },
+                { maxPurchaseAmounts: {} }
+              ]
+            }
           };
 
           symbolConfiguration = {
@@ -591,7 +601,7 @@ describe('configuration.js', () => {
             }
           };
 
-          result = configuration.getGridBuyMaxPurchaseAmount(
+          result = configuration.getGridTradeBuy(
             logger,
             cachedSymbolInfo,
             globalConfiguration,
@@ -617,7 +627,12 @@ describe('configuration.js', () => {
             };
 
             globalConfiguration = {
-              buy: { gridTrade: [{ maxPurchaseAmounts: { USDT: 10 } }] }
+              buy: {
+                gridTrade: [
+                  { maxPurchaseAmounts: { USDT: 10 } },
+                  { maxPurchaseAmounts: { USDT: 10 } }
+                ]
+              }
             };
 
             symbolConfiguration = {
@@ -631,7 +646,7 @@ describe('configuration.js', () => {
               }
             };
 
-            result = configuration.getGridBuyMaxPurchaseAmount(
+            result = configuration.getGridTradeBuy(
               logger,
               cachedSymbolInfo,
               globalConfiguration,
@@ -656,7 +671,13 @@ describe('configuration.js', () => {
             };
 
             globalConfiguration = {
-              buy: { gridTrade: [{ maxPurchaseAmounts: {} }] }
+              buy: {
+                gridTrade: [
+                  { maxPurchaseAmounts: {} },
+                  { maxPurchaseAmounts: {} },
+                  { maxPurchaseAmounts: {} }
+                ]
+              }
             };
 
             symbolConfiguration = {
@@ -670,7 +691,7 @@ describe('configuration.js', () => {
               }
             };
 
-            result = configuration.getGridBuyMaxPurchaseAmount(
+            result = configuration.getGridTradeBuy(
               logger,
               cachedSymbolInfo,
               globalConfiguration,
@@ -690,7 +711,7 @@ describe('configuration.js', () => {
     });
   });
 
-  describe('getGridSellQuantityPercentages', () => {
+  describe('getGridTradeSell', () => {
     let cachedSymbolInfo;
     let globalConfiguration;
     let symbolConfiguration;
@@ -724,7 +745,7 @@ describe('configuration.js', () => {
           }
         };
 
-        result = configuration.getGridSellQuantityPercentages(
+        result = configuration.getGridTradeSell(
           logger,
           cachedSymbolInfo,
           globalConfiguration,
@@ -733,7 +754,14 @@ describe('configuration.js', () => {
       });
 
       it('returns expected result', () => {
-        expect(result).toStrictEqual([]);
+        expect(result).toStrictEqual([
+          {
+            quantityPercentage: 0.5
+          },
+          {
+            quantityPercentage: 1
+          }
+        ]);
       });
     });
 
@@ -749,6 +777,11 @@ describe('configuration.js', () => {
               {
                 quantityPercentages: {
                   USDT: 0.5
+                }
+              },
+              {
+                quantityPercentages: {
+                  USDT: 1
                 }
               },
               {
@@ -779,7 +812,7 @@ describe('configuration.js', () => {
           }
         };
 
-        result = configuration.getGridSellQuantityPercentages(
+        result = configuration.getGridTradeSell(
           logger,
           cachedSymbolInfo,
           globalConfiguration,
@@ -811,11 +844,6 @@ describe('configuration.js', () => {
                   quantityPercentages: {
                     USDT: 0.5
                   }
-                },
-                {
-                  quantityPercentages: {
-                    USDT: 1
-                  }
                 }
               ]
             }
@@ -840,7 +868,7 @@ describe('configuration.js', () => {
             }
           };
 
-          result = configuration.getGridSellQuantityPercentages(
+          result = configuration.getGridTradeSell(
             logger,
             cachedSymbolInfo,
             globalConfiguration,
@@ -873,11 +901,6 @@ describe('configuration.js', () => {
                     quantityPercentages: {
                       USDT: 0.5
                     }
-                  },
-                  {
-                    quantityPercentages: {
-                      USDT: 1
-                    }
                   }
                 ]
               }
@@ -902,7 +925,7 @@ describe('configuration.js', () => {
               }
             };
 
-            result = configuration.getGridSellQuantityPercentages(
+            result = configuration.getGridTradeSell(
               logger,
               cachedSymbolInfo,
               globalConfiguration,
@@ -945,12 +968,16 @@ describe('configuration.js', () => {
                     {
                       quantityPercentage: -1,
                       quantityPercentages: {}
+                    },
+                    {
+                      quantityPercentage: -1,
+                      quantityPercentages: {}
                     }
                   ]
                 }
               };
 
-              result = configuration.getGridSellQuantityPercentages(
+              result = configuration.getGridTradeSell(
                 logger,
                 cachedSymbolInfo,
                 globalConfiguration,
@@ -960,6 +987,9 @@ describe('configuration.js', () => {
 
             it('returns expected result', () => {
               expect(result).toStrictEqual([
+                {
+                  quantityPercentage: 0.5
+                },
                 {
                   quantityPercentage: 1
                 }
@@ -1005,7 +1035,7 @@ describe('configuration.js', () => {
                 }
               };
 
-              result = configuration.getGridSellQuantityPercentages(
+              result = configuration.getGridTradeSell(
                 logger,
                 cachedSymbolInfo,
                 globalConfiguration,
@@ -3161,111 +3191,210 @@ describe('configuration.js', () => {
         });
 
         describe('when configuration are valid format', () => {
-          beforeEach(async () => {
-            cache.hget = jest.fn().mockResolvedValue(
-              JSON.stringify({
-                quoteAsset: 'USDT',
-                filterMinNotional: {
-                  minNotional: '10.00000000'
-                }
-              })
-            );
-            mongo.findOne = jest.fn((_logger, collection, filter) => {
-              if (
-                collection === 'trailing-trade-common' &&
-                _.isEqual(filter, { key: 'configuration' })
-              ) {
-                return {
-                  enabled: true,
-                  cronTime: '* * * * * *',
-                  symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
-                  candles: {
-                    interval: '1d',
-                    limit: 10
-                  },
-                  buy: {
-                    enabled: false,
-                    gridTrade: [
-                      {
-                        triggerPercentage: 1,
-                        stopPercentage: 1.02,
-                        limitPercentage: 1.021,
-                        maxPurchaseAmount: -1,
-                        maxPurchaseAmounts: {
-                          USDT: 100,
-                          BTC: 0.001,
-                          BUSD: 100
-                        }
-                      },
-                      {
-                        triggerPercentage: 0.9,
-                        stopPercentage: 1.02,
-                        limitPercentage: 1.021,
-                        maxPurchaseAmount: -1,
-                        maxPurchaseAmounts: {
-                          USDT: 100,
-                          BTC: 0.001,
-                          BUSD: 100
-                        }
-                      }
-                    ],
-                    lastBuyPriceRemoveThreshold: -1,
-                    lastBuyPriceRemoveThresholds: {
-                      USDT: 5,
-                      BTC: 0.00005,
-                      BUSD: 5
-                    },
-                    athRestriction: {
+          describe('global configuration has different grid trade lengths', () => {
+            describe('global configuration has more grid trade definitions', () => {
+              beforeEach(async () => {
+                cache.hget = jest.fn().mockResolvedValue(
+                  JSON.stringify({
+                    quoteAsset: 'USDT',
+                    filterMinNotional: {
+                      minNotional: '10.00000000'
+                    }
+                  })
+                );
+                mongo.findOne = jest.fn((_logger, collection, filter) => {
+                  if (
+                    collection === 'trailing-trade-common' &&
+                    _.isEqual(filter, { key: 'configuration' })
+                  ) {
+                    return {
                       enabled: true,
+                      cronTime: '* * * * * *',
+                      symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
                       candles: {
                         interval: '1d',
-                        limit: 30
+                        limit: 10
                       },
-                      restrictionPercentage: 0.9
-                    }
-                  },
-                  sell: {
-                    enabled: false,
-                    gridTrade: [
-                      {
-                        triggerPercentage: 1.08,
-                        stopPercentage: 0.95,
-                        limitPercentage: 0.949,
-                        quantityPercentage: -1,
-                        quantityPercentages: {
-                          USDT: 1,
-                          BTC: 1,
-                          BUSD: 1
+                      buy: {
+                        enabled: false,
+                        gridTrade: [
+                          {
+                            triggerPercentage: 1,
+                            stopPercentage: 1.02,
+                            limitPercentage: 1.021,
+                            maxPurchaseAmount: -1,
+                            maxPurchaseAmounts: {
+                              USDT: 100,
+                              BTC: 0.001,
+                              BUSD: 100
+                            }
+                          },
+                          {
+                            triggerPercentage: 0.9,
+                            stopPercentage: 1.02,
+                            limitPercentage: 1.021,
+                            maxPurchaseAmount: -1,
+                            maxPurchaseAmounts: {
+                              USDT: 100,
+                              BTC: 0.001,
+                              BUSD: 100
+                            }
+                          },
+                          {
+                            triggerPercentage: 0.9,
+                            stopPercentage: 1.02,
+                            limitPercentage: 1.021,
+                            maxPurchaseAmount: -1,
+                            maxPurchaseAmounts: {
+                              USDT: 100,
+                              BTC: 0.001,
+                              BUSD: 100
+                            }
+                          },
+                          {
+                            triggerPercentage: 0.9,
+                            stopPercentage: 1.02,
+                            limitPercentage: 1.021,
+                            maxPurchaseAmount: -1,
+                            maxPurchaseAmounts: {
+                              USDT: 100,
+                              BTC: 0.001,
+                              BUSD: 100
+                            }
+                          }
+                        ],
+                        lastBuyPriceRemoveThreshold: -1,
+                        lastBuyPriceRemoveThresholds: {
+                          USDT: 5,
+                          BTC: 0.00005,
+                          BUSD: 5
+                        },
+                        athRestriction: {
+                          enabled: true,
+                          candles: {
+                            interval: '1d',
+                            limit: 30
+                          },
+                          restrictionPercentage: 0.9
+                        }
+                      },
+                      sell: {
+                        enabled: false,
+                        gridTrade: [
+                          {
+                            triggerPercentage: 1.05,
+                            stopPercentage: 0.95,
+                            limitPercentage: 0.949,
+                            quantityPercentage: -1,
+                            quantityPercentages: {
+                              USDT: 0.3,
+                              BTC: 0.3,
+                              BUSD: 0.3
+                            }
+                          },
+                          {
+                            triggerPercentage: 1.08,
+                            stopPercentage: 0.95,
+                            limitPercentage: 0.949,
+                            quantityPercentage: -1,
+                            quantityPercentages: {
+                              USDT: 0.8,
+                              BTC: 0.8,
+                              BUSD: 0.8
+                            }
+                          },
+                          {
+                            triggerPercentage: 1.09,
+                            stopPercentage: 0.95,
+                            limitPercentage: 0.949,
+                            quantityPercentage: -1,
+                            quantityPercentages: {
+                              USDT: 1,
+                              BTC: 1,
+                              BUSD: 1
+                            }
+                          }
+                        ],
+                        stopLoss: {
+                          enabled: true,
+                          maxLossPercentage: 0.95,
+                          disableBuyMinutes: 60,
+                          orderType: 'market'
+                        }
+                      },
+                      system: {
+                        temporaryDisableActionAfterConfirmingOrder: 10,
+                        checkManualBuyOrderPeriod: 10,
+                        placeManualOrderInterval: 5,
+                        refreshAccountInfoPeriod: 3,
+                        checkOrderExecutePeriod: 10
+                      }
+                    };
+                  }
+
+                  if (
+                    collection === 'trailing-trade-symbols' &&
+                    _.isEqual(filter, { key: 'BTCUSDT-configuration' })
+                  ) {
+                    return {
+                      key: 'BTCUSDT-configuration',
+                      candles: {
+                        interval: '1h',
+                        limit: 50
+                      },
+                      buy: {
+                        enabled: true,
+                        gridTrade: [
+                          {
+                            triggerPercentage: 1,
+                            stopPercentage: 1.035,
+                            limitPercentage: 1.036,
+                            maxPurchaseAmount: 11
+                          },
+                          {
+                            triggerPercentage: 0.9,
+                            stopPercentage: 1.045,
+                            limitPercentage: 1.046,
+                            maxPurchaseAmount: 22
+                          }
+                        ],
+                        lastBuyPriceRemoveThreshold: 5
+                      },
+                      sell: {
+                        enabled: true,
+                        gridTrade: [
+                          {
+                            triggerPercentage: 1.045,
+                            stopPercentage: 0.975,
+                            limitPercentage: 0.974,
+                            quantityPercentage: 1,
+                            quantityPercentages: {
+                              USDT: 1
+                            }
+                          }
+                        ],
+                        stopLoss: {
+                          enabled: true,
+                          maxLossPercentage: 0.81,
+                          disableBuyMinutes: 65,
+                          orderType: 'market'
                         }
                       }
-                    ],
-                    stopLoss: {
-                      enabled: true,
-                      maxLossPercentage: 0.95,
-                      disableBuyMinutes: 60,
-                      orderType: 'market'
-                    }
-                  },
-                  system: {
-                    temporaryDisableActionAfterConfirmingOrder: 10,
-                    checkManualBuyOrderPeriod: 10,
-                    placeManualOrderInterval: 5,
-                    refreshAccountInfoPeriod: 3,
-                    checkOrderExecutePeriod: 10
+                    };
                   }
-                };
-              }
+                  return null;
+                });
 
-              if (
-                collection === 'trailing-trade-symbols' &&
-                _.isEqual(filter, { key: 'BTCUSDT-configuration' })
-              ) {
-                return {
+                result = await configuration.getConfiguration(
+                  logger,
+                  'BTCUSDT'
+                );
+              });
+
+              it('returns expected value', () => {
+                expect(result).toStrictEqual({
                   key: 'BTCUSDT-configuration',
-                  candles: {
-                    interval: '1h',
-                    limit: 50
-                  },
+                  candles: { interval: '1h', limit: 50 },
                   buy: {
                     enabled: true,
                     gridTrade: [
@@ -3273,22 +3402,34 @@ describe('configuration.js', () => {
                         triggerPercentage: 1,
                         stopPercentage: 1.035,
                         limitPercentage: 1.036,
-                        maxPurchaseAmount: 11
+                        maxPurchaseAmount: 11,
+                        executed: false,
+                        executedOrder: null
                       },
                       {
                         triggerPercentage: 0.9,
                         stopPercentage: 1.045,
                         limitPercentage: 1.046,
-                        maxPurchaseAmount: 22
-                      },
-                      {
-                        triggerPercentage: 0.9,
-                        stopPercentage: 1.055,
-                        limitPercentage: 1.056,
-                        maxPurchaseAmount: 33
+                        maxPurchaseAmount: 22,
+                        executed: false,
+                        executedOrder: null
                       }
                     ],
-                    lastBuyPriceRemoveThreshold: 5
+                    lastBuyPriceRemoveThreshold: 5,
+                    athRestriction: {
+                      enabled: true,
+                      candles: { interval: '1d', limit: 30 },
+                      restrictionPercentage: 0.9
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.035,
+                      limitPercentage: 1.036,
+                      maxPurchaseAmount: 11,
+                      executed: false,
+                      executedOrder: null
+                    }
                   },
                   sell: {
                     enabled: true,
@@ -3298,9 +3439,8 @@ describe('configuration.js', () => {
                         stopPercentage: 0.975,
                         limitPercentage: 0.974,
                         quantityPercentage: 1,
-                        quantityPercentages: {
-                          USDT: 1
-                        }
+                        executed: false,
+                        executedOrder: null
                       }
                     ],
                     stopLoss: {
@@ -3308,68 +3448,537 @@ describe('configuration.js', () => {
                       maxLossPercentage: 0.81,
                       disableBuyMinutes: 65,
                       orderType: 'market'
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.045,
+                      stopPercentage: 0.975,
+                      limitPercentage: 0.974,
+                      quantityPercentage: 1,
+                      executed: false,
+                      executedOrder: null
                     }
+                  },
+                  enabled: true,
+                  cronTime: '* * * * * *',
+                  symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+                  system: {
+                    temporaryDisableActionAfterConfirmingOrder: 10,
+                    checkManualBuyOrderPeriod: 10,
+                    placeManualOrderInterval: 5,
+                    refreshAccountInfoPeriod: 3,
+                    checkOrderExecutePeriod: 10
                   }
-                };
-              }
-              return null;
+                });
+              });
             });
 
-            result = await configuration.getConfiguration(logger, 'BTCUSDT');
+            describe('symbol configuration has more grid trade definitions', () => {
+              beforeEach(async () => {
+                cache.hget = jest.fn().mockResolvedValue(
+                  JSON.stringify({
+                    quoteAsset: 'USDT',
+                    filterMinNotional: {
+                      minNotional: '10.00000000'
+                    }
+                  })
+                );
+                mongo.findOne = jest.fn((_logger, collection, filter) => {
+                  if (
+                    collection === 'trailing-trade-common' &&
+                    _.isEqual(filter, { key: 'configuration' })
+                  ) {
+                    return {
+                      enabled: true,
+                      cronTime: '* * * * * *',
+                      symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+                      candles: {
+                        interval: '1d',
+                        limit: 10
+                      },
+                      buy: {
+                        enabled: false,
+                        gridTrade: [
+                          {
+                            triggerPercentage: 1,
+                            stopPercentage: 1.02,
+                            limitPercentage: 1.021,
+                            maxPurchaseAmount: -1,
+                            maxPurchaseAmounts: {
+                              USDT: 100,
+                              BTC: 0.001,
+                              BUSD: 100
+                            }
+                          }
+                        ],
+                        lastBuyPriceRemoveThreshold: -1,
+                        lastBuyPriceRemoveThresholds: {
+                          USDT: 5,
+                          BTC: 0.00005,
+                          BUSD: 5
+                        },
+                        athRestriction: {
+                          enabled: true,
+                          candles: {
+                            interval: '1d',
+                            limit: 30
+                          },
+                          restrictionPercentage: 0.9
+                        }
+                      },
+                      sell: {
+                        enabled: false,
+                        gridTrade: [
+                          {
+                            triggerPercentage: 1.05,
+                            stopPercentage: 0.95,
+                            limitPercentage: 0.949,
+                            quantityPercentage: -1,
+                            quantityPercentages: {
+                              USDT: 0.3,
+                              BTC: 0.3,
+                              BUSD: 0.3
+                            }
+                          }
+                        ],
+                        stopLoss: {
+                          enabled: true,
+                          maxLossPercentage: 0.95,
+                          disableBuyMinutes: 60,
+                          orderType: 'market'
+                        }
+                      },
+                      system: {
+                        temporaryDisableActionAfterConfirmingOrder: 10,
+                        checkManualBuyOrderPeriod: 10,
+                        placeManualOrderInterval: 5,
+                        refreshAccountInfoPeriod: 3,
+                        checkOrderExecutePeriod: 10
+                      }
+                    };
+                  }
+
+                  if (
+                    collection === 'trailing-trade-symbols' &&
+                    _.isEqual(filter, { key: 'BTCUSDT-configuration' })
+                  ) {
+                    return {
+                      key: 'BTCUSDT-configuration',
+                      candles: {
+                        interval: '1h',
+                        limit: 50
+                      },
+                      buy: {
+                        enabled: true,
+                        gridTrade: [
+                          {
+                            triggerPercentage: 1,
+                            stopPercentage: 1.035,
+                            limitPercentage: 1.036,
+                            maxPurchaseAmount: 11
+                          },
+                          {
+                            triggerPercentage: 0.9,
+                            stopPercentage: 1.045,
+                            limitPercentage: 1.046,
+                            maxPurchaseAmount: 22
+                          },
+                          {
+                            triggerPercentage: 0.9,
+                            stopPercentage: 1.055,
+                            limitPercentage: 1.056,
+                            maxPurchaseAmount: 22
+                          },
+                          {
+                            triggerPercentage: 0.9,
+                            stopPercentage: 1.065,
+                            limitPercentage: 1.066,
+                            maxPurchaseAmount: 22
+                          }
+                        ],
+                        lastBuyPriceRemoveThreshold: 8
+                      },
+                      sell: {
+                        enabled: true,
+                        gridTrade: [
+                          {
+                            triggerPercentage: 1.045,
+                            stopPercentage: 0.975,
+                            limitPercentage: 0.974,
+                            quantityPercentage: 0.5
+                          },
+                          {
+                            triggerPercentage: 1.055,
+                            stopPercentage: 0.965,
+                            limitPercentage: 0.964,
+                            quantityPercentage: 0.6
+                          },
+                          {
+                            triggerPercentage: 1.045,
+                            stopPercentage: 0.955,
+                            limitPercentage: 0.954,
+                            quantityPercentage: 1
+                          }
+                        ],
+                        stopLoss: {
+                          enabled: true,
+                          maxLossPercentage: 0.81,
+                          disableBuyMinutes: 65,
+                          orderType: 'market'
+                        }
+                      }
+                    };
+                  }
+                  return null;
+                });
+
+                result = await configuration.getConfiguration(
+                  logger,
+                  'BTCUSDT'
+                );
+              });
+
+              it('returns expected value', () => {
+                expect(result).toStrictEqual({
+                  key: 'BTCUSDT-configuration',
+                  candles: { interval: '1h', limit: 50 },
+                  buy: {
+                    enabled: true,
+                    gridTrade: [
+                      {
+                        triggerPercentage: 1,
+                        stopPercentage: 1.035,
+                        limitPercentage: 1.036,
+                        maxPurchaseAmount: 11,
+                        executed: false,
+                        executedOrder: null
+                      },
+                      {
+                        triggerPercentage: 0.9,
+                        stopPercentage: 1.045,
+                        limitPercentage: 1.046,
+                        maxPurchaseAmount: 22,
+                        executed: false,
+                        executedOrder: null
+                      },
+                      {
+                        triggerPercentage: 0.9,
+                        stopPercentage: 1.055,
+                        limitPercentage: 1.056,
+                        maxPurchaseAmount: 22,
+                        executed: false,
+                        executedOrder: null
+                      },
+                      {
+                        triggerPercentage: 0.9,
+                        stopPercentage: 1.065,
+                        limitPercentage: 1.066,
+                        maxPurchaseAmount: 22,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    ],
+                    lastBuyPriceRemoveThreshold: 8,
+                    athRestriction: {
+                      enabled: true,
+                      candles: { interval: '1d', limit: 30 },
+                      restrictionPercentage: 0.9
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.035,
+                      limitPercentage: 1.036,
+                      maxPurchaseAmount: 11,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  sell: {
+                    enabled: true,
+                    gridTrade: [
+                      {
+                        triggerPercentage: 1.045,
+                        stopPercentage: 0.975,
+                        limitPercentage: 0.974,
+                        quantityPercentage: 0.5,
+                        executed: false,
+                        executedOrder: null
+                      },
+                      {
+                        triggerPercentage: 1.055,
+                        stopPercentage: 0.965,
+                        limitPercentage: 0.964,
+                        quantityPercentage: 0.6,
+                        executed: false,
+                        executedOrder: null
+                      },
+                      {
+                        triggerPercentage: 1.045,
+                        stopPercentage: 0.955,
+                        limitPercentage: 0.954,
+                        quantityPercentage: 1,
+                        executed: false,
+                        executedOrder: null
+                      }
+                    ],
+                    stopLoss: {
+                      enabled: true,
+                      maxLossPercentage: 0.81,
+                      disableBuyMinutes: 65,
+                      orderType: 'market'
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.045,
+                      stopPercentage: 0.975,
+                      limitPercentage: 0.974,
+                      quantityPercentage: 0.5,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  enabled: true,
+                  cronTime: '* * * * * *',
+                  symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+                  system: {
+                    temporaryDisableActionAfterConfirmingOrder: 10,
+                    checkManualBuyOrderPeriod: 10,
+                    placeManualOrderInterval: 5,
+                    refreshAccountInfoPeriod: 3,
+                    checkOrderExecutePeriod: 10
+                  }
+                });
+              });
+            });
           });
 
-          it('returns expected value', () => {
-            expect(result).toStrictEqual({
-              key: 'BTCUSDT-configuration',
-              candles: { interval: '1h', limit: 50 },
-              buy: {
-                enabled: true,
-                gridTrade: [
-                  {
+          describe('global configuration has same grid trade lengths', () => {
+            beforeEach(async () => {
+              cache.hget = jest.fn().mockResolvedValue(
+                JSON.stringify({
+                  quoteAsset: 'USDT',
+                  filterMinNotional: {
+                    minNotional: '10.00000000'
+                  }
+                })
+              );
+              mongo.findOne = jest.fn((_logger, collection, filter) => {
+                if (
+                  collection === 'trailing-trade-common' &&
+                  _.isEqual(filter, { key: 'configuration' })
+                ) {
+                  return {
+                    enabled: true,
+                    cronTime: '* * * * * *',
+                    symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+                    candles: {
+                      interval: '1d',
+                      limit: 10
+                    },
+                    buy: {
+                      enabled: false,
+                      gridTrade: [
+                        {
+                          triggerPercentage: 1,
+                          stopPercentage: 1.02,
+                          limitPercentage: 1.021,
+                          maxPurchaseAmount: -1,
+                          maxPurchaseAmounts: {
+                            USDT: 100,
+                            BTC: 0.001,
+                            BUSD: 100
+                          }
+                        },
+                        {
+                          triggerPercentage: 0.9,
+                          stopPercentage: 1.02,
+                          limitPercentage: 1.021,
+                          maxPurchaseAmount: -1,
+                          maxPurchaseAmounts: {
+                            USDT: 100,
+                            BTC: 0.001,
+                            BUSD: 100
+                          }
+                        }
+                      ],
+                      lastBuyPriceRemoveThreshold: -1,
+                      lastBuyPriceRemoveThresholds: {
+                        USDT: 5,
+                        BTC: 0.00005,
+                        BUSD: 5
+                      },
+                      athRestriction: {
+                        enabled: true,
+                        candles: {
+                          interval: '1d',
+                          limit: 30
+                        },
+                        restrictionPercentage: 0.9
+                      }
+                    },
+                    sell: {
+                      enabled: false,
+                      gridTrade: [
+                        {
+                          triggerPercentage: 1.08,
+                          stopPercentage: 0.95,
+                          limitPercentage: 0.949,
+                          quantityPercentage: -1,
+                          quantityPercentages: {
+                            USDT: 1,
+                            BTC: 1,
+                            BUSD: 1
+                          }
+                        }
+                      ],
+                      stopLoss: {
+                        enabled: true,
+                        maxLossPercentage: 0.95,
+                        disableBuyMinutes: 60,
+                        orderType: 'market'
+                      }
+                    },
+                    system: {
+                      temporaryDisableActionAfterConfirmingOrder: 10,
+                      checkManualBuyOrderPeriod: 10,
+                      placeManualOrderInterval: 5,
+                      refreshAccountInfoPeriod: 3,
+                      checkOrderExecutePeriod: 10
+                    }
+                  };
+                }
+
+                if (
+                  collection === 'trailing-trade-symbols' &&
+                  _.isEqual(filter, { key: 'BTCUSDT-configuration' })
+                ) {
+                  return {
+                    key: 'BTCUSDT-configuration',
+                    candles: {
+                      interval: '1h',
+                      limit: 50
+                    },
+                    buy: {
+                      enabled: true,
+                      gridTrade: [
+                        {
+                          triggerPercentage: 1,
+                          stopPercentage: 1.035,
+                          limitPercentage: 1.036,
+                          maxPurchaseAmount: 11
+                        },
+                        {
+                          triggerPercentage: 0.9,
+                          stopPercentage: 1.045,
+                          limitPercentage: 1.046,
+                          maxPurchaseAmount: 22
+                        },
+                        {
+                          triggerPercentage: 0.9,
+                          stopPercentage: 1.055,
+                          limitPercentage: 1.056,
+                          maxPurchaseAmount: 33
+                        }
+                      ],
+                      lastBuyPriceRemoveThreshold: 5
+                    },
+                    sell: {
+                      enabled: true,
+                      gridTrade: [
+                        {
+                          triggerPercentage: 1.045,
+                          stopPercentage: 0.975,
+                          limitPercentage: 0.974,
+                          quantityPercentage: 1,
+                          quantityPercentages: {
+                            USDT: 1
+                          }
+                        }
+                      ],
+                      stopLoss: {
+                        enabled: true,
+                        maxLossPercentage: 0.81,
+                        disableBuyMinutes: 65,
+                        orderType: 'market'
+                      }
+                    }
+                  };
+                }
+                return null;
+              });
+
+              result = await configuration.getConfiguration(logger, 'BTCUSDT');
+            });
+
+            it('returns expected value', () => {
+              expect(result).toStrictEqual({
+                key: 'BTCUSDT-configuration',
+                candles: { interval: '1h', limit: 50 },
+                buy: {
+                  enabled: true,
+                  gridTrade: [
+                    {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.035,
+                      limitPercentage: 1.036,
+                      maxPurchaseAmount: 11,
+                      executed: false,
+                      executedOrder: null
+                    },
+                    {
+                      triggerPercentage: 0.9,
+                      stopPercentage: 1.045,
+                      limitPercentage: 1.046,
+                      maxPurchaseAmount: 22,
+                      executed: false,
+                      executedOrder: null
+                    },
+                    {
+                      triggerPercentage: 0.9,
+                      stopPercentage: 1.055,
+                      limitPercentage: 1.056,
+                      maxPurchaseAmount: 33,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  ],
+                  lastBuyPriceRemoveThreshold: 5,
+                  athRestriction: {
+                    enabled: true,
+                    candles: { interval: '1d', limit: 30 },
+                    restrictionPercentage: 0.9
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
                     triggerPercentage: 1,
                     stopPercentage: 1.035,
                     limitPercentage: 1.036,
                     maxPurchaseAmount: 11,
                     executed: false,
                     executedOrder: null
-                  },
-                  {
-                    triggerPercentage: 0.9,
-                    stopPercentage: 1.045,
-                    limitPercentage: 1.046,
-                    maxPurchaseAmount: 22,
-                    executed: false,
-                    executedOrder: null
-                  },
-                  {
-                    triggerPercentage: 0.9,
-                    stopPercentage: 1.055,
-                    limitPercentage: 1.056,
-                    maxPurchaseAmount: 33,
-                    executed: false,
-                    executedOrder: null
                   }
-                ],
-                lastBuyPriceRemoveThreshold: 5,
-                athRestriction: {
-                  enabled: true,
-                  candles: { interval: '1d', limit: 30 },
-                  restrictionPercentage: 0.9
                 },
-                currentGridTradeIndex: 0,
-                currentGridTrade: {
-                  triggerPercentage: 1,
-                  stopPercentage: 1.035,
-                  limitPercentage: 1.036,
-                  maxPurchaseAmount: 11,
-                  executed: false,
-                  executedOrder: null
-                }
-              },
-              sell: {
-                enabled: true,
-                gridTrade: [
-                  {
+                sell: {
+                  enabled: true,
+                  gridTrade: [
+                    {
+                      triggerPercentage: 1.045,
+                      stopPercentage: 0.975,
+                      limitPercentage: 0.974,
+                      quantityPercentage: 1,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  ],
+                  stopLoss: {
+                    enabled: true,
+                    maxLossPercentage: 0.81,
+                    disableBuyMinutes: 65,
+                    orderType: 'market'
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
                     triggerPercentage: 1.045,
                     stopPercentage: 0.975,
                     limitPercentage: 0.974,
@@ -3377,33 +3986,18 @@ describe('configuration.js', () => {
                     executed: false,
                     executedOrder: null
                   }
-                ],
-                stopLoss: {
-                  enabled: true,
-                  maxLossPercentage: 0.81,
-                  disableBuyMinutes: 65,
-                  orderType: 'market'
                 },
-                currentGridTradeIndex: 0,
-                currentGridTrade: {
-                  triggerPercentage: 1.045,
-                  stopPercentage: 0.975,
-                  limitPercentage: 0.974,
-                  quantityPercentage: 1,
-                  executed: false,
-                  executedOrder: null
+                enabled: true,
+                cronTime: '* * * * * *',
+                symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+                system: {
+                  temporaryDisableActionAfterConfirmingOrder: 10,
+                  checkManualBuyOrderPeriod: 10,
+                  placeManualOrderInterval: 5,
+                  refreshAccountInfoPeriod: 3,
+                  checkOrderExecutePeriod: 10
                 }
-              },
-              enabled: true,
-              cronTime: '* * * * * *',
-              symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
-              system: {
-                temporaryDisableActionAfterConfirmingOrder: 10,
-                checkManualBuyOrderPeriod: 10,
-                placeManualOrderInterval: 5,
-                refreshAccountInfoPeriod: 3,
-                checkOrderExecutePeriod: 10
-              }
+              });
             });
           });
         });

@@ -221,15 +221,20 @@ const deleteSymbolGridTrade = async (logger, symbol) =>
  * @param {*} symbolConfiguration
  * @returns
  */
-const getGridBuyMaxPurchaseAmount = (
+const getGridTradeBuy = (
   logger,
   cachedSymbolInfo,
   globalConfiguration,
   symbolConfiguration
 ) => {
   const {
-    buy: { gridTrade: orgGridTrade }
+    buy: { gridTrade: srcGridTrade }
   } = symbolConfiguration;
+
+  let orgGridTrade = srcGridTrade;
+  if (_.isEmpty(srcGridTrade)) {
+    orgGridTrade = globalConfiguration.buy.gridTrade;
+  }
 
   // Loop symbol's buy.gridTrade
   const gridTrade = orgGridTrade.map((orgGrid, index) => {
@@ -289,16 +294,20 @@ const getGridBuyMaxPurchaseAmount = (
  * @param {*} symbolConfiguration
  * @returns
  */
-const getGridSellQuantityPercentages = (
+const getGridTradeSell = (
   logger,
   cachedSymbolInfo,
   globalConfiguration,
   symbolConfiguration
 ) => {
   const {
-    sell: { gridTrade: orgGridTrade }
+    sell: { gridTrade: srcGridTrade }
   } = symbolConfiguration;
 
+  let orgGridTrade = srcGridTrade;
+  if (_.isEmpty(srcGridTrade)) {
+    orgGridTrade = globalConfiguration.sell.gridTrade;
+  }
   const gridTradeLength = orgGridTrade.length;
 
   // Loop symbol's sell.gridTrade
@@ -533,8 +542,13 @@ const getConfiguration = async (logger, symbol = null) => {
   const symbolConfigValue = await getSymbolConfiguration(logger, symbol);
   const symbolGridTrade = await getSymbolGridTrade(logger, symbol);
 
-  // Merge global and symbol configuration
-  let mergedConfigValue = _.defaultsDeep(symbolConfigValue, globalConfigValue);
+  // Merge global and symbol configuration without grid trade if symbol is provided.
+  let mergedConfigValue = _.defaultsDeep(
+    symbolConfigValue,
+    symbol !== null
+      ? _.omit(globalConfigValue, 'buy.gridTrade', 'sell.gridTrade')
+      : globalConfigValue
+  );
   if (symbol !== null) {
     const cachedSymbolInfo =
       JSON.parse(
@@ -545,7 +559,7 @@ const getConfiguration = async (logger, symbol = null) => {
     [
       {
         key: 'buy.gridTrade',
-        keyFunc: getGridBuyMaxPurchaseAmount
+        keyFunc: getGridTradeBuy
       },
       {
         key: 'buy.lastBuyPriceRemoveThreshold',
@@ -553,7 +567,7 @@ const getConfiguration = async (logger, symbol = null) => {
       },
       {
         key: 'sell.gridTrade',
-        keyFunc: getGridSellQuantityPercentages
+        keyFunc: getGridTradeSell
       }
     ].forEach(d => {
       const { key, keyFunc } = d;
@@ -594,8 +608,8 @@ module.exports = {
   deleteAllSymbolGridTrade,
   deleteSymbolGridTrade,
 
-  getGridBuyMaxPurchaseAmount,
-  getGridSellQuantityPercentages,
+  getGridTradeBuy,
+  getGridTradeSell,
   getLastBuyPriceRemoveThreshold,
 
   postProcessConfiguration,

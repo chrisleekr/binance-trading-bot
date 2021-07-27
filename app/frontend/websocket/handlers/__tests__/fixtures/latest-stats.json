@@ -200,6 +200,12 @@
           "candles": { "interval": "15m", "limit": 100 },
           "sell": {
             "enabled": true,
+            "stopLoss": {
+              "enabled": false,
+              "maxLossPercentage": 0.8,
+              "disableBuyMinutes": 360,
+              "orderType": "market"
+            },
             "gridTrade": [
               {
                 "triggerPercentage": 1.06,
@@ -210,12 +216,6 @@
                 "executedOrder": null
               }
             ],
-            "stopLoss": {
-              "enabled": false,
-              "maxLossPercentage": 0.8,
-              "disableBuyMinutes": 360,
-              "orderType": "market"
-            },
             "currentGridTradeIndex": 0,
             "currentGridTrade": {
               "triggerPercentage": 1.06,
@@ -230,6 +230,12 @@
           "symbols": ["BTCUSDT", "ETHUSDT", "ETHBTC", "XRPBTC"],
           "buy": {
             "enabled": true,
+            "lastBuyPriceRemoveThreshold": 10,
+            "athRestriction": {
+              "enabled": true,
+              "candles": { "interval": "1d", "limit": 30 },
+              "restrictionPercentage": 0.9
+            },
             "gridTrade": [
               {
                 "triggerPercentage": 1,
@@ -240,12 +246,6 @@
                 "executedOrder": null
               }
             ],
-            "lastBuyPriceRemoveThreshold": 10,
-            "athRestriction": {
-              "enabled": true,
-              "candles": { "interval": "1d", "limit": 30 },
-              "restrictionPercentage": 0.9
-            },
             "currentGridTradeIndex": -1,
             "currentGridTrade": null
           },
@@ -449,6 +449,12 @@
           "candles": { "interval": "15m", "limit": 100 },
           "sell": {
             "enabled": true,
+            "stopLoss": {
+              "enabled": false,
+              "maxLossPercentage": 0.8,
+              "disableBuyMinutes": 360,
+              "orderType": "market"
+            },
             "gridTrade": [
               {
                 "triggerPercentage": 1.06,
@@ -459,12 +465,6 @@
                 "executedOrder": null
               }
             ],
-            "stopLoss": {
-              "enabled": false,
-              "maxLossPercentage": 0.8,
-              "disableBuyMinutes": 360,
-              "orderType": "market"
-            },
             "currentGridTradeIndex": 0,
             "currentGridTrade": {
               "triggerPercentage": 1.06,
@@ -479,6 +479,12 @@
           "symbols": ["BTCUSDT", "ETHUSDT", "ETHBTC", "XRPBTC"],
           "buy": {
             "enabled": true,
+            "lastBuyPriceRemoveThreshold": 10,
+            "athRestriction": {
+              "enabled": true,
+              "candles": { "interval": "1d", "limit": 30 },
+              "restrictionPercentage": 0.9
+            },
             "gridTrade": [
               {
                 "triggerPercentage": 1,
@@ -489,12 +495,6 @@
                 "executedOrder": null
               }
             ],
-            "lastBuyPriceRemoveThreshold": 10,
-            "athRestriction": {
-              "enabled": true,
-              "candles": { "interval": "1d", "limit": 30 },
-              "restrictionPercentage": 0.9
-            },
             "currentGridTradeIndex": 0,
             "currentGridTrade": {
               "triggerPercentage": 1,
