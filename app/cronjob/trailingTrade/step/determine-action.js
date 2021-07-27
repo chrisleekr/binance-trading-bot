@@ -136,7 +136,7 @@ const predictedValueIsTrue = data => {
     buy: {
       prediction,
       difference,
-      trend: { trendDiff },
+      trend: { trendDiff, signedTrendDiff },
       currentPrice
     },
     symbolConfiguration: {
@@ -147,11 +147,13 @@ const predictedValueIsTrue = data => {
   const predictionDiff = 100 - (currentPrice / prediction.predictedValue) * 100;
 
   return (
-    predictionDiff > 0.35 &&
-    // Math.sign(prediction.predictedValue - currentPrice) === 1 &&
-    difference > 0.2 &&
-    trendDiff > 0.25 &&
-    predictValue === true
+    (predictionDiff >= 0.35 ||
+    predictionDiff <= -0.35 &&
+      // Math.sign(prediction.predictedValue - currentPrice) === 1 &&
+      difference >= 0.15 &&
+      trendDiff >= 0.1 &&
+      signedTrendDiff === 1 &&
+      predictValue === true)
   );
 };
 
@@ -295,14 +297,23 @@ const isLowerThanStopLossTriggerPrice = data => {
         stopLoss: { enabled: sellStopLossEnabled }
       }
     },
+    buy: {
+      prediction,
+      trend: { trendDiff }
+    },
     sell: {
       currentPrice: sellCurrentPrice,
       stopLossTriggerPrice: sellStopLossTriggerPrice
     }
   } = data;
-
+  const predictionDiff =
+    100 - (sellCurrentPrice / prediction.predictedValue) * 100;
   return (
-    sellStopLossEnabled === true && sellCurrentPrice <= sellStopLossTriggerPrice
+    sellStopLossEnabled === true &&
+    sellCurrentPrice <= sellStopLossTriggerPrice &&
+    trendDiff <= 0.5 &&
+    predictionDiff <= 0.3 &&
+    prediction.predictedValue <= sellStopLossTriggerPrice
   );
 };
 

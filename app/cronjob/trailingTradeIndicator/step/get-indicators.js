@@ -75,6 +75,75 @@ const huskyTrend = (candles, strategyOptions) => {
   return { status, difference };
 };
 
+const predictCoinValue = async (symbol) => {
+  let prediction = {
+    interval: '',
+    predictedValue: []
+  };
+  let candlesToPredict = [];
+  const diffWeight = [];
+
+  const cachedPredictionTime =
+    JSON.parse(await cache.get(`${symbol}-last-prediction`)) || undefined;
+
+  if (cachedPredictionTime === undefined) {
+    const bc = await binance.client.candles({
+      symbol,
+      interval: '5m',
+      limit: 20
+    });
+
+    bc.forEach(c => {
+      diffWeight.push(100 - (parseFloat(c.open) / parseFloat(c.close)) * 100);
+      candlesToPredict.push(parseFloat(c.close));
+    });
+
+    if (prediction.predictedValue.length === 20) {
+      candlesToPredict = prediction.predictedValue;
+    }
+
+    // create model object
+    const model = tf.sequential({
+      layers: [tf.layers.dense({ units: 1, inputShape: [1] })]
+    });
+    // compile model object
+    model.compile({
+      optimizer: tf.train.sgd(0.1),
+      loss: tf.losses.meanSquaredError
+    });
+    // training datasets
+    // In our training datasets, we take room numbers and corresponding price to rent
+    const xs = tf.tensor1d(diffWeight);
+    const ys = tf.tensor1d(candlesToPredict);
+    // Train model with fit().method
+    await model.fit(xs, ys, { epochs: 1500, batchSize: 8 });
+    // Run inference with predict() method.
+
+    const predictionCoinValue = _.mean(
+      await model.predict(tf.tensor1d(diffWeight)).dataSync()
+    );
+
+    if (prediction.predictedValue.length === 20) {
+      prediction.predictedValue.shift();
+    }
+    prediction.interval = '5m';
+    prediction.predictedValue.push(predictionCoinValue);
+
+    await cache.set(
+      `${symbol}-last-prediction`,
+      JSON.stringify(prediction),
+      265
+    );
+  } else {
+    prediction = {
+      interval: cachedPredictionTime.interval,
+      predictedValue: cachedPredictionTime.predictedValue
+    };
+  }
+
+  return prediction;
+};
+
 /**
  * Get symbol information, buy/sell indicators
  *
@@ -170,63 +239,9 @@ const execute = async (logger, rawData) => {
     );
   }
 
+  let prediction;
   if (predictValue === true) {
-    const cachedPredictionTime =
-      JSON.parse(await cache.get(`${symbol}-last-prediction`)) || undefined;
-    if (cachedPredictionTime === undefined) {
-      const candlesp = [];
-      const diffWeight = [];
-      const bc = await binance.client.candles({
-        symbol,
-        interval: '5m',
-        limit: 20
-      });
-      bc.forEach(c => {
-        diffWeight.push(100 - (parseFloat(c.open) / parseFloat(c.close)) * 100);
-        candlesp.push(parseFloat(c.close));
-      });
-
-      prediction = {
-        interval: '',
-        predictedValue: 0
-      };
-      // create model object
-      const model = tf.sequential({
-        layers: [tf.layers.dense({ units: 1, inputShape: [1] })]
-      });
-      // compile model object
-      model.compile({
-        optimizer: tf.train.sgd(0.1),
-        loss: tf.losses.meanSquaredError
-      });
-      // training datasets
-      // In our training datasets, we take room numbers and corresponding price to rent
-      const xs = tf.tensor1d(diffWeight);
-      const ys = tf.tensor1d(candlesp);
-      // Train model with fit().method
-      await model.fit(xs, ys, { epochs: 1500, batchSize: 8 });
-      // Run inference with predict() method.
-
-      const predictionCoinValue = _.mean(
-        await model.predict(tf.tensor1d(diffWeight)).dataSync()
-      );
-
-      prediction = {
-        interval: '5m',
-        predictedValue: predictionCoinValue
-      };
-      
-      await cache.set(
-        `${symbol}-last-prediction`,
-        JSON.stringify(prediction),
-        265
-      );
-    } else {
-      prediction = {
-        interval: cachedPredictionTime.interval,
-        predictedValue: cachedPredictionTime.predictedValue
-      };
-    }
+    prediction = await predictCoinValue(symbol);
   }
 
   data.indicators = {
