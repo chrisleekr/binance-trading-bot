@@ -2,29 +2,29 @@
 /* eslint-disable no-undef */
 
 const sortingAlpha = (symbols, direction) =>
-  _.orderBy(
-    symbols,
-    s => {
-      return s.symbol;
-    },
-    direction
-  );
+  _.orderBy(symbols, s => s.symbol, direction);
 
 const sortingSellProfit = (symbols, direction) =>
   _.orderBy(
     symbols,
-    s => {
-      return s.sell.currentProfit;
-    },
+    s =>
+      s.sell.currentProfitPercentage !== null
+        ? s.sell.currentProfitPercentage
+        : direction === 'asc'
+        ? 999
+        : -999,
     direction
   );
 
 const sortingBuyDifference = (symbols, direction) =>
   _.orderBy(
     symbols,
-    s => {
-      return s.buy.difference;
-    },
+    s =>
+      s.buy.difference !== null
+        ? s.buy.difference
+        : direction === 'asc'
+        ? 999
+        : -999,
     direction
   );
 
