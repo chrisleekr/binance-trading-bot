@@ -327,11 +327,11 @@
 
 | 프론트엔드 - 모바일 | 세팅 | 수동 거래 |
 | --------------- | ---- | ------- |
-| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/127152405-652f35ac-4f87-4aa7-8e9a-a0984d5a4ce7.png) | ![Setting](https://user-images.githubusercontent.com/5715919/127152462-8b484e59-31b4-46a9-86e5-f13bdac9667a.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/127152502-52c22ef3-2471-4fa2-947a-7ed3f7803559.png) |
+| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/127318555-31216c7e-f27c-4e05-a3b1-1ebda386e439.png) | ![Setting](https://user-images.githubusercontent.com/5715919/127318581-4e422ac9-b145-4e83-a90d-5c05c61d6e2f.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/127318630-f2180e1b-3feb-48fa-a083-4cb7f90f743f.png) |
 
 | 프론트엔드 - 데스크탑                                                                                                           |
 | ------------------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/127151987-34304393-5234-4d83-aa5f-2aa4f7b5a390.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/127317731-58d847a8-5d03-4b69-9fb4-88aca88c63f8.png) |
 
 ### 샘플 거래
 
