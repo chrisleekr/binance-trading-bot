@@ -779,9 +779,8 @@ const manageError = error => {
     if (isMoreThanFive === false) {
       const convertToMin = (new Date() - new Date(errorWindowTime)) / 1000 / 60;
       notifyTelegram(
-        `In the last ${convertToMin} minutes, I had received and stored ${errorCount} errors for not bother you, but..\n
-        I think you should take an action. The last one was:\n
-         ${error}`
+        // eslint-disable-next-line max-len
+        `In the last ${convertToMin} minutes, I had received and stored ${errorCount} errors to not bother you, but..\nI think you should take an action. The last one was:\n${error}`
       );
       errorCount = 0;
     }

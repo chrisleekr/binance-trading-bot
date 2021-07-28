@@ -144,6 +144,10 @@ const predictedValueIsTrue = data => {
     }
   } = data;
 
+  if (!predictValue) {
+    return false;
+  }
+
   let predictionDiff =
     100 -
     (currentPrice /
@@ -157,8 +161,7 @@ const predictedValueIsTrue = data => {
     // Math.sign(prediction.predictedValue - currentPrice) === 1 &&
     difference >= 0.15 &&
     trendDiff >= 0.1 &&
-    signedTrendDiff === 1 &&
-    predictValue === true
+    signedTrendDiff === 1
   );
 };
 
@@ -284,7 +287,7 @@ const isLowerThanStopLossTriggerPrice = data => {
       stopLossTriggerPrice: sellStopLossTriggerPrice
     }
   } = data;
-  if (predictValue) {
+  /* if (predictValue) {
     const predictionDiff =
       100 -
       (sellCurrentPrice /
@@ -299,7 +302,7 @@ const isLowerThanStopLossTriggerPrice = data => {
         sellStopLossTriggerPrice
     );
   }
-  return (
+ */ return (
     sellStopLossEnabled === true && sellCurrentPrice <= sellStopLossTriggerPrice
   );
 };

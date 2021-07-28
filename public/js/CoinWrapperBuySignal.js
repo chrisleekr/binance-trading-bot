@@ -16,10 +16,7 @@ class CoinWrapperBuySignal extends React.Component {
 
     const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
     let predictionHigherThan = 0;
-    if (
-      buy.prediction !== undefined &&
-      buy.prediction.predictedValue !== null
-    ) {
+    if (buy.prediction !== undefined) {
       predictionHigherThan = (
         100 -
         (parseFloat(buy.currentPrice) /

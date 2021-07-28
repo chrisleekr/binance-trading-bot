@@ -86,7 +86,6 @@ const predictCoinValue = async symbol => {
 
   if (
     prediction === undefined ||
-    prediction.date === undefined ||
     (new Date() - new Date(prediction.date)) / 1000 > 300
   ) {
     const bc = await binance.client.candles({
@@ -258,6 +257,7 @@ const execute = async (logger, rawData) => {
   let prediction;
   if (predictValue === true) {
     prediction = await predictCoinValue(symbol);
+    prediction.predictedValue = [_.mean(prediction.predictedValue)];
   }
 
   data.indicators = {
