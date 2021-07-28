@@ -88,10 +88,10 @@ class FilterIcon extends React.Component {
         </button>
         <Modal
           show={this.state.showFilterModal}
-          onHide={() => this.handleModalClose('filter)')}
+          onHide={() => this.handleModalClose('filter')}
           size='xl'>
           <Form>
-            <Modal.Header className='pt-1 pb-1'>
+            <Modal.Header closeButton className='pt-1 pb-1'>
               <Modal.Title>Filter</Modal.Title>
             </Modal.Header>
             <Modal.Body>
