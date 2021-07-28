@@ -319,18 +319,29 @@ bot.hears(
 
     const cachedDate = JSON.parse(await cache.get(`last-seen-telegram`)) || {};
 
+    // If cache is not set (at first init):
+    if (typeof cachedDate !== "string") {
+      return ctx.reply(
+        `Hey, it's your first time here, enjoy! 🤓`,
+        mainMenuKeyboard
+      );
+    }
+
+    // Get the difference between now and cached date:
     const dateDifference = (
       (new Date() - new Date(cachedDate)) /
       1000 /
       60
     ).toFixed(1);
 
+    // Update last seen date:
+    await cache.set('last-seen-telegram', JSON.stringify(new Date()));
+
     ctx.reply(
       `Hi. It has been ${dateDifference} minutes since your last visit.`,
       mainMenuKeyboard
     );
 
-    await cache.set('last-seen-telegram', JSON.stringify(new Date()));
   }
 );
 
