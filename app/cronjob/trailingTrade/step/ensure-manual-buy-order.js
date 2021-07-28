@@ -57,19 +57,19 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
     `${symbol} Last buy price Updated (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +
-    `- Order Result: \`\`\`${JSON.stringify(
-      {
-        orgLastBuyPrice,
-        orgQuantity,
-        orgTotalAmount,
-        newLastBuyPrice,
-        newQuantity,
-        newTotalAmount
-      },
-      undefined,
-      2
-    )}\`\`\`\n` +
-    `- Current API Usage: ${getAPILimit(logger)}`
+      `- Order Result: \`\`\`${JSON.stringify(
+        {
+          orgLastBuyPrice,
+          orgQuantity,
+          orgTotalAmount,
+          newLastBuyPrice,
+          newQuantity,
+          newTotalAmount
+        },
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
   );
 };
 
@@ -100,12 +100,12 @@ const slackMessageOrderFilled = async (
     `${symbol} Manual ${side.toUpperCase()} Order Filled (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +
-    `- Order Result: \`\`\`${JSON.stringify(
-      orderResult,
-      undefined,
-      2
-    )}\`\`\`\n` +
-    `- Current API Usage: ${getAPILimit(logger)}`
+      `- Order Result: \`\`\`${JSON.stringify(
+        orderResult,
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
   );
 };
 
@@ -128,23 +128,32 @@ const slackMessageOrderDeleted = async (
   const type = orderParams.type.toUpperCase();
 
   const language = config.get('language');
-  const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
+  const {
+    coin_wrapper: { _actions }
+  } = require(`../../../../public/${language}.json`);
 
   PubSub.publish('frontend-notification', {
     type: 'success',
-    title: _actions.action_stop_monitoring[1] + side + _actions.action_stop_monitoring[2] + symbol + _actions.action_stop_monitoring[3] + orderResult.status + _actions.action_stop_monitoring[4]
+    title:
+      _actions.action_stop_monitoring[1] +
+      side +
+      _actions.action_stop_monitoring[2] +
+      symbol +
+      _actions.action_stop_monitoring[3] +
+      orderResult.status +
+      _actions.action_stop_monitoring[4]
   });
 
   return messenger.errorMessage(
     `${symbol} Manual ${side.toUpperCase()} Order Removed (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +
-    `- Order Result: \`\`\`${JSON.stringify(
-      orderResult,
-      undefined,
-      2
-    )}\`\`\`\n` +
-    `- Current API Usage: ${getAPILimit(logger)}`
+      `- Order Result: \`\`\`${JSON.stringify(
+        orderResult,
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
   );
 };
 

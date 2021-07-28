@@ -1,4 +1,3 @@
-
 const { PubSub } = require('../../../helpers');
 const {
   erasePastTrades
@@ -15,15 +14,15 @@ const handlePastTradesErase = async (logger, ws, payload) => {
       title: `Past trades erased successfully.`
     });
 
-    ws.send(JSON.stringify({ result: true, type: 'past-trades-erase-successful' }));
+    ws.send(
+      JSON.stringify({ result: true, type: 'past-trades-erase-successful' })
+    );
   } catch {
     PubSub.publish('frontend-notification', {
       type: 'error',
       title: `Cant delete past trades. Something is wrong.`
     });
   }
-
-
 };
 
 module.exports = { handlePastTradesErase };

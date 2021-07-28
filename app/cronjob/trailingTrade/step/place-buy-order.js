@@ -1,19 +1,17 @@
 const _ = require('lodash');
 const moment = require('moment');
+const config = require('config');
 const { binance, messenger, cache } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
-const config = require('config');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
-  isExceedAPILimit,
+  isExceedAPILimit
 } = require('../../trailingTradeHelper/common');
 
-const retrieveLastBuyOrder = async (symbol) => {
+const retrieveLastBuyOrder = async symbol => {
   const cachedLastBuyOrder =
-    JSON.parse(await cache.get(
-      `${symbol}-last-buy-order`
-    )) || {};
+    JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
 
   return _.isEmpty(cachedLastBuyOrder);
 };
@@ -45,12 +43,18 @@ const execute = async (logger, rawData) => {
         stopPercentage,
         limitPercentage
       },
-      strategyOptions: { huskyOptions: { buySignal } },
+      strategyOptions: {
+        huskyOptions: { buySignal }
+      },
       system: { checkManualBuyOrderPeriod }
     },
     action,
     quoteAssetBalance: { free: quoteAssetFreeBalance },
-    buy: { currentPrice, openOrders, trend: { signedTrendDiff } }
+    buy: {
+      currentPrice,
+      openOrders,
+      trend: { signedTrendDiff }
+    }
   } = data;
 
   if (isLocked) {
@@ -66,25 +70,27 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-
   const language = config.get('language');
-  const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
+  const {
+    coin_wrapper: { _actions }
+  } = require(`../../../../public/${language}.json`);
 
-  if (!await retrieveLastBuyOrder(symbol)) {
-    data.buy.processMessage = "cant buy, found open order in cache";
+  if (!(await retrieveLastBuyOrder(symbol))) {
+    data.buy.processMessage = 'cant buy, found open order in cache';
     return data;
   }
 
   if (openOrders.length > 0) {
-    data.buy.processMessage = action.action_open_orders[1] + symbol + '.' + _actions.action_open_orders[2];
+    data.buy.processMessage = `${action.action_open_orders[1] + symbol}.${
+      _actions.action_open_orders[2]
+    }`;
     data.buy.updatedAt = moment().utc();
 
     return data;
   }
 
   if (maxPurchaseAmount <= 0) {
-    data.buy.processMessage =
-      _actions.action_max_purchase_undefined;
+    data.buy.processMessage = _actions.action_max_purchase_undefined;
     data.buy.updatedAt = moment().utc();
 
     return data;
@@ -108,19 +114,24 @@ const execute = async (logger, rawData) => {
   }
 
   if (freeBalance < parseFloat(minPurchaseAmount)) {
-    data.buy.processMessage = 'Free balance is less than min purchase amount. I will not buy.';
+    data.buy.processMessage =
+      'Free balance is less than min purchase amount. I will not buy.';
     data.buy.updatedAt = moment().utc();
 
     return data;
   }
 
   if (freeBalance < parseFloat(minNotional)) {
-    data.buy.processMessage = _actions.action_dont_place_order[1] + quoteAsset + _actions.action_dont_place_order[2] + baseAsset + '.';
+    data.buy.processMessage = `${
+      _actions.action_dont_place_order[1] +
+      quoteAsset +
+      _actions.action_dont_place_order[2] +
+      baseAsset
+    }.`;
     data.buy.updatedAt = moment().utc();
 
     return data;
   }
-
 
   const stopPrice = roundDown(currentPrice * stopPercentage, pricePrecision);
   const limitPrice = roundDown(currentPrice * limitPercentage, pricePrecision);
@@ -135,7 +146,7 @@ const execute = async (logger, rawData) => {
   const orderQuantity = parseFloat(
     _.floor(
       orderQuantityBeforeCommission -
-      orderQuantityBeforeCommission * (0.1 / 100),
+        orderQuantityBeforeCommission * (0.1 / 100),
       lotPrecision
     )
   );
@@ -144,15 +155,21 @@ const execute = async (logger, rawData) => {
 
   if (orderQuantity * limitPrice < parseFloat(minNotional)) {
     data.buy.processMessage =
-      _actions.action_dont_place_order_calc[1] + quoteAsset +
-      _actions.action_dont_place_order_calc[2] + baseAsset + _actions.action_dont_place_order_calc[3];
+      _actions.action_dont_place_order_calc[1] +
+      quoteAsset +
+      _actions.action_dont_place_order_calc[2] +
+      baseAsset +
+      _actions.action_dont_place_order_calc[3];
     data.buy.updatedAt = moment().utc();
 
     return data;
   }
 
   if (tradingEnabled !== true) {
-    data.buy.processMessage = _actions.action_trading_for_disabled[1] + symbol + _actions.action_trading_for_disabled[2];
+    data.buy.processMessage =
+      _actions.action_trading_for_disabled[1] +
+      symbol +
+      _actions.action_trading_for_disabled[2];
     data.buy.updatedAt = moment().utc();
 
     return data;
@@ -167,13 +184,12 @@ const execute = async (logger, rawData) => {
 
   if (buySignal) {
     if (signedTrendDiff == -1) {
-      data.buy.processMessage = "Trend is going down, cancelling order";
+      data.buy.processMessage = 'Trend is going down, cancelling order';
       data.buy.updatedAt = moment().utc();
 
       return data;
     }
   }
-
 
   const orderParams = {
     symbol,
@@ -185,9 +201,7 @@ const execute = async (logger, rawData) => {
     timeInForce: 'GTC'
   };
 
-  messenger.sendMessage(
-    symbol, orderParams, 'PLACE_BUY'
-  );
+  messenger.sendMessage(symbol, orderParams, 'PLACE_BUY');
 
   logger.info(
     { debug: true, function: 'order', orderParams },
@@ -206,9 +220,7 @@ const execute = async (logger, rawData) => {
   // Refresh account info
   data.accountInfo = await getAccountInfoFromAPI(logger, true);
 
-  messenger.sendMessage(
-    symbol, orderResult, 'PLACE_BUY_DONE'
-  );
+  messenger.sendMessage(symbol, orderResult, 'PLACE_BUY_DONE');
 
   // Set last buy order to be checked over infinite minutes until callback is received.
   await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult));

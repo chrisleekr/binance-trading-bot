@@ -35,9 +35,10 @@ const execute = async (logger, rawData) => {
     orderId: order.orderId
   };
 
-
   const language = config.get('language');
-  const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
+  const {
+    coin_wrapper: { _actions }
+  } = require(`../../../../public/${language}.json`);
 
   logger.info(
     { debug: true, function: 'order', orderParams },
@@ -50,7 +51,9 @@ const execute = async (logger, rawData) => {
 
   await cache.hdel(`trailing-trade-manual-buy-order-${symbol}`, order.orderId);
 
-  messenger.errorMessage("Order cancelled, result: " + JSON.stringify(orderResult))
+  messenger.errorMessage(
+    `Order cancelled, result: ${JSON.stringify(orderResult)}`
+  );
 
   // Get open orders and update cache
   data.openOrder = await getAndCacheOpenOrdersForSymbol(logger, symbol);
@@ -67,21 +70,19 @@ const execute = async (logger, rawData) => {
   PubSub.publish('frontend-notification', {
     type: 'success',
     title:
-      _actions.action_cancel_success[1] + symbol + _actions.action_cancel_success[2]
+      _actions.action_cancel_success[1] +
+      symbol +
+      _actions.action_cancel_success[2]
   });
 
-  messenger.sendMessage(
-    symbol, orderResult, 'ORDER_CANCELED'
-  );
+  messenger.sendMessage(symbol, orderResult, 'ORDER_CANCELED');
 
-
-
- /* const cachedLastBuyOrder =
-     JSON.parse(await cache.hget(`${symbol}-last-buy-order`)) || {};
-   if (!_.isEmpty(cachedLastBuyOrder)) {
+  const cachedLastBuyOrder =
+    JSON.parse(await cache.hget(`${symbol}-last-buy-order`)) || {};
+  if (!_.isEmpty(cachedLastBuyOrder)) {
     await cache.hdel(`${symbol}-last-buy-order`);
-   }
-*/
+  }
+
   const cachedLastSellOrder =
     JSON.parse(await cache.get(`${symbol}-last-sell-order`)) || {};
   if (!_.isEmpty(cachedLastSellOrder)) {

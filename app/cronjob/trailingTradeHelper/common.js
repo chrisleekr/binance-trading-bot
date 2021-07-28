@@ -137,19 +137,21 @@ const extendBalancesWithDustTransfer = async (_logger, rawAccountInfo) => {
  */
 let lastVerifiedTime = '';
 const getAccountInfoFromAPI = async (logger, now = false) => {
-
   let accountInfo;
   if (now === false) {
-    accountInfo = JSON.parse(
-      await cache.hgetWithoutLock('trailing-trade-common', 'account-info')
-    ) || {};
+    accountInfo =
+      JSON.parse(
+        await cache.hgetWithoutLock('trailing-trade-common', 'account-info')
+      ) || {};
   }
 
   const difference = (new Date() - lastVerifiedTime) / 1000;
 
   if (difference > 5.5 || lastVerifiedTime === '' || now === true) {
-
-    logger.info({ tag: 'get-account-info' }, 'Retrieving account info from API');
+    logger.info(
+      { tag: 'get-account-info' },
+      'Retrieving account info from API'
+    );
     accountInfo = await binance.client.accountInfo();
 
     accountInfo.balances = accountInfo.balances.reduce((acc, b) => {
@@ -212,8 +214,8 @@ let lastGetOrderTime = '';
  * @param {*} logger
  */
 const getOpenOrdersFromAPI = async logger => {
-  var now = new Date();
-  var difference = (now - lastGetOrderTime) / 1000;
+  const now = new Date();
+  const difference = (now - lastGetOrderTime) / 1000;
   if (difference > 3 || lastGetOrderTime === '') {
     logger.info(
       { debug: true, function: 'openOrders' },
@@ -234,19 +236,21 @@ const getOpenOrdersFromAPI = async logger => {
  * @param {*} logger
  * @param {*} symbol
  */
-lastVerify = '';
+let lastVerify = '';
 const getOpenOrdersBySymbolFromAPI = async (logger, symbol) => {
   const difference = (new Date() - lastVerify) / 1000;
   let openOrders = {};
-  if (difference > 2.5 || lastVerify === '') {
+  if (difference > 1.25 || lastVerify === '') {
     logger.info(
       { debug: true, function: 'openOrders' },
       'Retrieving open orders by symbol from API'
     );
+    lastVerify = new Date();
     openOrders = await binance.client.openOrders({
       symbol,
       recvWindow: 10000
     });
+    lastVerify = new Date();
     logger.info({ openOrders }, 'Retrieved open orders by symbol from API');
     await cache.hset(
       'trailing-trade-orders',
@@ -304,7 +308,11 @@ const getLastBuyPrice = async (logger, symbol) =>
  * @param {*} symbol
  * @param {*} param2
  */
-const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity, lastBoughtPrice = 0 }) => {
+const saveLastBuyPrice = async (
+  logger,
+  symbol,
+  { lastBuyPrice, quantity, lastBoughtPrice = 0 }
+) => {
   logger.info(
     { tag: 'save-last-buy-price', symbol, lastBuyPrice, quantity },
     'Save last buy price'

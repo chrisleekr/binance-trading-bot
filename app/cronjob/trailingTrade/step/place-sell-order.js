@@ -1,8 +1,8 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, cache, mongo, messenger } = require('../../../helpers');
-const { roundDown } = require('../../trailingTradeHelper/util');
 const config = require('config');
+const { binance, cache, messenger } = require('../../../helpers');
+const { roundDown } = require('../../trailingTradeHelper/util');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
@@ -27,12 +27,23 @@ const execute = async (logger, rawData) => {
       filterMinNotional: { minNotional }
     },
     symbolConfiguration: {
-      sell: { enabled: tradingEnabled, stopPercentage, limitPercentage, triggerPercentage, stakeCoinEnabled },
-      strategyOptions: { huskyOptions: { sellSignal } }
+      sell: {
+        enabled: tradingEnabled,
+        stopPercentage,
+        limitPercentage,
+        triggerPercentage,
+        stakeCoinEnabled
+      },
+      strategyOptions: {
+        huskyOptions: { sellSignal }
+      }
     },
     action,
     sell: { currentPrice, openOrders, lastQtyBought, lastBuyPrice },
-    buy: { trend: { signedTrendDiff } }
+    buy: {
+      trend: { signedTrendDiff }
+    },
+    baseAssetBalance: { free: freeAssetBalance }
   } = data;
 
   if (isLocked) {
@@ -49,10 +60,14 @@ const execute = async (logger, rawData) => {
   }
 
   const language = config.get('language');
-  const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
+  const {
+    coin_wrapper: { _actions }
+  } = require(`../../../../public/${language}.json`);
 
   if (openOrders.length > 0) {
-    data.sell.processMessage = action.action_open_orders[1] + symbol + '.' + _actions.action_open_orders[2];
+    data.sell.processMessage = `${action.action_open_orders[1] + symbol}.${
+      _actions.action_open_orders[2]
+    }`;
     data.sell.updatedAt = moment().utc();
 
     return data;
@@ -65,8 +80,14 @@ const execute = async (logger, rawData) => {
   const stopPrice = roundDown(currentPrice * stopPercentage, pricePrecision);
   const limitPrice = roundDown(currentPrice * limitPercentage, pricePrecision);
 
-  const freeBalance = parseFloat(_.floor(lastQtyBought, lotPrecision));
-  logger.info({ freeBalance }, 'Free balance');
+  let freeBalance;
+  if (stakeCoinEnabled) {
+    freeBalance = parseFloat(_.floor(lastQtyBought, lotPrecision));
+    logger.info({ freeBalance }, 'Free balance');
+  } else {
+    freeBalance = parseFloat(_.floor(freeAssetBalance, lotPrecision));
+    logger.info({ freeBalance }, 'Free balance');
+  }
 
   let orderQuantity = parseFloat(
     _.floor(freeBalance - freeBalance * (0.1 / 100), lotPrecision)
@@ -74,7 +95,8 @@ const execute = async (logger, rawData) => {
 
   if (orderQuantity <= parseFloat(minQty)) {
     data.sell.processMessage =
-      _actions.action_order_minimum_qty[1] + minQty +
+      _actions.action_order_minimum_qty[1] +
+      minQty +
       _actions.action_order_minimum_qty[2];
     data.sell.updatedAt = moment().utc();
 
@@ -92,7 +114,10 @@ const execute = async (logger, rawData) => {
   }
 
   if (tradingEnabled !== true) {
-    data.buy.processMessage = _actions.action_trading_for_disabled[1] + symbol + _actions.action_trading_for_disabled[2];
+    data.buy.processMessage =
+      _actions.action_trading_for_disabled[1] +
+      symbol +
+      _actions.action_trading_for_disabled[2];
     data.sell.updatedAt = moment().utc();
 
     return data;
@@ -105,10 +130,9 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-
   if (sellSignal) {
-    if (signedTrendDiff == 1) {
-      data.buy.processMessage = "Trend is going up, cancelling order";
+    if (signedTrendDiff === 1) {
+      data.buy.processMessage = 'Trend is going up, cancelling order';
       data.buy.updatedAt = moment().utc();
 
       return data;
@@ -116,15 +140,16 @@ const execute = async (logger, rawData) => {
   }
 
   if (stakeCoinEnabled) {
-    const reduceSellTrigger = (triggerPercentage * 100) - 100;
-    const amountOfProfitToReduceToStake = (orderQuantity / 100) * reduceSellTrigger
+    const reduceSellTrigger = triggerPercentage * 100 - 100;
+    const amountOfProfitToReduceToStake =
+      (orderQuantity / 100) * reduceSellTrigger;
     const calculatedOrderQuantity = parseFloat(
-      _.floor((orderQuantity - amountOfProfitToReduceToStake), lotPrecision)
+      _.floor(orderQuantity - amountOfProfitToReduceToStake, lotPrecision)
     );
 
-    if ((calculatedOrderQuantity * currentPrice) > parseFloat(minNotional)) {
+    if (calculatedOrderQuantity * currentPrice > parseFloat(minNotional)) {
       orderQuantity = calculatedOrderQuantity;
-    };
+    }
   }
 
   const orderParams = {
@@ -137,9 +162,7 @@ const execute = async (logger, rawData) => {
     timeInForce: 'GTC'
   };
 
-  messenger.sendMessage(
-    symbol, orderParams, 'PLACE_SELL'
-  );
+  messenger.sendMessage(symbol, orderParams, 'PLACE_SELL');
 
   logger.info(
     { debug: true, function: 'order', orderParams },
@@ -149,8 +172,10 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Order result');
 
-  orderResult.finalProfit = (currentPrice * lastQtyBought) - (lastBuyPrice * lastQtyBought);
-  orderResult.finalProfitPercent = (orderResult.finalProfit / (lastBuyPrice * lastQtyBought)) * 100;
+  orderResult.finalProfit =
+    currentPrice * lastQtyBought - lastBuyPrice * lastQtyBought;
+  orderResult.finalProfitPercent =
+    (orderResult.finalProfit / (lastBuyPrice * lastQtyBought)) * 100;
 
   await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult));
 
@@ -163,9 +188,7 @@ const execute = async (logger, rawData) => {
   // Refresh account info
   data.accountInfo = await getAccountInfoFromAPI(logger, true);
 
-  messenger.sendMessage(
-    symbol, orderResult, 'PLACE_SELL_DONE'
-  );
+  messenger.sendMessage(symbol, orderResult, 'PLACE_SELL_DONE');
   data.buy.processMessage = _actions.action_placed_new_sell_order;
   data.sell.updatedAt = moment().utc();
 

@@ -328,5 +328,62 @@
     "_action": "Action",
     "_strength": "Force",
     "_trending": "Tendance"
+  },
+  "sort_icon" : {
+    "_default" : "Default",
+    "_name" : "Name (Alphabetically)",
+    "_buy" : "Acheter la différence",
+    "_sell" : "Vendre la différence",
+    "_profit" : "Profit"
+  },
+  "send_message" : {
+    "no_candle" : {
+      "1" : "Je n'ai pas pu recevoir de nouvelle bougie de Binance Websocket depuis ",
+      "2" : "Veuillez réinitialiser ma connexion Websocket."
+    },
+    "place_buy" : {
+      "1" : "*Placer* un ordre d'achat.",
+      "2" : "Pièce",
+      "3" : "Quantité :",
+      "4" : "Au prix :"
+    },
+    "place_buy_done" : {
+      "1" : "Ordre d'achat passé *successivement*.",
+      "2" : "Pièce"
+    },
+    "place_sell" : {
+      "1" : "*Placing* sell order.",
+      "2" : "Coin",
+      "3" : "Quantité :",
+      "4" : "Au prix :"
+    },
+    "place_sell_done" : {
+      "1" : "Ordre de vente placé *successfully*.",
+      "2" : "Pièce"
+    },
+    "check_buy" : "*Vérification* de l'achat de ",
+    "check_sell" : "*Checking* vente de ",
+    "buy_confirmed" : {
+      "1" : "Ordre d'achat confirmé *successivement*.",
+      "2" : "Pièce"
+    },
+    "sell_confirmed" : {
+      "1" : "Ordre de vente confirmé *successivement*.",
+      "2" : "Pièce"
+    },
+    "cancel_buy" : {
+      "1" : "Ordre d'achat de ",
+      "2" : " *a été annulé*."
+    },
+    "cancel_sell" : {
+      "1" : "Ordre de vente de ",
+      "2" : " *a été annulé*."
+    },
+    "sell_stop_loss" : {
+      "1" : "A vendu *tout* de ",
+      "2" : " à cause du stop-loss."
+    },
+    "remove_last_buy_from" : "Suppression du dernier prix d'achat de ",
+    "default_warning" : "Sorry. Je n'ai pas été en mesure de déterminer l'action. Il y a un problème."
   }
 }

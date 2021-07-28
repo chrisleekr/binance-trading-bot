@@ -1,4 +1,3 @@
-
 const { PubSub } = require('../../../helpers');
 const {
   resetToFactorySettings,
@@ -28,7 +27,6 @@ const handleResetFactorySettings = async (logger, ws, payload) => {
   });
 
   ws.send(JSON.stringify({ result: true, type: 'reset-successful' }));
-
 };
 
 module.exports = { handleResetFactorySettings };

@@ -1,6 +1,6 @@
 const moment = require('moment');
-const { messenger } = require('../../../helpers');
 const _ = require('lodash');
+const { messenger } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 
 /**
@@ -32,19 +32,18 @@ const flattenCandlesData = candles => {
 };
 
 const huskyTrend = candles => {
+  const candleLows = candles.close;
 
-  const candleLows = candles.close
-
-  var newCandle = 1;
-  var diff = 0;
-  var status = "not enough data";
+  let newCandle = 1;
+  let diff = 0;
+  let status = 'not enough data';
   const positiveMultiplier = 1;
   const negativeMultiplier = -1.015;
 
   candleLows.forEach(candle => {
-    var newCandleToTest = candleLows[newCandle];
+    const newCandleToTest = candleLows[newCandle];
     if (newCandleToTest != undefined) {
-      var calc = 0;
+      let calc = 0;
       if (candle <= newCandleToTest) {
         calc = (newCandleToTest - candle) * positiveMultiplier;
       } else {
@@ -58,25 +57,23 @@ const huskyTrend = candles => {
 
   switch (Math.sign(diff)) {
     case -1:
-      status = "FALLING";
+      status = 'FALLING';
       break;
     case 0:
-      status = "TREND IS TURNING";
+      status = 'TREND IS TURNING';
       break;
     case 1:
-      status = "UP";
+      status = 'UP';
       break;
   }
 
   const difference = diff.toFixed(6);
 
   return { status, difference };
-}
-
-
-const canBuy = (currentBuyTrigger, currentPrice, lastBuyPrice) => {
-  return lastBuyPrice <= 0 && currentPrice <= currentBuyTrigger;
 };
+
+const canBuy = (currentBuyTrigger, currentPrice, lastBuyPrice) =>
+  lastBuyPrice <= 0 && currentPrice <= currentBuyTrigger;
 
 /**
  * Check whether has enough balance to sell
@@ -94,8 +91,6 @@ const hasBalanceToSell = (data, currentPrice, quantity) => {
   return quantity * currentPrice >= parseFloat(minNotional);
 };
 
-
-
 /**
  * Check whether can sell or not
  *
@@ -109,10 +104,7 @@ const canSell = (data, currentPrice, lastBuyPrice, quantity) => {
     }
   } = data;
 
-  return (
-    lastBuyPrice != 0 &&
-    quantity * currentPrice > parseFloat(minNotional)
-  );
+  return lastBuyPrice != 0 && quantity * currentPrice > parseFloat(minNotional);
 };
 
 /**
@@ -121,21 +113,21 @@ const canSell = (data, currentPrice, lastBuyPrice, quantity) => {
  * @param {*} data
  * @returns
  */
-const isHigherThanSellTriggerPrice = (currentSellTrigger, currentPrice) => {
-  return currentPrice >= currentSellTrigger;
-};
+const isHigherThanSellTriggerPrice = (currentSellTrigger, currentPrice) =>
+  currentPrice >= currentSellTrigger;
 
 const isHigherThanHardSellTriggerPrice = (data, currentPrice) => {
   const {
-    sell: { triggerPrice: sellTriggerPrice, hardSellTriggerPrice: hardSellTriggerPrice }
+    sell: { triggerPrice: sellTriggerPrice, hardSellTriggerPrice }
   } = data;
 
   return currentPrice >= sellTriggerPrice * 1.0045;
 };
 
-const isHigherThanSellTriggerPriceAndTrendIsDown = (currentSellTrigger, currentPrice) => {
-  return currentPrice >= currentSellTrigger;
-};
+const isHigherThanSellTriggerPriceAndTrendIsDown = (
+  currentSellTrigger,
+  currentPrice
+) => currentPrice >= currentSellTrigger;
 
 /**
  * Check whether current price is lower or equal than stop loss trigger price
@@ -154,9 +146,7 @@ const isLowerThanStopLossTriggerPrice = (data, currentPrice, lastBuyPrice) => {
 
   const calculatedTriggerPrice = lastBuyPrice * maxLossPercentage;
 
-  return (
-    sellStopLossEnabled === true && currentPrice <= calculatedTriggerPrice
-  );
+  return sellStopLossEnabled === true && currentPrice <= calculatedTriggerPrice;
 };
 
 /**
@@ -165,26 +155,40 @@ const isLowerThanStopLossTriggerPrice = (data, currentPrice, lastBuyPrice) => {
  * @param {*} logger
  * @param {*} rawData
  */
-const executeBackTest = async (rawData, lastDaysCandles, backtestBalance, symbolInfo, configuration) => {
+const executeBackTest = async (
+  rawData,
+  lastDaysCandles,
+  backtestBalance,
+  symbolInfo,
+  configuration
+) => {
   const data = rawData;
   const { symbol } = data;
-  const { filterPrice: { tickSize }, filterLotSize: { stepSize } } = symbolInfo;
-  const { candles: { limit }, buy: { maxPurchaseAmount, limitPercentage, triggerPercentage }, sell: { triggerPercentage: sellTriggerPercentage } } = configuration;
+  const {
+    filterPrice: { tickSize },
+    filterLotSize: { stepSize }
+  } = symbolInfo;
+  const {
+    candles: { limit },
+    buy: { maxPurchaseAmount, limitPercentage, triggerPercentage },
+    sell: { triggerPercentage: sellTriggerPercentage }
+  } = configuration;
 
   const lotPrecision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
-  const pricePrecision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
+  const pricePrecision =
+    parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
-  var i = 0;
+  let i = 0;
 
   const finalBacktestBalance = backtestBalance;
 
-  var lastCurrentPrice = 0;
+  let lastCurrentPrice = 0;
 
   const backTestResult = {
     profit: 0,
     buys: 0,
     sells: 0,
-    symbol: symbol,
+    symbol,
     quantity: 0,
     lastBuyPrice: 0,
     remainingMoney: finalBacktestBalance
@@ -192,11 +196,8 @@ const executeBackTest = async (rawData, lastDaysCandles, backtestBalance, symbol
 
   const candlesToTest = lastDaysCandles;
 
-
   await candlesToTest.forEach(candle => {
-
     if (i >= limit) {
-
       const trendCandles = [];
       let beforeDontCount = 0;
       lastDaysCandles.forEach(candleTrend => {
@@ -217,26 +218,31 @@ const executeBackTest = async (rawData, lastDaysCandles, backtestBalance, symbol
 
       if (backTestResult.lastBuyPrice != 0) {
         retrievedLastBuyPrice = backTestResult.lastBuyPrice;
-      };
+      }
 
       const currentSellTrigger = retrievedLastBuyPrice * sellTriggerPercentage;
 
-      const currentBuyTrigger = lowestPrice * triggerPercentage
+      const currentBuyTrigger = lowestPrice * triggerPercentage;
 
-      const limitPrice = roundDown(currentPrice * limitPercentage, pricePrecision);
+      const limitPrice = roundDown(
+        currentPrice * limitPercentage,
+        pricePrecision
+      );
 
-      let freeBalance = parseFloat(_.floor(finalBacktestBalance, pricePrecision));
+      let freeBalance = parseFloat(
+        _.floor(finalBacktestBalance, pricePrecision)
+      );
 
       if (freeBalance > maxPurchaseAmount) {
         freeBalance = maxPurchaseAmount;
-      };
+      }
 
       const orderQuantityBeforeCommission = 1 / (limitPrice / freeBalance);
 
       const orderQuantity = parseFloat(
         _.floor(
           orderQuantityBeforeCommission -
-          orderQuantityBeforeCommission * (0.1 / 100),
+            orderQuantityBeforeCommission * (0.1 / 100),
           lotPrecision
         )
       );
@@ -244,7 +250,7 @@ const executeBackTest = async (rawData, lastDaysCandles, backtestBalance, symbol
       let hasBalanceToSellcalc = 0;
       if (backTestResult.quantity != 0) {
         hasBalanceToSellcalc = backTestResult.quantity;
-      };
+      }
 
       // Check buy signal -
       //  if last buy price is less than 0
@@ -253,9 +259,7 @@ const executeBackTest = async (rawData, lastDaysCandles, backtestBalance, symbol
       //  then buy.
 
       if (canBuy(currentBuyTrigger, currentPrice, retrievedLastBuyPrice)) {
-
         if (!hasBalanceToSell(data, currentPrice, hasBalanceToSellcalc)) {
-
           const calcProfit = parseFloat(orderQuantity * currentPrice) * -1;
 
           backTestResult.profit += calcProfit;
@@ -263,37 +267,42 @@ const executeBackTest = async (rawData, lastDaysCandles, backtestBalance, symbol
           backTestResult.quantity = orderQuantity;
           backTestResult.lastBuyPrice = currentPrice;
           backTestResult.remainingMoney += calcProfit;
-
         }
       }
 
       // Check sell signal - if
       //  last buy price has a value
       //  and total balance is enough to sell
-      if (canSell(data, currentPrice, retrievedLastBuyPrice, hasBalanceToSellcalc)) {
-        //And its above the HARD sell trigger.
+      if (
+        canSell(data, currentPrice, retrievedLastBuyPrice, hasBalanceToSellcalc)
+      ) {
+        // And its above the HARD sell trigger.
         if (isHigherThanHardSellTriggerPrice(data, currentPrice)) {
           // Then sell market order
           const calcProfit = parseFloat(hasBalanceToSellcalc * currentPrice);
 
-
           backTestResult.profit += calcProfit;
           backTestResult.sells++;
           backTestResult.quantity = 0;
           backTestResult.lastBuyPrice = 0;
           backTestResult.remainingMoney += calcProfit;
-
-
-        } else if (isHigherThanSellTriggerPrice(currentSellTrigger, currentPrice)) {
+        } else if (
+          isHigherThanSellTriggerPrice(currentSellTrigger, currentPrice)
+        ) {
           const calcProfit = parseFloat(hasBalanceToSellcalc * currentPrice);
 
-
           backTestResult.profit += calcProfit;
           backTestResult.sells++;
           backTestResult.quantity = 0;
           backTestResult.lastBuyPrice = 0;
           backTestResult.remainingMoney += calcProfit;
-        } else if (isLowerThanStopLossTriggerPrice(data, currentPrice, retrievedLastBuyPrice)) {
+        } else if (
+          isLowerThanStopLossTriggerPrice(
+            data,
+            currentPrice,
+            retrievedLastBuyPrice
+          )
+        ) {
           // Then sell market order
 
           const calcProfit = parseFloat(hasBalanceToSellcalc * currentPrice);
@@ -303,17 +312,17 @@ const executeBackTest = async (rawData, lastDaysCandles, backtestBalance, symbol
           backTestResult.quantity = 0;
           backTestResult.lastBuyPrice = 0;
           backTestResult.remainingMoney += calcProfit;
-
         }
       }
       lastCurrentPrice = currentPrice;
-    };
+    }
     i++;
   });
 
   if (backTestResult.buys > backTestResult.sells) {
-    backTestResult.profit += (backTestResult.quantity * lastCurrentPrice);
-    backTestResult.remainingBoughtAsset = backTestResult.quantity * lastCurrentPrice
+    backTestResult.profit += backTestResult.quantity * lastCurrentPrice;
+    backTestResult.remainingBoughtAsset =
+      backTestResult.quantity * lastCurrentPrice;
   }
   return backTestResult;
 };

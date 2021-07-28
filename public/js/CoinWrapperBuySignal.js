@@ -16,11 +16,18 @@ class CoinWrapperBuySignal extends React.Component {
 
     const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
     let predictionHigherThan = 0;
-    if (buy.prediction.predictedValue !== null) {
+    if (
+      buy.prediction !== undefined &&
+      buy.prediction.predictedValue !== null
+    ) {
       predictionHigherThan = (
         100 -
         (parseFloat(buy.currentPrice) /
-          parseFloat(buy.prediction.predictedValue)) *
+          parseFloat(
+            buy.prediction.predictedValue[
+              buy.prediction.predictedValue.length - 1
+            ]
+          )) *
           100
       ).toFixed(2);
     }
@@ -67,19 +74,27 @@ class CoinWrapperBuySignal extends React.Component {
           ''
         )}
 
-        {symbolConfiguration.buy.predictValue === true ? (
+        {symbolConfiguration.buy.predictValue === true &&
+        buy.prediction !== undefined ? (
           <div className='coin-info-column coin-info-column-right coin-info-column-balance'>
             <span className='coin-info-label'>
               Predict next {buy.prediction.interval}:
             </span>
             <HightlightChange className='coin-info-value coin-predict'>
-              {parseFloat(buy.prediction.predictedValue).toFixed(precision)}
+              {parseFloat(
+                buy.prediction.predictedValue[
+                  buy.prediction.predictedValue.length - 1
+                ]
+              ).toFixed(precision)}
             </HightlightChange>
             <HightlightChange className='coin-info-value coin-predict'>
               (
               {Math.sign(
-                parseFloat(buy.prediction.predictedValue).toFixed(precision) -
-                  buy.currentPrice
+                parseFloat(
+                  buy.prediction.predictedValue[
+                    buy.prediction.predictedValue.length - 1
+                  ]
+                ).toFixed(precision) - buy.currentPrice
               ) === 1
                 ? 'above)'
                 : 'below)'}
@@ -89,7 +104,8 @@ class CoinWrapperBuySignal extends React.Component {
           ''
         )}
 
-        {symbolConfiguration.buy.predictValue === true ? (
+        {symbolConfiguration.buy.predictValue === true &&
+        buy.prediction !== undefined ? (
           <div className='coin-info-column coin-info-column-right coin-info-column-balance'>
             <span className='coin-info-label'>Prediction error:</span>
             <HightlightChange className='coin-info-value coin-predict'>

@@ -115,7 +115,9 @@ const loopToCheckLastReceivedAt = async logger => {
 
     if (config.get('featureToggle.notifyDebug')) {
       messenger.sendMessage(
-        lastReceivedAt.fromNow(), null, 'NO_CANDLE_RECEIVED'
+        lastReceivedAt.fromNow(),
+        null,
+        'NO_CANDLE_RECEIVED'
       );
     }
 

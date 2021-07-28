@@ -38,15 +38,13 @@ const start = async () => {
   });
   // training datasets
   // In our training datasets, we take room numbers and corresponding price to rent
-  const xs = tf.tensor2d([diffWeight],[diffWeight2]);
-  const ys = tf.tensor2d([candlesp],[candlesp2]);
+  const xs = tf.tensor2d([diffWeight], [diffWeight2]);
+  const ys = tf.tensor2d([candlesp], [candlesp2]);
   // Train model with fit().method
   await model.fit(xs, ys, { epochs: 1000, batchSize: 8 });
   // Run inference with predict() method.
 
-  const prediction = _.mean(
-    await model.predict(tf.tensor1d([2])).dataSync()
-  );
+  const prediction = _.mean(await model.predict(tf.tensor1d([2])).dataSync());
   console.log(candlesp);
   console.log(diffWeight);
   console.log(prediction);

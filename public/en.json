@@ -335,5 +335,55 @@
     "_buy": "Buy difference",
     "_sell": "Sell difference",
     "_profit": "Profit"
+  },
+  "send_message": {
+    "no_candle": {
+      "1": "I couldn't receive new candle from Binance Websocket since ",
+      "2": "Please, reset my Websocket connection."
+    },
+    "place_buy": {
+      "1": "*Placing* buy order.",
+      "2": "Coin",
+      "3": "Quantity:",
+      "4": "At price:"
+    },
+    "place_buy_done": {
+      "1": "Buy order placed *successfully*.",
+      "2": "Coin"
+    },
+    "place_sell": {
+      "1": "*Placing* sell order.",
+      "2": "Coin",
+      "3": "Quantity:",
+      "4": "At price:"
+    },
+    "place_sell_done": {
+      "1": "Sell order placed *successfully*.",
+      "2": "Coin"
+    },
+    "check_buy": "*Checking* buy of ",
+    "check_sell": "*Checking* sell of ",
+    "buy_confirmed": {
+      "1": "Buy order confirmed *successfully*.",
+      "2": "Coin"
+    },
+    "sell_confirmed": {
+      "1": "Sell order confirmed *successfully*.",
+      "2": "Coin"
+    },
+    "cancel_buy": {
+      "1": "Buy order of ",
+      "2": " *was canceled*."
+    },
+    "cancel_sell": {
+      "1": "Sell order of ",
+      "2": " *was canceled*."
+    },
+    "sell_stop_loss": {
+      "1": "Sold *all* of ",
+      "2": " because of stop-loss."
+    },
+    "remove_last_buy_from": "Removing last buy price from ",
+    "default_warning": "Sorry. I was unable to determine the action. Something is wrong."
   }
 }

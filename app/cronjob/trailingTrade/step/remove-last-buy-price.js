@@ -1,9 +1,7 @@
 const _ = require('lodash');
 const moment = require('moment');
 const { mongo, cache, messenger } = require('../../../helpers');
-const {
-  isActionDisabled
-} = require('../../trailingTradeHelper/common');
+const { isActionDisabled } = require('../../trailingTradeHelper/common');
 /**
  * Retrieve last buy order from cache
  *
@@ -38,10 +36,7 @@ const getLastSellOrder = async (logger, symbol) => {
  * @param {*} processMessage
  * @param {*} extraMessages
  */
-const removeLastBuyPrice = async (
-  logger,
-  symbol
-) => {
+const removeLastBuyPrice = async (logger, symbol) => {
   await mongo.deleteOne(logger, 'trailing-trade-symbols', {
     key: `${symbol}-last-buy-price`
   });
@@ -67,7 +62,7 @@ const execute = async (logger, rawData) => {
       buy: { lastBuyPriceRemoveThreshold }
     },
     symbolInfo: {
-      filterLotSize: { stepSize, minQty },
+      filterLotSize: { stepSize },
       filterMinNotional: { minNotional }
     },
     openOrders,
@@ -122,22 +117,22 @@ const execute = async (logger, rawData) => {
   const lotPrecision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
 
   let totalBaseAssetBalance;
-  if (lastQtyBought == 0 || lastQtyBought == null) {
+  if (lastQtyBought === 0 || lastQtyBought == null) {
     totalBaseAssetBalance =
-      (parseFloat(baseAssetFreeBalance) + parseFloat(baseAssetLockedBalance));
+      parseFloat(baseAssetFreeBalance) + parseFloat(baseAssetLockedBalance);
   } else {
     totalBaseAssetBalance =
-      (parseFloat(lastQtyBought) + parseFloat(baseAssetLockedBalance));
+      parseFloat(lastQtyBought) + parseFloat(baseAssetLockedBalance);
   }
 
   const baseAssetQuantity = parseFloat(
     _.floor(
-      ((totalBaseAssetBalance - totalBaseAssetBalance) * (0.1 / 100)),
+      (totalBaseAssetBalance - totalBaseAssetBalance) * (0.1 / 100),
       lotPrecision
     )
   );
 
-  //One more verify
+  // One more verify
   const lastBuyOrder = await getLastBuyOrder(logger, symbol);
   if (_.isEmpty(lastBuyOrder) === false) {
     logger.info(
@@ -156,8 +151,8 @@ const execute = async (logger, rawData) => {
 
   let processMessage = '';
 
-  let refreshedOpenOrders = [];
-  /*   if (baseAssetQuantity <= parseFloat(minQty)) {
+  /* const refreshedOpenOrders = [];
+     if (baseAssetQuantity <= parseFloat(minQty)) {
       // Final check for open orders
       refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
       if (refreshedOpenOrders.length > 0) {
@@ -191,8 +186,9 @@ const execute = async (logger, rawData) => {
       return data;
     }
   */
-  if ((baseAssetQuantity * currentPrice) < parseFloat(minNotional)) {
-    messenger.errorMessage("Removed last buy price by min notional. " + symbol)
+
+  if (baseAssetQuantity * currentPrice < parseFloat(minNotional)) {
+    messenger.errorMessage(`Removed last buy price by min notional. ${symbol}`);
 
     processMessage =
       'Balance is less than the notional value. Delete last buy price.';
@@ -209,14 +205,12 @@ const execute = async (logger, rawData) => {
       minNotional,
       openOrders
     });
-
 
     return data;
   }
 
-  if ((baseAssetQuantity * currentPrice) < lastBuyPriceRemoveThreshold) {
-
-    messenger.errorMessage("Removed last buy price by last threshold.")
+  if (baseAssetQuantity * currentPrice < lastBuyPriceRemoveThreshold) {
+    messenger.errorMessage('Removed last buy price by last threshold.');
 
     processMessage =
       'Balance is less than the notional value. Delete last buy price.';
@@ -233,7 +227,6 @@ const execute = async (logger, rawData) => {
       minNotional,
       openOrders
     });
-
 
     return data;
   }

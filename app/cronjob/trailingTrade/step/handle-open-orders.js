@@ -1,5 +1,4 @@
 /* eslint-disable no-await-in-loop */
-const moment = require('moment');
 const _ = require('lodash');
 
 const { messenger, binance, cache } = require('../../../helpers');
@@ -40,7 +39,6 @@ const cancelOrder = async (logger, symbol, order) => {
       await cache.del(`${symbol}-last-sell-order`);
     }
 
-
     logger.info({ apiResult }, 'Cancelled open orders');
     result = true;
   } catch (e) {
@@ -71,9 +69,10 @@ const execute = async (logger, rawData) => {
     openOrders,
     buy: {
       limitPrice: buyLimitPrice,
-      trend: { signedTrendDiff }
+      trend: { signedTrendDiff },
+      updatedAt: buyUpdatedAt
     },
-    sell: { limitPrice: sellLimitPrice },
+    sell: { limitPrice: sellLimitPrice, updatedAt: sellUpdatedAt },
     symbolConfiguration: {
       strategyOptions: {
         huskyOptions: { buySignal, sellSignal }
@@ -106,7 +105,7 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'buy') {
       let isHuskySignalActivated = false;
       if (buySignal) {
-        isHuskySignalActivated = signedTrendDiff == -1;
+        isHuskySignalActivated = signedTrendDiff === -1;
       }
       if (
         parseFloat(order.stopPrice) >= buyLimitPrice ||
@@ -141,12 +140,11 @@ const execute = async (logger, rawData) => {
           if (_.get(featureToggle, 'notifyDebug', false) === true) {
             messenger.sendMessage(symbol, order, 'CANCEL_BUY_FAILED');
           }
-
         } else {
           // Reset buy open orders
           data.buy.openOrders = [];
 
-          messenger.errorMessage('Order removed. ' + symbol);
+          messenger.errorMessage(`Buy order removed. ${symbol}`);
 
           // Set action as buy
           data.action = 'buy';
@@ -159,8 +157,21 @@ const execute = async (logger, rawData) => {
           { stopPrice: order.stopPrice, buyLimitPrice },
           'Stop price is less than buy limit price, wait for buy order'
         );
-        // Set action as buy
-        data.action = 'buy-order-wait';
+
+        if ((buyUpdatedAt - order.updatedAt) / 1000 > 20) {
+          await cancelOrder(logger, symbol, order);
+          data.buy.openOrders = [];
+
+          messenger.errorMessage(`Order buy expired. ${symbol}`);
+
+          // Set action as buy
+          data.action = 'buy';
+
+          // Get account information again because the order is cancelled
+          data.accountInfo = await getAccountInfoFromAPI(logger, true);
+        } else {
+          data.action = 'buy-order-wait';
+        }
       }
     }
 
@@ -168,7 +179,7 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'sell') {
       let isHuskySellSignalActivated = false;
       if (sellSignal) {
-        isHuskySellSignalActivated = signedTrendDiff == 1;
+        isHuskySellSignalActivated = signedTrendDiff === 1;
       }
       if (
         parseFloat(order.stopPrice) <= sellLimitPrice ||
@@ -207,7 +218,7 @@ const execute = async (logger, rawData) => {
           // Reset sell open orders
           data.sell.openOrders = [];
 
-          messenger.errorMessage('Order sell removed. ' + symbol);
+          messenger.errorMessage(`Order sell removed. ${symbol}`);
 
           // Set action as sell
           data.action = 'sell';
@@ -220,7 +231,22 @@ const execute = async (logger, rawData) => {
           { stopPrice: order.stopPrice, sellLimitPrice },
           'Stop price is higher than sell limit price, wait for sell order'
         );
-        data.action = 'sell-order-wait';
+
+        if ((sellUpdatedAt - order.updatedAt) / 1000 > 20) {
+          await cancelOrder(logger, symbol, order);
+          // Reset sell open orders
+          data.sell.openOrders = [];
+
+          messenger.errorMessage(`Order sell expired. ${symbol}`);
+
+          // Set action as sell
+          data.action = 'sell';
+
+          // Get account information again because the order is cancelled
+          data.accountInfo = await getAccountInfoFromAPI(logger, true);
+        } else {
+          data.action = 'sell-order-wait';
+        }
       }
     }
     logger.info({ action: data.action }, 'Determined action');

@@ -54,11 +54,11 @@ const mainMenuKeyboard = Keyboard.make([
   [Key.callback('Active Orders', 'active-orders')],
   [Key.callback('Past Trades', 'past-trades')],
   [Key.callback('Reset Cache', 'reset-cache')],
-  [Key.callback('Tensor', 'tensor')]
+  [Key.callback('Bot Link', 'link')]
 ]).inline();
 
 const symbolActionKeyboard = Keyboard.make([
-  [Key.callback('Symbol Manual Trade', 'symbol-orders')],
+  [Key.callback('Symbol Manual Trade', 'symbol-trade')],
   [Key.callback('Symbol Actual Profit', 'symbol-actual-profit')],
   [Key.callback('Change Symbol Configuration', 'active-orders')],
   [Key.callback('Clear Symbol Cache', 'clear-symbol-cache')],
@@ -84,6 +84,70 @@ const manualTradeKeyboardOrderConfirm = Keyboard.make([
   [Key.callback('Back to main menu', 'back-menu-action')]
 ]).inline();
 
+const configurationKeyboard = Keyboard.make([
+  [Key.callback('Buy Settings', 'select-side-buy')],
+  [Key.callback('Sell Settings', 'select-side-sell')],
+  [Key.callback('Bot Settings', 'back-menu-action')],
+  [Key.callback('Grid Strategy Settings', 'select-side-buy')],
+  [Key.callback('Husky Settings', 'select-side-sell')],
+  [Key.callback('Stake Coins', 'select-side-buy')],
+  [Key.callback('ATH Settings', 'select-side-sell')],
+  [Key.callback('Prediction Settings', 'select-side-sell')],
+  [Key.callback('Back to main menu', 'back-menu-action')]
+]).inline();
+
+const buyConfigurationKeyboard = Keyboard.make([
+  [Key.callback('Buy Enabled', 'select-side-buy')],
+  [Key.callback('Min Amount', 'select-side-sell')],
+  [Key.callback('Max Amount', 'back-menu-action')],
+  [Key.callback('Last Buy Threshold', 'select-side-buy')],
+  [Key.callback('Stop Price', 'select-side-sell')],
+  [Key.callback('Limit Price', 'select-side-buy')],
+  [Key.callback('Trigger Price', 'select-side-sell')],
+  [Key.callback('Back to settings', 'select-side-sell')],
+  [Key.callback('Back to main menu', 'back-menu-action')]
+]).inline();
+
+const sellConfigurationKeyboard = Keyboard.make([
+  [Key.callback('Sell Enabled', 'select-side-buy')],
+  [Key.callback('Stop Price', 'select-side-sell')],
+  [Key.callback('Limit Price', 'select-side-buy')],
+  [Key.callback('Trigger Price', 'select-side-sell')],
+  [Key.callback('Stop-Loss Enabled', 'select-side-sell')],
+  [Key.callback('Stop-Loss Trigger', 'back-menu-action')],
+  [Key.callback('Stop-Loss Duration', 'select-side-buy')],
+  [Key.callback('Back to settings', 'select-side-sell')],
+  [Key.callback('Back to main menu', 'back-menu-action')]
+]).inline();
+
+const stakeConfigurationKeyboard = Keyboard.make([
+  [Key.callback('Stake Enabled', 'select-side-buy')],
+  [Key.callback('Back to settings', 'select-side-sell')],
+  [Key.callback('Back to main menu', 'back-menu-action')]
+]).inline();
+
+const botConfigurationKeyboard = Keyboard.make([
+  [Key.callback('Language', 'select-side-buy')],
+  [Key.callback('Slack', 'select-side-sell')],
+  [Key.callback('Telegram', 'select-side-buy')],
+  [Key.callback('Password Expiration', 'select-side-sell')],
+  [Key.callback('Calculate Fees', 'select-side-sell')],
+  [Key.callback('Stop-Loss Trigger', 'back-menu-action')],
+  [Key.callback('Back to settings', 'select-side-sell')],
+  [Key.callback('Back to main menu', 'back-menu-action')]
+]).inline();
+
+const bfotConfigurationKeyboard = Keyboard.make([
+  [Key.callback('Language', 'select-side-buy')],
+  [Key.callback('Slack', 'select-side-sell')],
+  [Key.callback('Telegram', 'select-side-buy')],
+  [Key.callback('Password Expiration', 'select-side-sell')],
+  [Key.callback('Calculate Fees', 'select-side-sell')],
+  [Key.callback('Stop-Loss Trigger', 'back-menu-action')],
+  [Key.callback('Back to settings', 'select-side-sell')],
+  [Key.callback('Back to main menu', 'back-menu-action')]
+]).inline();
+
 // Variables
 let symbolSelected = '';
 let orderTypeSelected = '';
@@ -99,6 +163,10 @@ const generateLimitKeyboard = async () => {
   // Update selected data
   symbolDataSelected = find(botTrailingTradeData, symbolSelected);
   //
+
+  notifyTelegram(symbolSelected);
+  notifyTelegram(JSON.stringify(symbolDataSelected));
+  notifyTelegram(JSON.stringify(botTrailingTradeData));
 
   const { currentPrice } = symbolDataSelected.sell;
   // Setup LIMIT keyboard
@@ -274,14 +342,14 @@ bot.on('text', async ctx => {
       if (orderSideSelected === 'buy') {
         ctx.reply(
           `Got it. Price: ${orderLimitSelected}\n` +
-            `Now, how much the amount to buy ?${await generateOrderPercentKeyboard()}`
+            `Now, how much the amount to buy ?`,
+          await generateOrderPercentKeyboard()
         );
       } else {
         ctx.reply(
           `Got it. Price: ${orderLimitSelected}\n` +
-            `Now, how much the amount to sell ?${await generateOrderPercentKeyboard(
-              true
-            )}`
+            `Now, how much the amount to sell ?`,
+          await generateOrderPercentKeyboard(true)
         );
       }
     }
@@ -392,6 +460,13 @@ bot.on('callback_query', async ctx => {
         break;
 
       case `symbol-manual-${symbolSelected}`:
+        ctx.reply(
+          `What type of order you'd like to open?`,
+          manualTradeKeyboardOrderType
+        );
+        break;
+
+      case `symbol-trade`:
         ctx.reply(
           `What type of order you'd like to open?`,
           manualTradeKeyboardOrderType
@@ -657,23 +732,23 @@ bot.on('callback_query', async ctx => {
         } = require('../cronjob/trailingTradeHelper/configuration');
         const { symbols: symbolsToDeleteFromCache } =
           botTrailingTradeIndicatorData.globalConfiguration;
+        symbolsToDeleteFromCache.forEach(async symbol => {
+          await cache.del(`${symbol}-last-prediction`);
+        });
         await deleteAllCache(symbolsToDeleteFromCache);
         ctx.reply('Done. Anything more?', mainMenuKeyboard);
         break;
       // END Reset bot cache
 
-      case 'tensor':
+      case 'link':
         try {
-          const b = require('./binance');
-          const candles = await b.client.candles({
-            symbol: 'BTCUSDT',
-            interval: '1m',
-            limit: 1000
-          });
-
-          const fc = [];
-          candles.forEach(candle => {
-            fc.push(candle.close);
+          // Get config for local tunnel url
+          const cachedLocalTunnelURL = await cache.hget(
+            'trailing-trade-common',
+            'local-tunnel-url'
+          );
+          ctx.reply(`Your current *link*: ${cachedLocalTunnelURL}`, {
+            parse_mode: 'MARKDOWN'
           });
         } catch (error) {
           bot.telegram.sendMessage(chatId, `Error: ${error}`);
@@ -685,7 +760,9 @@ bot.on('callback_query', async ctx => {
         break;
     }
   } catch (error) {
-    ctx.reply(`error${error}`);
+    ctx.reply(
+      `Wait. I could be updating the data. But here is the error: ${error}`
+    );
   }
 
   ctx.answerCbQuery(ctx.callbackQueryId);
@@ -693,8 +770,34 @@ bot.on('callback_query', async ctx => {
 
 bot.launch();
 
+let errorCount = 0;
+let errorWindowTime = '';
+const manageError = error => {
+  errorCount += 1;
+  const isMoreThanFive = (new Date() - new Date(errorWindowTime)) / 1000 > 300;
+  if (errorCount >= 5) {
+    if (isMoreThanFive === false) {
+      const convertToMin = (new Date() - new Date(errorWindowTime)) / 1000 / 60;
+      notifyTelegram(
+        `In the last ${convertToMin} minutes, I had received and stored ${errorCount} errors for not bother you, but..\n
+        I think you should take an action. The last one was:\n
+         ${error}`
+      );
+      errorCount = 0;
+    }
+  }
+
+  if (isMoreThanFive) {
+    errorWindowTime = '';
+    errorCount = 0;
+  }
+
+  errorWindowTime = new Date();
+};
+
 module.exports = {
   notifyTelegram,
   updateTelegramBotTrailingTradeIndicatorData,
-  updateTelegramBotTrailingTradeData
+  updateTelegramBotTrailingTradeData,
+  manageError
 };

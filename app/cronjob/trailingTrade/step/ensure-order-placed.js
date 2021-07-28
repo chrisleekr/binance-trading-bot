@@ -1,4 +1,3 @@
-const config = require('config');
 const moment = require('moment');
 const _ = require('lodash');
 
@@ -16,22 +15,6 @@ const {
   getLastBuyPrice,
   saveLastBuyPrice
 } = require('../../trailingTradeHelper/common');
-
-/**
- * Remove last buy order from cache
- *
- * @param {*} logger
- * @param {*} symbol
- */
-const removeLastBuyOrder = async (logger, symbol, orderResult = undefined) => {
-  try {
-    if (orderResult !== undefined) {
-      await calculateLastBuyPrice(logger, symbol, orderResult);
-    }
-    await cache.del(`${symbol}-last-buy-order`);
-    logger.info({ debug: true }, 'Deleted last buy order from cache');
-  } catch (error) {}
-};
 
 /**
  * Retrieve last buy price and recalculate new last buy price
@@ -96,6 +79,20 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
 };
 
 /**
+ * Remove last buy order from cache
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ */
+const removeLastBuyOrder = async (logger, symbol, orderResult = undefined) => {
+  if (orderResult !== undefined) {
+    await calculateLastBuyPrice(logger, symbol, orderResult);
+  }
+  await cache.del(`${symbol}-last-buy-order`);
+  logger.info({ debug: true }, 'Deleted last buy order from cache');
+};
+
+/**
  * Retrieve last buy order from cache
  *
  * @param {*} logger
@@ -124,7 +121,10 @@ const sanitizePastTrades = async pastTrades => {
       const newDate = pastTrades[i].date;
       const oldSymbol = trade.symbol;
       const newSymbol = pastTrades[i].symbol;
-      if ((new Date(newDate) - new Date(oldDate)) / 1000 < 3 && oldSymbol === newSymbol) {
+      if (
+        (new Date(newDate) - new Date(oldDate)) / 1000 < 3 &&
+        oldSymbol === newSymbol
+      ) {
         if (i > -1) {
           pastTrades.splice(i, 1);
         }
@@ -205,14 +205,9 @@ const getLastSellOrder = async (logger, symbol) => {
  * @param {*} symbol
  */
 const removeLastSellOrder = async (logger, symbol) => {
-  try {
-    await cache.del(`${symbol}-last-sell-order`);
-
-    logger.info({ debug: true }, 'Deleted last sell order from cache');
-    return true;
-  } catch (error) {
-    return false;
-  }
+  await cache.del(`${symbol}-last-sell-order`);
+  logger.info({ debug: true }, 'Deleted last sell order from cache');
+  return true;
 };
 
 /**
@@ -292,19 +287,6 @@ const execute = async (logger, rawData) => {
 
         // Get account info
         data.accountInfo = await getAccountInfoFromAPI(logger);
-
-        /*  // Lock symbol action 20 seconds to avoid API limit
-        await disableAction(
-          symbol,
-          {
-            disabledBy: 'buy order',
-            message: 'Disabled action after confirming the buy order.',
-            canResume: false,
-            canRemoveLastBuyPrice: false
-          },
-          1
-        );
-        */
       } else {
         const removeStatuses = [
           'CANCELED',
@@ -352,7 +334,7 @@ const execute = async (logger, rawData) => {
                 canResume: false,
                 canRemoveLastBuyPrice: false
               },
-              5
+              20
             );
 
             return setBuyActionAndMessage(
@@ -372,10 +354,6 @@ const execute = async (logger, rawData) => {
           { debug: true },
           'Order does not exist in the open orders. Wait until it appears.'
         );
-
-        if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-          messenger.sendMessage(symbol, lastBuyOrder, 'BUY_NOT_FOUND');
-        }
 
         return setBuyActionAndMessage(
           logger,
@@ -415,18 +393,6 @@ const execute = async (logger, rawData) => {
 
         // Get account info
         data.accountInfo = await getAccountInfoFromAPI(logger);
-
-        // Lock symbol action 20 seconds to avoid API limit
-        await disableAction(
-          symbol,
-          {
-            disabledBy: 'sell order',
-            message: 'Disabled action after confirming the sell order.',
-            canResume: false,
-            canRemoveLastBuyPrice: false
-          },
-          2
-        );
       } else {
         const removeStatuses = [
           'CANCELED',
@@ -472,18 +438,6 @@ const execute = async (logger, rawData) => {
             messenger.sendMessage(symbol, lastBuyOrder, 'SELL_CONFIRMED');
           }
 
-          // Lock symbol action 20 seconds to avoid API limit
-          await disableAction(
-            symbol,
-            {
-              disabledBy: 'sell order filled',
-              message: 'Disabled action after selling.',
-              canResume: false,
-              canRemoveLastBuyPrice: false
-            },
-            5
-          );
-
           return setSellActionAndMessage(
             logger,
             data,
@@ -500,10 +454,6 @@ const execute = async (logger, rawData) => {
           { debug: true },
           'Order does not exist in the open orders. Wait until it appears.'
         );
-
-        if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
-          messenger.sendMessage(symbol, lastBuyOrder, 'SELL_NOT_FOUND');
-        }
 
         return setSellActionAndMessage(
           logger,

@@ -1,6 +1,6 @@
 const moment = require('moment');
-const { binance, cache, PubSub, messenger } = require('../../../helpers');
 const config = require('config');
+const { binance, cache, PubSub, messenger } = require('../../../helpers');
 const {
   getAPILimit,
   getAndCacheOpenOrdersForSymbol,
@@ -15,7 +15,14 @@ const {
  * @param {*} orderParams
  * @returns
  */
-const formatOrderMarketTotal = async (logger, side, symbol, orderParams, precision, currentPrice) => {
+const formatOrderMarketTotal = async (
+  logger,
+  side,
+  symbol,
+  orderParams,
+  precision,
+  currentPrice
+) => {
   logger.info(
     { side, symbol, orderParams },
     'Formatting order for MARKET-TOTAL'
@@ -88,7 +95,14 @@ const formatOrder = async (logger, symbol, order, precision, currentPrice) => {
   }
 
   if (side === 'buy' && buy.type === 'market' && buy.marketType === 'total') {
-    return formatOrderMarketTotal(logger, side, symbol, buy, precision, currentPrice);
+    return formatOrderMarketTotal(
+      logger,
+      side,
+      symbol,
+      buy,
+      precision,
+      currentPrice
+    );
   }
 
   if (side === 'buy' && buy.type === 'market' && buy.marketType === 'amount') {
@@ -104,7 +118,14 @@ const formatOrder = async (logger, symbol, order, precision, currentPrice) => {
     sell.type === 'market' &&
     sell.marketType === 'total'
   ) {
-    return formatOrderMarketTotal(logger, side, symbol, sell, precision, currentPrice);
+    return formatOrderMarketTotal(
+      logger,
+      side,
+      symbol,
+      sell,
+      precision,
+      currentPrice
+    );
   }
 
   if (
@@ -127,13 +148,7 @@ const formatOrder = async (logger, symbol, order, precision, currentPrice) => {
  * @param {*} order
  * @param {*} params
  */
-const messageOrderParams = async (
-  logger,
-  symbol,
-  side,
-  order,
-  params
-) => {
+const messageOrderParams = async (logger, symbol, side, order, params) => {
   const { type: rawType, marketType } = order[side];
   let type = rawType.toUpperCase();
 
@@ -145,8 +160,8 @@ const messageOrderParams = async (
     `${symbol} Manual ${side.toUpperCase()} Action (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +
-    `- Order Params: \`\`\`${JSON.stringify(params, undefined, 2)}\`\`\`\n` +
-    `- Current API Usage: ${getAPILimit(logger)}`
+      `- Order Params: \`\`\`${JSON.stringify(params, undefined, 2)}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
   );
 };
 
@@ -177,19 +192,23 @@ const messageOrderResult = async (
   PubSub.publish('frontend-notification', {
     type: 'success',
     title:
-      actions.notify_order_success[1] + side + actions.notify_order_success[2] + symbol + actions.notify_order_success[3]
+      actions.notify_order_success[1] +
+      side +
+      actions.notify_order_success[2] +
+      symbol +
+      actions.notify_order_success[3]
   });
 
   return messenger.errorMessage(
     `${symbol} Manual ${side.toUpperCase()} Result (${moment().format(
       'HH:mm:ss.SSS'
     )}): *${type}*\n` +
-    `- Order Result: \`\`\`${JSON.stringify(
-      orderResult,
-      undefined,
-      2
-    )}\`\`\`\n` +
-    `- Current API Usage: ${getAPILimit(logger)}`
+      `- Order Result: \`\`\`${JSON.stringify(
+        orderResult,
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
   );
 };
 
@@ -244,20 +263,31 @@ const execute = async (logger, rawData) => {
   }
   const language = config.get('language');
 
-  const { coin_wrapper: { _actions }, place_manual_trade } = require(`../../../../public/${language}.json`);
+  const {
+    coin_wrapper: { _actions },
+    place_manual_trade
+  } = require(`../../../../public/${language}.json`);
 
   const precision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
 
   // Assume order is provided with correct value
-  const orderParams = await formatOrder(logger, symbol, order, precision, currentPrice);
+  const orderParams = await formatOrder(
+    logger,
+    symbol,
+    order,
+    precision,
+    currentPrice
+  );
   messageOrderParams(logger, symbol, order.side, order, orderParams);
 
   const orderResult = await binance.client.order(orderParams);
 
   logger.info({ orderResult }, 'Order result');
   if (orderResult.side.toLowerCase() === 'sell') {
-    orderResult.finalProfit = (currentPrice * lastQtyBought) - (lastBuyPrice * lastQtyBought);
-    orderResult.finalProfitPercent = (orderResult.finalProfit / (lastBuyPrice * lastQtyBought)) * 100;
+    orderResult.finalProfit =
+      currentPrice * lastQtyBought - lastBuyPrice * lastQtyBought;
+    orderResult.finalProfitPercent =
+      (orderResult.finalProfit / (lastBuyPrice * lastQtyBought)) * 100;
   }
   await recordOrder(logger, orderResult);
 

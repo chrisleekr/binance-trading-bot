@@ -43,7 +43,13 @@ const deleteLastBuyPrice = async (logger, ws, symbol) => {
  * @param {*} lastBuyPrice
  * @returns
  */
-const updateLastBuyPrice = async (logger, ws, symbol, lastBuyPrice, lastQtyBought) => {
+const updateLastBuyPrice = async (
+  logger,
+  ws,
+  symbol,
+  lastBuyPrice,
+  lastQtyBought
+) => {
   // Retrieve symbol info
   const cachedSymbolInfo =
     JSON.parse(
@@ -89,9 +95,9 @@ const updateLastBuyPrice = async (logger, ws, symbol, lastBuyPrice, lastQtyBough
   if (lastQtyBought != 0) {
     baseAssetTotalBalance = lastQtyBought;
   } else {
-    baseAssetTotalBalance = parseFloat(baseAssetBalance.free) + parseFloat(baseAssetBalance.locked);
+    baseAssetTotalBalance =
+      parseFloat(baseAssetBalance.free) + parseFloat(baseAssetBalance.locked);
   }
-
 
   await saveLastBuyPrice(logger, symbol, {
     lastBuyPrice,

@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const tf = require('@tensorflow/tfjs');
-const { binance, cache, messenger } = require('../../../helpers');
+const { binance, cache } = require('../../../helpers');
 
 /**
  * Flatten candle data
@@ -75,18 +75,20 @@ const huskyTrend = (candles, strategyOptions) => {
   return { status, difference };
 };
 
-const predictCoinValue = async (symbol) => {
-  let prediction = {
-    interval: '',
-    predictedValue: []
-  };
-  let candlesToPredict = [];
+const predictCoinValue = async symbol => {
+  const candlesToPredict = [];
   const diffWeight = [];
 
-  const cachedPredictionTime =
+  const cachedPrediction =
     JSON.parse(await cache.get(`${symbol}-last-prediction`)) || undefined;
 
-  if (cachedPredictionTime === undefined) {
+  let prediction = cachedPrediction;
+
+  if (
+    prediction === undefined ||
+    prediction.date === undefined ||
+    (new Date() - new Date(prediction.date)) / 1000 > 300
+  ) {
     const bc = await binance.client.candles({
       symbol,
       interval: '5m',
@@ -98,9 +100,20 @@ const predictCoinValue = async (symbol) => {
       candlesToPredict.push(parseFloat(c.close));
     });
 
-    if (prediction.predictedValue.length === 20) {
-      candlesToPredict = prediction.predictedValue;
+    /* if (prediction !== undefined) {
+      if (prediction.predictedValue.length === 30) {
+        candlesToPredict = prediction.predictedValue;
+        for (let index = 0; index < 10; index += 1) {
+          diffWeight.push(
+            100 -
+              (parseFloat(candlesToPredict[index]) /
+                parseFloat(bc[index].close)) *
+                100
+          );
+        }
+      }
     }
+  */
 
     // create model object
     const model = tf.sequential({
@@ -122,23 +135,26 @@ const predictCoinValue = async (symbol) => {
     const predictionCoinValue = _.mean(
       await model.predict(tf.tensor1d(diffWeight)).dataSync()
     );
-
-    if (prediction.predictedValue.length === 20) {
-      prediction.predictedValue.shift();
+    if (prediction !== undefined) {
+      if (prediction.predictedValue.length === 30) {
+        prediction.predictedValue.shift();
+      }
     }
-    prediction.interval = '5m';
-    prediction.predictedValue.push(predictionCoinValue);
+    if (prediction === undefined) {
+      prediction = {
+        interval: '5m',
+        predictedValue: [predictionCoinValue],
+        date: new Date()
+      };
+    } else {
+      prediction.interval = '5m';
+      prediction.predictedValue.push(predictionCoinValue);
+      prediction.date = new Date();
+    }
 
-    await cache.set(
-      `${symbol}-last-prediction`,
-      JSON.stringify(prediction),
-      265
-    );
+    await cache.set(`${symbol}-last-prediction`, JSON.stringify(prediction));
   } else {
-    prediction = {
-      interval: cachedPredictionTime.interval,
-      predictedValue: cachedPredictionTime.predictedValue
-    };
+    prediction = cachedPrediction;
   }
 
   return prediction;

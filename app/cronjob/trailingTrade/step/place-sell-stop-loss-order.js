@@ -1,5 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
+const config = require('config');
 const { binance, messenger, mongo, cache } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
@@ -7,7 +8,6 @@ const {
   isExceedAPILimit,
   disableAction
 } = require('../../trailingTradeHelper/common');
-const config = require('config');
 
 /**
  * Place a sell stop-loss order when the current price reached stop-loss trigger price
@@ -37,7 +37,8 @@ const execute = async (logger, rawData) => {
       }
     },
     action,
-    sell: { currentPrice, openOrders, lastQtyBought, lastBuyPrice }
+    sell: { currentPrice, openOrders, lastQtyBought, lastBuyPrice },
+    baseAssetBalance: { free: freeAssetBalance }
   } = data;
 
   if (isLocked) {
@@ -48,29 +49,40 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  if (action == 'sell-stop-loss' || action == 'sell-profit') {
+  if (action === 'sell-stop-loss' || action === 'sell-profit') {
     const language = config.get('language');
-    const { coin_wrapper: { _actions } } = require(`../../../../public/${language}.json`);
+    const {
+      coin_wrapper: { _actions }
+    } = require(`../../../../public/${language}.json`);
 
     if (openOrders.length > 0) {
-      data.sell.processMessage = action.action_open_orders[1] + symbol + '.' + _actions.action_open_orders[2];
+      data.sell.processMessage = `${action.action_open_orders[1] + symbol}.${
+        _actions.action_open_orders[2]
+      }`;
       data.sell.updatedAt = moment().utc();
 
       return data;
     }
 
-    const lotPrecision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
+    const lotPrecision =
+      parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
 
-    const freeBalance = parseFloat(_.floor(lastQtyBought, lotPrecision));
-    logger.info({ freeBalance }, 'Free balance');
-
+    let freeBalance;
+    if (stakeCoinEnabled) {
+      freeBalance = parseFloat(_.floor(lastQtyBought, lotPrecision));
+      logger.info({ freeBalance }, 'Free balance');
+    } else {
+      freeBalance = parseFloat(_.floor(freeAssetBalance, lotPrecision));
+      logger.info({ freeBalance }, 'Free balance');
+    }
     let orderQuantity = parseFloat(
       _.floor(freeBalance - freeBalance * (0.1 / 100), lotPrecision)
     );
 
     if (orderQuantity <= parseFloat(minQty)) {
       data.sell.processMessage =
-        _actions.action_order_minimum_qty[1] + minQty +
+        _actions.action_order_minimum_qty[1] +
+        minQty +
         _actions.action_order_minimum_qty[2];
       data.sell.updatedAt = moment().utc();
 
@@ -81,7 +93,7 @@ const execute = async (logger, rawData) => {
       orderQuantity = parseFloat(maxQty);
     }
 
-    var calculatedPrice = orderQuantity * currentPrice;
+    const calculatedPrice = orderQuantity * currentPrice;
     if (calculatedPrice < parseFloat(minNotional)) {
       data.sell.processMessage = _actions.action_less_than_nominal;
       data.sell.updatedAt = moment().utc();
@@ -90,7 +102,10 @@ const execute = async (logger, rawData) => {
     }
 
     if (tradingEnabled !== true) {
-      data.buy.processMessage = _actions.action_trading_for_disabled[1] + symbol + _actions.action_trading_for_disabled[2];
+      data.buy.processMessage =
+        _actions.action_trading_for_disabled[1] +
+        symbol +
+        _actions.action_trading_for_disabled[2];
       data.sell.updatedAt = moment().utc();
 
       return data;
@@ -106,27 +121,34 @@ const execute = async (logger, rawData) => {
     // Currently, only support market order for stop-loss.
     const allowedOrderTypes = ['market'];
     if (allowedOrderTypes.includes(sellStopLossOrderType) === false) {
-      data.sell.processMessage = _actions.action_unknown_order[1] + sellStopLossOrderType + _actions.action_unknown_order[2];
+      data.sell.processMessage =
+        _actions.action_unknown_order[1] +
+        sellStopLossOrderType +
+        _actions.action_unknown_order[2];
       data.sell.updatedAt = moment().utc();
 
       return data;
     }
 
     if (stakeCoinEnabled) {
-      const reduceSellTrigger = (triggerPercentage * 100) - 100;
-      const amountOfProfitToReduceToStake = (orderQuantity / 100) * reduceSellTrigger
+      const reduceSellTrigger = triggerPercentage * 100 - 100;
+      const amountOfProfitToReduceToStake =
+        (orderQuantity / 100) * reduceSellTrigger;
       const calculatedOrderQuantity = parseFloat(
-        _.floor((orderQuantity - amountOfProfitToReduceToStake), lotPrecision)
+        _.floor(orderQuantity - amountOfProfitToReduceToStake, lotPrecision)
       );
 
-      if ((calculatedOrderQuantity * currentPrice) > parseFloat(minNotional)) {
+      if (calculatedOrderQuantity * currentPrice > parseFloat(minNotional)) {
         orderQuantity = calculatedOrderQuantity;
-      };
+      }
     }
 
-    if (orderQuantity == 0) {
-      messenger.errorMessage("Trying to sell at stop loss but order quantity IS: " + orderQuantity);
-      data.sell.processMessage = "I can't sell at stop loss because Quantity is 0. You would lost your staked coins. Please, sell manually.";
+    if (orderQuantity === 0) {
+      messenger.errorMessage(
+        `Trying to sell at stop loss but order quantity IS: ${orderQuantity}`
+      );
+      data.sell.processMessage =
+        "I can't sell at stop loss because Quantity is 0. You would lost your staked coins. Please, sell manually.";
       data.sell.updatedAt = moment().utc();
       return data;
     }
@@ -145,9 +167,8 @@ const execute = async (logger, rawData) => {
 
     logger.info({ orderResult }, 'Market order result');
 
-    if (action == 'sell-stop-loss') {
-      messenger.sendMessage(
-        symbol, null, 'SELL_STOP_LOSS');
+    if (action === 'sell-stop-loss') {
+      messenger.sendMessage(symbol, null, 'SELL_STOP_LOSS');
       // Temporary disable action
       await disableAction(
         symbol,
@@ -161,8 +182,10 @@ const execute = async (logger, rawData) => {
       );
     }
 
-    orderResult.finalProfit = (currentPrice * lastQtyBought) - (lastBuyPrice * lastQtyBought);
-    orderResult.finalProfitPercent = (orderResult.finalProfit / (lastBuyPrice * lastQtyBought)) * 100;
+    orderResult.finalProfit =
+      currentPrice * lastQtyBought - lastBuyPrice * lastQtyBought;
+    orderResult.finalProfitPercent =
+      (orderResult.finalProfit / (lastBuyPrice * lastQtyBought)) * 100;
 
     await cache.set(`${symbol}-last-sell-order`, JSON.stringify(orderResult));
 
@@ -177,18 +200,17 @@ const execute = async (logger, rawData) => {
     data.sell.processMessage = _actions.action_sell_stop_loss;
     data.sell.updatedAt = moment().utc();
 
-    //Remove last buy price
+    // Remove last buy price
     await mongo.deleteOne(logger, 'trailing-trade-symbols', {
       key: `${symbol}-last-buy-price`
     });
 
     return data;
-  } else {
-    logger.info(
-      `Do not process a sell order because action is not 'sell-stop-loss'.`
-    );
-    return data;
   }
+  logger.info(
+    `Do not process a sell order because action is not 'sell-stop-loss'.`
+  );
+  return data;
 };
 
 module.exports = { execute };

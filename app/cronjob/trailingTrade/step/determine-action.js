@@ -2,7 +2,7 @@ const moment = require('moment');
 const _ = require('lodash');
 const config = require('config');
 const { isActionDisabled } = require('../../trailingTradeHelper/common');
-const { cache, messenger } = require('../../../helpers');
+const { cache } = require('../../../helpers');
 
 const retrieveLastBuyOrder = async symbol => {
   const cachedLastBuyOrder =
@@ -144,45 +144,22 @@ const predictedValueIsTrue = data => {
     }
   } = data;
 
-  const predictionDiff = 100 - (currentPrice / prediction.predictedValue) * 100;
-
-  return (
-    (predictionDiff >= 0.35 ||
-    predictionDiff <= -0.35 &&
-      // Math.sign(prediction.predictedValue - currentPrice) === 1 &&
-      difference >= 0.15 &&
-      trendDiff >= 0.1 &&
-      signedTrendDiff === 1 &&
-      predictValue === true)
-  );
-};
-
-/**
- * Check whether current price difference is higher than defined, to buy again
- *
- * @param {*} data
- * @returns
- */
-const currentPriceIsHigherThanDifferenceToBuy = data => {
-  const {
-    buy: { currentPrice: buyCurrentPrice },
-    sell: { lastBuyPrice },
-    symbolConfiguration: {
-      strategyOptions: {
-        tradeOptions: { manyBuys, differenceToBuy }
-      }
-    }
-  } = data;
-
-  if (lastBuyPrice === 0 || lastBuyPrice == null || manyBuys === false) {
-    return false;
+  let predictionDiff =
+    100 -
+    (currentPrice /
+      prediction.predictedValue[prediction.predictedValue.length - 1]) *
+      100;
+  if (Math.sign(predictionDiff) === -1) {
+    predictionDiff *= -1;
   }
-
-  const percentDifference =
-    100 *
-    ((lastBuyPrice - buyCurrentPrice) / ((lastBuyPrice + buyCurrentPrice) / 2));
-
-  return percentDifference >= differenceToBuy;
+  return (
+    predictionDiff >= 0.35 &&
+    // Math.sign(prediction.predictedValue - currentPrice) === 1 &&
+    difference >= 0.15 &&
+    trendDiff >= 0.1 &&
+    signedTrendDiff === 1 &&
+    predictValue === true
+  );
 };
 
 /**
@@ -293,6 +270,7 @@ const isHigherThanSellTriggerPriceAndTrendIsDown = data => {
 const isLowerThanStopLossTriggerPrice = data => {
   const {
     symbolConfiguration: {
+      buy: { predictValue },
       sell: {
         stopLoss: { enabled: sellStopLossEnabled }
       }
@@ -306,14 +284,23 @@ const isLowerThanStopLossTriggerPrice = data => {
       stopLossTriggerPrice: sellStopLossTriggerPrice
     }
   } = data;
-  const predictionDiff =
-    100 - (sellCurrentPrice / prediction.predictedValue) * 100;
+  if (predictValue) {
+    const predictionDiff =
+      100 -
+      (sellCurrentPrice /
+        prediction.predictedValue[prediction.predictedValue.length - 1]) *
+        100;
+    return (
+      sellStopLossEnabled === true &&
+      sellCurrentPrice <= sellStopLossTriggerPrice &&
+      trendDiff <= 0.5 &&
+      predictionDiff <= 0.5 &&
+      prediction.predictedValue[prediction.predictedValue.length - 1] <=
+        sellStopLossTriggerPrice
+    );
+  }
   return (
-    sellStopLossEnabled === true &&
-    sellCurrentPrice <= sellStopLossTriggerPrice &&
-    trendDiff <= 0.5 &&
-    predictionDiff <= 0.3 &&
-    prediction.predictedValue <= sellStopLossTriggerPrice
+    sellStopLossEnabled === true && sellCurrentPrice <= sellStopLossTriggerPrice
   );
 };
 
