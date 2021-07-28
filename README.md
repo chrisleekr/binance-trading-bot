@@ -67,7 +67,7 @@ This bot is using the concept of trailing buy/sell order which allows following 
 - The bot can monitor multiple symbols. All symbols will be monitored per second.
 - The bot is using MongoDB to provide a persistence database. However, it does not use the latest MongoDB to support Raspberry Pi 32bit. Used MongoDB version
   is 3.2.20, which is provided by [apcheamitru](https://hub.docker.com/r/apcheamitru/arm32v7-mongo).
-- The bot is tested/working with Linux and Raspberry Pi 4 32bit. Other platforms are not tested.
+- The bot is tested/working with Linux and Raspberry Pi 3b+/4 32bit. Other platforms are not tested.
 
 #### Buy Signal
 
@@ -264,11 +264,18 @@ Or use the frontend to adjust configurations after launching the application.
    docker-compose -f docker-compose.server.yml up -d
    ```
 
-   Or if using Raspberry Pi 4 32bit, must build again for Raspberry Pi:
+   Or if using Raspberry Pi 3b+/4 **32bit**, must build again for Raspberry Pi:
 
    ```bash
    npm run docker:build
    docker-compose -f docker-compose.rpi.yml up -d
+   ```
+
+   Or if using Raspberry Pi 4 **64bit**, must build again for Raspberry Pi:
+
+   ```bash
+   npm run docker:build
+   docker-compose -f docker-compose.rpi64.yml up -d
    ```
 
    Or if want development/test mode, then run below commands:

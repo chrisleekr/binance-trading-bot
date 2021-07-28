@@ -1,0 +1,61 @@
+version: '3.7'
+
+services:
+  binance-bot:
+    container_name: binance-bot
+    image: chrisleekr/binance-trading-bot:latest
+    networks:
+      - internal
+    env_file:
+      - .env
+    restart: unless-stopped
+    environment:
+      # - BINANCE_MODE=test
+      - BINANCE_MODE=live
+      - BINANCE_SLACK_ENABLED=true
+      - BINANCE_JOBS_ALIVE_ENABLED=true
+      - BINANCE_JOBS_TRAILING_TRADE_ENABLED=true
+      - BINANCE_REDIS_HOST=binance-redis
+      - BINANCE_REDIS_PORT=6379
+      - BINANCE_REDIS_PASSWORD=secretp422
+    ports:
+      - 8080:80
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: "3"
+
+  binance-redis:
+    container_name: binance-redis
+    image: redis:6.2
+    sysctls:
+      net.core.somaxconn: 1024
+    networks:
+      - internal
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command:
+      redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
+
+  binance-mongo:
+    container_name: binance-mongo
+    image: ivanmarban/armhf-mongodb
+    restart: unless-stopped
+    networks:
+      - internal
+    volumes:
+      - mongo_data:/data/db
+    #command: mongod --repair
+
+networks:
+  internal:
+    driver: bridge
+    # driver_opts:
+    #     com.docker.network.driver.mtu: 1442
+
+volumes:
+  redis_data:
+  mongo_data:
