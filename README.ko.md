@@ -331,7 +331,7 @@
 
 | 프론트엔드 - 데스크탑                                                                                                           |
 | ------------------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/127317731-58d847a8-5d03-4b69-9fb4-88aca88c63f8.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/127318831-1cbfab93-6300-4251-b757-7d51eb5fbc2d.png) |
 
 ### 샘플 거래
 
