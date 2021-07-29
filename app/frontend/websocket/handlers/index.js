@@ -1,4 +1,5 @@
 const { handleLatest } = require('./latest');
+const { handleDisconnect } = require('./disconnect');
 const { handleSettingUpdate } = require('./setting-update');
 const {
   handleSymbolUpdateLastBuyPrice
@@ -19,6 +20,7 @@ const { handlePastTradesErase } = require('./past-trades-erase');
 
 module.exports = {
   handleLatest,
+  handleDisconnect,
   handleSettingUpdate,
   handleSymbolUpdateLastBuyPrice,
   handleSymbolBackTest,

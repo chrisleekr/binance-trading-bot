@@ -76,14 +76,12 @@ class App extends React.Component {
   }
 
   searchKeyword(searchKeyword) {
-
     this.setState({
       searchKeyword
     });
   }
 
   sortSymbols(sortType) {
-
     this.setState({
       sortType
     });
@@ -119,7 +117,7 @@ class App extends React.Component {
       let response = {};
       try {
         response = JSON.parse(evt.data);
-      } catch (_e) { }
+      } catch (_e) {}
 
       if (response.type === 'latest') {
         if (_.isEmpty(response.common.accountInfo)) {
@@ -162,7 +160,7 @@ class App extends React.Component {
                 return (s.sell.difference + 1000) * -10;
               }
               return s.buy.difference;
-            })
+            });
             break;
         }
 
@@ -255,14 +253,14 @@ class App extends React.Component {
       if (languageReady != configuration.botOptions.language) {
         languageReady = configuration.botOptions.language;
 
-        fetch(configuration.botOptions.language + ".json")
+        fetch(configuration.botOptions.language + '.json')
           .then(res => res.json())
-          .then(data => languageData = data);
+          .then(data => (languageData = data));
       }
 
-      if (login === {} || passwordActivated && !login.logged) {
+      if (login === {} || (passwordActivated && !login.logged)) {
         return (
-          <div className='app' >
+          <div className='app'>
             <PasswordScreen
               jsonStrings={languageData}
               configuration={configuration}
@@ -273,7 +271,6 @@ class App extends React.Component {
       }
 
       if (login.logged) {
-
         if (languageData != undefined) {
           const coinWrappers = symbols.map((symbol, index) => {
             if (searchKeyword != '') {
@@ -308,7 +305,7 @@ class App extends React.Component {
           });
 
           return (
-            <div className='app' >
+            <div className='app'>
               <Header
                 configuration={configuration}
                 publicURL={publicURL}
@@ -333,7 +330,8 @@ class App extends React.Component {
                     <MonitorOptionsWrapper
                       jsonStrings={languageData}
                       searchKeyword={this.searchKeyword}
-                      sortSymbols={this.sortSymbols} />
+                      sortSymbols={this.sortSymbols}
+                    />
                   </div>
                   <div className='coin-wrappers'>{coinWrappers}</div>
                   <div className='app-body-footer-wrapper'>
@@ -354,8 +352,12 @@ class App extends React.Component {
                 sendWebSocket={this.sendWebSocket}
               />
 
-              <Footer packageVersion={packageVersion} gitHash={gitHash} jsonStrings={languageData} />
-            </div >
+              <Footer
+                packageVersion={packageVersion}
+                gitHash={gitHash}
+                jsonStrings={languageData}
+              />
+            </div>
           );
         } else {
           return '';

@@ -1,56 +1,41 @@
 const config = require('config');
 const { PubSub, cache } = require('../../../helpers');
-const {
-  getGlobalConfiguration
-} = require('../../../cronjob/trailingTradeHelper/configuration');
-
-const verifyPassword = async (savedPassword, typedPassword) => {
-  let verifiedLength = 0;
-
-  // Verifies char by char if the password is equal.
-  try {
-    for (
-      let indexToVerify = 0;
-      indexToVerify < savedPassword.length;
-      indexToVerify++
-    ) {
-      if (typedPassword.length > indexToVerify) {
-        if (savedPassword[indexToVerify] === typedPassword[indexToVerify]) {
-          verifiedLength++;
-        }
-      }
-    }
-  } finally {
-    if (verifiedLength === savedPassword.length) {
-      return true;
-    }
-    return false;
-  }
-};
 
 const handlePassword = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start password verify');
+  ws.send(
+    JSON.stringify({
+      result: true,
+      type: 'debug',
+      content: payload
+    })
+  );
 
-  const { data: newConfiguration } = payload;
+  const {
+    data: { password, loginWindowMinutes }
+  } = payload;
+  const retrievedPassword = config.get('password'); // The valid password
 
-  const { typedPassword } = newConfiguration;
-  const retrievedPassword = Array.from(config.get('password'));
-
-  if (await verifyPassword(retrievedPassword, typedPassword.pass)) {
-    typedPassword.config.botOptions.login.logged = true;
-    typedPassword.config.botOptions.login.elapsedTime = new Date();
-    await cache.set(
-      `tempLogin`,
-      JSON.stringify(typedPassword.config.botOptions.login),
-      typedPassword.config.botOptions.login.loginWindowMinutes * 60
-    );
-
-    PubSub.publish('frontend-notification', {
-      type: 'success',
-      title: `Unlocking bot.`
+  // If wrong password, send an error notification:
+  if (retrievedPassword !== password) {
+    return PubSub.publish('frontend-notification', {
+      type: 'error',
+      title: `Bad password.`
     });
-    ws.send(JSON.stringify({ result: true, type: 'login-success' }));
   }
+  ws.send(JSON.stringify({ conf: config }));
+  // Update cache to auto-auth:
+  await cache.set(
+    `tempLogin`,
+    JSON.stringify({ logged: true, elapsedTime: new Date() }),
+    loginWindowMinutes * 60
+  );
+
+  PubSub.publish('frontend-notification', {
+    type: 'success',
+    title: `Unlocking bot.`
+  });
+  ws.send(JSON.stringify({ result: true, type: 'login-success' }));
 };
 
 module.exports = { handlePassword };
