@@ -1,5 +1,4 @@
 const config = require('config');
-const bcrypt = require('bcrypt');
 const { PubSub, cache } = require('../../../helpers');
 
 const handlePassword = async (logger, ws, payload) => {
