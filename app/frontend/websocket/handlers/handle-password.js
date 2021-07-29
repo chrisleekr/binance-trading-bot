@@ -1,42 +1,14 @@
 const config = require('config');
 const { PubSub, cache } = require('../../../helpers');
-const {
-  getGlobalConfiguration
-} = require('../../../cronjob/trailingTradeHelper/configuration');
-
-const verifyPassword = async (savedPassword, typedPassword) => {
-  let verifiedLength = 0;
-
-  // Verifies char by char if the password is equal.
-  try {
-    for (
-      let indexToVerify = 0;
-      indexToVerify < savedPassword.length;
-      indexToVerify++
-    ) {
-      if (typedPassword.length > indexToVerify) {
-        if (savedPassword[indexToVerify] === typedPassword[indexToVerify]) {
-          verifiedLength++;
-        }
-      }
-    }
-  } finally {
-    if (verifiedLength === savedPassword.length) {
-      return true;
-    }
-    return false;
-  }
-};
 
 const handlePassword = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start password verify');
 
-  const { data: newConfiguration } = payload;
+  const { data: typedPassword } = payload;
 
-  const { typedPassword } = newConfiguration;
-  const retrievedPassword = Array.from(config.get('password'));
+  const retrievedPassword = config.get('password');
 
-  if (await verifyPassword(retrievedPassword, typedPassword.pass)) {
+  if (retrievedPassword === typedPassword.pass) {
     typedPassword.config.botOptions.login.logged = true;
     typedPassword.config.botOptions.login.elapsedTime = new Date();
     await cache.set(
