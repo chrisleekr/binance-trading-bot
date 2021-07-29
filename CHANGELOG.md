@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [0.0.73] - 2021-07-29
 
 - Make the local tunnel to be disabled by default. Thanks [@pedrohusky](https://github.com/pedrohusky)
 - Support Grid strategy for buy/sell to mitigate loss/increasing profit - [#158](https://github.com/chrisleekr/binance-trading-bot/issues/158)
