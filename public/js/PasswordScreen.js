@@ -13,7 +13,8 @@ const PasswordScreen = props => {
 
     // Send password to the backend:
     props.sendWebSocket('verify-password', {
-      password
+      password,
+      loginWindowMinutes
     });
   };
 
