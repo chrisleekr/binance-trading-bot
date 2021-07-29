@@ -104,8 +104,8 @@ class PastTradesWrapper extends React.Component {
                 </div>
                 <div className='flex-column-right pt-2'>
                   <span className='profit-loss-asset'>
-                    Trades: {pastTrades.length} | {past_trades.wins+": "+ wins} / {past_trades.losses+' '+losses}
-                    - {past_trades.success_rate+": "+winPercent}% | {past_trades.overall_profit+': '}
+                    {past_trades.trades+": "+pastTrades.length} | {past_trades.wins+": "+ wins} / {past_trades.losses+' '+losses +" |"}
+                     {past_trades.success_rate+": "+winPercent}% | {past_trades.overall_profit+': '}
                   </span>
                   <span className={'profit-loss-value' + classNameExt}>
                     {' '}
