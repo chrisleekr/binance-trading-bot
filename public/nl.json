@@ -288,6 +288,15 @@
     "_pass": "Wachtwoord",
     "pass_from_env": "Vul het wachtwoord in dat is gedefinieerd in het .env-bestand"
   },
+  "past_trades": {
+    "past_trades": "Transacties uit het verleden",
+    "trades": "Transacties",
+    "wins": "Won",
+    "losses": "Lost",
+    "win_percentage": "Percentage succes",
+    "overal_profit": "Totale winst",
+    "remove_history_confirmation": "Weet u zeker dat u de laatste transactiegeschiedenis wilt wissen?"
+  },
   "common_strings": {
     "_interval": "Interval",
     "_limit": "Limiet",

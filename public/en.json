@@ -288,6 +288,15 @@
     "_pass": "Password",
     "pass_from_env": "Enter password set in your .env file"
   },
+  "past_trades": {
+    "past_trades": "Past trades",
+    "trades": "Trades",
+    "wins": "Wins",
+    "losses": "Losses",
+    "success_rate": "Success rate",
+    "overal_profit": "Overall Profit",
+    "remove_history_confirmation": "Are you sure you want to delete the last transaction history?"
+  },
   "common_strings": {
     "_interval": "Interval",
     "_limit": "Limit",

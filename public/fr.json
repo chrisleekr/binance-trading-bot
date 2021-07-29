@@ -288,12 +288,21 @@
     "_pass": "Mot de passe",
     "pass_from_env": "Remplir avec le mot de passe défini dans le fichier .env"
   },
+  "past_trades": {
+    "past_trades": "Transactions passées",
+    "trades": "Transactions",
+    "wins": "Gagnées",
+    "losses": "Perdues",
+    "success_rate": "Pourcentage de réussite",
+    "overal_profit": "Bénéfice global",
+    "remove_history_confirmation": "Etes-vous sûr de vouloir supprimer l'historique des dernières transactions?"
+  },
   "common_strings": {
     "_interval": "Intervalle",
     "_limit": "Limite",
     "_buy": "Acheter",
     "_sell": "Vendu",
-    "used_weight": "Poids API utilisé (1m)",
+    "used_weight": "Poids API utilisé (sur 1 minute)",
     "trading_enabled": "Trading activé",
     "stop_price_percent": "Pourcentage de prix stop",
     "limit_price_percent": "Pourcentage de prix limite",
