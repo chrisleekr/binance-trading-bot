@@ -286,7 +286,8 @@
     "security_screen": "Tela de Seguranca",
     "enter_pass": "Preencha com sua senha",
     "_pass": "Senha",
-    "pass_from_env": "Preencha com a senha definida no arquivo .env"
+    "pass_from_env": "Preencha com a senha definida no arquivo .env",
+    "connect": "Log in"
   },
   "common_strings": {
     "_interval": "Intervalo",

@@ -286,7 +286,8 @@
     "security_screen": "Màn hình bảo mật",
     "enter_pass": "Điền mật khẩu của bạn",
     "_pass": "Mật khẩu",
-    "pass_from_env": "Điền mật khẩu được xác định trong tệp .env"
+    "pass_from_env": "Điền mật khẩu được xác định trong tệp .env",
+    "connect": "Log in"
   },
   "common_strings": {
     "_interval": "Khoảng thời gian",
