@@ -20,11 +20,7 @@ class CoinWrapperBuySignal extends React.Component {
       predictionHigherThan = (
         100 -
         (parseFloat(buy.currentPrice) /
-          parseFloat(
-            buy.prediction.predictedValue[
-              buy.prediction.predictedValue.length - 1
-            ]
-          )) *
+          parseFloat(buy.prediction.meanPredictedValue[0])) *
           100
       ).toFixed(2);
     }
@@ -78,20 +74,16 @@ class CoinWrapperBuySignal extends React.Component {
               Predict next {buy.prediction.interval}:
             </span>
             <HightlightChange className='coin-info-value coin-predict'>
-              {parseFloat(
-                buy.prediction.predictedValue[
-                  buy.prediction.predictedValue.length - 1
-                ]
-              ).toFixed(precision)}
+              {parseFloat(buy.prediction.meanPredictedValue[0]).toFixed(
+                precision
+              )}
             </HightlightChange>
             <HightlightChange className='coin-info-value coin-predict'>
               (
               {Math.sign(
-                parseFloat(
-                  buy.prediction.predictedValue[
-                    buy.prediction.predictedValue.length - 1
-                  ]
-                ).toFixed(precision) - buy.currentPrice
+                parseFloat(buy.prediction.meanPredictedValue[0]).toFixed(
+                  precision
+                ) - buy.currentPrice
               ) === 1
                 ? 'above)'
                 : 'below)'}

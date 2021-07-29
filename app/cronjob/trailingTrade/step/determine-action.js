@@ -131,36 +131,43 @@ const hasBalanceToSell = data => {
  * @param {*} data
  * @returns
  */
-const predictedValueIsTrue = data => {
+const meanPredictedValueIsTrue = data => {
   const {
     buy: {
       prediction,
       difference,
+      openOrders,
       trend: { trendDiff, signedTrendDiff },
       currentPrice
     },
     symbolConfiguration: {
       buy: { predictValue }
-    }
+    },
+    sell: { lastBuyPrice }
   } = data;
 
-  if (!predictValue) {
+  // Make sure we don't have a last buy, open orders, and it is not greater than ath.
+  if (
+    !predictValue ||
+    lastBuyPrice ||
+    !_.isEmpty(openOrders) ||
+    isGreaterThanTheATHRestrictionPrice(data)
+  ) {
     return false;
   }
 
   let predictionDiff =
-    100 -
-    (currentPrice /
-      prediction.predictedValue[prediction.predictedValue.length - 1]) *
-      100;
+    100 - (currentPrice / prediction.meanPredictedValue[0]) * 100;
+
+  // Invert the diff to be positive. This help to buy at a rising market.
   if (Math.sign(predictionDiff) === -1) {
     predictionDiff *= -1;
   }
+
   return (
     predictionDiff >= 0.35 &&
-    // Math.sign(prediction.predictedValue - currentPrice) === 1 &&
     difference >= 0.15 &&
-    trendDiff >= 0.1 &&
+    trendDiff >= 0.15 &&
     signedTrendDiff === 1
   );
 };
@@ -273,7 +280,7 @@ const isHigherThanSellTriggerPriceAndTrendIsDown = data => {
 const isLowerThanStopLossTriggerPrice = data => {
   const {
     symbolConfiguration: {
-      buy: { predictValue },
+      buy: { predictValue, predictStopLoss },
       sell: {
         stopLoss: { enabled: sellStopLossEnabled }
       }
@@ -284,25 +291,23 @@ const isLowerThanStopLossTriggerPrice = data => {
     },
     sell: {
       currentPrice: sellCurrentPrice,
-      stopLossTriggerPrice: sellStopLossTriggerPrice
+      stopLossTriggerPrice: sellStopLossTriggerPrice,
+      triggerPrice
     }
   } = data;
-  /* if (predictValue) {
+  if (predictValue && predictStopLoss) {
     const predictionDiff =
-      100 -
-      (sellCurrentPrice /
-        prediction.predictedValue[prediction.predictedValue.length - 1]) *
-        100;
+      100 - (sellCurrentPrice / prediction.meanPredictedValue[0]) * 100;
     return (
       sellStopLossEnabled === true &&
       sellCurrentPrice <= sellStopLossTriggerPrice &&
-      trendDiff <= 0.5 &&
+      trendDiff <= 0.55 &&
       predictionDiff <= 0.5 &&
-      prediction.predictedValue[prediction.predictedValue.length - 1] <=
-        sellStopLossTriggerPrice
+      prediction.meanPredictedValue[0] <= sellStopLossTriggerPrice &&
+      prediction.meanPredictedValue[0] <= triggerPrice
     );
   }
- */ return (
+  return (
     sellStopLossEnabled === true && sellCurrentPrice <= sellStopLossTriggerPrice
   );
 };
@@ -378,7 +383,7 @@ const execute = async (logger, rawData) => {
   //    and current balance has not enough value to sell,
   //  then buy.
 
-  if (predictedValueIsTrue(data)) {
+  if (meanPredictedValueIsTrue(data)) {
     if (!hasBalanceToSell(data)) {
       const checkDisable = await isActionDisabled(symbol);
       logger.info(

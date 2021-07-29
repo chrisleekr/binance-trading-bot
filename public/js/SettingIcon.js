@@ -1743,7 +1743,7 @@ class SettingIcon extends React.Component {
                           <div className='row'>
                             <div className='col-12'>
                               <Form.Group
-                                controlId='field-sell-stake-coins-enabled'
+                                controlId='field-predict-coin-value-enabled'
                                 className='mb-2'>
                                 <Form.Check size='sm'>
                                   <Form.Check.Input
@@ -1756,14 +1756,49 @@ class SettingIcon extends React.Component {
                                     Predict coin value{' '}
                                     <OverlayTrigger
                                       trigger='click'
-                                      key='sell-stake-coins-enabled-overlay'
+                                      key='predict-coin-value-enabled-overlay'
                                       placement='bottom'
                                       overlay={
-                                        <Popover id='sell-stake-coins-enabled-overlay-right'>
+                                        <Popover id='predict-coin-value-enabled-overlay-right'>
                                           <Popover.Content>
                                             When enabled, will predict the coin
                                             value 5 minutes in the future using
                                             the last 100 minutes as training.
+                                          </Popover.Content>
+                                        </Popover>
+                                      }>
+                                      <Button
+                                        variant='link'
+                                        className='p-0 m-0 ml-1 text-info'>
+                                        <i className='fa fa-question-circle'></i>
+                                      </Button>
+                                    </OverlayTrigger>
+                                  </Form.Check.Label>
+                                </Form.Check>
+                              </Form.Group>
+
+                              <Form.Group
+                                controlId='field-predict-stop-loss-enabled'
+                                className='mb-2'>
+                                <Form.Check size='sm'>
+                                  <Form.Check.Input
+                                    type='checkbox'
+                                    data-state-key='buy.predictStopLoss'
+                                    checked={configuration.buy.predictStopLoss}
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <Form.Check.Label>
+                                    Predict Stop Loss{' '}
+                                    <OverlayTrigger
+                                      trigger='click'
+                                      key='predict-stop-loss-enabled-overlay'
+                                      placement='bottom'
+                                      overlay={
+                                        <Popover id='predict-stop-loss-enabled-overlay-right'>
+                                          <Popover.Content>
+                                            When enabled, will predict the coin
+                                            trend, and if it seems to be going
+                                            up, don't sell at stop loss.
                                           </Popover.Content>
                                         </Popover>
                                       }>

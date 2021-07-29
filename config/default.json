@@ -98,6 +98,7 @@
       "buy": {
         "enabled": true,
         "predictValue": false,
+        "predictStopLoss": false,
         "lastBuyPriceRemoveThreshold": -1,
         "lastBuyPriceRemoveThresholds": {},
         "maxPurchaseAmount": -1,

@@ -1058,3 +1058,7 @@ input[type='number'] {
 .gg-chevron-double-down::after {
   top: 8px;
 }
+
+.graph {
+  width: 100%;
+}

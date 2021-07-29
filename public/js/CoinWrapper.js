@@ -3,7 +3,8 @@
 /* eslint-disable no-undef */
 class CoinWrapper extends React.Component {
   render() {
-    const { symbolInfo, sendWebSocket, configuration, jsonStrings } = this.props;
+    const { symbolInfo, sendWebSocket, configuration, jsonStrings } =
+      this.props;
 
     const {
       symbol,
@@ -33,8 +34,6 @@ class CoinWrapper extends React.Component {
         : filterPrice.tickSize.indexOf(1) - 1;
 
     const className = 'coin-wrapper ' + this.props.extraClassName;
-
-    console.log(symbolInfo)
 
     return (
       <div className={className} data-symbol={symbolInfo.symbol}>
@@ -66,6 +65,8 @@ class CoinWrapper extends React.Component {
             sendWebSocket={sendWebSocket}
             jsonStrings={jsonStrings}
           />
+
+          <CoinWrapperChart symbolInfo={symbolInfo} jsonStrings={jsonStrings} />
 
           <CoinWrapperAction
             symbolInfo={symbolInfo}

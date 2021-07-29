@@ -16,6 +16,7 @@ const execute = async (logger, rawData) => {
   const {
     symbol,
     symbolInfo: {
+      filterLotSize: { stepSize },
       filterMinNotional: { minNotional }
     },
     symbolConfiguration: {
@@ -80,6 +81,14 @@ const execute = async (logger, rawData) => {
   const buyDifference = (1 - currentPrice / buyTriggerPrice) * -100;
   const buyLimitPrice = currentPrice * buyLimitPercentage;
 
+  /*const precision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
+
+  for (let i = 0; i < prediction.predictedValues.length; i += 1) {
+    prediction.predictedValues[i] =
+      prediction.predictedValues[i].toFixed(precision);
+    prediction.realCandles[i] = prediction.realCandles[i].toFixed(precision);
+  }
+*/
   // ATH calc
   let buyATHRestrictionPrice = null;
   if (buyATHRestrictionEnabled) {
