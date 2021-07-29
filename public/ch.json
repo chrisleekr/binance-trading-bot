@@ -286,7 +286,8 @@
     "security_screen": "安全屏幕",
     "enter_pass": "填写您的密码",
     "_pass": "密码",
-    "pass_from_env": "填写.env文件中定义的密码"
+    "pass_from_env": "填写.env文件中定义的密码",
+    "connect": "Connect"
   },
   "common_strings": {
     "_interval": "间隔",

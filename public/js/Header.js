@@ -26,7 +26,6 @@ class Header extends React.Component {
           </div>
 
           <div className='header-column header-column-icon'>
-
             <div className='header-column-icon-wrapper github-wrapper'>
               <a
                 href='https://github.com/chrisleekr/binance-trading-bot'
@@ -39,7 +38,8 @@ class Header extends React.Component {
 
             <ThemeChanger
               configuration={configuration}
-              sendWebSocket={sendWebSocket} />
+              sendWebSocket={sendWebSocket}
+            />
 
             {_.isEmpty(publicURL) === false ? (
               <div className='header-column-icon-wrapper public-url-wrapper'>
@@ -55,6 +55,7 @@ class Header extends React.Component {
             ) : (
               ''
             )}
+
             {_.isEmpty(configuration) === false ? (
               <SettingIcon
                 exchangeSymbols={exchangeSymbols}
@@ -65,6 +66,8 @@ class Header extends React.Component {
             ) : (
               ''
             )}
+
+            <LogOut sendWebSocket={sendWebSocket} />
           </div>
         </div>
       </div>

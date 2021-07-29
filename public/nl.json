@@ -286,7 +286,8 @@
     "security_screen": "Beveiligingsscherm",
     "enter_pass": "Vul uw wachtwoord in",
     "_pass": "Wachtwoord",
-    "pass_from_env": "Vul het wachtwoord in dat is gedefinieerd in het .env-bestand"
+    "pass_from_env": "Vul het wachtwoord in dat is gedefinieerd in het .env-bestand",
+    "connect": "Log in"
   },
   "common_strings": {
     "_interval": "Interval",

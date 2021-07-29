@@ -263,7 +263,8 @@
     "security_screen": "Pantalla de seguridad",
     "enter_pass": "Introduzca su contraseña",
     "_pass": "Contraseña",
-    "pass_from_env": "Complete con la contraseña definida en el archivo .env"
+    "pass_from_env": "Complete con la contraseña definida en el archivo .env",
+    "connect": "Entrar en el sistema"
   },
   "common_strings": {
     "_interval": "Intervalo",
