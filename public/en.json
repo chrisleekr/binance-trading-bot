@@ -294,7 +294,7 @@
     "wins": "Wins",
     "losses": "Losses",
     "success_rate": "Success rate",
-    "overal_profit": "Overall Profit",
+    "overall_profit": "Overall Profit",
     "remove_history_confirmation": "Are you sure you want to delete the last transaction history?"
   },
   "common_strings": {
