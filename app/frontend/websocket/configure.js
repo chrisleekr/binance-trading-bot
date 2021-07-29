@@ -17,7 +17,8 @@ const {
   handleCancelOrder,
   handleDustTransferGet,
   handleDustTransferExecute,
-  handlePassword
+  handlePassword,
+  handleDisconnect
 } = require('./handlers');
 
 const handleWarning = (logger, ws, message) => {
@@ -57,6 +58,9 @@ const configureWebSocket = async (server, funcLogger) => {
       switch (payload.command) {
         case 'latest':
           await handleLatest(commandLogger, ws, payload);
+          break;
+        case 'disconnect':
+          await handleDisconnect(commandLogger, ws, payload);
           break;
         case 'setting-update':
           await handleSettingUpdate(commandLogger, ws, payload);
@@ -104,7 +108,11 @@ const configureWebSocket = async (server, funcLogger) => {
           await handleDustTransferExecute(commandLogger, ws, payload);
           break;
         default:
-          handleWarning(logger, ws, 'Command is not recognised.');
+          handleWarning(
+            logger,
+            ws,
+            `Command '${payload.command}' is not recognised.`
+          );
       }
     });
 
