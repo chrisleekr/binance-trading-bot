@@ -263,9 +263,7 @@ class App extends React.Component {
           <div className='app'>
             <PasswordScreen
               jsonStrings={languageData}
-              loginWindowMinutes={
-                configuration.botOptions.login.loginWindowMinutes
-              }
+              configuration={configuration}
               sendWebSocket={this.sendWebSocket}
             />
           </div>

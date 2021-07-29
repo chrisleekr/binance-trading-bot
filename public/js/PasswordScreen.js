@@ -9,12 +9,14 @@ const PasswordScreen = props => {
   const pass_screen = props.jsonStrings.pass_screen;
 
   const handleFormSubmit = e => {
+    console.log('okkkk', props.configuration);
     e.preventDefault();
 
     // Send password to the backend:
     props.sendWebSocket('verify-password', {
       password,
-      loginWindowMinutes
+      loginWindowMinutes:
+        props.configuration.botOptions.login.loginWindowMinutes
     });
   };
 
@@ -59,7 +61,7 @@ const PasswordScreen = props => {
                 {pass_screen.pass_from_env}
               </Form.Text>
             </Form.Group>
-            <Button variant='secondary' type='submit'>
+            <Button variant='secondary' onClick={handleFormSubmit}>
               {pass_screen.connect}
             </Button>
           </Modal.Body>
