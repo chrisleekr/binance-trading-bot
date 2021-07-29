@@ -17,11 +17,22 @@ class App extends React.Component {
       symbols: [],
       accountInfo: {},
       publicURL: '',
-      dustTransfer: {}
+      dustTransfer: {},
+      availableSortOptions: [
+        { sortBy: 'default', label: 'Default' },
+        { sortBy: 'buy-difference-asc', label: 'Buy - Difference (asc)' },
+        { sortBy: 'buy-difference-desc', label: 'Buy - Difference (desc)' },
+        { sortBy: 'sell-profit-asc', label: 'Sell - Profit (asc)' },
+        { sortBy: 'sell-profit-desc', label: 'Sell - Profit (desc)' },
+        { sortBy: 'alpha-asc', label: 'Alphabetical (asc)' },
+        { sortBy: 'alpha-desc', label: 'Alphabetical (desc)' }
+      ],
+      selectedSortOption: 'default'
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
     this.sendWebSocket = this.sendWebSocket.bind(this);
+    this.setSortOption = this.setSortOption.bind(this);
 
     this.toast = this.toast.bind(this);
 
@@ -106,24 +117,10 @@ class App extends React.Component {
 
         // Set states
         self.setState({
-          symbols: _.sortBy(response.stats.symbols, s => {
-            if (s.buy.openOrders.length > 0) {
-              const openOrder = s.buy.openOrders[0];
-              if (openOrder.differenceToCancel) {
-                return (openOrder.differenceToCancel + 3000) * -10;
-              }
-            }
-            if (s.sell.openOrders.length > 0) {
-              const openOrder = s.sell.openOrders[0];
-              if (openOrder.differenceToCancel) {
-                return (openOrder.differenceToCancel + 2000) * -10;
-              }
-            }
-            if (s.sell.difference) {
-              return (s.sell.difference + 1000) * -10;
-            }
-            return s.buy.difference;
-          }),
+          symbols: sortingSymbols(
+            response.stats.symbols,
+            self.state.selectedSortOption
+          ),
           packageVersion: response.common.version,
           gitHash: response.common.gitHash,
           exchangeSymbols: response.common.exchangeSymbols,
@@ -176,7 +173,20 @@ class App extends React.Component {
     }
   }
 
+  setSortOption(newSortOption) {
+    this.setState({
+      selectedSortOption: newSortOption
+    });
+  }
+
   componentDidMount() {
+    const selectedSortOption =
+      localStorage.getItem('selectedSortOption') || 'default';
+
+    this.setState({
+      selectedSortOption
+    });
+
     this.connectWebSocket();
 
     this.timerID = setInterval(() => this.requestLatest(), 1000);
@@ -196,7 +206,9 @@ class App extends React.Component {
       accountInfo,
       publicURL,
       apiInfo,
-      dustTransfer
+      dustTransfer,
+      availableSortOptions,
+      selectedSortOption
     } = this.state;
 
     const coinWrappers = symbols.map((symbol, index) => {
@@ -220,6 +232,9 @@ class App extends React.Component {
           publicURL={publicURL}
           exchangeSymbols={exchangeSymbols}
           sendWebSocket={this.sendWebSocket}
+          availableSortOptions={availableSortOptions}
+          selectedSortOption={selectedSortOption}
+          setSortOption={this.setSortOption}
         />
         {_.isEmpty(configuration) === false ? (
           <div className='app-body'>

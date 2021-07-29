@@ -37,12 +37,13 @@ const execute = async (logger, rawData) => {
 
   // Override action
   if (
-    (_.get(overrideData, 'action') === 'manual-trade' ||
+    (_.get(overrideData, 'action') === 'buy' ||
+      _.get(overrideData, 'action') === 'manual-trade' ||
       _.get(overrideData, 'action') === 'cancel-order') &&
     moment(_.get(overrideData, 'actionAt', undefined)) <= moment()
   ) {
     data.action = overrideData.action;
-    data.order = overrideData.order;
+    data.order = overrideData.order || {};
     // Remove override data to avoid multiple execution
     await removeOverrideDataForSymbol(logger, symbol);
     return data;

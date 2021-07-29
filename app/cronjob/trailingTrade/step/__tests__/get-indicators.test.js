@@ -60,16 +60,21 @@ describe('get-indicators.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.021,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.021
+              },
               athRestriction: {
                 enabled: true,
                 restrictionPercentage: 0.9
               }
             },
             sell: {
-              triggerPercentage: 1.06,
-              limitPercentage: 0.979,
+              currentGridTrade: {
+                triggerPercentage: 1.06,
+                limitPercentage: 0.979
+              },
               stopLoss: { maxLossPercentage: 0.8 }
             }
           },
@@ -92,16 +97,21 @@ describe('get-indicators.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.021,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.021
+              },
               athRestriction: {
                 enabled: true,
                 restrictionPercentage: 0.9
               }
             },
             sell: {
-              triggerPercentage: 1.06,
-              limitPercentage: 0.979,
+              currentGridTrade: {
+                triggerPercentage: 1.06,
+                limitPercentage: 0.979
+              },
               stopLoss: {
                 maxLossPercentage: 0.8
               }
@@ -137,7 +147,7 @@ describe('get-indicators.js', () => {
           },
           sell: {
             currentPrice: 15555.09,
-            limitPrice: 15228.43311,
+            limitPrice: null,
             lastBuyPrice: null,
             triggerPrice: null,
             difference: null,
@@ -198,16 +208,21 @@ describe('get-indicators.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.021,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.021
+              },
               athRestriction: {
                 enabled: false,
                 restrictionPercentage: 0.9
               }
             },
             sell: {
-              triggerPercentage: 1.06,
-              limitPercentage: 0.979,
+              currentGridTrade: {
+                triggerPercentage: 1.06,
+                limitPercentage: 0.979
+              },
               stopLoss: { maxLossPercentage: 0.8 }
             }
           },
@@ -230,16 +245,21 @@ describe('get-indicators.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.021,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.021
+              },
               athRestriction: {
                 enabled: false,
                 restrictionPercentage: 0.9
               }
             },
             sell: {
-              triggerPercentage: 1.06,
-              limitPercentage: 0.979,
+              currentGridTrade: {
+                triggerPercentage: 1.06,
+                limitPercentage: 0.979
+              },
               stopLoss: {
                 maxLossPercentage: 0.8
               }
@@ -275,7 +295,7 @@ describe('get-indicators.js', () => {
           },
           sell: {
             currentPrice: 15555.09,
-            limitPrice: 15228.43311,
+            limitPrice: null,
             lastBuyPrice: null,
             triggerPrice: null,
             difference: null,
@@ -292,199 +312,585 @@ describe('get-indicators.js', () => {
     });
 
     describe('with no open orders but has last buy price', () => {
-      beforeEach(async () => {
-        const { cache, logger } = require('../../../../helpers');
-        cacheMock = cache;
-        loggerMock = logger;
+      describe('when buy grid trade index is null', () => {
+        beforeEach(async () => {
+          const { cache, logger } = require('../../../../helpers');
+          cacheMock = cache;
+          loggerMock = logger;
 
-        mockGetLastBuyPrice = jest
-          .fn()
-          .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
-        jest.mock('../../../trailingTradeHelper/common', () => ({
-          getLastBuyPrice: mockGetLastBuyPrice
-        }));
+          mockGetLastBuyPrice = jest
+            .fn()
+            .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getLastBuyPrice: mockGetLastBuyPrice
+          }));
 
-        cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
-          if (
-            hash === 'trailing-trade-symbols' &&
-            key === 'BTCUSDT-indicator-data'
-          ) {
-            return JSON.stringify({
+          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+            if (
+              hash === 'trailing-trade-symbols' &&
+              key === 'BTCUSDT-indicator-data'
+            ) {
+              return JSON.stringify({
+                highestPrice: 10000,
+                lowestPrice: 8893.03,
+                athPrice: 9000
+              });
+            }
+
+            if (
+              hash === 'trailing-trade-symbols' &&
+              key === 'BTCUSDT-latest-candle'
+            ) {
+              return JSON.stringify({
+                symbol: 'BTCUSDT',
+                close: '15555.09000000'
+              });
+            }
+
+            return null;
+          });
+
+          step = require('../get-indicators');
+
+          rawData = {
+            symbol: 'BTCUSDT',
+            symbolInfo: {
+              filterMinNotional: { minNotional: '10.000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                currentGridTradeIndex: -1,
+                currentGridTrade: null,
+                athRestriction: {
+                  enabled: true,
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                currentGridTrade: null,
+                stopLoss: { maxLossPercentage: 0.8 }
+              }
+            },
+            baseAssetBalance: { total: 0.1 },
+            openOrders: []
+          };
+
+          result = await step.execute(logger, rawData);
+        });
+
+        it('triggers getLastBuyPrice', () => {
+          expect(mockGetLastBuyPrice).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
+
+        it('triggers expected value', () => {
+          expect(result).toStrictEqual({
+            symbol: 'BTCUSDT',
+            symbolInfo: {
+              filterMinNotional: { minNotional: '10.000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                currentGridTradeIndex: -1,
+                currentGridTrade: null,
+                athRestriction: {
+                  enabled: true,
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                currentGridTrade: null,
+                stopLoss: {
+                  maxLossPercentage: 0.8
+                }
+              }
+            },
+            baseAssetBalance: {
+              total: 0.1,
+              estimatedValue: 1555.509,
+              isLessThanMinNotionalValue: false
+            },
+            openOrders: [],
+            indicators: {
               highestPrice: 10000,
               lowestPrice: 8893.03,
               athPrice: 9000
-            });
-          }
-
-          if (
-            hash === 'trailing-trade-symbols' &&
-            key === 'BTCUSDT-latest-candle'
-          ) {
-            return JSON.stringify({
+            },
+            lastCandle: {
               symbol: 'BTCUSDT',
               close: '15555.09000000'
-            });
-          }
+            },
+            buy: {
+              currentPrice: 15555.09,
+              limitPrice: null,
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000,
+              athRestrictionPrice: 8100,
+              triggerPrice: null,
+              difference: null,
+              openOrders: [],
+              processMessage: '',
+              updatedAt: expect.any(Object)
+            },
+            sell: {
+              currentPrice: 15555.09,
+              limitPrice: null,
+              lastBuyPrice: 9000,
+              triggerPrice: null,
+              difference: null,
+              currentProfit: 655.509,
+              currentProfitPercentage: 42.14112550939918,
+              stopLossDifference: 53.712900407519335,
+              stopLossTriggerPrice: 7200,
+              openOrders: [],
+              processMessage: '',
+              updatedAt: expect.any(Object)
+            }
+          });
+        });
+      });
 
-          return null;
+      describe('when buy grid trade index is 0', () => {
+        beforeEach(async () => {
+          const { cache, logger } = require('../../../../helpers');
+          cacheMock = cache;
+          loggerMock = logger;
+
+          mockGetLastBuyPrice = jest
+            .fn()
+            .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getLastBuyPrice: mockGetLastBuyPrice
+          }));
+
+          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+            if (
+              hash === 'trailing-trade-symbols' &&
+              key === 'BTCUSDT-indicator-data'
+            ) {
+              return JSON.stringify({
+                highestPrice: 10000,
+                lowestPrice: 8893.03,
+                athPrice: 9000
+              });
+            }
+
+            if (
+              hash === 'trailing-trade-symbols' &&
+              key === 'BTCUSDT-latest-candle'
+            ) {
+              return JSON.stringify({
+                symbol: 'BTCUSDT',
+                close: '15555.09000000'
+              });
+            }
+
+            return null;
+          });
+
+          step = require('../get-indicators');
+
+          rawData = {
+            symbol: 'BTCUSDT',
+            symbolInfo: {
+              filterMinNotional: { minNotional: '10.000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                currentGridTradeIndex: 0,
+                currentGridTrade: {
+                  triggerPercentage: 1.01,
+                  limitPercentage: 1.021
+                },
+                athRestriction: {
+                  enabled: true,
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                currentGridTrade: {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979
+                },
+                stopLoss: { maxLossPercentage: 0.8 }
+              }
+            },
+            baseAssetBalance: { total: 0.1 },
+            openOrders: []
+          };
+
+          result = await step.execute(logger, rawData);
         });
 
-        step = require('../get-indicators');
+        it('triggers getLastBuyPrice', () => {
+          expect(mockGetLastBuyPrice).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
 
-        rawData = {
-          symbol: 'BTCUSDT',
-          symbolInfo: {
-            filterMinNotional: { minNotional: '10.000' }
-          },
-          symbolConfiguration: {
+        it('triggers expected value', () => {
+          expect(result).toStrictEqual({
+            symbol: 'BTCUSDT',
+            symbolInfo: {
+              filterMinNotional: { minNotional: '10.000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                currentGridTradeIndex: 0,
+                currentGridTrade: {
+                  triggerPercentage: 1.01,
+                  limitPercentage: 1.021
+                },
+                athRestriction: {
+                  enabled: true,
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                currentGridTrade: {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979
+                },
+                stopLoss: {
+                  maxLossPercentage: 0.8
+                }
+              }
+            },
+            baseAssetBalance: {
+              total: 0.1,
+              estimatedValue: 1555.509,
+              isLessThanMinNotionalValue: false
+            },
+            openOrders: [],
+            indicators: {
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000
+            },
+            lastCandle: {
+              symbol: 'BTCUSDT',
+              close: '15555.09000000'
+            },
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.021,
-              athRestriction: {
-                enabled: true,
-                restrictionPercentage: 0.9
-              }
-            },
-            sell: {
-              triggerPercentage: 1.06,
-              limitPercentage: 0.979,
-              stopLoss: { maxLossPercentage: 0.8 }
-            }
-          },
-          baseAssetBalance: { total: 0.1 },
-          openOrders: [
-            {
-              orderId: 1,
-              symbol: 'BTCUSDT',
-              type: 'LIMIT',
-              side: 'BUY',
-              price: '13000.000',
-              origQty: '0.005',
-              time: 1615465601162
-            },
-            {
-              orderId: 2,
-              symbol: 'BTCUSDT',
-              type: 'STOP_LOSS_LIMIT',
-              side: 'BUY',
-              price: '16000.000',
-              origQty: '0.005',
-              stopPrice: '16100.000',
-              time: 1615465601162
-            },
-            {
-              orderId: 3,
-              symbol: 'BTCUSDT',
-              type: 'STOP_LOSS_LIMIT',
-              side: 'SELL',
-              price: '16000.000',
-              origQty: '0.005',
-              stopPrice: '15900.000',
-              time: 1615465601162
-            }
-          ]
-        };
-
-        result = await step.execute(logger, rawData);
-      });
-
-      it('triggers getLastBuyPrice', () => {
-        expect(mockGetLastBuyPrice).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
-      });
-
-      it('triggers expected value', () => {
-        expect(result).toStrictEqual({
-          symbol: 'BTCUSDT',
-          symbolInfo: {
-            filterMinNotional: { minNotional: '10.000' }
-          },
-          symbolConfiguration: {
-            buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.021,
-              athRestriction: {
-                enabled: true,
-                restrictionPercentage: 0.9
-              }
-            },
-            sell: {
-              triggerPercentage: 1.06,
-              limitPercentage: 0.979,
-              stopLoss: {
-                maxLossPercentage: 0.8
-              }
-            }
-          },
-          baseAssetBalance: {
-            total: 0.1,
-            estimatedValue: 1555.509,
-            isLessThanMinNotionalValue: false
-          },
-          openOrders: [
-            {
-              orderId: 1,
-              symbol: 'BTCUSDT',
-              type: 'LIMIT',
-              side: 'BUY',
-              price: '13000.000',
-              origQty: '0.005',
-              time: 1615465601162,
-              currentPrice: 15555.09,
-              updatedAt: expect.any(Object)
-            },
-            {
-              orderId: 2,
-              symbol: 'BTCUSDT',
-              type: 'STOP_LOSS_LIMIT',
-              side: 'BUY',
-              price: '16000.000',
-              origQty: '0.005',
-              stopPrice: '16100.000',
-              time: 1615465601162,
               currentPrice: 15555.09,
               limitPrice: 15881.746889999999,
-              limitPercentage: 1.021,
-              differenceToExecute: -3.5030976998525976,
-              differenceToCancel: -1.37423868741684,
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000,
+              athRestrictionPrice: 8100,
+              triggerPrice: 8981.9603,
+              difference: 73.18146017634923,
+              openOrders: [],
+              processMessage: '',
               updatedAt: expect.any(Object)
             },
-            {
-              orderId: 3,
-              symbol: 'BTCUSDT',
-              type: 'STOP_LOSS_LIMIT',
-              side: 'SELL',
-              price: '16000.000',
-              origQty: '0.005',
-              stopPrice: '15900.000',
-              time: 1615465601162,
+            sell: {
               currentPrice: 15555.09,
               limitPrice: 15228.43311,
-              limitPercentage: 0.979,
-              differenceToExecute: -2.2173449333947826,
-              differenceToCancel: -4.40995396669539,
-              minimumProfit: 35,
-              minimumProfitPercentage: 43.75,
+              lastBuyPrice: 9000,
+              triggerPrice: 9540,
+              difference: 38.669593039963125,
+              currentProfit: 655.509,
+              currentProfitPercentage: 42.14112550939918,
+              stopLossDifference: 53.712900407519335,
+              stopLossTriggerPrice: 7200,
+              openOrders: [],
+              processMessage: '',
               updatedAt: expect.any(Object)
             }
-          ],
-          indicators: {
-            highestPrice: 10000,
-            lowestPrice: 8893.03,
-            athPrice: 9000
-          },
-          lastCandle: {
+          });
+        });
+      });
+
+      describe('when buy grid trade index is 1', () => {
+        beforeEach(async () => {
+          const { cache, logger } = require('../../../../helpers');
+          cacheMock = cache;
+          loggerMock = logger;
+
+          mockGetLastBuyPrice = jest
+            .fn()
+            .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getLastBuyPrice: mockGetLastBuyPrice
+          }));
+
+          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+            if (
+              hash === 'trailing-trade-symbols' &&
+              key === 'BTCUSDT-indicator-data'
+            ) {
+              return JSON.stringify({
+                highestPrice: 10000,
+                lowestPrice: 8893.03,
+                athPrice: 9000
+              });
+            }
+
+            if (
+              hash === 'trailing-trade-symbols' &&
+              key === 'BTCUSDT-latest-candle'
+            ) {
+              return JSON.stringify({
+                symbol: 'BTCUSDT',
+                close: '15555.09000000'
+              });
+            }
+
+            return null;
+          });
+
+          step = require('../get-indicators');
+
+          rawData = {
             symbol: 'BTCUSDT',
-            close: '15555.09000000'
-          },
-          buy: {
-            currentPrice: 15555.09,
-            limitPrice: 15881.746889999999,
-            highestPrice: 10000,
-            lowestPrice: 8893.03,
-            athPrice: 9000,
-            athRestrictionPrice: 8100,
-            triggerPrice: 8981.9603,
-            difference: 73.18146017634923,
+            symbolInfo: {
+              filterMinNotional: { minNotional: '10.000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                currentGridTradeIndex: 1,
+                currentGridTrade: {
+                  triggerPercentage: 1.01,
+                  limitPercentage: 1.021
+                },
+                athRestriction: {
+                  enabled: true,
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                currentGridTrade: {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979
+                },
+                stopLoss: { maxLossPercentage: 0.8 }
+              }
+            },
+            baseAssetBalance: { total: 0.1 },
+            openOrders: []
+          };
+
+          result = await step.execute(logger, rawData);
+        });
+
+        it('triggers getLastBuyPrice', () => {
+          expect(mockGetLastBuyPrice).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
+
+        it('triggers expected value', () => {
+          expect(result).toStrictEqual({
+            symbol: 'BTCUSDT',
+            symbolInfo: {
+              filterMinNotional: { minNotional: '10.000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                currentGridTradeIndex: 1,
+                currentGridTrade: {
+                  triggerPercentage: 1.01,
+                  limitPercentage: 1.021
+                },
+                athRestriction: {
+                  enabled: true,
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                currentGridTrade: {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979
+                },
+                stopLoss: {
+                  maxLossPercentage: 0.8
+                }
+              }
+            },
+            baseAssetBalance: {
+              total: 0.1,
+              estimatedValue: 1555.509,
+              isLessThanMinNotionalValue: false
+            },
+            openOrders: [],
+            indicators: {
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000
+            },
+            lastCandle: {
+              symbol: 'BTCUSDT',
+              close: '15555.09000000'
+            },
+            buy: {
+              currentPrice: 15555.09,
+              limitPrice: 15881.746889999999,
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000,
+              athRestrictionPrice: 8100,
+              triggerPrice: 9090,
+              difference: 71.12310231023102,
+              openOrders: [],
+              processMessage: '',
+              updatedAt: expect.any(Object)
+            },
+            sell: {
+              currentPrice: 15555.09,
+              limitPrice: 15228.43311,
+              lastBuyPrice: 9000,
+              triggerPrice: 9540,
+              difference: 38.669593039963125,
+              currentProfit: 655.509,
+              currentProfitPercentage: 42.14112550939918,
+              stopLossDifference: 53.712900407519335,
+              stopLossTriggerPrice: 7200,
+              openOrders: [],
+              processMessage: '',
+              updatedAt: expect.any(Object)
+            }
+          });
+        });
+      });
+    });
+
+    describe('with open orders and has last buy price', () => {
+      describe('when buy grid trade index is null', () => {
+        beforeEach(async () => {
+          const { cache, logger } = require('../../../../helpers');
+          cacheMock = cache;
+          loggerMock = logger;
+
+          mockGetLastBuyPrice = jest
+            .fn()
+            .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getLastBuyPrice: mockGetLastBuyPrice
+          }));
+
+          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+            if (
+              hash === 'trailing-trade-symbols' &&
+              key === 'BTCUSDT-indicator-data'
+            ) {
+              return JSON.stringify({
+                highestPrice: 10000,
+                lowestPrice: 8893.03,
+                athPrice: 9000
+              });
+            }
+
+            if (
+              hash === 'trailing-trade-symbols' &&
+              key === 'BTCUSDT-latest-candle'
+            ) {
+              return JSON.stringify({
+                symbol: 'BTCUSDT',
+                close: '15555.09000000'
+              });
+            }
+
+            return null;
+          });
+
+          step = require('../get-indicators');
+
+          rawData = {
+            symbol: 'BTCUSDT',
+            symbolInfo: {
+              filterMinNotional: { minNotional: '10.000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                currentGridTradeIndex: -1,
+                currentGridTrade: null,
+                athRestriction: {
+                  enabled: true,
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                currentGridTrade: null,
+                stopLoss: { maxLossPercentage: 0.8 }
+              }
+            },
+            baseAssetBalance: { total: 0.1 },
+            openOrders: [
+              {
+                orderId: 1,
+                symbol: 'BTCUSDT',
+                type: 'LIMIT',
+                side: 'BUY',
+                price: '13000.000',
+                origQty: '0.005',
+                time: 1615465601162
+              },
+              {
+                orderId: 2,
+                symbol: 'BTCUSDT',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'BUY',
+                price: '16000.000',
+                origQty: '0.005',
+                stopPrice: '16100.000',
+                time: 1615465601162
+              },
+              {
+                orderId: 3,
+                symbol: 'BTCUSDT',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'SELL',
+                price: '16000.000',
+                origQty: '0.005',
+                stopPrice: '15900.000',
+                time: 1615465601162
+              }
+            ]
+          };
+
+          result = await step.execute(logger, rawData);
+        });
+
+        it('triggers getLastBuyPrice', () => {
+          expect(mockGetLastBuyPrice).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
+
+        it('triggers expected value', () => {
+          expect(result).toStrictEqual({
+            symbol: 'BTCUSDT',
+            symbolInfo: {
+              filterMinNotional: { minNotional: '10.000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                currentGridTradeIndex: -1,
+                currentGridTrade: null,
+                athRestriction: {
+                  enabled: true,
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                currentGridTrade: null,
+                stopLoss: {
+                  maxLossPercentage: 0.8
+                }
+              }
+            },
+            baseAssetBalance: {
+              total: 0.1,
+              estimatedValue: 1555.509,
+              isLessThanMinNotionalValue: false
+            },
             openOrders: [
               {
                 orderId: 1,
@@ -507,27 +913,10 @@ describe('get-indicators.js', () => {
                 stopPrice: '16100.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
-                limitPrice: 15881.746889999999,
-                limitPercentage: 1.021,
+                differenceToCancel: null,
                 differenceToExecute: -3.5030976998525976,
-                differenceToCancel: -1.37423868741684,
                 updatedAt: expect.any(Object)
-              }
-            ],
-            processMessage: '',
-            updatedAt: expect.any(Object)
-          },
-          sell: {
-            currentPrice: 15555.09,
-            limitPrice: 15228.43311,
-            lastBuyPrice: 9000,
-            triggerPrice: 9540,
-            difference: 38.669593039963125,
-            currentProfit: 655.509,
-            currentProfitPercentage: 42.14112550939918,
-            stopLossDifference: 53.712900407519335,
-            stopLossTriggerPrice: 7200,
-            openOrders: [
+              },
               {
                 orderId: 3,
                 symbol: 'BTCUSDT',
@@ -538,18 +927,629 @@ describe('get-indicators.js', () => {
                 stopPrice: '15900.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
-                limitPrice: 15228.43311,
-                limitPercentage: 0.979,
+                differenceToCancel: null,
                 differenceToExecute: -2.2173449333947826,
-                differenceToCancel: -4.40995396669539,
                 minimumProfit: 35,
                 minimumProfitPercentage: 43.75,
                 updatedAt: expect.any(Object)
               }
             ],
-            processMessage: '',
-            updatedAt: expect.any(Object)
-          }
+            indicators: {
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000
+            },
+            lastCandle: {
+              symbol: 'BTCUSDT',
+              close: '15555.09000000'
+            },
+            buy: {
+              currentPrice: 15555.09,
+              limitPrice: null,
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000,
+              athRestrictionPrice: 8100,
+              triggerPrice: null,
+              difference: null,
+              openOrders: [
+                {
+                  orderId: 1,
+                  symbol: 'BTCUSDT',
+                  type: 'LIMIT',
+                  side: 'BUY',
+                  price: '13000.000',
+                  origQty: '0.005',
+                  time: 1615465601162,
+                  currentPrice: 15555.09,
+                  updatedAt: expect.any(Object)
+                },
+                {
+                  orderId: 2,
+                  symbol: 'BTCUSDT',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'BUY',
+                  price: '16000.000',
+                  origQty: '0.005',
+                  stopPrice: '16100.000',
+                  time: 1615465601162,
+                  currentPrice: 15555.09,
+                  differenceToCancel: null,
+                  differenceToExecute: -3.5030976998525976,
+                  updatedAt: expect.any(Object)
+                }
+              ],
+              processMessage: '',
+              updatedAt: expect.any(Object)
+            },
+            sell: {
+              currentPrice: 15555.09,
+              limitPrice: null,
+              lastBuyPrice: 9000,
+              triggerPrice: null,
+              difference: null,
+              currentProfit: 655.509,
+              currentProfitPercentage: 42.14112550939918,
+              stopLossDifference: 53.712900407519335,
+              stopLossTriggerPrice: 7200,
+              openOrders: [
+                {
+                  orderId: 3,
+                  symbol: 'BTCUSDT',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'SELL',
+                  price: '16000.000',
+                  origQty: '0.005',
+                  stopPrice: '15900.000',
+                  time: 1615465601162,
+                  currentPrice: 15555.09,
+                  differenceToCancel: null,
+                  differenceToExecute: -2.2173449333947826,
+                  minimumProfit: 35,
+                  minimumProfitPercentage: 43.75,
+                  updatedAt: expect.any(Object)
+                }
+              ],
+              processMessage: '',
+              updatedAt: expect.any(Object)
+            }
+          });
+        });
+      });
+
+      describe('when buy grid trade index is 0', () => {
+        beforeEach(async () => {
+          const { cache, logger } = require('../../../../helpers');
+          cacheMock = cache;
+          loggerMock = logger;
+
+          mockGetLastBuyPrice = jest
+            .fn()
+            .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getLastBuyPrice: mockGetLastBuyPrice
+          }));
+
+          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+            if (
+              hash === 'trailing-trade-symbols' &&
+              key === 'BTCUSDT-indicator-data'
+            ) {
+              return JSON.stringify({
+                highestPrice: 10000,
+                lowestPrice: 8893.03,
+                athPrice: 9000
+              });
+            }
+
+            if (
+              hash === 'trailing-trade-symbols' &&
+              key === 'BTCUSDT-latest-candle'
+            ) {
+              return JSON.stringify({
+                symbol: 'BTCUSDT',
+                close: '15555.09000000'
+              });
+            }
+
+            return null;
+          });
+
+          step = require('../get-indicators');
+
+          rawData = {
+            symbol: 'BTCUSDT',
+            symbolInfo: {
+              filterMinNotional: { minNotional: '10.000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                currentGridTradeIndex: 0,
+                currentGridTrade: {
+                  triggerPercentage: 1.01,
+                  limitPercentage: 1.021
+                },
+                athRestriction: {
+                  enabled: true,
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                currentGridTrade: {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979
+                },
+                stopLoss: { maxLossPercentage: 0.8 }
+              }
+            },
+            baseAssetBalance: { total: 0.1 },
+            openOrders: [
+              {
+                orderId: 1,
+                symbol: 'BTCUSDT',
+                type: 'LIMIT',
+                side: 'BUY',
+                price: '13000.000',
+                origQty: '0.005',
+                time: 1615465601162
+              },
+              {
+                orderId: 2,
+                symbol: 'BTCUSDT',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'BUY',
+                price: '16000.000',
+                origQty: '0.005',
+                stopPrice: '16100.000',
+                time: 1615465601162
+              },
+              {
+                orderId: 3,
+                symbol: 'BTCUSDT',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'SELL',
+                price: '16000.000',
+                origQty: '0.005',
+                stopPrice: '15900.000',
+                time: 1615465601162
+              }
+            ]
+          };
+
+          result = await step.execute(logger, rawData);
+        });
+
+        it('triggers getLastBuyPrice', () => {
+          expect(mockGetLastBuyPrice).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
+
+        it('triggers expected value', () => {
+          expect(result).toStrictEqual({
+            symbol: 'BTCUSDT',
+            symbolInfo: {
+              filterMinNotional: { minNotional: '10.000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                currentGridTradeIndex: 0,
+                currentGridTrade: {
+                  triggerPercentage: 1.01,
+                  limitPercentage: 1.021
+                },
+                athRestriction: {
+                  enabled: true,
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                currentGridTrade: {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979
+                },
+                stopLoss: {
+                  maxLossPercentage: 0.8
+                }
+              }
+            },
+            baseAssetBalance: {
+              total: 0.1,
+              estimatedValue: 1555.509,
+              isLessThanMinNotionalValue: false
+            },
+            openOrders: [
+              {
+                orderId: 1,
+                symbol: 'BTCUSDT',
+                type: 'LIMIT',
+                side: 'BUY',
+                price: '13000.000',
+                origQty: '0.005',
+                time: 1615465601162,
+                currentPrice: 15555.09,
+                updatedAt: expect.any(Object)
+              },
+              {
+                orderId: 2,
+                symbol: 'BTCUSDT',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'BUY',
+                price: '16000.000',
+                origQty: '0.005',
+                stopPrice: '16100.000',
+                time: 1615465601162,
+                currentPrice: 15555.09,
+                differenceToCancel: -1.37423868741684,
+                differenceToExecute: -3.5030976998525976,
+                updatedAt: expect.any(Object)
+              },
+              {
+                orderId: 3,
+                symbol: 'BTCUSDT',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'SELL',
+                price: '16000.000',
+                origQty: '0.005',
+                stopPrice: '15900.000',
+                time: 1615465601162,
+                currentPrice: 15555.09,
+                differenceToCancel: -4.40995396669539,
+                differenceToExecute: -2.2173449333947826,
+                minimumProfit: 35,
+                minimumProfitPercentage: 43.75,
+                updatedAt: expect.any(Object)
+              }
+            ],
+            indicators: {
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000
+            },
+            lastCandle: {
+              symbol: 'BTCUSDT',
+              close: '15555.09000000'
+            },
+            buy: {
+              currentPrice: 15555.09,
+              limitPrice: 15881.746889999999,
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000,
+              athRestrictionPrice: 8100,
+              triggerPrice: 8981.9603,
+              difference: 73.18146017634923,
+              openOrders: [
+                {
+                  orderId: 1,
+                  symbol: 'BTCUSDT',
+                  type: 'LIMIT',
+                  side: 'BUY',
+                  price: '13000.000',
+                  origQty: '0.005',
+                  time: 1615465601162,
+                  currentPrice: 15555.09,
+                  updatedAt: expect.any(Object)
+                },
+                {
+                  orderId: 2,
+                  symbol: 'BTCUSDT',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'BUY',
+                  price: '16000.000',
+                  origQty: '0.005',
+                  stopPrice: '16100.000',
+                  time: 1615465601162,
+                  currentPrice: 15555.09,
+                  differenceToCancel: -1.37423868741684,
+                  differenceToExecute: -3.5030976998525976,
+                  updatedAt: expect.any(Object)
+                }
+              ],
+              processMessage: '',
+              updatedAt: expect.any(Object)
+            },
+            sell: {
+              currentPrice: 15555.09,
+              limitPrice: 15228.43311,
+              lastBuyPrice: 9000,
+              triggerPrice: 9540,
+              difference: 38.669593039963125,
+              currentProfit: 655.509,
+              currentProfitPercentage: 42.14112550939918,
+              stopLossDifference: 53.712900407519335,
+              stopLossTriggerPrice: 7200,
+              openOrders: [
+                {
+                  orderId: 3,
+                  symbol: 'BTCUSDT',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'SELL',
+                  price: '16000.000',
+                  origQty: '0.005',
+                  stopPrice: '15900.000',
+                  time: 1615465601162,
+                  currentPrice: 15555.09,
+                  differenceToCancel: -4.40995396669539,
+                  differenceToExecute: -2.2173449333947826,
+                  minimumProfit: 35,
+                  minimumProfitPercentage: 43.75,
+                  updatedAt: expect.any(Object)
+                }
+              ],
+              processMessage: '',
+              updatedAt: expect.any(Object)
+            }
+          });
+        });
+      });
+
+      describe('when buy grid trade index is 1', () => {
+        beforeEach(async () => {
+          const { cache, logger } = require('../../../../helpers');
+          cacheMock = cache;
+          loggerMock = logger;
+
+          mockGetLastBuyPrice = jest
+            .fn()
+            .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getLastBuyPrice: mockGetLastBuyPrice
+          }));
+
+          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+            if (
+              hash === 'trailing-trade-symbols' &&
+              key === 'BTCUSDT-indicator-data'
+            ) {
+              return JSON.stringify({
+                highestPrice: 10000,
+                lowestPrice: 8893.03,
+                athPrice: 9000
+              });
+            }
+
+            if (
+              hash === 'trailing-trade-symbols' &&
+              key === 'BTCUSDT-latest-candle'
+            ) {
+              return JSON.stringify({
+                symbol: 'BTCUSDT',
+                close: '15555.09000000'
+              });
+            }
+
+            return null;
+          });
+
+          step = require('../get-indicators');
+
+          rawData = {
+            symbol: 'BTCUSDT',
+            symbolInfo: {
+              filterMinNotional: { minNotional: '10.000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                currentGridTradeIndex: 1,
+                currentGridTrade: {
+                  triggerPercentage: 1.01,
+                  limitPercentage: 1.021
+                },
+                athRestriction: {
+                  enabled: true,
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                currentGridTrade: {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979
+                },
+                stopLoss: { maxLossPercentage: 0.8 }
+              }
+            },
+            baseAssetBalance: { total: 0.1 },
+            openOrders: [
+              {
+                orderId: 1,
+                symbol: 'BTCUSDT',
+                type: 'LIMIT',
+                side: 'BUY',
+                price: '13000.000',
+                origQty: '0.005',
+                time: 1615465601162
+              },
+              {
+                orderId: 2,
+                symbol: 'BTCUSDT',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'BUY',
+                price: '16000.000',
+                origQty: '0.005',
+                stopPrice: '16100.000',
+                time: 1615465601162
+              },
+              {
+                orderId: 3,
+                symbol: 'BTCUSDT',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'SELL',
+                price: '16000.000',
+                origQty: '0.005',
+                stopPrice: '15900.000',
+                time: 1615465601162
+              }
+            ]
+          };
+
+          result = await step.execute(logger, rawData);
+        });
+
+        it('triggers getLastBuyPrice', () => {
+          expect(mockGetLastBuyPrice).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
+
+        it('triggers expected value', () => {
+          expect(result).toStrictEqual({
+            symbol: 'BTCUSDT',
+            symbolInfo: {
+              filterMinNotional: { minNotional: '10.000' }
+            },
+            symbolConfiguration: {
+              buy: {
+                currentGridTradeIndex: 1,
+                currentGridTrade: {
+                  triggerPercentage: 1.01,
+                  limitPercentage: 1.021
+                },
+                athRestriction: {
+                  enabled: true,
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                currentGridTrade: {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979
+                },
+                stopLoss: {
+                  maxLossPercentage: 0.8
+                }
+              }
+            },
+            baseAssetBalance: {
+              total: 0.1,
+              estimatedValue: 1555.509,
+              isLessThanMinNotionalValue: false
+            },
+            openOrders: [
+              {
+                orderId: 1,
+                symbol: 'BTCUSDT',
+                type: 'LIMIT',
+                side: 'BUY',
+                price: '13000.000',
+                origQty: '0.005',
+                time: 1615465601162,
+                currentPrice: 15555.09,
+                updatedAt: expect.any(Object)
+              },
+              {
+                orderId: 2,
+                symbol: 'BTCUSDT',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'BUY',
+                price: '16000.000',
+                origQty: '0.005',
+                stopPrice: '16100.000',
+                time: 1615465601162,
+                currentPrice: 15555.09,
+                differenceToCancel: -1.37423868741684,
+                differenceToExecute: -3.5030976998525976,
+                updatedAt: expect.any(Object)
+              },
+              {
+                orderId: 3,
+                symbol: 'BTCUSDT',
+                type: 'STOP_LOSS_LIMIT',
+                side: 'SELL',
+                price: '16000.000',
+                origQty: '0.005',
+                stopPrice: '15900.000',
+                time: 1615465601162,
+                currentPrice: 15555.09,
+                differenceToCancel: -4.40995396669539,
+                differenceToExecute: -2.2173449333947826,
+                minimumProfit: 35,
+                minimumProfitPercentage: 43.75,
+                updatedAt: expect.any(Object)
+              }
+            ],
+            indicators: {
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000
+            },
+            lastCandle: {
+              symbol: 'BTCUSDT',
+              close: '15555.09000000'
+            },
+            buy: {
+              currentPrice: 15555.09,
+              limitPrice: 15881.746889999999,
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000,
+              athRestrictionPrice: 8100,
+              triggerPrice: 9090,
+              difference: 71.12310231023102,
+              openOrders: [
+                {
+                  orderId: 1,
+                  symbol: 'BTCUSDT',
+                  type: 'LIMIT',
+                  side: 'BUY',
+                  price: '13000.000',
+                  origQty: '0.005',
+                  time: 1615465601162,
+                  currentPrice: 15555.09,
+                  updatedAt: expect.any(Object)
+                },
+                {
+                  orderId: 2,
+                  symbol: 'BTCUSDT',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'BUY',
+                  price: '16000.000',
+                  origQty: '0.005',
+                  stopPrice: '16100.000',
+                  time: 1615465601162,
+                  currentPrice: 15555.09,
+                  differenceToCancel: -1.37423868741684,
+                  differenceToExecute: -3.5030976998525976,
+                  updatedAt: expect.any(Object)
+                }
+              ],
+              processMessage: '',
+              updatedAt: expect.any(Object)
+            },
+            sell: {
+              currentPrice: 15555.09,
+              limitPrice: 15228.43311,
+              lastBuyPrice: 9000,
+              triggerPrice: 9540,
+              difference: 38.669593039963125,
+              currentProfit: 655.509,
+              currentProfitPercentage: 42.14112550939918,
+              stopLossDifference: 53.712900407519335,
+              stopLossTriggerPrice: 7200,
+              openOrders: [
+                {
+                  orderId: 3,
+                  symbol: 'BTCUSDT',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'SELL',
+                  price: '16000.000',
+                  origQty: '0.005',
+                  stopPrice: '15900.000',
+                  time: 1615465601162,
+                  currentPrice: 15555.09,
+                  differenceToCancel: -4.40995396669539,
+                  differenceToExecute: -2.2173449333947826,
+                  minimumProfit: 35,
+                  minimumProfitPercentage: 43.75,
+                  updatedAt: expect.any(Object)
+                }
+              ],
+              processMessage: '',
+              updatedAt: expect.any(Object)
+            }
+          });
         });
       });
     });
@@ -598,16 +1598,21 @@ describe('get-indicators.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.021,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.021
+              },
               athRestriction: {
                 enabled: true,
                 restrictionPercentage: 0.9
               }
             },
             sell: {
-              triggerPercentage: 1.06,
-              limitPercentage: 0.979,
+              currentGridTrade: {
+                triggerPercentage: 1.06,
+                limitPercentage: 0.979
+              },
               stopLoss: { maxLossPercentage: 0.8 }
             }
           },
@@ -658,16 +1663,21 @@ describe('get-indicators.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.021,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.021
+              },
               athRestriction: {
                 enabled: true,
                 restrictionPercentage: 0.9
               }
             },
             sell: {
-              triggerPercentage: 1.06,
-              limitPercentage: 0.979,
+              currentGridTrade: {
+                triggerPercentage: 1.06,
+                limitPercentage: 0.979
+              },
               stopLoss: {
                 maxLossPercentage: 0.8
               }
@@ -700,8 +1710,6 @@ describe('get-indicators.js', () => {
               stopPrice: '16100.000',
               time: 1615465601162,
               currentPrice: 15555.09,
-              limitPrice: 15881.746889999999,
-              limitPercentage: 1.021,
               differenceToExecute: -3.5030976998525976,
               differenceToCancel: -1.37423868741684,
               updatedAt: expect.any(Object)
@@ -716,10 +1724,8 @@ describe('get-indicators.js', () => {
               stopPrice: '15900.000',
               time: 1615465601162,
               currentPrice: 15555.09,
-              limitPrice: 15228.43311,
-              limitPercentage: 0.979,
               differenceToExecute: -2.2173449333947826,
-              differenceToCancel: -4.40995396669539,
+              differenceToCancel: null,
               minimumProfit: null,
               minimumProfitPercentage: null,
               updatedAt: expect.any(Object)
@@ -765,8 +1771,6 @@ describe('get-indicators.js', () => {
                 stopPrice: '16100.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
-                limitPrice: 15881.746889999999,
-                limitPercentage: 1.021,
                 differenceToExecute: -3.5030976998525976,
                 differenceToCancel: -1.37423868741684,
                 updatedAt: expect.any(Object)
@@ -777,7 +1781,7 @@ describe('get-indicators.js', () => {
           },
           sell: {
             currentPrice: 15555.09,
-            limitPrice: 15228.43311,
+            limitPrice: null,
             lastBuyPrice: null,
             triggerPrice: null,
             difference: null,
@@ -796,10 +1800,8 @@ describe('get-indicators.js', () => {
                 stopPrice: '15900.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
-                limitPrice: 15228.43311,
-                limitPercentage: 0.979,
                 differenceToExecute: -2.2173449333947826,
-                differenceToCancel: -4.40995396669539,
+                differenceToCancel: null,
                 minimumProfit: null,
                 minimumProfitPercentage: null,
                 updatedAt: expect.any(Object)
@@ -857,16 +1859,21 @@ describe('get-indicators.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.011,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.011
+              },
               athRestriction: {
                 enabled: true,
                 restrictionPercentage: 0.9
               }
             },
             sell: {
-              triggerPercentage: 0.99,
-              limitPercentage: 0.98,
+              currentGridTrade: {
+                triggerPercentage: 0.99,
+                limitPercentage: 0.98
+              },
               stopLoss: { maxLossPercentage: 0.8 }
             }
           },
@@ -893,16 +1900,21 @@ describe('get-indicators.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.011,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.011
+              },
               athRestriction: {
                 enabled: true,
                 restrictionPercentage: 0.9
               }
             },
             sell: {
-              triggerPercentage: 0.99,
-              limitPercentage: 0.98,
+              currentGridTrade: {
+                triggerPercentage: 0.99,
+                limitPercentage: 0.98
+              },
               stopLoss: {
                 maxLossPercentage: 0.8
               }
@@ -938,7 +1950,7 @@ describe('get-indicators.js', () => {
           },
           sell: {
             currentPrice: 15555.09,
-            limitPrice: 15243.9882,
+            limitPrice: null,
             lastBuyPrice: null,
             triggerPrice: null,
             difference: null,
@@ -988,16 +2000,21 @@ describe('get-indicators.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.021,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.021
+              },
               athRestriction: {
                 enabled: true,
                 restrictionPercentage: 0.9
               }
             },
             sell: {
-              triggerPercentage: 1.06,
-              limitPercentage: 0.979,
+              currentGridTrade: {
+                triggerPercentage: 1.06,
+                limitPercentage: 0.979
+              },
               stopLoss: { maxLossPercentage: 0.8 }
             }
           },
@@ -1016,16 +2033,21 @@ describe('get-indicators.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.021,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.021
+              },
               athRestriction: {
                 enabled: true,
                 restrictionPercentage: 0.9
               }
             },
             sell: {
-              triggerPercentage: 1.06,
-              limitPercentage: 0.979,
+              currentGridTrade: {
+                triggerPercentage: 1.06,
+                limitPercentage: 0.979
+              },
               stopLoss: { maxLossPercentage: 0.8 }
             }
           },
@@ -1069,16 +2091,21 @@ describe('get-indicators.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.021,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.021
+              },
               athRestriction: {
                 enabled: true,
                 restrictionPercentage: 0.9
               }
             },
             sell: {
-              triggerPercentage: 1.06,
-              limitPercentage: 0.979,
+              currentGridTrade: {
+                triggerPercentage: 1.06,
+                limitPercentage: 0.979
+              },
               stopLoss: { maxLossPercentage: 0.8 }
             }
           },
@@ -1097,16 +2124,21 @@ describe('get-indicators.js', () => {
           },
           symbolConfiguration: {
             buy: {
-              triggerPercentage: 1.01,
-              limitPercentage: 1.021,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.021
+              },
               athRestriction: {
                 enabled: true,
                 restrictionPercentage: 0.9
               }
             },
             sell: {
-              triggerPercentage: 1.06,
-              limitPercentage: 0.979,
+              currentGridTrade: {
+                triggerPercentage: 1.06,
+                limitPercentage: 0.979
+              },
               stopLoss: { maxLossPercentage: 0.8 }
             }
           },

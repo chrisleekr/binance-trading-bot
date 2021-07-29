@@ -2,6 +2,8 @@ const _ = require('lodash');
 const config = require('config');
 const { mongo, cache, PubSub } = require('../../helpers');
 
+const { getLastBuyPrice } = require('./common');
+
 /**
  * Save global configuration to mongodb
  *
@@ -88,6 +90,31 @@ const getSymbolConfiguration = async (logger, symbol = null) => {
 };
 
 /**
+ * Get symbol's grid trade configuration from mongodb
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ */
+const getSymbolGridTrade = async (logger, symbol = null) => {
+  if (symbol === null) {
+    // If symbol is not provided, then return empty.
+    return {};
+  }
+
+  const configValue =
+    (await mongo.findOne(logger, 'trailing-trade-grid-trade', {
+      key: `${symbol}`
+    })) || {};
+
+  if (_.isEmpty(configValue)) {
+    logger.info('Could not find saved symbol grid trade.');
+    return {};
+  }
+
+  return configValue;
+};
+
+/**
  * Save symbol configuration to mongodb
  *
  * @param {*} logger
@@ -117,87 +144,232 @@ const saveSymbolConfiguration = async (
   );
 };
 
+/**
+ * Save symbol grid trade to mongodb
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} gridTrade
+ */
+const saveSymbolGridTrade = async (logger, symbol = null, gridTrade = {}) => {
+  if (symbol === null) {
+    // If symbol is not provided, then return empty.
+    return {};
+  }
+
+  return mongo.upsertOne(
+    logger,
+    'trailing-trade-grid-trade',
+    {
+      key: `${symbol}`
+    },
+    {
+      key: `${symbol}`,
+      ...gridTrade
+    }
+  );
+};
+
+/**
+ * Delete all symbol configurations
+ *
+ * @param {*} logger
+ * @returns
+ */
 const deleteAllSymbolConfiguration = async logger =>
   mongo.deleteAll(logger, 'trailing-trade-symbols', {
     key: { $regex: /^(.+)-configuration/ }
   });
 
+/**
+ * Delete specific symbol configuration
+ * @param {*} logger
+ * @param {*} symbol
+ * @returns
+ */
 const deleteSymbolConfiguration = async (logger, symbol) =>
   mongo.deleteOne(logger, 'trailing-trade-symbols', {
     key: `${symbol}-configuration`
   });
 
-const getMaxPurchaseAmount = async (
+/**
+ * Delete all symbol grid trade information
+ *
+ * @param {*} logger
+ * @returns
+ */
+const deleteAllSymbolGridTrade = async logger =>
+  mongo.deleteAll(logger, 'trailing-trade-grid-trade', {});
+
+/**
+ * Delete specific symbol grid trade information
+ * @param {*} logger
+ * @param {*} symbol
+ * @returns
+ */
+const deleteSymbolGridTrade = async (logger, symbol) =>
+  mongo.deleteOne(logger, 'trailing-trade-grid-trade', {
+    key: `${symbol}`
+  });
+
+/**
+ * Get buy max purchase amount of grid trade for buying
+ *
+ * @param {*} logger
+ * @param {*} cachedSymbolInfo
+ * @param {*} globalConfiguration
+ * @param {*} symbolConfiguration
+ * @returns
+ */
+const getGridTradeBuy = (
   logger,
-  symbol,
+  cachedSymbolInfo,
   globalConfiguration,
   symbolConfiguration
 ) => {
-  const symbolBuyMaxPurchaseAmount = _.get(
-    symbolConfiguration,
-    'buy.maxPurchaseAmount',
-    -1
-  );
+  const {
+    buy: { gridTrade: srcGridTrade }
+  } = symbolConfiguration;
 
-  if (symbolBuyMaxPurchaseAmount !== -1) {
-    logger.info(
-      { symbolBuyMaxPurchaseAmount },
-      'Max purchase amount is found from symbol configuration.'
-    );
-    return symbolBuyMaxPurchaseAmount;
+  let orgGridTrade = srcGridTrade;
+  if (_.isEmpty(srcGridTrade)) {
+    orgGridTrade = globalConfiguration.buy.gridTrade;
   }
 
-  logger.info(
-    { symbolBuyMaxPurchaseAmount },
-    'Max purchase amount is set as -1. Need to calculate and override it'
-  );
+  // Loop symbol's buy.gridTrade
+  const gridTrade = orgGridTrade.map((orgGrid, index) => {
+    const grid = orgGrid;
 
-  let newBuyMaxPurchaseAmount = -1;
+    // Retrieve configured max purchase amount.
+    const symbolMaxPurchaseAmount = _.get(grid, 'maxPurchaseAmount', -1);
 
-  // If old max purchase amount is -1, then should calculate last buy remove threshold based on the notional amount.
-  const cachedSymbolInfo =
-    JSON.parse(
-      await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
-    ) || {};
+    // If max purchase amount is not -1, then it is already configrued. Return grid.
+    if (symbolMaxPurchaseAmount !== -1) {
+      _.unset(grid, 'maxPurchaseAmounts');
+      return grid;
+    }
 
-  if (_.isEmpty(cachedSymbolInfo) === false) {
-    const {
-      quoteAsset,
-      filterMinNotional: { minNotional }
-    } = cachedSymbolInfo;
+    let newMaxPurchaseAmount = -1;
 
-    newBuyMaxPurchaseAmount = _.get(
-      globalConfiguration,
-      `buy.maxPurchaseAmounts.${quoteAsset}`,
-      -1
-    );
+    if (_.isEmpty(cachedSymbolInfo) === false) {
+      const {
+        quoteAsset,
+        filterMinNotional: { minNotional }
+      } = cachedSymbolInfo;
 
-    logger.info(
-      { quoteAsset, newBuyMaxPurchaseAmount },
-      'Retrieved max purchase amount from global configuration'
-    );
+      // Retrieve configured max purchase amount for the quote asset from the global configuration.
+      newMaxPurchaseAmount = _.get(
+        globalConfiguration,
+        `buy.gridTrade[${index}].maxPurchaseAmounts[${quoteAsset}]`,
+        -1
+      );
 
-    if (newBuyMaxPurchaseAmount === -1) {
-      newBuyMaxPurchaseAmount = parseFloat(minNotional) * 10;
-
+      // If max purchase amount for the quote asset in the global configuration is not defined,
+      // then use the minimum notional value * 10.
+      if (newMaxPurchaseAmount === -1) {
+        newMaxPurchaseAmount = parseFloat(minNotional) * 10;
+      }
+    } else {
       logger.info(
-        { newBuyMaxPurchaseAmount, minNotional },
-        'Could not get max purchase amount from global configuration. Use minimum notional from symbol info'
+        { cachedSymbolInfo },
+        'Could not find symbol info for buy max purchase amount, wait to be cached.'
       );
     }
-  } else {
-    logger.info(
-      { cachedSymbolInfo },
-      'Could not find symbol info, wait to be cached.'
-    );
-  }
 
-  return newBuyMaxPurchaseAmount;
+    _.set(grid, 'maxPurchaseAmount', newMaxPurchaseAmount);
+    _.unset(grid, 'maxPurchaseAmounts');
+
+    return grid;
+  });
+
+  return gridTrade;
 };
 
-const getLastBuyPriceRemoveThreshold = async (
+/**
+ * Get quantity percentage of grid trade for selling
+ *
+ * @param {*} logger
+ * @param {*} cachedSymbolInfo
+ * @param {*} globalConfiguration
+ * @param {*} symbolConfiguration
+ * @returns
+ */
+const getGridTradeSell = (
   logger,
-  symbol,
+  cachedSymbolInfo,
+  globalConfiguration,
+  symbolConfiguration
+) => {
+  const {
+    sell: { gridTrade: srcGridTrade }
+  } = symbolConfiguration;
+
+  let orgGridTrade = srcGridTrade;
+  if (_.isEmpty(srcGridTrade)) {
+    orgGridTrade = globalConfiguration.sell.gridTrade;
+  }
+  const gridTradeLength = orgGridTrade.length;
+
+  // Loop symbol's sell.gridTrade
+  const gridTrade = orgGridTrade.map((orgGrid, index) => {
+    const grid = orgGrid;
+
+    // Retrieve configrued quantity percentage
+    const symbolQuantityPercentage = _.get(grid, 'quantityPercentage', -1);
+
+    if (symbolQuantityPercentage !== -1) {
+      _.unset(grid, 'quantityPercentages');
+      return grid;
+    }
+
+    let newQuantityPercentage = -1;
+
+    // Retrieve symbol information cache
+    if (_.isEmpty(cachedSymbolInfo) === false) {
+      const { quoteAsset } = cachedSymbolInfo;
+
+      // Retrieve configured quantity percentage for the quote asset from the global configuration.
+      newQuantityPercentage = _.get(
+        globalConfiguration,
+        `sell.gridTrade[${index}].quantityPercentages[${quoteAsset}]`,
+        -1
+      );
+
+      // If quantity percentage for the quote asset in the global configuration is not defined,
+      // then set custom quantity.
+      if (newQuantityPercentage === -1) {
+        newQuantityPercentage =
+          gridTradeLength !== index + 1
+            ? parseFloat((1 / gridTradeLength).toFixed(2))
+            : 1;
+      }
+    } else {
+      logger.info(
+        { cachedSymbolInfo },
+        'Could not find symbol info for sell quantity percentage, wait to be cached.'
+      );
+    }
+
+    _.set(grid, 'quantityPercentage', newQuantityPercentage);
+    _.unset(grid, 'quantityPercentages');
+
+    return grid;
+  });
+
+  return gridTrade;
+};
+
+/**
+ * Get last buy price remove threshold
+ * @param {*} logger
+ * @param {*} cachedSymbolInfo
+ * @param {*} globalConfiguration
+ * @param {*} symbolConfiguration
+ * @returns
+ */
+const getLastBuyPriceRemoveThreshold = (
+  logger,
+  cachedSymbolInfo,
   globalConfiguration,
   symbolConfiguration
 ) => {
@@ -224,11 +396,6 @@ const getLastBuyPriceRemoveThreshold = async (
 
   // If old last buy price remove threshold is -1,
   // then should calculate last buy price remove threshold based on the notional amount.
-  const cachedSymbolInfo =
-    JSON.parse(
-      await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
-    ) || {};
-
   if (_.isEmpty(cachedSymbolInfo) === false) {
     const {
       quoteAsset,
@@ -263,6 +430,106 @@ const getLastBuyPriceRemoveThreshold = async (
 
   return newBuyLastBuyPriceRemoveThreshold;
 };
+
+/**
+ * Post process configuration
+ * - Retrieve grid trade and determine current grid trade
+ * - If symbol grid trade is stored and has executed value, then use stored grid trade.
+ *
+ * @param {*} logger
+ * @param {*} configuration
+ * @param {*} extraParams
+ * @returns
+ */
+const postProcessConfiguration = async (
+  logger,
+  configuration,
+  { symbolGridTrade, symbol }
+) => {
+  const newConfiguration = configuration;
+
+  const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
+  const lastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
+
+  // Retrieve grid trade and determine current grid trade
+  ['buy', 'sell'].forEach(side => {
+    let currentGridTradeIndex = -1;
+    let currentGridTrade = null;
+    let overridenGridTrade = configuration[side].gridTrade;
+
+    // If symbol grid trade is stored and has executed value at least one time
+    if (
+      symbolGridTrade[side] &&
+      symbolGridTrade[side].some(g => g?.executed === true)
+    ) {
+      // Find executed grid trade
+      symbolGridTrade[side].forEach((gridTrade, index) => {
+        // If grid trade is executed, then override grid trade
+        if (gridTrade?.executed) {
+          overridenGridTrade[index] = gridTrade;
+        }
+      });
+
+      // Calculate current grid trade
+      overridenGridTrade.forEach((gridTrade, index) => {
+        // If current grid trade is executed,
+        if (gridTrade?.executed) {
+          // If next gird trade exists, then get next grid trade as current buy grid trade
+          if (overridenGridTrade[index + 1]) {
+            currentGridTradeIndex = index + 1;
+            currentGridTrade = overridenGridTrade[index + 1];
+          } else {
+            // If next gird trade does not exist, then do not set current grid trade
+            currentGridTradeIndex = -1;
+            currentGridTrade = null;
+          }
+        }
+      });
+    } else if (
+      side === 'buy' &&
+      lastBuyPrice > 0 &&
+      overridenGridTrade[1] !== undefined
+    ) {
+      // If none of grid trade is executed, side is buy, last buy is recorded, 2nd grid trade is defined
+
+      currentGridTradeIndex = 1;
+      [, currentGridTrade] = overridenGridTrade;
+    } else if (
+      side === 'buy' &&
+      lastBuyPrice > 0 &&
+      overridenGridTrade[1] === undefined
+    ) {
+      // If none of grid trade is executed, side is buy, last buy is recorded, 2nd grid trade is not defined
+
+      currentGridTradeIndex = -1;
+      currentGridTrade = null;
+    } else {
+      // Otherwise, get first grid trade as current grid trade
+
+      currentGridTradeIndex = 0;
+      [currentGridTrade] = overridenGridTrade;
+    }
+
+    // Set extra parameters for grid trade if not defined
+    overridenGridTrade = overridenGridTrade.map(orgGridTrade => {
+      const gridTrade = orgGridTrade;
+      if (gridTrade.executed === undefined) {
+        gridTrade.executed = false;
+        gridTrade.executedOrder = null;
+      }
+
+      return gridTrade;
+    });
+
+    // If current grid trade index is -1, then it means grid is all executed.
+    newConfiguration[side].currentGridTradeIndex = currentGridTradeIndex;
+    newConfiguration[side].currentGridTrade = currentGridTrade;
+    newConfiguration[side].gridTrade = overridenGridTrade;
+  });
+
+  return newConfiguration;
+};
+
 /**
  * Get global/symbol configuration
  *
@@ -273,38 +540,53 @@ const getConfiguration = async (logger, symbol = null) => {
   // If symbol is not provided, then it only looks up global configuration
   const globalConfigValue = await getGlobalConfiguration(logger);
   const symbolConfigValue = await getSymbolConfiguration(logger, symbol);
+  const symbolGridTrade = await getSymbolGridTrade(logger, symbol);
 
-  // Merge global and symbol configuration
-  const mergedConfigValue = _.defaultsDeep(
+  // Merge global and symbol configuration without grid trade if symbol is provided.
+  let mergedConfigValue = _.defaultsDeep(
     symbolConfigValue,
-    globalConfigValue
+    symbol !== null
+      ? _.omit(globalConfigValue, 'buy.gridTrade', 'sell.gridTrade')
+      : globalConfigValue
   );
   if (symbol !== null) {
-    _.set(
-      mergedConfigValue,
-      'buy.maxPurchaseAmount',
-      await getMaxPurchaseAmount(
-        logger,
-        symbol,
-        globalConfigValue,
-        symbolConfigValue
-      )
-    );
+    const cachedSymbolInfo =
+      JSON.parse(
+        await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
+      ) || {};
 
-    _.set(
-      mergedConfigValue,
-      'buy.lastBuyPriceRemoveThreshold',
-      await getLastBuyPriceRemoveThreshold(
-        logger,
-        symbol,
-        globalConfigValue,
-        symbolConfigValue
-      )
-    );
+    // Post process configuration value to prefill some default values
+    [
+      {
+        key: 'buy.gridTrade',
+        keyFunc: getGridTradeBuy
+      },
+      {
+        key: 'buy.lastBuyPriceRemoveThreshold',
+        keyFunc: getLastBuyPriceRemoveThreshold
+      },
+      {
+        key: 'sell.gridTrade',
+        keyFunc: getGridTradeSell
+      }
+    ].forEach(d => {
+      const { key, keyFunc } = d;
+      _.set(
+        mergedConfigValue,
+        key,
+        keyFunc(logger, cachedSymbolInfo, globalConfigValue, symbolConfigValue)
+      );
+    });
 
-    // For symbol configuration, remove maxPurchaseAmounts
-    _.unset(mergedConfigValue, 'buy.maxPurchaseAmounts');
+    // For symbol configuration, remove lastBuyPriceRemoveThresholds
     _.unset(mergedConfigValue, 'buy.lastBuyPriceRemoveThresholds');
+
+    // Post process configuration to get current grid trade
+    mergedConfigValue = await postProcessConfiguration(
+      logger,
+      mergedConfigValue,
+      { symbolGridTrade, symbol }
+    );
   }
 
   // Merge global and symbol configuration
@@ -312,11 +594,25 @@ const getConfiguration = async (logger, symbol = null) => {
 };
 
 module.exports = {
+  saveGlobalConfiguration,
+
   getGlobalConfiguration,
   getSymbolConfiguration,
-  saveGlobalConfiguration,
+  getSymbolGridTrade,
+
   saveSymbolConfiguration,
+  saveSymbolGridTrade,
+
   deleteAllSymbolConfiguration,
   deleteSymbolConfiguration,
+  deleteAllSymbolGridTrade,
+  deleteSymbolGridTrade,
+
+  getGridTradeBuy,
+  getGridTradeSell,
+  getLastBuyPriceRemoveThreshold,
+
+  postProcessConfiguration,
+
   getConfiguration
 };

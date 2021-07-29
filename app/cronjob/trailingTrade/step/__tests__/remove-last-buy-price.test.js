@@ -191,6 +191,128 @@ describe('remove-last-buy-price.js', () => {
       });
     });
 
+    describe('when grid trade last buy order exists', () => {
+      beforeEach(async () => {
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+          isActionDisabled: mockIsActionDisabled,
+          getAPILimit: mockGetAPILimit
+        }));
+
+        cacheMock.get = jest.fn().mockImplementation(key => {
+          if (key === 'BTCUPUSDT-grid-trade-last-buy-order') {
+            return Promise.resolve(
+              JSON.stringify({
+                orderId: 123
+              })
+            );
+          }
+
+          return Promise.resolve(null);
+        });
+
+        const step = require('../remove-last-buy-price');
+
+        rawData = {
+          action: 'not-determined',
+          isLocked: false,
+          symbol: 'BTCUPUSDT',
+          symbolConfiguration: {
+            buy: { lastBuyPriceRemoveThreshold: 10 }
+          },
+          symbolInfo: {
+            filterLotSize: {
+              stepSize: '0.01000000',
+              minQty: '0.01000000'
+            },
+            filterMinNotional: {
+              minNotional: '10.00000000'
+            }
+          },
+          openOrders: [],
+          baseAssetBalance: {
+            free: 0,
+            locked: 0
+          },
+          sell: {
+            currentPrice: 200,
+            lastBuyPrice: null
+          }
+        };
+
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('does not trigger mongo.deleteOne', () => {
+        expect(mongoMock.deleteOne).not.toHaveBeenCalled();
+      });
+
+      it('returns expected data', () => {
+        expect(result).toStrictEqual(rawData);
+      });
+    });
+
+    describe('when grid trade last sell order exists', () => {
+      beforeEach(async () => {
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+          isActionDisabled: mockIsActionDisabled,
+          getAPILimit: mockGetAPILimit
+        }));
+
+        cacheMock.get = jest.fn().mockImplementation(key => {
+          if (key === 'BTCUPUSDT-grid-trade-last-sell-order') {
+            return Promise.resolve(
+              JSON.stringify({
+                orderId: 123
+              })
+            );
+          }
+
+          return Promise.resolve(null);
+        });
+
+        const step = require('../remove-last-buy-price');
+
+        rawData = {
+          action: 'not-determined',
+          isLocked: false,
+          symbol: 'BTCUPUSDT',
+          symbolConfiguration: {
+            buy: { lastBuyPriceRemoveThreshold: 10 }
+          },
+          symbolInfo: {
+            filterLotSize: {
+              stepSize: '0.01000000',
+              minQty: '0.01000000'
+            },
+            filterMinNotional: {
+              minNotional: '10.00000000'
+            }
+          },
+          openOrders: [],
+          baseAssetBalance: {
+            free: 0,
+            locked: 0
+          },
+          sell: {
+            currentPrice: 200,
+            lastBuyPrice: null
+          }
+        };
+
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('does not trigger mongo.deleteOne', () => {
+        expect(mongoMock.deleteOne).not.toHaveBeenCalled();
+      });
+
+      it('returns expected data', () => {
+        expect(result).toStrictEqual(rawData);
+      });
+    });
+
     describe('when last buy price is not set', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({

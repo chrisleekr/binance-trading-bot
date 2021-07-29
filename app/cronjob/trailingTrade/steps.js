@@ -8,6 +8,9 @@ const {
   execute: ensureManualBuyOrder
 } = require('./step/ensure-manual-buy-order');
 const { execute: ensureOrderPlaced } = require('./step/ensure-order-placed');
+const {
+  execute: ensureGridTradeOrderExecuted
+} = require('./step/ensure-grid-trade-order-executed');
 const { execute: getOpenOrders } = require('./step/get-open-orders');
 const { execute: getIndicators } = require('./step/get-indicators');
 const { execute: handleOpenOrders } = require('./step/handle-open-orders');
@@ -29,6 +32,7 @@ module.exports = {
   getOverrideAction,
   ensureManualBuyOrder,
   ensureOrderPlaced,
+  ensureGridTradeOrderExecuted,
   getOpenOrders,
   getIndicators,
   handleOpenOrders,

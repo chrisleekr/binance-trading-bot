@@ -6,6 +6,8 @@ describe('common.js', () => {
   let cacheMock;
   let binanceMock;
   let mongoMock;
+  let PubSubMock;
+  let slackMock;
   let loggerMock;
 
   let result;
@@ -1216,6 +1218,191 @@ describe('common.js', () => {
         'trailing-trade-indicator-override',
         'global'
       );
+    });
+  });
+
+  describe('calculateLastBuyPrice', () => {
+    describe('when last buy price is not recorded', () => {
+      beforeEach(async () => {
+        const { logger, mongo, PubSub, slack } = require('../../../helpers');
+
+        loggerMock = logger;
+        mongoMock = mongo;
+        PubSubMock = PubSub;
+        slackMock = slack;
+
+        mongoMock.findOne = jest.fn().mockResolvedValue({});
+        mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
+        PubSubMock.publish = jest.fn().mockResolvedValue(true);
+        slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+
+        commonHelper = require('../common');
+        await commonHelper.calculateLastBuyPrice(loggerMock, 'BTCUSDT', {
+          type: 'buy',
+          executedQty: '0.07840000',
+          cummulativeQuoteQty: '19.94260800'
+        });
+      });
+
+      it('triggers getLastBuyPrice', () => {
+        expect(mongoMock.findOne).toHaveBeenCalledWith(
+          loggerMock,
+          'trailing-trade-symbols',
+          { key: 'BTCUSDT-last-buy-price' }
+        );
+      });
+
+      it('triggers saveLastBuyPrice', () => {
+        expect(mongoMock.upsertOne).toHaveBeenCalledWith(
+          loggerMock,
+          'trailing-trade-symbols',
+          {
+            key: 'BTCUSDT-last-buy-price'
+          },
+          {
+            key: 'BTCUSDT-last-buy-price',
+            lastBuyPrice: 254.37,
+            quantity: 0.0784
+          }
+        );
+      });
+
+      it('triggers PubSub.publish', () => {
+        expect(PubSubMock.publish).toHaveBeenCalled();
+      });
+
+      it('triggers slack.sendMessage', () => {
+        expect(slackMock.sendMessage).toHaveBeenCalledWith(
+          expect.stringContaining(
+            JSON.stringify(
+              {
+                orgLastBuyPrice: 0,
+                orgQuantity: 0,
+                orgTotalAmount: 0,
+                newLastBuyPrice: 254.37,
+                newQuantity: 0.0784,
+                newTotalAmount: 19.942608
+              },
+              undefined,
+              2
+            )
+          )
+        );
+      });
+    });
+
+    describe('when last buy price is recorded', () => {
+      beforeEach(async () => {
+        const { logger, mongo, PubSub, slack } = require('../../../helpers');
+
+        loggerMock = logger;
+        mongoMock = mongo;
+        PubSubMock = PubSub;
+        slackMock = slack;
+
+        mongoMock.findOne = jest.fn().mockResolvedValue({
+          lastBuyPrice: 254.37,
+          quantity: 0.0784
+        });
+        mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
+        PubSubMock.publish = jest.fn().mockResolvedValue(true);
+        slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+
+        commonHelper = require('../common');
+        await commonHelper.calculateLastBuyPrice(loggerMock, 'BTCUSDT', {
+          type: 'buy',
+          executedQty: '0.05',
+          cummulativeQuoteQty: '30'
+        });
+      });
+
+      it('triggers getLastBuyPrice', () => {
+        expect(mongoMock.findOne).toHaveBeenCalledWith(
+          loggerMock,
+          'trailing-trade-symbols',
+          { key: 'BTCUSDT-last-buy-price' }
+        );
+      });
+
+      it('triggers saveLastBuyPrice', () => {
+        expect(mongoMock.upsertOne).toHaveBeenCalledWith(
+          loggerMock,
+          'trailing-trade-symbols',
+          {
+            key: 'BTCUSDT-last-buy-price'
+          },
+          {
+            key: 'BTCUSDT-last-buy-price',
+            lastBuyPrice: 388.96112149532706,
+            quantity: 0.12840000000000001
+          }
+        );
+      });
+
+      it('triggers PubSub.publish', () => {
+        expect(PubSubMock.publish).toHaveBeenCalled();
+      });
+
+      it('triggers slack.sendMessage', () => {
+        expect(slackMock.sendMessage).toHaveBeenCalledWith(
+          expect.stringContaining(
+            JSON.stringify(
+              {
+                orgLastBuyPrice: 254.37,
+                orgQuantity: 0.0784,
+                orgTotalAmount: 19.942608,
+                newLastBuyPrice: 388.96112149532706,
+                newQuantity: 0.12840000000000001,
+                newTotalAmount: 49.942608
+              },
+              undefined,
+              2
+            )
+          )
+        );
+      });
+    });
+  });
+
+  describe('saveOrder', () => {
+    beforeEach(async () => {
+      const { mongo, logger } = require('../../../helpers');
+
+      mongoMock = mongo;
+      loggerMock = logger;
+
+      mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
+
+      commonHelper = require('../common');
+      result = await commonHelper.saveOrder(loggerMock, {
+        order: {
+          orderId: 123456
+        },
+        botStatus: {
+          some: 'value'
+        }
+      });
+    });
+
+    it('triggers mongo.upsertOne', () => {
+      expect(mongoMock.upsertOne).toHaveBeenCalledWith(
+        loggerMock,
+        'trailing-trade-orders',
+        { key: 123456 },
+        {
+          key: 123456,
+          order: {
+            orderId: 123456
+          },
+          botStatus: {
+            some: 'value'
+          }
+        }
+      );
+    });
+
+    it('returns expected value', () => {
+      expect(result).toBeTruthy();
     });
   });
 });

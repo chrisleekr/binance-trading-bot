@@ -7,13 +7,16 @@ class SymbolSettingIcon extends React.Component {
 
     this.modalToStateMap = {
       setting: 'showSettingModal',
-      confirm: 'showConfirmModal'
+      confirm: 'showConfirmModal',
+      gridTrade: 'showResetGridTradeModal'
     };
 
     this.state = {
       showSettingModal: false,
       showConfirmModal: false,
-      symbolConfiguration: {}
+      showResetGridTradeModal: false,
+      symbolConfiguration: {},
+      validation: {}
     };
 
     this.handleModalShow = this.handleModalShow.bind(this);
@@ -23,6 +26,8 @@ class SymbolSettingIcon extends React.Component {
     this.handleInputChange = this.handleInputChange.bind(this);
     this.resetToGlobalConfiguration =
       this.resetToGlobalConfiguration.bind(this);
+    this.handleGridTradeChange = this.handleGridTradeChange.bind(this);
+    this.handleSetValidation = this.handleSetValidation.bind(this);
   }
 
   componentDidUpdate(nextProps) {
@@ -88,7 +93,34 @@ class SymbolSettingIcon extends React.Component {
 
     this.handleModalClose('confirm');
     this.handleModalClose('setting');
+    this.handleModalClose('gridTrade');
     this.props.sendWebSocket('symbol-setting-delete', symbolInfo);
+  }
+
+  resetGridTrade() {
+    const { symbolInfo } = this.props;
+
+    this.handleModalClose('confirm');
+    this.handleModalClose('setting');
+    this.handleModalClose('gridTrade');
+    this.props.sendWebSocket('symbol-grid-trade-delete', symbolInfo);
+  }
+
+  handleGridTradeChange(type, newGrid) {
+    const { symbolConfiguration } = this.state;
+
+    this.setState({
+      symbolConfiguration: _.set(
+        symbolConfiguration,
+        `${type}.gridTrade`,
+        newGrid
+      )
+    });
+  }
+
+  handleSetValidation(type, isValid) {
+    const { validation } = this.state;
+    this.setState({ validation: { ...validation, [type]: isValid } });
   }
 
   render() {
@@ -98,6 +130,11 @@ class SymbolSettingIcon extends React.Component {
     if (_.isEmpty(symbolConfiguration)) {
       return '';
     }
+
+    const {
+      symbolInfo: { quoteAsset, filterMinNotional }
+    } = symbolInfo;
+    const minNotional = parseFloat(filterMinNotional.minNotional);
 
     return (
       <div className='symbol-setting-icon-wrapper'>
@@ -241,7 +278,6 @@ class SymbolSettingIcon extends React.Component {
                     <Card.Body className='px-2 py-1'>
                       <div className='row'>
                         <div className='col-12'>
-                          <p className='form-header mb-1'>Buy</p>
                           <Form.Group
                             controlId='field-buy-enabled'
                             className='mb-2'>
@@ -280,222 +316,77 @@ class SymbolSettingIcon extends React.Component {
                             </Form.Check>
                           </Form.Group>
                         </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-buy-maximum-purchase-amount'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Maximum purchase amount{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='buy-maximum-purchase-amount-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='buy-maximum-purchase-amount-overlay-right'>
-                                    <Popover.Content>
-                                      Set maximum purchase amount. i.e. if
-                                      account has 200 USDT and set as{' '}
-                                      <code>100</code>, then when reach buy
-                                      price, it will only buy <code>100</code>{' '}
-                                      worth of the coin. Note that the bot will
-                                      remove the last buy price if the coin is
-                                      less worth than $10.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter maximum purchase amount'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='buy.maxPurchaseAmount'
-                              value={symbolConfiguration.buy.maxPurchaseAmount}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
-                        </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-last-buy-remove-threshold'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Remove last buy price when the estimated value is
-                              lower than{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='last-buy-remove-threshold-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='last-buy-remove-threshold-overlay-right'>
-                                    <Popover.Content>
-                                      Set the last buy price removal threshold.
-                                      When the estimated value drops below the
-                                      threshold, the bot will remove the last
-                                      buy price.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter last buy threshold'
-                              required
-                              min='0.0001'
-                              step='0.0001'
-                              data-state-key='buy.lastBuyPriceRemoveThreshold'
-                              value={
-                                symbolConfiguration.buy
-                                  .lastBuyPriceRemoveThreshold
-                              }
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
+
+                        <div className='col-12'>
+                          <SymbolSettingIconGridBuy
+                            gridTrade={symbolConfiguration.buy.gridTrade}
+                            quoteAsset={quoteAsset}
+                            minNotional={minNotional}
+                            handleSetValidation={this.handleSetValidation}
+                            handleGridTradeChange={this.handleGridTradeChange}
+                          />
                         </div>
                         <div className='col-12'>
-                          <hr />
-                        </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-buy-trigger-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Trigger percentage{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='buy-trigger-percentage-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='buy-trigger-percentage-overlay-right'>
-                                    <Popover.Content>
-                                      Set the trigger percentage for buying.
-                                      i.e. if set <code>1.01</code> and the
-                                      lowest price is <code>$100</code>, then
-                                      the bot will buy the coin when the current
-                                      price reaches <code>$101</code>. You
-                                      cannot set less than <code>1</code>,
-                                      because it will never reach the trigger
-                                      price unless there is a deep decline
-                                      before the next process.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
+                          <Accordion defaultActiveKey='0'>
+                            <Card className='mt-1'>
+                              <Card.Header className='px-2 py-1'>
+                                <Accordion.Toggle
+                                  as={Button}
                                   variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter trigger percentage'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='buy.triggerPercentage'
-                              value={symbolConfiguration.buy.triggerPercentage}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
-                        </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-buy-stop-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Stop price percentage{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='buy-stop-price-percentage-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='buy-stop-price-percentage-overlay-right'>
-                                    <Popover.Content>
-                                      Set the percentage to calculate stop
-                                      price. i.e. if set <code>1.01</code> and
-                                      current price <code>$100</code>, stop
-                                      price will be <code>$101</code> for stop
-                                      limit order.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter stop price percentage'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='buy.stopPercentage'
-                              value={symbolConfiguration.buy.stopPercentage}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
-                        </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-buy-limit-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Limit price percentage{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='interval-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='interval-overlay-right'>
-                                    <Popover.Content>
-                                      Set the percentage to calculate limit
-                                      price. i.e. if set <code>1.011</code> and
-                                      current price <code>$100</code>, limit
-                                      price will be <code>$101.10</code> for
-                                      stop limit order.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter limit price percentage'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='buy.limitPercentage'
-                              value={symbolConfiguration.buy.limitPercentage}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
+                                  eventKey='0'
+                                  className='p-0 fs-7 text-uppercase'>
+                                  Last buy price removal threshold
+                                </Accordion.Toggle>
+                              </Card.Header>
+                              <Accordion.Collapse eventKey='0'>
+                                <Card.Body className='px-2 py-1'>
+                                  <Form.Group
+                                    controlId='field-last-buy-remove-threshold'
+                                    className='mb-2'>
+                                    <Form.Label className='mb-0'>
+                                      Remove last buy price when the estimated
+                                      value is lower than{' '}
+                                      <OverlayTrigger
+                                        trigger='click'
+                                        key='last-buy-remove-threshold-overlay'
+                                        placement='bottom'
+                                        overlay={
+                                          <Popover id='last-buy-remove-threshold-overlay-right'>
+                                            <Popover.Content>
+                                              Set the last buy price removal
+                                              threshold. When the estimated
+                                              value drops below the threshold,
+                                              the bot will remove the last buy
+                                              price.
+                                            </Popover.Content>
+                                          </Popover>
+                                        }>
+                                        <Button
+                                          variant='link'
+                                          className='p-0 m-0 ml-1 text-info'>
+                                          <i className='fa fa-question-circle'></i>
+                                        </Button>
+                                      </OverlayTrigger>
+                                    </Form.Label>
+                                    <Form.Control
+                                      size='sm'
+                                      type='number'
+                                      placeholder='Enter last buy threshold'
+                                      required
+                                      min='0.0001'
+                                      step='0.0001'
+                                      data-state-key='buy.lastBuyPriceRemoveThreshold'
+                                      value={
+                                        symbolConfiguration.buy
+                                          .lastBuyPriceRemoveThreshold
+                                      }
+                                      onChange={this.handleInputChange}
+                                    />
+                                  </Form.Group>
+                                </Card.Body>
+                              </Accordion.Collapse>
+                            </Card>
+                          </Accordion>
                         </div>
                       </div>
 
@@ -762,129 +653,13 @@ class SymbolSettingIcon extends React.Component {
                             </Form.Check>
                           </Form.Group>
                         </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-sell-last-buy-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Trigger percentage{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='sell-trigger-percentage-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='sell-trigger-percentage-overlay-right'>
-                                    <Popover.Content>
-                                      Set the trigger percentage for minimum
-                                      profit. i.e. if set <code>1.06</code>,
-                                      minimum profit will be <code>6%</code>. So
-                                      if the last buy price is <code>$100</code>
-                                      , then the bot will sell the coin when the
-                                      current price reaches <code>$106</code>.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter trigger percentage'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='sell.triggerPercentage'
-                              value={symbolConfiguration.sell.triggerPercentage}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
-                        </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-sell-stop-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Stop price percentage{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='sell-stop-price-percentage-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='sell-stop-price-percentage-overlay-right'>
-                                    <Popover.Content>
-                                      Set the percentage to calculate stop
-                                      price. i.e. if set <code>0.99</code> and
-                                      current price <code>$106</code>, stop
-                                      price will be <code>$104.94</code> for
-                                      stop limit order.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter stop price percentage'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='sell.stopPercentage'
-                              value={symbolConfiguration.sell.stopPercentage}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
-                        </div>
-                        <div className='col-xs-12 col-sm-6'>
-                          <Form.Group
-                            controlId='field-sell-limit-percentage'
-                            className='mb-2'>
-                            <Form.Label className='mb-0'>
-                              Limit price percentage{' '}
-                              <OverlayTrigger
-                                trigger='click'
-                                key='sell-limit-price-percentage-overlay'
-                                placement='bottom'
-                                overlay={
-                                  <Popover id='sell-limit-price-percentage-overlay-right'>
-                                    <Popover.Content>
-                                      Set the percentage to calculate limit
-                                      price. i.e. if set <code>0.98</code> and
-                                      current price <code>$106</code>, limit
-                                      price will be <code>$103.88</code> for
-                                      stop limit order.
-                                    </Popover.Content>
-                                  </Popover>
-                                }>
-                                <Button
-                                  variant='link'
-                                  className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
-                                </Button>
-                              </OverlayTrigger>
-                            </Form.Label>
-                            <Form.Control
-                              size='sm'
-                              type='number'
-                              placeholder='Enter limit price percentage'
-                              required
-                              min='0'
-                              step='0.0001'
-                              data-state-key='sell.limitPercentage'
-                              value={symbolConfiguration.sell.limitPercentage}
-                              onChange={this.handleInputChange}
-                            />
-                          </Form.Group>
+                        <div className='col-12'>
+                          <SymbolSettingIconGridSell
+                            gridTrade={symbolConfiguration.sell.gridTrade}
+                            quoteAsset={quoteAsset}
+                            handleSetValidation={this.handleSetValidation}
+                            handleGridTradeChange={this.handleGridTradeChange}
+                          />
                         </div>
                         <div className='col-12'>
                           <Accordion defaultActiveKey='0'>
@@ -1056,19 +831,51 @@ class SymbolSettingIcon extends React.Component {
                   </Accordion.Collapse>
                 </Card>
               </Accordion>
+
+              <Accordion defaultActiveKey='0'>
+                <Card className='mt-1'>
+                  <Card.Header className='px-2 py-1'>
+                    <Accordion.Toggle
+                      as={Button}
+                      variant='link'
+                      eventKey='0'
+                      className='p-0 fs-7 text-uppercase'>
+                      Actions
+                    </Accordion.Toggle>
+                  </Card.Header>
+                  <Accordion.Collapse eventKey='0'>
+                    <Card.Body className='px-2 py-2'>
+                      <div className='row'>
+                        <div className='col-12'>
+                          <Button
+                            variant='danger'
+                            size='sm'
+                            type='button'
+                            className='mr-2'
+                            onClick={() => this.handleModalShow('confirm')}>
+                            Reset to Global Setting
+                          </Button>
+
+                          <Button
+                            variant='danger'
+                            size='sm'
+                            type='button'
+                            onClick={() => this.handleModalShow('gridTrade')}>
+                            Reset Grid Trade
+                          </Button>
+                        </div>
+                      </div>
+                    </Card.Body>
+                  </Accordion.Collapse>
+                </Card>
+              </Accordion>
             </Modal.Body>
             <Modal.Footer>
               <div className='w-100'>
                 Note that the changes will be displayed in the frontend in the
                 next tick.
               </div>
-              <Button
-                variant='danger'
-                size='sm'
-                type='button'
-                onClick={() => this.handleModalShow('confirm')}>
-                Reset to Global Setting
-              </Button>
+
               <Button
                 variant='secondary'
                 size='sm'
@@ -1111,6 +918,39 @@ class SymbolSettingIcon extends React.Component {
               variant='success'
               size='sm'
               onClick={() => this.resetToGlobalConfiguration()}>
+              Yes
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
+        <Modal
+          show={this.state.showResetGridTradeModal}
+          onHide={() => this.handleModalClose('gridTrade')}
+          size='md'>
+          <Modal.Header className='pt-1 pb-1'>
+            <Modal.Title>
+              <span className='text-danger'>⚠ Reset Grid Trade</span>
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            You are about to reset the existing grid trades. If the grid trade
+            is already executed, the execution history will be removed.
+            <br />
+            <br />
+            Do you want to reset the grid trade history for the selected symbol?
+          </Modal.Body>
+
+          <Modal.Footer>
+            <Button
+              variant='secondary'
+              size='sm'
+              onClick={() => this.handleModalClose('gridTrade')}>
+              Cancel
+            </Button>
+            <Button
+              variant='success'
+              size='sm'
+              onClick={() => this.resetGridTrade()}>
               Yes
             </Button>
           </Modal.Footer>

@@ -33,7 +33,8 @@
   },
   "featureToggle": {
     "notifyOrderConfirm": true,
-    "notifyDebug": false
+    "notifyDebug": false,
+    "notifyOrderExecute": true
   },
   "jobs": {
     "alive": {
@@ -50,13 +51,17 @@
       },
       "buy": {
         "enabled": true,
-        "maxPurchaseAmount": -1,
-        "maxPurchaseAmounts": {},
+        "gridTrade": [
+          {
+            "triggerPercentage": 1,
+            "stopPercentage": 1.02,
+            "limitPercentage": 1.021,
+            "maxPurchaseAmount": -1,
+            "maxPurchaseAmounts": {}
+          }
+        ],
         "lastBuyPriceRemoveThreshold": -1,
         "lastBuyPriceRemoveThresholds": {},
-        "triggerPercentage": 1.0,
-        "stopPercentage": 1.02,
-        "limitPercentage": 1.021,
         "athRestriction": {
           "enabled": true,
           "candles": {
@@ -68,9 +73,15 @@
       },
       "sell": {
         "enabled": true,
-        "triggerPercentage": 1.06,
-        "stopPercentage": 0.98,
-        "limitPercentage": 0.979,
+        "gridTrade": [
+          {
+            "triggerPercentage": 1.06,
+            "stopPercentage": 0.98,
+            "limitPercentage": 0.979,
+            "quantityPercentage": -1,
+            "quantityPercentages": {}
+          }
+        ],
         "stopLoss": {
           "enabled": false,
           "maxLossPercentage": 0.8,
@@ -82,7 +93,8 @@
         "temporaryDisableActionAfterConfirmingOrder": 20,
         "checkManualBuyOrderPeriod": 5,
         "placeManualOrderInterval": 5,
-        "refreshAccountInfoPeriod": 1
+        "refreshAccountInfoPeriod": 1,
+        "checkOrderExecutePeriod": 10
       }
     },
     "trailingTradeIndicator": {

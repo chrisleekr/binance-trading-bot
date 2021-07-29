@@ -3,8 +3,15 @@
 /* eslint-disable no-undef */
 class Header extends React.Component {
   render() {
-    const { configuration, publicURL, sendWebSocket, exchangeSymbols } =
-      this.props;
+    const {
+      configuration,
+      publicURL,
+      sendWebSocket,
+      exchangeSymbols,
+      availableSortOptions,
+      selectedSortOption,
+      setSortOption
+    } = this.props;
 
     return (
       <div className='app-header'>
@@ -16,10 +23,16 @@ class Header extends React.Component {
                 className='binance-img'
                 alt='Binance logo'
               />{' '}
-              Binance Auto Trading Bot
+              Binance Trading Bot
             </h1>
           </div>
           <div className='header-column header-column-icon'>
+            <FilterIcon
+              availableSortOptions={availableSortOptions}
+              selectedSortOption={selectedSortOption}
+              setSortOption={setSortOption}
+            />
+
             <div className='header-column-icon-wrapper github-wrapper'>
               <a
                 href='https://github.com/chrisleekr/binance-trading-bot'

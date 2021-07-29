@@ -384,6 +384,7 @@ input[type='number'] {
   width: 100%;
   padding-top: 5px;
   margin-top: 5px;
+  background-color: #212529;
 }
 
 .coin-info-column-title-setting .coin-info-label {
@@ -392,13 +393,24 @@ input[type='number'] {
 }
 
 .coin-info-sub-label {
-  border-bottom: 1px dotted #cfcfcf;
+  display: block;
+  width: 100%;
+  font-weight: bold;
+  border-bottom: 1px dashed #585858;
 }
 
 .coin-info-label,
 .coin-info-value {
-  width: 50%;
   flex: 1 auto;
+  line-height: 23px;
+}
+
+.coin-info-label {
+  width: 65%;
+}
+
+.coin-info-value {
+  width: 35%;
 }
 
 .coin-info-column-title .coin-info-label {
@@ -516,6 +528,20 @@ input[type='number'] {
 
 .btn-manual-trade:hover {
   background-color: rgba(110, 66, 193, 0.855);
+  color: #fff;
+  text-decoration: none;
+}
+
+.btn-trigger-grid-trade {
+  padding: 0 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  background-color: rgba(40, 167, 69, 0.95);
+  color: #fff;
+}
+
+.btn-trigger-grid-trade:hover {
+  background-color: rgba(40, 167, 69, 0.85);
   color: #fff;
   text-decoration: none;
 }
@@ -697,4 +723,49 @@ input[type='number'] {
 }
 /**
   End: Dust Transfer
+*/
+
+/**
+  Start: Grid Trade
+*/
+.btn-add-new-grid-trade-buy {
+  background-color: #02c076;
+  color: white;
+}
+
+.btn-add-new-grid-trade-buy:hover {
+  box-shadow: none;
+  color: white;
+  background-color: #2ed191;
+}
+
+.btn-add-new-grid-trade-sell {
+  background-color: #f84960;
+  color: white;
+}
+
+.btn-add-new-grid-trade-sell:hover {
+  box-shadow: none;
+  color: white;
+  background-color: #ff4265;
+}
+
+.coin-info-column-grid {
+  flex: 1 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #444546;
+  padding: 3px;
+  margin-bottom: -1px;
+}
+
+.coin-info-column-grid:last-child {
+  margin-bottom: 0;
+}
+
+.coin-info-grid-label {
+  width: 100%;
+}
+/**
+  End: Grid Trade
 */

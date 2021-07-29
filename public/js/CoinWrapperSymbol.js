@@ -18,7 +18,6 @@ class CoinWrapperSymbol extends React.Component {
       baseAssetPrecision,
       quotePrecision,
       filterLotSize,
-      filterMinNotional,
       filterPrice,
       baseAssetStepSize,
       quoteAssetTickSize,
@@ -40,13 +39,12 @@ class CoinWrapperSymbol extends React.Component {
           </a>
         </div>
         <div className='coin-info-column coin-info-column-icon'>
-          <CoinWrapperManualTrade
+          <SymbolManualTradeIcon
             symbol={symbol}
             lastCandle={lastCandle}
             baseAssetPrecision={baseAssetPrecision}
             quotePrecision={quotePrecision}
             filterLotSize={filterLotSize}
-            filterMinNotional={filterMinNotional}
             filterPrice={filterPrice}
             baseAssetStepSize={baseAssetStepSize}
             quoteAssetTickSize={quoteAssetTickSize}

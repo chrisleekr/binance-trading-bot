@@ -13,6 +13,7 @@ services:
       - ./config:/srv/config
       - ./app:/srv/app
       - ./public:/srv/public
+      - ./migrations:/srv/migrations
     env_file:
       - .env
     restart: unless-stopped

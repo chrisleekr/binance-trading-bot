@@ -11,9 +11,9 @@ describe('ensure-manual-buy-order.js', () => {
   let cacheMock;
   let PubSubMock;
 
-  let mockGetLastBuyPrice;
-  let mockSaveLastBuyPrice;
+  let mockCalculateLastBuyPrice;
   let mockGetAPILimit;
+  let mockSaveOrder;
 
   describe('execute', () => {
     beforeEach(() => {
@@ -44,17 +44,17 @@ describe('ensure-manual-buy-order.js', () => {
       slackMock.sendMessage = jest.fn().mockResolvedValue(true);
       binanceMock.client.getOrder = jest.fn().mockResolvedValue([]);
 
-      mockGetLastBuyPrice = jest.fn().mockReturnValue(null);
-      mockSaveLastBuyPrice = jest.fn().mockResolvedValue(true);
+      mockCalculateLastBuyPrice = jest.fn().mockResolvedValue(true);
       mockGetAPILimit = jest.fn().mockResolvedValue(10);
+      mockSaveOrder = jest.fn().mockResolvedValue(true);
     });
 
     describe('when manual buy order is not available', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getLastBuyPrice: mockGetLastBuyPrice,
-          saveLastBuyPrice: mockSaveLastBuyPrice,
-          getAPILimit: mockGetAPILimit
+          calculateLastBuyPrice: mockCalculateLastBuyPrice,
+          getAPILimit: mockGetAPILimit,
+          saveOrder: mockSaveOrder
         }));
 
         cacheMock.hgetall = jest.fn().mockResolvedValue(null);
@@ -82,8 +82,8 @@ describe('ensure-manual-buy-order.js', () => {
         expect(cacheMock.hdel).not.toHaveBeenCalled();
       });
 
-      it('does not trigger saveLastBuyPrice', () => {
-        expect(mockSaveLastBuyPrice).not.toHaveBeenCalled();
+      it('does not trigger calculateLastBuyPrice', () => {
+        expect(mockCalculateLastBuyPrice).not.toHaveBeenCalled();
       });
 
       it('returns expected result', () => {
@@ -119,10 +119,6 @@ describe('ensure-manual-buy-order.js', () => {
               type: 'LIMIT',
               side: 'BUY'
             })
-          },
-          expectedSaveLastPrice: {
-            lastBuyPrice: 27.38725,
-            quantity: 4
           }
         },
         {
@@ -149,10 +145,6 @@ describe('ensure-manual-buy-order.js', () => {
                 }
               ]
             })
-          },
-          expectedSaveLastPrice: {
-            lastBuyPrice: 406.46999999999997,
-            quantity: 0.123
           }
         },
         {
@@ -182,23 +174,15 @@ describe('ensure-manual-buy-order.js', () => {
                 }
               ]
             })
-          },
-          expectedSaveLastPrice: {
-            lastBuyPrice: 20.59439592969473,
-            quantity: 5.404999999999999
           }
         }
       ].forEach(testData => {
         describe(`${testData.desc}`, () => {
           beforeEach(async () => {
-            mockGetLastBuyPrice = jest
-              .fn()
-              .mockResolvedValue(testData.lastBuyPriceDoc);
-
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getLastBuyPrice: mockGetLastBuyPrice,
-              saveLastBuyPrice: mockSaveLastBuyPrice,
-              getAPILimit: mockGetAPILimit
+              calculateLastBuyPrice: mockCalculateLastBuyPrice,
+              getAPILimit: mockGetAPILimit,
+              saveOrder: mockSaveOrder
             }));
 
             cacheMock.hgetall = jest
@@ -220,11 +204,11 @@ describe('ensure-manual-buy-order.js', () => {
             result = await step.execute(loggerMock, rawData);
           });
 
-          it('triggers saveLastBuyPrice', () => {
-            expect(mockSaveLastBuyPrice).toHaveBeenCalledWith(
+          it('triggers calculateLastBuyPrice', () => {
+            expect(mockCalculateLastBuyPrice).toHaveBeenCalledWith(
               loggerMock,
               testData.symbol,
-              testData.expectedSaveLastPrice
+              JSON.parse(testData.cacheResults[testData.orderId])
             );
           });
 
@@ -233,6 +217,18 @@ describe('ensure-manual-buy-order.js', () => {
               `trailing-trade-manual-buy-order-${testData.symbol}`,
               testData.orderId
             );
+          });
+
+          it('triggers saveOrder', () => {
+            expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+              order: JSON.parse(testData.cacheResults[testData.orderId]),
+              botStatus: {
+                savedAt: expect.any(String),
+                savedBy: 'ensure-manual-buy-order',
+                savedMessage:
+                  'The order has already filled and updated the last buy price.'
+              }
+            });
           });
         });
       });
@@ -272,10 +268,7 @@ describe('ensure-manual-buy-order.js', () => {
             type: 'LIMIT',
             side: 'BUY'
           },
-          expectedSaveLastPrice: {
-            lastBuyPrice: 27.38725,
-            quantity: 4
-          }
+          expectedCalculateLastBuyPrice: true
         },
         {
           desc: 'with MARKET order and FILLED',
@@ -309,10 +302,7 @@ describe('ensure-manual-buy-order.js', () => {
             type: 'MARKET',
             side: 'BUY'
           },
-          expectedSaveLastPrice: {
-            lastBuyPrice: 27.38725,
-            quantity: 4
-          }
+          expectedCalculateLastBuyPrice: true
         },
         {
           desc: 'with MARKET order and FILLED, but not yet to check',
@@ -346,14 +336,16 @@ describe('ensure-manual-buy-order.js', () => {
             type: 'MARKET',
             side: 'BUY'
           },
-          expectedSaveLastPrice: null
+          expectedCalculateLastBuyPrice: false
         }
       ].forEach(testData => {
         describe(`${testData.desc}`, () => {
           beforeEach(async () => {
-            mockGetLastBuyPrice = jest
-              .fn()
-              .mockResolvedValue(testData.lastBuyPriceDoc);
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              calculateLastBuyPrice: mockCalculateLastBuyPrice,
+              getAPILimit: mockGetAPILimit,
+              saveOrder: mockSaveOrder
+            }));
 
             cacheMock.hgetall = jest
               .fn()
@@ -378,12 +370,12 @@ describe('ensure-manual-buy-order.js', () => {
             result = await step.execute(loggerMock, rawData);
           });
 
-          if (testData.expectedSaveLastPrice) {
-            it('triggers saveLastBuyPrice', () => {
-              expect(mockSaveLastBuyPrice).toHaveBeenCalledWith(
+          if (testData.expectedCalculateLastBuyPrice) {
+            it('triggers calculateLastBuyPrice', () => {
+              expect(mockCalculateLastBuyPrice).toHaveBeenCalledWith(
                 loggerMock,
                 testData.symbol,
-                testData.expectedSaveLastPrice
+                testData.getOrderResult
               );
             });
 
@@ -393,13 +385,32 @@ describe('ensure-manual-buy-order.js', () => {
                 testData.orderId
               );
             });
+
+            it('triggers saveOrder', () => {
+              expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+                order: {
+                  ...JSON.parse(testData.cacheResults[testData.orderId]),
+                  ...testData.getOrderResult
+                },
+                botStatus: {
+                  savedAt: expect.any(String),
+                  savedBy: 'ensure-manual-buy-order',
+                  savedMessage:
+                    'The order has filled and updated the last buy price.'
+                }
+              });
+            });
           } else {
-            it('does not trigger saveLastBuyPrice', () => {
-              expect(mockSaveLastBuyPrice).not.toHaveBeenCalled();
+            it('does not trigger calculateLastBuyPrice', () => {
+              expect(mockCalculateLastBuyPrice).not.toHaveBeenCalled();
             });
 
             it('does not trigger cache.hdel', () => {
               expect(cacheMock.hdel).not.toHaveBeenCalled();
+            });
+
+            it('does not trigger saveOrder', () => {
+              expect(mockSaveOrder).not.toHaveBeenCalled();
             });
           }
 
@@ -413,10 +424,6 @@ describe('ensure-manual-buy-order.js', () => {
         {
           desc: 'with LIMIT order and CANCELED',
           symbol: 'CAKEUSDT',
-          lastBuyPriceDoc: {
-            lastBuyPrice: 30,
-            quantity: 3
-          },
           orderId: 159653829,
           cacheResults: {
             159653829: JSON.stringify({
@@ -446,10 +453,6 @@ describe('ensure-manual-buy-order.js', () => {
         {
           desc: 'with LIMIT order and REJECTED',
           symbol: 'CAKEUSDT',
-          lastBuyPriceDoc: {
-            lastBuyPrice: 30,
-            quantity: 3
-          },
           orderId: 159653829,
           cacheResults: {
             159653829: JSON.stringify({
@@ -479,10 +482,6 @@ describe('ensure-manual-buy-order.js', () => {
         {
           desc: 'with LIMIT order and EXPIRED',
           symbol: 'CAKEUSDT',
-          lastBuyPriceDoc: {
-            lastBuyPrice: 30,
-            quantity: 3
-          },
           orderId: 159653829,
           cacheResults: {
             159653829: JSON.stringify({
@@ -512,10 +511,6 @@ describe('ensure-manual-buy-order.js', () => {
         {
           desc: 'with LIMIT order and PENDING_CANCEL',
           symbol: 'CAKEUSDT',
-          lastBuyPriceDoc: {
-            lastBuyPrice: 30,
-            quantity: 3
-          },
           orderId: 159653829,
           cacheResults: {
             159653829: JSON.stringify({
@@ -545,10 +540,6 @@ describe('ensure-manual-buy-order.js', () => {
         {
           desc: 'with LIMIT order and CANCELED',
           symbol: 'CAKEUSDT',
-          lastBuyPriceDoc: {
-            lastBuyPrice: 30,
-            quantity: 3
-          },
           orderId: 159653829,
           cacheResults: {
             159653829: JSON.stringify({
@@ -578,10 +569,6 @@ describe('ensure-manual-buy-order.js', () => {
       ].forEach(testData => {
         describe(`${testData.desc}`, () => {
           beforeEach(async () => {
-            mockGetLastBuyPrice = jest
-              .fn()
-              .mockResolvedValue(testData.lastBuyPriceDoc);
-
             cacheMock.hgetall = jest
               .fn()
               .mockResolvedValue(testData.cacheResults);
@@ -605,8 +592,8 @@ describe('ensure-manual-buy-order.js', () => {
             result = await step.execute(loggerMock, rawData);
           });
 
-          it('does not trigger saveLastBuyPrice', () => {
-            expect(mockSaveLastBuyPrice).not.toHaveBeenCalled();
+          it('does not trigger calculateLastBuyPrice', () => {
+            expect(mockCalculateLastBuyPrice).not.toHaveBeenCalled();
           });
 
           it('triggers cache.hdel', () => {
@@ -615,6 +602,21 @@ describe('ensure-manual-buy-order.js', () => {
               testData.orderId
             );
           });
+
+          it('triggers saveOrder', () => {
+            expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+              order: {
+                ...JSON.parse(testData.cacheResults[testData.orderId]),
+                ...testData.getOrderResult
+              },
+              botStatus: {
+                savedAt: expect.any(String),
+                savedBy: 'ensure-manual-buy-order',
+                savedMessage:
+                  'The order is no longer valid. Removed from the cache.'
+              }
+            });
+          });
         });
       });
 
@@ -622,10 +624,6 @@ describe('ensure-manual-buy-order.js', () => {
         {
           desc: 'with LIMIT order and still NEW',
           symbol: 'CAKEUSDT',
-          lastBuyPriceDoc: {
-            lastBuyPrice: 30,
-            quantity: 3
-          },
           orderId: 159653829,
           cacheResults: {
             159653829: JSON.stringify({
@@ -655,10 +653,6 @@ describe('ensure-manual-buy-order.js', () => {
       ].forEach(testData => {
         describe(`${testData.desc}`, () => {
           beforeEach(async () => {
-            mockGetLastBuyPrice = jest
-              .fn()
-              .mockResolvedValue(testData.lastBuyPriceDoc);
-
             cacheMock.hgetall = jest
               .fn()
               .mockResolvedValue(testData.cacheResults);
@@ -682,8 +676,8 @@ describe('ensure-manual-buy-order.js', () => {
             result = await step.execute(loggerMock, rawData);
           });
 
-          it('does not trigger saveLastBuyPrice', () => {
-            expect(mockSaveLastBuyPrice).not.toHaveBeenCalled();
+          it('does not trigger calculateLastBuyPrice', () => {
+            expect(mockCalculateLastBuyPrice).not.toHaveBeenCalled();
           });
 
           it('does not trigger cache.hdel', () => {
@@ -697,16 +691,24 @@ describe('ensure-manual-buy-order.js', () => {
               expect.any(String)
             );
           });
+
+          it('triggers saveOrder', () => {
+            expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+              order: {
+                ...testData.getOrderResult
+              },
+              botStatus: {
+                savedAt: expect.any(String),
+                savedBy: 'ensure-manual-buy-order',
+                savedMessage: 'The order is not filled. Check next internal.'
+              }
+            });
+          });
         });
       });
 
       describe('when binance.client.getOrder throws an error', () => {
         beforeEach(async () => {
-          mockGetLastBuyPrice = jest.fn().mockResolvedValue({
-            lastBuyPrice: 30,
-            quantity: 3
-          });
-
           cacheMock.hgetall = jest.fn().mockResolvedValue({
             159653829: JSON.stringify({
               symbol: 'CAKEUSDT',
@@ -742,8 +744,8 @@ describe('ensure-manual-buy-order.js', () => {
           result = await step.execute(loggerMock, rawData);
         });
 
-        it('does not trigger saveLastBuyPrice', () => {
-          expect(mockSaveLastBuyPrice).not.toHaveBeenCalled();
+        it('does not trigger calculateLastBuyPrice', () => {
+          expect(mockCalculateLastBuyPrice).not.toHaveBeenCalled();
         });
 
         it('does not trigger cache.hdel', () => {
@@ -756,6 +758,28 @@ describe('ensure-manual-buy-order.js', () => {
             159653829,
             expect.any(String)
           );
+        });
+
+        it('triggers saveOrder', () => {
+          expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+            order: {
+              symbol: 'CAKEUSDT',
+              orderId: 159653829,
+              origQty: '1.00000000',
+              executedQty: '1.00000000',
+              cummulativeQuoteQty: '19.54900000',
+              status: 'NEW',
+              type: 'LIMIT',
+              side: 'BUY',
+              nextCheck: expect.any(String)
+            },
+            botStatus: {
+              savedAt: expect.any(String),
+              savedBy: 'ensure-manual-buy-order',
+              savedMessage:
+                'The order could not be found or error occurred querying the order.'
+            }
+          });
         });
       });
     });

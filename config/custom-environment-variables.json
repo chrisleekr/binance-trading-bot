@@ -53,6 +53,11 @@
       "__name": "BINANCE_FEATURE_TOGGLE_NOTIFY_DEBUG",
       "__description": "Set a boolean to notify the debug message. Note that enabling this feature toggle can flood the messages.",
       "__format": "boolean"
+    },
+    "notifyOrderExecute": {
+      "__name": "BINANCE_FEATURE_TOGGLE_NOTIFY_ORDER_EXECUTE",
+      "__description": "Set a boolean to notify the order executed messages. Note that enabling this feature toggle can flood the messages.",
+      "__format": "boolean"
     }
   },
   "jobs": {
@@ -169,6 +174,11 @@
         "refreshAccountInfoPeriod": {
           "__name": "BINANCE_JOBS_TRAILING_TRADE_SYSTEM_REFRESH_ACCOUNT_INFO_PERIOD",
           "__description": "Set the seconds for the period of checking the account info.",
+          "__format": "number"
+        },
+        "checkOrderExecutePeriod": {
+          "__name": "BINANCE_JOBS_TRAILING_TRADE_SYSTEM_CHECK_ORDER_EXECUTE_PERIOD",
+          "__description": "Set the seconds for the period of checking the grid trade order executed. Note that reducing the seconds can cause issues with the bot exceeding the API usage.",
           "__format": "number"
         }
       }

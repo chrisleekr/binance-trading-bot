@@ -1,5 +1,6 @@
 const _ = require('lodash');
-const { cache, binance, mongo } = require('../../helpers');
+const moment = require('moment');
+const { cache, binance, mongo, PubSub, slack } = require('../../helpers');
 
 const isValidCachedExchangeSymbols = exchangeSymbols =>
   _.get(
@@ -461,6 +462,92 @@ const getOverrideDataForIndicator = async (_logger, key) => {
 const removeOverrideDataForIndicator = async (_logger, key) =>
   cache.hdel('trailing-trade-indicator-override', key);
 
+/**
+ * Retrieve last buy price and recalculate new last buy price
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} order
+ */
+const calculateLastBuyPrice = async (logger, symbol, order) => {
+  const { type, executedQty, cummulativeQuoteQty } = order;
+  const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
+
+  const orgLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', 0);
+  const orgQuantity = _.get(lastBuyPriceDoc, 'quantity', 0);
+  const orgTotalAmount = orgLastBuyPrice * orgQuantity;
+
+  logger.info(
+    { orgLastBuyPrice, orgQuantity, orgTotalAmount },
+    'Existing last buy price'
+  );
+
+  const filledQuoteQty = parseFloat(cummulativeQuoteQty);
+  const filledQuantity = parseFloat(executedQty);
+
+  const newQuantity = orgQuantity + filledQuantity;
+  const newTotalAmount = orgTotalAmount + filledQuoteQty;
+
+  const newLastBuyPrice = newTotalAmount / newQuantity;
+
+  logger.info(
+    { newLastBuyPrice, newTotalAmount, newQuantity },
+    'New last buy price'
+  );
+  await saveLastBuyPrice(logger, symbol, {
+    lastBuyPrice: newLastBuyPrice,
+    quantity: newQuantity
+  });
+
+  PubSub.publish('frontend-notification', {
+    type: 'success',
+    title: `New last buy price for ${symbol} has been updated.`
+  });
+
+  slack.sendMessage(
+    `${symbol} Last buy price Updated (${moment().format(
+      'HH:mm:ss.SSS'
+    )}): *${type}*\n` +
+      `- Order Result: \`\`\`${JSON.stringify(
+        {
+          orgLastBuyPrice,
+          orgQuantity,
+          orgTotalAmount,
+          newLastBuyPrice,
+          newQuantity,
+          newTotalAmount
+        },
+        undefined,
+        2
+      )}\`\`\`\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
+  );
+};
+
+/**
+ * Save order to mongodb
+ *
+ * @param {*} logger
+ * @param {*} data
+ */
+const saveOrder = async (logger, data) => {
+  logger.info({ tag: 'save-order', data }, 'Save order');
+
+  // Order ID must be included.
+  const {
+    order: { orderId }
+  } = data;
+  return mongo.upsertOne(
+    logger,
+    'trailing-trade-orders',
+    { key: orderId },
+    {
+      key: orderId,
+      ...data
+    }
+  );
+};
+
 module.exports = {
   cacheExchangeSymbols,
   getAccountInfoFromAPI,
@@ -482,5 +569,7 @@ module.exports = {
   getOverrideDataForSymbol,
   removeOverrideDataForSymbol,
   getOverrideDataForIndicator,
-  removeOverrideDataForIndicator
+  removeOverrideDataForIndicator,
+  calculateLastBuyPrice,
+  saveOrder
 };

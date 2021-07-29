@@ -16,21 +16,22 @@ const {
 const {
   getSymbolConfiguration,
   getSymbolInfo,
-  getBalances,
   getOverrideAction,
   ensureManualBuyOrder,
   ensureOrderPlaced,
+  ensureGridTradeOrderExecuted,
+  getBalances,
   getOpenOrders,
   getIndicators,
   handleOpenOrders,
   determineAction,
   placeManualTrade,
+  cancelOrder,
   placeBuyOrder,
   placeSellOrder,
   placeSellStopLossOrder,
   removeLastBuyPrice,
-  saveDataToCache,
-  cancelOrder
+  saveDataToCache
 } = require('./trailingTrade/steps');
 const { slack } = require('../helpers');
 
@@ -103,6 +104,10 @@ const execute = async logger => {
           {
             stepName: 'ensure-open-placed',
             stepFunc: ensureOrderPlaced
+          },
+          {
+            stepName: 'ensure-grid-trade-order-executed',
+            stepFunc: ensureGridTradeOrderExecuted
           },
           {
             stepName: 'get-balances',

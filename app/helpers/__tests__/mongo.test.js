@@ -10,6 +10,7 @@ describe('mongo.js', () => {
 
   let result;
   let mockCollection;
+  let mockFind;
   let mockFindOne;
   let mockInsertOne;
   let mockUpdateOne;
@@ -90,6 +91,62 @@ describe('mongo.js', () => {
       it('does not triggers process.exit', () => {
         expect(process.exit).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('findAll', () => {
+    beforeEach(async () => {
+      mockFind = jest.fn().mockResolvedValue({
+        toArray: jest.fn().mockResolvedValue([
+          { key: 'my-key1', some: 'value' },
+          { key: 'my-key2', some: 'value' }
+        ])
+      });
+      mockCollection = jest.fn(() => ({
+        find: mockFind
+      }));
+
+      mockDBCommand = jest.fn().mockResolvedValue(true);
+      mockDB = jest.fn(() => ({
+        command: mockDBCommand,
+        collection: mockCollection
+      }));
+
+      mockMongoClient = jest.fn(() => ({
+        connect: jest.fn().mockResolvedValue(true),
+        db: mockDB
+      }));
+
+      jest.mock('mongodb', () => ({
+        MongoClient: mockMongoClient
+      }));
+
+      require('mongodb');
+
+      mongo = require('../mongo');
+
+      await mongo.connect(logger);
+
+      result = await mongo.findAll(logger, 'trailing-trade-grid-trade', {
+        key: 'BTCUSDT'
+      });
+    });
+
+    it('triggers database.collection', () => {
+      expect(mockCollection).toHaveBeenCalledWith('trailing-trade-grid-trade');
+    });
+
+    it('triggers collection.find', () => {
+      expect(mockFind).toHaveBeenCalledWith({
+        key: 'BTCUSDT'
+      });
+    });
+
+    it('returns expected result', () => {
+      expect(result).toStrictEqual([
+        { key: 'my-key1', some: 'value' },
+        { key: 'my-key2', some: 'value' }
+      ]);
     });
   });
 

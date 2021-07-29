@@ -3,74 +3,10 @@ const moment = require('moment');
 const _ = require('lodash');
 const { cache, PubSub, binance, slack } = require('../../../helpers');
 const {
-  getLastBuyPrice,
-  saveLastBuyPrice,
-  getAPILimit
+  calculateLastBuyPrice,
+  getAPILimit,
+  saveOrder
 } = require('../../trailingTradeHelper/common');
-
-/**
- * Retrieve last buy price and recalculate new last buy price
- *
- * @param {*} logger
- * @param {*} symbol
- * @param {*} order
- */
-const calculateLastBuyPrice = async (logger, symbol, order) => {
-  const { orderId, type, executedQty, cummulativeQuoteQty } = order;
-  const lastBuyPriceDoc = await getLastBuyPrice(logger, symbol);
-
-  const orgLastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', 0);
-  const orgQuantity = _.get(lastBuyPriceDoc, 'quantity', 0);
-  const orgTotalAmount = orgLastBuyPrice * orgQuantity;
-
-  logger.info(
-    { orgLastBuyPrice, orgQuantity, orgTotalAmount },
-    'Existing last buy price'
-  );
-
-  const filledQuoteQty = parseFloat(cummulativeQuoteQty);
-  const filledQuantity = parseFloat(executedQty);
-
-  const newQuantity = orgQuantity + filledQuantity;
-  const newTotalAmount = orgTotalAmount + filledQuoteQty;
-
-  const newLastBuyPrice = newTotalAmount / newQuantity;
-
-  logger.info(
-    { newLastBuyPrice, newTotalAmount, newQuantity },
-    'New last buy price'
-  );
-  await saveLastBuyPrice(logger, symbol, {
-    lastBuyPrice: newLastBuyPrice,
-    quantity: newQuantity
-  });
-
-  await cache.hdel(`trailing-trade-manual-buy-order-${symbol}`, orderId);
-
-  PubSub.publish('frontend-notification', {
-    type: 'success',
-    title: `New last buy price for ${symbol} has been updated.`
-  });
-
-  slack.sendMessage(
-    `${symbol} Last buy price Updated (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *${type}*\n` +
-      `- Order Result: \`\`\`${JSON.stringify(
-        {
-          orgLastBuyPrice,
-          orgQuantity,
-          orgTotalAmount,
-          newLastBuyPrice,
-          newQuantity,
-          newTotalAmount
-        },
-        undefined,
-        2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
-  );
-};
 
 /**
  * Send slack message for order filled
@@ -186,6 +122,21 @@ const execute = async (logger, rawData) => {
         'Order has already filled, calculate last buy price.'
       );
       await calculateLastBuyPrice(logger, symbol, buyOrder);
+      await cache.hdel(
+        `trailing-trade-manual-buy-order-${symbol}`,
+        buyOrder.orderId
+      );
+
+      // Save order
+      await saveOrder(logger, {
+        order: { ...buyOrder },
+        botStatus: {
+          savedAt: moment().format(),
+          savedBy: 'ensure-manual-buy-order',
+          savedMessage:
+            'The order has already filled and updated the last buy price.'
+        }
+      });
     } else {
       // If not filled, check orders is time to check or not
 
@@ -228,6 +179,17 @@ const execute = async (logger, rawData) => {
             })
           );
 
+          // Save order
+          await saveOrder(logger, {
+            order: { ...buyOrder },
+            botStatus: {
+              savedAt: moment().format(),
+              savedBy: 'ensure-manual-buy-order',
+              savedMessage:
+                'The order could not be found or error occurred querying the order.'
+            }
+          });
+
           return data;
         }
 
@@ -245,12 +207,40 @@ const execute = async (logger, rawData) => {
             orderResult
           );
           await calculateLastBuyPrice(logger, symbol, orderResult);
+
+          // Remove manual buy order
+          await cache.hdel(
+            `trailing-trade-manual-buy-order-${symbol}`,
+            orderResult.orderId
+          );
+
+          // Save order
+          await saveOrder(logger, {
+            order: { ...buyOrder, ...orderResult },
+            botStatus: {
+              savedAt: moment().format(),
+              savedBy: 'ensure-manual-buy-order',
+              savedMessage:
+                'The order has filled and updated the last buy price.'
+            }
+          });
         } else if (removeStatuses.includes(orderResult.status) === true) {
           // If order is no longer available, then delete from cache
           await cache.hdel(
             `trailing-trade-manual-buy-order-${symbol}`,
             orderResult.orderId
           );
+
+          // Save order
+          await saveOrder(logger, {
+            order: { ...buyOrder, ...orderResult },
+            botStatus: {
+              savedAt: moment().format(),
+              savedBy: 'ensure-manual-buy-order',
+              savedMessage:
+                'The order is no longer valid. Removed from the cache.'
+            }
+          });
 
           slackMessageOrderDeleted(
             logger,
@@ -283,6 +273,16 @@ const execute = async (logger, rawData) => {
               nextCheck: updatedNextCheck
             })
           );
+
+          // Save order
+          await saveOrder(logger, {
+            order: { ...orderResult },
+            botStatus: {
+              savedAt: moment().format(),
+              savedBy: 'ensure-manual-buy-order',
+              savedMessage: 'The order is not filled. Check next internal.'
+            }
+          });
         }
       } else {
         logger.info(

@@ -19,21 +19,22 @@ describe('trailingTrade', () => {
 
   let mockGetSymbolConfiguration;
   let mockGetSymbolInfo;
+  let mockGetBalances;
   let mockGetOverrideAction;
   let mockEnsureManualBuyOrder;
   let mockEnsureOrderPlaced;
-  let mockGetBalances;
+  let mockEnsureGridTradeOrderExecuted;
   let mockGetOpenOrders;
   let mockGetIndicators;
   let mockHandleOpenOrders;
   let mockDetermineAction;
   let mockPlaceManualTrade;
-  let mockCancelOrder;
   let mockPlaceBuyOrder;
   let mockPlaceSellOrder;
   let mockPlaceSellStopLossOrder;
   let mockRemoveLastBuyPrice;
   let mockSaveDataToCache;
+  let mockCancelOrder;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -136,6 +137,15 @@ describe('trailingTrade', () => {
           ensure: 'order-placed'
         }));
 
+      mockEnsureGridTradeOrderExecuted = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ensureGridTradeOrder: {
+            ensured: 'grid-trade'
+          }
+        }));
+
       mockGetBalances = jest.fn().mockImplementation((_logger, rawData) => ({
         ...rawData,
         ...{
@@ -276,6 +286,7 @@ describe('trailingTrade', () => {
         getOverrideAction: mockGetOverrideAction,
         ensureManualBuyOrder: mockEnsureManualBuyOrder,
         ensureOrderPlaced: mockEnsureOrderPlaced,
+        ensureGridTradeOrderExecuted: mockEnsureGridTradeOrderExecuted,
         getBalances: mockGetBalances,
         getOpenOrders: mockGetOpenOrders,
         getIndicators: mockGetIndicators,
@@ -317,24 +328,27 @@ describe('trailingTrade', () => {
             symbol: 'BTCUSDT',
             isLocked: false,
             featureToggle: { feature1Enabled: true },
-            lastCandle: { got: 'lowest value' },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
-            indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            openOrders: [{ orderId: 'order-id-BTCUSDT', symbol: 'BTCUSDT' }],
-            action: 'determined',
-            baseAssetBalance: { baseAsset: 'balance' },
-            quoteAssetBalance: { quoteAsset: 'balance' },
-            buy: { should: 'buy?', actioned: 'yes' },
-            sell: { should: 'sell?', actioned: 'yes' },
-            order: {},
-            saveToCache: true,
             overrideAction: { action: 'override-action' },
             ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
+            ensureGridTradeOrder: {
+              ensured: 'grid-trade'
+            },
+            baseAssetBalance: { baseAsset: 'balance' },
+            quoteAssetBalance: { quoteAsset: 'balance' },
+            lastCandle: { got: 'lowest value' },
+            indicators: { some: 'value' },
+            buy: { should: 'buy?', actioned: 'yes' },
+            sell: { should: 'sell?', actioned: 'yes' },
+            openOrders: [{ orderId: 'order-id-BTCUSDT', symbol: 'BTCUSDT' }],
             handled: 'open-orders',
+            action: 'determined',
             placeManualTrade: { placed: 'manual-trade' },
+            order: {},
+            saveToCache: true,
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
@@ -353,24 +367,27 @@ describe('trailingTrade', () => {
             symbol: 'ETHUSDT',
             isLocked: false,
             featureToggle: { feature1Enabled: true },
-            lastCandle: { got: 'lowest value' },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
-            indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            openOrders: [{ orderId: 'order-id-ETHUSDT', symbol: 'ETHUSDT' }],
-            action: 'determined',
-            baseAssetBalance: { baseAsset: 'balance' },
-            quoteAssetBalance: { quoteAsset: 'balance' },
-            buy: { should: 'buy?', actioned: 'yes' },
-            sell: { should: 'sell?', actioned: 'yes' },
-            order: {},
-            saveToCache: true,
             overrideAction: { action: 'override-action' },
             ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
+            ensureGridTradeOrder: {
+              ensured: 'grid-trade'
+            },
+            baseAssetBalance: { baseAsset: 'balance' },
+            quoteAssetBalance: { quoteAsset: 'balance' },
+            lastCandle: { got: 'lowest value' },
+            indicators: { some: 'value' },
+            buy: { should: 'buy?', actioned: 'yes' },
+            sell: { should: 'sell?', actioned: 'yes' },
+            openOrders: [{ orderId: 'order-id-ETHUSDT', symbol: 'ETHUSDT' }],
             handled: 'open-orders',
+            action: 'determined',
             placeManualTrade: { placed: 'manual-trade' },
+            order: {},
+            saveToCache: true,
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
@@ -389,24 +406,27 @@ describe('trailingTrade', () => {
             symbol: 'LTCUSDT',
             isLocked: false,
             featureToggle: { feature1Enabled: true },
-            lastCandle: { got: 'lowest value' },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
-            indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            openOrders: [{ orderId: 'order-id-LTCUSDT', symbol: 'LTCUSDT' }],
-            action: 'determined',
-            baseAssetBalance: { baseAsset: 'balance' },
-            quoteAssetBalance: { quoteAsset: 'balance' },
-            buy: { should: 'buy?', actioned: 'yes' },
-            sell: { should: 'sell?', actioned: 'yes' },
-            order: {},
-            saveToCache: true,
             overrideAction: { action: 'override-action' },
             ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
+            ensureGridTradeOrder: {
+              ensured: 'grid-trade'
+            },
+            baseAssetBalance: { baseAsset: 'balance' },
+            quoteAssetBalance: { quoteAsset: 'balance' },
+            lastCandle: { got: 'lowest value' },
+            indicators: { some: 'value' },
+            buy: { should: 'buy?', actioned: 'yes' },
+            sell: { should: 'sell?', actioned: 'yes' },
+            openOrders: [{ orderId: 'order-id-LTCUSDT', symbol: 'LTCUSDT' }],
             handled: 'open-orders',
+            action: 'determined',
             placeManualTrade: { placed: 'manual-trade' },
+            order: {},
+            saveToCache: true,
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
@@ -498,6 +518,15 @@ describe('trailingTrade', () => {
           ensure: 'order-placed'
         }));
 
+      mockEnsureGridTradeOrderExecuted = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ensureGridTradeOrder: {
+            ensured: 'grid-trade'
+          }
+        }));
+
       mockGetBalances = jest.fn().mockImplementation((_logger, rawData) => ({
         ...rawData,
         ...{
@@ -638,6 +667,7 @@ describe('trailingTrade', () => {
         getOverrideAction: mockGetOverrideAction,
         ensureManualBuyOrder: mockEnsureManualBuyOrder,
         ensureOrderPlaced: mockEnsureOrderPlaced,
+        ensureGridTradeOrderExecuted: mockEnsureGridTradeOrderExecuted,
         getBalances: mockGetBalances,
         getOpenOrders: mockGetOpenOrders,
         getIndicators: mockGetIndicators,
@@ -678,31 +708,30 @@ describe('trailingTrade', () => {
           data: {
             symbol: 'BTCUSDT',
             isLocked: true,
-            featureToggle: {
-              feature1Enabled: false
-            },
-            lastCandle: { got: 'lowest value' },
+            featureToggle: { feature1Enabled: false },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
-            indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            openOrders: [{ orderId: 'order-id-BTCUSDT', symbol: 'BTCUSDT' }],
-            action: 'determined',
-            baseAssetBalance: { baseAsset: 'balance' },
-            quoteAssetBalance: { quoteAsset: 'balance' },
-            buy: { should: 'buy?', actioned: 'yes' },
-            sell: { should: 'sell?', actioned: 'yes' },
-            order: {},
-            saveToCache: true,
             overrideAction: { action: 'override-action' },
             ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
+            ensureGridTradeOrder: { ensured: 'grid-trade' },
+            baseAssetBalance: { baseAsset: 'balance' },
+            quoteAssetBalance: { quoteAsset: 'balance' },
+            openOrders: [{ orderId: 'order-id-BTCUSDT', symbol: 'BTCUSDT' }],
+            lastCandle: { got: 'lowest value' },
+            indicators: { some: 'value' },
+            buy: { should: 'buy?', actioned: 'yes' },
+            sell: { should: 'sell?', actioned: 'yes' },
             handled: 'open-orders',
+            action: 'determined',
             placeManualTrade: { placed: 'manual-trade' },
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
-            saved: 'data-to-cache'
+            saved: 'data-to-cache',
+            order: {},
+            saveToCache: true
           }
         },
         'TrailingTrade: Finish process...'
@@ -716,31 +745,30 @@ describe('trailingTrade', () => {
           data: {
             symbol: 'ETHUSDT',
             isLocked: true,
-            featureToggle: {
-              feature1Enabled: false
-            },
-            lastCandle: { got: 'lowest value' },
+            featureToggle: { feature1Enabled: false },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
-            indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            openOrders: [{ orderId: 'order-id-ETHUSDT', symbol: 'ETHUSDT' }],
-            action: 'determined',
-            baseAssetBalance: { baseAsset: 'balance' },
-            quoteAssetBalance: { quoteAsset: 'balance' },
-            buy: { should: 'buy?', actioned: 'yes' },
-            sell: { should: 'sell?', actioned: 'yes' },
-            order: {},
-            saveToCache: true,
             overrideAction: { action: 'override-action' },
             ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
+            ensureGridTradeOrder: { ensured: 'grid-trade' },
+            baseAssetBalance: { baseAsset: 'balance' },
+            quoteAssetBalance: { quoteAsset: 'balance' },
+            openOrders: [{ orderId: 'order-id-ETHUSDT', symbol: 'ETHUSDT' }],
+            lastCandle: { got: 'lowest value' },
+            indicators: { some: 'value' },
+            buy: { should: 'buy?', actioned: 'yes' },
+            sell: { should: 'sell?', actioned: 'yes' },
             handled: 'open-orders',
+            action: 'determined',
             placeManualTrade: { placed: 'manual-trade' },
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
-            saved: 'data-to-cache'
+            saved: 'data-to-cache',
+            order: {},
+            saveToCache: true
           }
         },
         'TrailingTrade: Finish process...'
@@ -754,31 +782,30 @@ describe('trailingTrade', () => {
           data: {
             symbol: 'LTCUSDT',
             isLocked: true,
-            featureToggle: {
-              feature1Enabled: false
-            },
-            lastCandle: { got: 'lowest value' },
+            featureToggle: { feature1Enabled: false },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
-            indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            openOrders: [{ orderId: 'order-id-LTCUSDT', symbol: 'LTCUSDT' }],
-            action: 'determined',
-            baseAssetBalance: { baseAsset: 'balance' },
-            quoteAssetBalance: { quoteAsset: 'balance' },
-            buy: { should: 'buy?', actioned: 'yes' },
-            sell: { should: 'sell?', actioned: 'yes' },
-            order: {},
-            saveToCache: true,
             overrideAction: { action: 'override-action' },
             ensureManualBuyOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
+            ensureGridTradeOrder: { ensured: 'grid-trade' },
+            baseAssetBalance: { baseAsset: 'balance' },
+            quoteAssetBalance: { quoteAsset: 'balance' },
+            openOrders: [{ orderId: 'order-id-LTCUSDT', symbol: 'LTCUSDT' }],
+            lastCandle: { got: 'lowest value' },
+            indicators: { some: 'value' },
+            buy: { should: 'buy?', actioned: 'yes' },
+            sell: { should: 'sell?', actioned: 'yes' },
             handled: 'open-orders',
+            action: 'determined',
             placeManualTrade: { placed: 'manual-trade' },
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
-            saved: 'data-to-cache'
+            saved: 'data-to-cache',
+            order: {},
+            saveToCache: true
           }
         },
         'TrailingTrade: Finish process...'
