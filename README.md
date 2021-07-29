@@ -367,11 +367,10 @@ Please refer
 [CHANGELOG.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/CHANGELOG.md)
 to view the past changes.
 
-- [ ] Add frontend option to disable sorting or improve sorting - [#244](https://github.com/chrisleekr/binance-trading-bot/issues/244)
 - [ ] Filter symbols in the frontend - [#120](https://github.com/chrisleekr/binance-trading-bot/issues/120) [#242](https://github.com/chrisleekr/binance-trading-bot/pull/242)
+- [ ] Secure frontend with the password authentication - [#240](https://github.com/chrisleekr/binance-trading-bot/pull/240)
 - [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
 - [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
-- [ ] Secure frontend with the password authentication
 - [ ] Display summary of transactions on the frontend - [#160](https://github.com/chrisleekr/binance-trading-bot/issues/160)
 - [ ] Add minimum required order amount - [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)
 - [ ] Manage setting profiles (save/change/load?/export?) - [#151](https://github.com/chrisleekr/binance-trading-bot/issues/151)
