@@ -90,7 +90,7 @@ const predictCoinValue = async symbol => {
   const cachedPrediction =
     JSON.parse(await cache.get(`${symbol}-last-prediction`)) || [];
 
-  if (cachedPrediction !== [] && !_.isEmpty(prediction.predictedValues)) {
+  if (cachedPrediction !== [] || !_.isEmpty(prediction.predictedValues)) {
     prediction = cachedPrediction;
   }
 
@@ -135,18 +135,12 @@ const predictCoinValue = async symbol => {
       if (prediction.predictedValues.length === 10) {
         prediction.predictedValues.shift();
       }
-
       prediction.predictedValues.push(predictionCoinValue);
       prediction.meanPredictedValue = [_.mean(prediction.predictedValues)];
       prediction.realCandles = candlesToPredict;
       prediction.date = new Date();
 
-      if (!_.isEmpty(prediction.predictedValues)) {
-        await cache.set(
-          `${symbol}-last-prediction`,
-          JSON.stringify(prediction)
-        );
-      }
+      await cache.set(`${symbol}-last-prediction`, JSON.stringify(prediction));
     }
   } else {
     prediction = cachedPrediction;
@@ -252,11 +246,7 @@ const execute = async (logger, rawData) => {
 
   let prediction;
   if (predictValue === true) {
-    try {
-      prediction = await predictCoinValue(symbol);
-    } catch (error) {
-      messenger.errorMessage(`error at prediction ${error}`);
-    }
+    prediction = await predictCoinValue(symbol);
   }
 
   data.indicators = {
