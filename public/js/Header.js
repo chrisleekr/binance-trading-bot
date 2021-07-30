@@ -10,7 +10,9 @@ class Header extends React.Component {
       exchangeSymbols,
       availableSortOptions,
       selectedSortOption,
-      setSortOption
+      searchKeyword,
+      setSortOption,
+      setSearchKeyword
     } = this.props;
 
     return (
@@ -30,7 +32,9 @@ class Header extends React.Component {
             <FilterIcon
               availableSortOptions={availableSortOptions}
               selectedSortOption={selectedSortOption}
+              searchKeyword={searchKeyword}
               setSortOption={setSortOption}
+              setSearchKeyword={setSearchKeyword}
             />
 
             <div className='header-column-icon-wrapper github-wrapper'>

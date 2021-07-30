@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Filter symbols in the frontend. Thanks [@pedrohusky](https://github.com/pedrohusky) - [#120](https://github.com/chrisleekr/binance-trading-bot/issues/120) [#242](https://github.com/chrisleekr/binance-trading-bot/pull/242)
+
 ## [0.0.73] - 2021-07-29
 
 - Make the local tunnel to be disabled by default. Thanks [@pedrohusky](https://github.com/pedrohusky)
