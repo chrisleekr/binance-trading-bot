@@ -347,7 +347,7 @@ class App extends React.Component {
               )}
 
               <PastTradesWrapper
-                pastTrades={pastTrades}
+                pastTrades={[...pastTrades]}
                 jsonStrings={languageData}
                 sendWebSocket={this.sendWebSocket}
               />

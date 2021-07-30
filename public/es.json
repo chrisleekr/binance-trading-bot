@@ -266,6 +266,15 @@
     "pass_from_env": "Complete con la contraseña definida en el archivo .env",
     "connect": "Entrar en el sistema"
   },
+  "past_trades": {
+    "past_trades": "Transacciones anteriores",
+    "trades": "Transacciones",
+    "wins": "Won",
+    "losses": "Perdidos",
+    "win_percentage": "Porcentaje de éxito",
+    "overall_profit": "Beneficio global",
+    "remove_history_confirmation": "¿Está seguro de que quiere eliminar el último historial de transacciones? Beneficio global"
+  },
   "common_strings": {
     "_interval": "Intervalo",
     "_limit": "Límite",

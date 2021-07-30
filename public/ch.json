@@ -289,6 +289,15 @@
     "pass_from_env": "填写.env文件中定义的密码",
     "connect": "Connect"
   },
+  "past_trades": {
+    "past_trades": "过去的交易",
+    "trades": "交易",
+    "wins": "荣获",
+    "losses": "丢失",
+    "success_rate": "成功的百分比",
+    "overall_profit": "总体利润",
+    "remove_history_confirmation": "你确定要删除最后一次交易记录吗"
+  },
   "common_strings": {
     "_interval": "间隔",
     "_limit": "限制",
