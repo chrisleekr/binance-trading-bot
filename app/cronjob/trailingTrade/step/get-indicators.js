@@ -83,7 +83,11 @@ const execute = async (logger, rawData) => {
 
   const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
-  if (!_.isEmpty(prediction) && !_.isEmpty(prediction.predictedValues))
+  if (
+    !_.isEmpty(prediction) &&
+    !_.isEmpty(prediction.predictedValues) &&
+    !_.isEmpty(prediction.realCandles)
+  )
     for (let i = 0; i < prediction.predictedValues.length; i += 1) {
       prediction.predictedValues[i] =
         prediction.predictedValues[i].toFixed(precision);

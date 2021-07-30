@@ -14,7 +14,11 @@ class CoinWrapperChart extends React.Component {
   }
 
   componentDidUpdate(nextProps) {
-    if (_.isEmpty(nextProps.symbolInfo.buy.prediction)) {
+    if (
+      _.isEmpty(nextProps.symbolInfo.buy.prediction) ||
+      nextProps.symbolInfo.buy.prediction.predictedValues === undefined ||
+      nextProps.symbolInfo.buy.prediction.realCandles === undefined
+    ) {
       return '';
     }
 

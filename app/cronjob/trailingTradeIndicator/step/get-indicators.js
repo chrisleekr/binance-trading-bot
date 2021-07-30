@@ -144,6 +144,7 @@ const predictCoinValue = async symbol => {
       if (prediction.predictedValues === undefined) {
         prediction.predictedValues = [];
       }
+
       prediction.predictedValues.push(predictionCoinValue);
 
       const newPrediction = {

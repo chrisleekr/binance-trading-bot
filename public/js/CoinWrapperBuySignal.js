@@ -16,7 +16,10 @@ class CoinWrapperBuySignal extends React.Component {
 
     const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
     let predictionHigherThan = 0;
-    if (buy.prediction !== undefined) {
+    if (
+      buy.prediction !== undefined &&
+      buy.prediction.meanPredictedValue !== undefined
+    ) {
       predictionHigherThan = (
         100 -
         (parseFloat(buy.currentPrice) /
@@ -68,7 +71,8 @@ class CoinWrapperBuySignal extends React.Component {
         )}
 
         {symbolConfiguration.buy.predictValue === true &&
-        buy.prediction !== undefined ? (
+        buy.prediction !== undefined &&
+        buy.prediction.meanPredictedValue !== undefined ? (
           <div className='coin-info-column coin-info-column-right coin-info-column-balance'>
             <span className='coin-info-label'>
               Predict next {buy.prediction.interval}:
