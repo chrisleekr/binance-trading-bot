@@ -53,7 +53,10 @@ const sortingDefault = (symbols, direction) =>
   );
 
 // eslint-disable-next-line no-unused-vars
-const sortingSymbols = (symbols, sortingOption) => {
+const sortingSymbols = (orgSymbols, { selectedSortOption, searchKeyword }) => {
+  const symbols = orgSymbols.filter(s =>
+    s.symbol.toLowerCase().includes(searchKeyword.toLowerCase())
+  );
   const sortingMaps = {
     default: {
       sortingFunc: sortingDefault,
@@ -85,7 +88,7 @@ const sortingSymbols = (symbols, sortingOption) => {
     }
   };
 
-  const sortingMap = sortingMaps[sortingOption];
+  const sortingMap = sortingMaps[selectedSortOption];
 
   return sortingMap.sortingFunc(symbols, sortingMap.direction);
 };

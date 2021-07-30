@@ -769,3 +769,23 @@ input[type='number'] {
 /**
   End: Grid Trade
 */
+
+/**
+  Start: Filter
+*/
+.sort-wrapper .has-search-keyword {
+  position: relative;
+}
+
+.sort-wrapper .has-search-keyword:after {
+  content: '';
+  background: red;
+  border-radius: 50%;
+  position: absolute;
+  top: 6px;
+  width: 4px;
+  height: 4px;
+}
+/**
+  End: Filter
+*/

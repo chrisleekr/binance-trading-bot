@@ -27,12 +27,14 @@ class App extends React.Component {
         { sortBy: 'alpha-asc', label: 'Alphabetical (asc)' },
         { sortBy: 'alpha-desc', label: 'Alphabetical (desc)' }
       ],
-      selectedSortOption: 'default'
+      selectedSortOption: 'default',
+      searchKeyword: ''
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
     this.sendWebSocket = this.sendWebSocket.bind(this);
     this.setSortOption = this.setSortOption.bind(this);
+    this.setSearchKeyword = this.setSearchKeyword.bind(this);
 
     this.toast = this.toast.bind(this);
 
@@ -117,10 +119,10 @@ class App extends React.Component {
 
         // Set states
         self.setState({
-          symbols: sortingSymbols(
-            response.stats.symbols,
-            self.state.selectedSortOption
-          ),
+          symbols: sortingSymbols(response.stats.symbols, {
+            selectedSortOption: self.state.selectedSortOption,
+            searchKeyword: self.state.searchKeyword
+          }),
           packageVersion: response.common.version,
           gitHash: response.common.gitHash,
           exchangeSymbols: response.common.exchangeSymbols,
@@ -179,6 +181,12 @@ class App extends React.Component {
     });
   }
 
+  setSearchKeyword(searchKeyword) {
+    this.setState({
+      searchKeyword
+    });
+  }
+
   componentDidMount() {
     const selectedSortOption =
       localStorage.getItem('selectedSortOption') || 'default';
@@ -208,7 +216,8 @@ class App extends React.Component {
       apiInfo,
       dustTransfer,
       availableSortOptions,
-      selectedSortOption
+      selectedSortOption,
+      searchKeyword
     } = this.state;
 
     const coinWrappers = symbols.map((symbol, index) => {
@@ -234,7 +243,9 @@ class App extends React.Component {
           sendWebSocket={this.sendWebSocket}
           availableSortOptions={availableSortOptions}
           selectedSortOption={selectedSortOption}
+          searchKeyword={searchKeyword}
           setSortOption={this.setSortOption}
+          setSearchKeyword={this.setSearchKeyword}
         />
         {_.isEmpty(configuration) === false ? (
           <div className='app-body'>
