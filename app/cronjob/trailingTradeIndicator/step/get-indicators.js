@@ -120,12 +120,12 @@ const predictCoinValue = async symbol => {
     const predictionCoinValue = _.mean(
       await model.predict(tf.tensor1d(diffWeight)).dataSync()
     );
-    if (!_.isEmpty(prediction)) {
+    if (!_.isEmpty(prediction) || !_.isEmpty(prediction.predictedValues) ) {
       if (prediction.predictedValues.length === 10) {
         prediction.predictedValues.shift();
       }
     }
-    if (_.isEmpty(prediction)) {
+    if (_.isEmpty(prediction) || !prediction.predictedValues) {
       prediction = {
         interval: '30m',
         predictedValues: [predictionCoinValue],

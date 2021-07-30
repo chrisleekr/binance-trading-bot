@@ -95,6 +95,13 @@ class CoinWrapperChart extends React.Component {
               tooltips: {
                 enabled: true
               },
+              ticks: {
+                min: 0,
+                max: 3.05,
+                stepSize: 1,
+                suggestedMin: 0,
+                suggestedMax: 3.05
+              },
               legend: {
                 display: true
               },

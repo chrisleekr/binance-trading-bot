@@ -83,11 +83,12 @@ const execute = async (logger, rawData) => {
 
   const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
-  for (let i = 0; i < prediction.predictedValues.length; i += 1) {
-    prediction.predictedValues[i] =
-      prediction.predictedValues[i].toFixed(precision);
-    prediction.realCandles[i] = prediction.realCandles[i].toFixed(precision);
-  }
+  if (!_.isEmpty(prediction) && !_.isEmpty(prediction.predictedValues))
+    for (let i = 0; i < prediction.predictedValues.length; i += 1) {
+      prediction.predictedValues[i] =
+        prediction.predictedValues[i].toFixed(precision);
+      prediction.realCandles[i] = prediction.realCandles[i].toFixed(precision);
+    }
 
   // ATH calc
   let buyATHRestrictionPrice = null;
