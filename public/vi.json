@@ -289,6 +289,15 @@
     "pass_from_env": "Điền mật khẩu được xác định trong tệp .env",
     "connect": "Log in"
   },
+  "past_trades": {
+    "past_trades": "Giao dịch trong quá khứ",
+    "trades": "Giao dịch",
+    "wins": "Thắng",
+    "losses": "Mất",
+    "success_rate": "Phần trăm thành công",
+    "overall_profit": "Lợi ích chung",
+    "remove_history_confirmation": "Bạn có chắc chắn muốn xóa lịch sử của các giao dịch gần đây nhất không?"
+  },
   "common_strings": {
     "_interval": "Khoảng thời gian",
     "_limit": "Giới hạn",
