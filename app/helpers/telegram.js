@@ -272,6 +272,7 @@ const formatOrder = async (ctx, data) => {
 
   const binance = require('./binance');
   try {
+
     orderResult = await binance.client.order(order);
     ctx.reply('I had open the order for you. Good profits.');
     if (orderSideSelected === 'buy') {

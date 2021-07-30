@@ -155,8 +155,8 @@ const meanPredictedValueIsTrue = data => {
   // Make sure we don't have a last buy, open orders, and it is not greater than ath.
   if (
     !predictValue ||
-    (lastBuyPrice && lastBuyPrice > 0) ||
-    (lastQtyBought && lastQtyBought > 0) ||
+    lastBuyPrice > 0 ||
+    lastQtyBought > 0 ||
     !_.isEmpty(openOrders) ||
     isGreaterThanATH
   ) {

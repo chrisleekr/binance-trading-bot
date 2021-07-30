@@ -90,7 +90,7 @@ const predictCoinValue = async symbol => {
   const cachedPrediction =
     JSON.parse(await cache.get(`${symbol}-last-prediction`)) || [];
 
-  if (cachedPrediction !== []) {
+  if (cachedPrediction !== [] && !_.isEmpty(prediction.predictedValues)) {
     prediction = cachedPrediction;
   }
 
