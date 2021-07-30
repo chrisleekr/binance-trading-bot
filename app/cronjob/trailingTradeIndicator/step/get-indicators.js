@@ -88,9 +88,13 @@ const predictCoinValue = async symbol => {
   };
 
   const cachedPrediction =
-    JSON.parse(await cache.get(`${symbol}-last-prediction`)) || [];
+    JSON.parse(await cache.get(`${symbol}-last-prediction`)) || {};
 
-  if (cachedPrediction !== [] || !_.isEmpty(prediction.predictedValues)) {
+  if (
+    cachedPrediction !== null ||
+    !_.isEmpty(cachedPrediction) ||
+    !_.isEmpty(prediction.predictedValues)
+  ) {
     prediction = cachedPrediction;
   }
 
@@ -132,15 +136,28 @@ const predictCoinValue = async symbol => {
         await model.predict(tf.tensor1d(diffWeight)).dataSync()
       );
 
-      if (prediction.predictedValues.length === 10) {
-        prediction.predictedValues.shift();
+      if (prediction.predictedValues !== undefined) {
+        if (prediction.predictedValues.length === 10) {
+          prediction.predictedValues.shift();
+        }
+      }
+      if (prediction.predictedValues === undefined) {
+        prediction.predictedValues = [];
       }
       prediction.predictedValues.push(predictionCoinValue);
-      prediction.meanPredictedValue = [_.mean(prediction.predictedValues)];
-      prediction.realCandles = candlesToPredict;
-      prediction.date = new Date();
 
-      await cache.set(`${symbol}-last-prediction`, JSON.stringify(prediction));
+      const newPrediction = {
+        interval: '30m',
+        predictedValues: prediction.predictedValues,
+        meanPredictedValue: [_.mean(prediction.predictedValues)],
+        realCandles: candlesToPredict,
+        date: new Date()
+      };
+
+      await cache.set(
+        `${symbol}-last-prediction`,
+        JSON.stringify(newPrediction)
+      );
     }
   } else {
     prediction = cachedPrediction;

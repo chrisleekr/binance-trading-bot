@@ -35,6 +35,7 @@ class CoinWrapper extends React.Component {
 
     const className = 'coin-wrapper ' + this.props.extraClassName;
 
+    console.log(symbolInfo);
     return (
       <div className={className} data-symbol={symbolInfo.symbol}>
         <div className='coin-info-wrapper'>
