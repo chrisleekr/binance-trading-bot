@@ -158,11 +158,9 @@ const execute = async (logger, rawData) => {
           'Stop price is less than buy limit price, wait for buy order'
         );
 
-        if ((buyUpdatedAt - order.updatedAt) / 1000 > 20) {
+        if ((buyUpdatedAt - order.updatedAt) / 1000 > 25) {
           await cancelOrder(logger, symbol, order);
           data.buy.openOrders = [];
-
-          messenger.errorMessage(`Order buy expired. ${symbol}`);
 
           // Set action as buy
           data.action = 'buy';
@@ -232,12 +230,10 @@ const execute = async (logger, rawData) => {
           'Stop price is higher than sell limit price, wait for sell order'
         );
 
-        if ((sellUpdatedAt - order.updatedAt) / 1000 > 20) {
+        if ((sellUpdatedAt - order.updatedAt) / 1000 > 25) {
           await cancelOrder(logger, symbol, order);
           // Reset sell open orders
           data.sell.openOrders = [];
-
-          messenger.errorMessage(`Order sell expired. ${symbol}`);
 
           // Set action as sell
           data.action = 'sell';

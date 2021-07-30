@@ -86,28 +86,18 @@ const predictCoinValue = async symbol => {
 
   if (
     _.isEmpty(prediction) ||
-    (new Date() - new Date(prediction.date)) / 1000 > 300
+    (new Date() - new Date(prediction.date)) / 1000 > 180
   ) {
     const bc = await binance.client.candles({
       symbol,
-      interval: '5m',
-      limit: 20
+      interval: '3m',
+      limit: 10
     });
 
-    let index = 0;
     bc.forEach(c => {
-    /*  if (!_.isEmpty(prediction) && prediction.predictedValues.length > index) {
-        diffWeight.push(
-          100 -
-            (parseFloat(prediction.predictedValues[index]) /
-              parseFloat(c.close)) *
-              100
-        );
-      } else {
-     */   diffWeight.push(100 - (parseFloat(c.open) / parseFloat(c.close)) * 100);
-   //   }
+      diffWeight.push(100 - (parseFloat(c.open) / parseFloat(c.close)) * 100);
+
       candlesToPredict.push(parseFloat(c.close));
-      index += 1;
     });
 
     // create model object
@@ -131,20 +121,20 @@ const predictCoinValue = async symbol => {
       await model.predict(tf.tensor1d(diffWeight)).dataSync()
     );
     if (!_.isEmpty(prediction)) {
-      if (prediction.predictedValues.length === 20) {
+      if (prediction.predictedValues.length === 10) {
         prediction.predictedValues.shift();
       }
     }
     if (_.isEmpty(prediction)) {
       prediction = {
-        interval: '5m',
+        interval: '30m',
         predictedValues: [predictionCoinValue],
         meanPredictedValue: [predictionCoinValue],
         realCandles: candlesToPredict,
         date: new Date()
       };
     } else {
-      prediction.interval = '5m';
+      prediction.interval = '30m';
       prediction.predictedValues.push(predictionCoinValue);
       prediction.meanPredictedValue = [_.mean(prediction.predictedValues)];
       prediction.realCandles = candlesToPredict;

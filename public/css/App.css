@@ -9,6 +9,7 @@
   --font-main-color: #333333;
   --green: #d8e0d6;
   --red: #ddd0d0;
+  --pass-screen-color:rgb(255, 255, 255);
 }
 .theme-dark {
   --color-primary: #191f2c;
@@ -19,6 +20,7 @@
   --font-main-color: #cfcfcf;
   --green: #28413f;
   --red: #3a2727;
+  --pass-screen-color: rgb(39, 41, 46);
 }
 
 body {
@@ -1061,4 +1063,9 @@ input[type='number'] {
 
 .graph {
   width: 100%;
+}
+
+.pass-screen {
+  background-color: rgb(255, 255, 255) !important;
+  transition: all 0.5s ease-in-out !important;
 }

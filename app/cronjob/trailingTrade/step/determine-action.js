@@ -138,20 +138,26 @@ const meanPredictedValueIsTrue = data => {
       difference,
       openOrders,
       trend: { trendDiff, signedTrendDiff },
-      currentPrice
+      currentPrice,
+      athRestrictionPrice: buyATHRestrictionPrice
     },
     symbolConfiguration: {
+      strategyOptions: {
+        athRestriction: { enabled: buyATHRestrictionEnabled }
+      },
       buy: { predictValue }
     },
     sell: { lastBuyPrice }
   } = data;
 
+  const isGreaterThanATH =
+    buyATHRestrictionEnabled === true && currentPrice >= buyATHRestrictionPrice;
   // Make sure we don't have a last buy, open orders, and it is not greater than ath.
   if (
     !predictValue ||
     lastBuyPrice ||
     !_.isEmpty(openOrders) ||
-    isGreaterThanTheATHRestrictionPrice(data)
+    isGreaterThanATH
   ) {
     return false;
   }
@@ -165,9 +171,9 @@ const meanPredictedValueIsTrue = data => {
   }
 
   return (
-    predictionDiff >= 0.35 &&
-    difference >= 0.15 &&
-    trendDiff >= 0.15 &&
+    predictionDiff >= 0.2 &&
+    difference >= 0.1 &&
+    trendDiff >= 0.1 &&
     signedTrendDiff === 1
   );
 };

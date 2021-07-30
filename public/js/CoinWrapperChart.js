@@ -5,7 +5,7 @@ class CoinWrapperChart extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      collapsed: false,
+      collapsed: true,
       symbolInfo: {},
       oldData: {}
     };
@@ -32,20 +32,49 @@ class CoinWrapperChart extends React.Component {
         return '';
       }
 
+      const minPredicted = _.min(prediction.predictedValues);
+      const minReal = _.min(prediction.realCandles);
+      const maxPredicted = _.max(prediction.predictedValues);
+      const maxReal = _.max(prediction.realCandles);
+      const labels = [];
+      const pointPredictedColors = [];
+      const pointRealColors = [];
+      for (let index = 0; index < prediction.predictedValues.length; index++) {
+        labels.push('Prediction Nº' + (index + 1));
+
+        if (prediction.predictedValues[index] === minPredicted) {
+          pointPredictedColors.push('red');
+        } else if (prediction.predictedValues[index] === maxPredicted) {
+          pointPredictedColors.push('#04d820');
+        } else {
+          pointPredictedColors.push('#00a1e0');
+        }
+
+        if (prediction.realCandles[index] === minReal) {
+          pointRealColors.push('red');
+        } else if (prediction.realCandles[index] === maxReal) {
+          pointRealColors.push('#04d820');
+        } else {
+          pointRealColors.push('#d1c975');
+        }
+      }
+
       if (this.state.oldData !== prediction.predictedValues) {
         var graph = {
-          labels: prediction.predictedValues,
+          labels,
           datasets: [
             {
               label: 'Predict',
-              backgroundColor: 'rgba(55, 153, 250, 0.43)',
+              backgroundColor: 'rgba(55, 153, 250, 0.35)',
+              pointBackgroundColor: pointPredictedColors,
               color: '#cfcfcf',
               borderColor: '#00a1e0',
               data: prediction.predictedValues
             },
             {
               label: 'Real',
-              backgroundColor: 'rgba(250, 250, 55, 0.43)',
+              backgroundColor: 'rgba(250, 250, 55, 0.35)',
+              pointBackgroundColor: pointRealColors,
               color: '#cfcfcf',
               borderColor: '#d1c975',
               data: prediction.realCandles
@@ -78,7 +107,7 @@ class CoinWrapperChart extends React.Component {
                 ],
                 yAxes: [
                   {
-                    display: false
+                    display: true
                   }
                 ]
               }
@@ -126,9 +155,7 @@ class CoinWrapperChart extends React.Component {
         </div>
         <div
           className={`coin-info-content-setting ${collapsed ? 'd-none' : ''}`}>
-          <div className='col-12'>
-            <canvas id={'Graph' + symbolInfo.symbol}></canvas>
-          </div>
+          <canvas className='graph' id={'Graph' + symbolInfo.symbol}></canvas>
         </div>
       </div>
     );

@@ -9,7 +9,6 @@ const PasswordScreen = props => {
   const pass_screen = props.jsonStrings.pass_screen;
 
   const handleFormSubmit = e => {
-    console.log('okkkk', props.configuration);
     e.preventDefault();
 
     // Send password to the backend:
@@ -36,7 +35,7 @@ const PasswordScreen = props => {
   return (
     <div className='password-wrapper'>
       <Modal show>
-        <Form onSubmit={handleFormSubmit} style={{ backgroundColor: 'white' }}>
+        <Form className='pass-screen' onSubmit={handleFormSubmit}>
           <Modal.Header className='pt-1 pb-1'>
             <Modal.Title>{pass_screen.security_screen}</Modal.Title>
           </Modal.Header>
