@@ -17,6 +17,9 @@ class CoinWrapperSetting extends React.Component {
     });
   }
 
+  isCustomised = configurationKeyName =>
+      configurationKeyName !== 'configuration';
+
   render() {
     const { collapsed } = this.state;
     const { symbolInfo } = this.props;
@@ -28,6 +31,7 @@ class CoinWrapperSetting extends React.Component {
     } = symbolInfo;
 
     const {
+      key: configurationKeyName,
       buy: { gridTrade: buyGridTrade },
       sell: { gridTrade: sellGridTrade }
     } = symbolConfiguration;
@@ -116,7 +120,18 @@ class CoinWrapperSetting extends React.Component {
       <div className='coin-info-sub-wrapper coin-info-sub-wrapper-setting'>
         <div className='coin-info-column coin-info-column-title coin-info-column-title-setting'>
           <div className='coin-info-label'>
-            <div className='mr-1'>Setting</div>
+            <div className='mr-1'>
+              Setting -{' '}
+              {this.isCustomised(configurationKeyName) ? (
+                  <Badge pill variant='warning'>
+                    Customised
+                  </Badge>
+              ) : (
+                  <Badge pill variant='light'>
+                    Global
+                  </Badge>
+              )}
+            </div>
           </div>
 
           <button
