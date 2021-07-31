@@ -1,0 +1,6 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Validate branch name
+npx branch-name-lint .branch-name-list.json
+
