@@ -412,7 +412,7 @@ class ManualTradeIcon extends React.Component {
                   <br />
                   <br />
                   If you click the button to sell 100% of the remaining balance,
-                  it will automatically caluclate 0.1% commission.
+                  it will automatically calculate 0.1% commission.
                 </React.Fragment>
               ) : (
                 ''

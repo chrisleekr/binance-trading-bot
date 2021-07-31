@@ -39,7 +39,7 @@ class CoinWrapperSetting extends React.Component {
     const buyGridRows = buyGridTrade.map((grid, i) => {
       return (
         <React.Fragment
-          key={'coin-wrapper-seting-buy-grid-row-' + symbol + '-' + i}>
+          key={'coin-wrapper-setting-buy-grid-row-' + symbol + '-' + i}>
           <div className='coin-info-column-grid'>
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>Grid Trade #{i + 1}</span>
@@ -82,7 +82,7 @@ class CoinWrapperSetting extends React.Component {
     const sellGridRows = sellGridTrade.map((grid, i) => {
       return (
         <React.Fragment
-          key={'coin-wrapper-seting-sell-grid-row-' + symbol + '-' + i}>
+          key={'coin-wrapper-setting-sell-grid-row-' + symbol + '-' + i}>
           <div className='coin-info-column-grid'>
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>Grid Trade #{i + 1}</span>
