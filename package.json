@@ -3,6 +3,7 @@
   "version": "0.0.73",
   "description": "Binance Auto Trading Bot",
   "scripts": {
+    "prepare": "husky install",
     "start": "node dist/server.js",
     "dev": "cross-env NODE_ENV=development nodemon app/server.js",
     "build": "cross-env NODE_ENV=production webpack --config webpack.config.prod.js --progress --profile",
