@@ -380,7 +380,7 @@ class ManualTradeIcon extends React.Component {
             type='button'
             className='btn btn-sm btn-manual-trade mr-1'
             onClick={() => this.handleModalShow()}>
-            <i className='fa fa-shopping-bag'></i> Trade all
+            <i className='fas fa-shopping-bag'></i> Trade all
           </button>
         </div>
         <Modal

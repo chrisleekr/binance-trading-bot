@@ -60,9 +60,9 @@ class CoinWrapperAction extends React.Component {
             <span className='coin-info-value'>
               {moment(buy.updatedAt).format('HH:mm:ss')}
             </span>
-            {isLocked === true ? <i className='ml-1 fa fa-lock'></i> : ''}
+            {isLocked === true ? <i className='fas fa-lock ml-1'></i> : ''}
             {isActionDisabled.isDisabled === true ? (
-              <i className='ml-1 fa fa-pause-circle text-warning'></i>
+              <i className='fas fa-pause-circle ml-1 text-warning'></i>
             ) : (
               ''
             )}

@@ -44,7 +44,7 @@ class App extends React.Component {
           type: 'info',
           background: '#2f96b4',
           icon: {
-            className: 'fa fa-info-circle fa-lg',
+            className: 'fas fa-info-circle fa-lg',
             tagName: 'i',
             text: '',
             color: 'white'
@@ -54,7 +54,7 @@ class App extends React.Component {
           type: 'warning',
           background: '#fd7e14',
           icon: {
-            className: 'fa fa-exclamation-circle fa-lg',
+            className: 'fas fa-exclamation-circle fa-lg',
             tagName: 'i',
             text: '',
             color: 'white'

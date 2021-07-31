@@ -35,7 +35,7 @@ class SymbolCancelIcon extends React.Component {
             type='button'
             className='btn btn-sm btn-link p-0 pl-1 btn-cancel-order'
             onClick={this.handleCancel}>
-            <i className='fa fa-times-circle'></i>
+            <i className='fas fa-times-circle'></i>
           </button>
         )}
       </div>

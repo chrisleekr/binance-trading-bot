@@ -148,7 +148,7 @@ input[type='number'] {
 }
 .coin-info-label-with-icon i {
   color: #fff;
-  font-size: 15px;
+  /* font-size: 15px; */
 }
 
 .coin-info-column-price .coin-info-value-with-icon {

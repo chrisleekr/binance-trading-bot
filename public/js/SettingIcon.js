@@ -188,7 +188,7 @@ class SettingIcon extends React.Component {
           type='button'
           className='btn btn-sm btn-link p-0 pl-1 pr-1'
           onClick={() => this.handleModalShow('setting')}>
-          <i className='fa fa-cog'></i>
+          <i className='fas fa-cog'></i>
         </button>
         <Modal
           show={this.state.showSettingModal}
@@ -301,7 +301,7 @@ class SettingIcon extends React.Component {
                                 <Button
                                   variant='link'
                                   className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
+                                  <i className='fas fa-question-circle fa-sm'></i>
                                 </Button>
                               </OverlayTrigger>
                             </Form.Label>
@@ -345,7 +345,7 @@ class SettingIcon extends React.Component {
                                 <Button
                                   variant='link'
                                   className='p-0 m-0 ml-1 text-info'>
-                                  <i className='fa fa-question-circle'></i>
+                                  <i className='fas fa-question-circle fa-sm'></i>
                                 </Button>
                               </OverlayTrigger>
                             </Form.Label>
@@ -414,7 +414,7 @@ class SettingIcon extends React.Component {
                                   <Button
                                     variant='link'
                                     className='p-0 m-0 ml-1 text-info'>
-                                    <i className='fa fa-question-circle'></i>
+                                    <i className='fas fa-question-circle fa-sm'></i>
                                   </Button>
                                 </OverlayTrigger>
                               </Form.Check.Label>
@@ -524,7 +524,7 @@ class SettingIcon extends React.Component {
                                               <Button
                                                 variant='link'
                                                 className='p-0 m-0 ml-1 text-info'>
-                                                <i className='fa fa-question-circle'></i>
+                                                <i className='fas fa-question-circle fa-sm'></i>
                                               </Button>
                                             </OverlayTrigger>
                                           </Form.Check.Label>
@@ -553,7 +553,7 @@ class SettingIcon extends React.Component {
                                             <Button
                                               variant='link'
                                               className='p-0 m-0 ml-1 text-info'>
-                                              <i className='fa fa-question-circle'></i>
+                                              <i className='fas fa-question-circle fa-sm'></i>
                                             </Button>
                                           </OverlayTrigger>
                                         </Form.Label>
@@ -601,7 +601,7 @@ class SettingIcon extends React.Component {
                                             <Button
                                               variant='link'
                                               className='p-0 m-0 ml-1 text-info'>
-                                              <i className='fa fa-question-circle'></i>
+                                              <i className='fas fa-question-circle fa-sm'></i>
                                             </Button>
                                           </OverlayTrigger>
                                         </Form.Label>
@@ -648,7 +648,7 @@ class SettingIcon extends React.Component {
                                             <Button
                                               variant='link'
                                               className='p-0 m-0 ml-1 text-info'>
-                                              <i className='fa fa-question-circle'></i>
+                                              <i className='fas fa-question-circle fa-sm'></i>
                                             </Button>
                                           </OverlayTrigger>
                                         </Form.Label>
@@ -726,7 +726,7 @@ class SettingIcon extends React.Component {
                                   <Button
                                     variant='link'
                                     className='p-0 m-0 ml-1 text-info'>
-                                    <i className='fa fa-question-circle'></i>
+                                    <i className='fas fa-question-circle fa-sm'></i>
                                   </Button>
                                 </OverlayTrigger>
                               </Form.Check.Label>
@@ -796,7 +796,7 @@ class SettingIcon extends React.Component {
                                               <Button
                                                 variant='link'
                                                 className='p-0 m-0 ml-1 text-info'>
-                                                <i className='fa fa-question-circle'></i>
+                                                <i className='fas fa-question-circle fa-sm'></i>
                                               </Button>
                                             </OverlayTrigger>
                                           </Form.Check.Label>
@@ -836,7 +836,7 @@ class SettingIcon extends React.Component {
                                             <Button
                                               variant='link'
                                               className='p-0 m-0 ml-1 text-info'>
-                                              <i className='fa fa-question-circle'></i>
+                                              <i className='fas fa-question-circle fa-sm'></i>
                                             </Button>
                                           </OverlayTrigger>
                                         </Form.Label>
@@ -882,7 +882,7 @@ class SettingIcon extends React.Component {
                                             <Button
                                               variant='link'
                                               className='p-0 m-0 ml-1 text-info'>
-                                              <i className='fa fa-question-circle'></i>
+                                              <i className='fas fa-question-circle fa-sm'></i>
                                             </Button>
                                           </OverlayTrigger>
                                         </Form.Label>

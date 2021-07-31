@@ -176,7 +176,7 @@ class SymbolSettingIconGridBuy extends React.Component {
           <div
             key={'error-message-' + i + '-' + k}
             className='field-error-message text-danger'>
-            <i className='fa fa-exclamation-circle mx-1'></i>
+            <i className='fas fa-exclamation-circle mx-1'></i>
             {message}
           </div>
         ],
@@ -195,7 +195,7 @@ class SymbolSettingIconGridBuy extends React.Component {
                   type='button'
                   className='btn btn-sm btn-link p-0'
                   onClick={() => this.onRemoveGridTrade(i)}>
-                  <i className='fa fa-times-circle text-danger'></i>
+                  <i className='fas fa-times-circle text-danger'></i>
                 </button>
               ) : (
                 ''
@@ -259,7 +259,7 @@ class SymbolSettingIconGridBuy extends React.Component {
                         <Button
                           variant='link'
                           className='p-0 m-0 ml-1 text-info'>
-                          <i className='fa fa-question-circle'></i>
+                          <i className='fas fa-question-circle fa-sm'></i>
                         </Button>
                       </OverlayTrigger>
                     </Form.Label>
@@ -314,7 +314,7 @@ class SymbolSettingIconGridBuy extends React.Component {
                         <Button
                           variant='link'
                           className='p-0 m-0 ml-1 text-info'>
-                          <i className='fa fa-question-circle'></i>
+                          <i className='fas fa-question-circle fa-sm'></i>
                         </Button>
                       </OverlayTrigger>
                     </Form.Label>
@@ -365,7 +365,7 @@ class SymbolSettingIconGridBuy extends React.Component {
                         <Button
                           variant='link'
                           className='p-0 m-0 ml-1 text-info'>
-                          <i className='fa fa-question-circle'></i>
+                          <i className='fas fa-question-circle fa-sm'></i>
                         </Button>
                       </OverlayTrigger>
                     </Form.Label>
@@ -418,7 +418,7 @@ class SymbolSettingIconGridBuy extends React.Component {
                         <Button
                           variant='link'
                           className='p-0 m-0 ml-1 text-info'>
-                          <i className='fa fa-question-circle'></i>
+                          <i className='fas fa-question-circle fa-sm'></i>
                         </Button>
                       </OverlayTrigger>
                     </Form.Label>

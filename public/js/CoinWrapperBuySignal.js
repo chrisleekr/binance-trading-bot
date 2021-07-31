@@ -95,19 +95,19 @@ class CoinWrapperBuySignal extends React.Component {
                     style={{ lineHeight: '17px' }}>
                     {grid.executed ? (
                       // If already executed, then shows executed icon.
-                      <i className='fa fa-check-square'></i>
+                      <i className='fas fa-check-square'></i>
                     ) : sell.lastBuyPrice > 0 ? (
                       i === 0 ? (
-                        <i className='fa fa-clock-o text-muted'></i>
+                        <i className='far fa-clock text-muted'></i>
                       ) : currentGridTradeIndex === i ? (
-                        <i className='fa fa-clock-o'></i>
+                        <i className='far fa-clock'></i>
                       ) : (
-                        <i className='fa fa-clock-o text-muted'></i>
+                        <i className='far fa-clock text-muted'></i>
                       )
                     ) : currentGridTradeIndex === i ? (
-                      <i className='fa fa-clock-o'></i>
+                      <i className='far fa-clock'></i>
                     ) : (
-                      <i className='fa fa-clock-o text-muted'></i>
+                      <i className='far fa-clock text-muted'></i>
                     )}
                   </Button>
                 </OverlayTrigger>
@@ -117,7 +117,7 @@ class CoinWrapperBuySignal extends React.Component {
                   className='btn btn-sm btn-link p-0 ml-1'
                   onClick={this.toggleCollapse}>
                   <i
-                    className={`fa ${
+                    className={`fas ${
                       collapsed ? 'fa-arrow-right' : 'fa-arrow-down'
                     }`}></i>
                 </button>
@@ -164,7 +164,7 @@ class CoinWrapperBuySignal extends React.Component {
                         variant='link'
                         className='p-0 m-0 ml-1 text-warning d-inline-block'
                         style={{ lineHeight: '17px' }}>
-                        <i className='fa fa-info-circle'></i>
+                        <i className='fas fa-info-circle fa-sm'></i>
                       </Button>
                     </OverlayTrigger>
                   ) : (
@@ -239,9 +239,9 @@ class CoinWrapperBuySignal extends React.Component {
             {symbolConfiguration.candles.limit}){' '}
             <span className='coin-info-value'>
               {symbolConfiguration.buy.enabled ? (
-                <i className='fa fa-toggle-on'></i>
+                <i className='fas fa-toggle-on'></i>
               ) : (
-                <i className='fa fa-toggle-off'></i>
+                <i className='fas fa-toggle-off'></i>
               )}
             </span>{' '}
           </div>
@@ -305,7 +305,7 @@ class CoinWrapperBuySignal extends React.Component {
                       variant='link'
                       className='p-0 m-0 ml-1 text-info d-inline-block'
                       style={{ lineHeight: '17px' }}>
-                      <i className='fa fa-question-circle'></i>
+                      <i className='fas fa-question-circle fa-sm'></i>
                     </Button>
                   </OverlayTrigger>
                 </div>
