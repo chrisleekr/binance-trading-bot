@@ -15,6 +15,7 @@ class CoinWrapperSymbol extends React.Component {
       symbol,
       symbolInfo,
       lastCandle,
+      baseAsset,
       baseAssetPrecision,
       quotePrecision,
       filterLotSize,
@@ -54,6 +55,11 @@ class CoinWrapperSymbol extends React.Component {
                 )
               ]
             : ''}
+          <img
+            src={`./img/${_.toLower(baseAsset)}.png`}
+            className='crypto-img'
+            alt={`${baseAsset} icon`}
+          />
         </div>
         <div className='coin-info-column coin-info-column-icon'>
           <CoinWrapperManualTrade

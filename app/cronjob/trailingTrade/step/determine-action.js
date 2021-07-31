@@ -131,7 +131,7 @@ const hasBalanceToSell = data => {
  * @param {*} data
  * @returns
  */
-const meanPredictedValueIsTrue = data => {
+const meanPredictedValueIsTrue = async data => {
   const {
     buy: {
       prediction,
@@ -147,11 +147,16 @@ const meanPredictedValueIsTrue = data => {
       },
       buy: { predictValue }
     },
-    sell: { lastBuyPrice, lastQtyBought }
+    sell: { lastBuyPrice, lastQtyBought },
+    symbol
   } = data;
 
   const isGreaterThanATH =
     buyATHRestrictionEnabled === true && currentPrice >= buyATHRestrictionPrice;
+
+  const cachedLastBuyOrder =
+    JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
+
   // Make sure we don't have a last buy, open orders, and it is not greater than ath.
   if (
     !predictValue ||
@@ -159,7 +164,8 @@ const meanPredictedValueIsTrue = data => {
     lastQtyBought > 0 ||
     !_.isEmpty(openOrders) ||
     isGreaterThanATH ||
-    prediction.meanPredictedValue === undefined
+    prediction.meanPredictedValue === undefined ||
+    !_.isEmpty(cachedLastBuyOrder)
   ) {
     return false;
   }
@@ -395,7 +401,7 @@ const execute = async (logger, rawData) => {
   //    and current balance has not enough value to sell,
   //  then buy.
 
-  if (meanPredictedValueIsTrue(data)) {
+  if (await meanPredictedValueIsTrue(data)) {
     if (!hasBalanceToSell(data)) {
       const checkDisable = await isActionDisabled(symbol);
       logger.info(

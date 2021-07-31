@@ -10,6 +10,7 @@ class CoinWrapper extends React.Component {
       symbol,
       lastCandle,
       symbolInfo: {
+        baseAsset,
         baseAssetPrecision,
         quotePrecision,
         filterPrice,
@@ -35,7 +36,6 @@ class CoinWrapper extends React.Component {
 
     const className = 'coin-wrapper ' + this.props.extraClassName;
 
-    console.log(symbolInfo);
     return (
       <div className={className} data-symbol={symbolInfo.symbol}>
         <div className='coin-info-wrapper'>
@@ -43,6 +43,7 @@ class CoinWrapper extends React.Component {
             symbol={symbol}
             symbolInfo={symbolInfo}
             lastCandle={lastCandle}
+            baseAsset={baseAsset}
             baseAssetPrecision={baseAssetPrecision}
             quotePrecision={quotePrecision}
             filterLotSize={filterLotSize}
