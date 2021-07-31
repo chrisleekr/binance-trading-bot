@@ -11,9 +11,7 @@
       "perf",
       "build",
       "ci",
-      "revert",
-      "localize",
-      "bump"
+      "revert"
     ],
     "suggestions": {
       "feature": "feat",
@@ -23,8 +21,7 @@
       "refactoring": "refactor",
       "testing": "test",
       "performance": "perf",
-      "reverting": "revert",
-      "localise": "localize"
+      "reverting": "revert"
     },
     "banned": ["wip"],
     "skip": [],
