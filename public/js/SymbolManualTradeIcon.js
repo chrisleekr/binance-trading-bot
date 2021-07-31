@@ -773,7 +773,7 @@ class SymbolManualTradeIcon extends React.Component {
                 </div>
                 <div className='manual-trade-row d-flex flex-row justify-content-between'>
                   <div className='manual-trade-label'>Balance</div>
-                  <span className='manual-trade-base-sset'>
+                  <span className='manual-trade-base-asset'>
                     {parseFloat(baseAssetBalance.free).toFixed(
                       baseAssetStepSize
                     )}{' '}

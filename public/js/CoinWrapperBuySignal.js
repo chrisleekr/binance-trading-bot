@@ -220,7 +220,7 @@ class CoinWrapperBuySignal extends React.Component {
                 </div>
               </div>
               <div className='coin-info-column coin-info-column-order'>
-                <span className='coin-info-label'>- Max purchase anmount:</span>
+                <span className='coin-info-label'>- Max purchase amount:</span>
                 <div className='coin-info-value'>
                   {grid.maxPurchaseAmount} {quoteAsset}
                 </div>

@@ -17,6 +17,9 @@ class CoinWrapperSetting extends React.Component {
     });
   }
 
+  isCustomised = configurationKeyName =>
+      configurationKeyName !== 'configuration';
+
   render() {
     const { collapsed } = this.state;
     const { symbolInfo } = this.props;
@@ -28,6 +31,7 @@ class CoinWrapperSetting extends React.Component {
     } = symbolInfo;
 
     const {
+      key: configurationKeyName,
       buy: { gridTrade: buyGridTrade },
       sell: { gridTrade: sellGridTrade }
     } = symbolConfiguration;
@@ -35,7 +39,7 @@ class CoinWrapperSetting extends React.Component {
     const buyGridRows = buyGridTrade.map((grid, i) => {
       return (
         <React.Fragment
-          key={'coin-wrapper-seting-buy-grid-row-' + symbol + '-' + i}>
+          key={'coin-wrapper-setting-buy-grid-row-' + symbol + '-' + i}>
           <div className='coin-info-column-grid'>
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>Grid Trade #{i + 1}</span>
@@ -78,7 +82,7 @@ class CoinWrapperSetting extends React.Component {
     const sellGridRows = sellGridTrade.map((grid, i) => {
       return (
         <React.Fragment
-          key={'coin-wrapper-seting-sell-grid-row-' + symbol + '-' + i}>
+          key={'coin-wrapper-setting-sell-grid-row-' + symbol + '-' + i}>
           <div className='coin-info-column-grid'>
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>Grid Trade #{i + 1}</span>
@@ -116,7 +120,18 @@ class CoinWrapperSetting extends React.Component {
       <div className='coin-info-sub-wrapper coin-info-sub-wrapper-setting'>
         <div className='coin-info-column coin-info-column-title coin-info-column-title-setting'>
           <div className='coin-info-label'>
-            <div className='mr-1'>Setting</div>
+            <div className='mr-1'>
+              Setting -{' '}
+              {this.isCustomised(configurationKeyName) ? (
+                  <Badge pill variant='warning'>
+                    Customised
+                  </Badge>
+              ) : (
+                  <Badge pill variant='light'>
+                    Global
+                  </Badge>
+              )}
+            </div>
           </div>
 
           <button
