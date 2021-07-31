@@ -48,7 +48,7 @@ class SymbolTriggerBuyIcon extends React.Component {
           type='button'
           className='btn btn-sm btn-trigger-grid-trade mr-1'
           onClick={this.handleModalShow}>
-          <i className='fa fa-bolt'></i> Trigger
+          <i className='fas fa-bolt'></i> Trigger
         </button>
 
         <Modal show={this.state.showModal} onHide={this.handleModalClose}>

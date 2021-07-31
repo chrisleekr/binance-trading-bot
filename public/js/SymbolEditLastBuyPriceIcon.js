@@ -87,7 +87,7 @@ class SymbolEditLastBuyPriceIcon extends React.Component {
           type='button'
           className='btn btn-sm btn-link p-0'
           onClick={this.handleModalShow}>
-          <i className='fa fa-edit'></i>
+          <i className='fas fa-edit fa-sm'></i>
         </button>
         <Modal show={this.state.showModal} onHide={this.handleModalClose}>
           <Form onSubmit={this.handleFormSubmit}>

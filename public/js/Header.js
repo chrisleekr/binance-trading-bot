@@ -43,7 +43,7 @@ class Header extends React.Component {
                 target='_blank'
                 className='btn btn-sm p-0 pl-1 pr-1'
                 rel='noreferrer'>
-                <i className='fa fa-github'></i>
+                <i className='fab fa-github'></i>
               </a>
             </div>
 
@@ -55,7 +55,7 @@ class Header extends React.Component {
                   target='_blank'
                   rel='noreferrer'
                   title={publicURL}>
-                  <i className='fa fa-link'></i>
+                  <i className='fas fa-link'></i>
                 </a>
               </div>
             ) : (

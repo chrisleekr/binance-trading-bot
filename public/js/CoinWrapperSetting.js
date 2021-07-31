@@ -124,8 +124,8 @@ class CoinWrapperSetting extends React.Component {
             className='btn btn-sm btn-link p-0 ml-1'
             onClick={this.toggleCollapse}>
             <i
-              className={`fa ${
-                collapsed ? 'fa-arrow-right' : 'fa-arrow-down'
+              className={`fas ${
+                collapsed ? 'fas-arrow-right' : 'fas-arrow-down'
               }`}></i>
           </button>
         </div>
@@ -153,9 +153,9 @@ class CoinWrapperSetting extends React.Component {
               <span className='coin-info-label'>Trading enabled:</span>
               <span className='coin-info-value'>
                 {symbolConfiguration.buy.enabled ? (
-                  <i className='fa fa-toggle-on'></i>
+                  <i className='fas fa-toggle-on'></i>
                 ) : (
-                  <i className='fa fa-toggle-off'></i>
+                  <i className='fas fa-toggle-off'></i>
                 )}
               </span>
             </div>
@@ -183,9 +183,9 @@ class CoinWrapperSetting extends React.Component {
               <span className='coin-info-label'>Restriction Enabled:</span>
               <span className='coin-info-value'>
                 {symbolConfiguration.buy.athRestriction.enabled ? (
-                  <i className='fa fa-toggle-on'></i>
+                  <i className='fas fa-toggle-on'></i>
                 ) : (
-                  <i className='fa fa-toggle-off'></i>
+                  <i className='fas fa-toggle-off'></i>
                 )}
               </span>
             </div>
@@ -221,9 +221,9 @@ class CoinWrapperSetting extends React.Component {
               <span className='coin-info-label'>Trading enabled:</span>
               <span className='coin-info-value'>
                 {symbolConfiguration.sell.enabled ? (
-                  <i className='fa fa-toggle-on'></i>
+                  <i className='fas fa-toggle-on'></i>
                 ) : (
-                  <i className='fa fa-toggle-off'></i>
+                  <i className='fas fa-toggle-off'></i>
                 )}
               </span>
             </div>
@@ -236,9 +236,9 @@ class CoinWrapperSetting extends React.Component {
               <span className='coin-info-label'>Stop Loss Enabled:</span>
               <span className='coin-info-value'>
                 {symbolConfiguration.sell.stopLoss.enabled ? (
-                  <i className='fa fa-toggle-on'></i>
+                  <i className='fas fa-toggle-on'></i>
                 ) : (
-                  <i className='fa fa-toggle-off'></i>
+                  <i className='fas fa-toggle-off'></i>
                 )}
               </span>
             </div>

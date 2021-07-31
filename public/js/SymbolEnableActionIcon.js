@@ -48,7 +48,7 @@ class SymbolEnableActionIcon extends React.Component {
           type='button'
           className='btn btn-sm btn-link p-0 pl-1'
           onClick={this.handleModalShow}>
-          <i className='fa fa-play-circle'></i>
+          <i className='fas fa-play-circle'></i>
         </button>
 
         <Modal show={this.state.showModal} onHide={this.handleModalClose}>

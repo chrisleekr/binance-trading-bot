@@ -115,7 +115,7 @@ class FilterIcon extends React.Component {
             searchKeyword !== '' ? 'has-search-keyword' : ''
           }`}
           onClick={() => this.handleModalShow('filter')}>
-          <i className='fa fa-filter'></i>
+          <i className='fas fa-filter'></i>
         </button>
         <Modal
           show={this.state.showFilterModal}

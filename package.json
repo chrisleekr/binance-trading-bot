@@ -114,7 +114,8 @@
   "lint-staged": {
     "*.js": [
       "prettier --write",
-      "npm run lint"
+      "npm run lint",
+      "npm run test"
     ]
   }
 }

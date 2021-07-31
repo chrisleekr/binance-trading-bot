@@ -102,7 +102,7 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
                   </Popover>
                 }>
                 <Button variant='link' className='p-0 m-0 ml-1 text-info'>
-                  <i className='fa fa-question-circle'></i>
+                  <i className='fas fa-question-circle fa-sm'></i>
                 </Button>
               </OverlayTrigger>
             </Form.Label>
