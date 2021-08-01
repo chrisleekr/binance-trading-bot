@@ -11,7 +11,8 @@ class CoinWrapperBuyOrders extends React.Component {
         },
         buy: { openOrders }
       },
-      sendWebSocket
+      sendWebSocket,
+      isAuthenticated
     } = this.props;
 
     if (openOrders.length === 0) {
@@ -32,6 +33,7 @@ class CoinWrapperBuyOrders extends React.Component {
                 symbol={symbol}
                 order={openOrder}
                 sendWebSocket={sendWebSocket}
+                isAuthenticated={isAuthenticated}
               />
             </div>
 

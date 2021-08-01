@@ -12,35 +12,52 @@ describe('websocket/configure.js', () => {
   let mockWebSocketServerHandleUpgrade;
   let mockWebSocketServerEmit;
 
-  let mockHandleLatest;
-  let mockHandleSettingUpdate;
-  let mockHandleSymbolUpdateLastBuyPrice;
-  let mockHandleSymbolDelete;
-  let mockHandleSymbolSettingUpdate;
-  let mockHandleSymbolSettingDelete;
-  let mockHandleSymbolGridTradeDelete;
-  let mockHandleSymbolEnableAction;
-  let mockHandleSymbolTriggerBuy;
-  let mockHandleManualTrade;
-  let mockHandleManualTradeAllSymbols;
-  let mockHandleCancelOrder;
-  let mockHandleDustTransferGet;
-  let mockHandleDustTransferExecute;
+  const mockHandlers = {
+    handleLatest: null,
+    handleSettingUpdate: null,
+    handleSymbolUpdateLastBuyPrice: null,
+    handleSymbolDelete: null,
+    handleSymbolSettingUpdate: null,
+    handleSymbolSettingDelete: null,
+    handleSymbolGridTradeDelete: null,
+    handleSymbolEnableAction: null,
+    handleSymbolTriggerBuy: null,
+    handleManualTrade: null,
+    handleManualTradeAllSymbols: null,
+    handleCancelOrder: null,
+    handleDustTransferGet: null,
+    handleDustTransferExecute: null
+  };
 
   let PubSubMock;
+  let cacheMock;
 
   let wss;
   let config;
+  let jwt;
+
+  let jwtVerifyResult = false;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
 
     WebSocket = require('ws');
     config = require('config');
+    jwt = require('jsonwebtoken');
 
     jest.mock('ws');
     jest.mock('config');
     jest.mock('ioredis');
+    jest.mock('jsonwebtoken');
+
+    jwt.verify = jest.fn().mockImplementation(() => {
+      if (jwtVerifyResult) {
+        return {
+          test: 'value'
+        };
+      }
+      throw new Error('jwt error');
+    });
 
     config.get = jest.fn(key => {
       switch (key) {
@@ -86,36 +103,43 @@ describe('websocket/configure.js', () => {
       }
     });
 
-    mockHandleLatest = jest.fn().mockResolvedValue(true);
-    mockHandleSettingUpdate = jest.fn().mockResolvedValue(true);
-    mockHandleSymbolUpdateLastBuyPrice = jest.fn().mockResolvedValue(true);
-    mockHandleSymbolDelete = jest.fn().mockResolvedValue(true);
-    mockHandleSymbolSettingUpdate = jest.fn().mockResolvedValue(true);
-    mockHandleSymbolSettingDelete = jest.fn().mockResolvedValue(true);
-    mockHandleSymbolGridTradeDelete = jest.fn().mockResolvedValue(true);
-    mockHandleSymbolEnableAction = jest.fn().mockResolvedValue(true);
-    mockHandleSymbolTriggerBuy = jest.fn().mockResolvedValue(true);
-    mockHandleManualTrade = jest.fn().mockResolvedValue(true);
-    mockHandleManualTradeAllSymbols = jest.fn().mockResolvedValue(true);
-    mockHandleCancelOrder = jest.fn().mockResolvedValue(true);
-    mockHandleDustTransferGet = jest.fn().mockResolvedValue(true);
-    mockHandleDustTransferExecute = jest.fn().mockResolvedValue(true);
+    mockHandlers.handleLatest = jest.fn().mockResolvedValue(true);
+    mockHandlers.handleSettingUpdate = jest.fn().mockResolvedValue(true);
+    mockHandlers.handleSymbolUpdateLastBuyPrice = jest
+      .fn()
+      .mockResolvedValue(true);
+    mockHandlers.handleSymbolDelete = jest.fn().mockResolvedValue(true);
+    mockHandlers.handleSymbolSettingUpdate = jest.fn().mockResolvedValue(true);
+    mockHandlers.handleSymbolSettingDelete = jest.fn().mockResolvedValue(true);
+    mockHandlers.handleSymbolGridTradeDelete = jest
+      .fn()
+      .mockResolvedValue(true);
+    mockHandlers.handleSymbolEnableAction = jest.fn().mockResolvedValue(true);
+    mockHandlers.handleSymbolTriggerBuy = jest.fn().mockResolvedValue(true);
+    mockHandlers.handleManualTrade = jest.fn().mockResolvedValue(true);
+    mockHandlers.handleManualTradeAllSymbols = jest
+      .fn()
+      .mockResolvedValue(true);
+    mockHandlers.handleCancelOrder = jest.fn().mockResolvedValue(true);
+    mockHandlers.handleDustTransferGet = jest.fn().mockResolvedValue(true);
+    mockHandlers.handleDustTransferExecute = jest.fn().mockResolvedValue(true);
 
     jest.mock('../handlers', () => ({
-      handleLatest: mockHandleLatest,
-      handleSettingUpdate: mockHandleSettingUpdate,
-      handleSymbolUpdateLastBuyPrice: mockHandleSymbolUpdateLastBuyPrice,
-      handleSymbolDelete: mockHandleSymbolDelete,
-      handleSymbolSettingUpdate: mockHandleSymbolSettingUpdate,
-      handleSymbolSettingDelete: mockHandleSymbolSettingDelete,
-      handleSymbolGridTradeDelete: mockHandleSymbolGridTradeDelete,
-      handleSymbolEnableAction: mockHandleSymbolEnableAction,
-      handleSymbolTriggerBuy: mockHandleSymbolTriggerBuy,
-      handleManualTrade: mockHandleManualTrade,
-      handleManualTradeAllSymbols: mockHandleManualTradeAllSymbols,
-      handleCancelOrder: mockHandleCancelOrder,
-      handleDustTransferGet: mockHandleDustTransferGet,
-      handleDustTransferExecute: mockHandleDustTransferExecute
+      handleLatest: mockHandlers.handleLatest,
+      handleSettingUpdate: mockHandlers.handleSettingUpdate,
+      handleSymbolUpdateLastBuyPrice:
+        mockHandlers.handleSymbolUpdateLastBuyPrice,
+      handleSymbolDelete: mockHandlers.handleSymbolDelete,
+      handleSymbolSettingUpdate: mockHandlers.handleSymbolSettingUpdate,
+      handleSymbolSettingDelete: mockHandlers.handleSymbolSettingDelete,
+      handleSymbolGridTradeDelete: mockHandlers.handleSymbolGridTradeDelete,
+      handleSymbolEnableAction: mockHandlers.handleSymbolEnableAction,
+      handleSymbolTriggerBuy: mockHandlers.handleSymbolTriggerBuy,
+      handleManualTrade: mockHandlers.handleManualTrade,
+      handleManualTradeAllSymbols: mockHandlers.handleManualTradeAllSymbols,
+      handleCancelOrder: mockHandlers.handleCancelOrder,
+      handleDustTransferGet: mockHandlers.handleDustTransferGet,
+      handleDustTransferExecute: mockHandlers.handleDustTransferExecute
     }));
 
     mockExpressServerOn = jest.fn().mockImplementation((_event, cb) => {
@@ -181,8 +205,8 @@ describe('websocket/configure.js', () => {
       expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
         JSON.stringify({
           result: false,
-          type: 'error',
-          message: 'Command is not provided.'
+          type: 'notification',
+          message: { type: 'warning', title: 'Command is not provided.' }
         })
       );
     });
@@ -239,8 +263,8 @@ describe('websocket/configure.js', () => {
       expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
         JSON.stringify({
           result: false,
-          type: 'error',
-          message: 'Command is not provided.'
+          type: 'notification',
+          message: { type: 'warning', title: 'Command is not provided.' }
         })
       );
     });
@@ -297,8 +321,8 @@ describe('websocket/configure.js', () => {
       expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
         JSON.stringify({
           result: false,
-          type: 'error',
-          message: 'Command is not recognised.'
+          type: 'notification',
+          message: { type: 'warning', title: 'Command is not recognised.' }
         })
       );
     });
@@ -309,685 +333,334 @@ describe('websocket/configure.js', () => {
   });
 
   describe('when message command is latest', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'latest'
-            })
-          );
+    describe('when authenticated', () => {
+      beforeEach(() => {
+        jwtVerifyResult = true;
+
+        mockWebSocketServerWebSocketOn = jest
+          .fn()
+          .mockImplementation((_event, cb) => {
+            cb(
+              JSON.stringify({
+                command: 'latest',
+                authToken: 'authToken'
+              })
+            );
+          });
+
+        mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
+
+        mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
+          cb({
+            on: mockWebSocketServerWebSocketOn,
+            send: mockWebSocketServerWebSocketSend
+          });
         });
 
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
+        WebSocket.Server.mockImplementation(() => ({
+          on: mockWebSocketServerOn,
+          handleUpgrade: mockWebSocketServerHandleUpgrade,
+          emit: mockWebSocketServerEmit
+        }));
 
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
+        const { logger, PubSub, cache } = require('../../../helpers');
+
+        PubSubMock = PubSub;
+        PubSubMock.subscribe = jest.fn().mockImplementation((_event, cb) => {
+          cb('my-message', 'my-data');
+        });
+
+        cacheMock = cache;
+        cacheMock.get = jest.fn().mockReturnValue('jwtSecret');
+
+        const { configureWebSocket } = require('../configure');
+        configureWebSocket(mockExpressServer, logger);
+      });
+
+      it('triggers jwt.verify', () => {
+        expect(jwt.verify).toHaveBeenCalledWith('authToken', 'jwtSecret', {
+          algorithm: 'HS256'
         });
       });
 
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
+      it('triggers handleLatest', () => {
+        expect(mockHandlers.handleLatest).toHaveBeenCalledWith(
+          expect.any(Object),
+          expect.any(Object),
+          {
+            command: 'latest',
+            authToken: 'authToken',
+            isAuthenticated: true
+          }
+        );
+      });
 
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
+      it('returns wss', () => {
+        expect(wss).not.toBeNull();
+      });
     });
 
-    it('triggers handleLatest', () => {
-      expect(mockHandleLatest).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'latest'
-        }
-      );
-    });
+    describe('when is not authenticated', () => {
+      beforeEach(() => {
+        jwtVerifyResult = false;
 
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
+        mockWebSocketServerWebSocketOn = jest
+          .fn()
+          .mockImplementation((_event, cb) => {
+            cb(
+              JSON.stringify({
+                command: 'latest',
+                authToken: 'authToken'
+              })
+            );
+          });
+
+        mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
+
+        mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
+          cb({
+            on: mockWebSocketServerWebSocketOn,
+            send: mockWebSocketServerWebSocketSend
+          });
+        });
+
+        WebSocket.Server.mockImplementation(() => ({
+          on: mockWebSocketServerOn,
+          handleUpgrade: mockWebSocketServerHandleUpgrade,
+          emit: mockWebSocketServerEmit
+        }));
+
+        const { logger, PubSub, cache } = require('../../../helpers');
+
+        PubSubMock = PubSub;
+        PubSubMock.subscribe = jest.fn().mockImplementation((_event, cb) => {
+          cb('my-message', 'my-data');
+        });
+
+        cacheMock = cache;
+        cacheMock.get = jest.fn().mockReturnValue('jwtSecret');
+
+        const { configureWebSocket } = require('../configure');
+        configureWebSocket(mockExpressServer, logger);
+      });
+
+      it('triggers jwt.verify', () => {
+        expect(jwt.verify).toHaveBeenCalledWith('authToken', 'jwtSecret', {
+          algorithm: 'HS256'
+        });
+      });
+
+      it('triggers handleLatest', () => {
+        expect(mockHandlers.handleLatest).toHaveBeenCalledWith(
+          expect.any(Object),
+          expect.any(Object),
+          {
+            command: 'latest',
+            authToken: 'authToken',
+            isAuthenticated: false
+          }
+        );
+      });
+
+      it('returns wss', () => {
+        expect(wss).not.toBeNull();
+      });
     });
   });
 
-  describe('when message command is setting-update', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'setting-update'
-            })
+  [
+    {
+      command: 'setting-update',
+      commandFunc: 'handleSettingUpdate'
+    },
+    {
+      command: 'symbol-update-last-buy-price',
+      commandFunc: 'handleSymbolUpdateLastBuyPrice'
+    },
+    {
+      command: 'symbol-delete',
+      commandFunc: 'handleSymbolDelete'
+    },
+    {
+      command: 'symbol-setting-update',
+      commandFunc: 'handleSymbolSettingUpdate'
+    },
+    {
+      command: 'symbol-setting-delete',
+      commandFunc: 'handleSymbolSettingDelete'
+    },
+    {
+      command: 'symbol-grid-trade-delete',
+      commandFunc: 'handleSymbolGridTradeDelete'
+    },
+    {
+      command: 'symbol-enable-action',
+      commandFunc: 'handleSymbolEnableAction'
+    },
+    {
+      command: 'symbol-trigger-buy',
+      commandFunc: 'handleSymbolTriggerBuy'
+    },
+    {
+      command: 'manual-trade',
+      commandFunc: 'handleManualTrade'
+    },
+    {
+      command: 'manual-trade-all-symbols',
+      commandFunc: 'handleManualTradeAllSymbols'
+    },
+    {
+      command: 'cancel-order',
+      commandFunc: 'handleCancelOrder'
+    },
+    {
+      command: 'dust-transfer-get',
+      commandFunc: 'handleDustTransferGet'
+    },
+    {
+      command: 'dust-transfer-execute',
+      commandFunc: 'handleDustTransferExecute'
+    }
+  ].forEach(t => {
+    describe(`when message command is ${t.command}`, () => {
+      describe('when authenticated', () => {
+        beforeEach(() => {
+          jwtVerifyResult = true;
+
+          mockWebSocketServerWebSocketOn = jest
+            .fn()
+            .mockImplementation((_event, cb) => {
+              cb(
+                JSON.stringify({
+                  command: t.command,
+                  authToken: 'authToken'
+                })
+              );
+            });
+
+          mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
+
+          mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
+            cb({
+              on: mockWebSocketServerWebSocketOn,
+              send: mockWebSocketServerWebSocketSend
+            });
+          });
+
+          WebSocket.Server.mockImplementation(() => ({
+            on: mockWebSocketServerOn,
+            handleUpgrade: mockWebSocketServerHandleUpgrade,
+            emit: mockWebSocketServerEmit
+          }));
+
+          const { logger, PubSub, cache } = require('../../../helpers');
+
+          PubSubMock = PubSub;
+          PubSubMock.subscribe = jest.fn().mockImplementation((_event, cb) => {
+            cb('my-message', 'my-data');
+          });
+
+          cacheMock = cache;
+          cacheMock.get = jest.fn().mockReturnValue('jwtSecret');
+
+          const { configureWebSocket } = require('../configure');
+          configureWebSocket(mockExpressServer, logger);
+        });
+
+        it('triggers jwt.verify', () => {
+          expect(jwt.verify).toHaveBeenCalledWith('authToken', 'jwtSecret', {
+            algorithm: 'HS256'
+          });
+        });
+
+        it(`triggers handle function`, () => {
+          expect(mockHandlers[t.commandFunc]).toHaveBeenCalledWith(
+            expect.any(Object),
+            expect.any(Object),
+            {
+              command: t.command,
+              authToken: 'authToken'
+            }
           );
         });
 
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
+        it('returns wss', () => {
+          expect(wss).not.toBeNull();
         });
       });
 
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
+      describe('when is not authenticated', () => {
+        beforeEach(() => {
+          jwtVerifyResult = false;
 
-      const { logger } = require('../../../helpers');
+          mockWebSocketServerWebSocketOn = jest
+            .fn()
+            .mockImplementation((_event, cb) => {
+              cb(
+                JSON.stringify({
+                  command: t.command,
+                  authToken: 'authToken'
+                })
+              );
+            });
 
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
+          mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
 
-    it('triggers handleSettingUpdate', () => {
-      expect(mockHandleSettingUpdate).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'setting-update'
-        }
-      );
-    });
+          mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
+            cb({
+              on: mockWebSocketServerWebSocketOn,
+              send: mockWebSocketServerWebSocketSend
+            });
+          });
 
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
-    });
-  });
+          WebSocket.Server.mockImplementation(() => ({
+            on: mockWebSocketServerOn,
+            handleUpgrade: mockWebSocketServerHandleUpgrade,
+            emit: mockWebSocketServerEmit
+          }));
 
-  describe('when message command is symbol-update-last-buy-price', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'symbol-update-last-buy-price'
-            })
-          );
+          const { logger, PubSub, cache } = require('../../../helpers');
+
+          PubSubMock = PubSub;
+          PubSubMock.subscribe = jest.fn().mockImplementation((_event, cb) => {
+            cb('my-message', 'my-data');
+          });
+
+          cacheMock = cache;
+          cacheMock.get = jest.fn().mockReturnValue('jwtSecret');
+
+          const { configureWebSocket } = require('../configure');
+          configureWebSocket(mockExpressServer, logger);
         });
 
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
-        });
-      });
-
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
-
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
-
-    it('triggers handleSymbolUpdateLastBuyPrice', () => {
-      expect(mockHandleSymbolUpdateLastBuyPrice).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'symbol-update-last-buy-price'
-        }
-      );
-    });
-
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
-    });
-  });
-
-  describe('when message command is symbol-delete', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'symbol-delete'
-            })
-          );
+        it('triggers jwt.verify', () => {
+          expect(jwt.verify).toHaveBeenCalledWith('authToken', 'jwtSecret', {
+            algorithm: 'HS256'
+          });
         });
 
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
+        it('does not trigger handle function', () => {
+          expect(mockHandlers[t.commandFunc]).not.toHaveBeenCalled();
+        });
 
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
+        it('returns wss', () => {
+          expect(wss).not.toBeNull();
         });
       });
-
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
-
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
-
-    it('triggers handleSymbolDelete', () => {
-      expect(mockHandleSymbolDelete).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'symbol-delete'
-        }
-      );
-    });
-
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
-    });
-  });
-
-  describe('when message command is symbol-setting-update', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'symbol-setting-update'
-            })
-          );
-        });
-
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
-        });
-      });
-
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
-
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
-
-    it('triggers handleSymbolSettingUpdate', () => {
-      expect(mockHandleSymbolSettingUpdate).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'symbol-setting-update'
-        }
-      );
-    });
-
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
-    });
-  });
-
-  describe('when message command is symbol-setting-delete', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'symbol-setting-delete'
-            })
-          );
-        });
-
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
-        });
-      });
-
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
-
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
-
-    it('triggers handleSymbolSettingDelete', () => {
-      expect(mockHandleSymbolSettingDelete).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'symbol-setting-delete'
-        }
-      );
-    });
-
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
-    });
-  });
-
-  describe('when message command is symbol-grid-trade-delete', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'symbol-grid-trade-delete'
-            })
-          );
-        });
-
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
-        });
-      });
-
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
-
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
-
-    it('triggers handleSymbolGridTradeDelete', () => {
-      expect(mockHandleSymbolGridTradeDelete).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'symbol-grid-trade-delete'
-        }
-      );
-    });
-
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
-    });
-  });
-
-  describe('when message command is symbol-enable-action', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'symbol-enable-action'
-            })
-          );
-        });
-
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
-        });
-      });
-
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
-
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
-
-    it('triggers handleSymbolEnableAction', () => {
-      expect(mockHandleSymbolEnableAction).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'symbol-enable-action'
-        }
-      );
-    });
-
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
-    });
-  });
-
-  describe('when message command is symbol-trigger-buy', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'symbol-trigger-buy'
-            })
-          );
-        });
-
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
-        });
-      });
-
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
-
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
-
-    it('triggers handleSymbolTriggerBuy', () => {
-      expect(mockHandleSymbolTriggerBuy).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'symbol-trigger-buy'
-        }
-      );
-    });
-
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
-    });
-  });
-
-  describe('when message command is manual-trade', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'manual-trade'
-            })
-          );
-        });
-
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
-        });
-      });
-
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
-
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
-
-    it('triggers handleManualTrade', () => {
-      expect(mockHandleManualTrade).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'manual-trade'
-        }
-      );
-    });
-
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
-    });
-  });
-
-  describe('when message command is manual-trade-all-symbols', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'manual-trade-all-symbols'
-            })
-          );
-        });
-
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
-        });
-      });
-
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
-
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
-
-    it('triggers handleManualTradeAllSymbols', () => {
-      expect(mockHandleManualTradeAllSymbols).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'manual-trade-all-symbols'
-        }
-      );
-    });
-
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
-    });
-  });
-
-  describe('when message command is cancel-order', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'cancel-order'
-            })
-          );
-        });
-
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
-        });
-      });
-
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
-
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
-
-    it('triggers handleCancelOrder', () => {
-      expect(mockHandleCancelOrder).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'cancel-order'
-        }
-      );
-    });
-
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
-    });
-  });
-
-  describe('when message command is dust-transfer-get', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'dust-transfer-get'
-            })
-          );
-        });
-
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
-        });
-      });
-
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
-
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
-
-    it('triggers handleDustTransferGet', () => {
-      expect(mockHandleDustTransferGet).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'dust-transfer-get'
-        }
-      );
-    });
-
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
-    });
-  });
-
-  describe('when message command is dust-transfer-execute', () => {
-    beforeEach(() => {
-      mockWebSocketServerWebSocketOn = jest
-        .fn()
-        .mockImplementation((_event, cb) => {
-          cb(
-            JSON.stringify({
-              command: 'dust-transfer-execute'
-            })
-          );
-        });
-
-      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-        cb({
-          on: mockWebSocketServerWebSocketOn,
-          send: mockWebSocketServerWebSocketSend
-        });
-      });
-
-      WebSocket.Server.mockImplementation(() => ({
-        on: mockWebSocketServerOn,
-        handleUpgrade: mockWebSocketServerHandleUpgrade,
-        emit: mockWebSocketServerEmit
-      }));
-
-      const { logger } = require('../../../helpers');
-
-      const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
-    });
-
-    it('triggers handleDustTransferExecute', () => {
-      expect(mockHandleDustTransferExecute).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.any(Object),
-        {
-          command: 'dust-transfer-execute'
-        }
-      );
-    });
-
-    it('returns wss', () => {
-      expect(wss).not.toBeNull();
     });
   });
 
   describe('PubSub.subscribe', () => {
     beforeEach(() => {
+      jwtVerifyResult = true;
+
       mockWebSocketServerWebSocketOn = jest
         .fn()
         .mockImplementation((_event, cb) => {
           cb(
             JSON.stringify({
-              command: 'cancel-order'
+              command: 'cancel-order',
+              authToken: 'authToken'
             })
           );
         });
@@ -1007,23 +680,27 @@ describe('websocket/configure.js', () => {
         emit: mockWebSocketServerEmit
       }));
 
-      const { logger, PubSub } = require('../../../helpers');
+      const { logger, PubSub, cache } = require('../../../helpers');
 
       PubSubMock = PubSub;
       PubSubMock.subscribe = jest.fn().mockImplementation((_event, cb) => {
         cb('my-message', 'my-data');
       });
 
+      cacheMock = cache;
+      cacheMock.get = jest.fn().mockReturnValue('jwtSecret');
+
       const { configureWebSocket } = require('../configure');
       configureWebSocket(mockExpressServer, logger);
     });
 
     it('triggers handleCancelOrder', () => {
-      expect(mockHandleCancelOrder).toHaveBeenCalledWith(
+      expect(mockHandlers.handleCancelOrder).toHaveBeenCalledWith(
         expect.any(Object),
         expect.any(Object),
         {
-          command: 'cancel-order'
+          command: 'cancel-order',
+          authToken: 'authToken'
         }
       );
     });

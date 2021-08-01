@@ -3,7 +3,8 @@
 /* eslint-disable no-undef */
 class AccountWrapper extends React.Component {
   render() {
-    const { accountInfo, dustTransfer, sendWebSocket } = this.props;
+    const { accountInfo, dustTransfer, sendWebSocket, isAuthenticated } =
+      this.props;
 
     const assets = accountInfo.balances.map((balance, index) => {
       return (
@@ -34,6 +35,7 @@ class AccountWrapper extends React.Component {
                 </div>
                 <div className='account-balance-assets-wrapper d-flex flex-row flex-wrap justify-content-end'>
                   <DustTransferIcon
+                    isAuthenticated={isAuthenticated}
                     dustTransfer={dustTransfer}
                     sendWebSocket={sendWebSocket}
                   />

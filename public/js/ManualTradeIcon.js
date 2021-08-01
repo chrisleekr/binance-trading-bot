@@ -371,6 +371,12 @@ class ManualTradeIcon extends React.Component {
   }
 
   render() {
+    const { isAuthenticated } = this.props;
+
+    if (isAuthenticated === false) {
+      return '';
+    }
+
     const { showModal, orders } = this.state;
 
     return (
@@ -391,7 +397,7 @@ class ManualTradeIcon extends React.Component {
           <Modal.Header closeButton className='pt-1 pb-1'>
             <Modal.Title>Manual trade for all symbols</Modal.Title>
           </Modal.Header>
-          <Modal.Body>
+          <Modal.Body className='manual-trade'>
             <p className='d-block text-muted mb-2'>
               In this modal, you can trade all symbols manually. To simplify the
               order process, it only supports Market - Total buy order, Market -

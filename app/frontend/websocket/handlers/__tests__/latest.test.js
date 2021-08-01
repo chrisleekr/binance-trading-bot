@@ -4,7 +4,11 @@ const _ = require('lodash');
 describe('latest.test.js', () => {
   const trailingTradeCommonJson = require('./fixtures/latest-trailing-trade-common.json');
   const trailingTradeSymbols = require('./fixtures/latest-trailing-trade-symbols.json');
-  const trailingTradeStats = require('./fixtures/latest-stats.json');
+
+  // eslint-disable-next-line max-len
+  const trailingTradeStateNotAuthenticatedUnlockList = require('./fixtures/latest-stats-not-authenticated-unlock-list.json');
+
+  const trailingTradeStatsAuthenticated = require('./fixtures/latest-stats-authenticated.json');
 
   let mockFindOne;
 
@@ -69,8 +73,7 @@ describe('latest.test.js', () => {
         _.isEqual(filter, { key: 'configuration' })
       ) {
         return {
-          enabled: true,
-          sell: {}
+          enabled: true
         };
       }
 
@@ -214,94 +217,348 @@ describe('latest.test.js', () => {
 
         return null;
       });
-
-      mockFindOne = jest
-        .fn()
-        .mockImplementation((_logger, collection, filter) => {
-          if (
-            collection === 'trailing-trade-common' &&
-            _.isEqual(filter, { key: 'configuration' })
-          ) {
-            return {
-              enabled: true,
-              type: 'i-am-global',
-              candles: { interval: '15m' },
-              sell: {}
-            };
-          }
-
-          if (
-            collection === 'trailing-trade-symbols' &&
-            _.isEqual(filter, { key: 'BNBUSDT-configuration' })
-          ) {
-            return { enabled: true, symbol: 'BNBUSDT', type: 'i-am-symbol' };
-          }
-          if (
-            collection === 'trailing-trade-symbols' &&
-            _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
-          ) {
-            return { lastBuyPrice: 100, quantity: 10, type: 'i-am-symbol' };
-          }
-
-          if (
-            collection === 'trailing-trade-symbols' &&
-            _.isEqual(filter, { key: 'ETHUSDT-configuration' })
-          ) {
-            return { enabled: true, symbol: 'ETHUSDT', type: 'i-am-symbol' };
-          }
-
-          if (
-            collection === 'trailing-trade-symbols' &&
-            _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
-          ) {
-            return { lastBuyPrice: null, quantity: null, type: 'i-am-symbol' };
-          }
-
-          return null;
-        });
-
-      jest.mock('../../../../helpers', () => ({
-        logger: {
-          info: jest.fn(),
-          error: jest.fn(),
-          warn: jest.fn(),
-          debug: jest.fn(),
-          child: jest.fn()
-        },
-        mongo: {
-          findOne: mockFindOne,
-          upsertOne: mockMongoUpsertOne
-        },
-        cache: {
-          hgetall: mockCacheHGetAll,
-          hget: mockCacheHGet,
-          getWithTTL: mockCacheGetWithTTL
-        },
-        config: {
-          get: mockConfigGet
-        },
-        PubSub: {
-          publish: mockPubSubPublish
-        },
-        binance: {
-          client: {
-            getInfo: mockBinanceClientGetInfo
-          }
-        }
-      }));
-
-      const { logger } = require('../../../../helpers');
-      const { handleLatest } = require('../latest');
-      await handleLatest(logger, mockWebSocketServer, {});
     });
 
-    it('triggers ws.send with latest', () => {
-      trailingTradeStats.common.version =
-        require('../../../../../package.json').version;
-      trailingTradeStats.common.gitHash = 'some-hash';
-      expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
-        JSON.stringify(trailingTradeStats)
-      );
+    describe('not authenticated and locked list', () => {
+      beforeEach(async () => {
+        mockFindOne = jest
+          .fn()
+          .mockImplementation((_logger, collection, filter) => {
+            if (
+              collection === 'trailing-trade-common' &&
+              _.isEqual(filter, { key: 'configuration' })
+            ) {
+              return {
+                enabled: true,
+                type: 'i-am-global',
+                candles: { interval: '15m' },
+                botOptions: {
+                  authentication: {
+                    lockList: true,
+                    lockAfter: 120
+                  }
+                },
+                sell: {}
+              };
+            }
+
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'BNBUSDT-configuration' })
+            ) {
+              return {
+                enabled: true,
+                symbol: 'BNBUSDT',
+                type: 'i-am-symbol'
+              };
+            }
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
+            ) {
+              return { lastBuyPrice: 100, quantity: 10, type: 'i-am-symbol' };
+            }
+
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'ETHUSDT-configuration' })
+            ) {
+              return {
+                enabled: true,
+                symbol: 'ETHUSDT',
+                type: 'i-am-symbol'
+              };
+            }
+
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
+            ) {
+              return {
+                lastBuyPrice: null,
+                quantity: null,
+                type: 'i-am-symbol'
+              };
+            }
+
+            return null;
+          });
+
+        jest.mock('../../../../helpers', () => ({
+          logger: {
+            info: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            child: jest.fn()
+          },
+          mongo: {
+            findOne: mockFindOne,
+            upsertOne: mockMongoUpsertOne
+          },
+          cache: {
+            hgetall: mockCacheHGetAll,
+            hget: mockCacheHGet,
+            getWithTTL: mockCacheGetWithTTL
+          },
+          config: {
+            get: mockConfigGet
+          },
+          PubSub: {
+            publish: mockPubSubPublish
+          },
+          binance: {
+            client: {
+              getInfo: mockBinanceClientGetInfo
+            }
+          }
+        }));
+
+        const { logger } = require('../../../../helpers');
+        const { handleLatest } = require('../latest');
+        await handleLatest(logger, mockWebSocketServer, {
+          isAuthenticated: false
+        });
+      });
+
+      it('triggers ws.send with latest', () => {
+        expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
+          JSON.stringify({
+            result: true,
+            type: 'latest',
+            isAuthenticated: false,
+            botOptions: { authentication: { lockList: true, lockAfter: 120 } },
+            configuration: {},
+            common: {},
+            stats: {}
+          })
+        );
+      });
+    });
+
+    describe('not authenticated and does not lock list', () => {
+      beforeEach(async () => {
+        mockFindOne = jest
+          .fn()
+          .mockImplementation((_logger, collection, filter) => {
+            if (
+              collection === 'trailing-trade-common' &&
+              _.isEqual(filter, { key: 'configuration' })
+            ) {
+              return {
+                enabled: true,
+                type: 'i-am-global',
+                candles: { interval: '15m' },
+                botOptions: {
+                  authentication: {
+                    lockList: false,
+                    lockAfter: 120
+                  }
+                },
+                sell: {}
+              };
+            }
+
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'BNBUSDT-configuration' })
+            ) {
+              return {
+                enabled: true,
+                symbol: 'BNBUSDT',
+                type: 'i-am-symbol'
+              };
+            }
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
+            ) {
+              return { lastBuyPrice: 100, quantity: 10, type: 'i-am-symbol' };
+            }
+
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'ETHUSDT-configuration' })
+            ) {
+              return {
+                enabled: true,
+                symbol: 'ETHUSDT',
+                type: 'i-am-symbol'
+              };
+            }
+
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
+            ) {
+              return {
+                lastBuyPrice: null,
+                quantity: null,
+                type: 'i-am-symbol'
+              };
+            }
+
+            return null;
+          });
+
+        jest.mock('../../../../helpers', () => ({
+          logger: {
+            info: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            child: jest.fn()
+          },
+          mongo: {
+            findOne: mockFindOne,
+            upsertOne: mockMongoUpsertOne
+          },
+          cache: {
+            hgetall: mockCacheHGetAll,
+            hget: mockCacheHGet,
+            getWithTTL: mockCacheGetWithTTL
+          },
+          config: {
+            get: mockConfigGet
+          },
+          PubSub: {
+            publish: mockPubSubPublish
+          },
+          binance: {
+            client: {
+              getInfo: mockBinanceClientGetInfo
+            }
+          }
+        }));
+
+        const { logger } = require('../../../../helpers');
+        const { handleLatest } = require('../latest');
+        await handleLatest(logger, mockWebSocketServer, {
+          isAuthenticated: false
+        });
+      });
+
+      it('triggers ws.send with latest', () => {
+        trailingTradeStateNotAuthenticatedUnlockList.common.version =
+          require('../../../../../package.json').version;
+        trailingTradeStateNotAuthenticatedUnlockList.common.gitHash =
+          'some-hash';
+        expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
+          JSON.stringify(trailingTradeStateNotAuthenticatedUnlockList)
+        );
+      });
+    });
+
+    describe('authenticated', () => {
+      beforeEach(async () => {
+        mockFindOne = jest
+          .fn()
+          .mockImplementation((_logger, collection, filter) => {
+            if (
+              collection === 'trailing-trade-common' &&
+              _.isEqual(filter, { key: 'configuration' })
+            ) {
+              return {
+                enabled: true,
+                type: 'i-am-global',
+                candles: { interval: '15m' },
+                botOptions: {
+                  authentication: {
+                    lockList: true,
+                    lockAfter: 120
+                  }
+                },
+                sell: {}
+              };
+            }
+
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'BNBUSDT-configuration' })
+            ) {
+              return {
+                enabled: true,
+                symbol: 'BNBUSDT',
+                type: 'i-am-symbol'
+              };
+            }
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
+            ) {
+              return { lastBuyPrice: 100, quantity: 10, type: 'i-am-symbol' };
+            }
+
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'ETHUSDT-configuration' })
+            ) {
+              return {
+                enabled: true,
+                symbol: 'ETHUSDT',
+                type: 'i-am-symbol'
+              };
+            }
+
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
+            ) {
+              return {
+                lastBuyPrice: null,
+                quantity: null,
+                type: 'i-am-symbol'
+              };
+            }
+
+            return null;
+          });
+
+        jest.mock('../../../../helpers', () => ({
+          logger: {
+            info: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            child: jest.fn()
+          },
+          mongo: {
+            findOne: mockFindOne,
+            upsertOne: mockMongoUpsertOne
+          },
+          cache: {
+            hgetall: mockCacheHGetAll,
+            hget: mockCacheHGet,
+            getWithTTL: mockCacheGetWithTTL
+          },
+          config: {
+            get: mockConfigGet
+          },
+          PubSub: {
+            publish: mockPubSubPublish
+          },
+          binance: {
+            client: {
+              getInfo: mockBinanceClientGetInfo
+            }
+          }
+        }));
+
+        const { logger } = require('../../../../helpers');
+        const { handleLatest } = require('../latest');
+        await handleLatest(logger, mockWebSocketServer, {
+          isAuthenticated: true
+        });
+      });
+
+      it('triggers ws.send with latest', () => {
+        trailingTradeStatsAuthenticated.common.version =
+          require('../../../../../package.json').version;
+        trailingTradeStatsAuthenticated.common.gitHash = 'some-hash';
+        expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
+          JSON.stringify(trailingTradeStatsAuthenticated)
+        );
+      });
     });
   });
 });

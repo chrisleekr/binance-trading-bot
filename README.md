@@ -299,8 +299,11 @@ Or use the frontend to adjust configurations after launching the application.
    | BINANCE_SLACK_USERNAME         | Slack username                                                            | Chris                                                                                               |
    | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable [local tunnel](https://github.com/localtunnel/localtunnel) | true                                                                                                |
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain                                         | binance                                                                                             |
+   | BINANCE_AUTHENTICATION_ENABLED | Enable/Disable frontend authentication                                    | true  |
+   | BINANCE_AUTHENTICATION_PASSWORD | Frontend password                                                        | 123456 |
 
    *A local tunnel makes the bot accessible from the outside. Please set the subdomain of the local tunnel as a subdomain that only you can remember.*
+   *You must change the authentication password; otherwise, it will be configured as the default password.*
 
 2. Launch/Update the bot with docker-compose
 
@@ -367,7 +370,6 @@ Please refer
 [CHANGELOG.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/CHANGELOG.md)
 to view the past changes.
 
-- [ ] Secure frontend with the password authentication - [#240](https://github.com/chrisleekr/binance-trading-bot/pull/240)
 - [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
 - [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
 - [ ] Display summary of transactions on the frontend - [#160](https://github.com/chrisleekr/binance-trading-bot/issues/160)

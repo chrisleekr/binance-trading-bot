@@ -88,7 +88,12 @@ class FilterIcon extends React.Component {
   }
 
   render() {
-    const { availableSortOptions } = this.props;
+    const { availableSortOptions, isAuthenticated } = this.props;
+
+    if (isAuthenticated === false) {
+      return '';
+    }
+
     const { selectedSortOption, searchKeyword } = this.state;
 
     const sortingOptionWrappers = availableSortOptions.map((option, index) => {

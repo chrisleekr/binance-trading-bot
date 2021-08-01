@@ -29,7 +29,8 @@ class CoinWrapperBuySignal extends React.Component {
         buy,
         sell
       },
-      sendWebSocket
+      sendWebSocket,
+      isAuthenticated
     } = this.props;
     const { collapsed } = this.state;
 
@@ -50,7 +51,8 @@ class CoinWrapperBuySignal extends React.Component {
                 {buy.openOrders.length === 0 && currentGridTradeIndex === i ? (
                   <SymbolTriggerBuyIcon
                     symbol={symbol}
-                    sendWebSocket={sendWebSocket}></SymbolTriggerBuyIcon>
+                    sendWebSocket={sendWebSocket}
+                    isAuthenticated={isAuthenticated}></SymbolTriggerBuyIcon>
                 ) : (
                   ''
                 )}

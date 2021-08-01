@@ -38,7 +38,12 @@ class SymbolTriggerBuyIcon extends React.Component {
   }
 
   render() {
-    const { symbol, className } = this.props;
+    const { symbol, className, isAuthenticated } = this.props;
+
+    if (isAuthenticated === false) {
+      return '';
+    }
+
     return (
       <span
         className={

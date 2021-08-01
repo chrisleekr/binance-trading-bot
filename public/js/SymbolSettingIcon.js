@@ -124,10 +124,10 @@ class SymbolSettingIcon extends React.Component {
   }
 
   render() {
-    const { symbolInfo } = this.props;
+    const { symbolInfo, isAuthenticated } = this.props;
     const { symbolConfiguration } = this.state;
 
-    if (_.isEmpty(symbolConfiguration)) {
+    if (_.isEmpty(symbolConfiguration) || isAuthenticated === false) {
       return '';
     }
 

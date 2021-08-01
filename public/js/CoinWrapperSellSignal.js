@@ -18,7 +18,7 @@ class CoinWrapperSellSignal extends React.Component {
   }
 
   render() {
-    const { symbolInfo, sendWebSocket } = this.props;
+    const { symbolInfo, sendWebSocket, isAuthenticated } = this.props;
     const {
       symbolInfo: {
         symbol,
@@ -218,7 +218,8 @@ class CoinWrapperSellSignal extends React.Component {
           )}
           <CoinWrapperSellLastBuyPrice
             symbolInfo={symbolInfo}
-            sendWebSocket={sendWebSocket}></CoinWrapperSellLastBuyPrice>
+            sendWebSocket={sendWebSocket}
+            isAuthenticated={isAuthenticated}></CoinWrapperSellLastBuyPrice>
           {sell.currentProfit ? (
             <div className='coin-info-column coin-info-column-price'>
               <span className='coin-info-label'>Profit/Loss:</span>
@@ -317,7 +318,8 @@ class CoinWrapperSellSignal extends React.Component {
 
         <CoinWrapperSellLastBuyPrice
           symbolInfo={symbolInfo}
-          sendWebSocket={sendWebSocket}></CoinWrapperSellLastBuyPrice>
+          sendWebSocket={sendWebSocket}
+          isAuthenticated={isAuthenticated}></CoinWrapperSellLastBuyPrice>
       </div>
     );
   }

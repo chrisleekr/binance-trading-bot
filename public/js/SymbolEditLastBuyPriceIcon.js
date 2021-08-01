@@ -75,8 +75,12 @@ class SymbolEditLastBuyPriceIcon extends React.Component {
   }
 
   render() {
-    const { symbolInfo } = this.state;
+    const { isAuthenticated } = this.props;
+    if (isAuthenticated === false) {
+      return '';
+    }
 
+    const { symbolInfo } = this.state;
     if (_.isEmpty(symbolInfo)) {
       return '';
     }

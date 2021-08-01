@@ -267,8 +267,11 @@ The final profit would be
    | BINANCE_SLACK_USERNAME         | Slack username                                                            | Chris                                                                                               |
    | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable [local tunnel](https://github.com/localtunnel/localtunnel) | true                                                                                                |
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain                                         | binance                                                                                             |
+   | BINANCE_AUTHENTICATION_ENABLED | Enable/Disable frontend authentication                                    | true  |
+   | BINANCE_AUTHENTICATION_PASSWORD | Frontend password                                                        | 123456 |
 
    *本地隧道使机器人可以从外部访问。 请将本地隧道的子域设置为只有您能记住的子域。*
+  *You must change the authentication password; otherwise, it will be configured as the default password.*
 
 2. Check `docker-compose.yml` for `BINANCE_MODE` environment parameter
 

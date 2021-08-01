@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Secure frontend with the password authentication. Thanks [@pedrohusky](https://github.com/pedrohusky) - [#240](https://github.com/chrisleekr/binance-trading-bot/pull/240)
 - Show badge for the customised symbol configuration by  [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#258](https://github.com/chrisleekr/binance-trading-bot/pull/258)
 - Filter symbols in the frontend. Thanks [@pedrohusky](https://github.com/pedrohusky) - [#120](https://github.com/chrisleekr/binance-trading-bot/issues/120) [#242](https://github.com/chrisleekr/binance-trading-bot/pull/242)
 

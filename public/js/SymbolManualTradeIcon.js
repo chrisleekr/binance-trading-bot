@@ -423,8 +423,13 @@ class SymbolManualTradeIcon extends React.Component {
       baseAssetBalance,
       quoteAssetBalance,
       baseAssetStepSize,
-      quoteAssetTickSize
+      quoteAssetTickSize,
+      isAuthenticated
     } = this.props;
+
+    if (isAuthenticated === false) {
+      return '';
+    }
 
     const { showModal, lastCandle, order } = this.state;
 

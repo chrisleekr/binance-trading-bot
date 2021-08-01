@@ -18,7 +18,7 @@ class CoinWrapperSetting extends React.Component {
   }
 
   isCustomised = configurationKeyName =>
-      configurationKeyName !== 'configuration';
+    configurationKeyName !== 'configuration';
 
   render() {
     const { collapsed } = this.state;
@@ -123,13 +123,13 @@ class CoinWrapperSetting extends React.Component {
             <div className='mr-1'>
               Setting -{' '}
               {this.isCustomised(configurationKeyName) ? (
-                  <Badge pill variant='warning'>
-                    Customised
-                  </Badge>
+                <Badge pill variant='warning'>
+                  Customised
+                </Badge>
               ) : (
-                  <Badge pill variant='light'>
-                    Global
-                  </Badge>
+                <Badge pill variant='light'>
+                  Global
+                </Badge>
               )}
             </div>
           </div>
