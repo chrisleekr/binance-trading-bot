@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.0.74] - 2021-08-01
 
 - Secure frontend with the password authentication. Thanks [@pedrohusky](https://github.com/pedrohusky) - [#240](https://github.com/chrisleekr/binance-trading-bot/pull/240)
 - Show badge for the customised symbol configuration by  [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#258](https://github.com/chrisleekr/binance-trading-bot/pull/258)
