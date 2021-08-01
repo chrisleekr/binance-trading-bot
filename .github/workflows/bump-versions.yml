@@ -17,7 +17,7 @@ jobs:
         run: |
           git config --global user.email "${{ secrets.GIT_CI_EMAIL }}"
           git config --global user.name "$GITHUB_ACTOR"
-          PACKAGE_VERSION=$(npm version patch -m "Update version to %s [skip ci]")
+          PACKAGE_VERSION=$(npm version patch -m "bump: update version to %s [skip ci]")
           git push https://$GITHUB_ACTOR:${{ secrets.GIT_CI_PASSWORD }}@${{ secrets.GIT_REPO_DOMAIN }}/chrisleekr/binance-trading-bot HEAD:$GITHUB_REF
           git push https://$GITHUB_ACTOR:${{ secrets.GIT_CI_PASSWORD }}@${{ secrets.GIT_REPO_DOMAIN }}/chrisleekr/binance-trading-bot $PACKAGE_VERSION
           echo "::set-output name=PACKAGE_VERSION::$PACKAGE_VERSION"
