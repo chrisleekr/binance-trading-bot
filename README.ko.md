@@ -263,6 +263,7 @@
 - 모니터링 되지 않은 코인의 캐시 정보를 지울 수 있습니다.
 - 외부 링크를 볼수 있습니다.
 - 홈 화면에 추가하기 기능을 지원합니다.
+- 프론트엔드 암호 설정을 지원합니다.
 
 ## 환경 변수 (Environment parameters)
 
@@ -328,13 +329,17 @@
 
 ## 스크린샷
 
-| 프론트엔드 - 모바일 | 세팅 | 수동 거래 |
-| --------------- | ---- | ------- |
-| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/127318555-31216c7e-f27c-4e05-a3b1-1ebda386e439.png) | ![Setting](https://user-images.githubusercontent.com/5715919/127318581-4e422ac9-b145-4e83-a90d-5c05c61d6e2f.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/127318630-f2180e1b-3feb-48fa-a083-4cb7f90f743f.png) |
+| Password Protected | Frontend Mobile |
+| ------------------ | --------------- |
+| ![Password Protected](https://user-images.githubusercontent.com/5715919/127773484-51d01881-4933-454e-9052-9965b222e716.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/127773506-bea19f9f-ed8b-4eb5-9a4c-a00a03d63276.png) |
 
-| 프론트엔드 - 데스크탑                                                                                                           |
+| Setting | Manual Trade |
+| ------- | ------------ |
+| ![Setting](https://user-images.githubusercontent.com/5715919/127318581-4e422ac9-b145-4e83-a90d-5c05c61d6e2f.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/127318630-f2180e1b-3feb-48fa-a083-4cb7f90f743f.png) |
+
+| Frontend Desktop                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/127318831-1cbfab93-6300-4251-b757-7d51eb5fbc2d.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/127773543-ca1a9d19-676d-4410-88d2-64926161de29.png) |
 
 ### 샘플 거래
 

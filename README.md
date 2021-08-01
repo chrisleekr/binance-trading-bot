@@ -276,6 +276,7 @@ React.js based frontend communicating via Web Socket:
 - Delete caches that are not monitored
 - Link to public URL
 - Support Add to Home Screen
+- Secure frontend
 
 ## Environment Parameters
 
@@ -350,13 +351,17 @@ Or use the frontend to adjust configurations after launching the application.
 
 ## Screenshots
 
-| Frontend Mobile | Setting | Manual Trade |
-| --------------- | ------- | ------------ |
-| ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/127318555-31216c7e-f27c-4e05-a3b1-1ebda386e439.png) | ![Setting](https://user-images.githubusercontent.com/5715919/127318581-4e422ac9-b145-4e83-a90d-5c05c61d6e2f.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/127318630-f2180e1b-3feb-48fa-a083-4cb7f90f743f.png) |
+| Password Protected | Frontend Mobile |
+| ------------------ | --------------- |
+| ![Password Protected](https://user-images.githubusercontent.com/5715919/127773484-51d01881-4933-454e-9052-9965b222e716.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/127773506-bea19f9f-ed8b-4eb5-9a4c-a00a03d63276.png) |
+
+| Setting | Manual Trade |
+| ------- | ------------ |
+| ![Setting](https://user-images.githubusercontent.com/5715919/127318581-4e422ac9-b145-4e83-a90d-5c05c61d6e2f.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/127318630-f2180e1b-3feb-48fa-a083-4cb7f90f743f.png) |
 
 | Frontend Desktop                                                                                                          |
 | ------------------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/127318831-1cbfab93-6300-4251-b757-7d51eb5fbc2d.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/127773543-ca1a9d19-676d-4410-88d2-64926161de29.png) |
 
 ### Sample Trade
 
