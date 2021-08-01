@@ -36,6 +36,10 @@
     "notifyDebug": false,
     "notifyOrderExecute": true
   },
+  "authentication": {
+    "enabled": true,
+    "password": "123456"
+  },
   "jobs": {
     "alive": {
       "enabled": true,
@@ -45,6 +49,12 @@
       "enabled": true,
       "cronTime": "* * * * * *",
       "symbols": ["BTCUSDT", "ETHUSDT", "ETHBTC", "XRPBTC"],
+      "botOptions": {
+        "authentication": {
+          "lockList": true,
+          "lockAfter": 120
+        }
+      },
       "candles": {
         "interval": "1h",
         "limit": 100

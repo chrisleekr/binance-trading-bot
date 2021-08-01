@@ -52,8 +52,12 @@ class SymbolDeleteIcon extends React.Component {
   }
 
   render() {
+    const { isAuthenticated, symbolInfo } = this.props;
+    if (isAuthenticated === false) {
+      return '';
+    }
+
     if (this.canDelete()) {
-      const { symbolInfo } = this.props;
       return (
         <div className='header-column-icon-wrapper symbol-delete-wrapper'>
           <button

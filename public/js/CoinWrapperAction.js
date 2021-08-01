@@ -5,7 +5,8 @@ class CoinWrapperAction extends React.Component {
   render() {
     const {
       symbolInfo: { symbol, action, buy, isLocked, isActionDisabled },
-      sendWebSocket
+      sendWebSocket,
+      isAuthenticated
     } = this.props;
 
     let label;
@@ -78,7 +79,8 @@ class CoinWrapperAction extends React.Component {
                   <SymbolEnableActionIcon
                     symbol={symbol}
                     className='mr-1'
-                    sendWebSocket={sendWebSocket}></SymbolEnableActionIcon>
+                    sendWebSocket={sendWebSocket}
+                    isAuthenticated={isAuthenticated}></SymbolEnableActionIcon>
                 ) : (
                   ''
                 )}

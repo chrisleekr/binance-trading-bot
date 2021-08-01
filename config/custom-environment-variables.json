@@ -60,6 +60,14 @@
       "__format": "boolean"
     }
   },
+  "authentication": {
+    "enabled": {
+      "__name": "BINANCE_AUTHENTICATION_ENABLED",
+      "__description": "Set a boolean to enable authentication on the bot.",
+      "__format": "boolean"
+    },
+    "password": "BINANCE_AUTHENTICATION_PASSWORD"
+  },
   "jobs": {
     "alive": {
       "enabled": {
@@ -79,6 +87,20 @@
       "symbols": {
         "__name": "BINANCE_JOBS_TRAILING_TRADE_SYMBOLS",
         "__format": "json"
+      },
+      "botOptions": {
+        "authentication": {
+          "lockList": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTHENTICATION_LOCK_LIST",
+            "__description": "Set a boolean to lock the list or not. If locking the list, the bot will display the login screen before showing the list. If don't lock the list, the bot will display the symbol list, but disabling actions.",
+            "__format": "boolean"
+          },
+          "lockAfter": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTHENTICATION_LOCK_AFTER",
+            "__description": "Set minutes for the authentication. If the authentication expires, the bot will lock the bot.",
+            "__format": "number"
+          }
+        }
       },
       "candles": {
         "interval": "BINANCE_JOBS_TRAILING_TRADE_CANDLES_INTERVAL",

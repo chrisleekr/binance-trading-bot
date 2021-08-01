@@ -5,7 +5,10 @@ describe('server-frontend', () => {
   let mockExpressUse;
   let mockExpressListen;
   let mockExpressServerOn;
+  let mockExpressUrlEncoded;
+  let mockExpressJson;
 
+  let mockConfigureWebServer;
   let mockConfigureWebSocket;
   let mockConfigureLocalTunnel;
 
@@ -19,11 +22,14 @@ describe('server-frontend', () => {
     jest.mock('ws');
     jest.mock('config');
 
+    mockConfigureWebServer = jest.fn().mockResolvedValue(true);
     mockConfigureWebSocket = jest.fn().mockResolvedValue(true);
     mockConfigureLocalTunnel = jest.fn().mockResolvedValue(true);
 
     mockExpressStatic = jest.fn().mockResolvedValue(true);
     mockExpressUse = jest.fn().mockResolvedValue(true);
+    mockExpressUrlEncoded = jest.fn().mockResolvedValue(true);
+    mockExpressJson = jest.fn().mockResolvedValue(true);
 
     mockExpressListen = jest.fn().mockReturnValue({
       on: mockExpressServerOn
@@ -34,8 +40,17 @@ describe('server-frontend', () => {
         use: mockExpressUse,
         listen: mockExpressListen
       });
+
       Object.defineProperty(mockExpress, 'static', {
         value: mockExpressStatic
+      });
+
+      Object.defineProperty(mockExpress, 'urlencoded', {
+        value: mockExpressUrlEncoded
+      });
+
+      Object.defineProperty(mockExpress, 'json', {
+        value: mockExpressJson
       });
 
       return mockExpress;
@@ -49,6 +64,10 @@ describe('server-frontend', () => {
           return `value-${key}`;
       }
     });
+
+    jest.mock('../frontend/webserver/configure', () => ({
+      configureWebServer: mockConfigureWebServer
+    }));
 
     jest.mock('../frontend/websocket/configure', () => ({
       configureWebSocket: mockConfigureWebSocket
@@ -68,6 +87,10 @@ describe('server-frontend', () => {
 
     it('triggers server.listen', () => {
       expect(mockExpressListen).toHaveBeenCalledWith(80);
+    });
+
+    it('triggers configureWebServer', () => {
+      expect(mockConfigureWebServer).toHaveBeenCalled();
     });
 
     it('triggers configureWebSocket', () => {

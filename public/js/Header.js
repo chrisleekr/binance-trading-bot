@@ -4,6 +4,7 @@
 class Header extends React.Component {
   render() {
     const {
+      isAuthenticated,
       configuration,
       publicURL,
       sendWebSocket,
@@ -35,6 +36,7 @@ class Header extends React.Component {
               searchKeyword={searchKeyword}
               setSortOption={setSortOption}
               setSearchKeyword={setSearchKeyword}
+              isAuthenticated={isAuthenticated}
             />
 
             <div className='header-column-icon-wrapper github-wrapper'>
@@ -66,10 +68,16 @@ class Header extends React.Component {
                 exchangeSymbols={exchangeSymbols}
                 configuration={configuration}
                 sendWebSocket={sendWebSocket}
+                isAuthenticated={isAuthenticated}
               />
             ) : (
               ''
             )}
+            <LockIcon isAuthenticated={isAuthenticated} />
+            <UnlockIcon
+              sendWebSocket={sendWebSocket}
+              isAuthenticated={isAuthenticated}
+            />
           </div>
         </div>
       </div>

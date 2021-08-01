@@ -15,6 +15,7 @@ class App extends React.Component {
       configuration: {},
       exchangeSymbols: [],
       symbols: [],
+      apiInfo: {},
       accountInfo: {},
       publicURL: '',
       dustTransfer: {},
@@ -28,7 +29,11 @@ class App extends React.Component {
         { sortBy: 'alpha-desc', label: 'Alphabetical (desc)' }
       ],
       selectedSortOption: 'default',
-      searchKeyword: ''
+      searchKeyword: '',
+      isLoaded: false,
+      isAuthenticated: false,
+      botOptions: {},
+      authToken: localStorage.getItem('authToken') || ''
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
@@ -113,23 +118,22 @@ class App extends React.Component {
       } catch (_e) {}
 
       if (response.type === 'latest') {
-        if (_.isEmpty(response.common.accountInfo)) {
-          return;
-        }
-
         // Set states
         self.setState({
-          symbols: sortingSymbols(response.stats.symbols, {
+          isLoaded: true,
+          isAuthenticated: response.isAuthenticated,
+          botOptions: response.botOptions,
+          configuration: response.configuration,
+          symbols: sortingSymbols(_.get(response, ['stats', 'symbols'], []), {
             selectedSortOption: self.state.selectedSortOption,
             searchKeyword: self.state.searchKeyword
           }),
-          packageVersion: response.common.version,
-          gitHash: response.common.gitHash,
-          exchangeSymbols: response.common.exchangeSymbols,
-          configuration: response.common.configuration,
-          accountInfo: response.common.accountInfo,
-          publicURL: response.common.publicURL,
-          apiInfo: response.common.apiInfo
+          packageVersion: _.get(response, ['common', 'version'], ''),
+          gitHash: _.get(response, ['common', 'gitHash'], ''),
+          exchangeSymbols: _.get(response, ['common', 'exchangeSymbols'], []),
+          accountInfo: _.get(response, ['common', 'accountInfo'], {}),
+          publicURL: _.get(response, ['common', 'publicURL'], ''),
+          apiInfo: _.get(response, ['common', 'apiInfo'], {})
         });
       }
 
@@ -171,7 +175,9 @@ class App extends React.Component {
     const { instance, connected } = this.state.webSocket;
 
     if (connected) {
-      instance.send(JSON.stringify({ command, data }));
+      const authToken = localStorage.getItem('authToken') || '';
+
+      instance.send(JSON.stringify({ command, authToken, data }));
     }
   }
 
@@ -217,8 +223,23 @@ class App extends React.Component {
       dustTransfer,
       availableSortOptions,
       selectedSortOption,
-      searchKeyword
+      searchKeyword,
+      isAuthenticated,
+      botOptions,
+      isLoaded
     } = this.state;
+
+    if (isLoaded === false) {
+      return <AppLoading />;
+    }
+
+    if (
+      isLoaded === true &&
+      isAuthenticated === false &&
+      _.get(botOptions, ['authentication', 'lockList'], true) === true
+    ) {
+      return <LockScreen />;
+    }
 
     const coinWrappers = symbols.map((symbol, index) => {
       return (
@@ -227,6 +248,7 @@ class App extends React.Component {
             index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
           }
           key={'coin-wrapper-' + symbol.symbol}
+          isAuthenticated={isAuthenticated}
           symbolInfo={symbol}
           configuration={configuration}
           sendWebSocket={this.sendWebSocket}
@@ -235,8 +257,9 @@ class App extends React.Component {
     });
 
     return (
-      <div className='app'>
+      <React.Fragment>
         <Header
+          isAuthenticated={isAuthenticated}
           configuration={configuration}
           publicURL={publicURL}
           exchangeSymbols={exchangeSymbols}
@@ -251,11 +274,13 @@ class App extends React.Component {
           <div className='app-body'>
             <div className='app-body-header-wrapper'>
               <AccountWrapper
+                isAuthenticated={isAuthenticated}
                 accountInfo={accountInfo}
                 dustTransfer={dustTransfer}
                 sendWebSocket={this.sendWebSocket}
               />
               <ProfitLossWrapper
+                isAuthenticated={isAuthenticated}
                 symbols={symbols}
                 sendWebSocket={this.sendWebSocket}
               />
@@ -274,7 +299,7 @@ class App extends React.Component {
         )}
 
         <Footer packageVersion={packageVersion} gitHash={gitHash} />
-      </div>
+      </React.Fragment>
     );
   }
 }

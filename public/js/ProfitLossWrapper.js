@@ -55,7 +55,7 @@ class ProfitLossWrapper extends React.Component {
   }
 
   render() {
-    const { sendWebSocket } = this.props;
+    const { sendWebSocket, isAuthenticated } = this.props;
     const { totalPnL, symbols } = this.state;
 
     const quoteAssets = Object.values(totalPnL).map((pnl, index) => {
@@ -114,6 +114,7 @@ class ProfitLossWrapper extends React.Component {
                       symbols={symbols}
                       setUpdate={this.setUpdate}
                       sendWebSocket={sendWebSocket}
+                      isAuthenticated={isAuthenticated}
                     />
                   ) : (
                     ''

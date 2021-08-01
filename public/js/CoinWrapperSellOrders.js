@@ -18,7 +18,7 @@ class CoinWrapperSellOrders extends React.Component {
   }
 
   render() {
-    const { symbolInfo, sendWebSocket } = this.props;
+    const { symbolInfo, sendWebSocket, isAuthenticated } = this.props;
 
     const {
       symbolInfo: {
@@ -154,6 +154,7 @@ class CoinWrapperSellOrders extends React.Component {
                 symbol={symbol}
                 order={openOrder}
                 sendWebSocket={sendWebSocket}
+                isAuthenticated={isAuthenticated}
               />
             </div>
 
@@ -291,7 +292,8 @@ class CoinWrapperSellOrders extends React.Component {
 
         <CoinWrapperSellLastBuyPrice
           symbolInfo={symbolInfo}
-          sendWebSocket={sendWebSocket}></CoinWrapperSellLastBuyPrice>
+          sendWebSocket={sendWebSocket}
+          isAuthenticated={isAuthenticated}></CoinWrapperSellLastBuyPrice>
 
         {sellGridRows}
 

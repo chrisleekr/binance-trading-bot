@@ -1,5 +1,7 @@
 const WebSocket = require('ws');
-const { PubSub } = require('../../helpers');
+const jwt = require('jsonwebtoken');
+
+const { PubSub, cache } = require('../../helpers');
 
 const {
   handleLatest,
@@ -23,10 +25,33 @@ const handleWarning = (logger, ws, message) => {
   ws.send(
     JSON.stringify({
       result: false,
-      type: 'error',
-      message
+      type: 'notification',
+      message: {
+        type: 'warning',
+        title: message
+      }
     })
   );
+};
+
+const verifyAuthenticated = async (commandLogger, payload) => {
+  const { authToken } = payload;
+
+  const logger = commandLogger.child({ tag: 'verifyAuthenticated' });
+
+  const jwtSecret = await cache.get('auth-jwt-secret');
+
+  logger.info({ authToken, jwtSecret }, 'Verifying authentication');
+  let data = null;
+  try {
+    data = jwt.verify(authToken, jwtSecret, { algorithm: 'HS256' });
+  } catch (err) {
+    logger.info({ err }, 'Failed authentication');
+    return false;
+  }
+
+  logger.info({ data }, 'Success authentication');
+  return true;
 };
 
 const configureWebSocket = async (server, funcLogger) => {
@@ -69,11 +94,22 @@ const configureWebSocket = async (server, funcLogger) => {
         'dust-transfer-execute': handleDustTransferExecute
       };
 
-      if (commandMaps[payload.command]) {
-        await commandMaps[payload.command](commandLogger, ws, payload);
-      } else {
+      if (commandMaps[payload.command] === undefined) {
         handleWarning(logger, ws, 'Command is not recognised.');
+        return;
       }
+
+      const isAuthenticated = await verifyAuthenticated(commandLogger, payload);
+      if (payload.command === 'latest') {
+        // Latest command will handle authentication separately.
+        payload.isAuthenticated = isAuthenticated;
+      } else if (isAuthenticated === false) {
+        // Must be authenticated for other commands.
+        handleWarning(logger, ws, 'You must be authenticated.');
+        return;
+      }
+
+      await commandMaps[payload.command](commandLogger, ws, payload);
     });
 
     ws.send(

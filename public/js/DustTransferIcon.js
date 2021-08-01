@@ -78,7 +78,12 @@ class DustTransferIcon extends React.Component {
   }
 
   render() {
+    const { isAuthenticated } = this.props;
     const { showModal, loading, dustTransfer } = this.state;
+
+    if (isAuthenticated === false) {
+      return '';
+    }
 
     let symbols = null;
     if (_.isEmpty(dustTransfer) === false) {

@@ -25,6 +25,11 @@ class SymbolCancelIcon extends React.Component {
   }
 
   render() {
+    const { isAuthenticated } = this.props;
+    if (isAuthenticated === false) {
+      return '';
+    }
+
     const { isCancelled } = this.state;
     return (
       <div className='header-column-icon-wrapper symbol-delete-wrapper'>

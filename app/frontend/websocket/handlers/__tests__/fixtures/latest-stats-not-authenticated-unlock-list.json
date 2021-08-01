@@ -1,10 +1,13 @@
 {
   "result": true,
   "type": "latest",
+  "isAuthenticated": false,
+  "botOptions": { "authentication": { "lockList": false, "lockAfter": 120 } },
   "configuration": {
     "enabled": true,
     "type": "i-am-global",
     "candles": { "interval": "15m", "limit": 100 },
+    "botOptions": { "authentication": { "lockList": false, "lockAfter": 120 } },
     "sell": {
       "enabled": true,
       "gridTrade": [
@@ -53,59 +56,8 @@
     }
   },
   "common": {
-    "version": "0.0.72",
+    "version": "0.0.73",
     "gitHash": "some-hash",
-    "configuration": {
-      "enabled": true,
-      "type": "i-am-global",
-      "candles": { "interval": "15m", "limit": 100 },
-      "sell": {
-        "enabled": true,
-        "gridTrade": [
-          {
-            "triggerPercentage": 1.06,
-            "stopPercentage": 0.98,
-            "limitPercentage": 0.979,
-            "quantityPercentage": -1,
-            "quantityPercentages": {}
-          }
-        ],
-        "stopLoss": {
-          "enabled": false,
-          "maxLossPercentage": 0.8,
-          "disableBuyMinutes": 360,
-          "orderType": "market"
-        }
-      },
-      "cronTime": "* * * * * *",
-      "symbols": ["BTCUSDT", "ETHUSDT", "ETHBTC", "XRPBTC"],
-      "buy": {
-        "enabled": true,
-        "gridTrade": [
-          {
-            "triggerPercentage": 1,
-            "stopPercentage": 1.02,
-            "limitPercentage": 1.021,
-            "maxPurchaseAmount": -1,
-            "maxPurchaseAmounts": {}
-          }
-        ],
-        "lastBuyPriceRemoveThreshold": -1,
-        "lastBuyPriceRemoveThresholds": {},
-        "athRestriction": {
-          "enabled": true,
-          "candles": { "interval": "1d", "limit": 30 },
-          "restrictionPercentage": 0.9
-        }
-      },
-      "system": {
-        "temporaryDisableActionAfterConfirmingOrder": 20,
-        "checkManualBuyOrderPeriod": 5,
-        "placeManualOrderInterval": 5,
-        "refreshAccountInfoPeriod": 1,
-        "checkOrderExecutePeriod": 10
-      }
-    },
     "accountInfo": {
       "makerCommission": 0,
       "takerCommission": 0,
@@ -142,54 +94,25 @@
     "symbols": [
       {
         "globalConfiguration": {
+          "_id": "604d5e1b485f808080e07b7d",
+          "key": "configuration",
           "enabled": true,
-          "type": "i-am-global",
-          "candles": { "interval": "15m", "limit": 100 },
-          "sell": {
-            "enabled": true,
-            "gridTrade": [
-              {
-                "triggerPercentage": 1.06,
-                "stopPercentage": 0.98,
-                "limitPercentage": 0.979,
-                "quantityPercentage": -1,
-                "quantityPercentages": {}
-              }
-            ],
-            "stopLoss": {
-              "enabled": false,
-              "maxLossPercentage": 0.8,
-              "disableBuyMinutes": 360,
-              "orderType": "market"
-            }
-          },
           "cronTime": "* * * * * *",
-          "symbols": ["BTCUSDT", "ETHUSDT", "ETHBTC", "XRPBTC"],
+          "symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+          "supportFIATs": ["USDT"],
+          "candles": { "interval": "1m", "limit": 10 },
           "buy": {
             "enabled": true,
-            "gridTrade": [
-              {
-                "triggerPercentage": 1,
-                "stopPercentage": 1.02,
-                "limitPercentage": 1.021,
-                "maxPurchaseAmount": -1,
-                "maxPurchaseAmounts": {}
-              }
-            ],
-            "lastBuyPriceRemoveThreshold": -1,
-            "lastBuyPriceRemoveThresholds": {},
-            "athRestriction": {
-              "enabled": true,
-              "candles": { "interval": "1d", "limit": 30 },
-              "restrictionPercentage": 0.9
-            }
+            "maxPurchaseAmount": 100,
+            "triggerPercentage": 1,
+            "stopPercentage": 1.01,
+            "limitPercentage": 1.011
           },
-          "system": {
-            "temporaryDisableActionAfterConfirmingOrder": 20,
-            "checkManualBuyOrderPeriod": 5,
-            "placeManualOrderInterval": 5,
-            "refreshAccountInfoPeriod": 1,
-            "checkOrderExecutePeriod": 10
+          "sell": {
+            "enabled": true,
+            "triggerPercentage": 1.01,
+            "stopPercentage": 0.99,
+            "limitPercentage": 0.989
           }
         },
         "symbol": "BNBUSDT",
@@ -198,6 +121,9 @@
           "symbol": "BNBUSDT",
           "type": "i-am-symbol",
           "candles": { "interval": "15m", "limit": 100 },
+          "botOptions": {
+            "authentication": { "lockList": false, "lockAfter": 120 }
+          },
           "sell": {
             "enabled": true,
             "stopLoss": {
@@ -391,54 +317,25 @@
       },
       {
         "globalConfiguration": {
+          "_id": "604d5e1b485f808080e07b7d",
+          "key": "configuration",
           "enabled": true,
-          "type": "i-am-global",
-          "candles": { "interval": "15m", "limit": 100 },
-          "sell": {
-            "enabled": true,
-            "gridTrade": [
-              {
-                "triggerPercentage": 1.06,
-                "stopPercentage": 0.98,
-                "limitPercentage": 0.979,
-                "quantityPercentage": -1,
-                "quantityPercentages": {}
-              }
-            ],
-            "stopLoss": {
-              "enabled": false,
-              "maxLossPercentage": 0.8,
-              "disableBuyMinutes": 360,
-              "orderType": "market"
-            }
-          },
           "cronTime": "* * * * * *",
-          "symbols": ["BTCUSDT", "ETHUSDT", "ETHBTC", "XRPBTC"],
+          "symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+          "supportFIATs": ["USDT"],
+          "candles": { "interval": "1m", "limit": 10 },
           "buy": {
             "enabled": true,
-            "gridTrade": [
-              {
-                "triggerPercentage": 1,
-                "stopPercentage": 1.02,
-                "limitPercentage": 1.021,
-                "maxPurchaseAmount": -1,
-                "maxPurchaseAmounts": {}
-              }
-            ],
-            "lastBuyPriceRemoveThreshold": -1,
-            "lastBuyPriceRemoveThresholds": {},
-            "athRestriction": {
-              "enabled": true,
-              "candles": { "interval": "1d", "limit": 30 },
-              "restrictionPercentage": 0.9
-            }
+            "maxPurchaseAmount": 100,
+            "triggerPercentage": 1,
+            "stopPercentage": 1.01,
+            "limitPercentage": 1.011
           },
-          "system": {
-            "temporaryDisableActionAfterConfirmingOrder": 20,
-            "checkManualBuyOrderPeriod": 5,
-            "placeManualOrderInterval": 5,
-            "refreshAccountInfoPeriod": 1,
-            "checkOrderExecutePeriod": 10
+          "sell": {
+            "enabled": true,
+            "triggerPercentage": 1.01,
+            "stopPercentage": 0.99,
+            "limitPercentage": 0.989
           }
         },
         "symbol": "ETHUSDT",
@@ -447,6 +344,9 @@
           "symbol": "ETHUSDT",
           "type": "i-am-symbol",
           "candles": { "interval": "15m", "limit": 100 },
+          "botOptions": {
+            "authentication": { "lockList": false, "lockAfter": 120 }
+          },
           "sell": {
             "enabled": true,
             "stopLoss": {

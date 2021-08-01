@@ -1,4 +1,5 @@
 const _ = require('lodash');
+
 const { version } = require('../../../../package.json');
 
 const { binance, cache } = require('../../../helpers');
@@ -22,7 +23,30 @@ const getSymbolFromKey = key => {
   };
 };
 
-const handleLatest = async (logger, ws, _payload) => {
+const handleLatest = async (logger, ws, payload) => {
+  const globalConfiguration = await getGlobalConfiguration(logger);
+  logger.info({ globalConfiguration }, 'Configuration from MongoDB');
+
+  // If not authenticated and lock list is enabled, then do not send any information.
+  if (
+    payload.isAuthenticated === false &&
+    globalConfiguration.botOptions.authentication.lockList === true
+  ) {
+    ws.send(
+      JSON.stringify({
+        result: true,
+        type: 'latest',
+        isAuthenticated: payload.isAuthenticated,
+        botOptions: globalConfiguration.botOptions,
+        configuration: {},
+        common: {},
+        stats: {}
+      })
+    );
+
+    return;
+  }
+
   const cacheTrailingTradeCommon = await cache.hgetall('trailing-trade-common');
   const cacheTrailingTradeSymbols = await cache.hgetall(
     'trailing-trade-symbols'
@@ -32,15 +56,11 @@ const handleLatest = async (logger, ws, _payload) => {
     symbols: {}
   };
 
-  const globalConfiguration = await getGlobalConfiguration(logger);
-  logger.info({ globalConfiguration }, 'Configuration from MongoDB');
-
   let common = {};
   try {
     common = {
       version,
       gitHash: process.env.GIT_HASH || 'unspecified',
-      configuration: globalConfiguration,
       accountInfo: JSON.parse(cacheTrailingTradeCommon['account-info']),
       exchangeSymbols: JSON.parse(cacheTrailingTradeCommon['exchange-symbols']),
       publicURL: cacheTrailingTradeCommon['local-tunnel-url'],
@@ -63,8 +83,6 @@ const handleLatest = async (logger, ws, _payload) => {
   stats.symbols = await Promise.all(
     _.map(stats.symbols, async symbol => {
       const newSymbol = symbol;
-      // Set latest global configuration
-      newSymbol.globalConfiguration = globalConfiguration;
       // Retrieve latest symbol configuration
       newSymbol.symbolConfiguration = await getConfiguration(
         logger,
@@ -96,6 +114,8 @@ const handleLatest = async (logger, ws, _payload) => {
     JSON.stringify({
       result: true,
       type: 'latest',
+      isAuthenticated: payload.isAuthenticated,
+      botOptions: globalConfiguration.botOptions,
       configuration: globalConfiguration,
       common,
       stats

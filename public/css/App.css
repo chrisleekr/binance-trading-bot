@@ -1,4 +1,9 @@
 /* Dark Mode styles */
+html,
+body {
+  height: 100%;
+}
+
 body {
   overflow-y: scroll; /* Show vertical scrollbar */
 }
@@ -69,6 +74,7 @@ input[type='number'] {
 
 .app {
   padding: 10px;
+  height: 100%;
 }
 
 .app-body-loading {
@@ -474,14 +480,13 @@ input[type='number'] {
 /**
   Start: Manual Trade
 */
-.input-group > .input-group-prepend {
+.manual-trade .input-group > .input-group-prepend {
   flex: 0 0 25%;
 }
-.input-group .input-group-text {
+.manual-trade .input-group .input-group-text {
   width: 100%;
 }
-
-.input-group > .input-group-append {
+.manual-trade .input-group > .input-group-append {
   flex: 0 0 25%;
 }
 
@@ -788,4 +793,14 @@ input[type='number'] {
 }
 /**
   End: Filter
+*/
+
+/**
+  Start: Lock screen
+*/
+.lock-screen-wrapper {
+  margin: 0 auto;
+}
+/**
+  End: Lock screen
 */
