@@ -248,6 +248,10 @@ class SettingIcon extends React.Component {
               <Modal.Title>{setting_icon.global_settings}</Modal.Title>
             </Modal.Header>
             <Modal.Body>
+              <ConfigManager
+                configuration={configuration}
+                sendWebSocket={this.props.sendWebSocket}
+              />
               <span className='text-muted'>
                 {setting_icon.global_settings_description}
               </span>
