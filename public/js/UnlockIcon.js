@@ -42,7 +42,6 @@ class UnlockIcon extends React.Component {
       .post('/auth', { password })
       .then(response => {
         // handle success
-        console.log('response => ', response);
         const {
           data: {
             success,
@@ -84,7 +83,7 @@ class UnlockIcon extends React.Component {
     }
 
     const { loading, password } = this.state;
-    console.log('loading => ', loading);
+
     return (
       <div className='header-column-icon-wrapper unlock-wrapper'>
         <button

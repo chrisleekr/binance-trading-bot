@@ -213,7 +213,7 @@ class SettingIconGridSell extends React.Component {
             );
           }
           // If the last sell quantity percentage is 1, the new grid trade cannot be added.
-          if (parseFloat(value) >= 1) {
+          if (quoteAssets.includes(quoteAsset) && parseFloat(value) >= 1) {
             canAddNewGridTrade = false;
           }
         }
