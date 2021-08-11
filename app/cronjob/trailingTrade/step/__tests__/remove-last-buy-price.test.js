@@ -673,12 +673,7 @@ describe('remove-last-buy-price.js', () => {
               getAPILimit: mockGetAPILimit
             }));
 
-            mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({
-              profit: 10,
-              profitPercentage: 0.1,
-              totalBuyQuoteBuy: 100,
-              totalSellQuoteQty: 110
-            });
+            mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({});
 
             jest.mock('../../../trailingTradeHelper/configuration', () => ({
               archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
@@ -834,10 +829,10 @@ describe('remove-last-buy-price.js', () => {
             }));
 
             mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({
-              profit: 10,
-              profitPercentage: 0.1,
-              totalBuyQuoteBuy: 100,
-              totalSellQuoteQty: 110
+              profit: -10,
+              profitPercentage: -0.1,
+              totalBuyQuoteBuy: 110,
+              totalSellQuoteQty: 100
             });
 
             jest.mock('../../../trailingTradeHelper/configuration', () => ({
