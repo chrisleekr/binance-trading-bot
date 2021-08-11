@@ -318,15 +318,15 @@ The final profit would be
 
 | Password Protected | Frontend Mobile |
 | ------------------ | --------------- |
-| ![Password Protected](https://user-images.githubusercontent.com/5715919/127773484-51d01881-4933-454e-9052-9965b222e716.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/127773506-bea19f9f-ed8b-4eb5-9a4c-a00a03d63276.png) |
+| ![Password Protected](https://user-images.githubusercontent.com/5715919/127773484-51d01881-4933-454e-9052-9965b222e716.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/129048582-c2dfb086-27b4-4d9c-8e7d-2c16dce67f62.png) |
 
 | Setting | Manual Trade |
 | ------- | ------------ |
 | ![Setting](https://user-images.githubusercontent.com/5715919/127318581-4e422ac9-b145-4e83-a90d-5c05c61d6e2f.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/127318630-f2180e1b-3feb-48fa-a083-4cb7f90f743f.png) |
 
-| Frontend Desktop                                                                                                          |
-| ------------------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/127773543-ca1a9d19-676d-4410-88d2-64926161de29.png) |
+| Frontend Desktop  | Closed Trades |
+| ----------------- | ------------- |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/129049632-3cf9d5fd-cd3a-4272-834b-7e0e8dcc2a7f.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/129049695-18d868e9-b928-4302-a0da-3e7c9dff79f1.png) |
 
 ### Sample Trade
 

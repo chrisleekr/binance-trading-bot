@@ -117,7 +117,8 @@
     "*.js": [
       "prettier --write",
       "npm run lint",
-      "git add -A ."
+      "git add",
+      "npm test ."
     ]
   }
 }
