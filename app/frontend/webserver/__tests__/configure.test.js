@@ -3,6 +3,9 @@
 describe('webserver/configure.js', () => {
   const mockHandlers = {
     handleAuth: null,
+    handleGridTradeArchiveGetBySymbol: null,
+    handleGridTradeArchiveGetByQuoteAsset: null,
+    handleGridTradeArchiveDelete: null,
     handle404: null
   };
 
@@ -13,12 +16,18 @@ describe('webserver/configure.js', () => {
     jest.clearAllMocks().resetModules();
 
     mockHandlers.handleAuth = jest.fn().mockResolvedValue(true);
+    mockHandlers.handleGridTradeArchiveGetBySymbol = jest
+      .fn()
+      .mockResolvedValue(true);
+    mockHandlers.handleGridTradeArchiveGetByQuoteAsset = jest
+      .fn()
+      .mockResolvedValue(true);
+    mockHandlers.handleGridTradeArchiveDelete = jest
+      .fn()
+      .mockResolvedValue(true);
     mockHandlers.handle404 = jest.fn().mockResolvedValue(true);
 
-    jest.mock('../handlers', () => ({
-      handleAuth: mockHandlers.handleAuth,
-      handle404: mockHandlers.handle404
-    }));
+    jest.mock('../handlers', () => mockHandlers);
   });
 
   describe('when jwt token is not cached', () => {
@@ -48,6 +57,15 @@ describe('webserver/configure.js', () => {
     [
       {
         handlerFunc: 'handleAuth'
+      },
+      {
+        handlerFunc: 'handleGridTradeArchiveGetBySymbol'
+      },
+      {
+        handlerFunc: 'handleGridTradeArchiveGetByQuoteAsset'
+      },
+      {
+        handlerFunc: 'handleGridTradeArchiveDelete'
       },
       {
         handlerFunc: 'handle404'

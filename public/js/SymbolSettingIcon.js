@@ -27,6 +27,8 @@ class SymbolSettingIcon extends React.Component {
     this.resetToGlobalConfiguration =
       this.resetToGlobalConfiguration.bind(this);
     this.handleGridTradeChange = this.handleGridTradeChange.bind(this);
+    this.handleBotOptionsChange = this.handleBotOptionsChange.bind(this);
+
     this.handleSetValidation = this.handleSetValidation.bind(this);
   }
 
@@ -97,13 +99,16 @@ class SymbolSettingIcon extends React.Component {
     this.props.sendWebSocket('symbol-setting-delete', symbolInfo);
   }
 
-  resetGridTrade() {
+  resetGridTrade(action) {
     const { symbolInfo } = this.props;
 
     this.handleModalClose('confirm');
     this.handleModalClose('setting');
     this.handleModalClose('gridTrade');
-    this.props.sendWebSocket('symbol-grid-trade-delete', symbolInfo);
+    this.props.sendWebSocket('symbol-grid-trade-delete', {
+      action,
+      symbol: symbolInfo.symbol
+    });
   }
 
   handleGridTradeChange(type, newGrid) {
@@ -114,6 +119,18 @@ class SymbolSettingIcon extends React.Component {
         symbolConfiguration,
         `${type}.gridTrade`,
         newGrid
+      )
+    });
+  }
+
+  handleBotOptionsChange(newBotOptions) {
+    const { symbolConfiguration } = this.state;
+
+    this.setState({
+      symbolConfiguration: _.set(
+        symbolConfiguration,
+        'botOptions',
+        newBotOptions
       )
     });
   }
@@ -832,6 +849,11 @@ class SymbolSettingIcon extends React.Component {
                 </Card>
               </Accordion>
 
+              <SymbolSettingIconBotOptions
+                botOptions={symbolConfiguration.botOptions}
+                handleBotOptionsChange={this.handleBotOptionsChange}
+              />
+
               <Accordion defaultActiveKey='0'>
                 <Card className='mt-1'>
                   <Card.Header className='px-2 py-1'>
@@ -948,10 +970,16 @@ class SymbolSettingIcon extends React.Component {
               Cancel
             </Button>
             <Button
-              variant='success'
+              variant='info'
               size='sm'
-              onClick={() => this.resetGridTrade()}>
-              Yes
+              onClick={() => this.resetGridTrade('archive')}>
+              Archive and delete
+            </Button>
+            <Button
+              variant='danger'
+              size='sm'
+              onClick={() => this.resetGridTrade('delete')}>
+              Delete without archive
             </Button>
           </Modal.Footer>
         </Modal>

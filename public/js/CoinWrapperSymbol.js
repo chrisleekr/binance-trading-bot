@@ -15,6 +15,7 @@ class CoinWrapperSymbol extends React.Component {
       symbol,
       symbolInfo,
       lastCandle,
+      quoteAsset,
       baseAssetPrecision,
       quotePrecision,
       filterLotSize,
@@ -38,6 +39,13 @@ class CoinWrapperSymbol extends React.Component {
             className='coin-symbol'>
             {symbol}
           </a>
+          {this.isMonitoring() && (
+            <Spinner
+              animation='border'
+              size='sm'
+              className='coin-info-spinner'
+            />
+          )}
         </div>
         <div className='coin-info-column coin-info-column-icon'>
           <SymbolManualTradeIcon
@@ -54,13 +62,14 @@ class CoinWrapperSymbol extends React.Component {
             sendWebSocket={sendWebSocket}
             isAuthenticated={isAuthenticated}
           />
-          {this.isMonitoring() && (
-            <Spinner
-              animation='border'
-              size='sm'
-              className='coin-info-spinner'
-            />
-          )}
+
+          <SymbolGridTradeArchiveIcon
+            symbol={symbol}
+            quoteAsset={quoteAsset}
+            quoteAssetTickSize={quoteAssetTickSize}
+            isAuthenticated={isAuthenticated}
+          />
+
           <SymbolSettingIcon
             symbolInfo={symbolInfo}
             globalConfiguration={globalConfiguration}

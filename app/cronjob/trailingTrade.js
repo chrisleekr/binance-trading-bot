@@ -17,7 +17,7 @@ const {
   getSymbolConfiguration,
   getSymbolInfo,
   getOverrideAction,
-  ensureManualBuyOrder,
+  ensureManualOrder,
   ensureOrderPlaced,
   ensureGridTradeOrderExecuted,
   getBalances,
@@ -98,8 +98,8 @@ const execute = async logger => {
             stepFunc: getOverrideAction
           },
           {
-            stepName: 'ensure-manual-buy-order',
-            stepFunc: ensureManualBuyOrder
+            stepName: 'ensure-manual-order',
+            stepFunc: ensureManualOrder
           },
           {
             stepName: 'ensure-open-placed',
@@ -210,7 +210,11 @@ const execute = async logger => {
           `Job: Trailing Trade\n` +
           `Code: ${err.code}\n` +
           `Message:\`\`\`${err.message}\`\`\`\n` +
-          `Stack:\`\`\`${err.stack}\`\`\`\n` +
+          `${
+            config.get('featureToggle.notifyDebug')
+              ? `Stack:\`\`\`${err.stack}\`\`\`\n`
+              : ''
+          }` +
           `- Current API Usage: ${getAPILimit(logger)}`
       );
     }

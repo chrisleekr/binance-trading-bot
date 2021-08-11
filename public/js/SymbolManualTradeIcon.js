@@ -192,7 +192,6 @@ class SymbolManualTradeIcon extends React.Component {
 
   handleFormSubmit(e) {
     e.preventDefault();
-    console.log('handleFormSubmit', this.state.order);
 
     this.handleModalClose();
 

@@ -121,7 +121,7 @@ class CoinWrapperSetting extends React.Component {
         <div className='coin-info-column coin-info-column-title coin-info-column-title-setting'>
           <div className='coin-info-label'>
             <div className='mr-1'>
-              Setting -{' '}
+              Setting{' '}
               {this.isCustomised(configurationKeyName) ? (
                 <Badge pill variant='warning'>
                   Customised
@@ -140,7 +140,7 @@ class CoinWrapperSetting extends React.Component {
             onClick={this.toggleCollapse}>
             <i
               className={`fas ${
-                collapsed ? 'fas-arrow-right' : 'fas-arrow-down'
+                collapsed ? 'fa-arrow-right' : 'fa-arrow-down'
               }`}></i>
           </button>
         </div>
@@ -282,6 +282,33 @@ class CoinWrapperSetting extends React.Component {
               <span className='coin-info-label'>Order Type:</span>
               <div className='coin-info-value'>
                 {symbolConfiguration.sell.stopLoss.orderType}
+              </div>
+            </div>
+          </div>
+
+          <div className='coin-info-sub-wrapper'>
+            <div className='coin-info-sub-label'>
+              Bot Options - Auto Trigger Buy
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>Enabled:</span>
+              <span className='coin-info-value'>
+                {symbolConfiguration.botOptions.autoTriggerBuy.enabled ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </span>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>Trigger after:</span>
+              <div className='coin-info-value'>
+                {moment
+                  .duration(
+                    symbolConfiguration.botOptions.autoTriggerBuy.triggerAfter,
+                    'minutes'
+                  )
+                  .humanize()}
               </div>
             </div>
           </div>

@@ -272,6 +272,7 @@ React.js based frontend communicating via Web Socket:
 
 - List monitoring coins with buy/sell signals/open orders
 - View account balances
+- View open/closed trades
 - Manage global/symbol settings
 - Delete caches that are not monitored
 - Link to public URL
@@ -319,13 +320,6 @@ Or use the frontend to adjust configurations after launching the application.
    ```bash
    docker-compose -f docker-compose.server.yml pull
    docker-compose -f docker-compose.server.yml up -d
-   ```
-
-   Or if using Raspberry Pi 4 32bit, must build again for Raspberry Pi:
-
-   ```bash
-   npm run docker:build
-   docker-compose -f docker-compose.rpi.yml up -d
    ```
 
    Or if want development/test mode, then run below commands:
@@ -387,6 +381,7 @@ to view the past changes.
 - [ ] Develop simple setup screen for secrets
 - [ ] Support multilingual frontend - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
 - [ ] Non linear stop price and chase function - [#246](https://github.com/chrisleekr/binance-trading-bot/issues/246)
+- [ ] Support STOP-LOSS configuration per grid trade for selling - [#261](https://github.com/chrisleekr/binance-trading-bot/issues/261)
 
 ## Donations
 

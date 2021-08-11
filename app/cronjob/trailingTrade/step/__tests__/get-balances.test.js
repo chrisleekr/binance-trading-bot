@@ -38,7 +38,7 @@ describe('determine-action.js', () => {
               locked: '0.00000000',
               total: 0.1005,
               estimatedValue: 194.568,
-              updatedAt: expect.any(Object)
+              updatedAt: expect.any(String)
             },
             quoteAssetBalance: {
               asset: 'USDT',
@@ -76,7 +76,7 @@ describe('determine-action.js', () => {
               locked: '0.00000000',
               total: 0.1005,
               estimatedValue: 0,
-              updatedAt: expect.any(Object)
+              updatedAt: expect.any(String)
             },
             quoteAssetBalance: {
               asset: 'USDT',
@@ -115,7 +115,7 @@ describe('determine-action.js', () => {
             locked: 0,
             total: 0,
             estimatedValue: 0,
-            updatedAt: expect.any(Object)
+            updatedAt: expect.any(String)
           },
           quoteAssetBalance: {
             asset: 'TUSD',

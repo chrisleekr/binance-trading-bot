@@ -212,7 +212,7 @@ const execute = async (logger, rawData) => {
         'Order does not exist in the open orders. Wait until it appears.'
       );
 
-      if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+      if (_.get(featureToggle, 'notifyDebug', false) === true) {
         slack.sendMessage(
           `${symbol} Action (${moment().format(
             'HH:mm:ss.SSS'
@@ -318,7 +318,7 @@ const execute = async (logger, rawData) => {
         'Order does not exist in the open orders. Wait until it appears.'
       );
 
-      if (_.get(featureToggle, 'notifyOrderConfirm', false) === true) {
+      if (_.get(featureToggle, 'notifyDebug', false) === true) {
         slack.sendMessage(
           `${symbol} Action (${moment().format(
             'HH:mm:ss.SSS'

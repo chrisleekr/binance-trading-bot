@@ -26,6 +26,7 @@ class CoinWrapperSellSignal extends React.Component {
       },
       symbolConfiguration,
       quoteAssetBalance: { asset: quoteAsset },
+      buy,
       sell
     } = symbolInfo;
 
@@ -49,6 +50,17 @@ class CoinWrapperSellSignal extends React.Component {
               <span className='coin-info-label'>Grid Trade #{i + 1}</span>
 
               <div className='coin-info-value'>
+                {buy.openOrders.length === 0 &&
+                sell.openOrders.length === 0 &&
+                currentGridTradeIndex === i ? (
+                  <SymbolTriggerSellIcon
+                    symbol={symbol}
+                    sendWebSocket={sendWebSocket}
+                    isAuthenticated={isAuthenticated}></SymbolTriggerSellIcon>
+                ) : (
+                  ''
+                )}
+
                 <OverlayTrigger
                   trigger='click'
                   key={'sell-signal-' + symbol + '-' + i + '-overlay'}

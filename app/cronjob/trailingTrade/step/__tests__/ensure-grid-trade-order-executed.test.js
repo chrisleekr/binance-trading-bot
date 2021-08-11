@@ -809,7 +809,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 {
                   disabledBy: 'buy filled order',
                   message:
-                    'Disabled action after founding filled grid trade order .',
+                    'Disabled action after confirming filled grid trade order.',
                   canResume: false,
                   canRemoveLastBuyPrice: false
                 },
@@ -914,7 +914,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
                     {
                       disabledBy: 'buy filled order',
                       message:
-                        'Disabled action after founding filled grid trade order .',
+                        'Disabled action after confirming filled grid trade order.',
                       canResume: false,
                       canRemoveLastBuyPrice: false
                     },
@@ -1581,9 +1581,9 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 {
                   disabledBy: 'sell filled order',
                   message:
-                    'Disabled action after founding filled grid trade order .',
+                    'Disabled action after confirming filled grid trade order.',
                   canResume: false,
-                  canRemoveLastBuyPrice: false
+                  canRemoveLastBuyPrice: true
                 },
                 20
               );
@@ -1678,9 +1678,9 @@ describe('ensure-grid-trade-order-executed.js', () => {
                     {
                       disabledBy: 'sell filled order',
                       message:
-                        'Disabled action after founding filled grid trade order .',
+                        'Disabled action after confirming filled grid trade order.',
                       canResume: false,
-                      canRemoveLastBuyPrice: false
+                      canRemoveLastBuyPrice: true
                     },
                     20
                   );

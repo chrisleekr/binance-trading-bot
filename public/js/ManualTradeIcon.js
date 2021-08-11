@@ -169,7 +169,6 @@ class ManualTradeIcon extends React.Component {
   }
 
   handleInput(e, precision) {
-    console.log('precision => ', precision);
     // Make string to get precision length
     const value = e.target.value + '';
     if (
@@ -353,7 +352,6 @@ class ManualTradeIcon extends React.Component {
     const { orders } = this.state;
 
     const newOrders = this.calculateBalance(_.set(orders, stateKey, value));
-    console.log('newOrders => ', newOrders);
     this.setState({
       orders: newOrders
     });
@@ -361,7 +359,6 @@ class ManualTradeIcon extends React.Component {
 
   handleFormSubmit(e) {
     e.preventDefault();
-    console.log('handleFormSubmit', this.state.orders);
 
     this.handleModalClose();
 

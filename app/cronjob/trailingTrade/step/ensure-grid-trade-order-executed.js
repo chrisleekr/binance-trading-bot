@@ -86,7 +86,10 @@ const slackMessageOrderFilled = async (
   orderResult,
   notifyOrderExecute
 ) => {
-  const type = orderParams.type.toUpperCase();
+  const type =
+    orderParams?.type?.toUpperCase() ||
+    orderResult?.type?.toUpperCase() ||
+    'Undefined';
 
   const humanisedGridTradeIndex = orderParams.currentGridTradeIndex + 1;
 
@@ -132,7 +135,10 @@ const slackMessageOrderDeleted = async (
   orderResult,
   notifyOrderExecute
 ) => {
-  const type = orderParams.type.toUpperCase();
+  const type =
+    orderParams?.type?.toUpperCase() ||
+    orderResult?.type?.toUpperCase() ||
+    'Undefined';
 
   const humanisedGridTradeIndex = orderParams.currentGridTradeIndex + 1;
 
@@ -283,7 +289,7 @@ const execute = async (logger, rawData) => {
             'HH:mm:ss.SSS'
           )}): \n` +
             `- Save Grid Trade Result: \`\`\`${JSON.stringify(
-              saveGridTradeResult,
+              _.get(saveGridTradeResult, 'result', 'Not defined'),
               undefined,
               2
             )}\`\`\`\n` +
@@ -308,7 +314,7 @@ const execute = async (logger, rawData) => {
       slackMessageOrderFilled(
         logger,
         symbol,
-        lastBuyOrder.side,
+        'buy',
         lastBuyOrder,
         lastBuyOrder,
         notifyOrderExecute
@@ -319,7 +325,7 @@ const execute = async (logger, rawData) => {
         symbol,
         {
           disabledBy: 'buy filled order',
-          message: 'Disabled action after founding filled grid trade order .',
+          message: 'Disabled action after confirming filled grid trade order.',
           canResume: false,
           canRemoveLastBuyPrice: false
         },
@@ -398,7 +404,7 @@ const execute = async (logger, rawData) => {
                 'HH:mm:ss.SSS'
               )}): \n` +
                 `- Save Grid Trade Result: \`\`\`${JSON.stringify(
-                  saveGridTradeResult,
+                  _.get(saveGridTradeResult, 'result', 'Not defined'),
                   undefined,
                   2
                 )}\`\`\`\n` +
@@ -426,7 +432,7 @@ const execute = async (logger, rawData) => {
           slackMessageOrderFilled(
             logger,
             symbol,
-            lastBuyOrder.side,
+            'buy',
             lastBuyOrder,
             orderResult,
             notifyOrderExecute
@@ -438,7 +444,7 @@ const execute = async (logger, rawData) => {
             {
               disabledBy: 'buy filled order',
               message:
-                'Disabled action after founding filled grid trade order .',
+                'Disabled action after confirming filled grid trade order.',
               canResume: false,
               canRemoveLastBuyPrice: false
             },
@@ -465,7 +471,7 @@ const execute = async (logger, rawData) => {
           slackMessageOrderDeleted(
             logger,
             symbol,
-            lastBuyOrder.side,
+            'buy',
             lastBuyOrder,
             orderResult,
             notifyOrderExecute
@@ -537,7 +543,7 @@ const execute = async (logger, rawData) => {
             'HH:mm:ss.SSS'
           )}): \n` +
             `- Save Grid Trade Result: \`\`\`${JSON.stringify(
-              saveGridTradeResult,
+              _.get(saveGridTradeResult, 'result', 'Not defined'),
               undefined,
               2
             )}\`\`\`\n` +
@@ -562,7 +568,7 @@ const execute = async (logger, rawData) => {
       slackMessageOrderFilled(
         logger,
         symbol,
-        lastSellOrder.side,
+        'sell',
         lastSellOrder,
         lastSellOrder,
         notifyOrderExecute
@@ -573,9 +579,9 @@ const execute = async (logger, rawData) => {
         symbol,
         {
           disabledBy: 'sell filled order',
-          message: 'Disabled action after founding filled grid trade order .',
+          message: 'Disabled action after confirming filled grid trade order.',
           canResume: false,
-          canRemoveLastBuyPrice: false
+          canRemoveLastBuyPrice: true
         },
         temporaryDisableActionAfterConfirmingOrder
       );
@@ -649,7 +655,7 @@ const execute = async (logger, rawData) => {
                 'HH:mm:ss.SSS'
               )}): \n` +
                 `- Save Grid Trade Result: \`\`\`${JSON.stringify(
-                  saveGridTradeResult,
+                  _.get(saveGridTradeResult, 'result', 'Not defined'),
                   undefined,
                   2
                 )}\`\`\`\n` +
@@ -677,7 +683,7 @@ const execute = async (logger, rawData) => {
           slackMessageOrderFilled(
             logger,
             symbol,
-            lastSellOrder.side,
+            'sell',
             lastSellOrder,
             orderResult,
             notifyOrderExecute
@@ -689,9 +695,9 @@ const execute = async (logger, rawData) => {
             {
               disabledBy: 'sell filled order',
               message:
-                'Disabled action after founding filled grid trade order .',
+                'Disabled action after confirming filled grid trade order.',
               canResume: false,
-              canRemoveLastBuyPrice: false
+              canRemoveLastBuyPrice: true
             },
             temporaryDisableActionAfterConfirmingOrder
           );
@@ -716,7 +722,7 @@ const execute = async (logger, rawData) => {
           slackMessageOrderDeleted(
             logger,
             symbol,
-            lastSellOrder.side,
+            'sell',
             lastSellOrder,
             orderResult,
             notifyOrderExecute

@@ -2,7 +2,13 @@ const { v4: uuidv4 } = require('uuid');
 
 const { cache } = require('../../helpers');
 
-const { handleAuth, handle404 } = require('./handlers');
+const {
+  handleAuth,
+  handleGridTradeArchiveGetBySymbol,
+  handleGridTradeArchiveGetByQuoteAsset,
+  handleGridTradeArchiveDelete,
+  handle404
+} = require('./handlers');
 
 const configureJWTToken = async () => {
   let jwtSecret = await cache.get('auth-jwt-secret');
@@ -22,6 +28,9 @@ const configureWebServer = async (app, funcLogger) => {
   await configureJWTToken();
 
   handleAuth(logger, app);
+  handleGridTradeArchiveGetBySymbol(logger, app);
+  handleGridTradeArchiveGetByQuoteAsset(logger, app);
+  handleGridTradeArchiveDelete(logger, app);
   handle404(logger, app);
 };
 

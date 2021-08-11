@@ -53,6 +53,10 @@
         "authentication": {
           "lockList": true,
           "lockAfter": 120
+        },
+        "autoTriggerBuy": {
+          "enabled": false,
+          "triggerAfter": 20
         }
       },
       "candles": {
@@ -101,7 +105,7 @@
       },
       "system": {
         "temporaryDisableActionAfterConfirmingOrder": 20,
-        "checkManualBuyOrderPeriod": 5,
+        "checkManualOrderPeriod": 5,
         "placeManualOrderInterval": 5,
         "refreshAccountInfoPeriod": 1,
         "checkOrderExecutePeriod": 10

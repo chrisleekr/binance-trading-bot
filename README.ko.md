@@ -309,13 +309,6 @@
    docker-compose -f docker-compose.server.yml up -d
    ```
 
-   라즈베리 파이 4 32bit를 사용하실 경우, 이미지를 다시 빌드하시기 바랍니다:
-
-   ```bash
-   npm run docker:build
-   docker-compose -f docker-compose.rpi.yml up -d
-   ```
-
    테스트 모드를 사용하실려면, 아래 명령어를 실행하시면 됩니다:
 
    ```bash

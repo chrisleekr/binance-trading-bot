@@ -291,13 +291,6 @@ The final profit would be
    docker-compose -f docker-compose.server.yml up -d
    ```
 
-   Or if using Raspberry Pi 4 32bit, must build again for Raspberry Pi:
-
-   ```bash
-   npm run docker:build
-   docker-compose -f docker-compose.rpi.yml up -d
-   ```
-
    Or if want development mode, then run below commands:
 
    ```bash

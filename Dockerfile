@@ -1,7 +1,7 @@
 # development stage
 FROM node:14-alpine AS dev-stage
 
-RUN apk add --no-cache make gcc g++ python
+RUN apk add --no-cache make gcc g++ py-pip
 
 # Add configuration files
 COPY image-files/ /

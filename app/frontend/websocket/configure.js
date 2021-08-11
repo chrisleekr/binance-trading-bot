@@ -1,7 +1,10 @@
 const WebSocket = require('ws');
-const jwt = require('jsonwebtoken');
 
-const { PubSub, cache } = require('../../helpers');
+const {
+  verifyAuthenticated
+} = require('../../cronjob/trailingTradeHelper/common');
+
+const { PubSub } = require('../../helpers');
 
 const {
   handleLatest,
@@ -13,6 +16,7 @@ const {
   handleSymbolGridTradeDelete,
   handleSymbolEnableAction,
   handleSymbolTriggerBuy,
+  handleSymbolTriggerSell,
   handleManualTrade,
   handleManualTradeAllSymbols,
   handleCancelOrder,
@@ -32,26 +36,6 @@ const handleWarning = (logger, ws, message) => {
       }
     })
   );
-};
-
-const verifyAuthenticated = async (commandLogger, payload) => {
-  const { authToken } = payload;
-
-  const logger = commandLogger.child({ tag: 'verifyAuthenticated' });
-
-  const jwtSecret = await cache.get('auth-jwt-secret');
-
-  logger.info({ authToken, jwtSecret }, 'Verifying authentication');
-  let data = null;
-  try {
-    data = jwt.verify(authToken, jwtSecret, { algorithm: 'HS256' });
-  } catch (err) {
-    logger.info({ err }, 'Failed authentication');
-    return false;
-  }
-
-  logger.info({ data }, 'Success authentication');
-  return true;
 };
 
 const configureWebSocket = async (server, funcLogger) => {
@@ -87,6 +71,7 @@ const configureWebSocket = async (server, funcLogger) => {
         'symbol-grid-trade-delete': handleSymbolGridTradeDelete,
         'symbol-enable-action': handleSymbolEnableAction,
         'symbol-trigger-buy': handleSymbolTriggerBuy,
+        'symbol-trigger-sell': handleSymbolTriggerSell,
         'manual-trade': handleManualTrade,
         'manual-trade-all-symbols': handleManualTradeAllSymbols,
         'cancel-order': handleCancelOrder,
@@ -99,7 +84,10 @@ const configureWebSocket = async (server, funcLogger) => {
         return;
       }
 
-      const isAuthenticated = await verifyAuthenticated(commandLogger, payload);
+      const isAuthenticated = await verifyAuthenticated(
+        commandLogger,
+        payload.authToken
+      );
       if (payload.command === 'latest') {
         // Latest command will handle authentication separately.
         payload.isAuthenticated = isAuthenticated;

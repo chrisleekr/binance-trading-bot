@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Support triggering buy automatically after configured minutes
+- Support triggering grid trade for selling manually
+- Save trades when the last buy price is removed
+- Display closed trades history
+- Display closed trades profit
+- Support deleting trade history
+- Support ARM/v7 docker image in the DockerHub
+
 ## [0.0.74] - 2021-08-01
 
 - Secure frontend with the password authentication. Thanks [@pedrohusky](https://github.com/pedrohusky) - [#240](https://github.com/chrisleekr/binance-trading-bot/pull/240)

@@ -40,6 +40,7 @@ const handleLatest = async (logger, ws, payload) => {
         botOptions: globalConfiguration.botOptions,
         configuration: {},
         common: {},
+        quoteStats: [],
         stats: {}
       })
     );
@@ -50,6 +51,10 @@ const handleLatest = async (logger, ws, payload) => {
   const cacheTrailingTradeCommon = await cache.hgetall('trailing-trade-common');
   const cacheTrailingTradeSymbols = await cache.hgetall(
     'trailing-trade-symbols'
+  );
+  const cacheTrailingTradeQuoteStats = _.map(
+    await cache.hgetall('trailing-trade-quote-stats'),
+    stats => JSON.parse(stats)
   );
 
   const stats = {
@@ -64,7 +69,8 @@ const handleLatest = async (logger, ws, payload) => {
       accountInfo: JSON.parse(cacheTrailingTradeCommon['account-info']),
       exchangeSymbols: JSON.parse(cacheTrailingTradeCommon['exchange-symbols']),
       publicURL: cacheTrailingTradeCommon['local-tunnel-url'],
-      apiInfo: binance.client.getInfo()
+      apiInfo: binance.client.getInfo(),
+      quoteStats: cacheTrailingTradeQuoteStats
     };
   } catch (e) {
     logger.error({ e }, 'Something wrong with trailing-trade-common cache');

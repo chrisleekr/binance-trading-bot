@@ -26,8 +26,6 @@ class SymbolSettingIconGridSell extends React.Component {
     ) {
       const { gridTrade } = nextProps;
 
-      console.log('componentDidUpdate gridTrade', { gridTrade });
-
       this.setState({
         gridTrade
       });
@@ -48,7 +46,6 @@ class SymbolSettingIconGridSell extends React.Component {
     const { gridTrade } = this.state;
 
     const newGridTrade = _.set(gridTrade, stateKey, value);
-    console.log('handleInputChange new grid trade', newGridTrade);
 
     this.setState({
       gridTrade: newGridTrade
@@ -76,7 +73,6 @@ class SymbolSettingIconGridSell extends React.Component {
       });
     }
 
-    console.log('onAddGridTrade new grid trade', newGridTrade);
     this.setState({
       gridTrade: newGridTrade
     });
@@ -95,7 +91,6 @@ class SymbolSettingIconGridSell extends React.Component {
     });
     this.validateGridTrade(gridTrade);
     this.props.handleGridTradeChange('sell', gridTrade);
-    console.log('onRemoveGridTrade new grid trade', gridTrade);
   }
 
   /**
@@ -175,14 +170,6 @@ class SymbolSettingIconGridSell extends React.Component {
 
       validation.push(v);
     });
-
-    console.log(
-      {
-        canAddNewGridTrade,
-        validation
-      },
-      'validation'
-    );
 
     this.setState({
       canAddNewGridTrade,

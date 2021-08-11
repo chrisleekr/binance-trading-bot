@@ -12,7 +12,6 @@ services:
     environment:
       # - BINANCE_MODE=test
       - BINANCE_MODE=live
-      - BINANCE_SLACK_ENABLED=true
       - BINANCE_JOBS_ALIVE_ENABLED=true
       - BINANCE_JOBS_TRAILING_TRADE_ENABLED=true
       - BINANCE_REDIS_HOST=binance-redis

@@ -122,8 +122,7 @@ const execute = async (logger, rawData) => {
                 `\`\`\`${JSON.stringify(
                   {
                     order,
-                    openOrders: data.openOrders,
-                    accountInfo: data.accountInfo
+                    openOrders: data.openOrders
                   },
                   undefined,
                   2

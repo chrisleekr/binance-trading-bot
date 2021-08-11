@@ -10,6 +10,7 @@ class CoinWrapper extends React.Component {
       symbol,
       lastCandle,
       symbolInfo: {
+        quoteAsset,
         baseAssetPrecision,
         quotePrecision,
         filterPrice,
@@ -38,6 +39,7 @@ class CoinWrapper extends React.Component {
             symbol={symbol}
             symbolInfo={symbolInfo}
             lastCandle={lastCandle}
+            quoteAsset={quoteAsset}
             baseAssetPrecision={baseAssetPrecision}
             quotePrecision={quotePrecision}
             filterLotSize={filterLotSize}
