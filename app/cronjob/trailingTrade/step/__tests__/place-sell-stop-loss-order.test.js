@@ -15,6 +15,8 @@ describe('place-sell-stop-loss-order.js', () => {
   let mockGetAPILimit;
   let mockSaveOrder;
 
+  let mockSaveSymbolGridTrade;
+
   describe('execute', () => {
     beforeEach(() => {
       jest.clearAllMocks().resetModules();
@@ -33,6 +35,8 @@ describe('place-sell-stop-loss-order.js', () => {
       mockDisableAction = jest.fn().mockResolvedValue(true);
       mockGetAPILimit = jest.fn().mockReturnValueOnce(10);
       mockSaveOrder = jest.fn().mockResolvedValue(true);
+
+      mockSaveSymbolGridTrade = jest.fn().mockResolvedValue(true);
     });
 
     describe('when symbol is locked', () => {
@@ -51,6 +55,10 @@ describe('place-sell-stop-loss-order.js', () => {
           saveOrder: mockSaveOrder
         }));
 
+        jest.mock('../../../trailingTradeHelper/configuration', () => ({
+          saveSymbolGridTrade: mockSaveSymbolGridTrade
+        }));
+
         const step = require('../place-sell-stop-loss-order');
 
         rawData = {
@@ -66,8 +74,10 @@ describe('place-sell-stop-loss-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            buy: { gridTrade: [] },
             sell: {
               enabled: true,
+              gridTrade: [],
               stopLoss: {
                 orderType: 'market',
                 disableBuyMinutes: 60
@@ -92,6 +102,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
       it('does not trigger getAccountInfoFromAPI', () => {
         expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveSymbolGridTrade', () => {
+        expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveOrder', () => {
@@ -119,6 +133,10 @@ describe('place-sell-stop-loss-order.js', () => {
           saveOrder: mockSaveOrder
         }));
 
+        jest.mock('../../../trailingTradeHelper/configuration', () => ({
+          saveSymbolGridTrade: mockSaveSymbolGridTrade
+        }));
+
         const step = require('../place-sell-stop-loss-order');
 
         rawData = {
@@ -134,8 +152,10 @@ describe('place-sell-stop-loss-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            buy: { gridTrade: [] },
             sell: {
               enabled: true,
+              gridTrade: [],
               stopLoss: {
                 orderType: 'market',
                 disableBuyMinutes: 60
@@ -160,6 +180,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
       it('does not trigger getAccountInfoFromAPI', () => {
         expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveSymbolGridTrade', () => {
+        expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveOrder', () => {
@@ -187,6 +211,10 @@ describe('place-sell-stop-loss-order.js', () => {
           saveOrder: mockSaveOrder
         }));
 
+        jest.mock('../../../trailingTradeHelper/configuration', () => ({
+          saveSymbolGridTrade: mockSaveSymbolGridTrade
+        }));
+
         const step = require('../place-sell-stop-loss-order');
 
         rawData = {
@@ -202,8 +230,10 @@ describe('place-sell-stop-loss-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            buy: { gridTrade: [] },
             sell: {
               enabled: true,
+              gridTrade: [],
               stopLoss: {
                 orderType: 'market',
                 disableBuyMinutes: 60
@@ -240,6 +270,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
       it('does not trigger getAccountInfoFromAPI', () => {
         expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveSymbolGridTrade', () => {
+        expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveOrder', () => {
@@ -288,6 +322,10 @@ describe('place-sell-stop-loss-order.js', () => {
             saveOrder: mockSaveOrder
           }));
 
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            saveSymbolGridTrade: mockSaveSymbolGridTrade
+          }));
+
           const step = require('../place-sell-stop-loss-order');
 
           rawData = {
@@ -303,8 +341,10 @@ describe('place-sell-stop-loss-order.js', () => {
               filterMinNotional: { minNotional: '10.00000000' }
             },
             symbolConfiguration: {
+              buy: { gridTrade: [] },
               sell: {
                 enabled: true,
+                gridTrade: [],
                 stopLoss: {
                   orderType: 'market',
                   disableBuyMinutes: 60
@@ -332,6 +372,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
         it('does not trigger getAccountInfoFromAPI', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveSymbolGridTrade', () => {
+          expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
         });
 
         it('does not trigger saveOrder', () => {
@@ -371,6 +415,10 @@ describe('place-sell-stop-loss-order.js', () => {
             saveOrder: mockSaveOrder
           }));
 
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            saveSymbolGridTrade: mockSaveSymbolGridTrade
+          }));
+
           const step = require('../place-sell-stop-loss-order');
 
           rawData = {
@@ -386,8 +434,10 @@ describe('place-sell-stop-loss-order.js', () => {
               filterMinNotional: { minNotional: '0.00010000' }
             },
             symbolConfiguration: {
+              buy: { gridTrade: [] },
               sell: {
                 enabled: true,
+                gridTrade: [],
                 stopLoss: {
                   orderType: 'market',
                   disableBuyMinutes: 60
@@ -415,6 +465,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
         it('does not trigger getAccountInfoFromAPI', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveSymbolGridTrade', () => {
+          expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
         });
 
         it('does not trigger saveOrder', () => {
@@ -454,6 +508,10 @@ describe('place-sell-stop-loss-order.js', () => {
             saveOrder: mockSaveOrder
           }));
 
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            saveSymbolGridTrade: mockSaveSymbolGridTrade
+          }));
+
           const step = require('../place-sell-stop-loss-order');
 
           rawData = {
@@ -469,8 +527,10 @@ describe('place-sell-stop-loss-order.js', () => {
               filterMinNotional: { minNotional: '10.00000000' }
             },
             symbolConfiguration: {
+              buy: { gridTrade: [] },
               sell: {
                 enabled: true,
+                gridTrade: [],
                 stopLoss: {
                   orderType: 'market',
                   disableBuyMinutes: 60
@@ -498,6 +558,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
         it('does not trigger getAccountInfoFromAPI', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveSymbolGridTrade', () => {
+          expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
         });
 
         it('does not trigger saveOrder', () => {
@@ -539,6 +603,10 @@ describe('place-sell-stop-loss-order.js', () => {
             saveOrder: mockSaveOrder
           }));
 
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            saveSymbolGridTrade: mockSaveSymbolGridTrade
+          }));
+
           const step = require('../place-sell-stop-loss-order');
 
           rawData = {
@@ -554,8 +622,10 @@ describe('place-sell-stop-loss-order.js', () => {
               filterMinNotional: { minNotional: '10.00000000' }
             },
             symbolConfiguration: {
+              buy: { gridTrade: [] },
               sell: {
                 enabled: true,
+                gridTrade: [],
                 stopLoss: {
                   orderType: 'market',
                   disableBuyMinutes: 60
@@ -583,6 +653,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
         it('does not trigger getAccountInfoFromAPI', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveSymbolGridTrade', () => {
+          expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
         });
 
         it('does not trigger saveOrder', () => {
@@ -621,6 +695,10 @@ describe('place-sell-stop-loss-order.js', () => {
             saveOrder: mockSaveOrder
           }));
 
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            saveSymbolGridTrade: mockSaveSymbolGridTrade
+          }));
+
           const step = require('../place-sell-stop-loss-order');
 
           rawData = {
@@ -636,8 +714,10 @@ describe('place-sell-stop-loss-order.js', () => {
               filterMinNotional: { minNotional: '0.00010000' }
             },
             symbolConfiguration: {
+              buy: { gridTrade: [] },
               sell: {
                 enabled: true,
+                gridTrade: [],
                 stopLoss: {
                   orderType: 'market',
                   disableBuyMinutes: 60
@@ -665,6 +745,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
         it('does not trigger getAccountInfoFromAPI', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveSymbolGridTrade', () => {
+          expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
         });
 
         it('does not trigger saveOrder', () => {
@@ -703,6 +787,10 @@ describe('place-sell-stop-loss-order.js', () => {
             saveOrder: mockSaveOrder
           }));
 
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            saveSymbolGridTrade: mockSaveSymbolGridTrade
+          }));
+
           const step = require('../place-sell-stop-loss-order');
 
           rawData = {
@@ -718,8 +806,10 @@ describe('place-sell-stop-loss-order.js', () => {
               filterMinNotional: { minNotional: '10.00000000' }
             },
             symbolConfiguration: {
+              buy: { gridTrade: [] },
               sell: {
                 enabled: true,
+                gridTrade: [],
                 stopLoss: {
                   orderType: 'market',
                   disableBuyMinutes: 60
@@ -747,6 +837,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
         it('does not trigger getAccountInfoFromAPI', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveSymbolGridTrade', () => {
+          expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
         });
 
         it('does not trigger saveOrder', () => {
@@ -786,6 +880,10 @@ describe('place-sell-stop-loss-order.js', () => {
           saveOrder: mockSaveOrder
         }));
 
+        jest.mock('../../../trailingTradeHelper/configuration', () => ({
+          saveSymbolGridTrade: mockSaveSymbolGridTrade
+        }));
+
         const step = require('../place-sell-stop-loss-order');
 
         rawData = {
@@ -801,8 +899,10 @@ describe('place-sell-stop-loss-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            buy: { gridTrade: [] },
             sell: {
               enabled: false,
+              gridTrade: [],
               stopLoss: {
                 orderType: 'market',
                 disableBuyMinutes: 60
@@ -830,6 +930,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
       it('does not trigger getAccountInfoFromAPI', () => {
         expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveSymbolGridTrade', () => {
+        expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveOrder', () => {
@@ -870,6 +974,10 @@ describe('place-sell-stop-loss-order.js', () => {
           saveOrder: mockSaveOrder
         }));
 
+        jest.mock('../../../trailingTradeHelper/configuration', () => ({
+          saveSymbolGridTrade: mockSaveSymbolGridTrade
+        }));
+
         const step = require('../place-sell-stop-loss-order');
 
         rawData = {
@@ -885,8 +993,10 @@ describe('place-sell-stop-loss-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            buy: { gridTrade: [] },
             sell: {
               enabled: true,
+              gridTrade: [],
               stopLoss: {
                 orderType: 'something',
                 disableBuyMinutes: 60
@@ -914,6 +1024,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
       it('does not trigger getAccountInfoFromAPI', () => {
         expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveSymbolGridTrade', () => {
+        expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveOrder', () => {
@@ -952,6 +1066,10 @@ describe('place-sell-stop-loss-order.js', () => {
           saveOrder: mockSaveOrder
         }));
 
+        jest.mock('../../../trailingTradeHelper/configuration', () => ({
+          saveSymbolGridTrade: mockSaveSymbolGridTrade
+        }));
+
         const step = require('../place-sell-stop-loss-order');
 
         rawData = {
@@ -967,8 +1085,10 @@ describe('place-sell-stop-loss-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            buy: { gridTrade: [] },
             sell: {
               enabled: true,
+              gridTrade: [],
               stopLoss: {
                 orderType: 'something',
                 disableBuyMinutes: 60
@@ -996,6 +1116,10 @@ describe('place-sell-stop-loss-order.js', () => {
 
       it('does not trigger getAccountInfoFromAPI', () => {
         expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveSymbolGridTrade', () => {
+        expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveOrder', () => {
@@ -1053,6 +1177,10 @@ describe('place-sell-stop-loss-order.js', () => {
               saveOrder: mockSaveOrder
             }));
 
+            jest.mock('../../../trailingTradeHelper/configuration', () => ({
+              saveSymbolGridTrade: mockSaveSymbolGridTrade
+            }));
+
             const step = require('../place-sell-stop-loss-order');
 
             rawData = {
@@ -1068,8 +1196,29 @@ describe('place-sell-stop-loss-order.js', () => {
                 filterMinNotional: { minNotional: '10.00000000' }
               },
               symbolConfiguration: {
+                buy: {
+                  gridTrade: [
+                    {
+                      executed: true,
+                      executedOrder: {
+                        symbol: 'BTCUPUSDT',
+                        orderId: 2792607,
+                        cummulativeQuoteQty: '14.97195000',
+                        status: 'FILLED',
+                        type: 'STOP_LOSS_LIMIT',
+                        side: 'BUY'
+                      }
+                    }
+                  ]
+                },
                 sell: {
                   enabled: true,
+                  gridTrade: [
+                    {
+                      executed: false,
+                      executedOrder: null
+                    }
+                  ],
                   stopLoss: {
                     orderType: 'market',
                     disableBuyMinutes: 60
@@ -1115,6 +1264,41 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveSymbolGridTrade', () => {
+            expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCUPUSDT',
+              {
+                buy: [
+                  {
+                    executed: true,
+                    executedOrder: {
+                      symbol: 'BTCUPUSDT',
+                      orderId: 2792607,
+                      cummulativeQuoteQty: '14.97195000',
+                      status: 'FILLED',
+                      type: 'STOP_LOSS_LIMIT',
+                      side: 'BUY'
+                    }
+                  }
+                ],
+                sell: [
+                  {
+                    executed: false,
+                    executedOrder: null
+                  }
+                ],
+                stopLoss: {
+                  symbol: 'BTCUPUSDT',
+                  orderId: 2701762317,
+                  orderListId: -1,
+                  clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                  transactTime: 1626946722520
+                }
+              }
+            );
           });
 
           it('triggers saveOrder', () => {
@@ -1199,6 +1383,10 @@ describe('place-sell-stop-loss-order.js', () => {
               saveOrder: mockSaveOrder
             }));
 
+            jest.mock('../../../trailingTradeHelper/configuration', () => ({
+              saveSymbolGridTrade: mockSaveSymbolGridTrade
+            }));
+
             const step = require('../place-sell-stop-loss-order');
 
             rawData = {
@@ -1214,8 +1402,36 @@ describe('place-sell-stop-loss-order.js', () => {
                 filterMinNotional: { minNotional: '0.00010000' }
               },
               symbolConfiguration: {
+                buy: {
+                  gridTrade: [
+                    {
+                      executed: true,
+                      executedOrder: {
+                        symbol: 'ALPHABTC',
+                        orderId: 2792607,
+                        cummulativeQuoteQty: '14.97195000',
+                        status: 'FILLED',
+                        type: 'STOP_LOSS_LIMIT',
+                        side: 'BUY'
+                      }
+                    }
+                  ]
+                },
                 sell: {
                   enabled: true,
+                  gridTrade: [
+                    {
+                      executed: true,
+                      executedOrder: {
+                        symbol: 'ALPHABTC',
+                        orderId: 2792607,
+                        cummulativeQuoteQty: '14.97195000',
+                        status: 'FILLED',
+                        type: 'STOP_LOSS_LIMIT',
+                        side: 'SELL'
+                      }
+                    }
+                  ],
                   stopLoss: {
                     orderType: 'market',
                     disableBuyMinutes: 60
@@ -1261,6 +1477,48 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveSymbolGridTrade', () => {
+            expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              'ALPHABTC',
+              {
+                buy: [
+                  {
+                    executed: true,
+                    executedOrder: {
+                      symbol: 'ALPHABTC',
+                      orderId: 2792607,
+                      cummulativeQuoteQty: '14.97195000',
+                      status: 'FILLED',
+                      type: 'STOP_LOSS_LIMIT',
+                      side: 'BUY'
+                    }
+                  }
+                ],
+                sell: [
+                  {
+                    executed: true,
+                    executedOrder: {
+                      symbol: 'ALPHABTC',
+                      orderId: 2792607,
+                      cummulativeQuoteQty: '14.97195000',
+                      status: 'FILLED',
+                      type: 'STOP_LOSS_LIMIT',
+                      side: 'SELL'
+                    }
+                  }
+                ],
+                stopLoss: {
+                  symbol: 'ALPHABTC',
+                  orderId: 2701762317,
+                  orderListId: -1,
+                  clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                  transactTime: 1626946722520
+                }
+              }
+            );
           });
 
           it('triggers saveOrder', () => {
@@ -1345,6 +1603,10 @@ describe('place-sell-stop-loss-order.js', () => {
               saveOrder: mockSaveOrder
             }));
 
+            jest.mock('../../../trailingTradeHelper/configuration', () => ({
+              saveSymbolGridTrade: mockSaveSymbolGridTrade
+            }));
+
             const step = require('../place-sell-stop-loss-order');
 
             rawData = {
@@ -1360,8 +1622,36 @@ describe('place-sell-stop-loss-order.js', () => {
                 filterMinNotional: { minNotional: '10.00000000' }
               },
               symbolConfiguration: {
+                buy: {
+                  gridTrade: [
+                    {
+                      executed: true,
+                      executedOrder: {
+                        symbol: 'BTCBRL',
+                        orderId: 2792607,
+                        cummulativeQuoteQty: '14.97195000',
+                        status: 'FILLED',
+                        type: 'STOP_LOSS_LIMIT',
+                        side: 'BUY'
+                      }
+                    }
+                  ]
+                },
                 sell: {
                   enabled: true,
+                  gridTrade: [
+                    {
+                      executed: true,
+                      executedOrder: {
+                        symbol: 'BTCBRL',
+                        orderId: 2792607,
+                        cummulativeQuoteQty: '14.97195000',
+                        status: 'FILLED',
+                        type: 'STOP_LOSS_LIMIT',
+                        side: 'BUY'
+                      }
+                    }
+                  ],
                   stopLoss: {
                     orderType: 'market',
                     disableBuyMinutes: 60
@@ -1407,6 +1697,48 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveSymbolGridTrade', () => {
+            expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCBRL',
+              {
+                buy: [
+                  {
+                    executed: true,
+                    executedOrder: {
+                      symbol: 'BTCBRL',
+                      orderId: 2792607,
+                      cummulativeQuoteQty: '14.97195000',
+                      status: 'FILLED',
+                      type: 'STOP_LOSS_LIMIT',
+                      side: 'BUY'
+                    }
+                  }
+                ],
+                sell: [
+                  {
+                    executed: true,
+                    executedOrder: {
+                      symbol: 'BTCBRL',
+                      orderId: 2792607,
+                      cummulativeQuoteQty: '14.97195000',
+                      status: 'FILLED',
+                      type: 'STOP_LOSS_LIMIT',
+                      side: 'BUY'
+                    }
+                  }
+                ],
+                stopLoss: {
+                  symbol: 'BTCBRL',
+                  orderId: 2701762317,
+                  orderListId: -1,
+                  clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                  transactTime: 1626946722520
+                }
+              }
+            );
           });
 
           it('triggers saveOrder', () => {
@@ -1493,6 +1825,10 @@ describe('place-sell-stop-loss-order.js', () => {
               saveOrder: mockSaveOrder
             }));
 
+            jest.mock('../../../trailingTradeHelper/configuration', () => ({
+              saveSymbolGridTrade: mockSaveSymbolGridTrade
+            }));
+
             const step = require('../place-sell-stop-loss-order');
 
             rawData = {
@@ -1508,8 +1844,36 @@ describe('place-sell-stop-loss-order.js', () => {
                 filterMinNotional: { minNotional: '10.00000000' }
               },
               symbolConfiguration: {
+                buy: {
+                  gridTrade: [
+                    {
+                      executed: true,
+                      executedOrder: {
+                        symbol: 'BTCUPUSDT',
+                        orderId: 2792607,
+                        cummulativeQuoteQty: '14.97195000',
+                        status: 'FILLED',
+                        type: 'STOP_LOSS_LIMIT',
+                        side: 'BUY'
+                      }
+                    }
+                  ]
+                },
                 sell: {
                   enabled: true,
+                  gridTrade: [
+                    {
+                      executed: true,
+                      executedOrder: {
+                        symbol: 'BTCUPUSDT',
+                        orderId: 2792607,
+                        cummulativeQuoteQty: '14.97195000',
+                        status: 'FILLED',
+                        type: 'STOP_LOSS_LIMIT',
+                        side: 'SELL'
+                      }
+                    }
+                  ],
                   stopLoss: {
                     orderType: 'market',
                     disableBuyMinutes: 60
@@ -1555,6 +1919,48 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveSymbolGridTrade', () => {
+            expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCUPUSDT',
+              {
+                buy: [
+                  {
+                    executed: true,
+                    executedOrder: {
+                      symbol: 'BTCUPUSDT',
+                      orderId: 2792607,
+                      cummulativeQuoteQty: '14.97195000',
+                      status: 'FILLED',
+                      type: 'STOP_LOSS_LIMIT',
+                      side: 'BUY'
+                    }
+                  }
+                ],
+                sell: [
+                  {
+                    executed: true,
+                    executedOrder: {
+                      symbol: 'BTCUPUSDT',
+                      orderId: 2792607,
+                      cummulativeQuoteQty: '14.97195000',
+                      status: 'FILLED',
+                      type: 'STOP_LOSS_LIMIT',
+                      side: 'SELL'
+                    }
+                  }
+                ],
+                stopLoss: {
+                  symbol: 'BTCUPUSDT',
+                  orderId: 2701762317,
+                  orderListId: -1,
+                  clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                  transactTime: 1626946722520
+                }
+              }
+            );
           });
 
           it('triggers saveOrder', () => {
@@ -1639,6 +2045,10 @@ describe('place-sell-stop-loss-order.js', () => {
               saveOrder: mockSaveOrder
             }));
 
+            jest.mock('../../../trailingTradeHelper/configuration', () => ({
+              saveSymbolGridTrade: mockSaveSymbolGridTrade
+            }));
+
             const step = require('../place-sell-stop-loss-order');
 
             rawData = {
@@ -1654,8 +2064,36 @@ describe('place-sell-stop-loss-order.js', () => {
                 filterMinNotional: { minNotional: '0.00010000' }
               },
               symbolConfiguration: {
+                buy: {
+                  gridTrade: [
+                    {
+                      executed: true,
+                      executedOrder: {
+                        symbol: 'ALPHABTC',
+                        orderId: 2792607,
+                        cummulativeQuoteQty: '14.97195000',
+                        status: 'FILLED',
+                        type: 'STOP_LOSS_LIMIT',
+                        side: 'BUY'
+                      }
+                    }
+                  ]
+                },
                 sell: {
                   enabled: true,
+                  gridTrade: [
+                    {
+                      executed: true,
+                      executedOrder: {
+                        symbol: 'ALPHABTC',
+                        orderId: 2792607,
+                        cummulativeQuoteQty: '14.97195000',
+                        status: 'FILLED',
+                        type: 'STOP_LOSS_LIMIT',
+                        side: 'SELL'
+                      }
+                    }
+                  ],
                   stopLoss: {
                     orderType: 'market',
                     disableBuyMinutes: 60
@@ -1701,6 +2139,48 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveSymbolGridTrade', () => {
+            expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              'ALPHABTC',
+              {
+                buy: [
+                  {
+                    executed: true,
+                    executedOrder: {
+                      symbol: 'ALPHABTC',
+                      orderId: 2792607,
+                      cummulativeQuoteQty: '14.97195000',
+                      status: 'FILLED',
+                      type: 'STOP_LOSS_LIMIT',
+                      side: 'BUY'
+                    }
+                  }
+                ],
+                sell: [
+                  {
+                    executed: true,
+                    executedOrder: {
+                      symbol: 'ALPHABTC',
+                      orderId: 2792607,
+                      cummulativeQuoteQty: '14.97195000',
+                      status: 'FILLED',
+                      type: 'STOP_LOSS_LIMIT',
+                      side: 'SELL'
+                    }
+                  }
+                ],
+                stopLoss: {
+                  symbol: 'ALPHABTC',
+                  orderId: 2701762317,
+                  orderListId: -1,
+                  clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                  transactTime: 1626946722520
+                }
+              }
+            );
           });
 
           it('triggers saveOrder', () => {
@@ -1785,6 +2265,10 @@ describe('place-sell-stop-loss-order.js', () => {
               saveOrder: mockSaveOrder
             }));
 
+            jest.mock('../../../trailingTradeHelper/configuration', () => ({
+              saveSymbolGridTrade: mockSaveSymbolGridTrade
+            }));
+
             const step = require('../place-sell-stop-loss-order');
 
             rawData = {
@@ -1800,8 +2284,36 @@ describe('place-sell-stop-loss-order.js', () => {
                 filterMinNotional: { minNotional: '10.00000000' }
               },
               symbolConfiguration: {
+                buy: {
+                  gridTrade: [
+                    {
+                      executed: true,
+                      executedOrder: {
+                        symbol: 'BTCBRL',
+                        orderId: 2792607,
+                        cummulativeQuoteQty: '14.97195000',
+                        status: 'FILLED',
+                        type: 'STOP_LOSS_LIMIT',
+                        side: 'BUY'
+                      }
+                    }
+                  ]
+                },
                 sell: {
                   enabled: true,
+                  gridTrade: [
+                    {
+                      executed: true,
+                      executedOrder: {
+                        symbol: 'BTCBRL',
+                        orderId: 2792607,
+                        cummulativeQuoteQty: '14.97195000',
+                        status: 'FILLED',
+                        type: 'STOP_LOSS_LIMIT',
+                        side: 'SELL'
+                      }
+                    }
+                  ],
                   stopLoss: {
                     orderType: 'market',
                     disableBuyMinutes: 60
@@ -1847,6 +2359,48 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveSymbolGridTrade', () => {
+            expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCBRL',
+              {
+                buy: [
+                  {
+                    executed: true,
+                    executedOrder: {
+                      symbol: 'BTCBRL',
+                      orderId: 2792607,
+                      cummulativeQuoteQty: '14.97195000',
+                      status: 'FILLED',
+                      type: 'STOP_LOSS_LIMIT',
+                      side: 'BUY'
+                    }
+                  }
+                ],
+                sell: [
+                  {
+                    executed: true,
+                    executedOrder: {
+                      symbol: 'BTCBRL',
+                      orderId: 2792607,
+                      cummulativeQuoteQty: '14.97195000',
+                      status: 'FILLED',
+                      type: 'STOP_LOSS_LIMIT',
+                      side: 'SELL'
+                    }
+                  }
+                ],
+                stopLoss: {
+                  symbol: 'BTCBRL',
+                  orderId: 2701762317,
+                  orderListId: -1,
+                  clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                  transactTime: 1626946722520
+                }
+              }
+            );
           });
 
           it('triggers saveOrder', () => {

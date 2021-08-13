@@ -1,4 +1,5 @@
 /* eslint-disable global-require */
+const _ = require('lodash');
 
 describe('common.js', () => {
   let commonHelper;
@@ -9,6 +10,10 @@ describe('common.js', () => {
   let PubSubMock;
   let slackMock;
   let loggerMock;
+
+  let mockConfigGet;
+
+  let mockJWTVerify;
 
   let result;
 
@@ -29,7 +34,9 @@ describe('common.js', () => {
 
         binanceMock.client.exchangeInfo = jest
           .fn()
-          .mockResolvedValue(require('./fixtures/binance-exchange-info.json'));
+          .mockResolvedValue(
+            _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
+          );
 
         commonHelper = require('../common');
         await commonHelper.cacheExchangeSymbols(logger, {});
@@ -57,7 +64,9 @@ describe('common.js', () => {
         expect(cacheMock.hset).toHaveBeenCalledWith(
           'trailing-trade-common',
           'exchange-info',
-          JSON.stringify(require('./fixtures/binance-exchange-info.json'))
+          JSON.stringify(
+            _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
+          )
         );
       });
 
@@ -91,7 +100,7 @@ describe('common.js', () => {
             }
             if (hash === 'trailing-trade-common' && key === 'exchange-info') {
               return JSON.stringify(
-                require('./fixtures/binance-exchange-info.json')
+                _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
               );
             }
 
@@ -129,7 +138,9 @@ describe('common.js', () => {
           expect(cacheMock.hset).not.toHaveBeenCalledWith(
             'trailing-trade-common',
             'exchange-info',
-            JSON.stringify(require('./fixtures/binance-exchange-info.json'))
+            JSON.stringify(
+              _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
+            )
           );
         });
 
@@ -162,7 +173,7 @@ describe('common.js', () => {
             }
             if (hash === 'trailing-trade-common' && key === 'exchange-info') {
               return JSON.stringify(
-                require('./fixtures/binance-exchange-info.json')
+                _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
               );
             }
 
@@ -200,7 +211,9 @@ describe('common.js', () => {
           expect(cacheMock.hset).not.toHaveBeenCalledWith(
             'trailing-trade-common',
             'exchange-info',
-            JSON.stringify(require('./fixtures/binance-exchange-info.json'))
+            JSON.stringify(
+              _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
+            )
           );
         });
 
@@ -226,7 +239,7 @@ describe('common.js', () => {
         cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
           if (hash === 'trailing-trade-common' && key === 'exchange-info') {
             return JSON.stringify(
-              require('./fixtures/binance-exchange-info.json')
+              _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
             );
           }
 
@@ -237,7 +250,9 @@ describe('common.js', () => {
 
         binanceMock.client.exchangeInfo = jest
           .fn()
-          .mockResolvedValue(require('./fixtures/binance-exchange-info.json'));
+          .mockResolvedValue(
+            _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
+          );
 
         commonHelper = require('../common');
         await commonHelper.cacheExchangeSymbols(logger, {
@@ -267,7 +282,9 @@ describe('common.js', () => {
         expect(cacheMock.hset).not.toHaveBeenCalledWith(
           'trailing-trade-common',
           'exchange-info',
-          JSON.stringify(require('./fixtures/binance-exchange-info.json'))
+          JSON.stringify(
+            _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
+          )
         );
       });
 
@@ -1403,6 +1420,430 @@ describe('common.js', () => {
 
     it('returns expected value', () => {
       expect(result).toBeTruthy();
+    });
+  });
+
+  describe('getSymbolInfo', () => {
+    describe('when symbol cache exists', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+        loggerMock = logger;
+
+        cacheMock.hget = jest.fn().mockImplementation(() =>
+          Promise.resolve(
+            JSON.stringify({
+              some: 'value'
+            })
+          )
+        );
+
+        commonHelper = require('../common');
+        result = await commonHelper.getSymbolInfo(loggerMock, 'BTCUSDT');
+      });
+
+      it('triggers cache.hget', () => {
+        expect(cacheMock.hget).toHaveBeenCalledWith(
+          'trailing-trade-symbols',
+          'BTCUSDT-symbol-info'
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          some: 'value'
+        });
+      });
+    });
+
+    describe('when cached exchange info does not exist', () => {
+      beforeEach(async () => {
+        const { cache, binance, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+        binanceMock = binance;
+        loggerMock = logger;
+
+        cacheMock.hset = jest.fn().mockResolvedValue(true);
+        cacheMock.hget = jest
+          .fn()
+          .mockImplementation((_key, _hash) => Promise.resolve(null));
+
+        binanceMock.client.exchangeInfo = jest
+          .fn()
+          .mockResolvedValue(
+            _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
+          );
+
+        commonHelper = require('../common');
+        result = await commonHelper.getSymbolInfo(loggerMock, 'BTCUSDT');
+      });
+
+      it('triggers cache.hget', () => {
+        expect(cacheMock.hget).toHaveBeenCalledWith(
+          'trailing-trade-symbols',
+          'BTCUSDT-symbol-info'
+        );
+      });
+
+      it('triggers cache.hset for exchange-info', () => {
+        expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
+          'trailing-trade-common'
+        );
+        expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual('exchange-info');
+        const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
+        expect(args).toStrictEqual(
+          _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
+        );
+      });
+
+      it('triggers binance.client.exchangeInfo', () => {
+        expect(binanceMock.client.exchangeInfo).toHaveBeenCalled();
+      });
+
+      it('triggers cache.hset for final symbol info', () => {
+        expect(cacheMock.hset.mock.calls[1][0]).toStrictEqual(
+          'trailing-trade-symbols'
+        );
+        expect(cacheMock.hset.mock.calls[1][1]).toStrictEqual(
+          'BTCUSDT-symbol-info'
+        );
+        const args = JSON.parse(cacheMock.hset.mock.calls[1][2]);
+        expect(args).toStrictEqual({
+          baseAsset: 'BTC',
+          baseAssetPrecision: 8,
+          filterLotSize: {
+            filterType: 'LOT_SIZE',
+            maxQty: '900.00000000',
+            minQty: '0.00000100',
+            stepSize: '0.00000100'
+          },
+          filterMinNotional: {
+            applyToMarket: true,
+            avgPriceMins: 5,
+            filterType: 'MIN_NOTIONAL',
+            minNotional: '10.00000000'
+          },
+          filterPrice: {
+            filterType: 'PRICE_FILTER',
+            maxPrice: '1000000.00000000',
+            minPrice: '0.01000000',
+            tickSize: '0.01000000'
+          },
+          quoteAsset: 'USDT',
+          quotePrecision: 8,
+          status: 'TRADING',
+          symbol: 'BTCUSDT'
+        });
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          baseAsset: 'BTC',
+          baseAssetPrecision: 8,
+          filterLotSize: {
+            filterType: 'LOT_SIZE',
+            maxQty: '900.00000000',
+            minQty: '0.00000100',
+            stepSize: '0.00000100'
+          },
+          filterMinNotional: {
+            applyToMarket: true,
+            avgPriceMins: 5,
+            filterType: 'MIN_NOTIONAL',
+            minNotional: '10.00000000'
+          },
+          filterPrice: {
+            filterType: 'PRICE_FILTER',
+            maxPrice: '1000000.00000000',
+            minPrice: '0.01000000',
+            tickSize: '0.01000000'
+          },
+          quoteAsset: 'USDT',
+          quotePrecision: 8,
+          status: 'TRADING',
+          symbol: 'BTCUSDT'
+        });
+      });
+    });
+
+    describe('when cached exchange info exists', () => {
+      beforeEach(async () => {
+        const { cache, binance, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+        binanceMock = binance;
+        loggerMock = logger;
+
+        cacheMock.hset = jest.fn().mockResolvedValue(true);
+        cacheMock.hget = jest.fn().mockImplementation((key, hash) => {
+          if (key === 'trailing-trade-common' && hash === 'exchange-info') {
+            return Promise.resolve(
+              JSON.stringify(
+                _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
+              )
+            );
+          }
+          return Promise.resolve(null);
+        });
+
+        binanceMock.client.exchangeInfo = jest.fn().mockResolvedValue(true);
+
+        commonHelper = require('../common');
+        result = await commonHelper.getSymbolInfo(loggerMock, 'BTCUSDT');
+      });
+
+      it('triggers cache.hget', () => {
+        expect(cacheMock.hget).toHaveBeenCalledWith(
+          'trailing-trade-symbols',
+          'BTCUSDT-symbol-info'
+        );
+      });
+
+      it('does not trigger cache.hset for exchange-info', () => {
+        expect(cacheMock.hset.mock.calls[0][0]).not.toStrictEqual(
+          'trailing-trade-common'
+        );
+        expect(cacheMock.hset.mock.calls[0][1]).not.toStrictEqual(
+          'exchange-info'
+        );
+      });
+
+      it('does not trigger binance.client.exchangeInfo', () => {
+        expect(binanceMock.client.exchangeInfo).not.toHaveBeenCalled();
+      });
+
+      it('triggers cache.hset for final symbol info', () => {
+        expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
+          'trailing-trade-symbols'
+        );
+        expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual(
+          'BTCUSDT-symbol-info'
+        );
+        const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
+        expect(args).toStrictEqual({
+          baseAsset: 'BTC',
+          baseAssetPrecision: 8,
+          filterLotSize: {
+            filterType: 'LOT_SIZE',
+            maxQty: '900.00000000',
+            minQty: '0.00000100',
+            stepSize: '0.00000100'
+          },
+          filterMinNotional: {
+            applyToMarket: true,
+            avgPriceMins: 5,
+            filterType: 'MIN_NOTIONAL',
+            minNotional: '10.00000000'
+          },
+          filterPrice: {
+            filterType: 'PRICE_FILTER',
+            maxPrice: '1000000.00000000',
+            minPrice: '0.01000000',
+            tickSize: '0.01000000'
+          },
+          quoteAsset: 'USDT',
+          quotePrecision: 8,
+          status: 'TRADING',
+          symbol: 'BTCUSDT'
+        });
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          baseAsset: 'BTC',
+          baseAssetPrecision: 8,
+          filterLotSize: {
+            filterType: 'LOT_SIZE',
+            maxQty: '900.00000000',
+            minQty: '0.00000100',
+            stepSize: '0.00000100'
+          },
+          filterMinNotional: {
+            applyToMarket: true,
+            avgPriceMins: 5,
+            filterType: 'MIN_NOTIONAL',
+            minNotional: '10.00000000'
+          },
+          filterPrice: {
+            filterType: 'PRICE_FILTER',
+            maxPrice: '1000000.00000000',
+            minPrice: '0.01000000',
+            tickSize: '0.01000000'
+          },
+          quoteAsset: 'USDT',
+          quotePrecision: 8,
+          status: 'TRADING',
+          symbol: 'BTCUSDT'
+        });
+      });
+    });
+  });
+
+  describe('verifyAuthenticated', () => {
+    describe('when authentication is not enabled', () => {
+      beforeEach(async () => {
+        mockConfigGet = jest.fn(key => {
+          if (key === 'authentication.enabled') {
+            return false;
+          }
+          return null;
+        });
+
+        jest.mock('config', () => ({
+          get: mockConfigGet
+        }));
+
+        mockJWTVerify = jest.fn().mockReturnValue(true);
+
+        jest.mock('jsonwebtoken', () => ({
+          verify: mockJWTVerify
+        }));
+
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+        loggerMock = logger;
+
+        cacheMock.get = jest.fn().mockResolvedValue('my-config');
+
+        commonHelper = require('../common');
+        result = await commonHelper.verifyAuthenticated(
+          loggerMock,
+          'auth-token'
+        );
+      });
+
+      it('triggers config.get', () => {
+        expect(mockConfigGet).toHaveBeenCalledWith('authentication.enabled');
+      });
+
+      it('does not trigger cache.get', () => {
+        expect(cacheMock.get).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger jwt.verify', () => {
+        expect(mockJWTVerify).not.toHaveBeenCalled();
+      });
+
+      it('returns true', () => {
+        expect(result).toBeTruthy();
+      });
+    });
+
+    describe('when authentication is enabled', () => {
+      describe('verification failed', () => {
+        beforeEach(async () => {
+          mockConfigGet = jest.fn(key => {
+            if (key === 'authentication.enabled') {
+              return true;
+            }
+            return null;
+          });
+
+          jest.mock('config', () => ({
+            get: mockConfigGet
+          }));
+
+          mockJWTVerify = jest.fn().mockImplementation(() => {
+            throw new Error('something happened');
+          });
+
+          jest.mock('jsonwebtoken', () => ({
+            verify: mockJWTVerify
+          }));
+
+          const { cache, logger } = require('../../../helpers');
+
+          cacheMock = cache;
+          loggerMock = logger;
+
+          cacheMock.get = jest.fn().mockResolvedValue('my-jwt-secret');
+
+          commonHelper = require('../common');
+          result = await commonHelper.verifyAuthenticated(
+            loggerMock,
+            'auth-token'
+          );
+        });
+
+        it('triggers config.get', () => {
+          expect(mockConfigGet).toHaveBeenCalledWith('authentication.enabled');
+        });
+
+        it('triggers cache.get', () => {
+          expect(cacheMock.get).toHaveBeenCalledWith('auth-jwt-secret');
+        });
+
+        it('triggers jwt.verify', () => {
+          expect(mockJWTVerify).toHaveBeenCalledWith(
+            'auth-token',
+            'my-jwt-secret',
+            { algorithm: 'HS256' }
+          );
+        });
+
+        it('returns false', () => {
+          expect(result).toBeFalsy();
+        });
+      });
+
+      describe('verification success', () => {
+        beforeEach(async () => {
+          mockConfigGet = jest.fn(key => {
+            if (key === 'authentication.enabled') {
+              return true;
+            }
+            return null;
+          });
+
+          jest.mock('config', () => ({
+            get: mockConfigGet
+          }));
+
+          mockJWTVerify = jest.fn().mockReturnValue({
+            some: 'value'
+          });
+
+          jest.mock('jsonwebtoken', () => ({
+            verify: mockJWTVerify
+          }));
+
+          const { cache, logger } = require('../../../helpers');
+
+          cacheMock = cache;
+          loggerMock = logger;
+
+          cacheMock.get = jest.fn().mockResolvedValue('my-jwt-secret');
+
+          commonHelper = require('../common');
+          result = await commonHelper.verifyAuthenticated(
+            loggerMock,
+            'auth-token'
+          );
+        });
+
+        it('triggers config.get', () => {
+          expect(mockConfigGet).toHaveBeenCalledWith('authentication.enabled');
+        });
+
+        it('triggers cache.get', () => {
+          expect(cacheMock.get).toHaveBeenCalledWith('auth-jwt-secret');
+        });
+
+        it('triggers jwt.verify', () => {
+          expect(mockJWTVerify).toHaveBeenCalledWith(
+            'auth-token',
+            'my-jwt-secret',
+            { algorithm: 'HS256' }
+          );
+        });
+
+        it('returns true', () => {
+          expect(result).toBeTruthy();
+        });
+      });
     });
   });
 });

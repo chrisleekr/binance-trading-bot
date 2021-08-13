@@ -1,8 +1,9 @@
 const _ = require('lodash');
+const moment = require('moment');
 const config = require('config');
 const { mongo, cache, PubSub } = require('../../helpers');
 
-const { getLastBuyPrice } = require('./common');
+const { getLastBuyPrice, getSymbolInfo } = require('./common');
 
 /**
  * Save global configuration to mongodb
@@ -168,6 +169,190 @@ const saveSymbolGridTrade = async (logger, symbol = null, gridTrade = {}) => {
       ...gridTrade
     }
   );
+};
+
+/**
+ * Calculate grid trade profit
+ *
+ * @param {*} buyGridTrade
+ * @param {*} sellGridTrade
+ * @param {*} stopLossOrder
+ * @param {*} manualTrade
+ *
+ * @returns
+ */
+const calculateGridTradeProfit = (
+  buyGridTrade = [],
+  sellGridTrade = [],
+  stopLossOrder = {},
+  manualTrade = []
+) => {
+  const buyGridTradeQuoteQty =
+    _.isEmpty(buyGridTrade) === false
+      ? buyGridTrade.reduce(
+          (acc, t) =>
+            acc +
+            (t.executed
+              ? parseFloat(t.executedOrder?.cummulativeQuoteQty || 0)
+              : 0),
+          0
+        )
+      : 0;
+
+  const buyManualQuoteQty =
+    _.isEmpty(manualTrade) === false
+      ? manualTrade.reduce(
+          (acc, t) =>
+            acc +
+            (t.side.toLowerCase() === 'buy'
+              ? parseFloat(t.cummulativeQuoteQty || 0)
+              : 0),
+          0
+        )
+      : 0;
+
+  const sellGridTradeQuoteQty =
+    _.isEmpty(sellGridTrade) === false
+      ? sellGridTrade.reduce(
+          (acc, t) =>
+            acc +
+            (t.executed
+              ? parseFloat(t.executedOrder?.cummulativeQuoteQty || 0)
+              : 0),
+          0
+        )
+      : 0;
+
+  const sellManualQuoteQty =
+    _.isEmpty(manualTrade) === false
+      ? manualTrade.reduce(
+          (acc, t) =>
+            acc +
+            (t.side.toLowerCase() === 'sell'
+              ? parseFloat(t.cummulativeQuoteQty || 0)
+              : 0),
+          0
+        )
+      : 0;
+
+  const stopLossQuoteQty = parseFloat(stopLossOrder?.cummulativeQuoteQty || 0);
+
+  const totalBuyQuoteQty = buyGridTradeQuoteQty + buyManualQuoteQty;
+  const totalSellQuoteQty =
+    sellGridTradeQuoteQty + sellManualQuoteQty + stopLossQuoteQty;
+
+  const profit = totalSellQuoteQty - totalBuyQuoteQty;
+
+  const profitPercentage =
+    profit !== 0 && totalBuyQuoteQty !== 0
+      ? (profit / totalBuyQuoteQty) * 100
+      : 0;
+
+  const buyGridTradeExecuted =
+    _.isEmpty(buyGridTrade) === false
+      ? buyGridTrade.some(t => t.executed === true)
+      : false;
+
+  const allBuyGridTradeExecuted =
+    _.isEmpty(buyGridTrade) === false
+      ? buyGridTrade.every(t => t.executed === true)
+      : false;
+
+  const sellGridTradeExecuted =
+    _.isEmpty(sellGridTrade) === false
+      ? sellGridTrade.some(t => t.executed === true)
+      : false;
+
+  const allSellGridTradeExecuted =
+    _.isEmpty(sellGridTrade) === false
+      ? sellGridTrade.every(t => t.executed === true)
+      : false;
+
+  return {
+    buyGridTradeExecuted,
+    sellGridTradeExecuted,
+    allExecuted: allBuyGridTradeExecuted && allSellGridTradeExecuted,
+    totalBuyQuoteQty,
+    totalSellQuoteQty,
+    buyGridTradeQuoteQty,
+    buyManualQuoteQty,
+    sellGridTradeQuoteQty,
+    sellManualQuoteQty,
+    stopLossQuoteQty,
+    profit,
+    profitPercentage
+  };
+};
+
+/**
+ * Archive symbol grid trade to mongodb
+ *
+ * @param {*} logger
+ * @param {*} key
+ * @param {*} gridTrade
+ */
+const saveSymbolGridTradeArchive = async (logger, key = null, data = {}) => {
+  if (key === null) {
+    // If key is not provided, then return empty.
+    return {};
+  }
+
+  return mongo.upsertOne(
+    logger,
+    'trailing-trade-grid-trade-archive',
+    {
+      key
+    },
+    {
+      key,
+      ...data
+    }
+  );
+};
+
+const archiveSymbolGridTrade = async (logger, symbol = null) => {
+  // Retrieve symbol info
+  const symbolInfo = await getSymbolInfo(logger, symbol);
+
+  // Get current symbol grid trade
+  const symbolGridTrade = await getSymbolGridTrade(logger, symbol);
+
+  // If not exist, then return false
+  if (_.isEmpty(symbolGridTrade)) {
+    return {};
+  }
+
+  // If exist, calculate profit
+  const {
+    buy: buyGridTrade,
+    sell: sellGridTrade,
+    stopLoss,
+    manualTrade
+  } = symbolGridTrade;
+
+  const gridProfit = calculateGridTradeProfit(
+    buyGridTrade,
+    sellGridTrade,
+    stopLoss,
+    manualTrade
+  );
+
+  // Save to archive
+  const archivedGridTrade = {
+    symbol,
+    ..._.pick(symbolInfo, ['baseAsset', 'quoteAsset']),
+    ...gridProfit,
+    ..._.omit(symbolGridTrade, 'key', '_id'),
+    archivedAt: moment().format()
+  };
+
+  await saveSymbolGridTradeArchive(
+    logger,
+    `${symbol}-${moment().format()}`,
+    archivedGridTrade
+  );
+
+  return archivedGridTrade;
 };
 
 /**
@@ -602,6 +787,7 @@ module.exports = {
 
   saveSymbolConfiguration,
   saveSymbolGridTrade,
+  saveSymbolGridTradeArchive,
 
   deleteAllSymbolConfiguration,
   deleteSymbolConfiguration,
@@ -613,6 +799,9 @@ module.exports = {
   getLastBuyPriceRemoveThreshold,
 
   postProcessConfiguration,
+
+  archiveSymbolGridTrade,
+  calculateGridTradeProfit,
 
   getConfiguration
 };

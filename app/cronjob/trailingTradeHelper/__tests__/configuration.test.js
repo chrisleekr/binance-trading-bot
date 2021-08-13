@@ -7,6 +7,10 @@ jest.mock('config');
 describe('configuration.js', () => {
   let result;
 
+  beforeEach(async () => {
+    jest.clearAllMocks().resetModules();
+  });
+
   describe('saveGlobalConfiguration', () => {
     beforeEach(async () => {
       PubSub.publish = jest.fn().mockReturnValue(true);
@@ -424,6 +428,507 @@ describe('configuration.js', () => {
           'trailing-trade-grid-trade',
           { key: 'BTCUSDT' },
           { key: 'BTCUSDT', myKey: 'value' }
+        );
+      });
+    });
+  });
+
+  describe('calculateGridTradeProfit', () => {
+    describe('when no data is provided', () => {
+      beforeEach(async () => {
+        result = configuration.calculateGridTradeProfit();
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          buyGridTradeExecuted: false,
+          sellGridTradeExecuted: false,
+          allExecuted: false,
+
+          totalBuyQuoteQty: 0,
+          totalSellQuoteQty: 0,
+
+          buyGridTradeQuoteQty: 0,
+          buyManualQuoteQty: 0,
+          sellGridTradeQuoteQty: 0,
+          sellManualQuoteQty: 0,
+          stopLossQuoteQty: 0,
+
+          profit: 0,
+          profitPercentage: 0
+        });
+      });
+    });
+
+    describe('when buy/sell grid trades are provided', () => {
+      beforeEach(async () => {
+        result = configuration.calculateGridTradeProfit(
+          [
+            {
+              executed: true,
+              executedOrder: {
+                cummulativeQuoteQty: '15.00'
+              }
+            },
+            {
+              executed: true,
+              executedOrder: {
+                cummulativeQuoteQty: '30.00'
+              }
+            }
+          ],
+          [
+            {
+              executed: true,
+              executedOrder: {
+                cummulativeQuoteQty: '20.00'
+              }
+            },
+            {
+              executed: true,
+              executedOrder: {
+                cummulativeQuoteQty: '40.00'
+              }
+            }
+          ],
+          {},
+          []
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          buyGridTradeExecuted: true,
+          sellGridTradeExecuted: true,
+          allExecuted: true,
+
+          totalBuyQuoteQty: 45,
+          totalSellQuoteQty: 60,
+
+          buyGridTradeQuoteQty: 45,
+          buyManualQuoteQty: 0,
+
+          sellGridTradeQuoteQty: 60,
+          sellManualQuoteQty: 0,
+          stopLossQuoteQty: 0,
+
+          profit: 15,
+          profitPercentage: 33.33333333333333
+        });
+      });
+    });
+
+    describe('when manual trades are provided', () => {
+      beforeEach(async () => {
+        result = configuration.calculateGridTradeProfit([], [], {}, [
+          {
+            side: 'BUY',
+            status: 'FILLED',
+            cummulativeQuoteQty: '15.00'
+          },
+          {
+            side: 'BUY',
+            status: 'FILLED',
+            cummulativeQuoteQty: '15.00'
+          },
+          {
+            side: 'SELL',
+            status: 'FILLED',
+            cummulativeQuoteQty: '15.00'
+          }
+        ]);
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          buyGridTradeExecuted: false,
+          sellGridTradeExecuted: false,
+          allExecuted: false,
+
+          totalBuyQuoteQty: 30,
+          totalSellQuoteQty: 15,
+
+          buyGridTradeQuoteQty: 0,
+          buyManualQuoteQty: 30,
+          sellGridTradeQuoteQty: 0,
+          sellManualQuoteQty: 15,
+          stopLossQuoteQty: 0,
+
+          profit: -15,
+          profitPercentage: -50
+        });
+      });
+    });
+
+    describe('when buy grid trades and stop loss are provided', () => {
+      beforeEach(async () => {
+        result = configuration.calculateGridTradeProfit(
+          [
+            {
+              executed: true,
+              executedOrder: {
+                cummulativeQuoteQty: '15.00'
+              }
+            },
+            {
+              executed: true,
+              executedOrder: {
+                cummulativeQuoteQty: '30.00'
+              }
+            },
+            {
+              executed: false,
+              executedOrder: null
+            }
+          ],
+          [],
+          {
+            cummulativeQuoteQty: '30.00'
+          },
+          []
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          buyGridTradeExecuted: true,
+          sellGridTradeExecuted: false,
+          allExecuted: false,
+
+          totalBuyQuoteQty: 45,
+          totalSellQuoteQty: 30,
+
+          buyGridTradeQuoteQty: 45,
+          buyManualQuoteQty: 0,
+
+          sellGridTradeQuoteQty: 0,
+          sellManualQuoteQty: 0,
+          stopLossQuoteQty: 30,
+
+          profit: -15,
+          profitPercentage: -33.33333333333333
+        });
+      });
+    });
+
+    describe('for some reaosn, when all trades are provided', () => {
+      beforeEach(async () => {
+        result = configuration.calculateGridTradeProfit(
+          [
+            {
+              executed: true,
+              executedOrder: {
+                cummulativeQuoteQty: '15.00'
+              }
+            },
+            {
+              executed: true,
+              executedOrder: {
+                cummulativeQuoteQty: '30.00'
+              }
+            }
+          ],
+          [
+            {
+              executed: true,
+              executedOrder: {
+                cummulativeQuoteQty: '20.00'
+              }
+            },
+            {
+              executed: true,
+              executedOrder: {
+                cummulativeQuoteQty: '40.00'
+              }
+            }
+          ],
+          {
+            cummulativeQuoteQty: '30.00'
+          },
+          [
+            {
+              side: 'SELL',
+              status: 'FILLED',
+              cummulativeQuoteQty: '15.00'
+            }
+          ]
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          buyGridTradeExecuted: true,
+          sellGridTradeExecuted: true,
+          allExecuted: true,
+
+          totalBuyQuoteQty: 45,
+          totalSellQuoteQty: 105,
+
+          buyGridTradeQuoteQty: 45,
+          buyManualQuoteQty: 0,
+          sellGridTradeQuoteQty: 60,
+          sellManualQuoteQty: 15,
+          stopLossQuoteQty: 30,
+
+          profit: 60,
+          profitPercentage: 133.33333333333331
+        });
+      });
+    });
+
+    describe('when invalid trades', () => {
+      beforeEach(async () => {
+        result = configuration.calculateGridTradeProfit(
+          [
+            {
+              executed: true,
+              executedOrder: {}
+            },
+            {
+              executed: false,
+              executedOrder: {}
+            }
+          ],
+          [
+            {
+              executed: true,
+              executedOrder: {}
+            },
+            {
+              executed: false,
+              executedOrder: {}
+            }
+          ],
+          {},
+          [
+            {
+              side: 'BUY',
+              status: 'FILLED'
+            },
+            {
+              side: 'SELL',
+              status: 'FILLED'
+            }
+          ]
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          buyGridTradeExecuted: true,
+          sellGridTradeExecuted: true,
+          allExecuted: false,
+
+          totalBuyQuoteQty: 0,
+          totalSellQuoteQty: 0,
+
+          buyGridTradeQuoteQty: 0,
+          buyManualQuoteQty: 0,
+          sellGridTradeQuoteQty: 0,
+          sellManualQuoteQty: 0,
+          stopLossQuoteQty: 0,
+
+          profit: 0,
+          profitPercentage: 0
+        });
+      });
+    });
+  });
+
+  describe('saveSymbolGridTradeArchive', () => {
+    describe('key is null', () => {
+      beforeEach(async () => {
+        mongo.upsertOne = jest.fn().mockResolvedValue(true);
+
+        result = await configuration.saveSymbolGridTradeArchive(logger);
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({});
+      });
+
+      it('does not trigger mongo.upsertOne', () => {
+        expect(mongo.upsertOne).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('with valid data', () => {
+      beforeEach(async () => {
+        mongo.upsertOne = jest.fn().mockResolvedValue(true);
+
+        result = await configuration.saveSymbolGridTradeArchive(
+          logger,
+          'BTCUSDT',
+          {
+            some: 'value'
+          }
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual(true);
+      });
+
+      it('triggers mongo.upsertOne', () => {
+        expect(mongo.upsertOne).toHaveBeenCalledWith(
+          logger,
+          'trailing-trade-grid-trade-archive',
+          {
+            key: 'BTCUSDT'
+          },
+          {
+            key: 'BTCUSDT',
+            some: 'value'
+          }
+        );
+      });
+    });
+  });
+
+  describe('archiveSymbolGridTrade', () => {
+    describe('when symbol  is not provided', () => {
+      beforeEach(async () => {
+        cache.hget = jest.fn().mockResolvedValue(
+          JSON.stringify({
+            symbol: 'BTCUSDT',
+            baseAsset: 'BTC',
+            quoteAsset: 'USDT'
+          })
+        );
+
+        mongo.findOne = jest.fn().mockResolvedValue(null);
+
+        result = await configuration.archiveSymbolGridTrade(logger);
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({});
+      });
+    });
+
+    describe('when symbol grid trade is not provided', () => {
+      beforeEach(async () => {
+        cache.hget = jest.fn().mockResolvedValue(
+          JSON.stringify({
+            symbol: 'BTCUSDT',
+            baseAsset: 'BTC',
+            quoteAsset: 'USDT'
+          })
+        );
+
+        mongo.findOne = jest.fn().mockResolvedValue(null);
+
+        result = await configuration.archiveSymbolGridTrade(logger, 'BTCUSDT');
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({});
+      });
+    });
+
+    describe('when symbol grid trade is provided', () => {
+      beforeEach(async () => {
+        cache.hget = jest.fn().mockResolvedValue(
+          JSON.stringify({
+            symbol: 'BTCUSDT',
+            baseAsset: 'BTC',
+            quoteAsset: 'USDT'
+          })
+        );
+
+        mongo.findOne = jest.fn().mockResolvedValue({
+          buy: [
+            {
+              executed: true,
+              executedOrder: { cummulativeQuoteQty: '10.00' }
+            },
+            {
+              executed: false
+            }
+          ],
+          sell: [
+            {
+              executed: true,
+              executedOrder: { cummulativeQuoteQty: '12.00' }
+            },
+            {
+              executed: false
+            }
+          ],
+          manualTrade: [
+            {
+              side: 'BUY',
+              cummulativeQuoteQty: '12.00'
+            },
+            {
+              side: 'SELL',
+              cummulativeQuoteQty: '13.00'
+            }
+          ]
+        });
+
+        mongo.upsertOne = jest.fn().mockResolvedValue(true);
+
+        result = await configuration.archiveSymbolGridTrade(logger, 'BTCUSDT');
+      });
+
+      it('triggers mongo.upsertOne', () => {
+        expect(mongo.upsertOne).toHaveBeenCalledWith(
+          logger,
+          'trailing-trade-grid-trade-archive',
+          { key: expect.stringContaining('BTCUSDT-') },
+          {
+            key: expect.stringContaining('BTCUSDT-'),
+            symbol: 'BTCUSDT',
+            baseAsset: 'BTC',
+            quoteAsset: 'USDT',
+
+            buyGridTradeExecuted: true,
+            sellGridTradeExecuted: true,
+            allExecuted: false,
+
+            totalBuyQuoteQty: 22,
+            totalSellQuoteQty: 25,
+
+            buyGridTradeQuoteQty: 10,
+            buyManualQuoteQty: 12,
+            sellGridTradeQuoteQty: 12,
+            sellManualQuoteQty: 13,
+            stopLossQuoteQty: 0,
+
+            profit: 3,
+            profitPercentage: 13.636363636363635,
+
+            buy: [
+              {
+                executed: true,
+                executedOrder: { cummulativeQuoteQty: '10.00' }
+              },
+              {
+                executed: false
+              }
+            ],
+            sell: [
+              {
+                executed: true,
+                executedOrder: { cummulativeQuoteQty: '12.00' }
+              },
+              {
+                executed: false
+              }
+            ],
+            manualTrade: [
+              {
+                side: 'BUY',
+                cummulativeQuoteQty: '12.00'
+              },
+              {
+                side: 'SELL',
+                cummulativeQuoteQty: '13.00'
+              }
+            ],
+            archivedAt: expect.any(String)
+          }
         );
       });
     });

@@ -49,7 +49,7 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Cancelling order result');
 
-  await cache.hdel(`trailing-trade-manual-buy-order-${symbol}`, order.orderId);
+  await cache.hdel(`trailing-trade-manual-order-${symbol}`, order.orderId);
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

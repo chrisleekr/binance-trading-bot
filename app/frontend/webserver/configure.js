@@ -2,7 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const { cache } = require('../../helpers');
 
-const { handleAuth, handle404 } = require('./handlers');
+const { setHandlers } = require('./handlers');
 
 const configureJWTToken = async () => {
   let jwtSecret = await cache.get('auth-jwt-secret');
@@ -21,8 +21,7 @@ const configureWebServer = async (app, funcLogger) => {
   // Firstly get(or set) JWT secret
   await configureJWTToken();
 
-  handleAuth(logger, app);
-  handle404(logger, app);
+  await setHandlers(logger, app);
 };
 
 module.exports = { configureWebServer };

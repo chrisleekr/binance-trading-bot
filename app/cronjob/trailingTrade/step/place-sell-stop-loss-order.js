@@ -9,6 +9,9 @@ const {
   getAPILimit,
   saveOrder
 } = require('../../trailingTradeHelper/common');
+const {
+  saveSymbolGridTrade
+} = require('../../trailingTradeHelper/configuration');
 
 /**
  * Place a sell stop-loss order when the current price reached stop-loss trigger price
@@ -27,8 +30,10 @@ const execute = async (logger, rawData) => {
       filterMinNotional: { minNotional }
     },
     symbolConfiguration: {
+      buy: { gridTrade: buyGridTrade },
       sell: {
         enabled: tradingEnabled,
+        gridTrade: sellGridTrade,
         stopLoss: {
           orderType: sellStopLossOrderType,
           disableBuyMinutes: sellStopLossDisableBuyMinutes
@@ -154,6 +159,14 @@ const execute = async (logger, rawData) => {
       savedMessage: 'The sell STOP-LOSS order is placed.'
     }
   });
+
+  // Save stop loss to grid trade
+  const newGridTrade = {
+    buy: buyGridTrade,
+    sell: sellGridTrade,
+    stopLoss: orderResult
+  };
+  await saveSymbolGridTrade(logger, symbol, newGridTrade);
 
   // Temporary disable action
   await disableAction(

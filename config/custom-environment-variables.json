@@ -97,7 +97,19 @@
           },
           "lockAfter": {
             "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTHENTICATION_LOCK_AFTER",
-            "__description": "Set minutes for the authentication. If the authentication expires, the bot will lock the bot.",
+            "__description": "Set minutes for the authentication. Once the time passes the configured minutes after login, the bot will be automatically locked.",
+            "__format": "number"
+          }
+        },
+        "autoTriggerBuy": {
+          "enabled": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTO_TRIGGER_BUY",
+            "__description": "Set a boolean to trigger 1st grid trade for buying after removing the last buy price due to completed grid trades for selling.. Note that this action may be triggered if you sell the coin in Binance directly and the last buy price was recorded.",
+            "__format": "boolean"
+          },
+          "triggerAfter": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRIGGER_AFTER",
+            "__description": "",
             "__format": "number"
           }
         }
@@ -183,9 +195,9 @@
           "__description": "Set the seconds for disabling any actions after confirming an order. Note that decreasing this value can cause issues with the bot not recording the last buy price.",
           "__format": "number"
         },
-        "checkManualBuyOrderPeriod": {
-          "__name": "BINANCE_JOBS_TRAILING_TRADE_SYSTEM_CHECK_MANUAL_BUY_ORDER_PERIOD",
-          "__description": "Set the seconds for the period of checking the manual buy order. Note that reducing the seconds can cause issues with the bot exceeding the API usage.",
+        "checkManualOrderPeriod": {
+          "__name": "BINANCE_JOBS_TRAILING_TRADE_SYSTEM_CHECK_MANUAL_ORDER_PERIOD",
+          "__description": "Set the seconds for the period of checking the manual orders. Note that reducing the seconds can cause issues with the bot exceeding the API usage.",
           "__format": "number"
         },
         "placeManualOrderInterval": {

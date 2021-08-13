@@ -291,13 +291,6 @@ The final profit would be
    docker-compose -f docker-compose.server.yml up -d
    ```
 
-   Or if using Raspberry Pi 4 32bit, must build again for Raspberry Pi:
-
-   ```bash
-   npm run docker:build
-   docker-compose -f docker-compose.rpi.yml up -d
-   ```
-
    Or if want development mode, then run below commands:
 
    ```bash
@@ -325,15 +318,15 @@ The final profit would be
 
 | Password Protected | Frontend Mobile |
 | ------------------ | --------------- |
-| ![Password Protected](https://user-images.githubusercontent.com/5715919/127773484-51d01881-4933-454e-9052-9965b222e716.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/127773506-bea19f9f-ed8b-4eb5-9a4c-a00a03d63276.png) |
+| ![Password Protected](https://user-images.githubusercontent.com/5715919/127773484-51d01881-4933-454e-9052-9965b222e716.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/129367660-743f89fd-2eae-4113-8ce7-6249ba47926a.png) |
 
 | Setting | Manual Trade |
 | ------- | ------------ |
 | ![Setting](https://user-images.githubusercontent.com/5715919/127318581-4e422ac9-b145-4e83-a90d-5c05c61d6e2f.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/127318630-f2180e1b-3feb-48fa-a083-4cb7f90f743f.png) |
 
-| Frontend Desktop                                                                                                          |
-| ------------------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/127773543-ca1a9d19-676d-4410-88d2-64926161de29.png) |
+| Frontend Desktop  | Closed Trades |
+| ----------------- | ------------- |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/129367482-2d88144a-b5e3-49b1-ae11-f21e7251dab0.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/129367521-019cf591-26f2-4d69-ac9e-9f631605aab2.png) |
 
 ### Sample Trade
 

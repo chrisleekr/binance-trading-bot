@@ -12,11 +12,13 @@ const {
   getGlobalConfiguration,
   getNextSymbol,
   getSymbolConfiguration,
+  getSymbolInfo,
   getOverrideAction,
   getAccountInfo,
   getIndicators,
   getOpenOrders,
   executeDustTransfer,
+  getClosedTrades,
   saveDataToCache
 } = require('./trailingTradeIndicator/steps');
 const { slack } = require('../helpers');
@@ -32,10 +34,12 @@ const execute = async logger => {
     globalConfiguration: {},
     symbol: null,
     symbolConfiguration: {},
+    symbolInfo: {},
     accountInfo: {},
     indicators: {},
     openOrders: [],
     overrideParams: {},
+    quoteAssetStats: {},
     apiLimit: { start: getAPILimit(logger), end: null }
   };
 
@@ -75,6 +79,10 @@ const execute = async logger => {
         stepFunc: executeDustTransfer
       },
       {
+        stepName: 'get-symbol-info',
+        stepFunc: getSymbolInfo
+      },
+      {
         stepName: 'get-account-info',
         stepFunc: getAccountInfo
       },
@@ -88,6 +96,10 @@ const execute = async logger => {
         // After placing buy/sell orders, the bot will retrieve symbol open orders which can request every second.
         stepName: 'get-open-orders',
         stepFunc: getOpenOrders
+      },
+      {
+        stepName: 'get-closed-trades',
+        stepFunc: getClosedTrades
       },
       {
         stepName: 'save-data-to-cache',
@@ -133,7 +145,11 @@ const execute = async logger => {
           `Job: Trailing Trade Indicator\n` +
           `Code: ${err.code}\n` +
           `Message:\`\`\`${err.message}\`\`\`\n` +
-          `Stack:\`\`\`${err.stack}\`\`\`\n` +
+          `${
+            config.get('featureToggle.notifyDebug')
+              ? `Stack:\`\`\`${err.stack}\`\`\`\n`
+              : ''
+          }` +
           `- Current API Usage: ${getAPILimit(logger)}`
       );
     }

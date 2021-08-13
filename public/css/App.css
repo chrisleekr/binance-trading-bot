@@ -72,6 +72,30 @@ input[type='number'] {
   width: 20% !important;
 }
 
+.w-30 {
+  width: 30% !important;
+}
+
+.w-40 {
+  width: 40% !important;
+}
+
+.w-60 {
+  width: 60% !important;
+}
+
+.w-70 {
+  width: 70% !important;
+}
+
+.line-height-1 {
+  line-height: 1 !important;
+}
+
+.modal-header .close {
+  margin-top: -0.5rem;
+}
+
 .app {
   padding: 10px;
   height: 100%;
@@ -437,12 +461,14 @@ input[type='number'] {
 }
 
 .coin-info-value-up,
-.coin-info-value-buy {
+.coin-info-value-buy,
+.buy-colour {
   color: #02c076;
 }
 
 .coin-info-value-down,
-.coin-info-value-sell {
+.coin-info-value-sell,
+.sell-colour {
   color: #f84960;
 }
 
@@ -664,9 +690,46 @@ input[type='number'] {
 /**
   Start: Profit Loss
 */
+.profit-loss-container {
+  display: flex;
+  flex-direction: row;
+}
+
+.profit-loss-closed-trades-accordion-wrapper {
+  margin-left: 5px;
+}
+
+.profit-loss-accordion-wrapper {
+  width: 50%;
+}
+
+@media (max-width: 550px) {
+  .profit-loss-container {
+    flex-direction: column;
+  }
+
+  .profit-loss-accordion-wrapper {
+    width: 100%;
+  }
+
+  .profit-loss-open-trades-accordion-wrapper {
+    margin-right: 0;
+  }
+
+  .profit-loss-closed-trades-accordion-wrapper {
+    margin-left: 0;
+  }
+}
+
+.profit-loss-wrappers {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-start !important;
+}
 
 .profit-loss-wrapper {
-  width: 20%;
+  width: 25%;
 }
 
 .profit-loss-wrapper-body {
@@ -690,22 +753,22 @@ input[type='number'] {
   text-align: right;
 }
 
-@media (max-width: 1200px) {
-  .profit-loss-wrapper {
-    width: 25%;
-  }
-}
-
-@media (max-width: 800px) {
+@media (max-width: 1500px) {
   .profit-loss-wrapper {
     width: 33.3333%;
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 800px) {
   .profit-loss-wrapper {
     width: 50%;
   }
+}
+
+.btn-period {
+  padding: 0 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 
 /**
@@ -803,4 +866,25 @@ input[type='number'] {
 }
 /**
   End: Lock screen
+*/
+
+/**
+  Start: Trade Modal
+*/
+.trade-stats-wrapper {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.trade-stat-wrapper {
+  width: 25%;
+}
+
+@media (max-width: 500px) {
+  .trade-stat-wrapper {
+    width: 50%;
+  }
+}
+/**
+  End: Trade Modal
 */

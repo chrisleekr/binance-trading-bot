@@ -9,12 +9,20 @@ const { cache } = require('../../../helpers');
 const execute = async (_logger, rawData) => {
   const data = rawData;
 
-  const { symbol, indicators } = data;
+  const { symbol, symbolInfo, indicators, closedTrades } = data;
 
   cache.hset(
     'trailing-trade-symbols',
     `${symbol}-indicator-data`,
     JSON.stringify(indicators)
+  );
+
+  const { quoteAsset } = symbolInfo;
+
+  cache.hset(
+    'trailing-trade-closed-trades',
+    `${quoteAsset}`,
+    JSON.stringify(closedTrades)
   );
 
   return data;

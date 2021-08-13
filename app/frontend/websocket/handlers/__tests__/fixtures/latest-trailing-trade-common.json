@@ -3,5 +3,6 @@
   "last-processed": "{\"timeUTC\":\"2021-02-04T22:37:39.002Z\",\"symbol\":\"BTCUSDT\"}",
   "last-symbol": "BTCUSDT",
   "exchange-symbols": "[\"BNBUSDT\",\"BTCUSDT\",\"ETHUSDT\",\"LTCUSDT\",\"TRXUSDT\",\"XRPUSDT\"]",
+  "closed-trades": "{\"loadedPeriod\":\"m\",\"selectedPeriod\":\"m\"}",
   "local-tunnel-url": "https://chatty-robin-84.loca.lt"
 }

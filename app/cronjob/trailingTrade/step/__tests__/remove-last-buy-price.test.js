@@ -4,6 +4,7 @@ describe('remove-last-buy-price.js', () => {
   let result;
   let rawData;
 
+  let PubSubMock;
   let cacheMock;
   let mongoMock;
   let slackMock;
@@ -13,22 +14,34 @@ describe('remove-last-buy-price.js', () => {
   let mockGetAPILimit;
   let mockIsActionDisabled;
 
+  let mockArchiveSymbolGridTrade;
+  let mockDeleteSymbolGridTrade;
+
   describe('execute', () => {
     beforeEach(() => {
       jest.clearAllMocks().resetModules();
     });
 
     beforeEach(async () => {
-      const { mongo, cache, slack, logger } = require('../../../../helpers');
+      const {
+        PubSub,
+        mongo,
+        cache,
+        slack,
+        logger
+      } = require('../../../../helpers');
 
+      PubSubMock = PubSub;
       mongoMock = mongo;
       cacheMock = cache;
       slackMock = slack;
       loggerMock = logger;
 
+      PubSubMock.publish = jest.fn().mockResolvedValue(true);
       mongoMock.deleteOne = jest.fn().mockResolvedValue(true);
       slackMock.sendMessage = jest.fn().mockResolvedValue(true);
       cacheMock.get = jest.fn().mockResolvedValue(null);
+      cacheMock.hset = jest.fn().mockResolvedValue(true);
 
       mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
       mockGetAPILimit = jest.fn().mockResolvedValue(10);
@@ -36,9 +49,18 @@ describe('remove-last-buy-price.js', () => {
         isDiabled: false,
         ttl: -2
       });
+
+      mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({
+        profit: 0,
+        profitPercentage: 0,
+        totalBuyQuoteQty: 0,
+        totalSellQuoteQty: 0
+      });
+
+      mockDeleteSymbolGridTrade = jest.fn().mockResolvedValue(true);
     });
 
-    describe('when symbol is locked`', () => {
+    describe('when symbol is locked', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
@@ -542,6 +564,18 @@ describe('remove-last-buy-price.js', () => {
               getAPILimit: mockGetAPILimit
             }));
 
+            mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({
+              profit: 10,
+              profitPercentage: 0.1,
+              totalBuyQuoteBuy: 100,
+              totalSellQuoteQty: 110
+            });
+
+            jest.mock('../../../trailingTradeHelper/configuration', () => ({
+              archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
+              deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+            }));
+
             const step = require('../remove-last-buy-price');
 
             rawData = {
@@ -549,7 +583,13 @@ describe('remove-last-buy-price.js', () => {
               isLocked: false,
               symbol: 'ALPHABTC',
               symbolConfiguration: {
-                buy: { lastBuyPriceRemoveThreshold: 0.0001 }
+                buy: { lastBuyPriceRemoveThreshold: 0.0001 },
+                botOptions: {
+                  autoTriggerBuy: {
+                    enabled: true,
+                    triggerAfter: 20
+                  }
+                }
               },
               symbolInfo: {
                 filterLotSize: {
@@ -582,6 +622,32 @@ describe('remove-last-buy-price.js', () => {
             );
           });
 
+          it('triggers archiveSymbolGridTrade', () => {
+            expect(mockArchiveSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              'ALPHABTC'
+            );
+          });
+
+          it('triggers deleteSymbolGridTrade', () => {
+            expect(mockDeleteSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              'ALPHABTC'
+            );
+          });
+
+          it('triggers cache.set because autoTriggerBuy is enabled', () => {
+            expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
+              'trailing-trade-override'
+            );
+            expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual('ALPHABTC');
+            const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
+            expect(args).toStrictEqual({
+              action: 'buy',
+              actionAt: expect.any(String)
+            });
+          });
+
           it('returns expected data', () => {
             expect(result).toStrictEqual({
               ...rawData,
@@ -607,6 +673,13 @@ describe('remove-last-buy-price.js', () => {
               getAPILimit: mockGetAPILimit
             }));
 
+            mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({});
+
+            jest.mock('../../../trailingTradeHelper/configuration', () => ({
+              archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
+              deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+            }));
+
             const step = require('../remove-last-buy-price');
 
             rawData = {
@@ -614,7 +687,13 @@ describe('remove-last-buy-price.js', () => {
               isLocked: false,
               symbol: 'BTCUPUSDT',
               symbolConfiguration: {
-                buy: { lastBuyPriceRemoveThreshold: 10 }
+                buy: { lastBuyPriceRemoveThreshold: 10 },
+                botOptions: {
+                  autoTriggerBuy: {
+                    enabled: false,
+                    triggerAfter: 20
+                  }
+                }
               },
               symbolInfo: {
                 filterLotSize: {
@@ -645,6 +724,24 @@ describe('remove-last-buy-price.js', () => {
               'trailing-trade-symbols',
               { key: 'BTCUPUSDT-last-buy-price' }
             );
+          });
+
+          it('triggers archiveSymbolGridTrade', () => {
+            expect(mockArchiveSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCUPUSDT'
+            );
+          });
+
+          it('triggers deleteSymbolGridTrade', () => {
+            expect(mockDeleteSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCUPUSDT'
+            );
+          });
+
+          it('does not trigger cache.set because autoTriggerBuy is disabled', () => {
+            expect(cacheMock.hset).not.toHaveBeenCalled();
           });
 
           it('returns expected data', () => {
@@ -731,6 +828,18 @@ describe('remove-last-buy-price.js', () => {
               getAPILimit: mockGetAPILimit
             }));
 
+            mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({
+              profit: -10,
+              profitPercentage: -0.1,
+              totalBuyQuoteBuy: 110,
+              totalSellQuoteQty: 100
+            });
+
+            jest.mock('../../../trailingTradeHelper/configuration', () => ({
+              archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
+              deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+            }));
+
             const step = require('../remove-last-buy-price');
 
             rawData = {
@@ -738,7 +847,13 @@ describe('remove-last-buy-price.js', () => {
               isLocked: false,
               symbol: 'BTCUPUSDT',
               symbolConfiguration: {
-                buy: { lastBuyPriceRemoveThreshold: 10 }
+                buy: { lastBuyPriceRemoveThreshold: 10 },
+                botOptions: {
+                  autoTriggerBuy: {
+                    enabled: true,
+                    triggerAfter: 20
+                  }
+                }
               },
               symbolInfo: {
                 filterLotSize: {
@@ -771,6 +886,32 @@ describe('remove-last-buy-price.js', () => {
             );
           });
 
+          it('triggers archiveSymbolGridTrade', () => {
+            expect(mockArchiveSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCUPUSDT'
+            );
+          });
+
+          it('triggers deleteSymbolGridTrade', () => {
+            expect(mockDeleteSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCUPUSDT'
+            );
+          });
+
+          it('triggers cache.set because autoTriggerBuy is enabled', () => {
+            expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
+              'trailing-trade-override'
+            );
+            expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual('BTCUPUSDT');
+            const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
+            expect(args).toStrictEqual({
+              action: 'buy',
+              actionAt: expect.any(String)
+            });
+          });
+
           it('returns expected data', () => {
             expect(result).toStrictEqual({
               ...rawData,
@@ -796,6 +937,18 @@ describe('remove-last-buy-price.js', () => {
               getAPILimit: mockGetAPILimit
             }));
 
+            mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({
+              profit: 10,
+              profitPercentage: 0.1,
+              totalBuyQuoteBuy: 100,
+              totalSellQuoteQty: 110
+            });
+
+            jest.mock('../../../trailingTradeHelper/configuration', () => ({
+              archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
+              deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+            }));
+
             const step = require('../remove-last-buy-price');
 
             rawData = {
@@ -803,7 +956,13 @@ describe('remove-last-buy-price.js', () => {
               isLocked: false,
               symbol: 'BTCUPUSDT',
               symbolConfiguration: {
-                buy: { lastBuyPriceRemoveThreshold: 5 }
+                buy: { lastBuyPriceRemoveThreshold: 5 },
+                botOptions: {
+                  autoTriggerBuy: {
+                    enabled: false,
+                    triggerAfter: 20
+                  }
+                }
               },
               symbolInfo: {
                 filterLotSize: {
@@ -832,6 +991,18 @@ describe('remove-last-buy-price.js', () => {
             expect(mongoMock.deleteOne).not.toHaveBeenCalled();
           });
 
+          it('does not trigger archiveSymbolGridTrade', () => {
+            expect(mockArchiveSymbolGridTrade).not.toHaveBeenCalled();
+          });
+
+          it('does not trigger deleteSymbolGridTrade', () => {
+            expect(mockDeleteSymbolGridTrade).not.toHaveBeenCalled();
+          });
+
+          it('does not trigger cache.set', () => {
+            expect(cacheMock.hset).not.toHaveBeenCalled();
+          });
+
           it('returns expected data', () => {
             expect(result).toStrictEqual(rawData);
           });
@@ -847,6 +1018,18 @@ describe('remove-last-buy-price.js', () => {
           getAPILimit: mockGetAPILimit
         }));
 
+        mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({
+          profit: 10,
+          profitPercentage: 0.1,
+          totalBuyQuoteBuy: 100,
+          totalSellQuoteQty: 110
+        });
+
+        jest.mock('../../../trailingTradeHelper/configuration', () => ({
+          archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
+          deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+        }));
+
         const step = require('../remove-last-buy-price');
 
         rawData = {
@@ -854,7 +1037,13 @@ describe('remove-last-buy-price.js', () => {
           isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolConfiguration: {
-            buy: { lastBuyPriceRemoveThreshold: 10 }
+            buy: { lastBuyPriceRemoveThreshold: 10 },
+            botOptions: {
+              autoTriggerBuy: {
+                enabled: true,
+                triggerAfter: 20
+              }
+            }
           },
           symbolInfo: {
             filterLotSize: {
@@ -881,6 +1070,18 @@ describe('remove-last-buy-price.js', () => {
 
       it('does not trigger mongo.deleteOne', () => {
         expect(mongoMock.deleteOne).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger archiveSymbolGridTrade', () => {
+        expect(mockArchiveSymbolGridTrade).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger deleteSymbolGridTrade', () => {
+        expect(mockDeleteSymbolGridTrade).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger cache.set', () => {
+        expect(cacheMock.hset).not.toHaveBeenCalled();
       });
 
       it('returns expected data', () => {

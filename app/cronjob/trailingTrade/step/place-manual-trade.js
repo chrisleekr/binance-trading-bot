@@ -193,37 +193,33 @@ const slackMessageOrderResult = async (
  *
  * @param {*} logger
  * @param {*} orderResult
- * @param {*} checkManualBuyOrderPeriod
+ * @param {*} checkManualOrderPeriod
  */
-const recordOrder = async (logger, orderResult, checkManualBuyOrderPeriod) => {
-  const { symbol, side, orderId } = orderResult;
+const recordOrder = async (logger, orderResult, checkManualOrderPeriod) => {
+  const { symbol, orderId } = orderResult;
 
-  if (side === 'BUY') {
-    // Save manual buy order
-    logger.info({ orderResult }, 'Record buy order');
-    await cache.hset(
-      `trailing-trade-manual-buy-order-${symbol}`,
-      orderId,
-      JSON.stringify({
-        ...orderResult,
-        nextCheck: moment().add(checkManualBuyOrderPeriod, 'seconds')
-      })
-    );
+  // Save manual order
+  logger.info({ orderResult }, 'Record  order');
+  await cache.hset(
+    `trailing-trade-manual-order-${symbol}`,
+    orderId,
+    JSON.stringify({
+      ...orderResult,
+      nextCheck: moment().add(checkManualOrderPeriod, 'seconds')
+    })
+  );
 
-    // Save order
-    await saveOrder(logger, {
-      order: {
-        ...orderResult
-      },
-      botStatus: {
-        savedAt: moment().format(),
-        savedBy: 'place-manual-trade',
-        savedMessage: 'The manual order is placed.'
-      }
-    });
-  } else {
-    logger.info({ orderResult }, 'Do not record order as it is not BUY order');
-  }
+  // Save order
+  await saveOrder(logger, {
+    order: {
+      ...orderResult
+    },
+    botStatus: {
+      savedAt: moment().format(),
+      savedBy: 'place-manual-trade',
+      savedMessage: 'The manual order is placed.'
+    }
+  });
 };
 
 /**
@@ -240,7 +236,7 @@ const execute = async (logger, rawData) => {
     action,
     baseAssetBalance,
     symbolConfiguration: {
-      system: { checkManualBuyOrderPeriod }
+      system: { checkManualOrderPeriod }
     },
     order
   } = data;
@@ -268,7 +264,7 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Order result');
 
-  await recordOrder(logger, orderResult, checkManualBuyOrderPeriod);
+  await recordOrder(logger, orderResult, checkManualOrderPeriod);
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

@@ -7,7 +7,7 @@ describe('steps.js', () => {
       getSymbolInfo: expect.any(Function),
       getBalances: expect.any(Function),
       getOverrideAction: expect.any(Function),
-      ensureManualBuyOrder: expect.any(Function),
+      ensureManualOrder: expect.any(Function),
       ensureOrderPlaced: expect.any(Function),
       ensureGridTradeOrderExecuted: expect.any(Function),
       getOpenOrders: expect.any(Function),

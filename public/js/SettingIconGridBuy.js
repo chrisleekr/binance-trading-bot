@@ -59,7 +59,6 @@ class SettingIconGridBuy extends React.Component {
     const { gridTrade } = this.state;
 
     const newGridTrade = _.set(gridTrade, stateKey, value);
-    console.log('handleInputChange new grid trade', newGridTrade);
 
     this.setState({
       gridTrade: newGridTrade
@@ -91,7 +90,7 @@ class SettingIconGridBuy extends React.Component {
       quoteAssets,
       minNotionals
     );
-    console.log('onAddGridTrade new grid trade', newGridTrade);
+
     this.setState({
       gridTrade: newGridTrade
     });
@@ -110,7 +109,6 @@ class SettingIconGridBuy extends React.Component {
     });
     this.validateGridTrade(gridTrade);
     this.props.handleGridTradeChange('buy', gridTrade);
-    console.log('onRemoveGridTrade new grid trade', gridTrade);
   }
 
   postProcessGridTrade(gridTrade, quoteAssets, minNotionals) {
@@ -123,11 +121,6 @@ class SettingIconGridBuy extends React.Component {
       return gridTrade;
     }
 
-    console.log('postProcessGridTrade ', {
-      gridTrade,
-      quoteAssets,
-      minNotionals
-    });
     return gridTrade.map(grid => {
       quoteAssets.forEach(quoteAsset => {
         let maxPurchaseAmount = _.get(

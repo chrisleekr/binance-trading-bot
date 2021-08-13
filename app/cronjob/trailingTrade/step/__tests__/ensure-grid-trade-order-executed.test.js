@@ -809,7 +809,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 {
                   disabledBy: 'buy filled order',
                   message:
-                    'Disabled action after founding filled grid trade order .',
+                    'Disabled action after confirming filled grid trade order.',
                   canResume: false,
                   canRemoveLastBuyPrice: false
                 },
@@ -914,7 +914,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
                     {
                       disabledBy: 'buy filled order',
                       message:
-                        'Disabled action after founding filled grid trade order .',
+                        'Disabled action after confirming filled grid trade order.',
                       canResume: false,
                       canRemoveLastBuyPrice: false
                     },
@@ -1581,9 +1581,9 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 {
                   disabledBy: 'sell filled order',
                   message:
-                    'Disabled action after founding filled grid trade order .',
+                    'Disabled action after confirming filled grid trade order.',
                   canResume: false,
-                  canRemoveLastBuyPrice: false
+                  canRemoveLastBuyPrice: true
                 },
                 20
               );
@@ -1678,9 +1678,9 @@ describe('ensure-grid-trade-order-executed.js', () => {
                     {
                       disabledBy: 'sell filled order',
                       message:
-                        'Disabled action after founding filled grid trade order .',
+                        'Disabled action after confirming filled grid trade order.',
                       canResume: false,
-                      canRemoveLastBuyPrice: false
+                      canRemoveLastBuyPrice: true
                     },
                     20
                   );
@@ -1812,6 +1812,348 @@ describe('ensure-grid-trade-order-executed.js', () => {
           it('returns result', () => {
             expect(result).toStrictEqual(rawData);
           });
+        });
+      });
+    });
+
+    describe('slackMessageOrderFilled', () => {
+      describe('when orderParams does not have type for some reason', () => {
+        beforeEach(async () => {
+          cacheMock.get = jest.fn().mockImplementation(key => {
+            if (key === `BTCUSDT-grid-trade-last-buy-order`) {
+              return JSON.stringify({
+                symbol: 'BTCUSDT',
+                side: 'BUY',
+                status: 'NEW',
+                currentGridTradeIndex: 0,
+                nextCheck: '2020-01-01T23:59:00.000Z'
+              });
+            }
+            return null;
+          });
+
+          binanceMock.client.getOrder = jest.fn().mockResolvedValue({
+            symbol: 'BNBUSDT',
+            side: 'BUY',
+            status: 'FILLED',
+            type: 'STOP_LOSS_LIMIT'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            calculateLastBuyPrice: mockCalculateLastBuyPrice,
+            getAPILimit: mockGetAPILimit,
+            isExceedAPILimit: mockIsExceedAPILimit,
+            disableAction: mockDisableAction,
+            saveOrder: mockSaveOrder
+          }));
+
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            saveSymbolGridTrade: mockSaveSymbolGridTrade
+          }));
+
+          const step = require('../ensure-grid-trade-order-executed');
+
+          rawData = {
+            symbol: 'BTCUSDT',
+            action: 'not-determined',
+            featureToggle: {
+              notifyOrderExecute: true,
+              notifyDebug: false
+            },
+            symbolConfiguration: {
+              buy: {
+                gridTrade: [
+                  {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                ]
+              },
+              sell: {
+                gridTrade: [
+                  {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 1,
+                    executed: false,
+                    executedOrder: null
+                  }
+                ]
+              },
+              system: {
+                checkOrderExecutePeriod: 10,
+                temporaryDisableActionAfterConfirmingOrder: 20
+              }
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers slack.sendMessage', () => {
+          expect(slackMock.sendMessage).toHaveBeenCalledWith(
+            expect.stringContaining('STOP_LOSS_LIMIT')
+          );
+        });
+      });
+
+      describe('when orderParams/orderResult is empty for some reason', () => {
+        beforeEach(async () => {
+          cacheMock.get = jest.fn().mockImplementation(key => {
+            if (key === `BTCUSDT-grid-trade-last-buy-order`) {
+              return JSON.stringify({
+                symbol: 'BTCUSDT',
+                side: 'BUY',
+                status: 'NEW',
+                currentGridTradeIndex: 0,
+                nextCheck: '2020-01-01T23:59:00.000Z'
+              });
+            }
+            return null;
+          });
+
+          binanceMock.client.getOrder = jest.fn().mockResolvedValue({
+            symbol: 'BNBUSDT',
+            side: 'BUY',
+            status: 'FILLED'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            calculateLastBuyPrice: mockCalculateLastBuyPrice,
+            getAPILimit: mockGetAPILimit,
+            isExceedAPILimit: mockIsExceedAPILimit,
+            disableAction: mockDisableAction,
+            saveOrder: mockSaveOrder
+          }));
+
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            saveSymbolGridTrade: mockSaveSymbolGridTrade
+          }));
+
+          const step = require('../ensure-grid-trade-order-executed');
+
+          rawData = {
+            symbol: 'BTCUSDT',
+            action: 'not-determined',
+            featureToggle: {
+              notifyOrderExecute: true,
+              notifyDebug: false
+            },
+            symbolConfiguration: {
+              buy: {
+                gridTrade: [
+                  {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                ]
+              },
+              sell: {
+                gridTrade: [
+                  {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 1,
+                    executed: false,
+                    executedOrder: null
+                  }
+                ]
+              },
+              system: {
+                checkOrderExecutePeriod: 10,
+                temporaryDisableActionAfterConfirmingOrder: 20
+              }
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers slack.sendMessage', () => {
+          expect(slackMock.sendMessage).toHaveBeenCalledWith(
+            expect.stringContaining('Undefined')
+          );
+        });
+      });
+    });
+
+    describe('slackMessageOrderDeleted', () => {
+      describe('when orderParams does not have type for some reason', () => {
+        beforeEach(async () => {
+          cacheMock.get = jest.fn().mockImplementation(key => {
+            if (key === `BTCUSDT-grid-trade-last-buy-order`) {
+              return JSON.stringify({
+                symbol: 'BTCUSDT',
+                side: 'BUY',
+                status: 'NEW',
+                currentGridTradeIndex: 0,
+                nextCheck: '2020-01-01T23:59:00.000Z'
+              });
+            }
+            return null;
+          });
+
+          binanceMock.client.getOrder = jest.fn().mockResolvedValue({
+            symbol: 'BNBUSDT',
+            side: 'BUY',
+            status: 'CANCELED',
+            type: 'STOP_LOSS_LIMIT'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            calculateLastBuyPrice: mockCalculateLastBuyPrice,
+            getAPILimit: mockGetAPILimit,
+            isExceedAPILimit: mockIsExceedAPILimit,
+            disableAction: mockDisableAction,
+            saveOrder: mockSaveOrder
+          }));
+
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            saveSymbolGridTrade: mockSaveSymbolGridTrade
+          }));
+
+          const step = require('../ensure-grid-trade-order-executed');
+
+          rawData = {
+            symbol: 'BTCUSDT',
+            action: 'not-determined',
+            featureToggle: {
+              notifyOrderExecute: true,
+              notifyDebug: false
+            },
+            symbolConfiguration: {
+              buy: {
+                gridTrade: [
+                  {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                ]
+              },
+              sell: {
+                gridTrade: [
+                  {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 1,
+                    executed: false,
+                    executedOrder: null
+                  }
+                ]
+              },
+              system: {
+                checkOrderExecutePeriod: 10,
+                temporaryDisableActionAfterConfirmingOrder: 20
+              }
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers slack.sendMessage', () => {
+          expect(slackMock.sendMessage).toHaveBeenCalledWith(
+            expect.stringContaining('STOP_LOSS_LIMIT')
+          );
+        });
+      });
+
+      describe('when orderParams/orderResult is empty for some reason', () => {
+        beforeEach(async () => {
+          cacheMock.get = jest.fn().mockImplementation(key => {
+            if (key === `BTCUSDT-grid-trade-last-buy-order`) {
+              return JSON.stringify({
+                symbol: 'BTCUSDT',
+                side: 'BUY',
+                status: 'NEW',
+                currentGridTradeIndex: 0,
+                nextCheck: '2020-01-01T23:59:00.000Z'
+              });
+            }
+            return null;
+          });
+
+          binanceMock.client.getOrder = jest.fn().mockResolvedValue({
+            symbol: 'BNBUSDT',
+            side: 'BUY',
+            status: 'CANCELED'
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            calculateLastBuyPrice: mockCalculateLastBuyPrice,
+            getAPILimit: mockGetAPILimit,
+            isExceedAPILimit: mockIsExceedAPILimit,
+            disableAction: mockDisableAction,
+            saveOrder: mockSaveOrder
+          }));
+
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            saveSymbolGridTrade: mockSaveSymbolGridTrade
+          }));
+
+          const step = require('../ensure-grid-trade-order-executed');
+
+          rawData = {
+            symbol: 'BTCUSDT',
+            action: 'not-determined',
+            featureToggle: {
+              notifyOrderExecute: true,
+              notifyDebug: false
+            },
+            symbolConfiguration: {
+              buy: {
+                gridTrade: [
+                  {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                ]
+              },
+              sell: {
+                gridTrade: [
+                  {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 1,
+                    executed: false,
+                    executedOrder: null
+                  }
+                ]
+              },
+              system: {
+                checkOrderExecutePeriod: 10,
+                temporaryDisableActionAfterConfirmingOrder: 20
+              }
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers slack.sendMessage', () => {
+          expect(slackMock.sendMessage).toHaveBeenCalledWith(
+            expect.stringContaining('Undefined')
+          );
         });
       });
     });

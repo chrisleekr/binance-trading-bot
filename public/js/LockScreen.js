@@ -34,7 +34,6 @@ class LockScreen extends React.Component {
       .post('/auth', { password })
       .then(response => {
         // handle success
-        console.log('response => ', response);
         const {
           data: {
             success,

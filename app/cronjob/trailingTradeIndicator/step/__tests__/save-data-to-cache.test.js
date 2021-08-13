@@ -16,6 +16,13 @@ describe('save-data-to-cache.js', () => {
         },
         indicators: {
           some: 'value'
+        },
+        symbolInfo: {
+          quoteAsset: 'USDT'
+        },
+        closedTrades: {
+          quoteAsset: 'USDT',
+          totalBuyQuoteQty: 10
         }
       };
 
@@ -28,6 +35,17 @@ describe('save-data-to-cache.js', () => {
         'BTCUSDT-indicator-data',
         JSON.stringify({
           some: 'value'
+        })
+      );
+    });
+
+    it('triggers cache.hset for trailing trade quote assets data', () => {
+      expect(cache.hset).toHaveBeenCalledWith(
+        'trailing-trade-closed-trades',
+        'USDT',
+        JSON.stringify({
+          quoteAsset: 'USDT',
+          totalBuyQuoteQty: 10
         })
       );
     });

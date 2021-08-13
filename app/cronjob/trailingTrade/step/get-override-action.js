@@ -38,6 +38,7 @@ const execute = async (logger, rawData) => {
   // Override action
   if (
     (_.get(overrideData, 'action') === 'buy' ||
+      _.get(overrideData, 'action') === 'sell' ||
       _.get(overrideData, 'action') === 'manual-trade' ||
       _.get(overrideData, 'action') === 'cancel-order') &&
     moment(_.get(overrideData, 'actionAt', undefined)) <= moment()

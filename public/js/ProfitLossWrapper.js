@@ -7,10 +7,15 @@ class ProfitLossWrapper extends React.Component {
     this.state = {
       canUpdate: true,
       symbols: {},
-      totalPnL: {}
+      totalPnL: {},
+      closedTradesLoading: false,
+      closedTradesSetting: {},
+      selectedPeriod: null
     };
 
     this.setUpdate = this.setUpdate.bind(this);
+    this.requestClosedTradesSetPeriod =
+      this.requestClosedTradesSetPeriod.bind(this);
   }
 
   componentDidUpdate(nextProps) {
@@ -35,9 +40,7 @@ class ProfitLossWrapper extends React.Component {
         }
 
         totalPnL[s.quoteAssetBalance.asset].amount +=
-          (parseFloat(s.baseAssetBalance.free) +
-            parseFloat(s.baseAssetBalance.free)) *
-          s.sell.lastBuyPrice;
+          parseFloat(s.baseAssetBalance.total) * s.sell.lastBuyPrice;
         totalPnL[s.quoteAssetBalance.asset].profit += s.sell.currentProfit;
       });
 
@@ -45,6 +48,47 @@ class ProfitLossWrapper extends React.Component {
         symbols,
         totalPnL
       });
+    }
+
+    if (
+      _.get(nextProps, 'closedTradesSetting', null) !== null &&
+      _.isEqual(
+        _.get(nextProps, 'closedTradesSetting', null),
+        this.state.closedTradesSetting
+      ) === false
+    ) {
+      const { closedTradesSetting } = nextProps;
+      this.setState({
+        closedTradesSetting
+      });
+    }
+
+    const { selectedPeriod } = this.state;
+    const { loadedPeriod } = this.state.closedTradesSetting;
+
+    // Set initial selected period
+    if (loadedPeriod !== undefined && selectedPeriod === null) {
+      this.setState({
+        selectedPeriod: loadedPeriod
+      });
+    }
+
+    // If loaded period and selected period, then wait for reloaded
+    if (loadedPeriod !== selectedPeriod) {
+      if (this.state.closedTradesLoading === false) {
+        // Set loading as true
+        this.setState({
+          closedTradesLoading: true
+        });
+      }
+    } else {
+      // If loaded period and selected period, then it's loaded correctly.
+      if (this.state.closedTradesLoading === true) {
+        // Set loading as false
+        this.setState({
+          closedTradesLoading: false
+        });
+      }
     }
   }
 
@@ -54,16 +98,34 @@ class ProfitLossWrapper extends React.Component {
     });
   }
 
-  render() {
-    const { sendWebSocket, isAuthenticated } = this.props;
-    const { totalPnL, symbols } = this.state;
+  requestClosedTradesSetPeriod() {
+    const { selectedPeriod } = this.state;
+    return axios.post('/closed-trades-set-period', {
+      selectedPeriod
+    });
+  }
 
-    const quoteAssets = Object.values(totalPnL).map((pnl, index) => {
+  setSelectedPeriod(newSelectedPeriod) {
+    this.setState({ selectedPeriod: newSelectedPeriod }, () =>
+      this.requestClosedTradesSetPeriod()
+    );
+  }
+
+  render() {
+    const { sendWebSocket, isAuthenticated, closedTrades } = this.props;
+    const { totalPnL, symbols, selectedPeriod, closedTradesLoading } =
+      this.state;
+
+    if (_.isEmpty(totalPnL)) {
+      return '';
+    }
+
+    const openTradeWrappers = Object.values(totalPnL).map((pnl, index) => {
       const percentage =
         pnl.amount > 0 ? ((pnl.profit / pnl.amount) * 100).toFixed(2) : 0;
       return (
         <div
-          key={`info-pnl-` + index}
+          key={`open-trade-pnl-` + index}
           className='profit-loss-wrapper pt-2 pl-2 pr-2 pb-0'>
           <div className='profit-loss-wrapper-body'>
             <span className='profit-loss-asset'>{pnl.asset}</span>{' '}
@@ -77,69 +139,185 @@ class ProfitLossWrapper extends React.Component {
       );
     });
 
+    const closedTradeWrappers = Object.values(closedTrades).map(
+      (stat, index) => {
+        return (
+          <div
+            key={`closed-trade-pnl-` + index}
+            className='profit-loss-wrapper pt-2 pl-2 pr-2 pb-0'>
+            <div className='profit-loss-wrapper-body'>
+              <div className='profit-loss-asset'>
+                {stat.quoteAsset}
+                <br />
+                <QuoteAssetGridTradeArchiveIcon
+                  isAuthenticated={isAuthenticated}
+                  quoteAsset={stat.quoteAsset}
+                  quoteAssetTickSize={5}
+                />
+                ({stat.trades})
+              </div>{' '}
+              <div className='profit-loss-value'>
+                {stat.profit > 0 ? '+' : ''}
+                {stat.profit.toFixed(5)}
+                <br />({stat.profitPercentage.toFixed(2)}%)
+              </div>
+            </div>
+          </div>
+        );
+      }
+    );
+
     return (
-      <div className='accordion-wrapper profit-loss-accordion-wrapper'>
-        <Accordion defaultActiveKey='0'>
-          <Card bg='dark'>
-            <Card.Header className='px-2 py-1'>
-              <div className='d-flex flex-row justify-content-between'>
-                <div className='flex-column-left'>
-                  <div className='btn-profit-loss text-uppercase font-weight-bold'>
-                    Profit/Loss{' '}
-                    <OverlayTrigger
-                      trigger='click'
-                      key='profit-loss-overlay'
-                      placement='bottom'
-                      overlay={
-                        <Popover id='profit-loss-overlay-right'>
-                          <Popover.Content>
-                            This section displays the estimated profit/loss for
-                            the list of assets that are currently open to
-                            selling with the last buy price recorded. The
-                            calculation is simply adding profit/loss values for
-                            each quote asset. Note that it does not represent
-                            the historical profit/loss.
-                          </Popover.Content>
-                        </Popover>
-                      }>
-                      <Button variant='link' className='p-0 m-0 ml-1 text-info'>
-                        <i className='fas fa-question-circle fa-sm'></i>
-                      </Button>
-                    </OverlayTrigger>
+      <div className='profit-loss-container'>
+        <div className='accordion-wrapper profit-loss-accordion-wrapper profit-loss-open-trades-accordion-wrapper'>
+          <Accordion defaultActiveKey='0'>
+            <Card bg='dark'>
+              <Card.Header className='px-2 py-1'>
+                <div className='d-flex flex-row justify-content-between'>
+                  <div className='flex-column-left'>
+                    <div className='btn-profit-loss text-uppercase font-weight-bold'>
+                      Open Trades{' '}
+                      <OverlayTrigger
+                        trigger='click'
+                        key='profit-loss-overlay'
+                        placement='bottom'
+                        overlay={
+                          <Popover id='profit-loss-overlay-right'>
+                            <Popover.Content>
+                              This section displays the estimated profit/loss
+                              for the list of assets that are currently open to
+                              selling with the last buy price recorded. The
+                              calculation is simply adding profit/loss values
+                              for each quote asset. Note that it does not
+                              represent the historical profit/loss.
+                            </Popover.Content>
+                          </Popover>
+                        }>
+                        <Button
+                          variant='link'
+                          className='p-0 m-0 ml-1 text-info'>
+                          <i className='fas fa-question-circle fa-sm'></i>
+                        </Button>
+                      </OverlayTrigger>
+                    </div>
+                  </div>
+                  <div className='flex-column-right pt-2'>
+                    {_.isEmpty(symbols) === false ? (
+                      <ManualTradeIcon
+                        symbols={symbols}
+                        setUpdate={this.setUpdate}
+                        sendWebSocket={sendWebSocket}
+                        isAuthenticated={isAuthenticated}
+                      />
+                    ) : (
+                      ''
+                    )}
                   </div>
                 </div>
-                <div className='flex-column-right pt-2'>
-                  {_.isEmpty(symbols) === false ? (
-                    <ManualTradeIcon
-                      symbols={symbols}
-                      setUpdate={this.setUpdate}
-                      sendWebSocket={sendWebSocket}
-                      isAuthenticated={isAuthenticated}
-                    />
-                  ) : (
-                    ''
-                  )}
-                </div>
-              </div>
-            </Card.Header>
+              </Card.Header>
 
-            <Accordion.Collapse eventKey='0'>
-              <Card.Body className='d-flex flex-column py-2 px-0 card-body'>
-                <div className='profit-loss-wrappers info-wrapper d-flex flex-row flex-wrap justify-content-start'>
-                  {_.isEmpty(totalPnL) ? (
-                    <div className='text-center w-100'>
-                      <Spinner animation='border' role='status'>
-                        <span className='sr-only'>Loading...</span>
-                      </Spinner>
+              <Accordion.Collapse eventKey='0'>
+                <Card.Body className='d-flex flex-column py-2 px-0 card-body'>
+                  <div className='profit-loss-wrappers profit-loss-open-trades-wrappers'>
+                    {_.isEmpty(totalPnL) ? (
+                      <div className='text-center w-100 m-3'>
+                        <Spinner animation='border' role='status'>
+                          <span className='sr-only'>Loading...</span>
+                        </Spinner>
+                      </div>
+                    ) : (
+                      openTradeWrappers
+                    )}
+                  </div>
+                </Card.Body>
+              </Accordion.Collapse>
+            </Card>
+          </Accordion>
+        </div>
+        <div className='accordion-wrapper profit-loss-accordion-wrapper profit-loss-closed-trades-accordion-wrapper'>
+          <Accordion defaultActiveKey='0'>
+            <Card bg='dark'>
+              <Card.Header className='px-2 py-1'>
+                <div className='d-flex flex-row justify-content-between'>
+                  <div className='flex-column-left'>
+                    <div className='btn-profit-loss text-uppercase font-weight-bold'>
+                      Closed Trades{' '}
+                      <OverlayTrigger
+                        trigger='click'
+                        key='profit-loss-overlay'
+                        placement='bottom'
+                        overlay={
+                          <Popover id='profit-loss-overlay-right'>
+                            <Popover.Content>...</Popover.Content>
+                          </Popover>
+                        }>
+                        <Button
+                          variant='link'
+                          className='p-0 m-0 ml-1 text-info'>
+                          <i className='fas fa-question-circle fa-sm'></i>
+                        </Button>
+                      </OverlayTrigger>
                     </div>
-                  ) : (
-                    quoteAssets
-                  )}
+                  </div>
+                  <div className='flex-column-right pt-2'>
+                    <button
+                      type='button'
+                      className={`btn btn-period ml-1 btn-sm ${
+                        selectedPeriod === 'd' ? 'btn-info' : 'btn-light'
+                      }`}
+                      onClick={() => this.setSelectedPeriod('d')}
+                      title='Day'>
+                      D
+                    </button>
+                    <button
+                      type='button'
+                      className={`btn btn-period ml-1 btn-sm ${
+                        selectedPeriod === 'w' ? 'btn-info' : 'btn-light'
+                      }`}
+                      onClick={() => this.setSelectedPeriod('w')}
+                      title='Week'>
+                      W
+                    </button>
+                    <button
+                      type='button'
+                      className={`btn btn-period ml-1 btn-sm ${
+                        selectedPeriod === 'm' ? 'btn-info' : 'btn-light'
+                      }`}
+                      onClick={() => this.setSelectedPeriod('m')}
+                      title='Month'>
+                      M
+                    </button>
+                    <button
+                      type='button'
+                      className={`btn btn-period ml-1 btn-sm ${
+                        selectedPeriod === 'a' ? 'btn-info' : 'btn-light'
+                      }`}
+                      onClick={() => this.setSelectedPeriod('a')}
+                      title='All'>
+                      All
+                    </button>
+                  </div>
                 </div>
-              </Card.Body>
-            </Accordion.Collapse>
-          </Card>
-        </Accordion>
+              </Card.Header>
+
+              <Accordion.Collapse eventKey='0'>
+                <Card.Body className='d-flex flex-column py-2 px-0 card-body'>
+                  <div className='profit-loss-wrappers profit-loss-open-trades-wrappers'>
+                    {closedTradesLoading === true || _.isEmpty(closedTrades) ? (
+                      <div className='text-center w-100 m-3'>
+                        <Spinner animation='border' role='status'>
+                          <span className='sr-only'>Loading...</span>
+                        </Spinner>
+                      </div>
+                    ) : (
+                      <React.Fragment>{closedTradeWrappers}</React.Fragment>
+                    )}
+                  </div>
+                </Card.Body>
+              </Accordion.Collapse>
+            </Card>
+          </Accordion>
+        </div>
       </div>
     );
   }

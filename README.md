@@ -272,6 +272,7 @@ React.js based frontend communicating via Web Socket:
 
 - List monitoring coins with buy/sell signals/open orders
 - View account balances
+- View open/closed trades
 - Manage global/symbol settings
 - Delete caches that are not monitored
 - Link to public URL
@@ -321,13 +322,6 @@ Or use the frontend to adjust configurations after launching the application.
    docker-compose -f docker-compose.server.yml up -d
    ```
 
-   Or if using Raspberry Pi 4 32bit, must build again for Raspberry Pi:
-
-   ```bash
-   npm run docker:build
-   docker-compose -f docker-compose.rpi.yml up -d
-   ```
-
    Or if want development/test mode, then run below commands:
 
    ```bash
@@ -353,15 +347,15 @@ Or use the frontend to adjust configurations after launching the application.
 
 | Password Protected | Frontend Mobile |
 | ------------------ | --------------- |
-| ![Password Protected](https://user-images.githubusercontent.com/5715919/127773484-51d01881-4933-454e-9052-9965b222e716.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/127773506-bea19f9f-ed8b-4eb5-9a4c-a00a03d63276.png) |
+| ![Password Protected](https://user-images.githubusercontent.com/5715919/127773484-51d01881-4933-454e-9052-9965b222e716.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/129367660-743f89fd-2eae-4113-8ce7-6249ba47926a.png) |
 
 | Setting | Manual Trade |
 | ------- | ------------ |
 | ![Setting](https://user-images.githubusercontent.com/5715919/127318581-4e422ac9-b145-4e83-a90d-5c05c61d6e2f.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/127318630-f2180e1b-3feb-48fa-a083-4cb7f90f743f.png) |
 
-| Frontend Desktop                                                                                                          |
-| ------------------------------------------------------------------------------------------------------------------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/127773543-ca1a9d19-676d-4410-88d2-64926161de29.png) |
+| Frontend Desktop  | Closed Trades |
+| ----------------- | ------------- |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/129367482-2d88144a-b5e3-49b1-ae11-f21e7251dab0.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/129367521-019cf591-26f2-4d69-ac9e-9f631605aab2.png) |
 
 ### Sample Trade
 
@@ -377,7 +371,6 @@ to view the past changes.
 
 - [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
 - [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
-- [ ] Display summary of transactions on the frontend - [#160](https://github.com/chrisleekr/binance-trading-bot/issues/160)
 - [ ] Add minimum required order amount - [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)
 - [ ] Manage setting profiles (save/change/load?/export?) - [#151](https://github.com/chrisleekr/binance-trading-bot/issues/151)
 - [ ] Improve notifications by supporting Apprise - [#106](https://github.com/chrisleekr/binance-trading-bot/issues/106)
@@ -387,6 +380,7 @@ to view the past changes.
 - [ ] Develop simple setup screen for secrets
 - [ ] Support multilingual frontend - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
 - [ ] Non linear stop price and chase function - [#246](https://github.com/chrisleekr/binance-trading-bot/issues/246)
+- [ ] Support STOP-LOSS configuration per grid trade for selling - [#261](https://github.com/chrisleekr/binance-trading-bot/issues/261)
 
 ## Donations
 

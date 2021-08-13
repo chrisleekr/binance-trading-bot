@@ -5,11 +5,13 @@ describe('steps.js', () => {
     expect(steps).toStrictEqual({
       getGlobalConfiguration: expect.any(Function),
       getSymbolConfiguration: expect.any(Function),
+      getSymbolInfo: expect.any(Function),
       getNextSymbol: expect.any(Function),
       getOverrideAction: expect.any(Function),
       getAccountInfo: expect.any(Function),
       getIndicators: expect.any(Function),
       getOpenOrders: expect.any(Function),
+      getClosedTrades: expect.any(Function),
       executeDustTransfer: expect.any(Function),
       saveDataToCache: expect.any(Function)
     });

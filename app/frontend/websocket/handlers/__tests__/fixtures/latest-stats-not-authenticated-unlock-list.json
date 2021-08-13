@@ -2,12 +2,18 @@
   "result": true,
   "type": "latest",
   "isAuthenticated": false,
-  "botOptions": { "authentication": { "lockList": false, "lockAfter": 120 } },
+  "botOptions": {
+    "authentication": { "lockList": false, "lockAfter": 120 },
+    "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 }
+  },
   "configuration": {
     "enabled": true,
     "type": "i-am-global",
     "candles": { "interval": "15m", "limit": 100 },
-    "botOptions": { "authentication": { "lockList": false, "lockAfter": 120 } },
+    "botOptions": {
+      "authentication": { "lockList": false, "lockAfter": 120 },
+      "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 }
+    },
     "sell": {
       "enabled": true,
       "gridTrade": [
@@ -49,14 +55,14 @@
     },
     "system": {
       "temporaryDisableActionAfterConfirmingOrder": 20,
-      "checkManualBuyOrderPeriod": 5,
+      "checkManualOrderPeriod": 5,
       "placeManualOrderInterval": 5,
       "refreshAccountInfoPeriod": 1,
       "checkOrderExecutePeriod": 10
     }
   },
   "common": {
-    "version": "0.0.73",
+    "version": "0.0.74",
     "gitHash": "some-hash",
     "accountInfo": {
       "makerCommission": 0,
@@ -88,7 +94,24 @@
       "XRPUSDT"
     ],
     "publicURL": "https://chatty-robin-84.loca.lt",
-    "apiInfo": { "spot": { "usedWeight1m": "60" }, "futures": {} }
+    "apiInfo": { "spot": { "usedWeight1m": "60" }, "futures": {} },
+    "closedTradesSetting": { "loadedPeriod": "m", "selectedPeriod": "m" },
+    "closedTrades": [
+      {
+        "_id": "USDT",
+        "quoteAsset": "USDT",
+        "totalBuyQuoteQty": 2304.995320549999,
+        "totalSellQuoteQty": 2399.8955416500003,
+        "buyGridTradeQuoteQty": 2285.4153205499997,
+        "buyManualQuoteQty": 19.58,
+        "sellGridTradeQuoteQty": 1375.9333752599996,
+        "sellManualQuoteQty": 0,
+        "stopLossQuoteQty": 1023.9621663900001,
+        "profit": 94.90022109999998,
+        "trades": 90,
+        "profitPercentage": 4.1171546099866125
+      }
+    ]
   },
   "stats": {
     "symbols": [
@@ -122,7 +145,8 @@
           "type": "i-am-symbol",
           "candles": { "interval": "15m", "limit": 100 },
           "botOptions": {
-            "authentication": { "lockList": false, "lockAfter": 120 }
+            "authentication": { "lockList": false, "lockAfter": 120 },
+            "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 }
           },
           "sell": {
             "enabled": true,
@@ -177,7 +201,7 @@
           },
           "system": {
             "temporaryDisableActionAfterConfirmingOrder": 20,
-            "checkManualBuyOrderPeriod": 5,
+            "checkManualOrderPeriod": 5,
             "placeManualOrderInterval": 5,
             "refreshAccountInfoPeriod": 1,
             "checkOrderExecutePeriod": 10
@@ -345,7 +369,8 @@
           "type": "i-am-symbol",
           "candles": { "interval": "15m", "limit": 100 },
           "botOptions": {
-            "authentication": { "lockList": false, "lockAfter": 120 }
+            "authentication": { "lockList": false, "lockAfter": 120 },
+            "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 }
           },
           "sell": {
             "enabled": true,
@@ -407,7 +432,7 @@
           },
           "system": {
             "temporaryDisableActionAfterConfirmingOrder": 20,
-            "checkManualBuyOrderPeriod": 5,
+            "checkManualOrderPeriod": 5,
             "placeManualOrderInterval": 5,
             "refreshAccountInfoPeriod": 1,
             "checkOrderExecutePeriod": 10

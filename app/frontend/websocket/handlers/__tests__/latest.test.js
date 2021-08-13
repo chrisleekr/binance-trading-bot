@@ -4,6 +4,7 @@ const _ = require('lodash');
 describe('latest.test.js', () => {
   const trailingTradeCommonJson = require('./fixtures/latest-trailing-trade-common.json');
   const trailingTradeSymbols = require('./fixtures/latest-trailing-trade-symbols.json');
+  const trailingTradeClosedTrades = require('./fixtures/latest-trailing-trade-closed-trades.json');
 
   // eslint-disable-next-line max-len
   const trailingTradeStateNotAuthenticatedUnlockList = require('./fixtures/latest-stats-not-authenticated-unlock-list.json');
@@ -168,6 +169,10 @@ describe('latest.test.js', () => {
           return trailingTradeSymbols;
         }
 
+        if (key === 'trailing-trade-closed-trades') {
+          return trailingTradeClosedTrades;
+        }
+
         return '';
       });
 
@@ -327,9 +332,14 @@ describe('latest.test.js', () => {
             result: true,
             type: 'latest',
             isAuthenticated: false,
-            botOptions: { authentication: { lockList: true, lockAfter: 120 } },
+            botOptions: {
+              authentication: { lockList: true, lockAfter: 120 },
+              autoTriggerBuy: { enabled: false, triggerAfter: 20 }
+            },
             configuration: {},
             common: {},
+            closedTradesSetting: {},
+            closedTrades: [],
             stats: {}
           })
         );

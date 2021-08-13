@@ -6,15 +6,18 @@ describe('trailingTradeIndicator', () => {
 
   let mockLoggerInfo;
   let mockSlackSendMessage;
+  let mockConfigGet;
 
   let mockGetGlobalConfiguration;
   let mockGetNextSymbol;
   let mockGetSymbolConfiguration;
+  let mockGetSymbolInfo;
   let mockGetOverrideAction;
   let mockGetAccountInfo;
   let mockGetIndicators;
   let mockGetOpenOrders;
   let mockExecuteDustTransfer;
+  let mockGetClosedTrades;
   let mockSaveDataToCache;
 
   let mockLockSymbol;
@@ -99,6 +102,15 @@ describe('trailingTradeIndicator', () => {
           }
         }));
 
+      mockGetSymbolInfo = jest.fn().mockImplementation((_logger, rawData) => ({
+        ...rawData,
+        ...{
+          symbolInfo: {
+            some: 'info'
+          }
+        }
+      }));
+
       mockGetOverrideAction = jest
         .fn()
         .mockImplementation((_logger, rawData) => ({
@@ -106,15 +118,6 @@ describe('trailingTradeIndicator', () => {
           ...{
             action: 'override-action',
             overrideParams: { param: 'overrided' }
-          }
-        }));
-
-      mockExecuteDustTransfer = jest
-        .fn()
-        .mockImplementation((_logger, rawData) => ({
-          ...rawData,
-          ...{
-            dustTransfer: 'dust-transfer'
           }
         }));
 
@@ -143,6 +146,24 @@ describe('trailingTradeIndicator', () => {
         }
       }));
 
+      mockExecuteDustTransfer = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            dustTransfer: 'dust-transfer'
+          }
+        }));
+
+      mockGetClosedTrades = jest
+        .fn()
+        .mockImplementation((_logger, rawData) => ({
+          ...rawData,
+          ...{
+            getClosedTrades: 'executed'
+          }
+        }));
+
       mockSaveDataToCache = jest
         .fn()
         .mockImplementation((_logger, rawData) => ({
@@ -156,11 +177,13 @@ describe('trailingTradeIndicator', () => {
         getGlobalConfiguration: mockGetGlobalConfiguration,
         getNextSymbol: mockGetNextSymbol,
         getSymbolConfiguration: mockGetSymbolConfiguration,
+        getSymbolInfo: mockGetSymbolInfo,
         getOverrideAction: mockGetOverrideAction,
-        executeDustTransfer: mockExecuteDustTransfer,
         getAccountInfo: mockGetAccountInfo,
         getIndicators: mockGetIndicators,
         getOpenOrders: mockGetOpenOrders,
+        executeDustTransfer: mockExecuteDustTransfer,
+        getClosedTrades: mockGetClosedTrades,
         saveDataToCache: mockSaveDataToCache
       }));
 
@@ -193,12 +216,15 @@ describe('trailingTradeIndicator', () => {
             globalConfiguration: { global: 'configuration data' },
             symbol: 'BTCUSDT',
             symbolConfiguration: { symbol: 'configuration data' },
+            symbolInfo: { some: 'info' },
             accountInfo: { account: 'information' },
             indicators: { some: 'value' },
             openOrders: [{ orderId: 1 }],
             overrideParams: { param: 'overrided' },
+            quoteAssetStats: {},
             apiLimit: { start: 10, end: 10 },
             dustTransfer: 'dust-transfer',
+            getClosedTrades: 'executed',
             saved: 'data-to-cache'
           }
         },
@@ -348,31 +374,53 @@ describe('trailingTradeIndicator', () => {
       {
         label: 'Error -1001',
         code: -1001,
-        sendSlack: false
+        sendSlack: false,
+        featureToggleNotifyDebug: false
       },
       {
         label: 'Error -1021',
         code: -1021,
-        sendSlack: false
+        sendSlack: false,
+        featureToggleNotifyDebug: false
       },
       {
         label: 'Error ECONNRESET',
         code: 'ECONNRESET',
-        sendSlack: false
+        sendSlack: false,
+        featureToggleNotifyDebug: false
       },
       {
         label: 'Error ECONNREFUSED',
         code: 'ECONNREFUSED',
-        sendSlack: false
+        sendSlack: false,
+        featureToggleNotifyDebug: false
       },
       {
-        label: 'Error something else',
+        label: 'Error something else - with notify debug',
         code: 'something',
-        sendSlack: true
+        sendSlack: true,
+        featureToggleNotifyDebug: true
+      },
+      {
+        label: 'Error something else - without notify debug',
+        code: 'something',
+        sendSlack: true,
+        featureToggleNotifyDebug: false
       }
     ].forEach(errorInfo => {
       describe(`${errorInfo.label}`, () => {
         beforeEach(async () => {
+          mockConfigGet = jest.fn(key => {
+            if (key === 'featureToggle.notifyDebug') {
+              return errorInfo.featureToggleNotifyDebug;
+            }
+            return null;
+          });
+
+          jest.mock('config', () => ({
+            get: mockConfigGet
+          }));
+
           mockGetGlobalConfiguration = jest.fn().mockRejectedValueOnce(
             new (class CustomError extends Error {
               constructor() {

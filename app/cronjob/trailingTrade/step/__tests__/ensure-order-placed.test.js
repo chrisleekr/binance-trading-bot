@@ -178,7 +178,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'not-determined',
             featureToggle: {
-              notifyOrderConfirm: false
+              notifyOrderConfirm: false,
+              notifyDebug: false
             },
             openOrders: [],
             buy: {
@@ -250,7 +251,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'not-determined',
             featureToggle: {
-              notifyOrderConfirm: false
+              notifyOrderConfirm: false,
+              notifyDebug: false
             },
             openOrders: [
               {
@@ -283,7 +285,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'not-determined',
             featureToggle: {
-              notifyOrderConfirm: true
+              notifyOrderConfirm: true,
+              notifyDebug: true
             },
             openOrders: [],
             buy: {
@@ -355,7 +358,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'not-determined',
             featureToggle: {
-              notifyOrderConfirm: true
+              notifyOrderConfirm: true,
+              notifyDebug: true
             },
             openOrders: [
               {
@@ -425,13 +429,14 @@ describe('ensure-order-placed.js', () => {
         }));
       });
 
-      describe('when notifyOrderConfir is disabled', () => {
+      describe('when notifyOrderConfirm is disabled', () => {
         beforeEach(async () => {
           rawData = {
             symbol: 'BTCUSDT',
             action: 'not-determined',
             featureToggle: {
-              notifyOrderConfirm: false
+              notifyOrderConfirm: false,
+              notifyDebug: false
             },
             openOrders: [],
             buy: {
@@ -468,7 +473,7 @@ describe('ensure-order-placed.js', () => {
           expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
-        it('does not trigger slack.sendMessage', () => {
+        it('does not slack.sendMessage for debug', () => {
           expect(slackMock.sendMessage).not.toHaveBeenCalled();
         });
 
@@ -481,7 +486,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'buy-order-checking',
             featureToggle: {
-              notifyOrderConfirm: false
+              notifyOrderConfirm: false,
+              notifyDebug: false
             },
             openOrders: [],
             buy: {
@@ -495,13 +501,14 @@ describe('ensure-order-placed.js', () => {
         });
       });
 
-      describe('when notifyOrderConfir is enabled', () => {
+      describe('when notifyOrderConfirm is enabled', () => {
         beforeEach(async () => {
           rawData = {
             symbol: 'BTCUSDT',
             action: 'not-determined',
             featureToggle: {
-              notifyOrderConfirm: true
+              notifyOrderConfirm: true,
+              notifyDebug: true
             },
             openOrders: [],
             buy: {
@@ -551,7 +558,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'buy-order-checking',
             featureToggle: {
-              notifyOrderConfirm: true
+              notifyOrderConfirm: true,
+              notifyDebug: true
             },
             openOrders: [],
             buy: {
@@ -621,7 +629,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'not-determined',
             featureToggle: {
-              notifyOrderConfirm: false
+              notifyOrderConfirm: false,
+              notifyDebug: false
             },
             openOrders: [],
             sell: {
@@ -699,7 +708,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'not-determined',
             featureToggle: {
-              notifyOrderConfirm: false
+              notifyOrderConfirm: false,
+              notifyDebug: false
             },
             openOrders: [
               {
@@ -778,7 +788,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'not-determined',
             featureToggle: {
-              notifyOrderConfirm: true
+              notifyOrderConfirm: true,
+              notifyDebug: true
             },
             openOrders: [],
             sell: {
@@ -856,7 +867,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'not-determined',
             featureToggle: {
-              notifyOrderConfirm: true
+              notifyOrderConfirm: true,
+              notifyDebug: true
             },
             openOrders: [
               {
@@ -930,7 +942,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'not-determined',
             featureToggle: {
-              notifyOrderConfirm: false
+              notifyOrderConfirm: false,
+              notifyDebug: false
             },
             openOrders: [],
             sell: {
@@ -977,7 +990,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'sell-order-checking',
             featureToggle: {
-              notifyOrderConfirm: false
+              notifyOrderConfirm: false,
+              notifyDebug: false
             },
             openOrders: [],
             sell: {
@@ -1035,7 +1049,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'not-determined',
             featureToggle: {
-              notifyOrderConfirm: true
+              notifyOrderConfirm: true,
+              notifyDebug: true
             },
             openOrders: [],
             sell: {
@@ -1082,7 +1097,8 @@ describe('ensure-order-placed.js', () => {
             symbol: 'BTCUSDT',
             action: 'sell-order-checking',
             featureToggle: {
-              notifyOrderConfirm: true
+              notifyOrderConfirm: true,
+              notifyDebug: true
             },
             openOrders: [],
             sell: {

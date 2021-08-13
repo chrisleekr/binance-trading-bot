@@ -38,6 +38,12 @@ describe('symbol-setting-update.test.js', () => {
           lastbuyPercentage: 1.06,
           stopPercentage: 0.99,
           limitPercentage: 0.98
+        },
+        botOptions: {
+          autoTriggerBuy: {
+            enabled: false,
+            triggerAfter: 20
+          }
         }
       });
 
@@ -62,15 +68,107 @@ describe('symbol-setting-update.test.js', () => {
             },
             buy: {
               enabled: false,
-              maxPurchaseAmount: 200
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1,
+                stopPercentage: 1.001,
+                limitPercentage: 1.0021,
+                maxPurchaseAmount: -1,
+                maxPurchaseAmounts: {
+                  USDT: 15,
+                  BTC: 0.00011,
+                  BUSD: 15,
+                  BNB: 0.11
+                },
+                executed: false,
+                executedOrder: null
+              },
+              gridTrade: [
+                {
+                  triggerPercentage: 1,
+                  stopPercentage: 1.001,
+                  limitPercentage: 1.0021,
+                  maxPurchaseAmount: -1,
+                  maxPurchaseAmounts: {
+                    USDT: 15,
+                    BTC: 0.00011,
+                    BUSD: 15,
+                    BNB: 0.11
+                  },
+                  executed: false,
+                  executedOrder: null
+                },
+                {
+                  triggerPercentage: 0.9999,
+                  stopPercentage: 1.001,
+                  limitPercentage: 1.0021,
+                  maxPurchaseAmount: -1,
+                  maxPurchaseAmounts: {
+                    USDT: 15,
+                    BTC: 0.00011,
+                    BUSD: 15,
+                    BNB: 0.11
+                  },
+                  executed: false,
+                  executedOrder: null
+                }
+              ]
             },
             sell: {
               enabled: false,
-              lastbuyPercentage: 1.08,
-              stopPercentage: 0.97,
-              limitPercentage: 0.96
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.001,
+                stopPercentage: 0.999,
+                limitPercentage: 0.998,
+                quantityPercentage: -1,
+                quantityPercentages: {
+                  USDT: 0.9999,
+                  BTC: 1,
+                  BUSD: 0.9999,
+                  BNB: 1
+                },
+                executed: false,
+                executedOrder: null
+              },
+              gridTrade: [
+                {
+                  triggerPercentage: 1.001,
+                  stopPercentage: 0.999,
+                  limitPercentage: 0.998,
+                  quantityPercentage: -1,
+                  quantityPercentages: {
+                    USDT: 0.9999,
+                    BTC: 1,
+                    BUSD: 0.9999,
+                    BNB: 1
+                  },
+                  executed: false,
+                  executedOrder: null
+                },
+                {
+                  triggerPercentage: 1.0011,
+                  stopPercentage: 0.999,
+                  limitPercentage: 0.998,
+                  quantityPercentage: -1,
+                  quantityPercentages: {
+                    USDT: 1,
+                    BTC: 1,
+                    BUSD: 1,
+                    BNB: 1
+                  },
+                  executed: false,
+                  executedOrder: null
+                }
+              ]
             },
-            some: 'other value'
+            some: 'other value',
+            botOptions: {
+              autoTriggerBuy: {
+                enabled: true,
+                triggerAfter: 10
+              }
+            }
           }
         }
       });
@@ -88,31 +186,156 @@ describe('symbol-setting-update.test.js', () => {
         mockLogger,
         'BTCUSDT',
         {
+          botOptions: {
+            autoTriggerBuy: {
+              enabled: true,
+              triggerAfter: 10
+            }
+          },
+          buy: {
+            enabled: false,
+            gridTrade: [
+              {
+                limitPercentage: 1.0021,
+                maxPurchaseAmount: -1,
+                maxPurchaseAmounts: {
+                  BNB: 0.11,
+                  BTC: 0.00011,
+                  BUSD: 15,
+                  USDT: 15
+                },
+                stopPercentage: 1.001,
+                triggerPercentage: 1
+              },
+              {
+                limitPercentage: 1.0021,
+                maxPurchaseAmount: -1,
+                maxPurchaseAmounts: {
+                  BNB: 0.11,
+                  BTC: 0.00011,
+                  BUSD: 15,
+                  USDT: 15
+                },
+                stopPercentage: 1.001,
+                triggerPercentage: 0.9999
+              }
+            ]
+          },
           candles: {
             interval: '15m',
             limit: '200'
           },
-          buy: {
-            enabled: false,
-            maxPurchaseAmount: 200
-          },
           sell: {
             enabled: false,
-            lastbuyPercentage: 1.08,
-            stopPercentage: 0.97,
-            limitPercentage: 0.96
+            gridTrade: [
+              {
+                limitPercentage: 0.998,
+                quantityPercentage: -1,
+                quantityPercentages: {
+                  BNB: 1,
+                  BTC: 1,
+                  BUSD: 0.9999,
+                  USDT: 0.9999
+                },
+                stopPercentage: 0.999,
+                triggerPercentage: 1.001
+              },
+              {
+                limitPercentage: 0.998,
+                quantityPercentage: -1,
+                quantityPercentages: {
+                  BNB: 1,
+                  BTC: 1,
+                  BUSD: 1,
+                  USDT: 1
+                },
+                stopPercentage: 0.999,
+                triggerPercentage: 1.0011
+              }
+            ]
           }
         }
       );
     });
 
     it('triggers ws.send', () => {
-      expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
-        JSON.stringify({
-          result: true,
-          type: 'symbol-setting-update-result'
-        })
+      const args = JSON.parse(
+        mockWebSocketServerWebSocketSend.mock.calls[0][0]
       );
+      expect(args).toStrictEqual({
+        result: true,
+        symbolConfiguration: {
+          botOptions: {
+            autoTriggerBuy: {
+              enabled: true,
+              triggerAfter: 10
+            }
+          },
+          buy: {
+            enabled: false,
+            gridTrade: [
+              {
+                limitPercentage: 1.0021,
+                maxPurchaseAmount: -1,
+                maxPurchaseAmounts: {
+                  BNB: 0.11,
+                  BTC: 0.00011,
+                  BUSD: 15,
+                  USDT: 15
+                },
+                stopPercentage: 1.001,
+                triggerPercentage: 1
+              },
+              {
+                limitPercentage: 1.0021,
+                maxPurchaseAmount: -1,
+                maxPurchaseAmounts: {
+                  BNB: 0.11,
+                  BTC: 0.00011,
+                  BUSD: 15,
+                  USDT: 15
+                },
+                stopPercentage: 1.001,
+                triggerPercentage: 0.9999
+              }
+            ]
+          },
+          candles: {
+            interval: '15m',
+            limit: '200'
+          },
+          sell: {
+            enabled: false,
+            gridTrade: [
+              {
+                limitPercentage: 0.998,
+                quantityPercentage: -1,
+                quantityPercentages: {
+                  BNB: 1,
+                  BTC: 1,
+                  BUSD: 0.9999,
+                  USDT: 0.9999
+                },
+                stopPercentage: 0.999,
+                triggerPercentage: 1.001
+              },
+              {
+                limitPercentage: 0.998,
+                quantityPercentage: -1,
+                quantityPercentages: {
+                  BNB: 1,
+                  BTC: 1,
+                  BUSD: 1,
+                  USDT: 1
+                },
+                stopPercentage: 0.999,
+                triggerPercentage: 1.0011
+              }
+            ]
+          }
+        },
+        type: 'symbol-setting-update-result'
+      });
     });
   });
 });

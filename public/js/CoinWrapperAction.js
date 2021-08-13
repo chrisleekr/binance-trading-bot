@@ -56,7 +56,7 @@ class CoinWrapperAction extends React.Component {
     return (
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title border-bottom-0 mb-0 pb-0'>
-          <div className='coin-info-label'>
+          <div className='coin-info-label w-40'>
             Action -{' '}
             <span className='coin-info-value'>
               {moment(buy.updatedAt).format('HH:mm:ss')}
@@ -69,7 +69,7 @@ class CoinWrapperAction extends React.Component {
             )}
           </div>
 
-          <div className='d-flex flex-column align-items-end'>
+          <div className='d-flex flex-column align-items-end w-60'>
             <HightlightChange className='action-label'>
               {label}
             </HightlightChange>

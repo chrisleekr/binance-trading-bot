@@ -12,6 +12,7 @@ describe('index', () => {
       handleSymbolGridTradeDelete: expect.any(Function),
       handleSymbolEnableAction: expect.any(Function),
       handleSymbolTriggerBuy: expect.any(Function),
+      handleSymbolTriggerSell: expect.any(Function),
       handleManualTradeAllSymbols: expect.any(Function),
       handleManualTrade: expect.any(Function),
       handleCancelOrder: expect.any(Function),

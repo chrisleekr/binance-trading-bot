@@ -1,10 +1,7 @@
 /* eslint-disable global-require */
 
 describe('webserver/configure.js', () => {
-  const mockHandlers = {
-    handleAuth: null,
-    handle404: null
-  };
+  let mockSetHandlers;
 
   let cacheMock;
   let loggerMock;
@@ -12,12 +9,10 @@ describe('webserver/configure.js', () => {
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
 
-    mockHandlers.handleAuth = jest.fn().mockResolvedValue(true);
-    mockHandlers.handle404 = jest.fn().mockResolvedValue(true);
+    mockSetHandlers = jest.fn().mockResolvedValue(true);
 
     jest.mock('../handlers', () => ({
-      handleAuth: mockHandlers.handleAuth,
-      handle404: mockHandlers.handle404
+      setHandlers: mockSetHandlers
     }));
   });
 
@@ -45,20 +40,8 @@ describe('webserver/configure.js', () => {
       );
     });
 
-    [
-      {
-        handlerFunc: 'handleAuth'
-      },
-      {
-        handlerFunc: 'handle404'
-      }
-    ].forEach(t => {
-      it(`triggers ${t.handlerFunc}`, () => {
-        expect(mockHandlers[t.handlerFunc]).toHaveBeenCalledWith(
-          loggerMock,
-          'app'
-        );
-      });
+    it(`triggers setHandlers`, () => {
+      expect(mockSetHandlers).toHaveBeenCalledWith(loggerMock, 'app');
     });
   });
 

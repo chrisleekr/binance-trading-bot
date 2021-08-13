@@ -1,6 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { mongo, cache, slack } = require('../../../helpers');
+const { mongo, cache, slack, PubSub } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAPILimit,
@@ -8,6 +8,7 @@ const {
 } = require('../../trailingTradeHelper/common');
 
 const {
+  archiveSymbolGridTrade,
   deleteSymbolGridTrade
 } = require('../../trailingTradeHelper/configuration');
 
@@ -54,22 +55,32 @@ const getGridTradeLastOrder = async (logger, symbol, side) => {
  *
  * @param {*} logger
  * @param {*} symbol
+ * @param {*} data
  * @param {*} processMessage
  * @param {*} extraMessages
  */
 const removeLastBuyPrice = async (
   logger,
   symbol,
+  data,
   processMessage,
   extraMessages
 ) => {
+  const {
+    symbolConfiguration: {
+      botOptions: {
+        autoTriggerBuy: {
+          enabled: autoTriggerBuyEnabled,
+          triggerAfter: autoTriggerBuyTriggerAfter
+        }
+      }
+    }
+  } = data;
+
   // Delete the last buy price from the database
   await mongo.deleteOne(logger, 'trailing-trade-symbols', {
     key: `${symbol}-last-buy-price`
   });
-
-  // Delete symbol grid trade
-  await deleteSymbolGridTrade(logger, symbol);
 
   slack.sendMessage(
     `${symbol} Action (${moment().format(
@@ -82,6 +93,60 @@ const removeLastBuyPrice = async (
       )}\`\`\`\n` +
       `- Current API Usage: ${getAPILimit(logger)}`
   );
+
+  PubSub.publish('frontend-notification', {
+    type: 'info',
+    title: `The last buy price for ${symbol} has been removed.`
+  });
+
+  // Archive symbol grid trade
+  const archivedGridTrade = await archiveSymbolGridTrade(logger, symbol);
+
+  // Notify slack
+  if (_.isEmpty(archivedGridTrade) === false) {
+    await slack.sendMessage(
+      `${symbol} ${
+        archivedGridTrade.profit > 0 ? 'Profit' : 'Loss'
+      } (${moment().format('HH:mm:ss.SSS')}):\n` +
+        `\`\`\`` +
+        ` - Profit: ${archivedGridTrade.profit}\n` +
+        ` - ProfitPercentage: ${archivedGridTrade.profitPercentage}\n` +
+        ` - Total Buy Amount: ${archivedGridTrade.totalBuyQuoteQty}\n` +
+        ` - Total Sell Amount: ${archivedGridTrade.totalSellQuoteQty}\n` +
+        `\`\`\`\n` +
+        `- Current API Usage: ${getAPILimit(logger)}`
+    );
+  }
+
+  // Delete symbol grid trade
+  await deleteSymbolGridTrade(logger, symbol);
+
+  if (autoTriggerBuyEnabled) {
+    await cache.hset(
+      'trailing-trade-override',
+      `${symbol}`,
+      JSON.stringify({
+        action: 'buy',
+        actionAt: moment().add(autoTriggerBuyTriggerAfter, 'minutes')
+      })
+    );
+
+    slack.sendMessage(
+      `${symbol} Action (${moment().format(
+        'HH:mm:ss.SSS'
+      )}): Queued buy action\n` +
+        `- Message: The bot queued to trigger the grid trade for buying` +
+        ` after ${autoTriggerBuyTriggerAfter} minutes later.\n` +
+        `- Current API Usage: ${getAPILimit(logger)}`
+    );
+
+    PubSub.publish('frontend-notification', {
+      type: 'info',
+      title:
+        `The bot queued to trigger the grid trade for buying` +
+        ` after ${autoTriggerBuyTriggerAfter} minutes later.`
+    });
+  }
 };
 
 /**
@@ -213,7 +278,7 @@ const execute = async (logger, rawData) => {
     data.sell.processMessage = processMessage;
     data.sell.updatedAt = moment().utc();
 
-    await removeLastBuyPrice(logger, symbol, processMessage, {
+    await removeLastBuyPrice(logger, symbol, data, processMessage, {
       lastBuyPrice,
       baseAssetQuantity,
       minQty,
@@ -242,7 +307,7 @@ const execute = async (logger, rawData) => {
     data.sell.processMessage = processMessage;
     data.sell.updatedAt = moment().utc();
 
-    await removeLastBuyPrice(logger, symbol, processMessage, {
+    await removeLastBuyPrice(logger, symbol, data, processMessage, {
       lastBuyPrice,
       baseAssetQuantity,
       currentPrice,

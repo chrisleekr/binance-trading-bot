@@ -17,6 +17,7 @@ class App extends React.Component {
       symbols: [],
       apiInfo: {},
       accountInfo: {},
+      closedTrades: [],
       publicURL: '',
       dustTransfer: {},
       availableSortOptions: [
@@ -124,6 +125,12 @@ class App extends React.Component {
           isAuthenticated: response.isAuthenticated,
           botOptions: response.botOptions,
           configuration: response.configuration,
+          closedTradesSetting: _.get(
+            response,
+            ['common', 'closedTradesSetting'],
+            {}
+          ),
+          closedTrades: _.get(response, ['common', 'closedTrades'], []),
           symbols: sortingSymbols(_.get(response, ['stats', 'symbols'], []), {
             selectedSortOption: self.state.selectedSortOption,
             searchKeyword: self.state.searchKeyword
@@ -218,6 +225,8 @@ class App extends React.Component {
       symbols,
       configuration,
       accountInfo,
+      closedTradesSetting,
+      closedTrades,
       publicURL,
       apiInfo,
       dustTransfer,
@@ -282,6 +291,8 @@ class App extends React.Component {
               <ProfitLossWrapper
                 isAuthenticated={isAuthenticated}
                 symbols={symbols}
+                closedTradesSetting={closedTradesSetting}
+                closedTrades={closedTrades}
                 sendWebSocket={this.sendWebSocket}
               />
             </div>

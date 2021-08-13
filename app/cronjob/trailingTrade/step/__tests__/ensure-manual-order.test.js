@@ -1,7 +1,7 @@
 /* eslint-disable global-require */
 const moment = require('moment');
 
-describe('ensure-manual-buy-order.js', () => {
+describe('ensure-manual-order.js', () => {
   let result;
   let rawData;
 
@@ -14,6 +14,9 @@ describe('ensure-manual-buy-order.js', () => {
   let mockCalculateLastBuyPrice;
   let mockGetAPILimit;
   let mockSaveOrder;
+
+  let mockGetSymbolGridTrade;
+  let mockSaveSymbolGridTrade;
 
   describe('execute', () => {
     beforeEach(() => {
@@ -47,6 +50,16 @@ describe('ensure-manual-buy-order.js', () => {
       mockCalculateLastBuyPrice = jest.fn().mockResolvedValue(true);
       mockGetAPILimit = jest.fn().mockResolvedValue(10);
       mockSaveOrder = jest.fn().mockResolvedValue(true);
+
+      mockGetSymbolGridTrade = jest.fn().mockResolvedValue({
+        buy: [
+          {
+            some: 'value'
+          }
+        ],
+        sell: [{ some: 'value' }]
+      });
+      mockSaveSymbolGridTrade = jest.fn().mockResolvedValue(true);
     });
 
     describe('when manual buy order is not available', () => {
@@ -57,16 +70,22 @@ describe('ensure-manual-buy-order.js', () => {
           saveOrder: mockSaveOrder
         }));
 
+        jest.mock('../../../trailingTradeHelper/configuration', () => ({
+          getSymbolGridTrade: mockGetSymbolGridTrade,
+          saveSymbolGridTrade: mockSaveSymbolGridTrade
+        }));
+
         cacheMock.hgetall = jest.fn().mockResolvedValue(null);
 
-        const step = require('../ensure-manual-buy-order');
+        const step = require('../ensure-manual-order');
 
         rawData = {
           symbol: 'BTCUSDT',
           isLocked: false,
+          featureToggle: { notifyDebug: true },
           symbolConfiguration: {
             system: {
-              checkManualBuyOrderPeriod: 10
+              checkManualOrderPeriod: 10
             }
           }
         };
@@ -82,6 +101,14 @@ describe('ensure-manual-buy-order.js', () => {
         expect(cacheMock.hdel).not.toHaveBeenCalled();
       });
 
+      it('does not trigger saveSymbolGridTrade', () => {
+        expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveOrder', () => {
+        expect(mockSaveOrder).not.toHaveBeenCalled();
+      });
+
       it('does not trigger calculateLastBuyPrice', () => {
         expect(mockCalculateLastBuyPrice).not.toHaveBeenCalled();
       });
@@ -90,9 +117,10 @@ describe('ensure-manual-buy-order.js', () => {
         expect(result).toStrictEqual({
           symbol: 'BTCUSDT',
           isLocked: false,
+          featureToggle: { notifyDebug: true },
           symbolConfiguration: {
             system: {
-              checkManualBuyOrderPeriod: 10
+              checkManualOrderPeriod: 10
             }
           }
         });
@@ -108,6 +136,7 @@ describe('ensure-manual-buy-order.js', () => {
             lastBuyPrice: 30,
             quantity: 3
           },
+          featureToggle: { notifyDebug: false },
           orderId: 159653829,
           cacheResults: {
             159653829: JSON.stringify({
@@ -125,6 +154,7 @@ describe('ensure-manual-buy-order.js', () => {
           desc: 'with MARKET order and has no existing last buy price',
           symbol: 'BNBUSDT',
           lastBuyPriceDoc: null,
+          featureToggle: { notifyDebug: true },
           orderId: 2371284112,
           cacheResults: {
             2371284112: JSON.stringify({
@@ -154,6 +184,7 @@ describe('ensure-manual-buy-order.js', () => {
             lastBuyPrice: 20.782000000000004,
             quantity: 2.405
           },
+          featureToggle: { notifyDebug: false },
           orderId: 160868057,
           cacheResults: {
             160868057: JSON.stringify({
@@ -185,18 +216,24 @@ describe('ensure-manual-buy-order.js', () => {
               saveOrder: mockSaveOrder
             }));
 
+            jest.mock('../../../trailingTradeHelper/configuration', () => ({
+              getSymbolGridTrade: mockGetSymbolGridTrade,
+              saveSymbolGridTrade: mockSaveSymbolGridTrade
+            }));
+
             cacheMock.hgetall = jest
               .fn()
               .mockResolvedValue(testData.cacheResults);
 
-            const step = require('../ensure-manual-buy-order');
+            const step = require('../ensure-manual-order');
 
             rawData = {
               symbol: testData.symbol,
+              featureToggle: testData.featureToggle,
               isLocked: false,
               symbolConfiguration: {
                 system: {
-                  checkManualBuyOrderPeriod: 10
+                  checkManualOrderPeriod: 10
                 }
               }
             };
@@ -214,8 +251,33 @@ describe('ensure-manual-buy-order.js', () => {
 
           it('triggers cache.hdel', () => {
             expect(cacheMock.hdel).toHaveBeenCalledWith(
-              `trailing-trade-manual-buy-order-${testData.symbol}`,
+              `trailing-trade-manual-order-${testData.symbol}`,
               testData.orderId
+            );
+          });
+
+          it('triggers getSymbolGridTrade', () => {
+            expect(mockGetSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              testData.symbol
+            );
+          });
+
+          it('triggers saveSymbolGridTrade', () => {
+            expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
+              loggerMock,
+              testData.symbol,
+              {
+                buy: [
+                  {
+                    some: 'value'
+                  }
+                ],
+                sell: [{ some: 'value' }],
+                manualTrade: [
+                  JSON.parse(testData.cacheResults[testData.orderId])
+                ]
+              }
             );
           });
 
@@ -224,7 +286,7 @@ describe('ensure-manual-buy-order.js', () => {
               order: JSON.parse(testData.cacheResults[testData.orderId]),
               botStatus: {
                 savedAt: expect.any(String),
-                savedBy: 'ensure-manual-buy-order',
+                savedBy: 'ensure-manual-order',
                 savedMessage:
                   'The order has already filled and updated the last buy price.'
               }
@@ -243,6 +305,7 @@ describe('ensure-manual-buy-order.js', () => {
             lastBuyPrice: 30,
             quantity: 3
           },
+          featureToggle: { notifyDebug: false },
           orderId: 159653829,
           cacheResults: {
             159653829: JSON.stringify({
@@ -277,6 +340,7 @@ describe('ensure-manual-buy-order.js', () => {
             lastBuyPrice: 30,
             quantity: 3
           },
+          featureToggle: { notifyDebug: true },
           orderId: 159653829,
           cacheResults: {
             159653829: JSON.stringify({
@@ -311,6 +375,7 @@ describe('ensure-manual-buy-order.js', () => {
             lastBuyPrice: 30,
             quantity: 3
           },
+          featureToggle: { notifyDebug: false },
           orderId: 159653829,
           cacheResults: {
             159653829: JSON.stringify({
@@ -355,14 +420,15 @@ describe('ensure-manual-buy-order.js', () => {
               .fn()
               .mockResolvedValue(testData.getOrderResult);
 
-            const step = require('../ensure-manual-buy-order');
+            const step = require('../ensure-manual-order');
 
             rawData = {
               symbol: testData.symbol,
+              featureToggle: testData.featureToggle,
               isLocked: false,
               symbolConfiguration: {
                 system: {
-                  checkManualBuyOrderPeriod: 10
+                  checkManualOrderPeriod: 10
                 }
               }
             };
@@ -381,8 +447,31 @@ describe('ensure-manual-buy-order.js', () => {
 
             it('triggers cache.hdel', () => {
               expect(cacheMock.hdel).toHaveBeenCalledWith(
-                `trailing-trade-manual-buy-order-${testData.symbol}`,
+                `trailing-trade-manual-order-${testData.symbol}`,
                 testData.orderId
+              );
+            });
+
+            it('triggers getSymbolGridTrade', () => {
+              expect(mockGetSymbolGridTrade).toHaveBeenCalledWith(
+                loggerMock,
+                testData.symbol
+              );
+            });
+
+            it('triggers saveSymbolGridTrade', () => {
+              expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
+                loggerMock,
+                testData.symbol,
+                {
+                  buy: [
+                    {
+                      some: 'value'
+                    }
+                  ],
+                  sell: [{ some: 'value' }],
+                  manualTrade: [testData.getOrderResult]
+                }
               );
             });
 
@@ -394,7 +483,7 @@ describe('ensure-manual-buy-order.js', () => {
                 },
                 botStatus: {
                   savedAt: expect.any(String),
-                  savedBy: 'ensure-manual-buy-order',
+                  savedBy: 'ensure-manual-order',
                   savedMessage:
                     'The order has filled and updated the last buy price.'
                 }
@@ -407,6 +496,14 @@ describe('ensure-manual-buy-order.js', () => {
 
             it('does not trigger cache.hdel', () => {
               expect(cacheMock.hdel).not.toHaveBeenCalled();
+            });
+
+            it('does not trigger getSymbolGridTrade', () => {
+              expect(mockGetSymbolGridTrade).not.toHaveBeenCalled();
+            });
+
+            it('does not trigger saveSymbolGridTrade', () => {
+              expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
             });
 
             it('does not trigger saveOrder', () => {
@@ -577,14 +674,15 @@ describe('ensure-manual-buy-order.js', () => {
               .fn()
               .mockResolvedValue(testData.getOrderResult);
 
-            const step = require('../ensure-manual-buy-order');
+            const step = require('../ensure-manual-order');
 
             rawData = {
               symbol: testData.symbol,
+              featureToggle: { notifyDebug: true },
               isLocked: false,
               symbolConfiguration: {
                 system: {
-                  checkManualBuyOrderPeriod: 10
+                  checkManualOrderPeriod: 10
                 }
               }
             };
@@ -598,9 +696,17 @@ describe('ensure-manual-buy-order.js', () => {
 
           it('triggers cache.hdel', () => {
             expect(cacheMock.hdel).toHaveBeenCalledWith(
-              `trailing-trade-manual-buy-order-${testData.symbol}`,
+              `trailing-trade-manual-order-${testData.symbol}`,
               testData.orderId
             );
+          });
+
+          it('does not trigger getSymbolGridTrade', () => {
+            expect(mockGetSymbolGridTrade).not.toHaveBeenCalled();
+          });
+
+          it('does not trigger saveSymbolGridTrade', () => {
+            expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
           });
 
           it('triggers saveOrder', () => {
@@ -611,7 +717,7 @@ describe('ensure-manual-buy-order.js', () => {
               },
               botStatus: {
                 savedAt: expect.any(String),
-                savedBy: 'ensure-manual-buy-order',
+                savedBy: 'ensure-manual-order',
                 savedMessage:
                   'The order is no longer valid. Removed from the cache.'
               }
@@ -661,14 +767,15 @@ describe('ensure-manual-buy-order.js', () => {
               .fn()
               .mockResolvedValue(testData.getOrderResult);
 
-            const step = require('../ensure-manual-buy-order');
+            const step = require('../ensure-manual-order');
 
             rawData = {
               symbol: testData.symbol,
+              featureToggle: { notifyDebug: true },
               isLocked: false,
               symbolConfiguration: {
                 system: {
-                  checkManualBuyOrderPeriod: 10
+                  checkManualOrderPeriod: 10
                 }
               }
             };
@@ -686,10 +793,18 @@ describe('ensure-manual-buy-order.js', () => {
 
           it('triggers cache.hset', () => {
             expect(cacheMock.hset).toHaveBeenCalledWith(
-              `trailing-trade-manual-buy-order-${testData.symbol}`,
+              `trailing-trade-manual-order-${testData.symbol}`,
               testData.orderId,
               expect.any(String)
             );
+          });
+
+          it('does not trigger getSymbolGridTrade', () => {
+            expect(mockGetSymbolGridTrade).not.toHaveBeenCalled();
+          });
+
+          it('does not trigger saveSymbolGridTrade', () => {
+            expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
           });
 
           it('triggers saveOrder', () => {
@@ -699,7 +814,7 @@ describe('ensure-manual-buy-order.js', () => {
               },
               botStatus: {
                 savedAt: expect.any(String),
-                savedBy: 'ensure-manual-buy-order',
+                savedBy: 'ensure-manual-order',
                 savedMessage: 'The order is not filled. Check next internal.'
               }
             });
@@ -729,14 +844,15 @@ describe('ensure-manual-buy-order.js', () => {
             .fn()
             .mockRejectedValue(new Error('Order is not found.'));
 
-          const step = require('../ensure-manual-buy-order');
+          const step = require('../ensure-manual-order');
 
           rawData = {
             symbol: 'CAKEUSDT',
+            featureToggle: { notifyDebug: true },
             isLocked: false,
             symbolConfiguration: {
               system: {
-                checkManualBuyOrderPeriod: 10
+                checkManualOrderPeriod: 10
               }
             }
           };
@@ -752,9 +868,17 @@ describe('ensure-manual-buy-order.js', () => {
           expect(cacheMock.hdel).not.toHaveBeenCalled();
         });
 
+        it('does not trigger getSymbolGridTrade', () => {
+          expect(mockGetSymbolGridTrade).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveSymbolGridTrade', () => {
+          expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
+        });
+
         it('triggers cache.hset', () => {
           expect(cacheMock.hset).toHaveBeenCalledWith(
-            `trailing-trade-manual-buy-order-CAKEUSDT`,
+            `trailing-trade-manual-order-CAKEUSDT`,
             159653829,
             expect.any(String)
           );
@@ -775,7 +899,7 @@ describe('ensure-manual-buy-order.js', () => {
             },
             botStatus: {
               savedAt: expect.any(String),
-              savedBy: 'ensure-manual-buy-order',
+              savedBy: 'ensure-manual-order',
               savedMessage:
                 'The order could not be found or error occurred querying the order.'
             }

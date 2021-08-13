@@ -19,22 +19,22 @@ describe('trailingTrade', () => {
 
   let mockGetSymbolConfiguration;
   let mockGetSymbolInfo;
-  let mockGetBalances;
   let mockGetOverrideAction;
-  let mockEnsureManualBuyOrder;
+  let mockEnsureManualOrder;
   let mockEnsureOrderPlaced;
   let mockEnsureGridTradeOrderExecuted;
+  let mockGetBalances;
   let mockGetOpenOrders;
   let mockGetIndicators;
   let mockHandleOpenOrders;
   let mockDetermineAction;
   let mockPlaceManualTrade;
+  let mockCancelOrder;
   let mockPlaceBuyOrder;
   let mockPlaceSellOrder;
   let mockPlaceSellStopLossOrder;
   let mockRemoveLastBuyPrice;
   let mockSaveDataToCache;
-  let mockCancelOrder;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -119,12 +119,12 @@ describe('trailingTrade', () => {
           }
         }));
 
-      mockEnsureManualBuyOrder = jest
+      mockEnsureManualOrder = jest
         .fn()
         .mockImplementation((_logger, rawData) => ({
           ...rawData,
           ...{
-            ensureManualBuyOrder: {
+            ensureManualOrder: {
               ensured: 'manual-buy-order'
             }
           }
@@ -284,7 +284,7 @@ describe('trailingTrade', () => {
         getSymbolConfiguration: mockGetSymbolConfiguration,
         getSymbolInfo: mockGetSymbolInfo,
         getOverrideAction: mockGetOverrideAction,
-        ensureManualBuyOrder: mockEnsureManualBuyOrder,
+        ensureManualOrder: mockEnsureManualOrder,
         ensureOrderPlaced: mockEnsureOrderPlaced,
         ensureGridTradeOrderExecuted: mockEnsureGridTradeOrderExecuted,
         getBalances: mockGetBalances,
@@ -328,27 +328,25 @@ describe('trailingTrade', () => {
             symbol: 'BTCUSDT',
             isLocked: false,
             featureToggle: { feature1Enabled: true },
+            lastCandle: { got: 'lowest value' },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
+            indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            overrideAction: { action: 'override-action' },
-            ensureManualBuyOrder: { ensured: 'manual-buy-order' },
-            ensure: 'order-placed',
-            ensureGridTradeOrder: {
-              ensured: 'grid-trade'
-            },
+            openOrders: [{ orderId: 'order-id-BTCUSDT', symbol: 'BTCUSDT' }],
+            action: 'determined',
             baseAssetBalance: { baseAsset: 'balance' },
             quoteAssetBalance: { quoteAsset: 'balance' },
-            lastCandle: { got: 'lowest value' },
-            indicators: { some: 'value' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
-            openOrders: [{ orderId: 'order-id-BTCUSDT', symbol: 'BTCUSDT' }],
-            handled: 'open-orders',
-            action: 'determined',
-            placeManualTrade: { placed: 'manual-trade' },
             order: {},
             saveToCache: true,
+            overrideAction: { action: 'override-action' },
+            ensureManualOrder: { ensured: 'manual-buy-order' },
+            ensure: 'order-placed',
+            ensureGridTradeOrder: { ensured: 'grid-trade' },
+            handled: 'open-orders',
+            placeManualTrade: { placed: 'manual-trade' },
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
@@ -367,27 +365,25 @@ describe('trailingTrade', () => {
             symbol: 'ETHUSDT',
             isLocked: false,
             featureToggle: { feature1Enabled: true },
+            lastCandle: { got: 'lowest value' },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
+            indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            overrideAction: { action: 'override-action' },
-            ensureManualBuyOrder: { ensured: 'manual-buy-order' },
-            ensure: 'order-placed',
-            ensureGridTradeOrder: {
-              ensured: 'grid-trade'
-            },
+            openOrders: [{ orderId: 'order-id-ETHUSDT', symbol: 'ETHUSDT' }],
+            action: 'determined',
             baseAssetBalance: { baseAsset: 'balance' },
             quoteAssetBalance: { quoteAsset: 'balance' },
-            lastCandle: { got: 'lowest value' },
-            indicators: { some: 'value' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
-            openOrders: [{ orderId: 'order-id-ETHUSDT', symbol: 'ETHUSDT' }],
-            handled: 'open-orders',
-            action: 'determined',
-            placeManualTrade: { placed: 'manual-trade' },
             order: {},
             saveToCache: true,
+            overrideAction: { action: 'override-action' },
+            ensureManualOrder: { ensured: 'manual-buy-order' },
+            ensure: 'order-placed',
+            ensureGridTradeOrder: { ensured: 'grid-trade' },
+            handled: 'open-orders',
+            placeManualTrade: { placed: 'manual-trade' },
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
@@ -406,27 +402,25 @@ describe('trailingTrade', () => {
             symbol: 'LTCUSDT',
             isLocked: false,
             featureToggle: { feature1Enabled: true },
+            lastCandle: { got: 'lowest value' },
             accountInfo: { account: 'info' },
             symbolConfiguration: { symbol: 'configuration data' },
+            indicators: { some: 'value' },
             symbolInfo: { symbol: 'info' },
-            overrideAction: { action: 'override-action' },
-            ensureManualBuyOrder: { ensured: 'manual-buy-order' },
-            ensure: 'order-placed',
-            ensureGridTradeOrder: {
-              ensured: 'grid-trade'
-            },
+            openOrders: [{ orderId: 'order-id-LTCUSDT', symbol: 'LTCUSDT' }],
+            action: 'determined',
             baseAssetBalance: { baseAsset: 'balance' },
             quoteAssetBalance: { quoteAsset: 'balance' },
-            lastCandle: { got: 'lowest value' },
-            indicators: { some: 'value' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
-            openOrders: [{ orderId: 'order-id-LTCUSDT', symbol: 'LTCUSDT' }],
-            handled: 'open-orders',
-            action: 'determined',
-            placeManualTrade: { placed: 'manual-trade' },
             order: {},
             saveToCache: true,
+            overrideAction: { action: 'override-action' },
+            ensureManualOrder: { ensured: 'manual-buy-order' },
+            ensure: 'order-placed',
+            ensureGridTradeOrder: { ensured: 'grid-trade' },
+            handled: 'open-orders',
+            placeManualTrade: { placed: 'manual-trade' },
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
@@ -500,12 +494,12 @@ describe('trailingTrade', () => {
           }
         }));
 
-      mockEnsureManualBuyOrder = jest
+      mockEnsureManualOrder = jest
         .fn()
         .mockImplementation((_logger, rawData) => ({
           ...rawData,
           ...{
-            ensureManualBuyOrder: {
+            ensureManualOrder: {
               ensured: 'manual-buy-order'
             }
           }
@@ -665,7 +659,7 @@ describe('trailingTrade', () => {
         getSymbolConfiguration: mockGetSymbolConfiguration,
         getSymbolInfo: mockGetSymbolInfo,
         getOverrideAction: mockGetOverrideAction,
-        ensureManualBuyOrder: mockEnsureManualBuyOrder,
+        ensureManualOrder: mockEnsureManualOrder,
         ensureOrderPlaced: mockEnsureOrderPlaced,
         ensureGridTradeOrderExecuted: mockEnsureGridTradeOrderExecuted,
         getBalances: mockGetBalances,
@@ -713,7 +707,7 @@ describe('trailingTrade', () => {
             symbolConfiguration: { symbol: 'configuration data' },
             symbolInfo: { symbol: 'info' },
             overrideAction: { action: 'override-action' },
-            ensureManualBuyOrder: { ensured: 'manual-buy-order' },
+            ensureManualOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             ensureGridTradeOrder: { ensured: 'grid-trade' },
             baseAssetBalance: { baseAsset: 'balance' },
@@ -750,7 +744,7 @@ describe('trailingTrade', () => {
             symbolConfiguration: { symbol: 'configuration data' },
             symbolInfo: { symbol: 'info' },
             overrideAction: { action: 'override-action' },
-            ensureManualBuyOrder: { ensured: 'manual-buy-order' },
+            ensureManualOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             ensureGridTradeOrder: { ensured: 'grid-trade' },
             baseAssetBalance: { baseAsset: 'balance' },
@@ -787,7 +781,7 @@ describe('trailingTrade', () => {
             symbolConfiguration: { symbol: 'configuration data' },
             symbolInfo: { symbol: 'info' },
             overrideAction: { action: 'override-action' },
-            ensureManualBuyOrder: { ensured: 'manual-buy-order' },
+            ensureManualOrder: { ensured: 'manual-buy-order' },
             ensure: 'order-placed',
             ensureGridTradeOrder: { ensured: 'grid-trade' },
             baseAssetBalance: { baseAsset: 'balance' },
@@ -827,7 +821,7 @@ describe('trailingTrade', () => {
       mockGetSymbolConfiguration = jest.fn().mockResolvedValue(true);
       mockGetSymbolInfo = jest.fn().mockResolvedValue(true);
       mockGetOverrideAction = jest.fn().mockResolvedValue(true);
-      mockEnsureManualBuyOrder = jest.fn().mockResolvedValue(true);
+      mockEnsureManualOrder = jest.fn().mockResolvedValue(true);
       mockEnsureOrderPlaced = jest.fn().mockResolvedValue(true);
       mockGetBalances = jest.fn().mockResolvedValue(true);
       mockGetOpenOrders = jest.fn().mockResolvedValue(true);
@@ -859,7 +853,7 @@ describe('trailingTrade', () => {
         getSymbolConfiguration: mockGetSymbolConfiguration,
         getSymbolInfo: mockGetSymbolInfo,
         getOverrideAction: mockGetOverrideAction,
-        ensureManualBuyOrder: mockEnsureManualBuyOrder,
+        ensureManualOrder: mockEnsureManualOrder,
         ensureOrderPlaced: mockEnsureOrderPlaced,
         getBalances: mockGetBalances,
         getOpenOrders: mockGetOpenOrders,
@@ -880,31 +874,53 @@ describe('trailingTrade', () => {
       {
         label: 'Error -1001',
         code: -1001,
-        sendSlack: false
+        sendSlack: false,
+        featureToggleNotifyDebug: false
       },
       {
         label: 'Error -1021',
         code: -1021,
-        sendSlack: false
+        sendSlack: false,
+        featureToggleNotifyDebug: true
       },
       {
         label: 'Error ECONNRESET',
         code: 'ECONNRESET',
-        sendSlack: false
+        sendSlack: false,
+        featureToggleNotifyDebug: false
       },
       {
         label: 'Error ECONNREFUSED',
         code: 'ECONNREFUSED',
-        sendSlack: false
+        sendSlack: false,
+        featureToggleNotifyDebug: true
       },
       {
-        label: 'Error something else',
+        label: 'Error something else - with notify debug',
         code: 'something',
-        sendSlack: true
+        sendSlack: true,
+        featureToggleNotifyDebug: true
+      },
+      {
+        label: 'Error something else - without notify debug',
+        code: 'something',
+        sendSlack: true,
+        featureToggleNotifyDebug: false
       }
     ].forEach(errorInfo => {
       describe(`${errorInfo.label}`, () => {
         beforeEach(async () => {
+          mockConfigGet = jest.fn(key => {
+            if (key === 'featureToggle.notifyDebug') {
+              return errorInfo.featureToggleNotifyDebug;
+            }
+            return null;
+          });
+
+          jest.mock('config', () => ({
+            get: mockConfigGet
+          }));
+
           mockGetGlobalConfiguration = jest.fn().mockRejectedValueOnce(
             new (class CustomError extends Error {
               constructor() {

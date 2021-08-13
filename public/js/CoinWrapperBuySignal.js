@@ -48,7 +48,9 @@ class CoinWrapperBuySignal extends React.Component {
               <div className='coin-info-label'>Grid Trade #{i + 1}</div>
 
               <div className='coin-info-value'>
-                {buy.openOrders.length === 0 && currentGridTradeIndex === i ? (
+                {buy.openOrders.length === 0 &&
+                sell.openOrders.length === 0 &&
+                currentGridTradeIndex === i ? (
                   <SymbolTriggerBuyIcon
                     symbol={symbol}
                     sendWebSocket={sendWebSocket}

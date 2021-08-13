@@ -28,13 +28,12 @@ class DustTransferIcon extends React.Component {
         s.checked = true;
         return s;
       });
-      console.log({ newDustTransfer }, 'newDustTransfer');
+
       this.setState({ loading: false, dustTransfer: newDustTransfer });
     }
   }
 
   handleModalShow() {
-    console.log('handleModalShow triggered');
     this.setState({
       showModal: true,
       loading: true,
@@ -68,7 +67,6 @@ class DustTransferIcon extends React.Component {
   }
 
   executeDustTransfer() {
-    console.log('executeDustTransfer triggered');
     const { dustTransfer } = this.state;
 
     this.handleModalClose();

@@ -22,9 +22,7 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
       ) === false
     ) {
       const { lastBuyPriceRemoveThresholds } = nextProps;
-      console.log('lastBuyPriceRemoveThreshold has changed', {
-        lastBuyPriceRemoveThresholds
-      });
+
       this.setState({
         lastBuyPriceRemoveThresholds
       });
@@ -42,11 +40,6 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
     const stateKey = target.getAttribute('data-state-key');
 
     const { lastBuyPriceRemoveThresholds } = this.state;
-
-    console.log(
-      '_.set(lastBuyPriceRemoveThresholds, stateKey, value) => ',
-      _.set(lastBuyPriceRemoveThresholds, stateKey, value)
-    );
 
     const newLastBuyPriceRemoveThresholds = _.set(
       lastBuyPriceRemoveThresholds,

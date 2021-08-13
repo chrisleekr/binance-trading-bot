@@ -54,7 +54,8 @@
     "pubsub-js": "^1.9.3",
     "redlock": "^4.2.0",
     "uuid": "^8.3.2",
-    "ws": "^7.5.3"
+    "ws": "^7.5.3",
+    "husky": "^7.0.1"
   },
   "devDependencies": {
     "@babel/cli": "^7.14.5",
@@ -83,7 +84,6 @@
     "eslint-plugin-promise": "^5.1.0",
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-react-hooks": "^4.2.0",
-    "husky": "^7.0.1",
     "jest": "^27.0.6",
     "lint-staged": "^11.0.0",
     "nodemon": "^2.0.11",
@@ -117,8 +117,8 @@
     "*.js": [
       "prettier --write",
       "npm run lint",
-      "git add -A .",
-      "npm run test"
+      "git add",
+      "npm test ."
     ]
   }
 }

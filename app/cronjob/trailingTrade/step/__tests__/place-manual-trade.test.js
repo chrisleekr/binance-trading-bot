@@ -59,7 +59,7 @@ describe('place-manual-trade.js', () => {
         isLocked: true,
         symbolConfiguration: {
           system: {
-            checkManualBuyOrderPeriod: 10
+            checkManualOrderPeriod: 10
           }
         },
         order: {}
@@ -83,7 +83,7 @@ describe('place-manual-trade.js', () => {
         isLocked: true,
         symbolConfiguration: {
           system: {
-            checkManualBuyOrderPeriod: 10
+            checkManualOrderPeriod: 10
           }
         },
         order: {}
@@ -108,7 +108,7 @@ describe('place-manual-trade.js', () => {
         isLocked: false,
         symbolConfiguration: {
           system: {
-            checkManualBuyOrderPeriod: 10
+            checkManualOrderPeriod: 10
           }
         },
         order: {}
@@ -132,7 +132,7 @@ describe('place-manual-trade.js', () => {
         isLocked: false,
         symbolConfiguration: {
           system: {
-            checkManualBuyOrderPeriod: 10
+            checkManualOrderPeriod: 10
           }
         },
         order: {}
@@ -215,7 +215,7 @@ describe('place-manual-trade.js', () => {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
         isLocked: false,
-        symbolConfiguration: { system: { checkManualBuyOrderPeriod: 10 } },
+        symbolConfiguration: { system: { checkManualOrderPeriod: 10 } },
         buy: {
           openOrders: [
             {
@@ -351,7 +351,7 @@ describe('place-manual-trade.js', () => {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
         isLocked: false,
-        symbolConfiguration: { system: { checkManualBuyOrderPeriod: 10 } },
+        symbolConfiguration: { system: { checkManualOrderPeriod: 10 } },
         buy: {
           openOrders: [],
           processMessage: 'Placed new manual order.',
@@ -445,7 +445,7 @@ describe('place-manual-trade.js', () => {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
         isLocked: false,
-        symbolConfiguration: { system: { checkManualBuyOrderPeriod: 10 } },
+        symbolConfiguration: { system: { checkManualOrderPeriod: 10 } },
         buy: {
           openOrders: [],
           processMessage: 'Placed new manual order.',
@@ -532,7 +532,7 @@ describe('place-manual-trade.js', () => {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
         isLocked: false,
-        symbolConfiguration: { system: { checkManualBuyOrderPeriod: 10 } },
+        symbolConfiguration: { system: { checkManualOrderPeriod: 10 } },
         buy: {
           openOrders: [],
           processMessage: 'Placed new manual order.',
@@ -626,7 +626,7 @@ describe('place-manual-trade.js', () => {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
         isLocked: false,
-        symbolConfiguration: { system: { checkManualBuyOrderPeriod: 10 } },
+        symbolConfiguration: { system: { checkManualOrderPeriod: 10 } },
         buy: {
           openOrders: [],
           processMessage: 'Placed new manual order.',
@@ -720,7 +720,7 @@ describe('place-manual-trade.js', () => {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
         isLocked: false,
-        symbolConfiguration: { system: { checkManualBuyOrderPeriod: 10 } },
+        symbolConfiguration: { system: { checkManualOrderPeriod: 10 } },
         buy: {
           openOrders: [],
           processMessage: 'Placed new manual order.',
@@ -780,7 +780,7 @@ describe('place-manual-trade.js', () => {
           isLocked: false,
           symbolConfiguration: {
             system: {
-              checkManualBuyOrderPeriod: 10
+              checkManualOrderPeriod: 10
             }
           },
           buy: {
@@ -801,39 +801,29 @@ describe('place-manual-trade.js', () => {
         );
       });
 
-      if (testData.order.side === 'buy') {
-        it('triggers cache.hset', () => {
-          expect(cacheMock.hset).toHaveBeenCalledWith(
-            'trailing-trade-manual-buy-order-BTCUSDT',
-            testData.orderResult.orderId,
-            JSON.stringify({
-              ...testData.orderResult,
-              nextCheck: '2020-01-01T00:00:10.000Z'
-            })
-          );
-        });
+      it('triggers cache.hset', () => {
+        expect(cacheMock.hset).toHaveBeenCalledWith(
+          'trailing-trade-manual-order-BTCUSDT',
+          testData.orderResult.orderId,
+          JSON.stringify({
+            ...testData.orderResult,
+            nextCheck: '2020-01-01T00:00:10.000Z'
+          })
+        );
+      });
 
-        it('triggers saveOrder', () => {
-          expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
-            order: {
-              ...testData.orderResult
-            },
-            botStatus: {
-              savedAt: expect.any(String),
-              savedBy: 'place-manual-trade',
-              savedMessage: 'The manual order is placed.'
-            }
-          });
+      it('triggers saveOrder', () => {
+        expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
+          order: {
+            ...testData.orderResult
+          },
+          botStatus: {
+            savedAt: expect.any(String),
+            savedBy: 'place-manual-trade',
+            savedMessage: 'The manual order is placed.'
+          }
         });
-      } else {
-        it('does not trigger cache.hset', () => {
-          expect(cacheMock.hset).not.toHaveBeenCalled();
-        });
-
-        it('does not trigger saveOrder', () => {
-          expect(mockSaveOrder).not.toHaveBeenCalled();
-        });
-      }
+      });
 
       it('returns expected result', () => {
         expect(result).toStrictEqual(testData.expectedData);
@@ -862,7 +852,7 @@ describe('place-manual-trade.js', () => {
         isLocked: false,
         symbolConfiguration: {
           system: {
-            checkManualBuyOrderPeriod: 10
+            checkManualOrderPeriod: 10
           }
         },
         buy: {
