@@ -690,7 +690,6 @@ input[type='number'] {
 /**
   Start: Profit Loss
 */
-
 .profit-loss-container {
   display: flex;
   flex-direction: row;
@@ -764,6 +763,12 @@ input[type='number'] {
   .profit-loss-wrapper {
     width: 50%;
   }
+}
+
+.btn-period {
+  padding: 0 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
 }
 
 /**

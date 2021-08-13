@@ -12,6 +12,7 @@ cache:
 testing:
   stage: testing
   image: node:16
+  allow_failure: true
   script:
     - npm install
     - npm run lint

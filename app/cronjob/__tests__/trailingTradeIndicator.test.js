@@ -17,7 +17,7 @@ describe('trailingTradeIndicator', () => {
   let mockGetIndicators;
   let mockGetOpenOrders;
   let mockExecuteDustTransfer;
-  let mockGetQuoteAssetStats;
+  let mockGetClosedTrades;
   let mockSaveDataToCache;
 
   let mockLockSymbol;
@@ -155,12 +155,12 @@ describe('trailingTradeIndicator', () => {
           }
         }));
 
-      mockGetQuoteAssetStats = jest
+      mockGetClosedTrades = jest
         .fn()
         .mockImplementation((_logger, rawData) => ({
           ...rawData,
           ...{
-            getQuoteAssetStats: 'executed'
+            getClosedTrades: 'executed'
           }
         }));
 
@@ -183,7 +183,7 @@ describe('trailingTradeIndicator', () => {
         getIndicators: mockGetIndicators,
         getOpenOrders: mockGetOpenOrders,
         executeDustTransfer: mockExecuteDustTransfer,
-        getQuoteAssetStats: mockGetQuoteAssetStats,
+        getClosedTrades: mockGetClosedTrades,
         saveDataToCache: mockSaveDataToCache
       }));
 
@@ -224,7 +224,7 @@ describe('trailingTradeIndicator', () => {
             quoteAssetStats: {},
             apiLimit: { start: 10, end: 10 },
             dustTransfer: 'dust-transfer',
-            getQuoteAssetStats: 'executed',
+            getClosedTrades: 'executed',
             saved: 'data-to-cache'
           }
         },

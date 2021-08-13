@@ -1,13 +1,7 @@
 /* eslint-disable global-require */
 
 describe('webserver/configure.js', () => {
-  const mockHandlers = {
-    handleAuth: null,
-    handleGridTradeArchiveGetBySymbol: null,
-    handleGridTradeArchiveGetByQuoteAsset: null,
-    handleGridTradeArchiveDelete: null,
-    handle404: null
-  };
+  let mockSetHandlers;
 
   let cacheMock;
   let loggerMock;
@@ -15,19 +9,11 @@ describe('webserver/configure.js', () => {
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
 
-    mockHandlers.handleAuth = jest.fn().mockResolvedValue(true);
-    mockHandlers.handleGridTradeArchiveGetBySymbol = jest
-      .fn()
-      .mockResolvedValue(true);
-    mockHandlers.handleGridTradeArchiveGetByQuoteAsset = jest
-      .fn()
-      .mockResolvedValue(true);
-    mockHandlers.handleGridTradeArchiveDelete = jest
-      .fn()
-      .mockResolvedValue(true);
-    mockHandlers.handle404 = jest.fn().mockResolvedValue(true);
+    mockSetHandlers = jest.fn().mockResolvedValue(true);
 
-    jest.mock('../handlers', () => mockHandlers);
+    jest.mock('../handlers', () => ({
+      setHandlers: mockSetHandlers
+    }));
   });
 
   describe('when jwt token is not cached', () => {
@@ -54,29 +40,8 @@ describe('webserver/configure.js', () => {
       );
     });
 
-    [
-      {
-        handlerFunc: 'handleAuth'
-      },
-      {
-        handlerFunc: 'handleGridTradeArchiveGetBySymbol'
-      },
-      {
-        handlerFunc: 'handleGridTradeArchiveGetByQuoteAsset'
-      },
-      {
-        handlerFunc: 'handleGridTradeArchiveDelete'
-      },
-      {
-        handlerFunc: 'handle404'
-      }
-    ].forEach(t => {
-      it(`triggers ${t.handlerFunc}`, () => {
-        expect(mockHandlers[t.handlerFunc]).toHaveBeenCalledWith(
-          loggerMock,
-          'app'
-        );
-      });
+    it(`triggers setHandlers`, () => {
+      expect(mockSetHandlers).toHaveBeenCalledWith(loggerMock, 'app');
     });
   });
 

@@ -1,5 +1,5 @@
 /* eslint-disable global-require */
-describe('webserver/handlers/grid-trade-archive-by-quote-asset', () => {
+describe('webserver/handlers/grid-trade-archive-get', () => {
   let loggerMock;
   let mongoMock;
 
@@ -40,16 +40,17 @@ describe('webserver/handlers/grid-trade-archive-by-quote-asset', () => {
       postReq = {
         body: {
           authToken: 'some token',
+          type: 'quoteAsset',
           quoteAsset: 'USDT',
           page: 1,
           limit: 5
         }
       };
       const {
-        handleGridTradeArchiveGetByQuoteAsset
-      } = require('../grid-trade-archive-get-by-quote-asset');
+        handleGridTradeArchiveGet
+      } = require('../grid-trade-archive-get');
 
-      await handleGridTradeArchiveGetByQuoteAsset(loggerMock, appMock);
+      await handleGridTradeArchiveGet(loggerMock, appMock);
     });
 
     it('triggers verifyAuthenticated', () => {
@@ -73,18 +74,230 @@ describe('webserver/handlers/grid-trade-archive-by-quote-asset', () => {
   });
 
   describe('when verification success', () => {
+    describe('when type is not valid', () => {
+      beforeEach(async () => {
+        const { logger, mongo } = require('../../../../helpers');
+
+        loggerMock = logger;
+        mongoMock = mongo;
+
+        mockVerifyAuthenticated = jest.fn().mockResolvedValue(true);
+
+        jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
+          verifyAuthenticated: mockVerifyAuthenticated
+        }));
+
+        mongoMock.findAll = jest.fn().mockResolvedValue([]);
+
+        mongoMock.aggregate = jest.fn().mockResolvedValue([]);
+
+        postReq = {
+          body: {
+            authToken: 'some token',
+            type: 'invalid-type',
+            page: 1,
+            limit: 5
+          }
+        };
+        const {
+          handleGridTradeArchiveGet
+        } = require('../grid-trade-archive-get');
+
+        await handleGridTradeArchiveGet(loggerMock, appMock);
+      });
+
+      it('does not trigger mongo.findAll', () => {
+        expect(mongoMock.findAll).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger mongo.aggregate', () => {
+        expect(mongoMock.aggregate).not.toHaveBeenCalled();
+      });
+
+      it('return unauthorised', () => {
+        expect(resSendMock).toHaveBeenCalledWith({
+          success: false,
+          status: 400,
+          message: `invalid-type is not allowed`,
+          data: {
+            rows: [],
+            stats: {}
+          }
+        });
+      });
+    });
+
     [
       {
-        page: 1,
-        expectedSkip: 0
+        desc: 'symbol type without page/start/end',
+        requestBody: {
+          authToken: 'valid-auth-token',
+          type: 'symbol',
+          symbol: 'BTCUSDT',
+          limit: 10
+        },
+        expectedMatch: {
+          symbol: 'BTCUSDT'
+        },
+        expectFindAllParams: {
+          sort: { archivedAt: -1 },
+          skip: 0,
+          limit: 10
+        },
+        expectedGroup: {
+          _id: '$symbol',
+          symbol: { $first: '$symbol' }
+        },
+        expectedProject: {
+          symbol: 1
+        }
       },
-
       {
-        page: 5,
-        expectedSkip: 20
+        desc: 'symbol type without limit/start/end',
+        requestBody: {
+          authToken: 'valid-auth-token',
+          type: 'symbol',
+          symbol: 'BTCUSDT',
+          page: 5
+        },
+        expectedMatch: {
+          symbol: 'BTCUSDT'
+        },
+        expectFindAllParams: {
+          sort: { archivedAt: -1 },
+          skip: 20,
+          limit: 5
+        },
+        expectedGroup: {
+          _id: '$symbol',
+          symbol: { $first: '$symbol' }
+        },
+        expectedProject: {
+          symbol: 1
+        }
+      },
+      {
+        desc: 'symbol type with start/end',
+        requestBody: {
+          authToken: 'valid-auth-token',
+          type: 'symbol',
+          symbol: 'BTCUSDT',
+          page: 5,
+          limit: 5,
+          start: '2021-01-01T00:00:00+00:00',
+          end: '2021-01-31T00:00:00+00:00'
+        },
+        expectedMatch: {
+          symbol: 'BTCUSDT',
+          archivedAt: {
+            $gte: '2021-01-01T00:00:00.000Z',
+            $lte: '2021-01-31T00:00:00.000Z'
+          }
+        },
+        expectFindAllParams: {
+          sort: { archivedAt: -1 },
+          skip: 20,
+          limit: 5
+        },
+        expectedGroup: {
+          _id: '$symbol',
+          symbol: { $first: '$symbol' }
+        },
+        expectedProject: {
+          symbol: 1
+        }
+      },
+      {
+        desc: 'symbol type with start',
+        requestBody: {
+          authToken: 'valid-auth-token',
+          type: 'symbol',
+          symbol: 'BTCUSDT',
+          page: 5,
+          limit: 5,
+          start: '2021-01-01T00:00:00+00:00'
+        },
+        expectedMatch: {
+          symbol: 'BTCUSDT',
+          archivedAt: {
+            $gte: '2021-01-01T00:00:00.000Z'
+          }
+        },
+        expectFindAllParams: {
+          sort: { archivedAt: -1 },
+          skip: 20,
+          limit: 5
+        },
+        expectedGroup: {
+          _id: '$symbol',
+          symbol: { $first: '$symbol' }
+        },
+        expectedProject: {
+          symbol: 1
+        }
+      },
+      {
+        desc: 'symbol type with end',
+        requestBody: {
+          authToken: 'valid-auth-token',
+          type: 'symbol',
+          symbol: 'BTCUSDT',
+          page: 5,
+          limit: 5,
+          end: '2021-01-31T00:00:00+00:00'
+        },
+        expectedMatch: {
+          symbol: 'BTCUSDT',
+          archivedAt: {
+            $lte: '2021-01-31T00:00:00.000Z'
+          }
+        },
+        expectFindAllParams: {
+          sort: { archivedAt: -1 },
+          skip: 20,
+          limit: 5
+        },
+        expectedGroup: {
+          _id: '$symbol',
+          symbol: { $first: '$symbol' }
+        },
+        expectedProject: {
+          symbol: 1
+        }
+      },
+      {
+        desc: 'quoteAsset type with start/end',
+        requestBody: {
+          authToken: 'valid-auth-token',
+          type: 'quoteAsset',
+          quoteAsset: 'USDT',
+          page: 5,
+          limit: 5,
+          start: '2021-01-01T00:00:00+00:00',
+          end: '2021-01-31T00:00:00+00:00'
+        },
+        expectedMatch: {
+          quoteAsset: 'USDT',
+          archivedAt: {
+            $gte: '2021-01-01T00:00:00.000Z',
+            $lte: '2021-01-31T00:00:00.000Z'
+          }
+        },
+        expectFindAllParams: {
+          sort: { archivedAt: -1 },
+          skip: 20,
+          limit: 5
+        },
+        expectedGroup: {
+          _id: '$quoteAsset',
+          quoteAsset: { $first: '$quoteAsset' }
+        },
+        expectedProject: {
+          quoteAsset: 1
+        }
       }
     ].forEach(t => {
-      describe(`found rows - page ${t.page}`, () => {
+      describe(`found rows - ${t.desc}`, () => {
         beforeEach(async () => {
           const { logger, mongo } = require('../../../../helpers');
 
@@ -99,49 +312,38 @@ describe('webserver/handlers/grid-trade-archive-by-quote-asset', () => {
 
           mongoMock.findAll = jest.fn().mockResolvedValue([
             {
-              quoteAsset: 'USDT',
+              someValue: 'value',
               totalBuyQuoteQty: 10
             },
             {
-              quoteAsset: 'USDT',
+              someValue: 'value',
               totalBuyQuoteQty: 10
             }
           ]);
 
           mongoMock.aggregate = jest.fn().mockResolvedValue([
             {
-              quoteAsset: 1,
+              someValue: 1,
               totalBuyQuoteQty: 20
             }
           ]);
 
           postReq = {
-            body: {
-              authToken: 'some token',
-              quoteAsset: 'USDT',
-              page: t.page,
-              limit: 5
-            }
+            body: t.requestBody
           };
           const {
-            handleGridTradeArchiveGetByQuoteAsset
-          } = require('../grid-trade-archive-get-by-quote-asset');
+            handleGridTradeArchiveGet
+          } = require('../grid-trade-archive-get');
 
-          await handleGridTradeArchiveGetByQuoteAsset(loggerMock, appMock);
+          await handleGridTradeArchiveGet(loggerMock, appMock);
         });
 
         it('triggers mongo.findAll', () => {
           expect(mongoMock.findAll).toHaveBeenCalledWith(
             loggerMock,
             'trailing-trade-grid-trade-archive',
-            {
-              quoteAsset: 'USDT'
-            },
-            {
-              sort: { archivedAt: -1 },
-              skip: t.expectedSkip,
-              limit: 5
-            }
+            t.expectedMatch,
+            t.expectFindAllParams
           );
         });
 
@@ -151,12 +353,11 @@ describe('webserver/handlers/grid-trade-archive-by-quote-asset', () => {
             'trailing-trade-grid-trade-archive',
             [
               {
-                $match: { quoteAsset: 'USDT' }
+                $match: { ...t.expectedMatch }
               },
               {
                 $group: {
-                  _id: '$quoteAsset',
-                  quoteAsset: { $first: '$quoteAsset' },
+                  ...t.expectedGroup,
                   totalBuyQuoteQty: { $sum: '$totalBuyQuoteQty' },
                   totalSellQuoteQty: { $sum: '$totalSellQuoteQty' },
                   buyGridTradeQuoteQty: { $sum: '$buyGridTradeQuoteQty' },
@@ -170,7 +371,7 @@ describe('webserver/handlers/grid-trade-archive-by-quote-asset', () => {
               },
               {
                 $project: {
-                  quoteAsset: 1,
+                  ...t.expectedProject,
                   totalBuyQuoteQty: 1,
                   totalSellQuoteQty: 1,
                   buyGridTradeQuoteQty: 1,
@@ -196,20 +397,20 @@ describe('webserver/handlers/grid-trade-archive-by-quote-asset', () => {
           expect(resSendMock).toHaveBeenCalledWith({
             success: true,
             status: 200,
-            message: 'Retrieved grid-trade-archive-by-quote-asset',
+            message: 'Retrieved grid-trade-archive-get',
             data: {
               rows: [
                 {
-                  quoteAsset: 'USDT',
+                  someValue: 'value',
                   totalBuyQuoteQty: 10
                 },
                 {
-                  quoteAsset: 'USDT',
+                  someValue: 'value',
                   totalBuyQuoteQty: 10
                 }
               ],
               stats: {
-                quoteAsset: 1,
+                someValue: 1,
                 totalBuyQuoteQty: 20
               }
             }
@@ -237,17 +438,17 @@ describe('webserver/handlers/grid-trade-archive-by-quote-asset', () => {
 
         postReq = {
           body: {
-            authToken: 'some token',
+            authToken: 'valid-auth-token',
+            type: 'quoteAsset',
             quoteAsset: 'USDT',
-            page: 1,
-            limit: 5
+            page: 5
           }
         };
         const {
-          handleGridTradeArchiveGetByQuoteAsset
-        } = require('../grid-trade-archive-get-by-quote-asset');
+          handleGridTradeArchiveGet
+        } = require('../grid-trade-archive-get');
 
-        await handleGridTradeArchiveGetByQuoteAsset(loggerMock, appMock);
+        await handleGridTradeArchiveGet(loggerMock, appMock);
       });
 
       it('triggers mongo.findAll', () => {
@@ -259,7 +460,7 @@ describe('webserver/handlers/grid-trade-archive-by-quote-asset', () => {
           },
           {
             sort: { archivedAt: -1 },
-            skip: 0,
+            skip: 20,
             limit: 5
           }
         );
@@ -316,7 +517,7 @@ describe('webserver/handlers/grid-trade-archive-by-quote-asset', () => {
         expect(resSendMock).toHaveBeenCalledWith({
           success: true,
           status: 200,
-          message: 'Retrieved grid-trade-archive-by-quote-asset',
+          message: 'Retrieved grid-trade-archive-get',
           data: {
             rows: [],
             stats: {

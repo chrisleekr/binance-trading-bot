@@ -20,7 +20,7 @@ describe('save-data-to-cache.js', () => {
         symbolInfo: {
           quoteAsset: 'USDT'
         },
-        quoteAssetStats: {
+        closedTrades: {
           quoteAsset: 'USDT',
           totalBuyQuoteQty: 10
         }
@@ -41,7 +41,7 @@ describe('save-data-to-cache.js', () => {
 
     it('triggers cache.hset for trailing trade quote assets data', () => {
       expect(cache.hset).toHaveBeenCalledWith(
-        'trailing-trade-quote-stats',
+        'trailing-trade-closed-trades',
         'USDT',
         JSON.stringify({
           quoteAsset: 'USDT',

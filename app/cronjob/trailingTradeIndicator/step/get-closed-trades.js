@@ -1,4 +1,6 @@
-const { mongo } = require('../../../helpers');
+const _ = require('lodash');
+const moment = require('moment-timezone');
+const { cache, mongo } = require('../../../helpers');
 /**
  * Get quote asset statistics
  *
@@ -12,10 +14,45 @@ const execute = async (logger, rawData) => {
 
   const { quoteAsset } = symbolInfo;
 
-  const quoteAssetStats = (
+  const closedTradesSetting =
+    JSON.parse(await cache.hget('trailing-trade-common', 'closed-trades')) ||
+    {};
+
+  const selectedPeriod = _.get(closedTradesSetting, 'selectedPeriod', 'a');
+
+  let start = null;
+  let end = null;
+
+  switch (selectedPeriod) {
+    case 'd':
+      start = moment().startOf('day').toISOString();
+      end = moment().endOf('day').toISOString();
+      break;
+    case 'w':
+      start = moment().startOf('week').toISOString();
+      end = moment().endOf('week').toISOString();
+      break;
+    case 'm':
+      start = moment().startOf('month').toISOString();
+      end = moment().endOf('month').toISOString();
+      break;
+    case 'a':
+    default:
+  }
+
+  const match = {};
+
+  if (start && end) {
+    match.archivedAt = {
+      $gte: moment(start).toISOString(),
+      $lte: moment(end).toISOString()
+    };
+  }
+
+  const closedTrades = (
     await mongo.aggregate(logger, 'trailing-trade-grid-trade-archive', [
       {
-        $match: { quoteAsset }
+        $match: { quoteAsset, ...match }
       },
       {
         $group: {
@@ -64,7 +101,16 @@ const execute = async (logger, rawData) => {
     trades: 0
   };
 
-  data.quoteAssetStats = quoteAssetStats;
+  data.closedTrades = closedTrades;
+
+  await cache.hset(
+    'trailing-trade-common',
+    'closed-trades',
+    JSON.stringify({
+      ...closedTradesSetting,
+      loadedPeriod: selectedPeriod
+    })
+  );
 
   return data;
 };

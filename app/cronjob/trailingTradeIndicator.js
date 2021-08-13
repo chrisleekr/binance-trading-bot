@@ -18,7 +18,7 @@ const {
   getIndicators,
   getOpenOrders,
   executeDustTransfer,
-  getQuoteAssetStats,
+  getClosedTrades,
   saveDataToCache
 } = require('./trailingTradeIndicator/steps');
 const { slack } = require('../helpers');
@@ -98,8 +98,8 @@ const execute = async logger => {
         stepFunc: getOpenOrders
       },
       {
-        stepName: 'get-quote-asset-stats',
-        stepFunc: getQuoteAssetStats
+        stepName: 'get-closed-trades',
+        stepFunc: getClosedTrades
       },
       {
         stepName: 'save-data-to-cache',

@@ -323,7 +323,6 @@ const archiveSymbolGridTrade = async (logger, symbol = null) => {
   }
 
   // If exist, calculate profit
-
   const {
     buy: buyGridTrade,
     sell: sellGridTrade,

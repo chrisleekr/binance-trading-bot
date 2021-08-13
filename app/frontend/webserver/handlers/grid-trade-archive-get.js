@@ -1,18 +1,32 @@
+const moment = require('moment-timezone');
 const {
   verifyAuthenticated
 } = require('../../../cronjob/trailingTradeHelper/common');
 
 const { mongo } = require('../../../helpers');
 
-const handleGridTradeArchiveGetBySymbol = async (funcLogger, app) => {
+const handleGridTradeArchiveGet = async (funcLogger, app) => {
   const logger = funcLogger.child({
-    endpoint: '/grid-trade-archive-by-symbol'
+    endpoint: '/grid-trade-archive-get'
   });
 
-  app.route('/grid-trade-archive-by-symbol').post(async (req, res) => {
-    const { authToken, symbol, page, limit } = req.body;
+  app.route('/grid-trade-archive-get').post(async (req, res) => {
+    const {
+      authToken,
+      type,
+      symbol,
+      quoteAsset,
+      page: rawPage,
+      limit: rawLimit,
+      start,
+      end
+    } = req.body;
 
     // Verify authentication
+
+    const page = rawPage || 1;
+    const limit = rawLimit || 5;
+
     logger.info({ page, limit }, 'Grid Trade Archive');
 
     const isAuthenticated = await verifyAuthenticated(logger, authToken);
@@ -30,12 +44,54 @@ const handleGridTradeArchiveGetBySymbol = async (funcLogger, app) => {
       });
     }
 
+    if (['symbol', 'quoteAsset'].includes(type) === false) {
+      return res.send({
+        success: false,
+        status: 400,
+        message: `${type} is not allowed`,
+        data: {
+          rows: [],
+          stats: {}
+        }
+      });
+    }
+
+    const match = {};
+    const group = {};
+    const project = {};
+    const initialValue = {};
+
+    if (start || end) {
+      match.archivedAt = {
+        ...(start ? { $gte: moment(start).toISOString() } : {}),
+        ...(end ? { $lte: moment(end).toISOString() } : {})
+      };
+    }
+
+    // eslint-disable-next-line default-case
+    switch (type) {
+      case 'symbol':
+        match.symbol = symbol;
+        // eslint-disable-next-line no-underscore-dangle
+        group._id = '$symbol';
+        group.symbol = { $first: '$symbol' };
+        project.symbol = 1;
+        initialValue.symbol = symbol;
+        break;
+      case 'quoteAsset':
+        match.quoteAsset = quoteAsset;
+        // eslint-disable-next-line no-underscore-dangle
+        group._id = '$quoteAsset';
+        group.quoteAsset = { $first: '$quoteAsset' };
+        project.quoteAsset = 1;
+        initialValue.quoteAsset = quoteAsset;
+        break;
+    }
+
     const rows = await mongo.findAll(
       logger,
       'trailing-trade-grid-trade-archive',
-      {
-        symbol
-      },
+      match,
       {
         sort: { archivedAt: -1 },
         skip: (page - 1) * limit,
@@ -46,12 +102,11 @@ const handleGridTradeArchiveGetBySymbol = async (funcLogger, app) => {
     const stats = (
       await mongo.aggregate(logger, 'trailing-trade-grid-trade-archive', [
         {
-          $match: { symbol }
+          $match: match
         },
         {
           $group: {
-            _id: '$symbol',
-            symbol: { $first: '$symbol' },
+            ...group,
             totalBuyQuoteQty: { $sum: '$totalBuyQuoteQty' },
             totalSellQuoteQty: { $sum: '$totalSellQuoteQty' },
             buyGridTradeQuoteQty: { $sum: '$buyGridTradeQuoteQty' },
@@ -65,7 +120,7 @@ const handleGridTradeArchiveGetBySymbol = async (funcLogger, app) => {
         },
         {
           $project: {
-            symbol: 1,
+            ...project,
             totalBuyQuoteQty: 1,
             totalSellQuoteQty: 1,
             buyGridTradeQuoteQty: 1,
@@ -82,7 +137,7 @@ const handleGridTradeArchiveGetBySymbol = async (funcLogger, app) => {
         }
       ])
     )[0] || {
-      symbol,
+      ...initialValue,
       totalBuyQuoteQty: 0,
       totalSellQuoteQty: 0,
       buyGridTradeQuoteQty: 0,
@@ -98,7 +153,7 @@ const handleGridTradeArchiveGetBySymbol = async (funcLogger, app) => {
     return res.send({
       success: true,
       status: 200,
-      message: 'Retrieved grid-trade-archive-by-symbol',
+      message: 'Retrieved grid-trade-archive-get',
       data: {
         rows,
         stats
@@ -107,4 +162,4 @@ const handleGridTradeArchiveGetBySymbol = async (funcLogger, app) => {
   });
 };
 
-module.exports = { handleGridTradeArchiveGetBySymbol };
+module.exports = { handleGridTradeArchiveGet };

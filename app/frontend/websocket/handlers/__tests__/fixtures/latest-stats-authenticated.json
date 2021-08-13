@@ -95,7 +95,8 @@
     ],
     "publicURL": "https://chatty-robin-84.loca.lt",
     "apiInfo": { "spot": { "usedWeight1m": "60" }, "futures": {} },
-    "quoteStats": [
+    "closedTradesSetting": { "loadedPeriod": "m", "selectedPeriod": "m" },
+    "closedTrades": [
       {
         "_id": "USDT",
         "quoteAsset": "USDT",

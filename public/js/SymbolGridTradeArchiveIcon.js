@@ -19,6 +19,9 @@ class SymbolGridTradeArchiveIcon extends React.Component {
       loading: true,
       page: 1,
       limit: 5,
+      period: 'a',
+      start: null,
+      end: null,
       rows: [],
       stats: {},
       selectedDeleteByKey: null
@@ -26,6 +29,8 @@ class SymbolGridTradeArchiveIcon extends React.Component {
 
     this.handleModalShow = this.handleModalShow.bind(this);
     this.handleModalClose = this.handleModalClose.bind(this);
+
+    this.setPeriod = this.setPeriod.bind(this);
 
     this.setPage = this.setPage.bind(this);
   }
@@ -55,10 +60,36 @@ class SymbolGridTradeArchiveIcon extends React.Component {
     );
   }
 
+  setPeriod(newPeriod) {
+    let start = null;
+    let end = null;
+
+    switch (newPeriod) {
+      case 'd':
+        start = moment().startOf('day').toISOString();
+        end = moment().endOf('day').toISOString();
+        break;
+      case 'w':
+        start = moment().startOf('week').toISOString();
+        end = moment().endOf('week').toISOString();
+        break;
+      case 'm':
+        start = moment().startOf('month').toISOString();
+        end = moment().endOf('month').toISOString();
+        break;
+      case 'a':
+      default:
+    }
+
+    this.setState({ page: 1, start, end, period: newPeriod }, () =>
+      this.loadGridTradeArchive()
+    );
+  }
+
   loadGridTradeArchive() {
     const { symbol } = this.props;
 
-    const { page, limit } = this.state;
+    const { page, limit, start, end } = this.state;
 
     const authToken = localStorage.getItem('authToken') || '';
 
@@ -67,7 +98,15 @@ class SymbolGridTradeArchiveIcon extends React.Component {
     });
 
     return axios
-      .post('/grid-trade-archive-by-symbol', { authToken, symbol, page, limit })
+      .post('/grid-trade-archive-get', {
+        authToken,
+        type: 'symbol',
+        symbol,
+        page,
+        limit,
+        start,
+        end
+      })
       .then(response => {
         // handle success
         const {
@@ -101,7 +140,7 @@ class SymbolGridTradeArchiveIcon extends React.Component {
         authToken,
         query
       })
-      .then(response => {
+      .then(_response => {
         return this.loadGridTradeArchive();
       });
   }
@@ -116,6 +155,9 @@ class SymbolGridTradeArchiveIcon extends React.Component {
       stats,
       page,
       limit,
+      period,
+      start,
+      end,
       selectedDeleteByKey
     } = this.state;
 
@@ -368,39 +410,90 @@ class SymbolGridTradeArchiveIcon extends React.Component {
                     </Card.Body>
                   </Card>
                 </div>
+                <div className='row mb-1'>
+                  <div className='col-sm-12 col-md-6'>
+                    <strong>Period:</strong>{' '}
+                    {period === 'a'
+                      ? 'All time'
+                      : `${moment(start).format('YYYY-MM-DD')} ~ ${moment(
+                          end
+                        ).format('YYYY-MM-DD')}`}
+                  </div>
+                  <div className='col-sm-12 col-md-6 text-right'>
+                    <button
+                      type='button'
+                      className={`btn btn-period ml-1 btn-sm ${
+                        period === 'd' ? 'btn-info' : 'btn-light'
+                      }`}
+                      onClick={() => this.setPeriod('d')}
+                      title='Day'>
+                      Day
+                    </button>
+                    <button
+                      type='button'
+                      className={`btn btn-period ml-1 btn-sm ${
+                        period === 'w' ? 'btn-info' : 'btn-light'
+                      }`}
+                      onClick={() => this.setPeriod('w')}
+                      title='W'>
+                      Week
+                    </button>
+                    <button
+                      type='button'
+                      className={`btn btn-period ml-1 btn-sm ${
+                        period === 'm' ? 'btn-info' : 'btn-light'
+                      }`}
+                      onClick={() => this.setPeriod('m')}
+                      title='Month'>
+                      Month
+                    </button>
+                    <button
+                      type='button'
+                      className={`btn btn-period ml-1 btn-sm ${
+                        period === 'a' ? 'btn-info' : 'btn-light'
+                      }`}
+                      onClick={() => this.setPeriod('a')}>
+                      All
+                    </button>
+                  </div>
+                </div>
                 {rows.length === 0 ? (
-                  ''
-                ) : (
                   <div className='row'>
-                    <Table striped bordered hover size='sm' responsive>
-                      <thead>
-                        <tr>
-                          <th className='text-center'>Profit</th>
-                          <th className='text-center'>Buy</th>
-                          <th className='text-center'>Sell</th>
-                          <th className='text-center'>Closed At</th>
-                        </tr>
-                      </thead>
-                      <tbody>{tradeRows}</tbody>
-                    </Table>
-                    <div className='d-flex w-100 flex-row justify-content-between px-3 mb-2'>
-                      <Pagination
-                        className='justify-content-center mb-0'
-                        size='sm'>
-                        {paginationItems}
-                      </Pagination>
-                      <div className='text-right'>
-                        <button
-                          type='button'
-                          className='btn btn-sm btn-danger'
-                          onClick={() =>
-                            this.handleModalShow('deleteAllBySymbol')
-                          }>
-                          Delete all
-                        </button>
+                    <div className='col-12 text-center p-3'>No trade found</div>
+                  </div>
+                ) : (
+                  <React.Fragment>
+                    <div className='row'>
+                      <Table striped bordered hover size='sm' responsive>
+                        <thead>
+                          <tr>
+                            <th className='text-center'>Profit</th>
+                            <th className='text-center'>Buy</th>
+                            <th className='text-center'>Sell</th>
+                            <th className='text-center'>Closed At</th>
+                          </tr>
+                        </thead>
+                        <tbody>{tradeRows}</tbody>
+                      </Table>
+                      <div className='d-flex w-100 flex-row justify-content-between px-3 mb-2'>
+                        <Pagination
+                          className='justify-content-center mb-0'
+                          size='sm'>
+                          {paginationItems}
+                        </Pagination>
+                        <div className='text-right'>
+                          <button
+                            type='button'
+                            className='btn btn-sm btn-danger'
+                            onClick={() =>
+                              this.handleModalShow('deleteAllBySymbol')
+                            }>
+                            Delete all
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </React.Fragment>
                 )}
               </React.Fragment>
             )}
