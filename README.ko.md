@@ -324,7 +324,7 @@
 
 | Password Protected | Frontend Mobile |
 | ------------------ | --------------- |
-| ![Password Protected](https://user-images.githubusercontent.com/5715919/127773484-51d01881-4933-454e-9052-9965b222e716.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/129048582-c2dfb086-27b4-4d9c-8e7d-2c16dce67f62.png) |
+| ![Password Protected](https://user-images.githubusercontent.com/5715919/127773484-51d01881-4933-454e-9052-9965b222e716.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/129367660-743f89fd-2eae-4113-8ce7-6249ba47926a.png) |
 
 | Setting | Manual Trade |
 | ------- | ------------ |
@@ -332,7 +332,7 @@
 
 | Frontend Desktop  | Closed Trades |
 | ----------------- | ------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/129049632-3cf9d5fd-cd3a-4272-834b-7e0e8dcc2a7f.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/129049695-18d868e9-b928-4302-a0da-3e7c9dff79f1.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/129367482-2d88144a-b5e3-49b1-ae11-f21e7251dab0.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/129367521-019cf591-26f2-4d69-ac9e-9f631605aab2.png) |
 
 ### 샘플 거래
 
