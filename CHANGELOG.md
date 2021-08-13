@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.0.75] - 2021-08-13
 
 - Support triggering buy automatically after configured minutes
 - Support triggering grid trade for selling manually
