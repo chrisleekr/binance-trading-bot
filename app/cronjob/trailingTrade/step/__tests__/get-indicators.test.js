@@ -442,7 +442,7 @@ describe('get-indicators.js', () => {
               triggerPrice: null,
               difference: null,
               currentProfit: 655.509,
-              currentProfitPercentage: 42.14112550939918,
+              currentProfitPercentage: 72.83433333333333,
               stopLossDifference: 53.712900407519335,
               stopLossTriggerPrice: 7200,
               openOrders: [],
@@ -595,7 +595,7 @@ describe('get-indicators.js', () => {
               triggerPrice: 9540,
               difference: 38.669593039963125,
               currentProfit: 655.509,
-              currentProfitPercentage: 42.14112550939918,
+              currentProfitPercentage: 72.83433333333333,
               stopLossDifference: 53.712900407519335,
               stopLossTriggerPrice: 7200,
               openOrders: [],
@@ -748,7 +748,7 @@ describe('get-indicators.js', () => {
               triggerPrice: 9540,
               difference: 38.669593039963125,
               currentProfit: 655.509,
-              currentProfitPercentage: 42.14112550939918,
+              currentProfitPercentage: 72.83433333333333,
               stopLossDifference: 53.712900407519335,
               stopLossTriggerPrice: 7200,
               openOrders: [],
@@ -836,9 +836,9 @@ describe('get-indicators.js', () => {
                 symbol: 'BTCUSDT',
                 type: 'STOP_LOSS_LIMIT',
                 side: 'BUY',
-                price: '16000.000',
+                price: '16100.000',
                 origQty: '0.005',
-                stopPrice: '16100.000',
+                stopPrice: '16000.000',
                 time: 1615465601162
               },
               {
@@ -846,9 +846,9 @@ describe('get-indicators.js', () => {
                 symbol: 'BTCUSDT',
                 type: 'STOP_LOSS_LIMIT',
                 side: 'SELL',
-                price: '16000.000',
+                price: '15900.000',
                 origQty: '0.005',
-                stopPrice: '15900.000',
+                stopPrice: '16000.000',
                 time: 1615465601162
               }
             ]
@@ -908,13 +908,13 @@ describe('get-indicators.js', () => {
                 symbol: 'BTCUSDT',
                 type: 'STOP_LOSS_LIMIT',
                 side: 'BUY',
-                price: '16000.000',
+                price: '16100.000',
                 origQty: '0.005',
-                stopPrice: '16100.000',
+                stopPrice: '16000.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
                 differenceToCancel: null,
-                differenceToExecute: -3.5030976998525976,
+                differenceToExecute: -2.86022131662369,
                 updatedAt: expect.any(Object)
               },
               {
@@ -922,15 +922,15 @@ describe('get-indicators.js', () => {
                 symbol: 'BTCUSDT',
                 type: 'STOP_LOSS_LIMIT',
                 side: 'SELL',
-                price: '16000.000',
+                price: '15900.000',
                 origQty: '0.005',
-                stopPrice: '15900.000',
+                stopPrice: '16000.000',
                 time: 1615465601162,
                 currentPrice: 15555.09,
                 differenceToCancel: null,
-                differenceToExecute: -2.2173449333947826,
-                minimumProfit: 35,
-                minimumProfitPercentage: 43.75,
+                differenceToExecute: -2.86022131662369,
+                minimumProfit: 34.5,
+                minimumProfitPercentage: 76.66666666666666,
                 updatedAt: expect.any(Object)
               }
             ],
@@ -969,13 +969,13 @@ describe('get-indicators.js', () => {
                   symbol: 'BTCUSDT',
                   type: 'STOP_LOSS_LIMIT',
                   side: 'BUY',
-                  price: '16000.000',
+                  price: '16100.000',
                   origQty: '0.005',
-                  stopPrice: '16100.000',
+                  stopPrice: '16000.000',
                   time: 1615465601162,
                   currentPrice: 15555.09,
                   differenceToCancel: null,
-                  differenceToExecute: -3.5030976998525976,
+                  differenceToExecute: -2.86022131662369,
                   updatedAt: expect.any(Object)
                 }
               ],
@@ -989,7 +989,7 @@ describe('get-indicators.js', () => {
               triggerPrice: null,
               difference: null,
               currentProfit: 655.509,
-              currentProfitPercentage: 42.14112550939918,
+              currentProfitPercentage: 72.83433333333333,
               stopLossDifference: 53.712900407519335,
               stopLossTriggerPrice: 7200,
               openOrders: [
@@ -998,15 +998,15 @@ describe('get-indicators.js', () => {
                   symbol: 'BTCUSDT',
                   type: 'STOP_LOSS_LIMIT',
                   side: 'SELL',
-                  price: '16000.000',
+                  price: '15900.000',
                   origQty: '0.005',
-                  stopPrice: '15900.000',
+                  stopPrice: '16000.000',
                   time: 1615465601162,
                   currentPrice: 15555.09,
                   differenceToCancel: null,
-                  differenceToExecute: -2.2173449333947826,
-                  minimumProfit: 35,
-                  minimumProfitPercentage: 43.75,
+                  differenceToExecute: -2.86022131662369,
+                  minimumProfit: 34.5,
+                  minimumProfitPercentage: 76.66666666666666,
                   updatedAt: expect.any(Object)
                 }
               ],
@@ -1198,7 +1198,7 @@ describe('get-indicators.js', () => {
                 differenceToCancel: -4.40995396669539,
                 differenceToExecute: -2.2173449333947826,
                 minimumProfit: 35,
-                minimumProfitPercentage: 43.75,
+                minimumProfitPercentage: 77.77777777777777,
                 updatedAt: expect.any(Object)
               }
             ],
@@ -1257,7 +1257,7 @@ describe('get-indicators.js', () => {
               triggerPrice: 9540,
               difference: 38.669593039963125,
               currentProfit: 655.509,
-              currentProfitPercentage: 42.14112550939918,
+              currentProfitPercentage: 72.83433333333333,
               stopLossDifference: 53.712900407519335,
               stopLossTriggerPrice: 7200,
               openOrders: [
@@ -1274,7 +1274,7 @@ describe('get-indicators.js', () => {
                   differenceToCancel: -4.40995396669539,
                   differenceToExecute: -2.2173449333947826,
                   minimumProfit: 35,
-                  minimumProfitPercentage: 43.75,
+                  minimumProfitPercentage: 77.77777777777777,
                   updatedAt: expect.any(Object)
                 }
               ],
@@ -1466,7 +1466,7 @@ describe('get-indicators.js', () => {
                 differenceToCancel: -4.40995396669539,
                 differenceToExecute: -2.2173449333947826,
                 minimumProfit: 35,
-                minimumProfitPercentage: 43.75,
+                minimumProfitPercentage: 77.77777777777777,
                 updatedAt: expect.any(Object)
               }
             ],
@@ -1525,7 +1525,7 @@ describe('get-indicators.js', () => {
               triggerPrice: 9540,
               difference: 38.669593039963125,
               currentProfit: 655.509,
-              currentProfitPercentage: 42.14112550939918,
+              currentProfitPercentage: 72.83433333333333,
               stopLossDifference: 53.712900407519335,
               stopLossTriggerPrice: 7200,
               openOrders: [
@@ -1542,7 +1542,7 @@ describe('get-indicators.js', () => {
                   differenceToCancel: -4.40995396669539,
                   differenceToExecute: -2.2173449333947826,
                   minimumProfit: 35,
-                  minimumProfitPercentage: 43.75,
+                  minimumProfitPercentage: 77.77777777777777,
                   updatedAt: expect.any(Object)
                 }
               ],

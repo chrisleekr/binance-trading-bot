@@ -141,7 +141,7 @@ const execute = async (logger, rawData) => {
       : null;
 
   const sellCurrentProfitPercentage =
-    lastBuyPrice > 0 ? (1 - lastBuyPrice / currentPrice) * 100 : null;
+    lastBuyPrice > 0 ? (currentPrice / lastBuyPrice - 1) * 100 : null;
 
   // Reorganise open orders
   const newOpenOrders = openOrders.map(order => {
@@ -177,7 +177,7 @@ const execute = async (logger, rawData) => {
         newOrder.minimumProfit =
           (parseFloat(order.price) - lastBuyPrice) * parseFloat(order.origQty);
         newOrder.minimumProfitPercentage =
-          (1 - lastBuyPrice / parseFloat(order.price)) * 100;
+          (parseFloat(order.price) / lastBuyPrice - 1) * 100;
       }
     }
     return newOrder;
