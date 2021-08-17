@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 - Fix profit calculation. Thanks [@Bajt1](https://github.com/Bajt1) - [#270](https://github.com/chrisleekr/binance-trading-bot/issues/270)
+- Improve Frontend performance with Gzip and compression
+- Disabled saving every single order to MongoDB
 
 ## [0.0.75] - 2021-08-13
 

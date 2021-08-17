@@ -1,3 +1,4 @@
+const compression = require('compression');
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -12,6 +13,7 @@ const runFrontend = async serverLogger => {
   logger.info({ config }, `API ${config.get('mode')} frontend started on`);
 
   const app = express();
+  app.use(compression());
   app.use(cors());
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());

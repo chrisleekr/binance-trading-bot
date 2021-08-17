@@ -3,7 +3,7 @@ const { MongoClient } = require('mongodb');
 
 const clusterUrl = `${config.get('mongo.host')}:${config.get('mongo.port')}`;
 
-const uri = `mongodb://${clusterUrl}/?poolSize=20&retryWrites=true&writeConcern=majority`;
+const uri = `mongodb://${clusterUrl}/?retryWrites=true&writeConcern=majority`;
 
 const client = new MongoClient(uri, {
   useNewUrlParser: true,
