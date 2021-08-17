@@ -381,10 +381,20 @@ describe('webserver/handlers/grid-trade-archive-get', () => {
                   stopLossQuoteQty: 1,
                   profit: 1,
                   profitPercentage: {
-                    $multiply: [
-                      { $divide: ['$profit', '$totalBuyQuoteQty'] },
-                      100
-                    ]
+                    $cond: {
+                      if: {
+                        $gt: ['$totalBuyQuoteQty', 0]
+                      },
+                      then: {
+                        $multiply: [
+                          {
+                            $divide: ['$profit', '$totalBuyQuoteQty']
+                          },
+                          100
+                        ]
+                      },
+                      else: 0
+                    }
                   },
                   trades: 1
                 }
@@ -501,10 +511,20 @@ describe('webserver/handlers/grid-trade-archive-get', () => {
                 stopLossQuoteQty: 1,
                 profit: 1,
                 profitPercentage: {
-                  $multiply: [
-                    { $divide: ['$profit', '$totalBuyQuoteQty'] },
-                    100
-                  ]
+                  $cond: {
+                    if: {
+                      $gt: ['$totalBuyQuoteQty', 0]
+                    },
+                    then: {
+                      $multiply: [
+                        {
+                          $divide: ['$profit', '$totalBuyQuoteQty']
+                        },
+                        100
+                      ]
+                    },
+                    else: 0
+                  }
                 },
                 trades: 1
               }

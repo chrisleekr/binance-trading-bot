@@ -2,6 +2,7 @@
 node_modules
 /dist
 
+
 # local env files
 .env.local
 .env.*.local
@@ -26,3 +27,8 @@ log
 
 .env
 .vs
+
+
+/public/dist/*
+!/public/dist/.gitkeep
+
