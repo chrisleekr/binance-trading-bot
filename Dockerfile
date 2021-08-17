@@ -33,7 +33,9 @@ CMD [ "npm", "run", "dev" ]
 # build stage
 FROM dev-stage AS build-stage
 
-RUN npm run build
+RUN npm run build:webpack
+
+RUN npm run build:grunt
 
 RUN rm -rf node_modules
 
@@ -60,6 +62,10 @@ COPY image-files/ /
 WORKDIR /srv
 
 COPY --from=build-stage /srv /srv
+
+# Copy index production HTML to index.html
+RUN cp /srv/public/index.html /srv/public/index.dev.html && \
+  cp /srv/public/index.prod.html /srv/public/index.html
 
 ENTRYPOINT [ "docker-entrypoint.sh" ]
 

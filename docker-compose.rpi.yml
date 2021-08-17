@@ -12,8 +12,6 @@ services:
     environment:
       # - BINANCE_MODE=test
       - BINANCE_MODE=live
-      - BINANCE_JOBS_ALIVE_ENABLED=true
-      - BINANCE_JOBS_TRAILING_TRADE_ENABLED=true
       - BINANCE_REDIS_HOST=binance-redis
       - BINANCE_REDIS_PORT=6379
       - BINANCE_REDIS_PASSWORD=secretp422

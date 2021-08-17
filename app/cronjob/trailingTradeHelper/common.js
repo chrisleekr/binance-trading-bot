@@ -535,19 +535,22 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
 const saveOrder = async (logger, data) => {
   logger.info({ tag: 'save-order', data }, 'Save order');
 
+  // NOTE: Since trailing-trade-orders is not used at the moment,
+  // Disable for reducing unnecessary write.
+  return true;
   // Order ID must be included.
-  const {
-    order: { orderId }
-  } = data;
-  return mongo.upsertOne(
-    logger,
-    'trailing-trade-orders',
-    { key: orderId },
-    {
-      key: orderId,
-      ...data
-    }
-  );
+  // const {
+  //   order: { orderId }
+  // } = data;
+  // return mongo.upsertOne(
+  //   logger,
+  //   'trailing-trade-orders',
+  //   { key: orderId },
+  //   {
+  //     key: orderId,
+  //     ...data
+  //   }
+  // );
 };
 
 /**
