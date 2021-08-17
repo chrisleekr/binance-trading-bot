@@ -2,11 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.0.76] - 2021-08-17
 
-- Fix profit calculation. Thanks [@Bajt1](https://github.com/Bajt1) - [#270](https://github.com/chrisleekr/binance-trading-bot/issues/270)
+- Fixed profit calculation. Thanks [@Bajt1](https://github.com/Bajt1) - [#270](https://github.com/chrisleekr/binance-trading-bot/issues/270)
 - Improve Frontend performance with Gzip and compression
 - Disabled saving every single order to MongoDB
+- Fixed closed trade history error `can't $divide by zero`. Thanks [@BramFr](https://github.com/BramFr) - [#276](https://github.com/chrisleekr/binance-trading-bot/issues/276)
+- Clear closed trade history cache when change the period
 
 ## [0.0.75] - 2021-08-13
 

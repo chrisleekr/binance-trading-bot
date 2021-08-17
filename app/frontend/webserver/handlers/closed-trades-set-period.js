@@ -22,6 +22,9 @@ const handleClosedTradesSetPeriod = async (funcLogger, app) => {
       })
     );
 
+    // Reset closed trades history
+    await cache.del('trailing-trade-closed-trades');
+
     return res.send({
       success: true,
       status: 200,
