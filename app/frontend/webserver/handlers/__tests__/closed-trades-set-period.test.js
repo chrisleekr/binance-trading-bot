@@ -33,6 +33,8 @@ describe('webserver/handlers/closed-trades-set-period', () => {
 
       cacheMock.hset = jest.fn().mockResolvedValue(true);
 
+      cacheMock.del = jest.fn().mockResolvedValue(true);
+
       postReq = {
         body: {
           authToken: 'some token',
@@ -60,6 +62,12 @@ describe('webserver/handlers/closed-trades-set-period', () => {
         JSON.stringify({
           selectedPeriod: 'd'
         })
+      );
+    });
+
+    it('triggers cache.del', () => {
+      expect(cacheMock.del).toHaveBeenCalledWith(
+        'trailing-trade-closed-trades'
       );
     });
 
@@ -88,6 +96,7 @@ describe('webserver/handlers/closed-trades-set-period', () => {
       );
 
       cacheMock.hset = jest.fn().mockResolvedValue(true);
+      cacheMock.del = jest.fn().mockResolvedValue(true);
 
       postReq = {
         body: {
@@ -117,6 +126,12 @@ describe('webserver/handlers/closed-trades-set-period', () => {
           loadedPeriod: 'a',
           selectedPeriod: 'd'
         })
+      );
+    });
+
+    it('triggers cache.del', () => {
+      expect(cacheMock.del).toHaveBeenCalledWith(
+        'trailing-trade-closed-trades'
       );
     });
 
