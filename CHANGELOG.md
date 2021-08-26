@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.77] - 2021-08-27
+
+- Support setting minimum logging level. Thanks [ruslan-khalitov](https://github.com/ruslan-khalitov) - [#280](https://github.com/chrisleekr/binance-trading-bot/pull/280)
+- Fixed cached symbol info is not removed when saving the global configuration
+
 ## [0.0.76] - 2021-08-17
 
 - Fixed profit calculation. Thanks [@Bajt1](https://github.com/Bajt1) - [#270](https://github.com/chrisleekr/binance-trading-bot/issues/270)

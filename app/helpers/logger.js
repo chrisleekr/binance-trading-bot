@@ -5,7 +5,12 @@ const logger = bunyan.createLogger({
   name: 'binance-api',
   version: packageJson.version,
   serializers: bunyan.stdSerializers,
-  streams: [{ stream: process.stdout, level: process.env.BINANCE_LOG_LEVEL || 'TRACE' }]
+  streams: [
+    {
+      stream: process.stdout,
+      level: process.env.BINANCE_LOG_LEVEL || 'TRACE'
+    }
+  ]
 });
 logger.info({ NODE_ENV: process.env.NODE_ENV }, 'API logger loaded');
 
