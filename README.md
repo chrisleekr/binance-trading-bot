@@ -303,6 +303,7 @@ Or use the frontend to adjust configurations after launching the application.
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain                                         | binance                                                                                             |
    | BINANCE_AUTHENTICATION_ENABLED | Enable/Disable frontend authentication                                    | true  |
    | BINANCE_AUTHENTICATION_PASSWORD | Frontend password                                                        | 123456 |
+   | BINANCE_LOG_LEVEL               | Logging level. [Possible values described on `bunyan` docs.](https://www.npmjs.com/package/bunyan#levels) | ERROR |
 
    *A local tunnel makes the bot accessible from the outside. Please set the subdomain of the local tunnel as a subdomain that only you can remember.*
    *You must change the authentication password; otherwise, it will be configured as the default password.*

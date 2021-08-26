@@ -36,6 +36,7 @@ describe('setting-update.test.js', () => {
       cacheMock = cache;
 
       cacheMock.hdel = jest.fn().mockResolvedValue(true);
+      cacheMock.hgetall = jest.fn().mockResolvedValue({});
 
       mockGetGlobalConfiguration = jest.fn().mockResolvedValue(null);
 
@@ -70,6 +71,12 @@ describe('setting-update.test.js', () => {
         cacheMock = cache;
 
         cacheMock.hdel = jest.fn().mockResolvedValue(true);
+        cacheMock.hgetall = jest.fn().mockResolvedValue({
+          'BTCUSDT-symbol-info': JSON.stringify({ some: 'value' }),
+          'BTCUSDT-data': JSON.stringify({ another: 'value' }),
+          'ETHUSDT-symbol-info': JSON.stringify({ some: 'value' }),
+          'ETHUSDT-latest-candle': JSON.stringify({ another: 'value' })
+        });
 
         mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
           enabled: true,
@@ -145,10 +152,36 @@ describe('setting-update.test.js', () => {
         });
       });
 
-      it('triggers cache.hdel', () => {
+      it('triggers cache.hdel for exchange-symbols', () => {
         expect(cacheMock.hdel).toHaveBeenCalledWith(
           'trailing-trade-common',
           'exchange-symbols'
+        );
+      });
+
+      it('triggers cache.hdel for exchange-info', () => {
+        expect(cacheMock.hdel).toHaveBeenCalledWith(
+          'trailing-trade-common',
+          'exchange-info'
+        );
+      });
+
+      it('triggers cache.hdel for symbols', () => {
+        expect(cacheMock.hdel).toHaveBeenCalledWith(
+          'trailing-trade-symbols',
+          'BTCUSDT-symbol-info'
+        );
+        expect(cacheMock.hdel).toHaveBeenCalledWith(
+          'trailing-trade-symbols',
+          'ETHUSDT-symbol-info'
+        );
+        expect(cacheMock.hdel).not.toHaveBeenCalledWith(
+          'trailing-trade-symbols',
+          'BTCUSDT-data'
+        );
+        expect(cacheMock.hdel).not.toHaveBeenCalledWith(
+          'trailing-trade-symbols',
+          'ETHUSDT-latest-candle'
         );
       });
 
@@ -191,6 +224,12 @@ describe('setting-update.test.js', () => {
         cacheMock = cache;
 
         cacheMock.hdel = jest.fn().mockResolvedValue(true);
+        cacheMock.hgetall = jest.fn().mockResolvedValue({
+          'BTCUSDT-symbol-info': JSON.stringify({ some: 'value' }),
+          'BTCUSDT-data': JSON.stringify({ another: 'value' }),
+          'ETHUSDT-symbol-info': JSON.stringify({ some: 'value' }),
+          'ETHUSDT-latest-candle': JSON.stringify({ another: 'value' })
+        });
 
         mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
           enabled: true,
@@ -277,6 +316,25 @@ describe('setting-update.test.js', () => {
         expect(cacheMock.hdel).toHaveBeenCalledWith(
           'trailing-trade-common',
           'exchange-info'
+        );
+      });
+
+      it('triggers cache.hdel for symbols', () => {
+        expect(cacheMock.hdel).toHaveBeenCalledWith(
+          'trailing-trade-symbols',
+          'BTCUSDT-symbol-info'
+        );
+        expect(cacheMock.hdel).toHaveBeenCalledWith(
+          'trailing-trade-symbols',
+          'ETHUSDT-symbol-info'
+        );
+        expect(cacheMock.hdel).not.toHaveBeenCalledWith(
+          'trailing-trade-symbols',
+          'BTCUSDT-data'
+        );
+        expect(cacheMock.hdel).not.toHaveBeenCalledWith(
+          'trailing-trade-symbols',
+          'ETHUSDT-latest-candle'
         );
       });
 
