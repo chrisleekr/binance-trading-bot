@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Added indexes for MongoDB
+- Updated configuration to use cache as well to improve performance
+- Updated redis.conf to disable AOF for improving performance
+- Moved grid/manual orders to MongoDB from Redis since Redis is not persistent anymore
+
 ## [0.0.76] - 2021-08-17
 
 - Fixed profit calculation. Thanks [@Bajt1](https://github.com/Bajt1) - [#270](https://github.com/chrisleekr/binance-trading-bot/issues/270)

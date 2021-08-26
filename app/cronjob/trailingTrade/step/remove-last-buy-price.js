@@ -1,16 +1,17 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { mongo, cache, slack, PubSub } = require('../../../helpers');
+const { cache, slack, PubSub } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAPILimit,
-  isActionDisabled
+  isActionDisabled,
+  removeLastBuyPrice: removeLastBuyPriceFromDatabase
 } = require('../../trailingTradeHelper/common');
-
 const {
   archiveSymbolGridTrade,
   deleteSymbolGridTrade
 } = require('../../trailingTradeHelper/configuration');
+const { getGridTradeOrder } = require('../../trailingTradeHelper/order');
 
 /**
  * Retrieve last buy order from cache
@@ -38,16 +39,18 @@ const getLastBuyOrder = async (logger, symbol) => {
  * @returns
  */
 const getGridTradeLastOrder = async (logger, symbol, side) => {
-  const cachedLastOrder =
-    JSON.parse(await cache.get(`${symbol}-grid-trade-last-${side}-order`)) ||
-    {};
+  const lastOrder =
+    (await getGridTradeOrder(
+      logger,
+      `${symbol}-grid-trade-last-${side}-order`
+    )) || {};
 
   logger.info(
-    { cachedLastOrder },
+    { lastOrder },
     `Retrieved grid trade last ${side} order from cache`
   );
 
-  return cachedLastOrder;
+  return lastOrder;
 };
 
 /**
@@ -78,9 +81,7 @@ const removeLastBuyPrice = async (
   } = data;
 
   // Delete the last buy price from the database
-  await mongo.deleteOne(logger, 'trailing-trade-symbols', {
-    key: `${symbol}-last-buy-price`
-  });
+  await removeLastBuyPriceFromDatabase(logger, symbol);
 
   slack.sendMessage(
     `${symbol} Action (${moment().format(

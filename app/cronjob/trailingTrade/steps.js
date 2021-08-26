@@ -5,7 +5,6 @@ const { execute: getSymbolInfo } = require('./step/get-symbol-info');
 const { execute: getBalances } = require('./step/get-balances');
 const { execute: getOverrideAction } = require('./step/get-override-action');
 const { execute: ensureManualOrder } = require('./step/ensure-manual-order');
-const { execute: ensureOrderPlaced } = require('./step/ensure-order-placed');
 const {
   execute: ensureGridTradeOrderExecuted
 } = require('./step/ensure-grid-trade-order-executed');
@@ -29,7 +28,6 @@ module.exports = {
   getBalances,
   getOverrideAction,
   ensureManualOrder,
-  ensureOrderPlaced,
   ensureGridTradeOrderExecuted,
   getOpenOrders,
   getIndicators,

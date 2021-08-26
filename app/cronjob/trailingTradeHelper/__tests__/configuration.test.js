@@ -13,12 +13,17 @@ describe('configuration.js', () => {
 
   describe('saveGlobalConfiguration', () => {
     beforeEach(async () => {
+      cache.del = jest.fn().mockResolvedValue(true);
       PubSub.publish = jest.fn().mockReturnValue(true);
       mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
       result = await configuration.saveGlobalConfiguration(logger, {
         myKey: 'value'
       });
+    });
+
+    it('triggers cache.del', () => {
+      expect(cache.del).toHaveBeenCalledWith('trailing-trade-configurations');
     });
 
     it('triggers mongo.upsertOne with expected value', () => {
@@ -41,6 +46,7 @@ describe('configuration.js', () => {
   describe('getGlobalConfiguration', () => {
     describe('when cannot find from mongodb', () => {
       beforeEach(async () => {
+        cache.del = jest.fn().mockResolvedValue(true);
         mongo.upsertOne = jest.fn().mockResolvedValue(true);
         mongo.findOne = jest.fn((_logger, _collection, _filter) => null);
         PubSub.publish = jest.fn().mockReturnValue(true);
@@ -103,6 +109,7 @@ describe('configuration.js', () => {
 
     describe('when found from mongodb and configuration with stopLoss', () => {
       beforeEach(async () => {
+        cache.del = jest.fn().mockResolvedValue(true);
         config.get = jest.fn(key => {
           if (key === 'jobs.trailingTrade') {
             return {
@@ -366,9 +373,14 @@ describe('configuration.js', () => {
   describe('saveSymbolConfiguration', () => {
     describe('when symbol is not provided', () => {
       beforeEach(async () => {
+        cache.hdel = jest.fn().mockResolvedValue(true);
         mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
         result = await configuration.saveSymbolConfiguration(logger);
+      });
+
+      it('does not trigger cache.hdel', () => {
+        expect(cache.hdel).not.toHaveBeenCalled();
       });
 
       it('returns expected value', () => {
@@ -378,6 +390,7 @@ describe('configuration.js', () => {
 
     describe('when symbol is provided', () => {
       beforeEach(async () => {
+        cache.hdel = jest.fn().mockResolvedValue(true);
         mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
         result = await configuration.saveSymbolConfiguration(
@@ -397,15 +410,27 @@ describe('configuration.js', () => {
           { key: 'BTCUSDT-configuration', myKey: 'value' }
         );
       });
+
+      it('triggers cache.hdel', () => {
+        expect(cache.hdel).toHaveBeenCalledWith(
+          'trailing-trade-configurations',
+          'BTCUSDT'
+        );
+      });
     });
   });
 
   describe('saveSymbolGridTrade', () => {
     describe('when symbol is not provided', () => {
       beforeEach(async () => {
+        cache.hdel = jest.fn().mockResolvedValue(true);
         mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
         result = await configuration.saveSymbolGridTrade(logger);
+      });
+
+      it('does not trigger cache.hdel', () => {
+        expect(cache.hdel).not.toHaveBeenCalled();
       });
 
       it('returns expected value', () => {
@@ -415,6 +440,7 @@ describe('configuration.js', () => {
 
     describe('when symbol is provided', () => {
       beforeEach(async () => {
+        cache.hdel = jest.fn().mockResolvedValue(true);
         mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
         result = await configuration.saveSymbolGridTrade(logger, 'BTCUSDT', {
@@ -428,6 +454,13 @@ describe('configuration.js', () => {
           'trailing-trade-grid-trade',
           { key: 'BTCUSDT' },
           { key: 'BTCUSDT', myKey: 'value' }
+        );
+      });
+
+      it('triggers cache.hdel', () => {
+        expect(cache.hdel).toHaveBeenCalledWith(
+          'trailing-trade-configurations',
+          'BTCUSDT'
         );
       });
     });
@@ -738,6 +771,7 @@ describe('configuration.js', () => {
   describe('saveSymbolGridTradeArchive', () => {
     describe('key is null', () => {
       beforeEach(async () => {
+        cache.hdel = jest.fn().mockResolvedValue(true);
         mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
         result = await configuration.saveSymbolGridTradeArchive(logger);
@@ -750,16 +784,22 @@ describe('configuration.js', () => {
       it('does not trigger mongo.upsertOne', () => {
         expect(mongo.upsertOne).not.toHaveBeenCalled();
       });
+
+      it('does not trigger cache.hdel', () => {
+        expect(cache.hdel).not.toHaveBeenCalled();
+      });
     });
 
     describe('with valid data', () => {
       beforeEach(async () => {
+        cache.hdel = jest.fn().mockResolvedValue(true);
         mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
         result = await configuration.saveSymbolGridTradeArchive(
           logger,
-          'BTCUSDT',
+          'BTCUSDT-2021-08-16T23:00:00+00:00',
           {
+            symbol: 'BTCUSDT',
             some: 'value'
           }
         );
@@ -774,12 +814,20 @@ describe('configuration.js', () => {
           logger,
           'trailing-trade-grid-trade-archive',
           {
-            key: 'BTCUSDT'
+            key: 'BTCUSDT-2021-08-16T23:00:00+00:00'
           },
           {
-            key: 'BTCUSDT',
+            key: 'BTCUSDT-2021-08-16T23:00:00+00:00',
+            symbol: 'BTCUSDT',
             some: 'value'
           }
+        );
+      });
+
+      it('triggers cache.hdel', () => {
+        expect(cache.hdel).toHaveBeenCalledWith(
+          'trailing-trade-configurations',
+          'BTCUSDT'
         );
       });
     });
@@ -788,6 +836,7 @@ describe('configuration.js', () => {
   describe('archiveSymbolGridTrade', () => {
     describe('when symbol  is not provided', () => {
       beforeEach(async () => {
+        cache.hdel = jest.fn().mockResolvedValue(true);
         cache.hget = jest.fn().mockResolvedValue(
           JSON.stringify({
             symbol: 'BTCUSDT',
@@ -804,10 +853,15 @@ describe('configuration.js', () => {
       it('returns expected result', () => {
         expect(result).toStrictEqual({});
       });
+
+      it('does not trigger cache.hdel', () => {
+        expect(cache.hdel).not.toHaveBeenCalled();
+      });
     });
 
     describe('when symbol grid trade is not provided', () => {
       beforeEach(async () => {
+        cache.hdel = jest.fn().mockResolvedValue(true);
         cache.hget = jest.fn().mockResolvedValue(
           JSON.stringify({
             symbol: 'BTCUSDT',
@@ -824,10 +878,15 @@ describe('configuration.js', () => {
       it('returns expected result', () => {
         expect(result).toStrictEqual({});
       });
+
+      it('does not trigger cache.hdel', () => {
+        expect(cache.hdel).not.toHaveBeenCalled();
+      });
     });
 
     describe('when symbol grid trade is provided', () => {
       beforeEach(async () => {
+        cache.hdel = jest.fn().mockResolvedValue(true);
         cache.hget = jest.fn().mockResolvedValue(
           JSON.stringify({
             symbol: 'BTCUSDT',
@@ -931,11 +990,19 @@ describe('configuration.js', () => {
           }
         );
       });
+
+      it('triggers cache.hdel', () => {
+        expect(cache.hdel).toHaveBeenCalledWith(
+          'trailing-trade-configurations',
+          'BTCUSDT'
+        );
+      });
     });
   });
 
   describe('deleteAllSymbolConfiguration', () => {
     beforeEach(async () => {
+      cache.del = jest.fn().mockResolvedValue(true);
       mongo.deleteAll = jest.fn().mockResolvedValue(true);
 
       result = await configuration.deleteAllSymbolConfiguration(logger);
@@ -950,16 +1017,21 @@ describe('configuration.js', () => {
         }
       );
     });
+
+    it('triggers cache.del', () => {
+      expect(cache.del).toHaveBeenCalledWith('trailing-trade-configurations');
+    });
   });
 
   describe('deleteSymbolConfiguration', () => {
     beforeEach(async () => {
+      cache.hdel = jest.fn().mockResolvedValue(true);
       mongo.deleteOne = jest.fn().mockResolvedValue(true);
 
       result = await configuration.deleteSymbolConfiguration(logger, 'BTCUSDT');
     });
 
-    it('trigger mongo.deleteOne', () => {
+    it('triggers mongo.deleteOne', () => {
       expect(mongo.deleteOne).toHaveBeenCalledWith(
         logger,
         'trailing-trade-symbols',
@@ -968,38 +1040,58 @@ describe('configuration.js', () => {
         }
       );
     });
+
+    it('triggers cache.hdel', () => {
+      expect(cache.hdel).toHaveBeenCalledWith(
+        'trailing-trade-configurations',
+        'BTCUSDT'
+      );
+    });
   });
 
   describe('deleteAllSymbolGridTrade', () => {
     beforeEach(async () => {
+      cache.del = jest.fn().mockResolvedValue(true);
       mongo.deleteAll = jest.fn().mockResolvedValue(true);
 
       result = await configuration.deleteAllSymbolGridTrade(logger);
     });
 
-    it('trigger mongo.deleteAll', () => {
+    it('triggers mongo.deleteAll', () => {
       expect(mongo.deleteAll).toHaveBeenCalledWith(
         logger,
         'trailing-trade-grid-trade',
         {}
       );
     });
+
+    it('triggers cache.del', () => {
+      expect(cache.del).toHaveBeenCalledWith('trailing-trade-configurations');
+    });
   });
 
   describe('deleteSymbolGridTrade', () => {
     beforeEach(async () => {
+      cache.hdel = jest.fn().mockResolvedValue(true);
       mongo.deleteOne = jest.fn().mockResolvedValue(true);
 
       result = await configuration.deleteSymbolGridTrade(logger, 'BTCUSDT');
     });
 
-    it('trigger mongo.deleteOne', () => {
+    it('triggers mongo.deleteOne', () => {
       expect(mongo.deleteOne).toHaveBeenCalledWith(
         logger,
         'trailing-trade-grid-trade',
         {
           key: 'BTCUSDT'
         }
+      );
+    });
+
+    it('triggers cache.hdel', () => {
+      expect(cache.hdel).toHaveBeenCalledWith(
+        'trailing-trade-configurations',
+        'BTCUSDT'
       );
     });
   });
@@ -2585,14 +2677,27 @@ describe('configuration.js', () => {
     beforeEach(() => {
       mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
-      cache.hget = jest.fn().mockResolvedValue(
-        JSON.stringify({
-          quoteAsset: 'USDT',
-          filterMinNotional: {
-            minNotional: '10.00000000'
-          }
-        })
-      );
+      cache.del = jest.fn().mockResolvedValue(true);
+      cache.hdel = jest.fn().mockResolvedValue(true);
+      cache.hget = jest.fn().mockImplementation((hash, _key) => {
+        if (hash === 'trailing-trade-symbols') {
+          return Promise.resolve(
+            JSON.stringify({
+              quoteAsset: 'USDT',
+              filterMinNotional: {
+                minNotional: '10.00000000'
+              }
+            })
+          );
+        }
+
+        if (hash === 'trailing-trade-configurations') {
+          return Promise.resolve(JSON.stringify({}));
+        }
+
+        return Promise.resolve(null);
+      });
+      cache.hset = jest.fn().mockResolvedValue(true);
 
       config.get = jest.fn(key => {
         if (key === 'jobs.trailingTrade') {
@@ -2660,224 +2765,238 @@ describe('configuration.js', () => {
     });
 
     describe('without symbol', () => {
-      beforeEach(async () => {
-        mongo.findOne = jest.fn((_logger, collection, filter) => {
-          if (
-            collection === 'trailing-trade-common' &&
-            _.isEqual(filter, { key: 'configuration' })
-          ) {
-            return {
-              enabled: true,
-              cronTime: '* * * * * *',
-              symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
-              candles: {
-                interval: '1d',
-                limit: 10
-              },
-              buy: {
-                enabled: false,
-                gridTrade: [
-                  {
-                    triggerPercentage: 1,
-                    stopPercentage: 1.02,
-                    limitPercentage: 1.021,
-                    maxPurchaseAmount: -1,
-                    maxPurchaseAmounts: {
-                      USDT: 100,
-                      BTC: 0.001,
-                      BUSD: 100
-                    }
-                  },
-                  {
-                    triggerPercentage: 0.9,
-                    stopPercentage: 1.02,
-                    limitPercentage: 1.021,
-                    maxPurchaseAmount: -1,
-                    maxPurchaseAmounts: {
-                      USDT: 100,
-                      BTC: 0.001,
-                      BUSD: 100
-                    }
-                  }
-                ],
-                lastBuyPriceRemoveThreshold: -1,
-                lastBuyPriceRemoveThresholds: {
-                  USDT: 5,
-                  BTC: 0.00005,
-                  BUSD: 5
+      describe('when cache is not available', () => {
+        beforeEach(async () => {
+          mongo.findOne = jest.fn((_logger, collection, filter) => {
+            if (
+              collection === 'trailing-trade-common' &&
+              _.isEqual(filter, { key: 'configuration' })
+            ) {
+              return {
+                enabled: true,
+                cronTime: '* * * * * *',
+                symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+                candles: {
+                  interval: '1d',
+                  limit: 10
                 },
-                athRestriction: {
-                  enabled: true,
-                  candles: {
-                    interval: '1d',
-                    limit: 30
-                  },
-                  restrictionPercentage: 0.9
-                }
-              },
-              sell: {
-                enabled: false,
-                gridTrade: [
-                  {
-                    triggerPercentage: 1.08,
-                    stopPercentage: 0.95,
-                    limitPercentage: 0.949,
-                    quantityPercentage: -1,
-                    quantityPercentages: {
-                      USDT: 1,
-                      BTC: 1,
-                      BUSD: 1
+                buy: {
+                  enabled: false,
+                  gridTrade: [
+                    {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.02,
+                      limitPercentage: 1.021,
+                      maxPurchaseAmount: -1,
+                      maxPurchaseAmounts: {
+                        USDT: 100,
+                        BTC: 0.001,
+                        BUSD: 100
+                      }
+                    },
+                    {
+                      triggerPercentage: 0.9,
+                      stopPercentage: 1.02,
+                      limitPercentage: 1.021,
+                      maxPurchaseAmount: -1,
+                      maxPurchaseAmounts: {
+                        USDT: 100,
+                        BTC: 0.001,
+                        BUSD: 100
+                      }
                     }
-                  }
-                ],
-                stopLoss: {
-                  enabled: true,
-                  maxLossPercentage: 0.95,
-                  disableBuyMinutes: 60,
-                  orderType: 'market'
-                }
-              },
-              system: {
-                temporaryDisableActionAfterConfirmingOrder: 10,
-                checkManualBuyOrderPeriod: 10,
-                placeManualOrderInterval: 5,
-                refreshAccountInfoPeriod: 3,
-                checkOrderExecutePeriod: 10
-              }
-            };
-          }
-          if (
-            collection === 'trailing-trade-symbols' &&
-            _.isEqual(filter, { key: 'BTCUSDT-configuration' })
-          ) {
-            return {
-              key: 'BTCUSDT-configuration',
-              candles: {
-                interval: '1h',
-                limit: 50
-              },
-              buy: {
-                enabled: true,
-                gridTrade: [
-                  {
-                    triggerPercentage: 1,
-                    stopPercentage: 1.025,
-                    limitPercentage: 1.026,
-                    maxPurchaseAmount: 10
+                  ],
+                  lastBuyPriceRemoveThreshold: -1,
+                  lastBuyPriceRemoveThresholds: {
+                    USDT: 5,
+                    BTC: 0.00005,
+                    BUSD: 5
                   },
-                  {
-                    triggerPercentage: 0.9,
-                    stopPercentage: 1.025,
-                    limitPercentage: 1.026,
-                    maxPurchaseAmount: 20
-                  },
-                  {
-                    triggerPercentage: 0.9,
-                    stopPercentage: 1.025,
-                    limitPercentage: 1.056,
-                    maxPurchaseAmount: 30
+                  athRestriction: {
+                    enabled: true,
+                    candles: {
+                      interval: '1d',
+                      limit: 30
+                    },
+                    restrictionPercentage: 0.9
                   }
-                ],
-                lastBuyPriceRemoveThreshold: 4
-              },
-              sell: {
-                enabled: true,
-                gridTrade: [
-                  {
-                    triggerPercentage: 1.025,
-                    stopPercentage: 0.985,
-                    limitPercentage: 0.984,
-                    quantityPercentage: 1,
-                    quantityPercentages: {
-                      USDT: 1
+                },
+                sell: {
+                  enabled: false,
+                  gridTrade: [
+                    {
+                      triggerPercentage: 1.08,
+                      stopPercentage: 0.95,
+                      limitPercentage: 0.949,
+                      quantityPercentage: -1,
+                      quantityPercentages: {
+                        USDT: 1,
+                        BTC: 1,
+                        BUSD: 1
+                      }
                     }
+                  ],
+                  stopLoss: {
+                    enabled: true,
+                    maxLossPercentage: 0.95,
+                    disableBuyMinutes: 60,
+                    orderType: 'market'
                   }
-                ],
-                stopLoss: {
-                  enabled: true,
-                  maxLossPercentage: 0.81,
-                  disableBuyMinutes: 65,
-                  orderType: 'market'
+                },
+                system: {
+                  temporaryDisableActionAfterConfirmingOrder: 10,
+                  checkManualBuyOrderPeriod: 10,
+                  placeManualOrderInterval: 5,
+                  refreshAccountInfoPeriod: 3,
+                  checkOrderExecutePeriod: 10
                 }
-              }
-            };
-          }
-          return null;
+              };
+            }
+            if (
+              collection === 'trailing-trade-symbols' &&
+              _.isEqual(filter, { key: 'BTCUSDT-configuration' })
+            ) {
+              return {
+                key: 'BTCUSDT-configuration',
+                candles: {
+                  interval: '1h',
+                  limit: 50
+                },
+                buy: {
+                  enabled: true,
+                  gridTrade: [
+                    {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 10
+                    },
+                    {
+                      triggerPercentage: 0.9,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 20
+                    },
+                    {
+                      triggerPercentage: 0.9,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.056,
+                      maxPurchaseAmount: 30
+                    }
+                  ],
+                  lastBuyPriceRemoveThreshold: 4
+                },
+                sell: {
+                  enabled: true,
+                  gridTrade: [
+                    {
+                      triggerPercentage: 1.025,
+                      stopPercentage: 0.985,
+                      limitPercentage: 0.984,
+                      quantityPercentage: 1,
+                      quantityPercentages: {
+                        USDT: 1
+                      }
+                    }
+                  ],
+                  stopLoss: {
+                    enabled: true,
+                    maxLossPercentage: 0.81,
+                    disableBuyMinutes: 65,
+                    orderType: 'market'
+                  }
+                }
+              };
+            }
+            return null;
+          });
+
+          result = await configuration.getConfiguration(logger);
         });
 
-        result = await configuration.getConfiguration(logger);
-      });
-
-      it('triggers config.get', () => {
-        expect(config.get).toHaveBeenCalled();
-      });
-
-      it('does not trigger mongo.upsertOne', () => {
-        expect(mongo.upsertOne).not.toHaveBeenCalled();
-      });
-
-      it('returns expected value', () => {
-        expect(result).toStrictEqual({
-          enabled: true,
-          cronTime: '* * * * * *',
-          symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
-          candles: { interval: '1d', limit: 10 },
-          buy: {
-            enabled: false,
-            gridTrade: [
-              {
-                triggerPercentage: 1,
-                stopPercentage: 1.02,
-                limitPercentage: 1.021,
-                maxPurchaseAmount: -1,
-                maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 }
-              },
-              {
-                triggerPercentage: 0.9,
-                stopPercentage: 1.02,
-                limitPercentage: 1.021,
-                maxPurchaseAmount: -1,
-                maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 }
-              }
-            ],
-            lastBuyPriceRemoveThreshold: -1,
-            lastBuyPriceRemoveThresholds: { USDT: 5, BTC: 0.00005, BUSD: 5 },
-            athRestriction: {
-              enabled: true,
-              candles: { interval: '1d', limit: 30 },
-              restrictionPercentage: 0.9
-            }
-          },
-          sell: {
-            enabled: false,
-            gridTrade: [
-              {
-                triggerPercentage: 1.08,
-                stopPercentage: 0.95,
-                limitPercentage: 0.949,
-                quantityPercentage: -1,
-                quantityPercentages: { USDT: 1, BTC: 1, BUSD: 1 }
-              }
-            ],
-            stopLoss: {
-              enabled: true,
-              maxLossPercentage: 0.95,
-              disableBuyMinutes: 60,
-              orderType: 'market'
-            }
-          },
-          system: {
-            temporaryDisableActionAfterConfirmingOrder: 10,
-            checkManualBuyOrderPeriod: 10,
-            placeManualOrderInterval: 5,
-            refreshAccountInfoPeriod: 3,
-            checkOrderExecutePeriod: 10
-          }
+        it('triggers config.get', () => {
+          expect(config.get).toHaveBeenCalled();
         });
+
+        it('does not trigger mongo.upsertOne', () => {
+          expect(mongo.upsertOne).not.toHaveBeenCalled();
+        });
+
+        it('returns expected value', () => {
+          expect(result).toStrictEqual({
+            enabled: true,
+            cronTime: '* * * * * *',
+            symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+            candles: { interval: '1d', limit: 10 },
+            buy: {
+              enabled: false,
+              gridTrade: [
+                {
+                  triggerPercentage: 1,
+                  stopPercentage: 1.02,
+                  limitPercentage: 1.021,
+                  maxPurchaseAmount: -1,
+                  maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 }
+                },
+                {
+                  triggerPercentage: 0.9,
+                  stopPercentage: 1.02,
+                  limitPercentage: 1.021,
+                  maxPurchaseAmount: -1,
+                  maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 }
+                }
+              ],
+              lastBuyPriceRemoveThreshold: -1,
+              lastBuyPriceRemoveThresholds: { USDT: 5, BTC: 0.00005, BUSD: 5 },
+              athRestriction: {
+                enabled: true,
+                candles: { interval: '1d', limit: 30 },
+                restrictionPercentage: 0.9
+              }
+            },
+            sell: {
+              enabled: false,
+              gridTrade: [
+                {
+                  triggerPercentage: 1.08,
+                  stopPercentage: 0.95,
+                  limitPercentage: 0.949,
+                  quantityPercentage: -1,
+                  quantityPercentages: { USDT: 1, BTC: 1, BUSD: 1 }
+                }
+              ],
+              stopLoss: {
+                enabled: true,
+                maxLossPercentage: 0.95,
+                disableBuyMinutes: 60,
+                orderType: 'market'
+              }
+            },
+            system: {
+              temporaryDisableActionAfterConfirmingOrder: 10,
+              checkManualBuyOrderPeriod: 10,
+              placeManualOrderInterval: 5,
+              refreshAccountInfoPeriod: 3,
+              checkOrderExecutePeriod: 10
+            }
+          });
+        });
+      });
+
+      describe('when cache is available', () => {
+        // TODO: Cached global configuration
       });
     });
 
     describe('with symbol', () => {
+      describe('when symbol info cache is not found', () => {
+        // TODO
+      });
+
+      describe('when symbol configuration cache is not found', () => {
+        // TODO
+      });
+
       describe('when cannot find global/symbol configurations', () => {
         beforeEach(async () => {
           mongo.findOne = jest.fn().mockResolvedValue(undefined);
@@ -3472,14 +3591,6 @@ describe('configuration.js', () => {
       describe('when found global/symbol configuration', () => {
         describe('when configuration is not valid format', () => {
           beforeEach(async () => {
-            cache.hget = jest.fn().mockResolvedValue(
-              JSON.stringify({
-                quoteAsset: 'USDT',
-                filterMinNotional: {
-                  minNotional: '10.00000000'
-                }
-              })
-            );
             mongo.findOne = jest.fn((_logger, collection, filter) => {
               if (
                 collection === 'trailing-trade-common' &&
@@ -3588,7 +3699,8 @@ describe('configuration.js', () => {
 
         describe('when cached symbol info is not valid', () => {
           beforeEach(async () => {
-            cache.hget = jest.fn().mockResolvedValue(null);
+            cache.hget = jest.fn().mockResolvedValue(true);
+
             mongo.findOne = jest.fn((_logger, collection, filter) => {
               if (
                 collection === 'trailing-trade-common' &&
@@ -3699,14 +3811,6 @@ describe('configuration.js', () => {
           describe('global configuration has different grid trade lengths', () => {
             describe('global configuration has more grid trade definitions', () => {
               beforeEach(async () => {
-                cache.hget = jest.fn().mockResolvedValue(
-                  JSON.stringify({
-                    quoteAsset: 'USDT',
-                    filterMinNotional: {
-                      minNotional: '10.00000000'
-                    }
-                  })
-                );
                 mongo.findOne = jest.fn((_logger, collection, filter) => {
                   if (
                     collection === 'trailing-trade-common' &&
@@ -3980,14 +4084,6 @@ describe('configuration.js', () => {
 
             describe('symbol configuration has more grid trade definitions', () => {
               beforeEach(async () => {
-                cache.hget = jest.fn().mockResolvedValue(
-                  JSON.stringify({
-                    quoteAsset: 'USDT',
-                    filterMinNotional: {
-                      minNotional: '10.00000000'
-                    }
-                  })
-                );
                 mongo.findOne = jest.fn((_logger, collection, filter) => {
                   if (
                     collection === 'trailing-trade-common' &&
@@ -4260,14 +4356,6 @@ describe('configuration.js', () => {
 
           describe('global configuration has same grid trade lengths', () => {
             beforeEach(async () => {
-              cache.hget = jest.fn().mockResolvedValue(
-                JSON.stringify({
-                  quoteAsset: 'USDT',
-                  filterMinNotional: {
-                    minNotional: '10.00000000'
-                  }
-                })
-              );
               mongo.findOne = jest.fn((_logger, collection, filter) => {
                 if (
                   collection === 'trailing-trade-common' &&

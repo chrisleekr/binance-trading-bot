@@ -4,12 +4,10 @@ const { version } = require('../../../../package.json');
 
 const { binance, cache } = require('../../../helpers');
 const {
-  getGlobalConfiguration,
   getConfiguration
 } = require('../../../cronjob/trailingTradeHelper/configuration');
 
 const {
-  getLastBuyPrice,
   isActionDisabled
 } = require('../../../cronjob/trailingTradeHelper/common');
 
@@ -24,7 +22,7 @@ const getSymbolFromKey = key => {
 };
 
 const handleLatest = async (logger, ws, payload) => {
-  const globalConfiguration = await getGlobalConfiguration(logger);
+  const globalConfiguration = await getConfiguration(logger);
   logger.info({ globalConfiguration }, 'Configuration from MongoDB');
 
   // If not authenticated and lock list is enabled, then do not send any information.
@@ -93,16 +91,6 @@ const handleLatest = async (logger, ws, payload) => {
   stats.symbols = await Promise.all(
     _.map(stats.symbols, async symbol => {
       const newSymbol = symbol;
-      // Retrieve latest symbol configuration
-      newSymbol.symbolConfiguration = await getConfiguration(
-        logger,
-        newSymbol.symbol
-      );
-
-      // Retrieve latest last buy price
-      const lastBuyPriceDoc = await getLastBuyPrice(logger, newSymbol.symbol);
-      const lastBuyPrice = _.get(lastBuyPriceDoc, 'lastBuyPrice', null);
-      newSymbol.sell.lastBuyPrice = lastBuyPrice;
 
       // Retreive action disabled
       newSymbol.isActionDisabled = await isActionDisabled(newSymbol.symbol);

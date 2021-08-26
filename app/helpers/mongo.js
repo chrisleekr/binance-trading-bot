@@ -31,6 +31,8 @@ const connect = async funcLogger => {
     logger.error({ e }, 'Error on connecting to mongodb');
     process.exit(1);
   }
+
+  return database;
 };
 
 /**
