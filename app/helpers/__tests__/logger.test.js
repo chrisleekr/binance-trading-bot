@@ -1,33 +1,64 @@
 /* eslint-disable global-require */
 describe('logger', () => {
-  let bunyan;
   let logger;
   let mockCreateLogger;
   const packageJson = require('../../../package.json');
 
-  beforeEach(() => {
-    jest.clearAllMocks().resetModules();
+  describe('when BINANCE_LOG_LEVEL is defined', () => {
+    beforeEach(() => {
+      jest.clearAllMocks().resetModules();
 
-    mockCreateLogger = jest.fn(() => ({
-      info: jest.fn()
-    }));
+      process.env.BINANCE_LOG_LEVEL = 'ERROR';
 
-    jest.mock('bunyan', () => ({
-      createLogger: mockCreateLogger
-    }));
-    bunyan = require('bunyan');
-    logger = require('../logger');
-  });
+      mockCreateLogger = jest.fn(() => ({
+        info: jest.fn()
+      }));
 
-  it('triggers createLogger', () => {
-    expect(mockCreateLogger).toHaveBeenCalledWith({
-      name: 'binance-api',
-      version: packageJson.version,
-      streams: [{ stream: process.stdout, level: bunyan.TRACE }]
+      jest.mock('bunyan', () => ({
+        createLogger: mockCreateLogger
+      }));
+      logger = require('../logger');
+    });
+
+    it('triggers createLogger', () => {
+      expect(mockCreateLogger).toHaveBeenCalledWith({
+        name: 'binance-api',
+        version: packageJson.version,
+        streams: [{ stream: process.stdout, level: 'ERROR' }]
+      });
+    });
+
+    it('returns expected', () => {
+      expect(logger.info).toBeDefined();
     });
   });
 
-  it('returns expected', () => {
-    expect(logger.info).toBeDefined();
+  describe('when BINANCE_LOG_LEVEL is not defined', () => {
+    beforeEach(() => {
+      jest.clearAllMocks().resetModules();
+
+      delete process.env.BINANCE_LOG_LEVEL;
+
+      mockCreateLogger = jest.fn(() => ({
+        info: jest.fn()
+      }));
+
+      jest.mock('bunyan', () => ({
+        createLogger: mockCreateLogger
+      }));
+      logger = require('../logger');
+    });
+
+    it('triggers createLogger', () => {
+      expect(mockCreateLogger).toHaveBeenCalledWith({
+        name: 'binance-api',
+        version: packageJson.version,
+        streams: [{ stream: process.stdout, level: 'TRACE' }]
+      });
+    });
+
+    it('returns expected', () => {
+      expect(logger.info).toBeDefined();
+    });
   });
 });
