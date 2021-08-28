@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const config = require('config');
 const moment = require('moment-timezone');
 const jwt = require('jsonwebtoken');
+const requestIp = require('request-ip');
 const {
   getGlobalConfiguration
 } = require('../../../cronjob/trailingTradeHelper/configuration');
@@ -43,37 +44,57 @@ const generateToken = async logger => {
 
 const handleAuth = async (funcLogger, app) => {
   const logger = funcLogger.child({ endpoint: '/auth' });
+  const authLogger = logger.child({
+    streams: [
+      {
+        type: 'rotating-file',
+        period: '4w',
+        count: 3,
+        path: `${process.cwd()}/logs/auth.log`,
+        level: 'TRACE'
+      }
+    ]
+  });
   app.route('/auth').post(async (req, res) => {
     const { password: requestedPassword } = req.body;
+    const clientIp = requestIp.getClientIp(req);
 
     const configuredPassword = config.get('authentication.password');
 
+    const checkPasswordSuccess = verifyPassword(
+      configuredPassword,
+      requestedPassword
+    );
+
     logger.info(
       {
-        configuredPassword,
-        requestedPassword,
-        verifyPassword: verifyPassword(configuredPassword, requestedPassword)
+        input: requestedPassword,
+        success: checkPasswordSuccess,
+        clientIp
       },
       'handle authentication'
     );
 
-    if (verifyPassword(configuredPassword, requestedPassword) === false) {
+    if (!checkPasswordSuccess) {
+      authLogger.error(`auth failed; ${requestedPassword}; IP[${clientIp}];`);
+
       PubSub.publish('frontend-notification', {
         type: 'error',
         title: 'Sorry, please enter correct password.'
       });
 
       slack.sendMessage(
-        `Binance Webserver (${moment().format(
-          'HH:mm:ss.SSS'
-        )}):\nThe bot failed to authenticate.\n` +
-          `- Entered password: ${requestedPassword}`
+        `${config.get('appName')} Webserver (${moment().format(
+          'HH:mm:ss'
+        )}):\n❌ The bot failed to authenticate.\n` +
+          `- Entered password: ${requestedPassword}\n` +
+          `- IP: ${clientIp}`
       );
 
       return res.send({
         success: false,
         status: 401,
-        message: 'Unautorised',
+        message: 'Unauthorized',
         data: {
           authToken: ''
         }
@@ -82,21 +103,23 @@ const handleAuth = async (funcLogger, app) => {
 
     const authToken = await generateToken(logger);
 
+    authLogger.error(`auth successful; ***********; IP[${clientIp}];`);
+
     PubSub.publish('frontend-notification', {
       type: 'success',
       title: 'You are authenticated.'
     });
 
     slack.sendMessage(
-      `Binance Webserver (${moment().format(
-        'HH:mm:ss.SSS'
-      )}):\nThe bot succeeded to authenticate.`
+      `${config.get('appName')} Webserver (${moment().format(
+        'HH:mm:ss'
+      )}):\n✅ The bot succeeded to authenticate.\n- IP: ${clientIp}`
     );
 
     return res.send({
       success: true,
       status: 200,
-      message: 'Autorised',
+      message: 'Authorized',
       data: {
         authToken
       }

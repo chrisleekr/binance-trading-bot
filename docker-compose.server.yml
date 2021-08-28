@@ -6,6 +6,8 @@ services:
     image: chrisleekr/binance-trading-bot:latest
     networks:
       - internal
+    volumes:
+      - ./logs:/srv/logs
     env_file:
       - .env
     restart: unless-stopped

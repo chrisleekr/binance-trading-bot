@@ -1,6 +1,7 @@
 {
   "mode": "test",
   "tz": "Australia/Melbourne",
+  "appName": "Binance Trading Bot",
   "binance": {
     "live": {
       "apiKey": "",
