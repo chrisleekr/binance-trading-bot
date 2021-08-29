@@ -1,12 +1,19 @@
+/* eslint-disable global-require */
 const { cache, logger } = require('../../../../helpers');
-
-const step = require('../determine-action');
 
 describe('determine-action.js', () => {
   let result;
   let rawData;
+  let step;
+
+  let mockIsActionDisabled;
+  let mockGetGridTradeOrder;
 
   describe('execute', () => {
+    beforeEach(() => {
+      jest.clearAllMocks().resetModules();
+    });
+
     describe('when symbol is locked', () => {
       beforeEach(async () => {
         cache.get = jest.fn().mockImplementation(_key => null);
@@ -63,6 +70,8 @@ describe('determine-action.js', () => {
             stopLossTriggerPrice: 25711.039999999997
           }
         };
+
+        step = require('../determine-action');
 
         result = await step.execute(logger, rawData);
       });
@@ -129,6 +138,8 @@ describe('determine-action.js', () => {
           }
         };
 
+        step = require('../determine-action');
+
         result = await step.execute(logger, rawData);
       });
 
@@ -194,6 +205,8 @@ describe('determine-action.js', () => {
           }
         };
 
+        step = require('../determine-action');
+
         result = await step.execute(logger, rawData);
       });
 
@@ -206,12 +219,19 @@ describe('determine-action.js', () => {
       describe('when last buy price is not configured and current price is less or equal than trigger price', () => {
         describe('when base asset balance has enough to sell', () => {
           beforeEach(async () => {
-            cache.get = jest.fn().mockImplementation(_key => null);
+            mockIsActionDisabled = jest.fn().mockResolvedValue({
+              isDisabled: false
+            });
 
-            cache.getWithTTL = jest.fn().mockResolvedValue([
-              [null, -2],
-              [null, null]
-            ]);
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              isActionDisabled: mockIsActionDisabled
+            }));
+
+            mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+            jest.mock('../../../trailingTradeHelper/order', () => ({
+              getGridTradeOrder: mockGetGridTradeOrder
+            }));
 
             rawData = {
               action: 'not-determined',
@@ -268,6 +288,8 @@ describe('determine-action.js', () => {
                 stopLossTriggerPrice: null
               }
             };
+
+            step = require('../determine-action');
 
             result = await step.execute(logger, rawData);
           });
@@ -337,20 +359,21 @@ describe('determine-action.js', () => {
 
         describe('when grid trade buy order is found', () => {
           beforeEach(async () => {
-            cache.get = jest.fn().mockImplementation(key => {
-              if (key === `BTCUSDT-grid-trade-last-buy-order`) {
-                return JSON.stringify({
-                  orderId: 27123456
-                });
-              }
-
-              return null;
+            mockIsActionDisabled = jest.fn().mockResolvedValue({
+              isDisabled: false
             });
 
-            cache.getWithTTL = jest.fn().mockResolvedValue([
-              [null, -2],
-              [null, null]
-            ]);
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              isActionDisabled: mockIsActionDisabled
+            }));
+
+            mockGetGridTradeOrder = jest.fn().mockResolvedValue({
+              orderId: 27123456
+            });
+
+            jest.mock('../../../trailingTradeHelper/order', () => ({
+              getGridTradeOrder: mockGetGridTradeOrder
+            }));
 
             rawData = {
               action: 'not-determined',
@@ -407,6 +430,8 @@ describe('determine-action.js', () => {
                 stopLossTriggerPrice: null
               }
             };
+
+            step = require('../determine-action');
 
             result = await step.execute(logger, rawData);
           });
@@ -474,19 +499,24 @@ describe('determine-action.js', () => {
 
         describe('when the symbol is disabled', () => {
           beforeEach(async () => {
-            cache.get = jest.fn().mockImplementation(_key => null);
-            cache.getWithTTL = jest.fn().mockResolvedValue([
-              [null, 300],
-              [
-                null,
-                JSON.stringify({
-                  disabledBy: 'buy order',
-                  message: 'Disabled action after confirming the buy order.',
-                  canResume: false,
-                  canRemoveLastBuyPrice: false
-                })
-              ]
-            ]);
+            mockIsActionDisabled = jest.fn().mockResolvedValue({
+              isDisabled: true,
+              ttl: 300,
+              disabledBy: 'buy order',
+              message: 'Disabled action after confirming the buy order.',
+              canResume: false,
+              canRemoveLastBuyPrice: false
+            });
+
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              isActionDisabled: mockIsActionDisabled
+            }));
+
+            mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+            jest.mock('../../../trailingTradeHelper/order', () => ({
+              getGridTradeOrder: mockGetGridTradeOrder
+            }));
 
             rawData = {
               action: 'not-determined',
@@ -543,6 +573,8 @@ describe('determine-action.js', () => {
                 stopLossTriggerPrice: null
               }
             };
+
+            step = require('../determine-action');
 
             result = await step.execute(logger, rawData);
           });
@@ -619,10 +651,19 @@ describe('determine-action.js', () => {
           describe('when the ATH restriction is enabled', () => {
             describe('currentGridTradeIndex is 0', () => {
               beforeEach(async () => {
-                cache.getWithTTL = jest.fn().mockResolvedValue([
-                  [null, -2],
-                  [null, null]
-                ]);
+                mockIsActionDisabled = jest.fn().mockResolvedValue({
+                  isDisabled: false
+                });
+
+                jest.mock('../../../trailingTradeHelper/common', () => ({
+                  isActionDisabled: mockIsActionDisabled
+                }));
+
+                mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+                jest.mock('../../../trailingTradeHelper/order', () => ({
+                  getGridTradeOrder: mockGetGridTradeOrder
+                }));
 
                 rawData = {
                   action: 'not-determined',
@@ -679,6 +720,8 @@ describe('determine-action.js', () => {
                     stopLossTriggerPrice: null
                   }
                 };
+
+                step = require('../determine-action');
 
                 result = await step.execute(logger, rawData);
               });
@@ -747,10 +790,19 @@ describe('determine-action.js', () => {
 
             describe('currentGridTradeIndex is 1', () => {
               beforeEach(async () => {
-                cache.getWithTTL = jest.fn().mockResolvedValue([
-                  [null, -2],
-                  [null, null]
-                ]);
+                mockIsActionDisabled = jest.fn().mockResolvedValue({
+                  isDisabled: false
+                });
+
+                jest.mock('../../../trailingTradeHelper/common', () => ({
+                  isActionDisabled: mockIsActionDisabled
+                }));
+
+                mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+                jest.mock('../../../trailingTradeHelper/order', () => ({
+                  getGridTradeOrder: mockGetGridTradeOrder
+                }));
 
                 rawData = {
                   action: 'not-determined',
@@ -807,6 +859,8 @@ describe('determine-action.js', () => {
                     stopLossTriggerPrice: null
                   }
                 };
+
+                step = require('../determine-action');
 
                 result = await step.execute(logger, rawData);
               });
@@ -877,10 +931,19 @@ describe('determine-action.js', () => {
           describe('when the ATH restriction is disabled', () => {
             describe('currentGridTradeIndex is 0', () => {
               beforeEach(async () => {
-                cache.getWithTTL = jest.fn().mockResolvedValue([
-                  [null, -2],
-                  [null, null]
-                ]);
+                mockIsActionDisabled = jest.fn().mockResolvedValue({
+                  isDisabled: false
+                });
+
+                jest.mock('../../../trailingTradeHelper/common', () => ({
+                  isActionDisabled: mockIsActionDisabled
+                }));
+
+                mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+                jest.mock('../../../trailingTradeHelper/order', () => ({
+                  getGridTradeOrder: mockGetGridTradeOrder
+                }));
 
                 rawData = {
                   action: 'not-determined',
@@ -937,6 +1000,8 @@ describe('determine-action.js', () => {
                     stopLossTriggerPrice: null
                   }
                 };
+
+                step = require('../determine-action');
 
                 result = await step.execute(logger, rawData);
               });
@@ -1005,10 +1070,19 @@ describe('determine-action.js', () => {
 
             describe('currentGridTradeIndex is 1', () => {
               beforeEach(async () => {
-                cache.getWithTTL = jest.fn().mockResolvedValue([
-                  [null, -2],
-                  [null, null]
-                ]);
+                mockIsActionDisabled = jest.fn().mockResolvedValue({
+                  isDisabled: false
+                });
+
+                jest.mock('../../../trailingTradeHelper/common', () => ({
+                  isActionDisabled: mockIsActionDisabled
+                }));
+
+                mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+                jest.mock('../../../trailingTradeHelper/order', () => ({
+                  getGridTradeOrder: mockGetGridTradeOrder
+                }));
 
                 rawData = {
                   action: 'not-determined',
@@ -1065,6 +1139,8 @@ describe('determine-action.js', () => {
                     stopLossTriggerPrice: null
                   }
                 };
+
+                step = require('../determine-action');
 
                 result = await step.execute(logger, rawData);
               });
@@ -1135,12 +1211,19 @@ describe('determine-action.js', () => {
 
         describe('when base asset balance does not have enough to sell', () => {
           beforeEach(async () => {
-            cache.get = jest.fn().mockImplementation(_key => null);
+            mockIsActionDisabled = jest.fn().mockResolvedValue({
+              isDisabled: false
+            });
 
-            cache.getWithTTL = jest.fn().mockResolvedValue([
-              [null, -2],
-              [null, null]
-            ]);
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              isActionDisabled: mockIsActionDisabled
+            }));
+
+            mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+            jest.mock('../../../trailingTradeHelper/order', () => ({
+              getGridTradeOrder: mockGetGridTradeOrder
+            }));
 
             rawData = {
               action: 'not-determined',
@@ -1197,6 +1280,8 @@ describe('determine-action.js', () => {
                 stopLossTriggerPrice: null
               }
             };
+
+            step = require('../determine-action');
 
             result = await step.execute(logger, rawData);
           });
@@ -1267,7 +1352,19 @@ describe('determine-action.js', () => {
       describe('when last buy price is set and has enough to sell', () => {
         describe('when current price is higher than trigger price', () => {
           beforeEach(() => {
-            cache.get = jest.fn().mockImplementation(_key => null);
+            mockIsActionDisabled = jest.fn().mockResolvedValue({
+              isDisabled: false
+            });
+
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              isActionDisabled: mockIsActionDisabled
+            }));
+
+            mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+            jest.mock('../../../trailingTradeHelper/order', () => ({
+              getGridTradeOrder: mockGetGridTradeOrder
+            }));
 
             rawData = {
               action: 'not-determined',
@@ -1328,20 +1425,23 @@ describe('determine-action.js', () => {
 
           describe('when grid trade sell order is found', () => {
             beforeEach(async () => {
-              cache.get = jest.fn().mockImplementation(key => {
-                if (key === `BTCUSDT-grid-trade-last-sell-order`) {
-                  return JSON.stringify({
-                    orderId: 27123456
-                  });
-                }
-
-                return null;
+              mockIsActionDisabled = jest.fn().mockResolvedValue({
+                isDisabled: false
               });
 
-              cache.getWithTTL = jest.fn().mockResolvedValue([
-                [null, -2],
-                [null, null]
-              ]);
+              jest.mock('../../../trailingTradeHelper/common', () => ({
+                isActionDisabled: mockIsActionDisabled
+              }));
+
+              mockGetGridTradeOrder = jest.fn().mockResolvedValue({
+                orderId: 27123456
+              });
+
+              jest.mock('../../../trailingTradeHelper/order', () => ({
+                getGridTradeOrder: mockGetGridTradeOrder
+              }));
+
+              step = require('../determine-action');
 
               result = await step.execute(logger, rawData);
             });
@@ -1409,18 +1509,26 @@ describe('determine-action.js', () => {
 
           describe('when symbol is disabled', () => {
             beforeEach(async () => {
-              cache.getWithTTL = jest.fn().mockResolvedValue([
-                [null, 300],
-                [
-                  null,
-                  JSON.stringify({
-                    disabledBy: 'sell order',
-                    message: 'Disabled action after confirming the sell order.',
-                    canResume: false,
-                    canRemoveLastBuyPrice: false
-                  })
-                ]
-              ]);
+              mockIsActionDisabled = jest.fn().mockResolvedValue({
+                isDisabled: true,
+                ttl: 300,
+                disabledBy: 'sell order',
+                message: 'Disabled action after confirming the sell order.',
+                canResume: false,
+                canRemoveLastBuyPrice: false
+              });
+
+              jest.mock('../../../trailingTradeHelper/common', () => ({
+                isActionDisabled: mockIsActionDisabled
+              }));
+
+              mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+              jest.mock('../../../trailingTradeHelper/order', () => ({
+                getGridTradeOrder: mockGetGridTradeOrder
+              }));
+
+              step = require('../determine-action');
 
               result = await step.execute(logger, rawData);
             });
@@ -1491,10 +1599,21 @@ describe('determine-action.js', () => {
 
           describe('when symbol is not disabled', () => {
             beforeEach(async () => {
-              cache.getWithTTL = jest.fn().mockResolvedValue([
-                [null, -2],
-                [null, null]
-              ]);
+              mockIsActionDisabled = jest.fn().mockResolvedValue({
+                isDisabled: false
+              });
+
+              jest.mock('../../../trailingTradeHelper/common', () => ({
+                isActionDisabled: mockIsActionDisabled
+              }));
+
+              mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+              jest.mock('../../../trailingTradeHelper/order', () => ({
+                getGridTradeOrder: mockGetGridTradeOrder
+              }));
+
+              step = require('../determine-action');
 
               result = await step.execute(logger, rawData);
             });
@@ -1563,12 +1682,22 @@ describe('determine-action.js', () => {
         });
 
         describe('when current price is less than stop loss trigger price', () => {
-          beforeEach(() => {
-            cache.get = jest.fn().mockImplementation(_key => null);
-          });
-
           describe('when stop loss is disabled', () => {
             beforeEach(async () => {
+              mockIsActionDisabled = jest.fn().mockResolvedValue({
+                isDisabled: false
+              });
+
+              jest.mock('../../../trailingTradeHelper/common', () => ({
+                isActionDisabled: mockIsActionDisabled
+              }));
+
+              mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+              jest.mock('../../../trailingTradeHelper/order', () => ({
+                getGridTradeOrder: mockGetGridTradeOrder
+              }));
+
               rawData = {
                 action: 'not-determined',
                 symbol: 'BTCUSDT',
@@ -1624,6 +1753,9 @@ describe('determine-action.js', () => {
                   stopLossTriggerPrice: 29500
                 }
               };
+
+              step = require('../determine-action');
+
               result = await step.execute(logger, rawData);
             });
 
@@ -1751,19 +1883,26 @@ describe('determine-action.js', () => {
 
             describe('when symbol is disabled', () => {
               beforeEach(async () => {
-                cache.getWithTTL = jest.fn().mockResolvedValue([
-                  [null, 300],
-                  [
-                    null,
-                    JSON.stringify({
-                      disabledBy: 'sell order',
-                      message:
-                        'Disabled action after confirming the sell order.',
-                      canResume: false,
-                      canRemoveLastBuyPrice: false
-                    })
-                  ]
-                ]);
+                mockIsActionDisabled = jest.fn().mockResolvedValue({
+                  isDisabled: true,
+                  ttl: 300,
+                  disabledBy: 'sell order',
+                  message: 'Disabled action after confirming the sell order.',
+                  canResume: false,
+                  canRemoveLastBuyPrice: false
+                });
+
+                jest.mock('../../../trailingTradeHelper/common', () => ({
+                  isActionDisabled: mockIsActionDisabled
+                }));
+
+                mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+                jest.mock('../../../trailingTradeHelper/order', () => ({
+                  getGridTradeOrder: mockGetGridTradeOrder
+                }));
+
+                step = require('../determine-action');
 
                 result = await step.execute(logger, rawData);
               });
@@ -1834,10 +1973,21 @@ describe('determine-action.js', () => {
 
             describe('when symbol is not disabled', () => {
               beforeEach(async () => {
-                cache.getWithTTL = jest.fn().mockResolvedValue([
-                  [null, -2],
-                  [null, null]
-                ]);
+                mockIsActionDisabled = jest.fn().mockResolvedValue({
+                  isDisabled: false
+                });
+
+                jest.mock('../../../trailingTradeHelper/common', () => ({
+                  isActionDisabled: mockIsActionDisabled
+                }));
+
+                mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+                jest.mock('../../../trailingTradeHelper/order', () => ({
+                  getGridTradeOrder: mockGetGridTradeOrder
+                }));
+
+                step = require('../determine-action');
 
                 result = await step.execute(logger, rawData);
               });
@@ -1907,7 +2057,19 @@ describe('determine-action.js', () => {
 
         describe('when current price is less than trigger price', () => {
           beforeEach(async () => {
-            cache.get = jest.fn().mockImplementation(_key => null);
+            mockIsActionDisabled = jest.fn().mockResolvedValue({
+              isDisabled: false
+            });
+
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              isActionDisabled: mockIsActionDisabled
+            }));
+
+            mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+            jest.mock('../../../trailingTradeHelper/order', () => ({
+              getGridTradeOrder: mockGetGridTradeOrder
+            }));
 
             rawData = {
               action: 'not-determined',
@@ -1964,6 +2126,8 @@ describe('determine-action.js', () => {
                 stopLossTriggerPrice: 22400
               }
             };
+
+            step = require('../determine-action');
 
             result = await step.execute(logger, rawData);
           });
@@ -2033,6 +2197,20 @@ describe('determine-action.js', () => {
 
       describe('when no condition is met', () => {
         beforeEach(async () => {
+          mockIsActionDisabled = jest.fn().mockResolvedValue({
+            isDisabled: false
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            isActionDisabled: mockIsActionDisabled
+          }));
+
+          mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+          jest.mock('../../../trailingTradeHelper/order', () => ({
+            getGridTradeOrder: mockGetGridTradeOrder
+          }));
+
           rawData = {
             action: 'not-determined',
             symbol: 'BTCUSDT',
@@ -2088,6 +2266,8 @@ describe('determine-action.js', () => {
               stopLossTriggerPrice: null
             }
           };
+
+          step = require('../determine-action');
 
           result = await step.execute(logger, rawData);
         });

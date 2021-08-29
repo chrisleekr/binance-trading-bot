@@ -13,24 +13,7 @@ const {
 } = require('../../trailingTradeHelper/configuration');
 const { getGridTradeOrder } = require('../../trailingTradeHelper/order');
 
-/**
- * Retrieve last buy order from cache
- *
- * @param {*} logger
- * @param {*} symbol
- * @returns
- */
-
-const getLastBuyOrder = async (logger, symbol) => {
-  const cachedLastBuyOrder =
-    JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
-
-  logger.info({ cachedLastBuyOrder }, 'Retrieved last buy order from cache');
-
-  return cachedLastBuyOrder;
-};
-
-/**
+/*
  * Retrieve last grid order from cache
  *
  * @param {*} logger
@@ -188,14 +171,6 @@ const execute = async (logger, rawData) => {
 
   if (action !== 'not-determined') {
     logger.info('Do not process to remove last buy price.');
-    return data;
-  }
-
-  const lastBuyOrder = await getLastBuyOrder(logger, symbol);
-  if (_.isEmpty(lastBuyOrder) === false) {
-    logger.info(
-      'Do not process to remove last buy price because there is a buy order to be confirmed.'
-    );
     return data;
   }
 

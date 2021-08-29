@@ -1002,6 +1002,33 @@ describe('common.js', () => {
         });
       });
     });
+
+    describe('when cannot get value', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+        loggerMock = logger;
+
+        cacheMock.getWithTTL = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.isActionDisabled('BTCUSDT');
+      });
+
+      it('triggers cache.getWithTTL', () => {
+        expect(cacheMock.getWithTTL).toHaveBeenCalledWith(
+          'BTCUSDT-disable-action'
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          isDisabled: false,
+          ttl: -2
+        });
+      });
+    });
   });
 
   describe('deleteDisableAction', () => {

@@ -48,9 +48,11 @@ const handleLatest = async (logger, ws, payload) => {
   }
 
   const cacheTrailingTradeCommon = await cache.hgetall('trailing-trade-common');
+
   const cacheTrailingTradeSymbols = await cache.hgetall(
     'trailing-trade-symbols'
   );
+
   const cacheTrailingTradeClosedTrades = _.map(
     await cache.hgetall('trailing-trade-closed-trades'),
     stats => JSON.parse(stats)
@@ -67,7 +69,6 @@ const handleLatest = async (logger, ws, payload) => {
       gitHash: process.env.GIT_HASH || 'unspecified',
       accountInfo: JSON.parse(cacheTrailingTradeCommon['account-info']),
       exchangeSymbols: JSON.parse(cacheTrailingTradeCommon['exchange-symbols']),
-      publicURL: cacheTrailingTradeCommon['local-tunnel-url'],
       apiInfo: binance.client.getInfo(),
       closedTradesSetting: JSON.parse(
         cacheTrailingTradeCommon['closed-trades']
@@ -76,7 +77,6 @@ const handleLatest = async (logger, ws, payload) => {
     };
   } catch (e) {
     logger.error({ e }, 'Something wrong with trailing-trade-common cache');
-
     return;
   }
 

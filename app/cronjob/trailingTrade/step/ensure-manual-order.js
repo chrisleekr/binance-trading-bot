@@ -11,6 +11,7 @@ const {
   getSymbolGridTrade,
   saveSymbolGridTrade
 } = require('../../trailingTradeHelper/configuration');
+
 const {
   getManualOrders,
   deleteManualOrder,

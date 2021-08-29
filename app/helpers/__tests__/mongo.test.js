@@ -376,10 +376,18 @@ describe('mongo.js', () => {
     });
 
     it('triggers collection.insertOne', () => {
-      expect(mockInsertOne).toHaveBeenCalledWith({
-        key: 'configuration',
-        my: 'value'
-      });
+      expect(mockInsertOne).toHaveBeenCalledWith(
+        {
+          key: 'configuration',
+          my: 'value'
+        },
+        {
+          writeConcern: {
+            w: 0,
+            j: false
+          }
+        }
+      );
     });
 
     it('returns expected result', () => {
@@ -444,7 +452,11 @@ describe('mongo.js', () => {
           }
         },
         {
-          upsert: true
+          upsert: true,
+          writeConcern: {
+            w: 0,
+            j: false
+          }
         }
       );
     });
@@ -492,9 +504,17 @@ describe('mongo.js', () => {
     });
 
     it('triggers collection.deleteMany', () => {
-      expect(mockDeleteMany).toHaveBeenCalledWith({
-        key: 'configuration'
-      });
+      expect(mockDeleteMany).toHaveBeenCalledWith(
+        {
+          key: 'configuration'
+        },
+        {
+          writeConcern: {
+            w: 0,
+            j: false
+          }
+        }
+      );
     });
 
     it('returns expected result', () => {
@@ -540,9 +560,17 @@ describe('mongo.js', () => {
     });
 
     it('triggers collection.deleteOne', () => {
-      expect(mockDeleteOne).toHaveBeenCalledWith({
-        key: 'configuration'
-      });
+      expect(mockDeleteOne).toHaveBeenCalledWith(
+        {
+          key: 'configuration'
+        },
+        {
+          writeConcern: {
+            w: 0,
+            j: false
+          }
+        }
+      );
     });
 
     it('returns expected result', () => {

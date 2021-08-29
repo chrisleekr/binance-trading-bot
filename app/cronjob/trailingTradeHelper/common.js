@@ -388,6 +388,10 @@ const disableAction = async (symbol, reason, ttl) =>
 const isActionDisabled = async symbol => {
   const result = await cache.getWithTTL(`${symbol}-disable-action`);
 
+  if (result === null) {
+    return { isDisabled: false, ttl: -2 };
+  }
+
   const ttl = result[0][1];
   const reason = JSON.parse(result[1][1]) || {};
 

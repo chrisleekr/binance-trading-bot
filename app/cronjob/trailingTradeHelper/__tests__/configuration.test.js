@@ -2691,10 +2691,6 @@ describe('configuration.js', () => {
           );
         }
 
-        if (hash === 'trailing-trade-configurations') {
-          return Promise.resolve(JSON.stringify({}));
-        }
-
         return Promise.resolve(null);
       });
       cache.hset = jest.fn().mockResolvedValue(true);
@@ -2765,6 +2761,30 @@ describe('configuration.js', () => {
     });
 
     describe('without symbol', () => {
+      describe('when cache is available', () => {
+        beforeEach(async () => {
+          cache.hget = jest.fn().mockImplementation((hash, key) => {
+            if (hash === 'trailing-trade-configurations' && key === 'global') {
+              return Promise.resolve(
+                JSON.stringify({
+                  global: 'configuration'
+                })
+              );
+            }
+
+            return Promise.resolve(null);
+          });
+
+          result = await configuration.getConfiguration(logger);
+        });
+
+        it('returns cached configruation', () => {
+          expect(result).toStrictEqual({
+            global: 'configuration'
+          });
+        });
+      });
+
       describe('when cache is not available', () => {
         beforeEach(async () => {
           mongo.findOne = jest.fn((_logger, collection, filter) => {
@@ -2922,6 +2942,74 @@ describe('configuration.js', () => {
           expect(mongo.upsertOne).not.toHaveBeenCalled();
         });
 
+        it('triggers cache.hset', () => {
+          expect(cache.hset).toHaveBeenCalledWith(
+            'trailing-trade-configurations',
+            'global',
+            JSON.stringify({
+              enabled: true,
+              cronTime: '* * * * * *',
+              symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+              candles: { interval: '1d', limit: 10 },
+              buy: {
+                enabled: false,
+                gridTrade: [
+                  {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.02,
+                    limitPercentage: 1.021,
+                    maxPurchaseAmount: -1,
+                    maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 }
+                  },
+                  {
+                    triggerPercentage: 0.9,
+                    stopPercentage: 1.02,
+                    limitPercentage: 1.021,
+                    maxPurchaseAmount: -1,
+                    maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 }
+                  }
+                ],
+                lastBuyPriceRemoveThreshold: -1,
+                lastBuyPriceRemoveThresholds: {
+                  USDT: 5,
+                  BTC: 0.00005,
+                  BUSD: 5
+                },
+                athRestriction: {
+                  enabled: true,
+                  candles: { interval: '1d', limit: 30 },
+                  restrictionPercentage: 0.9
+                }
+              },
+              sell: {
+                enabled: false,
+                gridTrade: [
+                  {
+                    triggerPercentage: 1.08,
+                    stopPercentage: 0.95,
+                    limitPercentage: 0.949,
+                    quantityPercentage: -1,
+                    quantityPercentages: { USDT: 1, BTC: 1, BUSD: 1 }
+                  }
+                ],
+                stopLoss: {
+                  enabled: true,
+                  maxLossPercentage: 0.95,
+                  disableBuyMinutes: 60,
+                  orderType: 'market'
+                }
+              },
+              system: {
+                temporaryDisableActionAfterConfirmingOrder: 10,
+                checkManualBuyOrderPeriod: 10,
+                placeManualOrderInterval: 5,
+                refreshAccountInfoPeriod: 3,
+                checkOrderExecutePeriod: 10
+              }
+            })
+          );
+        });
+
         it('returns expected value', () => {
           expect(result).toStrictEqual({
             enabled: true,
@@ -2982,19 +3070,31 @@ describe('configuration.js', () => {
           });
         });
       });
-
-      describe('when cache is available', () => {
-        // TODO: Cached global configuration
-      });
     });
 
     describe('with symbol', () => {
-      describe('when symbol info cache is not found', () => {
-        // TODO
-      });
+      describe('when cache is available', () => {
+        beforeEach(async () => {
+          cache.hget = jest.fn().mockImplementation((hash, key) => {
+            if (hash === 'trailing-trade-configurations' && key === 'BTCUSDT') {
+              return Promise.resolve(
+                JSON.stringify({
+                  symbol: 'configuration'
+                })
+              );
+            }
 
-      describe('when symbol configuration cache is not found', () => {
-        // TODO
+            return Promise.resolve(null);
+          });
+
+          result = await configuration.getConfiguration(logger, 'BTCUSDT');
+        });
+
+        it('returns cached configruation', () => {
+          expect(result).toStrictEqual({
+            symbol: 'configuration'
+          });
+        });
       });
 
       describe('when cannot find global/symbol configurations', () => {
@@ -3699,7 +3799,7 @@ describe('configuration.js', () => {
 
         describe('when cached symbol info is not valid', () => {
           beforeEach(async () => {
-            cache.hget = jest.fn().mockResolvedValue(true);
+            cache.hget = jest.fn().mockResolvedValue(null);
 
             mongo.findOne = jest.fn((_logger, collection, filter) => {
               if (

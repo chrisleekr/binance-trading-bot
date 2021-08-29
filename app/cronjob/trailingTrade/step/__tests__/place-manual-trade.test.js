@@ -12,7 +12,8 @@ describe('place-manual-trade.js', () => {
   let mockGetAndCacheOpenOrdersForSymbol;
   let mockGetAccountInfoFromAPI;
   let mockGetAPILimit;
-  let mockSaveOrder;
+
+  let mockSaveManualOrder;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -39,7 +40,7 @@ describe('place-manual-trade.js', () => {
       .fn()
       .mockResolvedValue({ account: 'info' });
     mockGetAPILimit = jest.fn().mockResolvedValue(10);
-    mockSaveOrder = jest.fn().mockResolvedValue(true);
+    mockSaveManualOrder = jest.fn().mockResolvedValue(true);
   });
 
   describe('when symbol is locked', () => {
@@ -47,8 +48,11 @@ describe('place-manual-trade.js', () => {
       jest.mock('../../../trailingTradeHelper/common', () => ({
         getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
         getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-        getAPILimit: mockGetAPILimit,
-        saveOrder: mockSaveOrder
+        getAPILimit: mockGetAPILimit
+      }));
+
+      jest.mock('../../../trailingTradeHelper/order', () => ({
+        saveManualOrder: mockSaveManualOrder
       }));
 
       const step = require('../place-manual-trade');
@@ -72,8 +76,8 @@ describe('place-manual-trade.js', () => {
       expect(cacheMock.hset).not.toHaveBeenCalled();
     });
 
-    it('does not trigger saveOrder', () => {
-      expect(mockSaveOrder).not.toHaveBeenCalled();
+    it('does not trigger saveManualOrder', () => {
+      expect(mockSaveManualOrder).not.toHaveBeenCalled();
     });
 
     it('returns expected result', () => {
@@ -96,8 +100,11 @@ describe('place-manual-trade.js', () => {
       jest.mock('../../../trailingTradeHelper/common', () => ({
         getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
         getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-        getAPILimit: mockGetAPILimit,
-        saveOrder: mockSaveOrder
+        getAPILimit: mockGetAPILimit
+      }));
+
+      jest.mock('../../../trailingTradeHelper/order', () => ({
+        saveManualOrder: mockSaveManualOrder
       }));
 
       const step = require('../place-manual-trade');
@@ -121,8 +128,8 @@ describe('place-manual-trade.js', () => {
       expect(cacheMock.hset).not.toHaveBeenCalled();
     });
 
-    it('does not trigger saveOrder', () => {
-      expect(mockSaveOrder).not.toHaveBeenCalled();
+    it('does not trigger saveManualOrder', () => {
+      expect(mockSaveManualOrder).not.toHaveBeenCalled();
     });
 
     it('returns expected result', () => {
@@ -764,8 +771,11 @@ describe('place-manual-trade.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          getAPILimit: mockGetAPILimit,
-          saveOrder: mockSaveOrder
+          getAPILimit: mockGetAPILimit
+        }));
+
+        jest.mock('../../../trailingTradeHelper/order', () => ({
+          saveManualOrder: mockSaveManualOrder
         }));
 
         binanceMock.client.order = jest
@@ -801,28 +811,16 @@ describe('place-manual-trade.js', () => {
         );
       });
 
-      it('triggers cache.hset', () => {
-        expect(cacheMock.hset).toHaveBeenCalledWith(
-          'trailing-trade-manual-order-BTCUSDT',
+      it('triggers saveManualOrder', () => {
+        expect(mockSaveManualOrder).toHaveBeenCalledWith(
+          loggerMock,
+          'BTCUSDT',
           testData.orderResult.orderId,
-          JSON.stringify({
+          {
             ...testData.orderResult,
-            nextCheck: '2020-01-01T00:00:10.000Z'
-          })
-        );
-      });
-
-      it('triggers saveOrder', () => {
-        expect(mockSaveOrder).toHaveBeenCalledWith(loggerMock, {
-          order: {
-            ...testData.orderResult
-          },
-          botStatus: {
-            savedAt: expect.any(String),
-            savedBy: 'place-manual-trade',
-            savedMessage: 'The manual order is placed.'
+            nextCheck: expect.any(String)
           }
-        });
+        );
       });
 
       it('returns expected result', () => {
@@ -838,8 +836,11 @@ describe('place-manual-trade.js', () => {
       jest.mock('../../../trailingTradeHelper/common', () => ({
         getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
         getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-        getAPILimit: mockGetAPILimit,
-        saveOrder: mockSaveOrder
+        getAPILimit: mockGetAPILimit
+      }));
+
+      jest.mock('../../../trailingTradeHelper/order', () => ({
+        saveManualOrder: mockSaveManualOrder
       }));
 
       binanceMock.client.order = jest.fn().mockResolvedValue(true);
