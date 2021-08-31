@@ -1,6 +1,7 @@
 /* eslint-disable global-require */
 describe('cache', () => {
   let result;
+  let mockKeys;
   let mockSet;
   let mockSetEx;
   let mockGet;
@@ -16,6 +17,33 @@ describe('cache', () => {
 
   let mockLock;
   let mockUnlock;
+
+  describe('keys', () => {
+    beforeEach(async () => {
+      jest.clearAllMocks().resetModules();
+
+      jest.mock('config');
+
+      mockKeys = jest.fn(() => ['test1', 'test2']);
+      jest.mock('ioredis', () =>
+        jest.fn().mockImplementation(() => ({
+          keys: mockKeys
+        }))
+      );
+
+      cache = require('../cache');
+
+      result = await cache.keys('*symbol-info');
+    });
+
+    it('triggers keys', () => {
+      expect(mockKeys).toHaveBeenCalledWith('*symbol-info');
+    });
+
+    it('returns expected result', () => {
+      expect(result).toStrictEqual(['test1', 'test2']);
+    });
+  });
 
   describe('set', () => {
     beforeEach(() => {

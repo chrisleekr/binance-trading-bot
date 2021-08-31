@@ -253,7 +253,7 @@ const getAndCacheOpenOrdersForSymbol = async (logger, symbol) => {
   );
 
   await cache.hset(
-    'trailing-trade-orders',
+    'trailing-trade-open-orders',
     symbol,
     JSON.stringify(symbolOpenOrders)
   );
@@ -284,7 +284,7 @@ const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity }) => {
     { tag: 'save-last-buy-price', symbol, lastBuyPrice, quantity },
     'Save last buy price'
   );
-  return mongo.upsertOne(
+  const result = await mongo.upsertOne(
     logger,
     'trailing-trade-symbols',
     { key: `${symbol}-last-buy-price` },
@@ -294,6 +294,27 @@ const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity }) => {
       quantity
     }
   );
+
+  // Refresh configuration
+  await cache.hdel('trailing-trade-configurations', symbol);
+
+  return result;
+};
+
+const removeLastBuyPrice = async (logger, symbol) => {
+  logger.info(
+    { tag: 'remove-last-buy-price', symbol },
+    'Remove last buy price'
+  );
+
+  const result = await mongo.deleteOne(logger, 'trailing-trade-symbols', {
+    key: `${symbol}-last-buy-price`
+  });
+
+  // Refresh configuration
+  await cache.hdel('trailing-trade-configurations', symbol);
+
+  return result;
 };
 
 /**
@@ -366,6 +387,10 @@ const disableAction = async (symbol, reason, ttl) =>
  */
 const isActionDisabled = async symbol => {
   const result = await cache.getWithTTL(`${symbol}-disable-action`);
+
+  if (result === null) {
+    return { isDisabled: false, ttl: -2 };
+  }
 
   const ttl = result[0][1];
   const reason = JSON.parse(result[1][1]) || {};
@@ -527,33 +552,6 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
 };
 
 /**
- * Save order to mongodb
- *
- * @param {*} logger
- * @param {*} data
- */
-const saveOrder = async (logger, data) => {
-  logger.info({ tag: 'save-order', data }, 'Save order');
-
-  // NOTE: Since trailing-trade-orders is not used at the moment,
-  // Disable for reducing unnecessary write.
-  return true;
-  // Order ID must be included.
-  // const {
-  //   order: { orderId }
-  // } = data;
-  // return mongo.upsertOne(
-  //   logger,
-  //   'trailing-trade-orders',
-  //   { key: orderId },
-  //   {
-  //     key: orderId,
-  //     ...data
-  //   }
-  // );
-};
-
-/**
  * Get symbol information
  *
  * @param {*} logger
@@ -675,6 +673,7 @@ module.exports = {
   getAndCacheOpenOrdersForSymbol,
   getLastBuyPrice,
   saveLastBuyPrice,
+  removeLastBuyPrice,
   lockSymbol,
   isSymbolLocked,
   unlockSymbol,
@@ -688,7 +687,6 @@ module.exports = {
   getOverrideDataForIndicator,
   removeOverrideDataForIndicator,
   calculateLastBuyPrice,
-  saveOrder,
   getSymbolInfo,
   verifyAuthenticated
 };

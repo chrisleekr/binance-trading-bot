@@ -634,7 +634,7 @@ describe('common.js', () => {
 
     it('triggers cache.hset', () => {
       expect(cacheMock.hset).toHaveBeenCalledWith(
-        'trailing-trade-orders',
+        'trailing-trade-open-orders',
         'BTCUSDT',
         JSON.stringify([
           {
@@ -715,12 +715,14 @@ describe('common.js', () => {
 
   describe('saveLastBuyPrice', () => {
     beforeEach(async () => {
-      const { mongo, logger } = require('../../../helpers');
+      const { cache, mongo, logger } = require('../../../helpers');
 
+      cacheMock = cache;
       mongoMock = mongo;
       loggerMock = logger;
 
       mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
+      cacheMock.hdel = jest.fn().mockResolvedValue(true);
 
       commonHelper = require('../common');
       result = await commonHelper.saveLastBuyPrice(loggerMock, 'BTCUSDT', {
@@ -739,6 +741,48 @@ describe('common.js', () => {
           lastBuyPrice: 1000,
           quantity: 1
         }
+      );
+    });
+
+    it('triggers cache.hdel', () => {
+      expect(cacheMock.hdel).toHaveBeenCalledWith(
+        'trailing-trade-configurations',
+        'BTCUSDT'
+      );
+    });
+
+    it('returns expected value', () => {
+      expect(result).toBeTruthy();
+    });
+  });
+
+  describe('removeLastBuyPrice', () => {
+    beforeEach(async () => {
+      const { cache, mongo, logger } = require('../../../helpers');
+
+      cacheMock = cache;
+      mongoMock = mongo;
+      loggerMock = logger;
+
+      mongoMock.deleteOne = jest.fn().mockResolvedValue(true);
+      cacheMock.hdel = jest.fn().mockResolvedValue(true);
+
+      commonHelper = require('../common');
+      result = await commonHelper.removeLastBuyPrice(loggerMock, 'BTCUSDT');
+    });
+
+    it('triggers mongo.deleteOne', () => {
+      expect(mongoMock.deleteOne).toHaveBeenCalledWith(
+        loggerMock,
+        'trailing-trade-symbols',
+        { key: 'BTCUSDT-last-buy-price' }
+      );
+    });
+
+    it('triggers cache.hdel', () => {
+      expect(cacheMock.hdel).toHaveBeenCalledWith(
+        'trailing-trade-configurations',
+        'BTCUSDT'
       );
     });
 
@@ -955,6 +999,33 @@ describe('common.js', () => {
           message: 'Temporary disabled by stop loss',
           canResume: true,
           canRemoveLastBuyPrice: true
+        });
+      });
+    });
+
+    describe('when cannot get value', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+        loggerMock = logger;
+
+        cacheMock.getWithTTL = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.isActionDisabled('BTCUSDT');
+      });
+
+      it('triggers cache.getWithTTL', () => {
+        expect(cacheMock.getWithTTL).toHaveBeenCalledWith(
+          'BTCUSDT-disable-action'
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          isDisabled: false,
+          ttl: -2
         });
       });
     });
@@ -1241,17 +1312,25 @@ describe('common.js', () => {
   describe('calculateLastBuyPrice', () => {
     describe('when last buy price is not recorded', () => {
       beforeEach(async () => {
-        const { logger, mongo, PubSub, slack } = require('../../../helpers');
+        const {
+          cache,
+          logger,
+          mongo,
+          PubSub,
+          slack
+        } = require('../../../helpers');
 
         loggerMock = logger;
         mongoMock = mongo;
         PubSubMock = PubSub;
         slackMock = slack;
+        cacheMock = cache;
 
         mongoMock.findOne = jest.fn().mockResolvedValue({});
         mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
         PubSubMock.publish = jest.fn().mockResolvedValue(true);
         slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+        cacheMock.hdel = jest.fn().mockResolvedValue(true);
 
         commonHelper = require('../common');
         await commonHelper.calculateLastBuyPrice(loggerMock, 'BTCUSDT', {
@@ -1310,12 +1389,19 @@ describe('common.js', () => {
 
     describe('when last buy price is recorded', () => {
       beforeEach(async () => {
-        const { logger, mongo, PubSub, slack } = require('../../../helpers');
+        const {
+          logger,
+          mongo,
+          PubSub,
+          slack,
+          cache
+        } = require('../../../helpers');
 
         loggerMock = logger;
         mongoMock = mongo;
         PubSubMock = PubSub;
         slackMock = slack;
+        cacheMock = cache;
 
         mongoMock.findOne = jest.fn().mockResolvedValue({
           lastBuyPrice: 254.37,
@@ -1324,6 +1410,7 @@ describe('common.js', () => {
         mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
         PubSubMock.publish = jest.fn().mockResolvedValue(true);
         slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+        cacheMock.hdel = jest.fn().mockResolvedValue(true);
 
         commonHelper = require('../common');
         await commonHelper.calculateLastBuyPrice(loggerMock, 'BTCUSDT', {
@@ -1378,49 +1465,6 @@ describe('common.js', () => {
           )
         );
       });
-    });
-  });
-
-  describe('saveOrder', () => {
-    beforeEach(async () => {
-      const { mongo, logger } = require('../../../helpers');
-
-      mongoMock = mongo;
-      loggerMock = logger;
-
-      mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
-
-      commonHelper = require('../common');
-      result = await commonHelper.saveOrder(loggerMock, {
-        order: {
-          orderId: 123456
-        },
-        botStatus: {
-          some: 'value'
-        }
-      });
-    });
-
-    // eslint-disable-next-line jest/no-commented-out-tests
-    // it('triggers mongo.upsertOne', () => {
-    //   expect(mongoMock.upsertOne).toHaveBeenCalledWith(
-    //     loggerMock,
-    //     'trailing-trade-orders',
-    //     { key: 123456 },
-    //     {
-    //       key: 123456,
-    //       order: {
-    //         orderId: 123456
-    //       },
-    //       botStatus: {
-    //         some: 'value'
-    //       }
-    //     }
-    //   );
-    // });
-
-    it('returns expected value', () => {
-      expect(result).toBeTruthy();
     });
   });
 

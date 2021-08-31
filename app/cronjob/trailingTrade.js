@@ -18,7 +18,6 @@ const {
   getSymbolInfo,
   getOverrideAction,
   ensureManualOrder,
-  ensureOrderPlaced,
   ensureGridTradeOrderExecuted,
   getBalances,
   getOpenOrders,
@@ -100,10 +99,6 @@ const execute = async logger => {
           {
             stepName: 'ensure-manual-order',
             stepFunc: ensureManualOrder
-          },
-          {
-            stepName: 'ensure-open-placed',
-            stepFunc: ensureOrderPlaced
           },
           {
             stepName: 'ensure-grid-trade-order-executed',
@@ -192,6 +187,12 @@ const execute = async logger => {
       })
     );
   } catch (err) {
+    // For the redlock fail
+    if (err.message.includes('redlock')) {
+      // Simply ignore
+      return;
+    }
+
     logger.error(
       { err, errorCode: err.code, debug: true },
       `⚠ Execution failed.`
@@ -200,8 +201,7 @@ const execute = async logger => {
       err.code === -1001 ||
       err.code === -1021 || // Timestamp for this request is outside of the recvWindow
       err.code === 'ECONNRESET' ||
-      err.code === 'ECONNREFUSED' ||
-      err.message.includes('redlock') // For the redlock fail
+      err.code === 'ECONNREFUSED'
     ) {
       // Let's silent for internal server error or assumed temporary errors
     } else {

@@ -1,17 +1,22 @@
 /* eslint-disable no-await-in-loop */
 const moment = require('moment');
 const _ = require('lodash');
-const { cache, PubSub, binance, slack } = require('../../../helpers');
+const { PubSub, binance, slack } = require('../../../helpers');
 const {
   calculateLastBuyPrice,
-  getAPILimit,
-  saveOrder
+  getAPILimit
 } = require('../../trailingTradeHelper/common');
 
 const {
   getSymbolGridTrade,
   saveSymbolGridTrade
 } = require('../../trailingTradeHelper/configuration');
+
+const {
+  getManualOrders,
+  deleteManualOrder,
+  saveManualOrder
+} = require('../../trailingTradeHelper/order');
 
 /**
  * Send slack message for order filled
@@ -141,9 +146,7 @@ const execute = async (logger, rawData) => {
     }
   } = data;
 
-  const manualOrders = await cache.hgetall(
-    `trailing-trade-manual-order-${symbol}`
-  );
+  const manualOrders = await getManualOrders(logger, symbol);
 
   if (_.isEmpty(manualOrders) === true) {
     logger.info(
@@ -157,8 +160,8 @@ const execute = async (logger, rawData) => {
 
   // Check if manual-order is existing
   // eslint-disable-next-line no-restricted-syntax
-  for (const rawOrder of Object.values(manualOrders)) {
-    const order = JSON.parse(rawOrder);
+  for (const rawOrder of manualOrders) {
+    const { order } = rawOrder;
     logger.info({ order }, 'Start checking buy order');
     // If filled already, then calculate average price and save
     if (order.status === 'FILLED') {
@@ -187,18 +190,7 @@ const execute = async (logger, rawData) => {
         );
       }
 
-      await cache.hdel(`trailing-trade-manual-order-${symbol}`, order.orderId);
-
-      // Save order
-      await saveOrder(logger, {
-        order: { ...order },
-        botStatus: {
-          savedAt: moment().format(),
-          savedBy: 'ensure-manual-order',
-          savedMessage:
-            'The order has already filled and updated the last buy price.'
-        }
-      });
+      await deleteManualOrder(logger, symbol, order.orderId);
     } else {
       // If not filled, check orders is time to check or not
 
@@ -227,29 +219,14 @@ const execute = async (logger, rawData) => {
               e,
               order,
               checkManualOrderPeriod,
-              nextCheck: updatedNextCheck
+              nextCheck: updatedNextCheck.format()
             },
             'The order could not be found or error occurred querying the order.'
           );
 
-          await cache.hset(
-            `trailing-trade-manual-order-${symbol}`,
-            order.orderId,
-            JSON.stringify({
-              ...order,
-              nextCheck: updatedNextCheck
-            })
-          );
-
-          // Save order
-          await saveOrder(logger, {
-            order: { ...order },
-            botStatus: {
-              savedAt: moment().format(),
-              savedBy: 'ensure-manual-order',
-              savedMessage:
-                'The order could not be found or error occurred querying the order.'
-            }
+          await saveManualOrder(logger, symbol, order.orderId, {
+            ...order,
+            nextCheck: updatedNextCheck.format()
           });
 
           return data;
@@ -289,21 +266,7 @@ const execute = async (logger, rawData) => {
           }
 
           // Remove manual buy order
-          await cache.hdel(
-            `trailing-trade-manual-order-${symbol}`,
-            orderResult.orderId
-          );
-
-          // Save order
-          await saveOrder(logger, {
-            order: { ...order, ...orderResult },
-            botStatus: {
-              savedAt: moment().format(),
-              savedBy: 'ensure-manual-order',
-              savedMessage:
-                'The order has filled and updated the last buy price.'
-            }
-          });
+          await deleteManualOrder(logger, symbol, orderResult.orderId);
 
           slackMessageOrderFilled(
             logger,
@@ -314,21 +277,8 @@ const execute = async (logger, rawData) => {
           );
         } else if (removeStatuses.includes(orderResult.status) === true) {
           // If order is no longer available, then delete from cache
-          await cache.hdel(
-            `trailing-trade-manual-order-${symbol}`,
-            orderResult.orderId
-          );
 
-          // Save order
-          await saveOrder(logger, {
-            order: { ...order, ...orderResult },
-            botStatus: {
-              savedAt: moment().format(),
-              savedBy: 'ensure-manual-order',
-              savedMessage:
-                'The order is no longer valid. Removed from the cache.'
-            }
-          });
+          await deleteManualOrder(logger, symbol, orderResult.orderId);
 
           slackMessageOrderDeleted(
             logger,
@@ -348,28 +298,14 @@ const execute = async (logger, rawData) => {
             {
               orderResult,
               checkManualOrderPeriod,
-              nextCheck: updatedNextCheck
+              nextCheck: updatedNextCheck.format()
             },
             'The order is not filled, update next check time.'
           );
 
-          await cache.hset(
-            `trailing-trade-manual-order-${symbol}`,
-            orderResult.orderId,
-            JSON.stringify({
-              ...orderResult,
-              nextCheck: updatedNextCheck
-            })
-          );
-
-          // Save order
-          await saveOrder(logger, {
-            order: { ...orderResult },
-            botStatus: {
-              savedAt: moment().format(),
-              savedBy: 'ensure-manual-order',
-              savedMessage: 'The order is not filled. Check next internal.'
-            }
+          await saveManualOrder(logger, symbol, orderResult.orderId, {
+            ...orderResult,
+            nextCheck: updatedNextCheck.format()
           });
         }
       } else {

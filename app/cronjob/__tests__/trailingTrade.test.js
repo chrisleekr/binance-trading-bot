@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 /* eslint-disable global-require */
 const { logger } = require('../../helpers');
 
@@ -21,7 +22,6 @@ describe('trailingTrade', () => {
   let mockGetSymbolInfo;
   let mockGetOverrideAction;
   let mockEnsureManualOrder;
-  let mockEnsureOrderPlaced;
   let mockEnsureGridTradeOrderExecuted;
   let mockGetBalances;
   let mockGetOpenOrders;
@@ -130,13 +130,6 @@ describe('trailingTrade', () => {
           }
         }));
 
-      mockEnsureOrderPlaced = jest
-        .fn()
-        .mockImplementation((_logger, rawData) => ({
-          ...rawData,
-          ensure: 'order-placed'
-        }));
-
       mockEnsureGridTradeOrderExecuted = jest
         .fn()
         .mockImplementation((_logger, rawData) => ({
@@ -285,7 +278,6 @@ describe('trailingTrade', () => {
         getSymbolInfo: mockGetSymbolInfo,
         getOverrideAction: mockGetOverrideAction,
         ensureManualOrder: mockEnsureManualOrder,
-        ensureOrderPlaced: mockEnsureOrderPlaced,
         ensureGridTradeOrderExecuted: mockEnsureGridTradeOrderExecuted,
         getBalances: mockGetBalances,
         getOpenOrders: mockGetOpenOrders,
@@ -343,7 +335,6 @@ describe('trailingTrade', () => {
             saveToCache: true,
             overrideAction: { action: 'override-action' },
             ensureManualOrder: { ensured: 'manual-buy-order' },
-            ensure: 'order-placed',
             ensureGridTradeOrder: { ensured: 'grid-trade' },
             handled: 'open-orders',
             placeManualTrade: { placed: 'manual-trade' },
@@ -380,7 +371,6 @@ describe('trailingTrade', () => {
             saveToCache: true,
             overrideAction: { action: 'override-action' },
             ensureManualOrder: { ensured: 'manual-buy-order' },
-            ensure: 'order-placed',
             ensureGridTradeOrder: { ensured: 'grid-trade' },
             handled: 'open-orders',
             placeManualTrade: { placed: 'manual-trade' },
@@ -417,7 +407,6 @@ describe('trailingTrade', () => {
             saveToCache: true,
             overrideAction: { action: 'override-action' },
             ensureManualOrder: { ensured: 'manual-buy-order' },
-            ensure: 'order-placed',
             ensureGridTradeOrder: { ensured: 'grid-trade' },
             handled: 'open-orders',
             placeManualTrade: { placed: 'manual-trade' },
@@ -505,13 +494,6 @@ describe('trailingTrade', () => {
           }
         }));
 
-      mockEnsureOrderPlaced = jest
-        .fn()
-        .mockImplementation((_logger, rawData) => ({
-          ...rawData,
-          ensure: 'order-placed'
-        }));
-
       mockEnsureGridTradeOrderExecuted = jest
         .fn()
         .mockImplementation((_logger, rawData) => ({
@@ -660,7 +642,6 @@ describe('trailingTrade', () => {
         getSymbolInfo: mockGetSymbolInfo,
         getOverrideAction: mockGetOverrideAction,
         ensureManualOrder: mockEnsureManualOrder,
-        ensureOrderPlaced: mockEnsureOrderPlaced,
         ensureGridTradeOrderExecuted: mockEnsureGridTradeOrderExecuted,
         getBalances: mockGetBalances,
         getOpenOrders: mockGetOpenOrders,
@@ -708,7 +689,6 @@ describe('trailingTrade', () => {
             symbolInfo: { symbol: 'info' },
             overrideAction: { action: 'override-action' },
             ensureManualOrder: { ensured: 'manual-buy-order' },
-            ensure: 'order-placed',
             ensureGridTradeOrder: { ensured: 'grid-trade' },
             baseAssetBalance: { baseAsset: 'balance' },
             quoteAssetBalance: { quoteAsset: 'balance' },
@@ -745,7 +725,6 @@ describe('trailingTrade', () => {
             symbolInfo: { symbol: 'info' },
             overrideAction: { action: 'override-action' },
             ensureManualOrder: { ensured: 'manual-buy-order' },
-            ensure: 'order-placed',
             ensureGridTradeOrder: { ensured: 'grid-trade' },
             baseAssetBalance: { baseAsset: 'balance' },
             quoteAssetBalance: { quoteAsset: 'balance' },
@@ -782,7 +761,6 @@ describe('trailingTrade', () => {
             symbolInfo: { symbol: 'info' },
             overrideAction: { action: 'override-action' },
             ensureManualOrder: { ensured: 'manual-buy-order' },
-            ensure: 'order-placed',
             ensureGridTradeOrder: { ensured: 'grid-trade' },
             baseAssetBalance: { baseAsset: 'balance' },
             quoteAssetBalance: { quoteAsset: 'balance' },
@@ -822,7 +800,7 @@ describe('trailingTrade', () => {
       mockGetSymbolInfo = jest.fn().mockResolvedValue(true);
       mockGetOverrideAction = jest.fn().mockResolvedValue(true);
       mockEnsureManualOrder = jest.fn().mockResolvedValue(true);
-      mockEnsureOrderPlaced = jest.fn().mockResolvedValue(true);
+      mockEnsureGridTradeOrderExecuted = jest.fn().mockResolvedValue(true);
       mockGetBalances = jest.fn().mockResolvedValue(true);
       mockGetOpenOrders = jest.fn().mockResolvedValue(true);
       mockGetIndicators = jest.fn().mockResolvedValue(true);
@@ -854,7 +832,7 @@ describe('trailingTrade', () => {
         getSymbolInfo: mockGetSymbolInfo,
         getOverrideAction: mockGetOverrideAction,
         ensureManualOrder: mockEnsureManualOrder,
-        ensureOrderPlaced: mockEnsureOrderPlaced,
+        ensureGridTradeOrderExecuted: mockEnsureGridTradeOrderExecuted,
         getBalances: mockGetBalances,
         getOpenOrders: mockGetOpenOrders,
         getIndicators: mockGetIndicators,
@@ -945,6 +923,34 @@ describe('trailingTrade', () => {
             expect(mockSlackSendMessage).not.toHaveBeenCalled();
           });
         }
+      });
+    });
+
+    describe(`redlock error`, () => {
+      beforeEach(async () => {
+        mockConfigGet = jest.fn(_key => null);
+
+        jest.mock('config', () => ({
+          get: mockConfigGet
+        }));
+
+        mockGetGlobalConfiguration = jest.fn().mockRejectedValueOnce(
+          new (class CustomError extends Error {
+            constructor() {
+              super();
+              this.code = 500;
+              this.message = `redlock:lock-XRPBUSD`;
+            }
+          })()
+        );
+
+        const { execute: trailingTradeExecute } = require('../trailingTrade');
+
+        await trailingTradeExecute(logger);
+      });
+
+      it('does not trigger slack.sendMessagage', () => {
+        expect(mockSlackSendMessage).not.toHaveBeenCalled();
       });
     });
   });
