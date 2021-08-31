@@ -1,6 +1,4 @@
 /* eslint-disable global-require */
-const _ = require('lodash');
-
 describe('latest.test.js', () => {
   const trailingTradeCommonJson = require('./fixtures/latest-trailing-trade-common.json');
   const trailingTradeSymbols = require('./fixtures/latest-trailing-trade-symbols.json');
@@ -18,11 +16,12 @@ describe('latest.test.js', () => {
 
   let mockConfigGet;
   let mockCacheHGetAll;
-  let mockCacheHGet;
   let mockCacheGetWithTTL;
   let mockMongoUpsertOne;
   let mockPubSubPublish;
   let mockBinanceClientGetInfo;
+
+  let mockGetConfiguration;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -68,54 +67,21 @@ describe('latest.test.js', () => {
       return null;
     });
 
-    mockFindOne = jest.fn((_logger, collection, filter) => {
-      if (
-        collection === 'trailing-trade-common' &&
-        _.isEqual(filter, { key: 'configuration' })
-      ) {
-        return {
-          enabled: true
-        };
-      }
-
-      if (
-        collection === 'trailing-trade-symbols' &&
-        _.isEqual(filter, { key: 'BNBUSDT-configuration' })
-      ) {
-        return { enabled: true, symbol: 'BNBUSDT' };
-      }
-      if (
-        collection === 'trailing-trade-symbols' &&
-        _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
-      ) {
-        return { lastBuyPrice: null };
-      }
-
-      if (
-        collection === 'trailing-trade-symbols' &&
-        _.isEqual(filter, { key: 'ETHUSDT-configuration' })
-      ) {
-        return { enabled: true, symbol: 'ETHUSDT' };
-      }
-
-      if (
-        collection === 'trailing-trade-symbols' &&
-        _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
-      ) {
-        return { lastBuyPrice: null };
-      }
-
-      return null;
+    mockGetConfiguration = jest.fn().mockResolvedValue({
+      enabled: true
     });
-
-    mockMongoUpsertOne = jest.fn();
-
-    mockPubSubPublish = jest.fn();
   });
 
   describe('when some cache is invalid', () => {
     beforeEach(async () => {
       mockCacheHGetAll = jest.fn().mockImplementation(_key => '');
+
+      jest.mock(
+        '../../../../cronjob/trailingTradeHelper/configuration',
+        () => ({
+          getConfiguration: mockGetConfiguration
+        })
+      );
 
       jest.mock('../../../../helpers', () => ({
         logger: {
@@ -176,28 +142,6 @@ describe('latest.test.js', () => {
         return '';
       });
 
-      mockCacheHGet = jest.fn().mockImplementation((hash, key) => {
-        if (
-          hash === 'trailing-trade-symbols' &&
-          key === 'BNBUSDT-symbol-info'
-        ) {
-          return JSON.stringify({
-            filterMinNotional: { minNotional: '10.00000000' }
-          });
-        }
-
-        if (
-          hash === 'trailing-trade-symbols' &&
-          key === 'ETHUSDT-symbol-info'
-        ) {
-          return JSON.stringify({
-            filterMinNotional: { minNotional: '10.00000000' }
-          });
-        }
-
-        return null;
-      });
-
       mockCacheGetWithTTL = jest.fn().mockImplementation(key => {
         if (key === 'BNBUSDT-disable-action') {
           return [
@@ -226,68 +170,29 @@ describe('latest.test.js', () => {
 
     describe('not authenticated and locked list', () => {
       beforeEach(async () => {
-        mockFindOne = jest
-          .fn()
-          .mockImplementation((_logger, collection, filter) => {
-            if (
-              collection === 'trailing-trade-common' &&
-              _.isEqual(filter, { key: 'configuration' })
-            ) {
-              return {
-                enabled: true,
-                type: 'i-am-global',
-                candles: { interval: '15m' },
-                botOptions: {
-                  authentication: {
-                    lockList: true,
-                    lockAfter: 120
-                  }
-                },
-                sell: {}
-              };
+        mockGetConfiguration = jest.fn().mockResolvedValue({
+          enabled: true,
+          type: 'i-am-global',
+          candles: { interval: '15m' },
+          botOptions: {
+            authentication: {
+              lockList: true,
+              lockAfter: 120
+            },
+            autoTriggerBuy: {
+              enabled: false,
+              triggerAfter: 20
             }
+          },
+          sell: {}
+        });
 
-            if (
-              collection === 'trailing-trade-symbols' &&
-              _.isEqual(filter, { key: 'BNBUSDT-configuration' })
-            ) {
-              return {
-                enabled: true,
-                symbol: 'BNBUSDT',
-                type: 'i-am-symbol'
-              };
-            }
-            if (
-              collection === 'trailing-trade-symbols' &&
-              _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
-            ) {
-              return { lastBuyPrice: 100, quantity: 10, type: 'i-am-symbol' };
-            }
-
-            if (
-              collection === 'trailing-trade-symbols' &&
-              _.isEqual(filter, { key: 'ETHUSDT-configuration' })
-            ) {
-              return {
-                enabled: true,
-                symbol: 'ETHUSDT',
-                type: 'i-am-symbol'
-              };
-            }
-
-            if (
-              collection === 'trailing-trade-symbols' &&
-              _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
-            ) {
-              return {
-                lastBuyPrice: null,
-                quantity: null,
-                type: 'i-am-symbol'
-              };
-            }
-
-            return null;
-          });
+        jest.mock(
+          '../../../../cronjob/trailingTradeHelper/configuration',
+          () => ({
+            getConfiguration: mockGetConfiguration
+          })
+        );
 
         jest.mock('../../../../helpers', () => ({
           logger: {
@@ -297,20 +202,11 @@ describe('latest.test.js', () => {
             debug: jest.fn(),
             child: jest.fn()
           },
-          mongo: {
-            findOne: mockFindOne,
-            upsertOne: mockMongoUpsertOne
-          },
           cache: {
-            hgetall: mockCacheHGetAll,
-            hget: mockCacheHGet,
-            getWithTTL: mockCacheGetWithTTL
+            hgetall: mockCacheHGetAll
           },
           config: {
             get: mockConfigGet
-          },
-          PubSub: {
-            publish: mockPubSubPublish
           },
           binance: {
             client: {
@@ -348,68 +244,29 @@ describe('latest.test.js', () => {
 
     describe('not authenticated and does not lock list', () => {
       beforeEach(async () => {
-        mockFindOne = jest
-          .fn()
-          .mockImplementation((_logger, collection, filter) => {
-            if (
-              collection === 'trailing-trade-common' &&
-              _.isEqual(filter, { key: 'configuration' })
-            ) {
-              return {
-                enabled: true,
-                type: 'i-am-global',
-                candles: { interval: '15m' },
-                botOptions: {
-                  authentication: {
-                    lockList: false,
-                    lockAfter: 120
-                  }
-                },
-                sell: {}
-              };
+        mockGetConfiguration = jest.fn().mockResolvedValue({
+          enabled: true,
+          type: 'i-am-global',
+          candles: { interval: '15m' },
+          botOptions: {
+            authentication: {
+              lockList: false,
+              lockAfter: 120
+            },
+            autoTriggerBuy: {
+              enabled: false,
+              triggerAfter: 20
             }
+          },
+          sell: {}
+        });
 
-            if (
-              collection === 'trailing-trade-symbols' &&
-              _.isEqual(filter, { key: 'BNBUSDT-configuration' })
-            ) {
-              return {
-                enabled: true,
-                symbol: 'BNBUSDT',
-                type: 'i-am-symbol'
-              };
-            }
-            if (
-              collection === 'trailing-trade-symbols' &&
-              _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
-            ) {
-              return { lastBuyPrice: 100, quantity: 10, type: 'i-am-symbol' };
-            }
-
-            if (
-              collection === 'trailing-trade-symbols' &&
-              _.isEqual(filter, { key: 'ETHUSDT-configuration' })
-            ) {
-              return {
-                enabled: true,
-                symbol: 'ETHUSDT',
-                type: 'i-am-symbol'
-              };
-            }
-
-            if (
-              collection === 'trailing-trade-symbols' &&
-              _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
-            ) {
-              return {
-                lastBuyPrice: null,
-                quantity: null,
-                type: 'i-am-symbol'
-              };
-            }
-
-            return null;
-          });
+        jest.mock(
+          '../../../../cronjob/trailingTradeHelper/configuration',
+          () => ({
+            getConfiguration: mockGetConfiguration
+          })
+        );
 
         jest.mock('../../../../helpers', () => ({
           logger: {
@@ -419,20 +276,12 @@ describe('latest.test.js', () => {
             debug: jest.fn(),
             child: jest.fn()
           },
-          mongo: {
-            findOne: mockFindOne,
-            upsertOne: mockMongoUpsertOne
-          },
           cache: {
             hgetall: mockCacheHGetAll,
-            hget: mockCacheHGet,
             getWithTTL: mockCacheGetWithTTL
           },
           config: {
             get: mockConfigGet
-          },
-          PubSub: {
-            publish: mockPubSubPublish
           },
           binance: {
             client: {
@@ -461,68 +310,25 @@ describe('latest.test.js', () => {
 
     describe('authenticated', () => {
       beforeEach(async () => {
-        mockFindOne = jest
-          .fn()
-          .mockImplementation((_logger, collection, filter) => {
-            if (
-              collection === 'trailing-trade-common' &&
-              _.isEqual(filter, { key: 'configuration' })
-            ) {
-              return {
-                enabled: true,
-                type: 'i-am-global',
-                candles: { interval: '15m' },
-                botOptions: {
-                  authentication: {
-                    lockList: true,
-                    lockAfter: 120
-                  }
-                },
-                sell: {}
-              };
+        mockGetConfiguration = jest.fn().mockResolvedValue({
+          enabled: true,
+          type: 'i-am-global',
+          candles: { interval: '15m' },
+          botOptions: {
+            authentication: {
+              lockList: true,
+              lockAfter: 120
             }
+          },
+          sell: {}
+        });
 
-            if (
-              collection === 'trailing-trade-symbols' &&
-              _.isEqual(filter, { key: 'BNBUSDT-configuration' })
-            ) {
-              return {
-                enabled: true,
-                symbol: 'BNBUSDT',
-                type: 'i-am-symbol'
-              };
-            }
-            if (
-              collection === 'trailing-trade-symbols' &&
-              _.isEqual(filter, { key: 'BNBUSDT-last-buy-price' })
-            ) {
-              return { lastBuyPrice: 100, quantity: 10, type: 'i-am-symbol' };
-            }
-
-            if (
-              collection === 'trailing-trade-symbols' &&
-              _.isEqual(filter, { key: 'ETHUSDT-configuration' })
-            ) {
-              return {
-                enabled: true,
-                symbol: 'ETHUSDT',
-                type: 'i-am-symbol'
-              };
-            }
-
-            if (
-              collection === 'trailing-trade-symbols' &&
-              _.isEqual(filter, { key: 'ETHUSDT-last-buy-price' })
-            ) {
-              return {
-                lastBuyPrice: null,
-                quantity: null,
-                type: 'i-am-symbol'
-              };
-            }
-
-            return null;
-          });
+        jest.mock(
+          '../../../../cronjob/trailingTradeHelper/configuration',
+          () => ({
+            getConfiguration: mockGetConfiguration
+          })
+        );
 
         jest.mock('../../../../helpers', () => ({
           logger: {
@@ -532,20 +338,12 @@ describe('latest.test.js', () => {
             debug: jest.fn(),
             child: jest.fn()
           },
-          mongo: {
-            findOne: mockFindOne,
-            upsertOne: mockMongoUpsertOne
-          },
           cache: {
             hgetall: mockCacheHGetAll,
-            hget: mockCacheHGet,
             getWithTTL: mockCacheGetWithTTL
           },
           config: {
             get: mockConfigGet
-          },
-          PubSub: {
-            publish: mockPubSubPublish
           },
           binance: {
             client: {

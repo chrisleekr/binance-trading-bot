@@ -1,35 +1,19 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { mongo, cache, slack, PubSub } = require('../../../helpers');
+const { cache, slack, PubSub } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAPILimit,
-  isActionDisabled
+  isActionDisabled,
+  removeLastBuyPrice: removeLastBuyPriceFromDatabase
 } = require('../../trailingTradeHelper/common');
-
 const {
   archiveSymbolGridTrade,
   deleteSymbolGridTrade
 } = require('../../trailingTradeHelper/configuration');
+const { getGridTradeOrder } = require('../../trailingTradeHelper/order');
 
-/**
- * Retrieve last buy order from cache
- *
- * @param {*} logger
- * @param {*} symbol
- * @returns
- */
-
-const getLastBuyOrder = async (logger, symbol) => {
-  const cachedLastBuyOrder =
-    JSON.parse(await cache.get(`${symbol}-last-buy-order`)) || {};
-
-  logger.info({ cachedLastBuyOrder }, 'Retrieved last buy order from cache');
-
-  return cachedLastBuyOrder;
-};
-
-/**
+/*
  * Retrieve last grid order from cache
  *
  * @param {*} logger
@@ -38,16 +22,18 @@ const getLastBuyOrder = async (logger, symbol) => {
  * @returns
  */
 const getGridTradeLastOrder = async (logger, symbol, side) => {
-  const cachedLastOrder =
-    JSON.parse(await cache.get(`${symbol}-grid-trade-last-${side}-order`)) ||
-    {};
+  const lastOrder =
+    (await getGridTradeOrder(
+      logger,
+      `${symbol}-grid-trade-last-${side}-order`
+    )) || {};
 
   logger.info(
-    { cachedLastOrder },
+    { lastOrder },
     `Retrieved grid trade last ${side} order from cache`
   );
 
-  return cachedLastOrder;
+  return lastOrder;
 };
 
 /**
@@ -78,9 +64,7 @@ const removeLastBuyPrice = async (
   } = data;
 
   // Delete the last buy price from the database
-  await mongo.deleteOne(logger, 'trailing-trade-symbols', {
-    key: `${symbol}-last-buy-price`
-  });
+  await removeLastBuyPriceFromDatabase(logger, symbol);
 
   slack.sendMessage(
     `${symbol} Action (${moment().format(
@@ -187,14 +171,6 @@ const execute = async (logger, rawData) => {
 
   if (action !== 'not-determined') {
     logger.info('Do not process to remove last buy price.');
-    return data;
-  }
-
-  const lastBuyOrder = await getLastBuyOrder(logger, symbol);
-  if (_.isEmpty(lastBuyOrder) === false) {
-    logger.info(
-      'Do not process to remove last buy price because there is a buy order to be confirmed.'
-    );
     return data;
   }
 

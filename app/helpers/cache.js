@@ -27,6 +27,14 @@ const redlock = new Redlock([redis], {
 });
 
 /**
+ * Get keys
+ *
+ * @param {*} pattern
+ * @returns
+ */
+const keys = async pattern => redis.keys(pattern);
+
+/**
  * Set cache value
  *
  * @param {*} key
@@ -138,6 +146,7 @@ const hdel = async (key, field) => {
 };
 
 module.exports = {
+  keys,
   set,
   get,
   getWithTTL,

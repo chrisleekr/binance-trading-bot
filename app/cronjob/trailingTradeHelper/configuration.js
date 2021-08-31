@@ -25,6 +25,8 @@ const saveGlobalConfiguration = async (logger, configuration) => {
     }
   );
 
+  await cache.del('trailing-trade-configurations');
+
   PubSub.publish('reset-binance-websocket', true);
 
   return result;
@@ -132,7 +134,7 @@ const saveSymbolConfiguration = async (
     return {};
   }
 
-  return mongo.upsertOne(
+  const result = await mongo.upsertOne(
     logger,
     'trailing-trade-symbols',
     {
@@ -143,6 +145,10 @@ const saveSymbolConfiguration = async (
       ...configuration
     }
   );
+
+  await cache.hdel('trailing-trade-configurations', symbol);
+
+  return result;
 };
 
 /**
@@ -158,7 +164,7 @@ const saveSymbolGridTrade = async (logger, symbol = null, gridTrade = {}) => {
     return {};
   }
 
-  return mongo.upsertOne(
+  const result = await mongo.upsertOne(
     logger,
     'trailing-trade-grid-trade',
     {
@@ -169,6 +175,10 @@ const saveSymbolGridTrade = async (logger, symbol = null, gridTrade = {}) => {
       ...gridTrade
     }
   );
+
+  await cache.hdel('trailing-trade-configurations', symbol);
+
+  return result;
 };
 
 /**
@@ -297,7 +307,7 @@ const saveSymbolGridTradeArchive = async (logger, key = null, data = {}) => {
     return {};
   }
 
-  return mongo.upsertOne(
+  const result = await mongo.upsertOne(
     logger,
     'trailing-trade-grid-trade-archive',
     {
@@ -308,6 +318,12 @@ const saveSymbolGridTradeArchive = async (logger, key = null, data = {}) => {
       ...data
     }
   );
+
+  // Refresh configuration
+  const { symbol } = data;
+  await cache.hdel('trailing-trade-configurations', symbol);
+
+  return result;
 };
 
 const archiveSymbolGridTrade = async (logger, symbol = null) => {
@@ -352,6 +368,9 @@ const archiveSymbolGridTrade = async (logger, symbol = null) => {
     archivedGridTrade
   );
 
+  // Refresh configuration
+  await cache.hdel('trailing-trade-configurations', symbol);
+
   return archivedGridTrade;
 };
 
@@ -361,10 +380,14 @@ const archiveSymbolGridTrade = async (logger, symbol = null) => {
  * @param {*} logger
  * @returns
  */
-const deleteAllSymbolConfiguration = async logger =>
-  mongo.deleteAll(logger, 'trailing-trade-symbols', {
+const deleteAllSymbolConfiguration = async logger => {
+  const result = await mongo.deleteAll(logger, 'trailing-trade-symbols', {
     key: { $regex: /^(.+)-configuration/ }
   });
+
+  await cache.del('trailing-trade-configurations');
+  return result;
+};
 
 /**
  * Delete specific symbol configuration
@@ -372,10 +395,14 @@ const deleteAllSymbolConfiguration = async logger =>
  * @param {*} symbol
  * @returns
  */
-const deleteSymbolConfiguration = async (logger, symbol) =>
-  mongo.deleteOne(logger, 'trailing-trade-symbols', {
+const deleteSymbolConfiguration = async (logger, symbol) => {
+  const result = await mongo.deleteOne(logger, 'trailing-trade-symbols', {
     key: `${symbol}-configuration`
   });
+
+  await cache.hdel('trailing-trade-configurations', symbol);
+  return result;
+};
 
 /**
  * Delete all symbol grid trade information
@@ -383,8 +410,13 @@ const deleteSymbolConfiguration = async (logger, symbol) =>
  * @param {*} logger
  * @returns
  */
-const deleteAllSymbolGridTrade = async logger =>
-  mongo.deleteAll(logger, 'trailing-trade-grid-trade', {});
+const deleteAllSymbolGridTrade = async logger => {
+  const result = await mongo.deleteAll(logger, 'trailing-trade-grid-trade', {});
+
+  await cache.del('trailing-trade-configurations');
+
+  return result;
+};
 
 /**
  * Delete specific symbol grid trade information
@@ -392,10 +424,15 @@ const deleteAllSymbolGridTrade = async logger =>
  * @param {*} symbol
  * @returns
  */
-const deleteSymbolGridTrade = async (logger, symbol) =>
-  mongo.deleteOne(logger, 'trailing-trade-grid-trade', {
+const deleteSymbolGridTrade = async (logger, symbol) => {
+  const result = await mongo.deleteOne(logger, 'trailing-trade-grid-trade', {
     key: `${symbol}`
   });
+
+  await cache.hdel('trailing-trade-configurations', symbol);
+
+  return result;
+};
 
 /**
  * Get buy max purchase amount of grid trade for buying
@@ -722,6 +759,16 @@ const postProcessConfiguration = async (
  * @param {*} symbol
  */
 const getConfiguration = async (logger, symbol = null) => {
+  // To reduce MongoDB query, try to get cached configuration first.
+  const cachedConfiguration =
+    JSON.parse(
+      await cache.hget('trailing-trade-configurations', `${symbol || 'global'}`)
+    ) || {};
+
+  if (_.isEmpty(cachedConfiguration) === false) {
+    return cachedConfiguration;
+  }
+
   // If symbol is not provided, then it only looks up global configuration
   const globalConfigValue = await getGlobalConfiguration(logger);
   const symbolConfigValue = await getSymbolConfiguration(logger, symbol);
@@ -734,8 +781,10 @@ const getConfiguration = async (logger, symbol = null) => {
       ? _.omit(globalConfigValue, 'buy.gridTrade', 'sell.gridTrade')
       : globalConfigValue
   );
+  let cachedSymbolInfo;
+
   if (symbol !== null) {
-    const cachedSymbolInfo =
+    cachedSymbolInfo =
       JSON.parse(
         await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
       ) || {};
@@ -774,7 +823,15 @@ const getConfiguration = async (logger, symbol = null) => {
     );
   }
 
-  // Merge global and symbol configuration
+  // Save final configuration to cache
+  if (symbol === null || _.isEmpty(cachedSymbolInfo) === false) {
+    await cache.hset(
+      'trailing-trade-configurations',
+      `${symbol || 'global'}`,
+      JSON.stringify(mergedConfigValue)
+    );
+  }
+
   return mergedConfigValue;
 };
 

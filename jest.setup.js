@@ -1,4 +1,4 @@
-process.env.TZ = 'Australia/Melbourne';
+process.env.TZ = 'UTC';
 const jestSetup = async () => {};
 
 module.exports = jestSetup;

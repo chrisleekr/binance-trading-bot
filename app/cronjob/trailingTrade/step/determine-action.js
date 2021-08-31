@@ -1,8 +1,8 @@
 const _ = require('lodash');
 const moment = require('moment');
 
-const { cache } = require('../../../helpers');
 const { isActionDisabled } = require('../../trailingTradeHelper/common');
+const { getGridTradeOrder } = require('../../trailingTradeHelper/order');
 
 /**
  * Check whether can buy or not
@@ -196,16 +196,18 @@ const setSellActionAndMessage = (logger, rawData, action, processMessage) => {
  * @returns
  */
 const getGridTradeLastOrder = async (logger, symbol, side) => {
-  const cachedLastOrder =
-    JSON.parse(await cache.get(`${symbol}-grid-trade-last-${side}-order`)) ||
-    {};
+  const lastOrder =
+    (await getGridTradeOrder(
+      logger,
+      `${symbol}-grid-trade-last-${side}-order`
+    )) || {};
 
   logger.info(
-    { cachedLastOrder },
+    { lastOrder },
     `Retrieved grid trade last ${side} order from cache`
   );
 
-  return cachedLastOrder;
+  return lastOrder;
 };
 
 /**

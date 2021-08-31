@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 /* eslint-disable global-require */
 const { logger } = require('../../helpers');
 
@@ -447,6 +448,36 @@ describe('trailingTradeIndicator', () => {
             expect(mockSlackSendMessage).not.toHaveBeenCalled();
           });
         }
+      });
+    });
+
+    describe(`redlock error`, () => {
+      beforeEach(async () => {
+        mockConfigGet = jest.fn(_key => null);
+
+        jest.mock('config', () => ({
+          get: mockConfigGet
+        }));
+
+        mockGetGlobalConfiguration = jest.fn().mockRejectedValueOnce(
+          new (class CustomError extends Error {
+            constructor() {
+              super();
+              this.code = 500;
+              this.message = `redlock:lock-XRPBUSD`;
+            }
+          })()
+        );
+
+        const {
+          execute: trailingTradeIndicatorExecute
+        } = require('../trailingTradeIndicator');
+
+        await trailingTradeIndicatorExecute(logger);
+      });
+
+      it('does not trigger slack.sendMessagage', () => {
+        expect(mockSlackSendMessage).not.toHaveBeenCalled();
       });
     });
   });

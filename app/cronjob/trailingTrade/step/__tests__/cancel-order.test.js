@@ -6,40 +6,39 @@ describe('cancel-order.js', () => {
   let binanceMock;
   let slackMock;
   let loggerMock;
-  let cacheMock;
   let PubSubMock;
 
   let mockGetAPILimit;
   let mockGetAndCacheOpenOrdersForSymbol;
   let mockGetAccountInfoFromAPI;
 
+  let mockDeleteManualOrder;
+
   describe('execute', () => {
     beforeEach(() => {
       jest.clearAllMocks().resetModules();
 
-      const {
-        binance,
-        slack,
-        cache,
-        PubSub,
-        logger
-      } = require('../../../../helpers');
+      const { binance, slack, PubSub, logger } = require('../../../../helpers');
 
       binanceMock = binance;
       slackMock = slack;
-      cacheMock = cache;
       PubSubMock = PubSub;
       loggerMock = logger;
 
       slackMock.sendMessage = jest.fn().mockResolvedValue(true);
       binanceMock.client.cancelOrder = jest.fn().mockResolvedValue(true);
-      cacheMock.hdel = jest.fn().mockResolvedValue(true);
       mockGetAPILimit = jest.fn().mockReturnValue(10);
       mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
       mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
         account: 'info'
       });
       PubSubMock.publish = jest.fn().mockResolvedValue(true);
+
+      mockDeleteManualOrder = jest.fn().mockResolvedValue(true);
+
+      jest.mock('../../../trailingTradeHelper/order', () => ({
+        deleteManualOrder: mockDeleteManualOrder
+      }));
     });
 
     describe('when symbol is locked', () => {
@@ -167,6 +166,14 @@ describe('cancel-order.js', () => {
           });
         });
 
+        it('deleteManualOrder', () => {
+          expect(mockDeleteManualOrder).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT',
+            'order-123'
+          );
+        });
+
         it('returns expected value', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
@@ -267,6 +274,14 @@ describe('cancel-order.js', () => {
             symbol: 'BTCUSDT',
             orderId: 'order-123'
           });
+        });
+
+        it('deleteManualOrder', () => {
+          expect(mockDeleteManualOrder).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT',
+            'order-123'
+          );
         });
 
         it('returns expected value', () => {

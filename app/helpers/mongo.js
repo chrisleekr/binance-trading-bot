@@ -31,6 +31,8 @@ const connect = async funcLogger => {
     logger.error({ e }, 'Error on connecting to mongodb');
     process.exit(1);
   }
+
+  return database;
 };
 
 /**
@@ -115,7 +117,13 @@ const insertOne = async (funcLogger, collectionName, document) => {
   const collection = database.collection(collectionName);
 
   logger.info({ collectionName, document }, 'Inserting document to MongoDB');
-  const result = await collection.insertOne(document);
+  const result = await collection.insertOne(document, {
+    // https://docs.mongodb.com/v3.2/reference/write-concern/
+    writeConcern: {
+      w: 0,
+      j: false
+    }
+  });
   logger.info({ result }, 'Inserted document to MongoDB');
 
   return result;
@@ -143,7 +151,14 @@ const upsertOne = async (funcLogger, collectionName, filter, document) => {
   const result = await collection.updateOne(
     filter,
     { $set: document },
-    { upsert: true }
+    {
+      upsert: true,
+      // https://docs.mongodb.com/v3.2/reference/write-concern/
+      writeConcern: {
+        w: 0,
+        j: false
+      }
+    }
   );
   logger.info({ result }, 'Upserted document to MongoDB');
 
@@ -164,7 +179,13 @@ const deleteAll = async (funcLogger, collectionName, filter) => {
 
   logger.info({ collectionName, filter }, 'Deleting documents from MongoDB');
   const collection = database.collection(collectionName);
-  const result = collection.deleteMany(filter);
+  const result = collection.deleteMany(filter, {
+    // https://docs.mongodb.com/v3.2/reference/write-concern/
+    writeConcern: {
+      w: 0,
+      j: false
+    }
+  });
   logger.info({ result }, 'Deleted documents from MongoDB');
 
   return result;
@@ -184,7 +205,13 @@ const deleteOne = async (funcLogger, collectionName, filter) => {
 
   logger.info({ collectionName, filter }, 'Deleting document from MongoDB');
   const collection = database.collection(collectionName);
-  const result = collection.deleteOne(filter);
+  const result = collection.deleteOne(filter, {
+    // https://docs.mongodb.com/v3.2/reference/write-concern/
+    writeConcern: {
+      w: 0,
+      j: false
+    }
+  });
   logger.info({ result }, 'Deleted document from MongoDB');
 
   return result;

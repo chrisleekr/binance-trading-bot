@@ -1,13 +1,13 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, slack, cache } = require('../../../helpers');
+const { binance, slack } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
   isExceedAPILimit,
-  getAPILimit,
-  saveOrder
+  getAPILimit
 } = require('../../trailingTradeHelper/common');
+const { saveGridTradeOrder } = require('../../trailingTradeHelper/order');
 
 /**
  * Place a buy order if has enough balance
@@ -238,29 +238,11 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Order result');
 
-  // Set last buy order to be checked over 2 minutes
-  await cache.set(`${symbol}-last-buy-order`, JSON.stringify(orderResult), 120);
-
   // Set last buy grid order to be checked until it is executed
-  await cache.set(
-    `${symbol}-grid-trade-last-buy-order`,
-    JSON.stringify({
-      ...orderResult,
-      currentGridTradeIndex,
-      nextCheck: moment().add(checkOrderExecutePeriod, 'seconds')
-    })
-  );
-
-  // Save order
-  await saveOrder(logger, {
-    order: {
-      ...orderResult
-    },
-    botStatus: {
-      savedAt: moment().format(),
-      savedBy: 'place-buy-order',
-      savedMessage: 'The buy order is placed.'
-    }
+  await saveGridTradeOrder(logger, `${symbol}-grid-trade-last-buy-order`, {
+    ...orderResult,
+    currentGridTradeIndex,
+    nextCheck: moment().add(checkOrderExecutePeriod, 'seconds').format()
   });
 
   // Get open orders and update cache

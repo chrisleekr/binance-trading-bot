@@ -1,7 +1,7 @@
 # Binance Trading Bot
 
 [![GitHub version](https://img.shields.io/github/package-json/v/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/releases)
-[![Build](https://github.com/chrisleekr/binance-trading-bot/workflows/main/badge.svg)](https://github.com/chrisleekr/binance-trading-bot/actions?query=workflow%3Amain)
+[![Build](https://github.com/chrisleekr/binance-trading-bot/workflows/Push/badge.svg)](https://github.com/chrisleekr/binance-trading-bot/actions?query=workflow%3APush)
 [![CodeCov](https://codecov.io/gh/chrisleekr/binance-trading-bot/branch/master/graph/badge.svg)](https://codecov.io/gh/chrisleekr/binance-trading-bot)
 [![Docker pull](https://img.shields.io/docker/pulls/chrisleekr/binance-trading-bot)](https://hub.docker.com/r/chrisleekr/binance-trading-bot)
 [![GitHub contributors](https://img.shields.io/github/contributors/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
@@ -348,7 +348,7 @@ Or use the frontend to adjust configurations after launching the application.
 
 | Password Protected | Frontend Mobile |
 | ------------------ | --------------- |
-| ![Password Protected](https://user-images.githubusercontent.com/5715919/127773484-51d01881-4933-454e-9052-9965b222e716.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/129367660-743f89fd-2eae-4113-8ce7-6249ba47926a.png) |
+| ![Password Protected](https://user-images.githubusercontent.com/5715919/127773484-51d01881-4933-454e-9052-9965b222e716.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/131497627-3c637c9a-f0b8-4e8f-a8d7-6002f1602944.png) |
 
 | Setting | Manual Trade |
 | ------- | ------------ |
@@ -356,7 +356,7 @@ Or use the frontend to adjust configurations after launching the application.
 
 | Frontend Desktop  | Closed Trades |
 | ----------------- | ------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/129367482-2d88144a-b5e3-49b1-ae11-f21e7251dab0.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/129367521-019cf591-26f2-4d69-ac9e-9f631605aab2.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/131497813-03cef79b-7b43-4e61-90d9-a4b6d7f1a91b.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/131497856-28ec42b7-1290-4b74-8644-d74516758a5b.png) |
 
 ### Sample Trade
 
@@ -370,6 +370,7 @@ Please refer
 [CHANGELOG.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/CHANGELOG.md)
 to view the past changes.
 
+- [ ] Clear exchange/symbol info cache in the Redis periodically - [#284](https://github.com/chrisleekr/binance-trading-bot/issues/284)
 - [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
 - [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
 - [ ] Add minimum required order amount - [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)

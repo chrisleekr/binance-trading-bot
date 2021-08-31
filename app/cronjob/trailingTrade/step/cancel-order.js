@@ -1,10 +1,11 @@
 const moment = require('moment');
-const { binance, slack, cache, PubSub } = require('../../../helpers');
+const { binance, slack, PubSub } = require('../../../helpers');
 const {
   getAPILimit,
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
+const { deleteManualOrder } = require('../../trailingTradeHelper/order');
 
 /**
  * Cancel order
@@ -49,7 +50,7 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Cancelling order result');
 
-  await cache.hdel(`trailing-trade-manual-order-${symbol}`, order.orderId);
+  await deleteManualOrder(logger, symbol, order.orderId);
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

@@ -1,11 +1,11 @@
 const moment = require('moment');
-const { binance, slack, cache, PubSub } = require('../../../helpers');
+const { binance, slack, PubSub } = require('../../../helpers');
 const {
   getAPILimit,
   getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI,
-  saveOrder
+  getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
+const { saveManualOrder } = require('../../trailingTradeHelper/order');
 
 /**
  * Format order params for market total
@@ -200,25 +200,10 @@ const recordOrder = async (logger, orderResult, checkManualOrderPeriod) => {
 
   // Save manual order
   logger.info({ orderResult }, 'Record  order');
-  await cache.hset(
-    `trailing-trade-manual-order-${symbol}`,
-    orderId,
-    JSON.stringify({
-      ...orderResult,
-      nextCheck: moment().add(checkManualOrderPeriod, 'seconds')
-    })
-  );
 
-  // Save order
-  await saveOrder(logger, {
-    order: {
-      ...orderResult
-    },
-    botStatus: {
-      savedAt: moment().format(),
-      savedBy: 'place-manual-trade',
-      savedMessage: 'The manual order is placed.'
-    }
+  await saveManualOrder(logger, symbol, orderId, {
+    ...orderResult,
+    nextCheck: moment().add(checkManualOrderPeriod, 'seconds').format()
   });
 };
 
