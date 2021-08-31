@@ -11,7 +11,6 @@ module.exports.up = async () => {
 
   logger.info('Start migration');
 
-  let collection;
   let result;
 
   await Promise.all(
@@ -20,7 +19,7 @@ module.exports.up = async () => {
       'trailing-trade-symbols',
       'trailing-trade-grid-trade'
     ].map(async collectionName => {
-      collection = database.collection(collectionName);
+      const collection = database.collection(collectionName);
       try {
         result = await collection.dropIndex(`${collectionName}-key-idx`);
       } catch (e) {
@@ -39,16 +38,18 @@ module.exports.up = async () => {
   );
 
   const collectionName = 'trailing-trade-grid-trade-archive';
-  collection = database.collection(collectionName);
+  const gridTradeArchiveCollection = database.collection(collectionName);
   try {
-    result = await collection.dropIndex(`${collectionName}-quote-asset-idx`);
+    result = await gridTradeArchiveCollection.dropIndex(
+      `${collectionName}-quote-asset-idx`
+    );
   } catch (e) {
     logger.warn(
       `Index '${collectionName}-quote-asset-idx' is not found. It's ok.`
     );
   }
 
-  result = await collection.createIndex(
+  result = await gridTradeArchiveCollection.createIndex(
     { quoteAsset: 1, archivedAt: 1 },
     {
       name: `${collectionName}-quote-asset-idx`,
@@ -57,12 +58,14 @@ module.exports.up = async () => {
   );
 
   try {
-    result = await collection.dropIndex(`${collectionName}-symbol-idx`);
+    result = await gridTradeArchiveCollection.dropIndex(
+      `${collectionName}-symbol-idx`
+    );
   } catch (e) {
     logger.warn(`Index '${collectionName}-symbol-idx' is not found. It's ok.`);
   }
 
-  result = await collection.createIndex(
+  result = await gridTradeArchiveCollection.createIndex(
     { symbol: 1, archivedAt: 1 },
     {
       name: `${collectionName}-symbol-idx`,
@@ -71,12 +74,14 @@ module.exports.up = async () => {
   );
 
   try {
-    result = await collection.dropIndex(`${collectionName}-idx`);
+    result = await gridTradeArchiveCollection.dropIndex(
+      `${collectionName}-idx`
+    );
   } catch (e) {
     logger.warn(`Index '${collectionName}-idx' is not found. It's ok.`);
   }
 
-  result = await collection.createIndex(
+  result = await gridTradeArchiveCollection.createIndex(
     {
       symbol: 1,
       quoteAsset: 1,

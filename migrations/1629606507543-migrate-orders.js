@@ -15,14 +15,15 @@ module.exports.up = async () => {
 
   logger.info('Start migration');
 
-  let collection;
   let keys;
   let result;
 
   // Create index
-  collection = database.collection('trailing-trade-grid-trade-orders');
+  const gridTradeOrderscollection = database.collection(
+    'trailing-trade-grid-trade-orders'
+  );
   try {
-    result = await collection.dropIndex(
+    result = await gridTradeOrderscollection.dropIndex(
       `trailing-trade-grid-trade-orders-key-idx`
     );
   } catch (e) {
@@ -31,7 +32,7 @@ module.exports.up = async () => {
     );
   }
 
-  result = await collection.createIndex(
+  result = await gridTradeOrderscollection.createIndex(
     { key: 1 },
     { name: `trailing-trade-grid-trade-orders-key-idx` }
   );
@@ -55,16 +56,20 @@ module.exports.up = async () => {
   }
 
   // Create index
-  collection = database.collection('trailing-trade-manual-orders');
+  const manualOrdersCollection = database.collection(
+    'trailing-trade-manual-orders'
+  );
   try {
-    result = await collection.dropIndex(`trailing-trade-manual-orders-key-idx`);
+    result = await manualOrdersCollection.dropIndex(
+      `trailing-trade-manual-orders-key-idx`
+    );
   } catch (e) {
     logger.warn(
       `Index 'trailing-trade-manual-orders-key-idx' is not found. It's ok.`
     );
   }
 
-  result = await collection.createIndex(
+  result = await manualOrdersCollection.createIndex(
     { symbol: 1, orderId: 1 },
     { name: `trailing-trade-manual-orders-key-idx` }
   );
