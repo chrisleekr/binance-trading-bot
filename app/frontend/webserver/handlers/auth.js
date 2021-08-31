@@ -50,7 +50,7 @@ const handleAuth = async (funcLogger, app) => {
         type: 'rotating-file',
         period: '4w',
         count: 3,
-        path: `${process.cwd()}/logs/auth.log`,
+        path: `${process.cwd()}/fail2ban/logs/binance-trailing-bot-auth.log`,
         level: 'TRACE'
       }
     ]
