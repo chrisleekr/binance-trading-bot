@@ -67,7 +67,24 @@
       "__description": "Set a boolean to enable authentication on the bot.",
       "__format": "boolean"
     },
-    "password": "BINANCE_AUTHENTICATION_PASSWORD"
+    "password": "BINANCE_AUTHENTICATION_PASSWORD",
+    "loginLimiter": {
+      "maxConsecutiveFails": {
+        "__name": "BINANCE_AUTHENTICATION_LOGIN_LIMITER_MAX_CONSECUTIVE_FAILS",
+        "__description": "Set number of allowed login failures. If failed maximum consecutive fails, the bot will block the request based on the block duration (seconds).",
+        "__format": "number"
+      },
+      "duration": {
+        "__name": "BINANCE_AUTHENTICATION_LOGIN_LIMITER_DURATION",
+        "__description": "Set seconds for storing points since the first login failure.",
+        "__format": "number"
+      },
+      "blockDuration": {
+        "__name": "BINANCE_AUTHENTICATION_LOGIN_LIMITER_BLOCK_DURATION",
+        "__description": "Set seconds for blocking the request after reaching maximum consecutive login failures.",
+        "__format": "number"
+      }
+    }
   },
   "jobs": {
     "alive": {

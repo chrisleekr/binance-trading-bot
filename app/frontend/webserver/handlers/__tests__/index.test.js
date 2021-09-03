@@ -7,6 +7,9 @@ describe('index', () => {
   let mockHandleGridTradeArchiveDelete;
   let mockHandleClosedTradesSetPeriod;
   let mockHandle404;
+
+  let mockLoginLimiter;
+
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
 
@@ -15,6 +18,8 @@ describe('index', () => {
     mockHandleGridTradeArchiveDelete = jest.fn().mockResolvedValue(true);
     mockHandleClosedTradesSetPeriod = jest.fn().mockResolvedValue(true);
     mockHandle404 = jest.fn().mockResolvedValue(true);
+
+    mockLoginLimiter = jest.fn().mockReturnValue(true);
 
     jest.mock('../auth', () => ({
       handleAuth: mockHandleAuth
@@ -37,11 +42,15 @@ describe('index', () => {
     }));
 
     index = require('../index');
-    await index.setHandlers('logger', 'app');
+    await index.setHandlers('logger', 'app', {
+      loginLimiter: mockLoginLimiter
+    });
   });
 
   it('triggers handleAuth', () => {
-    expect(mockHandle404).toHaveBeenCalledWith('logger', 'app');
+    expect(mockHandleAuth).toHaveBeenCalledWith('logger', 'app', {
+      loginLimiter: mockLoginLimiter
+    });
   });
 
   it('triggers handleGridTradeArchiveGet', () => {

@@ -3,6 +3,8 @@
 describe('webserver/configure.js', () => {
   let mockSetHandlers;
 
+  let mockLoginLimiter;
+
   let cacheMock;
   let loggerMock;
 
@@ -10,6 +12,8 @@ describe('webserver/configure.js', () => {
     jest.clearAllMocks().resetModules();
 
     mockSetHandlers = jest.fn().mockResolvedValue(true);
+
+    mockLoginLimiter = jest.fn().mockReturnValue(true);
 
     jest.mock('../handlers', () => ({
       setHandlers: mockSetHandlers
@@ -26,7 +30,9 @@ describe('webserver/configure.js', () => {
       cacheMock.set = jest.fn().mockReturnValue(true);
 
       const { configureWebServer } = require('../configure');
-      await configureWebServer('app', loggerMock);
+      await configureWebServer('app', loggerMock, {
+        loginLimiter: mockLoginLimiter
+      });
     });
 
     it('triggers cache.get', () => {
@@ -41,7 +47,9 @@ describe('webserver/configure.js', () => {
     });
 
     it(`triggers setHandlers`, () => {
-      expect(mockSetHandlers).toHaveBeenCalledWith(loggerMock, 'app');
+      expect(mockSetHandlers).toHaveBeenCalledWith(loggerMock, 'app', {
+        loginLimiter: mockLoginLimiter
+      });
     });
   });
 
@@ -55,7 +63,9 @@ describe('webserver/configure.js', () => {
       cacheMock.set = jest.fn().mockReturnValue(true);
 
       const { configureWebServer } = require('../configure');
-      await configureWebServer('app', loggerMock);
+      await configureWebServer('app', loggerMock, {
+        loginLimiter: mockLoginLimiter
+      });
     });
 
     it('triggers cache.get', () => {

@@ -147,6 +147,7 @@ const hdel = async (key, field) => {
 };
 
 module.exports = {
+  redis,
   keys,
   set,
   get,

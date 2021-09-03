@@ -7,6 +7,12 @@ describe('webserver/handlers/auth', () => {
   let PubSubMock;
   let loggerMock;
 
+  let mockRequestIpGetClientIp;
+
+  let mockLoginLimiterDelete;
+  let mockLoginLimiterConsume;
+  let mockLoginLimiter;
+
   let resSendMock;
 
   const appMock = {
@@ -51,6 +57,18 @@ describe('webserver/handlers/auth', () => {
       }
     });
 
+    mockRequestIpGetClientIp = jest.fn().mockReturnValue('127.0.0.1');
+    jest.mock('request-ip', () => ({
+      getClientIp: mockRequestIpGetClientIp
+    }));
+
+    mockLoginLimiterDelete = jest.fn().mockResolvedValue(true);
+    mockLoginLimiterConsume = jest.fn().mockResolvedValue(true);
+    mockLoginLimiter = {
+      consume: mockLoginLimiterConsume,
+      delete: mockLoginLimiterDelete
+    };
+
     jest.mock('../../../../cronjob/trailingTradeHelper/configuration', () => ({
       getGlobalConfiguration: mockGetGlobalConfiguration
     }));
@@ -92,7 +110,9 @@ describe('webserver/handlers/auth', () => {
             }
           };
           const { handleAuth } = require('../auth');
-          await handleAuth(loggerMock, appMock);
+          await handleAuth(loggerMock, appMock, {
+            loginLimiter: mockLoginLimiter
+          });
         });
 
         it('triggers PubSub.publish', () => {
@@ -103,6 +123,14 @@ describe('webserver/handlers/auth', () => {
               title: 'Sorry, please enter correct password.'
             }
           );
+        });
+
+        it('triggers loginLimiter.consume', () => {
+          expect(mockLoginLimiterConsume).toHaveBeenCalledWith('127.0.0.1');
+        });
+
+        it('does not trigger loginLimiter.delete', () => {
+          expect(mockLoginLimiterDelete).not.toHaveBeenCalled();
         });
 
         it('return unauthorised', () => {
@@ -137,7 +165,7 @@ describe('webserver/handlers/auth', () => {
         }
       };
       const { handleAuth } = require('../auth');
-      await handleAuth(loggerMock, appMock);
+      await handleAuth(loggerMock, appMock, { loginLimiter: mockLoginLimiter });
     });
 
     it('triggers PubSub.publish', () => {
@@ -145,6 +173,14 @@ describe('webserver/handlers/auth', () => {
         type: 'success',
         title: 'You are authenticated.'
       });
+    });
+
+    it('does not trigger loginLimiter.consume', () => {
+      expect(mockLoginLimiterConsume).not.toHaveBeenCalled();
+    });
+
+    it('triggers loginLimiter.delete', () => {
+      expect(mockLoginLimiterDelete).toHaveBeenCalledWith('127.0.0.1');
     });
 
     it('return unauthorised', () => {

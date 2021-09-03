@@ -4,8 +4,8 @@ const { handleGridTradeArchiveDelete } = require('./grid-trade-archive-delete');
 const { handleClosedTradesSetPeriod } = require('./closed-trades-set-period');
 const { handle404 } = require('./404');
 
-const setHandlers = async (logger, app) => {
-  await handleAuth(logger, app);
+const setHandlers = async (logger, app, { loginLimiter }) => {
+  await handleAuth(logger, app, { loginLimiter });
   await handleGridTradeArchiveGet(logger, app);
   await handleGridTradeArchiveDelete(logger, app);
   await handleClosedTradesSetPeriod(logger, app);

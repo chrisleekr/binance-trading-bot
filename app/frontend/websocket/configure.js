@@ -1,4 +1,5 @@
 const WebSocket = require('ws');
+const config = require('config');
 
 const {
   verifyAuthenticated
@@ -38,7 +39,7 @@ const handleWarning = (logger, ws, message) => {
   );
 };
 
-const configureWebSocket = async (server, funcLogger) => {
+const configureWebSocket = async (server, funcLogger, { loginLimiter }) => {
   const logger = funcLogger.child({ server: 'websocket' });
   const wss = new WebSocket.Server({
     noServer: true
@@ -47,6 +48,24 @@ const configureWebSocket = async (server, funcLogger) => {
   wss.on('connection', ws => {
     ws.on('message', async message => {
       logger.info({ message }, 'received');
+
+      // eslint-disable-next-line no-underscore-dangle
+      const clientIp = ws._socket.remoteAddress;
+      const rateLimiterLogin = await loginLimiter.get(clientIp);
+
+      if (
+        config.get('authentication.enabled') &&
+        rateLimiterLogin.remainingPoints <= 0
+      ) {
+        handleWarning(
+          logger,
+          ws,
+          `You are blocked until ${new Date(
+            Date.now() + rateLimiterLogin.msBeforeNext
+          )}.`
+        );
+        return;
+      }
 
       let payload;
       try {
