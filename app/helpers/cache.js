@@ -5,7 +5,8 @@ const Redlock = require('redlock');
 const redis = new Redis({
   host: config.get('redis.host'),
   port: config.get('redis.port'),
-  password: config.get('redis.password')
+  password: config.get('redis.password'),
+  db: config.get('redis.db')
 });
 
 const redlock = new Redlock([redis], {
