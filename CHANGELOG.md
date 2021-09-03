@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Updated redis.conf to disable AOF for improving performance
 - Moved grid/manual orders to MongoDB from Redis since Redis is not persistent anymore
 - Updated MongoDB to not acknowledge insert/update/delete
+- Updated Slack message for authentication. Thanks [@caebwallace](https://github.com/caebwallace) - [#287](https://github.com/chrisleekr/binance-trading-bot/pull/287)
 
 ## [0.0.77] - 2021-08-27
 

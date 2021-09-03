@@ -109,7 +109,7 @@ describe('webserver/handlers/auth', () => {
           expect(resSendMock).toHaveBeenCalledWith({
             success: false,
             status: 401,
-            message: 'Unautorised',
+            message: 'Unauthorized',
             data: {
               authToken: ''
             }
@@ -151,7 +151,7 @@ describe('webserver/handlers/auth', () => {
       expect(resSendMock).toHaveBeenCalledWith({
         success: true,
         status: 200,
-        message: 'Autorised',
+        message: 'Authorized',
         data: {
           authToken: 'authToken'
         }
