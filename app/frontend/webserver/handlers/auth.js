@@ -44,17 +44,7 @@ const generateToken = async logger => {
 
 const handleAuth = async (funcLogger, app) => {
   const logger = funcLogger.child({ endpoint: '/auth' });
-  const authLogger = logger.child({
-    streams: [
-      {
-        type: 'rotating-file',
-        period: '4w',
-        count: 3,
-        path: `${process.cwd()}/fail2ban/logs/binance-trailing-bot-auth.log`,
-        level: 'TRACE'
-      }
-    ]
-  });
+
   app.route('/auth').post(async (req, res) => {
     const { password: requestedPassword } = req.body;
     const clientIp = requestIp.getClientIp(req);
@@ -76,8 +66,6 @@ const handleAuth = async (funcLogger, app) => {
     );
 
     if (!checkPasswordSuccess) {
-      authLogger.error(`auth failed; ${requestedPassword}; IP[${clientIp}];`);
-
       PubSub.publish('frontend-notification', {
         type: 'error',
         title: 'Sorry, please enter correct password.'
@@ -102,8 +90,6 @@ const handleAuth = async (funcLogger, app) => {
     }
 
     const authToken = await generateToken(logger);
-
-    authLogger.error(`auth successful; ***********; IP[${clientIp}];`);
 
     PubSub.publish('frontend-notification', {
       type: 'success',

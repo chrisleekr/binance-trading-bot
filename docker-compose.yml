@@ -14,7 +14,6 @@ services:
       - ./app:/srv/app
       - ./public:/srv/public
       - ./migrations:/srv/migrations
-      - ./fail2ban/logs:/srv/fail2ban/logs
     env_file:
       - .env
     restart: unless-stopped
@@ -66,20 +65,6 @@ services:
       - 8081:8081
     environment:
       ME_CONFIG_MONGODB_SERVER: binance-mongo
-
-  binance-fail2ban:
-    image: crazymax/fail2ban:latest
-    container_name: binance-fail2ban
-    network_mode: host
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    volumes:
-      # mount separately to avoid db folder is created
-      - ./fail2ban/filter.d:/data/filter.d
-      - ./fail2ban/jail.d:/data/jail.d
-      - ./fail2ban/logs:/data/logs
-    restart: always
 
 networks:
   internal:

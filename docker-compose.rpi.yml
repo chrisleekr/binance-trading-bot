@@ -6,8 +6,6 @@ services:
     image: chrisleekr/binance-trading-bot:latest
     networks:
       - internal
-    volumes:
-      - ./fail2ban/logs:/srv/fail2ban/logs
     env_file:
       - .env
     restart: unless-stopped
@@ -38,20 +36,6 @@ services:
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
     command:
       redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
-
-  # binance-fail2ban:
-  #   image: crazymax/fail2ban:latest
-  #   container_name: binance-fail2ban
-  #   network_mode: host
-  #   cap_add:
-  #     - NET_ADMIN
-  #     - NET_RAW
-  #   volumes:
-  #     # mount separately to avoid db folder is created
-  #     - ./fail2ban/filter.d:/data/filter.d
-  #     - ./fail2ban/jail.d:/data/jail.d
-  #     - ./fail2ban/logs:/data/logs
-  #   restart: always
 
   binance-mongo:
     container_name: binance-mongo

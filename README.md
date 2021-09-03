@@ -364,13 +364,6 @@ Or use the frontend to adjust configurations after launching the application.
 | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | ![Chart](https://user-images.githubusercontent.com/5715919/111027391-192db300-8444-11eb-8df4-91c98d0c835b.png) | ![Buy Orders](https://user-images.githubusercontent.com/5715919/111027403-36628180-8444-11eb-91dc-f3cdabc5a79e.png) | ![Sell Orders](https://user-images.githubusercontent.com/5715919/111027411-4b3f1500-8444-11eb-8525-37f02a63de25.png) |
 
-## Server configuration
-
-### Fail2ban
-
-If authentication is enabled, you can ban clients with fail2ban if they try to brute force authentication.
-Please refer to [etc/fail2ban/INSTALL.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/etc/fail2ban/INSTALL.md)
-
 ## Changes & Todo
 
 Please refer
