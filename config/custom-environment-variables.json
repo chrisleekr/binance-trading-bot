@@ -17,7 +17,8 @@
       "__name": "BINANCE_REDIS_PORT",
       "__format": "number"
     },
-    "password": "BINANCE_REDIS_PASSWORD"
+    "password": "BINANCE_REDIS_PASSWORD",
+    "db": "BINANCE_REDIS_DB"
   },
   "mongo": {
     "host": "BINANCE_MONGO_HOST",
