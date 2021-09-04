@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.0.78] - 2021-09-05
 
 - Added indexes for MongoDB
 - Updated configuration to use cache as well to improve performance
@@ -10,10 +10,12 @@ All notable changes to this project will be documented in this file.
 - Moved grid/manual orders to MongoDB from Redis since Redis is not persistent anymore
 - Updated MongoDB to not acknowledge insert/update/delete
 - Updated Slack message for authentication. Thanks [@caebwallace](https://github.com/caebwallace) - [#287](https://github.com/chrisleekr/binance-trading-bot/pull/287)
+- Support Redis DB. Thanks [@azorpax](https://github.com/azorpax) - [#292](https://github.com/chrisleekr/binance-trading-bot/pull/292)
+- Support Rate Limiter to prevent brute force. Thanks [@caebwallace](https://github.com/caebwallace) - [#287](https://github.com/chrisleekr/binance-trading-bot/pull/287)
 
 ## [0.0.77] - 2021-08-27
 
-- Support setting minimum logging level. Thanks [ruslan-khalitov](https://github.com/ruslan-khalitov) - [#280](https://github.com/chrisleekr/binance-trading-bot/pull/280)
+- Support setting minimum logging level. Thanks [@ruslan-khalitov](https://github.com/ruslan-khalitov) - [#280](https://github.com/chrisleekr/binance-trading-bot/pull/280)
 - Fixed cached symbol info is not removed when saving the global configuration
 
 ## [0.0.76] - 2021-08-17

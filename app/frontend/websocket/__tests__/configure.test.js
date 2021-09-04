@@ -12,6 +12,9 @@ describe('websocket/configure.js', () => {
   let mockWebSocketServerHandleUpgrade;
   let mockWebSocketServerEmit;
 
+  let mockLoginLimiterGet;
+  let mockLoginLimiter;
+
   const mockHandlers = {
     handleLatest: null,
     handleSettingUpdate: null,
@@ -31,12 +34,15 @@ describe('websocket/configure.js', () => {
 
   let PubSubMock;
   let cacheMock;
+  let loggerMock;
 
   let wss;
   let config;
   let jwt;
 
+  let authenticationEnabled = true;
   let jwtVerifyResult = false;
+  let remainingPoints = 5;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -98,6 +104,8 @@ describe('websocket/configure.js', () => {
               enabled: true
             }
           };
+        case 'authentication.enabled':
+          return authenticationEnabled;
         default:
           return `value-${key}`;
       }
@@ -157,6 +165,14 @@ describe('websocket/configure.js', () => {
       });
 
     mockWebSocketServerEmit = jest.fn().mockReturnValue(true);
+
+    remainingPoints = 5;
+    mockLoginLimiterGet = jest.fn().mockResolvedValue({
+      remainingPoints
+    });
+    mockLoginLimiter = {
+      get: mockLoginLimiterGet
+    };
   });
 
   describe('when message is not JSON', () => {
@@ -171,6 +187,7 @@ describe('websocket/configure.js', () => {
 
       mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
         cb({
+          _socket: { remoteAddress: '127.0.0.1' },
           on: mockWebSocketServerWebSocketOn,
           send: mockWebSocketServerWebSocketSend
         });
@@ -184,7 +201,9 @@ describe('websocket/configure.js', () => {
       const { logger } = require('../../../helpers');
 
       const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
+      configureWebSocket(mockExpressServer, logger, {
+        loginLimiter: mockLoginLimiter
+      });
     });
 
     it('triggers WebSocket.Server', () => {
@@ -232,6 +251,7 @@ describe('websocket/configure.js', () => {
 
       mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
         cb({
+          _socket: { remoteAddress: '127.0.0.1' },
           on: mockWebSocketServerWebSocketOn,
           send: mockWebSocketServerWebSocketSend
         });
@@ -246,7 +266,9 @@ describe('websocket/configure.js', () => {
       const { logger } = require('../../../helpers');
 
       const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
+      configureWebSocket(mockExpressServer, logger, {
+        loginLimiter: mockLoginLimiter
+      });
     });
 
     it('triggers ws.send with connection_success', () => {
@@ -290,6 +312,7 @@ describe('websocket/configure.js', () => {
 
       mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
         cb({
+          _socket: { remoteAddress: '127.0.0.1' },
           on: mockWebSocketServerWebSocketOn,
           send: mockWebSocketServerWebSocketSend
         });
@@ -304,7 +327,9 @@ describe('websocket/configure.js', () => {
       const { logger } = require('../../../helpers');
 
       const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
+      configureWebSocket(mockExpressServer, logger, {
+        loginLimiter: mockLoginLimiter
+      });
     });
 
     it('triggers ws.send with connection_success', () => {
@@ -333,48 +358,141 @@ describe('websocket/configure.js', () => {
   });
 
   describe('when message command is latest', () => {
-    describe('when authenticated', () => {
+    const initialise = () => {
+      mockLoginLimiterGet = jest.fn().mockResolvedValue({
+        remainingPoints
+      });
+      mockLoginLimiter = {
+        get: mockLoginLimiterGet
+      };
+
+      mockWebSocketServerWebSocketOn = jest
+        .fn()
+        .mockImplementation((_event, cb) => {
+          cb(
+            JSON.stringify({
+              command: 'latest',
+              authToken: 'authToken'
+            })
+          );
+        });
+
+      mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
+
+      mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
+        cb({
+          _socket: { remoteAddress: '127.0.0.1' },
+          on: mockWebSocketServerWebSocketOn,
+          send: mockWebSocketServerWebSocketSend
+        });
+      });
+
+      WebSocket.Server.mockImplementation(() => ({
+        on: mockWebSocketServerOn,
+        handleUpgrade: mockWebSocketServerHandleUpgrade,
+        emit: mockWebSocketServerEmit
+      }));
+
+      const { logger, PubSub, cache } = require('../../../helpers');
+
+      loggerMock = logger;
+      PubSubMock = PubSub;
+      PubSubMock.subscribe = jest.fn().mockImplementation((_event, cb) => {
+        cb('my-message', 'my-data');
+      });
+
+      cacheMock = cache;
+      cacheMock.get = jest.fn().mockReturnValue('jwtSecret');
+    };
+
+    describe('when authentication is disabled', () => {
       beforeEach(() => {
+        remainingPoints = 5;
+        authenticationEnabled = false;
         jwtVerifyResult = true;
 
-        mockWebSocketServerWebSocketOn = jest
-          .fn()
-          .mockImplementation((_event, cb) => {
-            cb(
-              JSON.stringify({
-                command: 'latest',
-                authToken: 'authToken'
-              })
-            );
-          });
-
-        mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-        mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-          cb({
-            on: mockWebSocketServerWebSocketOn,
-            send: mockWebSocketServerWebSocketSend
-          });
-        });
-
-        WebSocket.Server.mockImplementation(() => ({
-          on: mockWebSocketServerOn,
-          handleUpgrade: mockWebSocketServerHandleUpgrade,
-          emit: mockWebSocketServerEmit
-        }));
-
-        const { logger, PubSub, cache } = require('../../../helpers');
-
-        PubSubMock = PubSub;
-        PubSubMock.subscribe = jest.fn().mockImplementation((_event, cb) => {
-          cb('my-message', 'my-data');
-        });
-
-        cacheMock = cache;
-        cacheMock.get = jest.fn().mockReturnValue('jwtSecret');
+        initialise();
 
         const { configureWebSocket } = require('../configure');
-        configureWebSocket(mockExpressServer, logger);
+        configureWebSocket(mockExpressServer, loggerMock, {
+          loginLimiter: mockLoginLimiter
+        });
+      });
+
+      it('does not trigger jwt.verify', () => {
+        expect(jwt.verify).not.toHaveBeenCalled();
+      });
+
+      it('triggers handleLatest', () => {
+        expect(mockHandlers.handleLatest).toHaveBeenCalledWith(
+          expect.any(Object),
+          expect.any(Object),
+          {
+            command: 'latest',
+            authToken: 'authToken',
+            isAuthenticated: true
+          }
+        );
+      });
+
+      it('returns wss', () => {
+        expect(wss).not.toBeNull();
+      });
+    });
+
+    describe('when remaining points is 0', () => {
+      beforeEach(() => {
+        remainingPoints = 0;
+        authenticationEnabled = true;
+        jwtVerifyResult = true;
+
+        initialise();
+
+        const { configureWebSocket } = require('../configure');
+        configureWebSocket(mockExpressServer, loggerMock, {
+          loginLimiter: mockLoginLimiter
+        });
+      });
+
+      it('does not triggers jwt.verify', () => {
+        expect(jwt.verify).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger handleLatest', () => {
+        expect(mockHandlers.handleLatest).not.toHaveBeenCalled();
+      });
+
+      it('triggers ws.send with error', () => {
+        const args = JSON.parse(
+          mockWebSocketServerWebSocketSend.mock.calls[2][0]
+        );
+        expect(args).toStrictEqual({
+          result: false,
+          type: 'notification',
+          message: {
+            type: 'warning',
+            title: expect.stringContaining('You are blocked until')
+          }
+        });
+      });
+
+      it('returns wss', () => {
+        expect(wss).not.toBeNull();
+      });
+    });
+
+    describe('when authenticated', () => {
+      beforeEach(() => {
+        remainingPoints = 5;
+        authenticationEnabled = true;
+        jwtVerifyResult = true;
+
+        initialise();
+
+        const { configureWebSocket } = require('../configure');
+        configureWebSocket(mockExpressServer, loggerMock, {
+          loginLimiter: mockLoginLimiter
+        });
       });
 
       it('triggers jwt.verify', () => {
@@ -402,46 +520,16 @@ describe('websocket/configure.js', () => {
 
     describe('when is not authenticated', () => {
       beforeEach(() => {
+        remainingPoints = 5;
+        authenticationEnabled = true;
         jwtVerifyResult = false;
 
-        mockWebSocketServerWebSocketOn = jest
-          .fn()
-          .mockImplementation((_event, cb) => {
-            cb(
-              JSON.stringify({
-                command: 'latest',
-                authToken: 'authToken'
-              })
-            );
-          });
-
-        mockWebSocketServerWebSocketSend = jest.fn().mockReturnValue(true);
-
-        mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
-          cb({
-            on: mockWebSocketServerWebSocketOn,
-            send: mockWebSocketServerWebSocketSend
-          });
-        });
-
-        WebSocket.Server.mockImplementation(() => ({
-          on: mockWebSocketServerOn,
-          handleUpgrade: mockWebSocketServerHandleUpgrade,
-          emit: mockWebSocketServerEmit
-        }));
-
-        const { logger, PubSub, cache } = require('../../../helpers');
-
-        PubSubMock = PubSub;
-        PubSubMock.subscribe = jest.fn().mockImplementation((_event, cb) => {
-          cb('my-message', 'my-data');
-        });
-
-        cacheMock = cache;
-        cacheMock.get = jest.fn().mockReturnValue('jwtSecret');
+        initialise();
 
         const { configureWebSocket } = require('../configure');
-        configureWebSocket(mockExpressServer, logger);
+        configureWebSocket(mockExpressServer, loggerMock, {
+          loginLimiter: mockLoginLimiter
+        });
       });
 
       it('triggers jwt.verify', () => {
@@ -525,6 +613,7 @@ describe('websocket/configure.js', () => {
     describe(`when message command is ${t.command}`, () => {
       describe('when authenticated', () => {
         beforeEach(() => {
+          authenticationEnabled = true;
           jwtVerifyResult = true;
 
           mockWebSocketServerWebSocketOn = jest
@@ -542,6 +631,7 @@ describe('websocket/configure.js', () => {
 
           mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
             cb({
+              _socket: { remoteAddress: '127.0.0.1' },
               on: mockWebSocketServerWebSocketOn,
               send: mockWebSocketServerWebSocketSend
             });
@@ -564,7 +654,9 @@ describe('websocket/configure.js', () => {
           cacheMock.get = jest.fn().mockReturnValue('jwtSecret');
 
           const { configureWebSocket } = require('../configure');
-          configureWebSocket(mockExpressServer, logger);
+          configureWebSocket(mockExpressServer, logger, {
+            loginLimiter: mockLoginLimiter
+          });
         });
 
         it('triggers jwt.verify', () => {
@@ -591,6 +683,7 @@ describe('websocket/configure.js', () => {
 
       describe('when is not authenticated', () => {
         beforeEach(() => {
+          authenticationEnabled = true;
           jwtVerifyResult = false;
 
           mockWebSocketServerWebSocketOn = jest
@@ -608,6 +701,7 @@ describe('websocket/configure.js', () => {
 
           mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
             cb({
+              _socket: { remoteAddress: '127.0.0.1' },
               on: mockWebSocketServerWebSocketOn,
               send: mockWebSocketServerWebSocketSend
             });
@@ -630,7 +724,9 @@ describe('websocket/configure.js', () => {
           cacheMock.get = jest.fn().mockReturnValue('jwtSecret');
 
           const { configureWebSocket } = require('../configure');
-          configureWebSocket(mockExpressServer, logger);
+          configureWebSocket(mockExpressServer, logger, {
+            loginLimiter: mockLoginLimiter
+          });
         });
 
         it('triggers jwt.verify', () => {
@@ -652,6 +748,7 @@ describe('websocket/configure.js', () => {
 
   describe('PubSub.subscribe', () => {
     beforeEach(() => {
+      authenticationEnabled = true;
       jwtVerifyResult = true;
 
       mockWebSocketServerWebSocketOn = jest
@@ -669,6 +766,7 @@ describe('websocket/configure.js', () => {
 
       mockWebSocketServerOn = jest.fn().mockImplementation((_event, cb) => {
         cb({
+          _socket: { remoteAddress: '127.0.0.1' },
           on: mockWebSocketServerWebSocketOn,
           send: mockWebSocketServerWebSocketSend
         });
@@ -691,7 +789,9 @@ describe('websocket/configure.js', () => {
       cacheMock.get = jest.fn().mockReturnValue('jwtSecret');
 
       const { configureWebSocket } = require('../configure');
-      configureWebSocket(mockExpressServer, logger);
+      configureWebSocket(mockExpressServer, logger, {
+        loginLimiter: mockLoginLimiter
+      });
     });
 
     it('triggers handleCancelOrder', () => {

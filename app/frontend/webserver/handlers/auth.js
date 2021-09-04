@@ -42,7 +42,7 @@ const generateToken = async logger => {
   );
 };
 
-const handleAuth = async (funcLogger, app) => {
+const handleAuth = async (funcLogger, app, { loginLimiter }) => {
   const logger = funcLogger.child({ endpoint: '/auth' });
 
   app.route('/auth').post(async (req, res) => {
@@ -66,6 +66,8 @@ const handleAuth = async (funcLogger, app) => {
     );
 
     if (!checkPasswordSuccess) {
+      await loginLimiter.consume(clientIp);
+
       PubSub.publish('frontend-notification', {
         type: 'error',
         title: 'Sorry, please enter correct password.'
@@ -88,6 +90,8 @@ const handleAuth = async (funcLogger, app) => {
         }
       });
     }
+
+    await loginLimiter.delete(clientIp);
 
     const authToken = await generateToken(logger);
 

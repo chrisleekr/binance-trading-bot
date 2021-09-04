@@ -15,13 +15,13 @@ const configureJWTToken = async () => {
   return jwtSecret;
 };
 
-const configureWebServer = async (app, funcLogger) => {
+const configureWebServer = async (app, funcLogger, { loginLimiter }) => {
   const logger = funcLogger.child({ server: 'webserver' });
 
   // Firstly get(or set) JWT secret
   await configureJWTToken();
 
-  await setHandlers(logger, app);
+  await setHandlers(logger, app, { loginLimiter });
 };
 
 module.exports = { configureWebServer };

@@ -40,7 +40,12 @@
   },
   "authentication": {
     "enabled": true,
-    "password": "123456"
+    "password": "123456",
+    "loginLimiter": {
+      "maxConsecutiveFails": 5,
+      "duration": 10800,
+      "blockDuration": 900
+    }
   },
   "jobs": {
     "alive": {
