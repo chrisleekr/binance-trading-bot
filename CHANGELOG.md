@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.0.78] - 2021-09-04
+## [0.0.78] - 2021-09-05
 
 - Added indexes for MongoDB
 - Updated configuration to use cache as well to improve performance
