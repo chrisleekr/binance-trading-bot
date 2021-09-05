@@ -47,14 +47,21 @@ const handleLatest = async (logger, ws, payload) => {
     return;
   }
 
-  const cacheTrailingTradeCommon = await cache.hgetall('trailing-trade-common');
+  const cacheTrailingTradeCommon = await cache.hgetall(
+    'trailing-trade-common:',
+    'trailing-trade-common:*'
+  );
 
   const cacheTrailingTradeSymbols = await cache.hgetall(
-    'trailing-trade-symbols'
+    'trailing-trade-symbols:',
+    'trailing-trade-symbols:*-processed-data'
   );
 
   const cacheTrailingTradeClosedTrades = _.map(
-    await cache.hgetall('trailing-trade-closed-trades'),
+    await cache.hgetall(
+      'trailing-trade-closed-trades:',
+      'trailing-trade-closed-trades:*'
+    ),
     stats => JSON.parse(stats)
   );
 
@@ -83,7 +90,7 @@ const handleLatest = async (logger, ws, payload) => {
   _.forIn(cacheTrailingTradeSymbols, (value, key) => {
     const { symbol, newKey } = getSymbolFromKey(key);
 
-    if (newKey === 'data') {
+    if (newKey === 'processed-data') {
       stats.symbols[symbol] = JSON.parse(value);
     }
   });

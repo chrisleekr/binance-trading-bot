@@ -19,7 +19,11 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  cache.hset('trailing-trade-symbols', `${symbol}-data`, JSON.stringify(data));
+  cache.hset(
+    'trailing-trade-symbols',
+    `${symbol}-processed-data`,
+    JSON.stringify(data)
+  );
   return data;
 };
 

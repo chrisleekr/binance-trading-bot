@@ -73,9 +73,7 @@ describe('setting-update.test.js', () => {
         cacheMock.hdel = jest.fn().mockResolvedValue(true);
         cacheMock.hgetall = jest.fn().mockResolvedValue({
           'BTCUSDT-symbol-info': JSON.stringify({ some: 'value' }),
-          'BTCUSDT-data': JSON.stringify({ another: 'value' }),
-          'ETHUSDT-symbol-info': JSON.stringify({ some: 'value' }),
-          'ETHUSDT-latest-candle': JSON.stringify({ another: 'value' })
+          'ETHUSDT-symbol-info': JSON.stringify({ some: 'value' })
         });
 
         mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
@@ -175,14 +173,6 @@ describe('setting-update.test.js', () => {
           'trailing-trade-symbols',
           'ETHUSDT-symbol-info'
         );
-        expect(cacheMock.hdel).not.toHaveBeenCalledWith(
-          'trailing-trade-symbols',
-          'BTCUSDT-data'
-        );
-        expect(cacheMock.hdel).not.toHaveBeenCalledWith(
-          'trailing-trade-symbols',
-          'ETHUSDT-latest-candle'
-        );
       });
 
       it('triggers deleteAllSymbolConfiguration', () => {
@@ -226,9 +216,7 @@ describe('setting-update.test.js', () => {
         cacheMock.hdel = jest.fn().mockResolvedValue(true);
         cacheMock.hgetall = jest.fn().mockResolvedValue({
           'BTCUSDT-symbol-info': JSON.stringify({ some: 'value' }),
-          'BTCUSDT-data': JSON.stringify({ another: 'value' }),
-          'ETHUSDT-symbol-info': JSON.stringify({ some: 'value' }),
-          'ETHUSDT-latest-candle': JSON.stringify({ another: 'value' })
+          'ETHUSDT-symbol-info': JSON.stringify({ some: 'value' })
         });
 
         mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
@@ -327,14 +315,6 @@ describe('setting-update.test.js', () => {
         expect(cacheMock.hdel).toHaveBeenCalledWith(
           'trailing-trade-symbols',
           'ETHUSDT-symbol-info'
-        );
-        expect(cacheMock.hdel).not.toHaveBeenCalledWith(
-          'trailing-trade-symbols',
-          'BTCUSDT-data'
-        );
-        expect(cacheMock.hdel).not.toHaveBeenCalledWith(
-          'trailing-trade-symbols',
-          'ETHUSDT-latest-candle'
         );
       });
 

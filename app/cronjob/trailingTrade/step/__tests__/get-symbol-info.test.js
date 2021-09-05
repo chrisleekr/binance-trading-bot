@@ -119,7 +119,8 @@ describe('get-symbol-info.js', () => {
           'BTCUSDT-symbol-info',
           JSON.stringify(
             require('./fixtures/binance-cached-exchange-info.json')
-          )
+          ),
+          3600
         );
       });
 
@@ -188,7 +189,8 @@ describe('get-symbol-info.js', () => {
           'BTCUSDT-symbol-info',
           JSON.stringify(
             require('./fixtures/binance-cached-exchange-info.json')
-          )
+          ),
+          3600
         );
       });
 

@@ -46,7 +46,8 @@ const cacheExchangeSymbols = async (logger, _globalConfiguration) => {
     await cache.hset(
       'trailing-trade-common',
       'exchange-info',
-      JSON.stringify(exchangeInfo)
+      JSON.stringify(exchangeInfo),
+      3600
     );
   }
 
@@ -70,7 +71,8 @@ const cacheExchangeSymbols = async (logger, _globalConfiguration) => {
   await cache.hset(
     'trailing-trade-common',
     'exchange-symbols',
-    JSON.stringify(exchangeSymbols)
+    JSON.stringify(exchangeSymbols),
+    3600
   );
 
   logger.info({ exchangeSymbols }, 'Saved exchange symbols to cache');
@@ -328,7 +330,7 @@ const removeLastBuyPrice = async (logger, symbol) => {
  */
 const lockSymbol = async (logger, symbol, ttl = 5) => {
   logger.info({ debug: true, symbol }, `Lock ${symbol} for ${ttl} seconds`);
-  return cache.set(`lock-${symbol}`, true, ttl);
+  return cache.hset('bot-lock', symbol, true, ttl);
 };
 
 /**
@@ -339,7 +341,7 @@ const lockSymbol = async (logger, symbol, ttl = 5) => {
  * @returns
  */
 const isSymbolLocked = async (logger, symbol) => {
-  const isLocked = (await cache.get(`lock-${symbol}`)) === 'true';
+  const isLocked = (await cache.hget('bot-lock', symbol)) === 'true';
 
   if (isLocked === true) {
     logger.info(
@@ -364,7 +366,7 @@ const isSymbolLocked = async (logger, symbol) => {
  */
 const unlockSymbol = async (logger, symbol) => {
   logger.info({ debug: true, symbol }, `Unlock ${symbol}`);
-  return cache.del(`lock-${symbol}`);
+  return cache.hdel('bot-lock', symbol);
 };
 
 /**
@@ -583,7 +585,8 @@ const getSymbolInfo = async (logger, symbol) => {
     await cache.hset(
       'trailing-trade-common',
       'exchange-info',
-      JSON.stringify(exchangeInfo)
+      JSON.stringify(exchangeInfo),
+      3600
     );
   }
 
@@ -626,7 +629,8 @@ const getSymbolInfo = async (logger, symbol) => {
   cache.hset(
     'trailing-trade-symbols',
     `${symbol}-symbol-info`,
-    JSON.stringify(finalSymbolInfo)
+    JSON.stringify(finalSymbolInfo),
+    3600
   );
 
   return finalSymbolInfo;

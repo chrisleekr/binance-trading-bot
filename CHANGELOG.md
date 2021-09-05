@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Clear exchange/symbol info cache in the Redis periodically - [#284](https://github.com/chrisleekr/binance-trading-bot/issues/284)
+
 ## [0.0.78] - 2021-09-05
 
 - Added indexes for MongoDB

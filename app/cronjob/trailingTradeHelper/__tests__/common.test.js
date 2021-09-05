@@ -66,7 +66,8 @@ describe('common.js', () => {
           'exchange-info',
           JSON.stringify(
             _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
-          )
+          ),
+          3600
         );
       });
 
@@ -76,7 +77,8 @@ describe('common.js', () => {
           'exchange-symbols',
           JSON.stringify(
             require('./fixtures/binance-cached-exchange-symbols.json')
-          )
+          ),
+          3600
         );
       });
     });
@@ -140,7 +142,8 @@ describe('common.js', () => {
             'exchange-info',
             JSON.stringify(
               _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
-            )
+            ),
+            3600
           );
         });
 
@@ -150,7 +153,8 @@ describe('common.js', () => {
             'exchange-symbols',
             JSON.stringify(
               require('./fixtures/binance-cached-exchange-symbols.json')
-            )
+            ),
+            3600
           );
         });
       });
@@ -213,7 +217,8 @@ describe('common.js', () => {
             'exchange-info',
             JSON.stringify(
               _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
-            )
+            ),
+            3600
           );
         });
 
@@ -223,7 +228,8 @@ describe('common.js', () => {
             'exchange-symbols',
             JSON.stringify(
               require('./fixtures/binance-cached-exchange-symbols.json')
-            )
+            ),
+            3600
           );
         });
       });
@@ -284,7 +290,8 @@ describe('common.js', () => {
           'exchange-info',
           JSON.stringify(
             _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
-          )
+          ),
+          3600
         );
       });
 
@@ -294,7 +301,8 @@ describe('common.js', () => {
           'exchange-symbols',
           JSON.stringify(
             require('./fixtures/binance-cached-exchange-symbols.json')
-          )
+          ),
+          3600
         );
       });
     });
@@ -799,14 +807,19 @@ describe('common.js', () => {
         cacheMock = cache;
         loggerMock = logger;
 
-        cacheMock.set = jest.fn().mockResolvedValue(true);
+        cacheMock.hset = jest.fn().mockResolvedValue(true);
 
         commonHelper = require('../common');
         result = await commonHelper.lockSymbol(loggerMock, 'BTCUSDT');
       });
 
-      it('triggers cache.set', () => {
-        expect(cacheMock.set).toHaveBeenCalledWith('lock-BTCUSDT', true, 5);
+      it('triggers cache.hset', () => {
+        expect(cacheMock.hset).toHaveBeenCalledWith(
+          'bot-lock',
+          'BTCUSDT',
+          true,
+          5
+        );
       });
 
       it('returns expected value', () => {
@@ -821,14 +834,19 @@ describe('common.js', () => {
         cacheMock = cache;
         loggerMock = logger;
 
-        cacheMock.set = jest.fn().mockResolvedValue(true);
+        cacheMock.hset = jest.fn().mockResolvedValue(true);
 
         commonHelper = require('../common');
         result = await commonHelper.lockSymbol(loggerMock, 'BTCUSDT', 10);
       });
 
-      it('triggers cache.set', () => {
-        expect(cacheMock.set).toHaveBeenCalledWith('lock-BTCUSDT', true, 10);
+      it('triggers cache.hset', () => {
+        expect(cacheMock.hset).toHaveBeenCalledWith(
+          'bot-lock',
+          'BTCUSDT',
+          true,
+          10
+        );
       });
 
       it('returns expected value', () => {
@@ -845,14 +863,14 @@ describe('common.js', () => {
         cacheMock = cache;
         loggerMock = logger;
 
-        cacheMock.get = jest.fn().mockResolvedValue('true');
+        cacheMock.hget = jest.fn().mockResolvedValue('true');
 
         commonHelper = require('../common');
         result = await commonHelper.isSymbolLocked(loggerMock, 'BTCUSDT');
       });
 
-      it('triggers cache.get', () => {
-        expect(cacheMock.get).toHaveBeenCalledWith('lock-BTCUSDT');
+      it('triggers cache.hget', () => {
+        expect(cacheMock.hget).toHaveBeenCalledWith('bot-lock', 'BTCUSDT');
       });
 
       it('returns expected value', () => {
@@ -867,14 +885,14 @@ describe('common.js', () => {
         cacheMock = cache;
         loggerMock = logger;
 
-        cacheMock.get = jest.fn().mockResolvedValue(null);
+        cacheMock.hget = jest.fn().mockResolvedValue(null);
 
         commonHelper = require('../common');
         result = await commonHelper.isSymbolLocked(loggerMock, 'BTCUSDT');
       });
 
-      it('triggers cache.get', () => {
-        expect(cacheMock.get).toHaveBeenCalledWith('lock-BTCUSDT');
+      it('triggers cache.hget', () => {
+        expect(cacheMock.hget).toHaveBeenCalledWith('bot-lock', 'BTCUSDT');
       });
 
       it('returns expected value', () => {
@@ -890,14 +908,14 @@ describe('common.js', () => {
       cacheMock = cache;
       loggerMock = logger;
 
-      cacheMock.del = jest.fn().mockResolvedValue(true);
+      cacheMock.hdel = jest.fn().mockResolvedValue(true);
 
       commonHelper = require('../common');
       result = await commonHelper.unlockSymbol(loggerMock, 'BTCUSDT');
     });
 
-    it('triggers cache.del', () => {
-      expect(cacheMock.del).toHaveBeenCalledWith('lock-BTCUSDT');
+    it('triggers cache.hdel', () => {
+      expect(cacheMock.hdel).toHaveBeenCalledWith('bot-lock', 'BTCUSDT');
     });
 
     it('returns expected value', () => {

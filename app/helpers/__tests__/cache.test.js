@@ -9,21 +9,20 @@ describe('cache', () => {
   let mockTTL;
   let mockExec;
   let mockDel;
-  let mockHSet;
-  let mockHGet;
-  let mockHGetAll;
-  let mockHDel;
+  let mockScan;
   let cache;
 
   let mockLock;
   let mockUnlock;
 
+  beforeEach(async () => {
+    jest.clearAllMocks().resetModules();
+
+    jest.mock('config');
+  });
+
   describe('keys', () => {
     beforeEach(async () => {
-      jest.clearAllMocks().resetModules();
-
-      jest.mock('config');
-
       mockKeys = jest.fn(() => ['test1', 'test2']);
       jest.mock('ioredis', () =>
         jest.fn().mockImplementation(() => ({
@@ -47,10 +46,6 @@ describe('cache', () => {
 
   describe('set', () => {
     beforeEach(() => {
-      jest.clearAllMocks().resetModules();
-
-      jest.mock('config');
-
       mockSet = jest.fn(() => true);
       mockSetEx = jest.fn(() => true);
       jest.mock('ioredis', () =>
@@ -128,11 +123,8 @@ describe('cache', () => {
 
   describe('get', () => {
     beforeEach(async () => {
-      jest.clearAllMocks().resetModules();
-
       mockGet = jest.fn(() => 'my-value');
 
-      jest.mock('config');
       jest.mock('ioredis', () =>
         jest.fn().mockImplementation(() => ({
           get: mockGet
@@ -173,8 +165,6 @@ describe('cache', () => {
 
   describe('getWithTTL', () => {
     beforeEach(async () => {
-      jest.clearAllMocks().resetModules();
-
       mockExec = jest.fn(() => 'test');
 
       mockGet = jest.fn(() => ({
@@ -189,7 +179,6 @@ describe('cache', () => {
         ttl: mockTTL
       }));
 
-      jest.mock('config');
       jest.mock('ioredis', () =>
         jest.fn().mockImplementation(() => ({
           multi: mockMulti
@@ -216,10 +205,6 @@ describe('cache', () => {
 
   describe('del', () => {
     beforeEach(async () => {
-      jest.clearAllMocks().resetModules();
-
-      jest.mock('config');
-
       mockDel = jest.fn(() => true);
       jest.mock('ioredis', () =>
         jest.fn().mockImplementation(() => ({
@@ -260,62 +245,99 @@ describe('cache', () => {
   });
 
   describe('hset', () => {
-    beforeEach(() => {
-      jest.clearAllMocks().resetModules();
+    describe('without ttl', () => {
+      beforeEach(async () => {
+        mockSet = jest.fn(() => true);
 
-      jest.mock('config');
+        jest.mock('ioredis', () =>
+          jest.fn().mockImplementation(() => ({
+            set: mockSet
+          }))
+        );
 
-      mockHSet = jest.fn(() => true);
+        mockUnlock = jest.fn(() => true);
+        mockLock = jest.fn(() => ({
+          unlock: mockUnlock
+        }));
+        jest.mock('redlock', () =>
+          jest.fn().mockImplementation(() => ({
+            lock: mockLock
+          }))
+        );
 
-      jest.mock('ioredis', () =>
-        jest.fn().mockImplementation(() => ({
-          hset: mockHSet
-        }))
-      );
+        cache = require('../cache');
+        result = await cache.hset('my-key', 'my-field', 'my-value');
+      });
 
-      mockUnlock = jest.fn(() => true);
-      mockLock = jest.fn(() => ({
-        unlock: mockUnlock
-      }));
-      jest.mock('redlock', () =>
-        jest.fn().mockImplementation(() => ({
-          lock: mockLock
-        }))
-      );
+      it('triggers lock', () => {
+        expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 500);
+      });
 
-      cache = require('../cache');
+      it('triggers set', () => {
+        expect(mockSet).toHaveBeenCalledWith('my-key:my-field', 'my-value');
+      });
+
+      it('triggers unlock', () => {
+        expect(mockUnlock).toHaveBeenCalled();
+      });
+
+      it('returns true', () => {
+        expect(result).toBeTruthy();
+      });
     });
 
-    beforeEach(async () => {
-      result = await cache.hset('my-key', 'my-field', 'my-value');
-    });
+    describe('with ttl', () => {
+      beforeEach(async () => {
+        mockSetEx = jest.fn(() => true);
 
-    it('triggers lock', () => {
-      expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 500);
-    });
+        jest.mock('ioredis', () =>
+          jest.fn().mockImplementation(() => ({
+            setex: mockSetEx
+          }))
+        );
 
-    it('triggers mockHSet', () => {
-      expect(mockHSet).toHaveBeenCalledWith('my-key', 'my-field', 'my-value');
-    });
+        mockUnlock = jest.fn(() => true);
+        mockLock = jest.fn(() => ({
+          unlock: mockUnlock
+        }));
+        jest.mock('redlock', () =>
+          jest.fn().mockImplementation(() => ({
+            lock: mockLock
+          }))
+        );
 
-    it('triggers unlock', () => {
-      expect(mockUnlock).toHaveBeenCalled();
-    });
+        cache = require('../cache');
+        result = await cache.hset('my-key', 'my-field', 'my-value', 3600);
+      });
 
-    it('returns', () => {
-      expect(result).toBeTruthy();
+      it('triggers lock', () => {
+        expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 500);
+      });
+
+      it('triggers setex', () => {
+        expect(mockSetEx).toHaveBeenCalledWith(
+          'my-key:my-field',
+          3600,
+          'my-value'
+        );
+      });
+
+      it('triggers unlock', () => {
+        expect(mockUnlock).toHaveBeenCalled();
+      });
+
+      it('returns true', () => {
+        expect(result).toBeTruthy();
+      });
     });
   });
 
   describe('hget', () => {
     beforeEach(async () => {
-      jest.clearAllMocks().resetModules();
-
-      mockHGet = jest.fn(() => 'my-value');
-      jest.mock('config');
+      mockGet = jest.fn(() => 'my-value');
       jest.mock('ioredis', () =>
         jest.fn().mockImplementation(() => ({
-          hget: mockHGet
+          get: mockGet
         }))
       );
 
@@ -338,8 +360,8 @@ describe('cache', () => {
       expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 500);
     });
 
-    it('triggers mockGet', () => {
-      expect(mockHGet).toHaveBeenCalledWith('my-key', 'my-field');
+    it('triggers get', () => {
+      expect(mockGet).toHaveBeenCalledWith('my-key:my-field');
     });
 
     it('triggers unlock', () => {
@@ -353,23 +375,10 @@ describe('cache', () => {
 
   describe('hgetWithoutLock', () => {
     beforeEach(async () => {
-      jest.clearAllMocks().resetModules();
-
-      mockHGet = jest.fn(() => 'my-value');
-      jest.mock('config');
+      mockGet = jest.fn(() => 'my-value');
       jest.mock('ioredis', () =>
         jest.fn().mockImplementation(() => ({
-          hget: mockHGet
-        }))
-      );
-
-      mockUnlock = jest.fn(() => true);
-      mockLock = jest.fn(() => ({
-        unlock: mockUnlock
-      }));
-      jest.mock('redlock', () =>
-        jest.fn().mockImplementation(() => ({
-          lock: mockLock
+          get: mockGet
         }))
       );
 
@@ -378,16 +387,8 @@ describe('cache', () => {
       result = await cache.hgetWithoutLock('my-key', 'my-field');
     });
 
-    it('does not trigger lock', () => {
-      expect(mockLock).not.toHaveBeenCalled();
-    });
-
-    it('triggers mockGet', () => {
-      expect(mockHGet).toHaveBeenCalledWith('my-key', 'my-field');
-    });
-
-    it('does not trigger unlock', () => {
-      expect(mockUnlock).not.toHaveBeenCalled();
+    it('triggers get', () => {
+      expect(mockGet).toHaveBeenCalledWith('my-key:my-field');
     });
 
     it('returns expected value', () => {
@@ -396,40 +397,156 @@ describe('cache', () => {
   });
 
   describe('hgetall', () => {
-    beforeEach(async () => {
-      jest.clearAllMocks().resetModules();
+    describe('with less than 1000', () => {
+      beforeEach(async () => {
+        mockScan = jest
+          .fn()
+          .mockResolvedValue(['0', ['prefix:key1', 'prefix:key2']]);
+        mockGet = jest.fn().mockImplementation(key => `${key}-value`);
+        jest.mock('ioredis', () =>
+          jest.fn().mockImplementation(() => ({
+            scan: mockScan,
+            get: mockGet
+          }))
+        );
 
-      mockHGetAll = jest.fn(() => 'my-value');
-      jest.mock('config');
-      jest.mock('ioredis', () =>
-        jest.fn().mockImplementation(() => ({
-          hgetall: mockHGetAll
-        }))
-      );
+        cache = require('../cache');
 
-      cache = require('../cache');
+        result = await cache.hgetall('prefix:', 'prefix:key*');
+      });
 
-      result = await cache.hgetall('my-key');
+      it('triggers scan', () => {
+        expect(mockScan).toHaveBeenCalledWith(
+          '0',
+          'MATCH',
+          'prefix:key*',
+          'COUNT',
+          1000
+        );
+      });
+
+      it('triggers redis.get 2 times', () => {
+        expect(mockGet).toHaveBeenCalledTimes(2);
+      });
+
+      it('triggers redis.get', () => {
+        expect(mockGet).toHaveBeenCalledWith('prefix:key1');
+        expect(mockGet).toHaveBeenCalledWith('prefix:key2');
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          key1: 'prefix:key1-value',
+          key2: 'prefix:key2-value'
+        });
+      });
     });
 
-    it('triggers getAll', () => {
-      expect(mockHGetAll).toHaveBeenCalledWith('my-key');
+    describe('with more than 1000', () => {
+      beforeEach(async () => {
+        mockScan = jest
+          .fn()
+          .mockResolvedValueOnce(['1', ['prefix:key1', 'prefix:key2']])
+          .mockResolvedValueOnce(['0', ['prefix:key3', 'prefix:key4']]);
+        mockGet = jest.fn().mockImplementation(key => `${key}-value`);
+
+        jest.mock('ioredis', () =>
+          jest.fn().mockImplementation(() => ({
+            scan: mockScan,
+            get: mockGet
+          }))
+        );
+
+        cache = require('../cache');
+
+        result = await cache.hgetall('prefix:', 'prefix:key*');
+      });
+
+      it('triggers redis.scan twice', () => {
+        expect(mockScan).toHaveBeenCalledTimes(2);
+      });
+
+      it('triggers redis.scan', () => {
+        expect(mockScan).toHaveBeenCalledWith(
+          '0',
+          'MATCH',
+          'prefix:key*',
+          'COUNT',
+          1000
+        );
+
+        expect(mockScan).toHaveBeenCalledWith(
+          '1',
+          'MATCH',
+          'prefix:key*',
+          'COUNT',
+          1000
+        );
+      });
+
+      it('triggers redis.get 4 times', () => {
+        expect(mockGet).toHaveBeenCalledTimes(4);
+      });
+
+      it('triggers redis.get', () => {
+        expect(mockGet).toHaveBeenCalledWith('prefix:key1');
+        expect(mockGet).toHaveBeenCalledWith('prefix:key2');
+        expect(mockGet).toHaveBeenCalledWith('prefix:key3');
+        expect(mockGet).toHaveBeenCalledWith('prefix:key4');
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({
+          key1: 'prefix:key1-value',
+          key2: 'prefix:key2-value',
+          key3: 'prefix:key3-value',
+          key4: 'prefix:key4-value'
+        });
+      });
     });
 
-    it('returns expected value', () => {
-      expect(result).toBe('my-value');
+    describe('for some reason, reply[1] undefined', () => {
+      beforeEach(async () => {
+        mockScan = jest.fn().mockResolvedValue(['0']);
+        mockGet = jest.fn().mockImplementation(key => `${key}-value`);
+        jest.mock('ioredis', () =>
+          jest.fn().mockImplementation(() => ({
+            scan: mockScan,
+            get: mockGet
+          }))
+        );
+
+        cache = require('../cache');
+
+        result = await cache.hgetall('prefix:', 'prefix:key*');
+      });
+
+      it('triggers scan', () => {
+        expect(mockScan).toHaveBeenCalledWith(
+          '0',
+          'MATCH',
+          'prefix:key*',
+          'COUNT',
+          1000
+        );
+      });
+
+      it('triggers redis.get 0 times', () => {
+        expect(mockGet).not.toHaveBeenCalled();
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({});
+      });
     });
   });
 
   describe('hdel', () => {
     beforeEach(async () => {
-      jest.clearAllMocks().resetModules();
-
-      mockHDel = jest.fn(() => 'my-value');
-      jest.mock('config');
+      mockDel = jest.fn(() => 'my-value');
       jest.mock('ioredis', () =>
         jest.fn().mockImplementation(() => ({
-          hdel: mockHDel
+          del: mockDel
         }))
       );
 
@@ -452,12 +569,161 @@ describe('cache', () => {
       expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 500);
     });
 
-    it('triggers hdel', () => {
-      expect(mockHDel).toHaveBeenCalledWith('my-key', 'my-field');
+    it('triggers del', () => {
+      expect(mockDel).toHaveBeenCalledWith('my-key:my-field');
     });
 
     it('triggers unlock', () => {
       expect(mockUnlock).toHaveBeenCalled();
+    });
+  });
+
+  describe('hdelall', () => {
+    beforeEach(() => {
+      mockUnlock = jest.fn(() => true);
+      mockLock = jest.fn(() => ({
+        unlock: mockUnlock
+      }));
+      jest.mock('redlock', () =>
+        jest.fn().mockImplementation(() => ({
+          lock: mockLock
+        }))
+      );
+    });
+
+    describe('with less than 1000', () => {
+      beforeEach(async () => {
+        mockScan = jest
+          .fn()
+          .mockResolvedValue(['0', ['prefix:key1', 'prefix:key2']]);
+        mockDel = jest.fn().mockResolvedValue(true);
+        jest.mock('ioredis', () =>
+          jest.fn().mockImplementation(() => ({
+            scan: mockScan,
+            del: mockDel
+          }))
+        );
+
+        cache = require('../cache');
+
+        result = await cache.hdelall('prefix:key*');
+      });
+
+      it('triggers scan', () => {
+        expect(mockScan).toHaveBeenCalledWith(
+          '0',
+          'MATCH',
+          'prefix:key*',
+          'COUNT',
+          1000
+        );
+      });
+
+      it('triggers redis.del 2 times', () => {
+        expect(mockDel).toHaveBeenCalledTimes(2);
+      });
+
+      it('triggers redis.del', () => {
+        expect(mockDel).toHaveBeenCalledWith('prefix:key1');
+        expect(mockDel).toHaveBeenCalledWith('prefix:key2');
+      });
+
+      it('returns expected value', () => {
+        expect(result).toBeTruthy();
+      });
+    });
+
+    describe('with more than 1000', () => {
+      beforeEach(async () => {
+        mockScan = jest
+          .fn()
+          .mockResolvedValueOnce(['1', ['prefix:key1', 'prefix:key2']])
+          .mockResolvedValueOnce(['0', ['prefix:key3', 'prefix:key4']]);
+        mockDel = jest.fn().mockResolvedValue(true);
+
+        jest.mock('ioredis', () =>
+          jest.fn().mockImplementation(() => ({
+            scan: mockScan,
+            del: mockDel
+          }))
+        );
+
+        cache = require('../cache');
+
+        result = await cache.hdelall('prefix:key*');
+      });
+
+      it('triggers redis.scan twice', () => {
+        expect(mockScan).toHaveBeenCalledTimes(2);
+      });
+
+      it('triggers redis.scan', () => {
+        expect(mockScan).toHaveBeenCalledWith(
+          '0',
+          'MATCH',
+          'prefix:key*',
+          'COUNT',
+          1000
+        );
+
+        expect(mockScan).toHaveBeenCalledWith(
+          '1',
+          'MATCH',
+          'prefix:key*',
+          'COUNT',
+          1000
+        );
+      });
+
+      it('triggers redis.del 4 times', () => {
+        expect(mockDel).toHaveBeenCalledTimes(4);
+      });
+
+      it('triggers redis.del', () => {
+        expect(mockDel).toHaveBeenCalledWith('prefix:key1');
+        expect(mockDel).toHaveBeenCalledWith('prefix:key2');
+        expect(mockDel).toHaveBeenCalledWith('prefix:key3');
+        expect(mockDel).toHaveBeenCalledWith('prefix:key4');
+      });
+
+      it('returns expected value', () => {
+        expect(result).toBeTruthy();
+      });
+    });
+
+    describe('for some reason, reply[1] undefined', () => {
+      beforeEach(async () => {
+        mockScan = jest.fn().mockResolvedValue(['0']);
+        mockDel = jest.fn().mockResolvedValue(true);
+        jest.mock('ioredis', () =>
+          jest.fn().mockImplementation(() => ({
+            scan: mockScan,
+            del: mockDel
+          }))
+        );
+
+        cache = require('../cache');
+
+        result = await cache.hdelall('prefix:key*');
+      });
+
+      it('triggers scan', () => {
+        expect(mockScan).toHaveBeenCalledWith(
+          '0',
+          'MATCH',
+          'prefix:key*',
+          'COUNT',
+          1000
+        );
+      });
+
+      it('triggers redis.del 0 times', () => {
+        expect(mockDel).not.toHaveBeenCalled();
+      });
+
+      it('returns expected value', () => {
+        expect(result).toBeTruthy();
+      });
     });
   });
 });

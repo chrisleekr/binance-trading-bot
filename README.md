@@ -370,7 +370,6 @@ Please refer
 [CHANGELOG.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/CHANGELOG.md)
 to view the past changes.
 
-- [ ] Clear exchange/symbol info cache in the Redis periodically - [#284](https://github.com/chrisleekr/binance-trading-bot/issues/284)
 - [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
 - [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
 - [ ] Add minimum required order amount - [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)

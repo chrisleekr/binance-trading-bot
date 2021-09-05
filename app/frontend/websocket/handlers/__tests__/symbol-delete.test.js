@@ -27,20 +27,18 @@ describe('symbol-delete.test.js', () => {
 
       cacheMock.hdel = jest.fn().mockResolvedValue(true);
       mongoMock.deleteOne = jest.fn().mockResolvedValue(true);
-      cacheMock.hgetall = jest.fn().mockImplementation(key => {
-        if (key === 'trailing-trade-symbols') {
-          return {
+      cacheMock.hgetall = jest.fn().mockImplementation((_key, pattern) => {
+        if (pattern === 'trailing-trade-symbols:BTCUSDT*') {
+          return Promise.resolve({
             'BTCUSDT-key-1': 'value1',
-            'LTCUSDT-key-1': 'value3',
-            'BTCUSDT-last-buy-price': 123,
-            'LTCUSDT-key-2': 'value4'
-          };
+            'BTCUSDT-last-buy-price': 123
+          });
         }
-        return '';
+        return Promise.resolve(null);
       });
 
       const { handleSymbolDelete } = require('../symbol-delete');
-      handleSymbolDelete(logger, mockWebSocketServer, {
+      await handleSymbolDelete(logger, mockWebSocketServer, {
         data: {
           symbolInfo: {
             symbol: 'BTCUSDT'
@@ -53,6 +51,10 @@ describe('symbol-delete.test.js', () => {
       expect(cacheMock.hdel).toHaveBeenCalledWith(
         'trailing-trade-symbols',
         'BTCUSDT-key-1'
+      );
+      expect(cacheMock.hdel).toHaveBeenCalledWith(
+        'trailing-trade-symbols',
+        'BTCUSDT-last-buy-price'
       );
     });
 

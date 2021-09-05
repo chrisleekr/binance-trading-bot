@@ -13,7 +13,7 @@ describe('configuration.js', () => {
 
   describe('saveGlobalConfiguration', () => {
     beforeEach(async () => {
-      cache.del = jest.fn().mockResolvedValue(true);
+      cache.hdelall = jest.fn().mockResolvedValue(true);
       PubSub.publish = jest.fn().mockReturnValue(true);
       mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
@@ -22,8 +22,10 @@ describe('configuration.js', () => {
       });
     });
 
-    it('triggers cache.del', () => {
-      expect(cache.del).toHaveBeenCalledWith('trailing-trade-configurations');
+    it('triggers cache.hdelall', () => {
+      expect(cache.hdelall).toHaveBeenCalledWith(
+        'trailing-trade-configurations:*'
+      );
     });
 
     it('triggers mongo.upsertOne with expected value', () => {
@@ -1002,7 +1004,7 @@ describe('configuration.js', () => {
 
   describe('deleteAllSymbolConfiguration', () => {
     beforeEach(async () => {
-      cache.del = jest.fn().mockResolvedValue(true);
+      cache.hdelall = jest.fn().mockResolvedValue(true);
       mongo.deleteAll = jest.fn().mockResolvedValue(true);
 
       result = await configuration.deleteAllSymbolConfiguration(logger);
@@ -1018,8 +1020,10 @@ describe('configuration.js', () => {
       );
     });
 
-    it('triggers cache.del', () => {
-      expect(cache.del).toHaveBeenCalledWith('trailing-trade-configurations');
+    it('triggers cache.hdelall', () => {
+      expect(cache.hdelall).toHaveBeenCalledWith(
+        'trailing-trade-configurations:*'
+      );
     });
   });
 
@@ -1051,7 +1055,7 @@ describe('configuration.js', () => {
 
   describe('deleteAllSymbolGridTrade', () => {
     beforeEach(async () => {
-      cache.del = jest.fn().mockResolvedValue(true);
+      cache.hdelall = jest.fn().mockResolvedValue(true);
       mongo.deleteAll = jest.fn().mockResolvedValue(true);
 
       result = await configuration.deleteAllSymbolGridTrade(logger);
@@ -1065,8 +1069,10 @@ describe('configuration.js', () => {
       );
     });
 
-    it('triggers cache.del', () => {
-      expect(cache.del).toHaveBeenCalledWith('trailing-trade-configurations');
+    it('triggers cache.hdelall', () => {
+      expect(cache.hdelall).toHaveBeenCalledWith(
+        'trailing-trade-configurations:*'
+      );
     });
   });
 
