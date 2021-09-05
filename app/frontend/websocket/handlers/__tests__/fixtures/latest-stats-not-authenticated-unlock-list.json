@@ -17,7 +17,7 @@
     "sell": {}
   },
   "common": {
-    "version": "0.0.77",
+    "version": "0.0.78",
     "gitHash": "some-hash",
     "accountInfo": {
       "makerCommission": 0,

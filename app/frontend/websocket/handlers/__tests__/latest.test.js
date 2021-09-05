@@ -126,16 +126,16 @@ describe('latest.test.js', () => {
     beforeEach(async () => {
       process.env.GIT_HASH = 'some-hash';
 
-      mockCacheHGetAll = jest.fn().mockImplementation(key => {
-        if (key === 'trailing-trade-common') {
+      mockCacheHGetAll = jest.fn().mockImplementation((_key, pattern) => {
+        if (pattern === 'trailing-trade-common:*') {
           return trailingTradeCommonJson;
         }
 
-        if (key === 'trailing-trade-symbols') {
+        if (pattern === 'trailing-trade-symbols:*-processed-data') {
           return trailingTradeSymbols;
         }
 
-        if (key === 'trailing-trade-closed-trades') {
+        if (pattern === 'trailing-trade-closed-trades:*') {
           return trailingTradeClosedTrades;
         }
 

@@ -46,7 +46,7 @@ describe('save-data-to-cache.js', () => {
       it('triggers cache.hset', () => {
         expect(cache.hset).toHaveBeenCalledWith(
           'trailing-trade-symbols',
-          'BTCUSDT-data',
+          'BTCUSDT-processed-data',
           JSON.stringify(rawData)
         );
       });

@@ -25,7 +25,7 @@ const saveGlobalConfiguration = async (logger, configuration) => {
     }
   );
 
-  await cache.del('trailing-trade-configurations');
+  await cache.hdelall('trailing-trade-configurations:*');
 
   PubSub.publish('reset-binance-websocket', true);
 
@@ -385,7 +385,7 @@ const deleteAllSymbolConfiguration = async logger => {
     key: { $regex: /^(.+)-configuration/ }
   });
 
-  await cache.del('trailing-trade-configurations');
+  await cache.hdelall('trailing-trade-configurations:*');
   return result;
 };
 
@@ -413,7 +413,7 @@ const deleteSymbolConfiguration = async (logger, symbol) => {
 const deleteAllSymbolGridTrade = async logger => {
   const result = await mongo.deleteAll(logger, 'trailing-trade-grid-trade', {});
 
-  await cache.del('trailing-trade-configurations');
+  await cache.hdelall(`trailing-trade-configurations:*`);
 
   return result;
 };

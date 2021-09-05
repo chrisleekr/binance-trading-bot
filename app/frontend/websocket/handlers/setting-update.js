@@ -15,14 +15,15 @@ const deleteAllCachedSymbolInfo = async logger => {
   await cache.hdel('trailing-trade-common', 'exchange-symbols');
   await cache.hdel('trailing-trade-common', 'exchange-info');
 
-  const symbolKeys = await cache.hgetall('trailing-trade-symbols');
+  const symbolKeys = await cache.hgetall(
+    'trailing-trade-symbols:',
+    'trailing-trade-symbols:*-symbol-info'
+  );
 
   await Promise.all(
     Object.keys(symbolKeys).map(async key => {
-      if (key.includes('symbol-info')) {
-        await cache.hdel('trailing-trade-symbols', key);
-        logger.info(`Removed trailing-trade-symbols:${key} cache`);
-      }
+      await cache.hdel('trailing-trade-symbols', key);
+      logger.info(`Removed trailing-trade-symbols:${key} cache`);
     })
   );
 };
