@@ -1115,7 +1115,14 @@ describe('configuration.js', () => {
         };
 
         globalConfiguration = {
-          buy: { gridTrade: [{ maxPurchaseAmounts: { USDT: 10 } }] }
+          buy: {
+            gridTrade: [
+              {
+                minPurchaseAmounts: { USDT: 10 },
+                maxPurchaseAmounts: { USDT: 15 }
+              }
+            ]
+          }
         };
 
         symbolConfiguration = {
@@ -1131,11 +1138,16 @@ describe('configuration.js', () => {
       });
 
       it('returns expected value', () => {
-        expect(result).toStrictEqual([{ maxPurchaseAmount: 10 }]);
+        expect(result).toStrictEqual([
+          {
+            minPurchaseAmount: 10,
+            maxPurchaseAmount: 15
+          }
+        ]);
       });
     });
 
-    describe('when max purchase amount is already defined', () => {
+    describe('when min/max purchase amount is already defined', () => {
       beforeEach(async () => {
         cachedSymbolInfo = {
           quoteAsset: 'USDT',
@@ -1145,8 +1157,14 @@ describe('configuration.js', () => {
         globalConfiguration = {
           buy: {
             gridTrade: [
-              { maxPurchaseAmounts: { USDT: 10 } },
-              { maxPurchaseAmounts: { USDT: 10 } }
+              {
+                minPurchaseAmounts: { USDT: 10 },
+                maxPurchaseAmounts: { USDT: 15 }
+              },
+              {
+                minPurchaseAmounts: { USDT: 15 },
+                maxPurchaseAmounts: { USDT: 20 }
+              }
             ]
           }
         };
@@ -1155,8 +1173,10 @@ describe('configuration.js', () => {
           buy: {
             gridTrade: [
               {
+                minPurchaseAmount: 10,
+                minPurchaseAmounts: { USDT: 10 },
                 maxPurchaseAmount: 15,
-                maxPurchaseAmounts: { USDT: 10 }
+                maxPurchaseAmounts: { USDT: 15 }
               }
             ]
           }
@@ -1173,13 +1193,14 @@ describe('configuration.js', () => {
       it('returns expected value', () => {
         expect(result).toStrictEqual([
           {
+            minPurchaseAmount: 10,
             maxPurchaseAmount: 15
           }
         ]);
       });
     });
 
-    describe('when max purchase amount is not defined', () => {
+    describe('when min/max purchase amount is not defined', () => {
       describe('when cached symbol info is not provided', () => {
         beforeEach(async () => {
           cachedSymbolInfo = {};
@@ -1187,8 +1208,8 @@ describe('configuration.js', () => {
           globalConfiguration = {
             buy: {
               gridTrade: [
-                { maxPurchaseAmounts: {} },
-                { maxPurchaseAmounts: {} }
+                { minPurchaseAmounts: {}, maxPurchaseAmounts: {} },
+                { minPurchaseAmounts: {}, maxPurchaseAmounts: {} }
               ]
             }
           };
@@ -1197,6 +1218,8 @@ describe('configuration.js', () => {
             buy: {
               gridTrade: [
                 {
+                  minPurchaseAmount: -1,
+                  minPurchaseAmounts: {},
                   maxPurchaseAmount: -1,
                   maxPurchaseAmounts: {}
                 }
@@ -1215,6 +1238,7 @@ describe('configuration.js', () => {
         it('returns expected value', () => {
           expect(result).toStrictEqual([
             {
+              minPurchaseAmount: -1,
               maxPurchaseAmount: -1
             }
           ]);
@@ -1232,8 +1256,14 @@ describe('configuration.js', () => {
             globalConfiguration = {
               buy: {
                 gridTrade: [
-                  { maxPurchaseAmounts: { USDT: 10 } },
-                  { maxPurchaseAmounts: { USDT: 10 } }
+                  {
+                    minPurchaseAmounts: { USDT: 10 },
+                    maxPurchaseAmounts: { USDT: 12 }
+                  },
+                  {
+                    minPurchaseAmounts: { USDT: 20 },
+                    maxPurchaseAmounts: { USDT: 24 }
+                  }
                 ]
               }
             };
@@ -1242,8 +1272,8 @@ describe('configuration.js', () => {
               buy: {
                 gridTrade: [
                   {
-                    maxPurchaseAmount: -1,
-                    maxPurchaseAmounts: { USDT: 10 }
+                    minPurchaseAmount: -1,
+                    maxPurchaseAmount: -1
                   }
                 ]
               }
@@ -1260,7 +1290,8 @@ describe('configuration.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual([
               {
-                maxPurchaseAmount: 10
+                minPurchaseAmount: 10,
+                maxPurchaseAmount: 12
               }
             ]);
           });
@@ -1276,9 +1307,9 @@ describe('configuration.js', () => {
             globalConfiguration = {
               buy: {
                 gridTrade: [
-                  { maxPurchaseAmounts: {} },
-                  { maxPurchaseAmounts: {} },
-                  { maxPurchaseAmounts: {} }
+                  { minPurchaseAmounts: {}, maxPurchaseAmounts: {} },
+                  { minPurchaseAmounts: {}, maxPurchaseAmounts: {} },
+                  { minPurchaseAmounts: {}, maxPurchaseAmounts: {} }
                 ]
               }
             };
@@ -1287,6 +1318,8 @@ describe('configuration.js', () => {
               buy: {
                 gridTrade: [
                   {
+                    minPurchaseAmount: -1,
+                    minPurchaseAmounts: {},
                     maxPurchaseAmount: -1,
                     maxPurchaseAmounts: {}
                   }
@@ -1305,6 +1338,7 @@ describe('configuration.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual([
               {
+                minPurchaseAmount: 10,
                 maxPurchaseAmount: 100
               }
             ]);
@@ -2684,7 +2718,7 @@ describe('configuration.js', () => {
       mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
       cache.del = jest.fn().mockResolvedValue(true);
-      cache.hdel = jest.fn().mockResolvedValue(true);
+      cache.hdelall = jest.fn().mockResolvedValue(true);
       cache.hget = jest.fn().mockImplementation((hash, _key) => {
         if (hash === 'trailing-trade-symbols') {
           return Promise.resolve(
@@ -2718,6 +2752,8 @@ describe('configuration.js', () => {
                   triggerPercentage: 1,
                   stopPercentage: 1.02,
                   limitPercentage: 1.021,
+                  minPurchaseAmount: -1,
+                  minPurchaseAmounts: {},
                   maxPurchaseAmount: -1,
                   maxPurchaseAmounts: {}
                 }
@@ -2813,10 +2849,16 @@ describe('configuration.js', () => {
                       triggerPercentage: 1,
                       stopPercentage: 1.02,
                       limitPercentage: 1.021,
+                      minPurchaseAmount: -1,
+                      minPurchaseAmounts: {
+                        USDT: 15,
+                        BTC: 0.002,
+                        BUSD: 30
+                      },
                       maxPurchaseAmount: -1,
                       maxPurchaseAmounts: {
                         USDT: 100,
-                        BTC: 0.001,
+                        BTC: 0.005,
                         BUSD: 100
                       }
                     },
@@ -2824,6 +2866,12 @@ describe('configuration.js', () => {
                       triggerPercentage: 0.9,
                       stopPercentage: 1.02,
                       limitPercentage: 1.021,
+                      minPurchaseAmount: -1,
+                      minPurchaseAmounts: {
+                        USDT: 100,
+                        BTC: 0.001,
+                        BUSD: 100
+                      },
                       maxPurchaseAmount: -1,
                       maxPurchaseAmounts: {
                         USDT: 100,
@@ -2895,18 +2943,21 @@ describe('configuration.js', () => {
                       triggerPercentage: 1,
                       stopPercentage: 1.025,
                       limitPercentage: 1.026,
+                      minPurchaseAmount: 10,
                       maxPurchaseAmount: 10
                     },
                     {
                       triggerPercentage: 0.9,
                       stopPercentage: 1.025,
                       limitPercentage: 1.026,
+                      minPurchaseAmount: 15,
                       maxPurchaseAmount: 20
                     },
                     {
                       triggerPercentage: 0.9,
                       stopPercentage: 1.025,
                       limitPercentage: 1.056,
+                      minPurchaseAmount: 30,
                       maxPurchaseAmount: 30
                     }
                   ],
@@ -2964,13 +3015,17 @@ describe('configuration.js', () => {
                     triggerPercentage: 1,
                     stopPercentage: 1.02,
                     limitPercentage: 1.021,
+                    minPurchaseAmount: -1,
+                    minPurchaseAmounts: { USDT: 15, BTC: 0.002, BUSD: 30 },
                     maxPurchaseAmount: -1,
-                    maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 }
+                    maxPurchaseAmounts: { USDT: 100, BTC: 0.005, BUSD: 100 }
                   },
                   {
                     triggerPercentage: 0.9,
                     stopPercentage: 1.02,
                     limitPercentage: 1.021,
+                    minPurchaseAmount: -1,
+                    minPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 },
                     maxPurchaseAmount: -1,
                     maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 }
                   }
@@ -3029,13 +3084,17 @@ describe('configuration.js', () => {
                   triggerPercentage: 1,
                   stopPercentage: 1.02,
                   limitPercentage: 1.021,
+                  minPurchaseAmount: -1,
+                  minPurchaseAmounts: { USDT: 15, BTC: 0.002, BUSD: 30 },
                   maxPurchaseAmount: -1,
-                  maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 }
+                  maxPurchaseAmounts: { USDT: 100, BTC: 0.005, BUSD: 100 }
                 },
                 {
                   triggerPercentage: 0.9,
                   stopPercentage: 1.02,
                   limitPercentage: 1.021,
+                  minPurchaseAmount: -1,
+                  minPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 },
                   maxPurchaseAmount: -1,
                   maxPurchaseAmounts: { USDT: 100, BTC: 0.001, BUSD: 100 }
                 }
@@ -3151,6 +3210,8 @@ describe('configuration.js', () => {
                     triggerPercentage: 1,
                     stopPercentage: 1.02,
                     limitPercentage: 1.021,
+                    minPurchaseAmount: -1,
+                    minPurchaseAmounts: {},
                     maxPurchaseAmount: -1,
                     maxPurchaseAmounts: {}
                   }
@@ -3210,6 +3271,7 @@ describe('configuration.js', () => {
                   triggerPercentage: 1,
                   stopPercentage: 1.02,
                   limitPercentage: 1.021,
+                  minPurchaseAmount: 10,
                   maxPurchaseAmount: 100,
                   executed: false,
                   executedOrder: null
@@ -3226,6 +3288,7 @@ describe('configuration.js', () => {
                 triggerPercentage: 1,
                 stopPercentage: 1.02,
                 limitPercentage: 1.021,
+                minPurchaseAmount: 10,
                 maxPurchaseAmount: 100,
                 executed: false,
                 executedOrder: null
@@ -3293,6 +3356,12 @@ describe('configuration.js', () => {
                         triggerPercentage: 1,
                         stopPercentage: 1.02,
                         limitPercentage: 1.021,
+                        minPurchaseAmount: -1,
+                        minPurchaseAmounts: {
+                          USDT: 10,
+                          BTC: 0.0001,
+                          BUSD: 10
+                        },
                         maxPurchaseAmount: -1,
                         maxPurchaseAmounts: {
                           USDT: 100,
@@ -3304,6 +3373,12 @@ describe('configuration.js', () => {
                         triggerPercentage: 0.9,
                         stopPercentage: 1.02,
                         limitPercentage: 1.021,
+                        minPurchaseAmount: -1,
+                        minPurchaseAmounts: {
+                          USDT: 50,
+                          BTC: 0.0002,
+                          BUSD: 50
+                        },
                         maxPurchaseAmount: -1,
                         maxPurchaseAmounts: {
                           USDT: 100,
@@ -3396,6 +3471,7 @@ describe('configuration.js', () => {
                     triggerPercentage: 1,
                     stopPercentage: 1.02,
                     limitPercentage: 1.021,
+                    minPurchaseAmount: 10,
                     maxPurchaseAmount: 100,
                     executed: false,
                     executedOrder: null
@@ -3404,6 +3480,7 @@ describe('configuration.js', () => {
                     triggerPercentage: 0.9,
                     stopPercentage: 1.02,
                     limitPercentage: 1.021,
+                    minPurchaseAmount: 50,
                     maxPurchaseAmount: 100,
                     executed: false,
                     executedOrder: null
@@ -3420,6 +3497,7 @@ describe('configuration.js', () => {
                   triggerPercentage: 1,
                   stopPercentage: 1.02,
                   limitPercentage: 1.021,
+                  minPurchaseAmount: 10,
                   maxPurchaseAmount: 100,
                   executed: false,
                   executedOrder: null
@@ -3505,6 +3583,13 @@ describe('configuration.js', () => {
                         triggerPercentage: 1,
                         stopPercentage: 1.025,
                         limitPercentage: 1.026,
+                        minPurchaseAmount: -1,
+                        minPurchaseAmounts: {
+                          USDT: 10,
+                          BTC: 0.001,
+                          BUSD: 100,
+                          ETH: 0.05
+                        },
                         maxPurchaseAmount: -1,
                         maxPurchaseAmounts: {
                           USDT: 10,
@@ -3517,6 +3602,13 @@ describe('configuration.js', () => {
                         triggerPercentage: 0.9,
                         stopPercentage: 1.025,
                         limitPercentage: 1.026,
+                        minPurchaseAmount: -1,
+                        minPurchaseAmounts: {
+                          USDT: 10,
+                          BTC: 0.001,
+                          BUSD: 100,
+                          ETH: 0.05
+                        },
                         maxPurchaseAmount: -1,
                         maxPurchaseAmounts: {
                           USDT: 10,
@@ -3529,6 +3621,13 @@ describe('configuration.js', () => {
                         triggerPercentage: 0.9,
                         stopPercentage: 1.025,
                         limitPercentage: 1.026,
+                        minPurchaseAmount: -1,
+                        minPurchaseAmounts: {
+                          USDT: 10,
+                          BTC: 0.001,
+                          BUSD: 100,
+                          ETH: 0.05
+                        },
                         maxPurchaseAmount: -1,
                         maxPurchaseAmounts: {
                           USDT: 10,
@@ -3614,6 +3713,7 @@ describe('configuration.js', () => {
                     triggerPercentage: 1,
                     stopPercentage: 1.025,
                     limitPercentage: 1.026,
+                    minPurchaseAmount: 10,
                     maxPurchaseAmount: 10,
                     executed: false,
                     executedOrder: null
@@ -3622,6 +3722,7 @@ describe('configuration.js', () => {
                     triggerPercentage: 0.9,
                     stopPercentage: 1.025,
                     limitPercentage: 1.026,
+                    minPurchaseAmount: 10,
                     maxPurchaseAmount: 10,
                     executed: false,
                     executedOrder: null
@@ -3630,6 +3731,7 @@ describe('configuration.js', () => {
                     triggerPercentage: 0.9,
                     stopPercentage: 1.025,
                     limitPercentage: 1.026,
+                    minPurchaseAmount: 10,
                     maxPurchaseAmount: 10,
                     executed: false,
                     executedOrder: null
@@ -3641,6 +3743,7 @@ describe('configuration.js', () => {
                   triggerPercentage: 1,
                   stopPercentage: 1.025,
                   limitPercentage: 1.026,
+                  minPurchaseAmount: 10,
                   maxPurchaseAmount: 10,
                   executed: false,
                   executedOrder: null
@@ -3743,6 +3846,7 @@ describe('configuration.js', () => {
                     triggerPercentage: 1,
                     stopPercentage: 1.02,
                     limitPercentage: 1.021,
+                    minPurchaseAmount: 10,
                     maxPurchaseAmount: 100,
                     executed: false,
                     executedOrder: null
@@ -3759,6 +3863,7 @@ describe('configuration.js', () => {
                   triggerPercentage: 1,
                   stopPercentage: 1.02,
                   limitPercentage: 1.021,
+                  minPurchaseAmount: 10,
                   maxPurchaseAmount: 100,
                   executed: false,
                   executedOrder: null
@@ -3850,6 +3955,7 @@ describe('configuration.js', () => {
                     triggerPercentage: 1,
                     stopPercentage: 1.02,
                     limitPercentage: 1.021,
+                    minPurchaseAmount: -1,
                     maxPurchaseAmount: -1,
                     executed: false,
                     executedOrder: null
@@ -3866,6 +3972,7 @@ describe('configuration.js', () => {
                   triggerPercentage: 1,
                   stopPercentage: 1.02,
                   limitPercentage: 1.021,
+                  minPurchaseAmount: -1,
                   maxPurchaseAmount: -1,
                   executed: false,
                   executedOrder: null
@@ -3937,6 +4044,12 @@ describe('configuration.js', () => {
                             triggerPercentage: 1,
                             stopPercentage: 1.02,
                             limitPercentage: 1.021,
+                            minPurchaseAmount: -1,
+                            minPurchaseAmounts: {
+                              USDT: 10,
+                              BTC: 0.0001,
+                              BUSD: 10
+                            },
                             maxPurchaseAmount: -1,
                             maxPurchaseAmounts: {
                               USDT: 100,
@@ -3948,6 +4061,12 @@ describe('configuration.js', () => {
                             triggerPercentage: 0.9,
                             stopPercentage: 1.02,
                             limitPercentage: 1.021,
+                            minPurchaseAmount: -1,
+                            minPurchaseAmounts: {
+                              USDT: 50,
+                              BTC: 0.0005,
+                              BUSD: 50
+                            },
                             maxPurchaseAmount: -1,
                             maxPurchaseAmounts: {
                               USDT: 100,
@@ -3959,6 +4078,12 @@ describe('configuration.js', () => {
                             triggerPercentage: 0.9,
                             stopPercentage: 1.02,
                             limitPercentage: 1.021,
+                            minPurchaseAmount: -1,
+                            minPurchaseAmounts: {
+                              USDT: 100,
+                              BTC: 0.001,
+                              BUSD: 100
+                            },
                             maxPurchaseAmount: -1,
                             maxPurchaseAmounts: {
                               USDT: 100,
@@ -3970,6 +4095,12 @@ describe('configuration.js', () => {
                             triggerPercentage: 0.9,
                             stopPercentage: 1.02,
                             limitPercentage: 1.021,
+                            minPurchaseAmount: -1,
+                            minPurchaseAmounts: {
+                              USDT: 100,
+                              BTC: 0.001,
+                              BUSD: 100
+                            },
                             maxPurchaseAmount: -1,
                             maxPurchaseAmounts: {
                               USDT: 100,
@@ -4064,12 +4195,14 @@ describe('configuration.js', () => {
                             triggerPercentage: 1,
                             stopPercentage: 1.035,
                             limitPercentage: 1.036,
+                            minPurchaseAmount: 11,
                             maxPurchaseAmount: 11
                           },
                           {
                             triggerPercentage: 0.9,
                             stopPercentage: 1.045,
                             limitPercentage: 1.046,
+                            minPurchaseAmount: 10,
                             maxPurchaseAmount: 22
                           }
                         ],
@@ -4117,6 +4250,7 @@ describe('configuration.js', () => {
                         triggerPercentage: 1,
                         stopPercentage: 1.035,
                         limitPercentage: 1.036,
+                        minPurchaseAmount: 11,
                         maxPurchaseAmount: 11,
                         executed: false,
                         executedOrder: null
@@ -4125,6 +4259,7 @@ describe('configuration.js', () => {
                         triggerPercentage: 0.9,
                         stopPercentage: 1.045,
                         limitPercentage: 1.046,
+                        minPurchaseAmount: 10,
                         maxPurchaseAmount: 22,
                         executed: false,
                         executedOrder: null
@@ -4141,6 +4276,7 @@ describe('configuration.js', () => {
                       triggerPercentage: 1,
                       stopPercentage: 1.035,
                       limitPercentage: 1.036,
+                      minPurchaseAmount: 11,
                       maxPurchaseAmount: 11,
                       executed: false,
                       executedOrder: null
@@ -4210,6 +4346,12 @@ describe('configuration.js', () => {
                             triggerPercentage: 1,
                             stopPercentage: 1.02,
                             limitPercentage: 1.021,
+                            minPurchaseAmount: -1,
+                            minPurchaseAmounts: {
+                              USDT: 10,
+                              BTC: 0.0001,
+                              BUSD: 10
+                            },
                             maxPurchaseAmount: -1,
                             maxPurchaseAmounts: {
                               USDT: 100,
@@ -4282,24 +4424,28 @@ describe('configuration.js', () => {
                             triggerPercentage: 1,
                             stopPercentage: 1.035,
                             limitPercentage: 1.036,
+                            minPurchaseAmount: 10,
                             maxPurchaseAmount: 11
                           },
                           {
                             triggerPercentage: 0.9,
                             stopPercentage: 1.045,
                             limitPercentage: 1.046,
+                            minPurchaseAmount: 10,
                             maxPurchaseAmount: 22
                           },
                           {
                             triggerPercentage: 0.9,
                             stopPercentage: 1.055,
                             limitPercentage: 1.056,
+                            minPurchaseAmount: 22,
                             maxPurchaseAmount: 22
                           },
                           {
                             triggerPercentage: 0.9,
                             stopPercentage: 1.065,
                             limitPercentage: 1.066,
+                            minPurchaseAmount: 22,
                             maxPurchaseAmount: 22
                           }
                         ],
@@ -4356,6 +4502,7 @@ describe('configuration.js', () => {
                         triggerPercentage: 1,
                         stopPercentage: 1.035,
                         limitPercentage: 1.036,
+                        minPurchaseAmount: 10,
                         maxPurchaseAmount: 11,
                         executed: false,
                         executedOrder: null
@@ -4364,6 +4511,7 @@ describe('configuration.js', () => {
                         triggerPercentage: 0.9,
                         stopPercentage: 1.045,
                         limitPercentage: 1.046,
+                        minPurchaseAmount: 10,
                         maxPurchaseAmount: 22,
                         executed: false,
                         executedOrder: null
@@ -4372,6 +4520,7 @@ describe('configuration.js', () => {
                         triggerPercentage: 0.9,
                         stopPercentage: 1.055,
                         limitPercentage: 1.056,
+                        minPurchaseAmount: 22,
                         maxPurchaseAmount: 22,
                         executed: false,
                         executedOrder: null
@@ -4380,6 +4529,7 @@ describe('configuration.js', () => {
                         triggerPercentage: 0.9,
                         stopPercentage: 1.065,
                         limitPercentage: 1.066,
+                        minPurchaseAmount: 22,
                         maxPurchaseAmount: 22,
                         executed: false,
                         executedOrder: null
@@ -4396,6 +4546,7 @@ describe('configuration.js', () => {
                       triggerPercentage: 1,
                       stopPercentage: 1.035,
                       limitPercentage: 1.036,
+                      minPurchaseAmount: 10,
                       maxPurchaseAmount: 11,
                       executed: false,
                       executedOrder: null
@@ -4482,6 +4633,12 @@ describe('configuration.js', () => {
                           triggerPercentage: 1,
                           stopPercentage: 1.02,
                           limitPercentage: 1.021,
+                          minPurchaseAmount: -1,
+                          minPurchaseAmounts: {
+                            USDT: 10,
+                            BTC: 0.0001,
+                            BUSD: 10
+                          },
                           maxPurchaseAmount: -1,
                           maxPurchaseAmounts: {
                             USDT: 100,
@@ -4493,6 +4650,12 @@ describe('configuration.js', () => {
                           triggerPercentage: 0.9,
                           stopPercentage: 1.02,
                           limitPercentage: 1.021,
+                          minPurchaseAmount: -1,
+                          minPurchaseAmounts: {
+                            USDT: 100,
+                            BTC: 0.001,
+                            BUSD: 100
+                          },
                           maxPurchaseAmount: -1,
                           maxPurchaseAmounts: {
                             USDT: 100,
@@ -4565,18 +4728,21 @@ describe('configuration.js', () => {
                           triggerPercentage: 1,
                           stopPercentage: 1.035,
                           limitPercentage: 1.036,
+                          minPurchaseAmount: 11,
                           maxPurchaseAmount: 11
                         },
                         {
                           triggerPercentage: 0.9,
                           stopPercentage: 1.045,
                           limitPercentage: 1.046,
+                          minPurchaseAmount: 15,
                           maxPurchaseAmount: 22
                         },
                         {
                           triggerPercentage: 0.9,
                           stopPercentage: 1.055,
                           limitPercentage: 1.056,
+                          minPurchaseAmount: 33,
                           maxPurchaseAmount: 33
                         }
                       ],
@@ -4621,6 +4787,7 @@ describe('configuration.js', () => {
                       triggerPercentage: 1,
                       stopPercentage: 1.035,
                       limitPercentage: 1.036,
+                      minPurchaseAmount: 11,
                       maxPurchaseAmount: 11,
                       executed: false,
                       executedOrder: null
@@ -4629,6 +4796,7 @@ describe('configuration.js', () => {
                       triggerPercentage: 0.9,
                       stopPercentage: 1.045,
                       limitPercentage: 1.046,
+                      minPurchaseAmount: 15,
                       maxPurchaseAmount: 22,
                       executed: false,
                       executedOrder: null
@@ -4637,6 +4805,7 @@ describe('configuration.js', () => {
                       triggerPercentage: 0.9,
                       stopPercentage: 1.055,
                       limitPercentage: 1.056,
+                      minPurchaseAmount: 33,
                       maxPurchaseAmount: 33,
                       executed: false,
                       executedOrder: null
@@ -4653,6 +4822,7 @@ describe('configuration.js', () => {
                     triggerPercentage: 1,
                     stopPercentage: 1.035,
                     limitPercentage: 1.036,
+                    minPurchaseAmount: 11,
                     maxPurchaseAmount: 11,
                     executed: false,
                     executedOrder: null

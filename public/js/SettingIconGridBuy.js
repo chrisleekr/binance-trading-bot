@@ -80,6 +80,9 @@ class SettingIconGridBuy extends React.Component {
         triggerPercentage: gridTrade.length === 0 ? 1 : 0.8,
         stopPercentage: 1.03,
         limitPercentage: 1.031,
+
+        minPurchaseAmount: -1,
+        minPurchaseAmounts: {},
         maxPurchaseAmount: -1,
         maxPurchaseAmounts: {}
       });
@@ -123,21 +126,13 @@ class SettingIconGridBuy extends React.Component {
 
     return gridTrade.map(grid => {
       quoteAssets.forEach(quoteAsset => {
-        let maxPurchaseAmount = _.get(
-          grid,
-          `maxPurchaseAmounts.${quoteAsset}`,
-          -1
-        );
+        ['minPurchaseAmounts', 'maxPurchaseAmounts'].forEach(amountKey => {
+          let purchaseAmount = _.get(grid, `${amountKey}.${quoteAsset}`, -1);
 
-        if (maxPurchaseAmount !== -1) {
-          return grid;
-        }
-
-        _.set(
-          grid,
-          `maxPurchaseAmounts.${quoteAsset}`,
-          minNotionals[quoteAsset]
-        );
+          if (purchaseAmount === -1) {
+            _.set(grid, `${amountKey}.${quoteAsset}`, minNotionals[quoteAsset]);
+          }
+        });
       });
 
       return grid;
@@ -164,6 +159,10 @@ class SettingIconGridBuy extends React.Component {
         triggerPercentage: true,
         stopPercentage: true,
         limitPercentage: true,
+        minPurchaseAmounts: quoteAssets.reduce((acc, quoteAsset) => {
+          acc[quoteAsset] = true;
+          return acc;
+        }, {}),
         maxPurchaseAmounts: quoteAssets.reduce((acc, quoteAsset) => {
           acc[quoteAsset] = true;
           return acc;
@@ -197,6 +196,17 @@ class SettingIconGridBuy extends React.Component {
         );
       }
 
+      _.forOwn(grid.minPurchaseAmounts, (value, quoteAsset) => {
+        // If the max purchase amount is less than the minimum notional value,
+        if (parseFloat(value) < parseFloat(minNotionals[quoteAsset])) {
+          isValid = false;
+          v.minPurchaseAmounts[quoteAsset] = false;
+          v.messages.push(
+            `The min purchase amount for ${quoteAsset} cannot be less than the minimum notional value ${minNotionals[quoteAsset]}.`
+          );
+        }
+      });
+
       _.forOwn(grid.maxPurchaseAmounts, (value, quoteAsset) => {
         // If the max purchase amount is less than the minimum notional value,
         if (parseFloat(value) < parseFloat(minNotionals[quoteAsset])) {
@@ -204,6 +214,16 @@ class SettingIconGridBuy extends React.Component {
           v.maxPurchaseAmounts[quoteAsset] = false;
           v.messages.push(
             `The max purchase amount for ${quoteAsset} cannot be less than the minimum notional value ${minNotionals[quoteAsset]}.`
+          );
+        }
+
+        // If maximum purchase amount is less than minimum purchase amount,
+        const minPurchaseAmount = grid.minPurchaseAmounts[quoteAsset];
+        if (minPurchaseAmount > parseFloat(value)) {
+          isValid = false;
+          v.maxPurchaseAmounts[quoteAsset] = false;
+          v.messages.push(
+            `The max purchase amount for ${quoteAsset} cannot be less than the minimum purchase amount ${minPurchaseAmount}.`
           );
         }
       });
@@ -226,63 +246,122 @@ class SettingIconGridBuy extends React.Component {
         return (
           <div
             key={'field-grid-buy-' + i + '-quote-asset-' + quoteAsset}
-            className='col-xs-12 col-sm-6 coin-info-max-purchase-amount-wrapper'>
-            <Form.Group
-              controlId={
-                'field-grid-buy-' + i + '-max-purchase-amount-' + quoteAsset
-              }
-              className='mb-2'>
-              <Form.Label className='mb-0'>
-                Max purchase amount for {quoteAsset}{' '}
-                <OverlayTrigger
-                  trigger='click'
-                  key={
-                    'field-grid-buy-' +
-                    i +
-                    '-max-purchase-amount-overlay-' +
-                    quoteAsset
-                  }
-                  placement='bottom'
-                  overlay={
-                    <Popover
-                      id={
-                        'field-grid-buy-' +
-                        i +
-                        '-max-purchase-amount-overlay-right' +
-                        quoteAsset
-                      }>
-                      <Popover.Content>
-                        Set max purchase amount for symbols with quote asset "
-                        {quoteAsset}". The max purchase amount will be applied
-                        to the symbols which ends with "{quoteAsset}" if not
-                        configured the symbol configuration.
-                      </Popover.Content>
-                    </Popover>
-                  }>
-                  <Button variant='link' className='p-0 m-0 ml-1 text-info'>
-                    <i className='fas fa-question-circle fa-sm'></i>
-                  </Button>
-                </OverlayTrigger>
-              </Form.Label>
-              <Form.Control
-                size='sm'
-                type='number'
-                placeholder={'Enter max purchase amount for ' + quoteAsset}
-                required
-                min='0'
-                step='0.0001'
-                isInvalid={
-                  _.get(
-                    validation,
-                    `${i}.maxPurchaseAmounts.${quoteAsset}`,
-                    true
-                  ) === false
+            className='col-12 coin-info-purchase-amount-wrapper'>
+            <div className='row coin-info-max-purchase-amount-wrapper'>
+              <Form.Group
+                controlId={
+                  'field-grid-buy-' + i + '-min-purchase-amount-' + quoteAsset
                 }
-                data-state-key={`${i}.maxPurchaseAmounts.${quoteAsset}`}
-                value={_.get(grid, `maxPurchaseAmounts.${quoteAsset}`, '')}
-                onChange={this.handleInputChange}
-              />
-            </Form.Group>
+                className='col-xs-12 col-sm-6 mb-2'>
+                <Form.Label className='mb-0'>
+                  Min purchase amount for {quoteAsset}{' '}
+                  <OverlayTrigger
+                    trigger='click'
+                    key={
+                      'field-grid-buy-' +
+                      i +
+                      '-min-purchase-amount-overlay-' +
+                      quoteAsset
+                    }
+                    placement='bottom'
+                    overlay={
+                      <Popover
+                        id={
+                          'field-grid-buy-' +
+                          i +
+                          '-min-purchase-amount-overlay-right' +
+                          quoteAsset
+                        }>
+                        <Popover.Content>
+                          Set min purchase amount for symbols with quote asset "
+                          {quoteAsset}". The min purchase amount will be applied
+                          to the symbols which ends with "{quoteAsset}" if not
+                          configured the symbol configuration.
+                        </Popover.Content>
+                      </Popover>
+                    }>
+                    <Button variant='link' className='p-0 m-0 ml-1 text-info'>
+                      <i className='fas fa-question-circle fa-sm'></i>
+                    </Button>
+                  </OverlayTrigger>
+                </Form.Label>
+                <Form.Control
+                  size='sm'
+                  type='number'
+                  placeholder={'Enter min purchase amount for ' + quoteAsset}
+                  required
+                  min='0'
+                  step='0.0001'
+                  isInvalid={
+                    _.get(
+                      validation,
+                      `${i}.minPurchaseAmounts.${quoteAsset}`,
+                      true
+                    ) === false
+                  }
+                  data-state-key={`${i}.minPurchaseAmounts.${quoteAsset}`}
+                  value={_.get(grid, `minPurchaseAmounts.${quoteAsset}`, '')}
+                  onChange={this.handleInputChange}
+                />
+              </Form.Group>
+
+              <Form.Group
+                controlId={
+                  'field-grid-buy-' + i + '-max-purchase-amount-' + quoteAsset
+                }
+                className='col-xs-12 col-sm-6 mb-2'>
+                <Form.Label className='mb-0'>
+                  Max purchase amount for {quoteAsset}{' '}
+                  <OverlayTrigger
+                    trigger='click'
+                    key={
+                      'field-grid-buy-' +
+                      i +
+                      '-max-purchase-amount-overlay-' +
+                      quoteAsset
+                    }
+                    placement='bottom'
+                    overlay={
+                      <Popover
+                        id={
+                          'field-grid-buy-' +
+                          i +
+                          '-max-purchase-amount-overlay-right' +
+                          quoteAsset
+                        }>
+                        <Popover.Content>
+                          Set max purchase amount for symbols with quote asset "
+                          {quoteAsset}". The max purchase amount will be applied
+                          to the symbols which ends with "{quoteAsset}" if not
+                          configured the symbol configuration.
+                        </Popover.Content>
+                      </Popover>
+                    }>
+                    <Button variant='link' className='p-0 m-0 ml-1 text-info'>
+                      <i className='fas fa-question-circle fa-sm'></i>
+                    </Button>
+                  </OverlayTrigger>
+                </Form.Label>
+                <Form.Control
+                  size='sm'
+                  type='number'
+                  placeholder={'Enter max purchase amount for ' + quoteAsset}
+                  required
+                  min='0'
+                  step='0.0001'
+                  isInvalid={
+                    _.get(
+                      validation,
+                      `${i}.maxPurchaseAmounts.${quoteAsset}`,
+                      true
+                    ) === false
+                  }
+                  data-state-key={`${i}.maxPurchaseAmounts.${quoteAsset}`}
+                  value={_.get(grid, `maxPurchaseAmounts.${quoteAsset}`, '')}
+                  onChange={this.handleInputChange}
+                />
+              </Form.Group>
+            </div>
           </div>
         );
       });

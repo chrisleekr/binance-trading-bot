@@ -85,6 +85,7 @@ describe('setting-update.test.js', () => {
           },
           buy: {
             enabled: true,
+            minPurchaseAmount: 50,
             maxPurchaseAmount: 100,
             lastBuyPriceRemoveThreshold: 10
           },
@@ -111,6 +112,7 @@ describe('setting-update.test.js', () => {
             },
             buy: {
               enabled: true,
+              minPurchaseAmount: 100,
               maxPurchaseAmount: 150,
               lastBuyPriceRemoveThreshold: 10
             },
@@ -138,6 +140,7 @@ describe('setting-update.test.js', () => {
           },
           buy: {
             enabled: true,
+            minPurchaseAmount: -1,
             maxPurchaseAmount: -1,
             lastBuyPriceRemoveThreshold: -1
           },
@@ -192,6 +195,7 @@ describe('setting-update.test.js', () => {
               candles: { interval: '1h', limit: '100' },
               buy: {
                 enabled: true,
+                minPurchaseAmount: -1,
                 maxPurchaseAmount: -1,
                 lastBuyPriceRemoveThreshold: -1
               },
@@ -228,6 +232,7 @@ describe('setting-update.test.js', () => {
           },
           buy: {
             enabled: true,
+            minPurchaseAmount: 50,
             maxPurchaseAmount: 100,
             lastBuyPriceRemoveThreshold: 10
           },
@@ -254,6 +259,7 @@ describe('setting-update.test.js', () => {
             },
             buy: {
               enabled: true,
+              minPurchaseAmount: 100,
               maxPurchaseAmount: 150,
               lastBuyPriceRemoveThreshold: 10
             },
@@ -281,6 +287,7 @@ describe('setting-update.test.js', () => {
           },
           buy: {
             enabled: true,
+            minPurchaseAmount: -1,
             maxPurchaseAmount: -1,
             lastBuyPriceRemoveThreshold: -1
           },
@@ -335,6 +342,7 @@ describe('setting-update.test.js', () => {
               candles: { interval: '1h', limit: '100' },
               buy: {
                 enabled: true,
+                minPurchaseAmount: -1,
                 maxPurchaseAmount: -1,
                 lastBuyPriceRemoveThreshold: -1
               },

@@ -462,44 +462,56 @@ const getGridTradeBuy = (
   const gridTrade = orgGridTrade.map((orgGrid, index) => {
     const grid = orgGrid;
 
-    // Retrieve configured max purchase amount.
-    const symbolMaxPurchaseAmount = _.get(grid, 'maxPurchaseAmount', -1);
-
-    // If max purchase amount is not -1, then it is already configrued. Return grid.
-    if (symbolMaxPurchaseAmount !== -1) {
-      _.unset(grid, 'maxPurchaseAmounts');
-      return grid;
-    }
-
-    let newMaxPurchaseAmount = -1;
-
-    if (_.isEmpty(cachedSymbolInfo) === false) {
-      const {
-        quoteAsset,
-        filterMinNotional: { minNotional }
-      } = cachedSymbolInfo;
-
-      // Retrieve configured max purchase amount for the quote asset from the global configuration.
-      newMaxPurchaseAmount = _.get(
-        globalConfiguration,
-        `buy.gridTrade[${index}].maxPurchaseAmounts[${quoteAsset}]`,
-        -1
-      );
-
-      // If max purchase amount for the quote asset in the global configuration is not defined,
-      // then use the minimum notional value * 10.
-      if (newMaxPurchaseAmount === -1) {
-        newMaxPurchaseAmount = parseFloat(minNotional) * 10;
+    // Retrieve configured min/max purchase amount.
+    [
+      {
+        symbolKey: 'minPurchaseAmount',
+        globalKey: 'minPurchaseAmounts'
+      },
+      {
+        symbolKey: 'maxPurchaseAmount',
+        globalKey: 'maxPurchaseAmounts'
       }
-    } else {
-      logger.info(
-        { cachedSymbolInfo },
-        'Could not find symbol info for buy max purchase amount, wait to be cached.'
-      );
-    }
+    ].forEach(conf => {
+      const symbolMaxPurchaseAmount = _.get(grid, conf.symbolKey, -1);
 
-    _.set(grid, 'maxPurchaseAmount', newMaxPurchaseAmount);
-    _.unset(grid, 'maxPurchaseAmounts');
+      // If max purchase amount is not -1, then it is already configrued. Return grid.
+      if (symbolMaxPurchaseAmount !== -1) {
+        _.unset(grid, conf.globalKey);
+      } else {
+        let newAmount = -1;
+
+        if (_.isEmpty(cachedSymbolInfo) === false) {
+          const {
+            quoteAsset,
+            filterMinNotional: { minNotional }
+          } = cachedSymbolInfo;
+
+          // Retrieve configured max purchase amount for the quote asset from the global configuration.
+          newAmount = _.get(
+            globalConfiguration,
+            `buy.gridTrade[${index}].${conf.globalKey}[${quoteAsset}]`,
+            -1
+          );
+
+          // If max purchase amount for the quote asset in the global configuration is not defined,
+          // then use the minimum notional value * 10.
+          if (newAmount === -1) {
+            newAmount =
+              parseFloat(minNotional) *
+              (conf.symbolKey === 'maxPurchaseAmount' ? 10 : 1);
+          }
+        } else {
+          logger.info(
+            { cachedSymbolInfo },
+            `Could not find symbol info for buy ${conf.globalKey}, wait to be cached.`
+          );
+        }
+
+        _.set(grid, conf.symbolKey, newAmount);
+        _.unset(grid, conf.globalKey);
+      }
+    });
 
     return grid;
   });

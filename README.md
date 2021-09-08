@@ -372,7 +372,6 @@ to view the past changes.
 
 - [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
 - [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
-- [ ] Add minimum required order amount - [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)
 - [ ] Manage setting profiles (save/change/load?/export?) - [#151](https://github.com/chrisleekr/binance-trading-bot/issues/151)
 - [ ] Improve notifications by supporting Apprise - [#106](https://github.com/chrisleekr/binance-trading-bot/issues/106)
 - [ ] Support cool time after hitting the lowest price before buy - [#105](https://github.com/chrisleekr/binance-trading-bot/issues/105)
