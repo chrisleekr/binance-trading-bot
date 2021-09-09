@@ -265,6 +265,15 @@ class App extends React.Component {
       );
     });
 
+    const symbolEstimates = symbols.map((symbol) => {
+      return {
+        'baseAsset': symbol.symbolInfo.baseAsset,
+        'quoteAsset': symbol.symbolInfo.quoteAsset,
+        'estimatedValue': symbol.baseAssetBalance.estimatedValue,
+        'tickSize': symbol.symbolInfo.filterPrice.tickSize
+      };
+    });
+
     return (
       <React.Fragment>
         <Header
@@ -287,6 +296,7 @@ class App extends React.Component {
                 accountInfo={accountInfo}
                 dustTransfer={dustTransfer}
                 sendWebSocket={this.sendWebSocket}
+                symbolEstimates={symbolEstimates}
               />
               <ProfitLossWrapper
                 isAuthenticated={isAuthenticated}
