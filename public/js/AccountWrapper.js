@@ -37,10 +37,11 @@ class AccountWrapper extends React.Component {
               className='px-2 py-1'>
               <button
                 type='button'
-                className='btn btn-sm btn-link btn-account-balance text-uppercase font-weight-bold'>
+                className='btn btn-sm btn-link btn-account-balance text-uppercase font-weight-bold text-left'>
                 <span className="pr-2">Account Balance</span>
+                <br className="d-block d-sm-none" />
                 <span className="text-success">
-                  (Managed by bot: {Object.keys(groupedEstimates).map((key) => `[${key}: ${parseFloat(groupedEstimates[key]['value']).toFixed(groupedEstimates[key]['quotePrecision'])}]`).join(' ')})
+                  {Object.keys(groupedEstimates).map((key) => `[${key}: ${parseFloat(groupedEstimates[key]['value']).toFixed(groupedEstimates[key]['quotePrecision'])}]`).join(' ')}
                 </span>
               </button>
             </Accordion.Toggle>
