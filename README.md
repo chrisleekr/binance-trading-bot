@@ -382,6 +382,7 @@ to view the past changes.
 - [ ] Non linear stop price and chase function - [#246](https://github.com/chrisleekr/binance-trading-bot/issues/246)
 - [ ] Support STOP-LOSS configuration per grid trade for selling - [#261](https://github.com/chrisleekr/binance-trading-bot/issues/261)
 - [ ] Support triggering buy automatically to rescheduled if the price is over the ATH
+- [ ] Allow to execute stop-loss before buy action - [#299](https://github.com/chrisleekr/binance-trading-bot/issues/299)
 
 ## Donations
 
