@@ -223,12 +223,18 @@ class CoinWrapperBuySignal extends React.Component {
                   {((grid.limitPercentage - 1) * 100).toFixed(2)}%
                 </div>
               </div>
-              <div className='coin-info-column coin-info-column-order'>
-                <span className='coin-info-label'>- Min purchase amount:</span>
-                <div className='coin-info-value'>
-                  {grid.minPurchaseAmount} {quoteAsset}
+              {grid.minPurchaseAmount > 0 ? (
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>
+                    - Min purchase amount:
+                  </span>
+                  <div className='coin-info-value'>
+                    {grid.minPurchaseAmount} {quoteAsset}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                ''
+              )}
               <div className='coin-info-column coin-info-column-order'>
                 <span className='coin-info-label'>- Max purchase amount:</span>
                 <div className='coin-info-value'>
