@@ -74,6 +74,7 @@ describe('place-buy-order.js', () => {
               currentGridTradeIndex: 0,
               currentGridTrade: {
                 triggerPercentage: 1,
+                minPurchaseAmount: 10,
                 maxPurchaseAmount: 50,
                 stopPercentage: 1.01,
                 limitPercentage: 1.011,
@@ -153,6 +154,7 @@ describe('place-buy-order.js', () => {
               currentGridTradeIndex: 0,
               currentGridTrade: {
                 triggerPercentage: 1,
+                minPurchaseAmount: 10,
                 maxPurchaseAmount: 50,
                 stopPercentage: 1.01,
                 limitPercentage: 1.011,
@@ -232,6 +234,7 @@ describe('place-buy-order.js', () => {
               currentGridTradeIndex: 0,
               currentGridTrade: {
                 triggerPercentage: 1,
+                minPurchaseAmount: 10,
                 maxPurchaseAmount: 50,
                 stopPercentage: 1.01,
                 limitPercentage: 1.011,
@@ -390,6 +393,100 @@ describe('place-buy-order.js', () => {
       });
     });
 
+    describe('when min purchase amount is not configured for some reason', () => {
+      beforeEach(async () => {
+        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          account: 'info'
+        });
+
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          isExceedAPILimit: mockIsExceedAPILimit,
+          getAPILimit: mockGetAPILimit
+        }));
+
+        jest.mock('../../../trailingTradeHelper/order', () => ({
+          saveGridTradeOrder: mockSaveGridTradeOrder
+        }));
+
+        const step = require('../place-buy-order');
+
+        rawData = {
+          symbol: 'BTCUPUSDT',
+          isLocked: false,
+          featureToggle: {
+            notifyDebug: true
+          },
+          symbolInfo: {
+            baseAsset: 'BTCUP',
+            quoteAsset: 'USDT',
+            filterLotSize: { stepSize: '0.01000000' },
+            filterPrice: { tickSize: '0.00100000' },
+            filterMinNotional: { minNotional: '10.00000000' }
+          },
+          symbolConfiguration: {
+            buy: {
+              enabled: true,
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1,
+                minPurchaseAmount: -1,
+                maxPurchaseAmount: -1,
+                stopPercentage: 1.01,
+                limitPercentage: 1.011,
+                executed: false,
+                executedOrder: null
+              }
+            },
+            system: {
+              checkOrderExecutePeriod: 10
+            }
+          },
+          action: 'buy',
+          quoteAssetBalance: { free: 0 },
+          buy: {
+            currentPrice: 200,
+            openOrders: []
+          }
+        };
+
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('does not trigger binance.client.order', () => {
+        expect(binanceMock.client.order).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger getAccountInfoFromAPI', () => {
+        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveGridTradeOrder', () => {
+        expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
+      });
+
+      it('retruns expected value', () => {
+        expect(result).toStrictEqual({
+          ...rawData,
+          ...{
+            buy: {
+              currentPrice: 200,
+              openOrders: [],
+              processMessage:
+                'Min purchase amount must be configured. Please configure symbol settings.',
+              updatedAt: expect.any(Object)
+            }
+          }
+        });
+      });
+    });
+
     describe('when max purchase amount is not configured for some reason', () => {
       beforeEach(async () => {
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
@@ -429,6 +526,7 @@ describe('place-buy-order.js', () => {
               currentGridTradeIndex: 0,
               currentGridTrade: {
                 triggerPercentage: 1,
+                minPurchaseAmount: 10,
                 maxPurchaseAmount: -1,
                 stopPercentage: 1.01,
                 limitPercentage: 1.011,
@@ -523,6 +621,7 @@ describe('place-buy-order.js', () => {
                 currentGridTradeIndex: 0,
                 currentGridTrade: {
                   triggerPercentage: 1,
+                  minPurchaseAmount: 10,
                   maxPurchaseAmount: 50,
                   stopPercentage: 1.01,
                   limitPercentage: 1.011,
@@ -616,6 +715,7 @@ describe('place-buy-order.js', () => {
                 currentGridTradeIndex: 0,
                 currentGridTrade: {
                   triggerPercentage: 1,
+                  minPurchaseAmount: 10,
                   maxPurchaseAmount: 0.001,
                   stopPercentage: 1.01,
                   limitPercentage: 1.011,
@@ -709,6 +809,7 @@ describe('place-buy-order.js', () => {
                 currentGridTradeIndex: 0,
                 currentGridTrade: {
                   triggerPercentage: 1,
+                  minPurchaseAmount: 10,
                   maxPurchaseAmount: 0.001,
                   stopPercentage: 1.01,
                   limitPercentage: 1.011,
@@ -802,6 +903,7 @@ describe('place-buy-order.js', () => {
                 currentGridTradeIndex: 0,
                 currentGridTrade: {
                   triggerPercentage: 1,
+                  minPurchaseAmount: 10,
                   maxPurchaseAmount: 50,
                   stopPercentage: 1.01,
                   limitPercentage: 1.011,
@@ -897,6 +999,7 @@ describe('place-buy-order.js', () => {
                 currentGridTradeIndex: 0,
                 currentGridTrade: {
                   triggerPercentage: 1,
+                  minPurchaseAmount: 10,
                   maxPurchaseAmount: 50,
                   stopPercentage: 1.01,
                   limitPercentage: 1.011,
@@ -992,6 +1095,7 @@ describe('place-buy-order.js', () => {
                 currentGridTradeIndex: 0,
                 currentGridTrade: {
                   triggerPercentage: 1,
+                  minPurchaseAmount: 0.0001,
                   maxPurchaseAmount: 0.001,
                   stopPercentage: 1.01,
                   limitPercentage: 1.011,
@@ -1087,6 +1191,7 @@ describe('place-buy-order.js', () => {
                 currentGridTradeIndex: 0,
                 currentGridTrade: {
                   triggerPercentage: 1,
+                  minPurchaseAmount: 0.0001,
                   maxPurchaseAmount: 0.001,
                   stopPercentage: 1.01,
                   limitPercentage: 1.011,
@@ -1182,6 +1287,7 @@ describe('place-buy-order.js', () => {
                 currentGridTradeIndex: 0,
                 currentGridTrade: {
                   triggerPercentage: 1,
+                  minPurchaseAmount: 10,
                   maxPurchaseAmount: 50,
                   stopPercentage: 1.01,
                   limitPercentage: 1.011,
@@ -1277,6 +1383,7 @@ describe('place-buy-order.js', () => {
               currentGridTradeIndex: 0,
               currentGridTrade: {
                 triggerPercentage: 1,
+                minPurchaseAmount: 10,
                 maxPurchaseAmount: 50,
                 stopPercentage: 1.01,
                 limitPercentage: 1.011,
@@ -1371,6 +1478,7 @@ describe('place-buy-order.js', () => {
               currentGridTradeIndex: 0,
               currentGridTrade: {
                 triggerPercentage: 1,
+                minPurchaseAmount: 10,
                 maxPurchaseAmount: 50,
                 stopPercentage: 1.01,
                 limitPercentage: 1.011,
@@ -1426,6 +1534,123 @@ describe('place-buy-order.js', () => {
     });
 
     describe('when has enough balance', () => {
+      describe('when free balance is less than minimum purchase amount', () => {
+        describe('BTCUPUSDT', () => {
+          beforeEach(async () => {
+            mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+              {
+                orderId: 123,
+                price: 202.2,
+                quantity: 0.05,
+                side: 'buy',
+                stopPrice: 202,
+                symbol: 'BTCUPUSDT',
+                timeInForce: 'GTC',
+                type: 'STOP_LOSS_LIMIT'
+              }
+            ]);
+            binanceMock.client.order = jest.fn().mockResolvedValue({
+              symbol: 'BTCUPUSDT',
+              orderId: 2701762317,
+              orderListId: -1,
+              clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+              transactTime: 1626946722520
+            });
+
+            mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+              account: 'info'
+            });
+
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              getAndCacheOpenOrdersForSymbol:
+                mockGetAndCacheOpenOrdersForSymbol,
+              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+              isExceedAPILimit: mockIsExceedAPILimit,
+              getAPILimit: mockGetAPILimit
+            }));
+
+            jest.mock('../../../trailingTradeHelper/order', () => ({
+              saveGridTradeOrder: mockSaveGridTradeOrder
+            }));
+
+            const step = require('../place-buy-order');
+
+            rawData = {
+              symbol: 'BTCUPUSDT',
+              isLocked: false,
+              featureToggle: {
+                notifyDebug: true
+              },
+              symbolInfo: {
+                baseAsset: 'BTCUP',
+                quoteAsset: 'USDT',
+                filterLotSize: { stepSize: '0.01000000', minQty: '0.01000000' },
+                filterPrice: { tickSize: '0.00100000' },
+                filterMinNotional: { minNotional: '10.00000000' }
+              },
+              symbolConfiguration: {
+                buy: {
+                  enabled: true,
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    minPurchaseAmount: 15,
+                    maxPurchaseAmount: 20,
+                    stopPercentage: 1.01,
+                    limitPercentage: 1.011,
+                    executed: false,
+                    executedOrder: null
+                  }
+                },
+                system: {
+                  checkOrderExecutePeriod: 10
+                }
+              },
+              action: 'buy',
+              quoteAssetBalance: { free: 12 },
+              buy: {
+                currentPrice: 200,
+                openOrders: []
+              }
+            };
+
+            result = await step.execute(loggerMock, rawData);
+          });
+
+          it('does not trigger binance.client.order', () => {
+            expect(binanceMock.client.order).not.toHaveBeenCalled();
+          });
+
+          it('does not trigger saveGridTradeOrder for grid trade last buy order', () => {
+            expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
+          });
+
+          it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+            expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
+          });
+
+          it('does not trigger getAccountInfoFromAPI', () => {
+            expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+          });
+
+          it('retruns expected value', () => {
+            expect(result).toStrictEqual({
+              ...rawData,
+              ...{
+                buy: {
+                  currentPrice: 200,
+                  openOrders: [],
+                  processMessage:
+                    `Do not place a buy order for the grid trade #1 because ` +
+                    `free balance is less than minimum purchase amount.`,
+                  updatedAt: expect.any(Object)
+                }
+              }
+            });
+          });
+        });
+      });
+
       describe('when max purchase amount is exactly same as minimum notional value', () => {
         describe('BTCUPUSDT', () => {
           beforeEach(async () => {
@@ -1486,6 +1711,7 @@ describe('place-buy-order.js', () => {
                   currentGridTradeIndex: 0,
                   currentGridTrade: {
                     triggerPercentage: 1,
+                    minPurchaseAmount: 10,
                     maxPurchaseAmount: 10,
                     stopPercentage: 1.01,
                     limitPercentage: 1.011,
@@ -1642,6 +1868,7 @@ describe('place-buy-order.js', () => {
                   currentGridTradeIndex: 0,
                   currentGridTrade: {
                     triggerPercentage: 1,
+                    minPurchaseAmount: 0.0001,
                     maxPurchaseAmount: 0.0001,
                     stopPercentage: 1.01,
                     limitPercentage: 1.011,
@@ -1798,6 +2025,7 @@ describe('place-buy-order.js', () => {
                   currentGridTradeIndex: 0,
                   currentGridTrade: {
                     triggerPercentage: 1,
+                    minPurchaseAmount: 0.0001,
                     maxPurchaseAmount: 0.0001,
                     stopPercentage: 1.01,
                     limitPercentage: 1.011,
@@ -1953,6 +2181,7 @@ describe('place-buy-order.js', () => {
                   currentGridTradeIndex: 0,
                   currentGridTrade: {
                     triggerPercentage: 1,
+                    minPurchaseAmount: 10,
                     maxPurchaseAmount: 10,
                     stopPercentage: 1.01,
                     limitPercentage: 1.011,
@@ -2110,6 +2339,7 @@ describe('place-buy-order.js', () => {
                     triggerPercentage: 0.9,
                     stopPercentage: 1.025,
                     limitPercentage: 1.026,
+                    minPurchaseAmount: 10,
                     maxPurchaseAmount: 10,
                     executed: false,
                     executedOrder: null
@@ -2266,6 +2496,7 @@ describe('place-buy-order.js', () => {
                   currentGridTradeIndex: 0,
                   currentGridTrade: {
                     triggerPercentage: 1,
+                    minPurchaseAmount: 10,
                     maxPurchaseAmount: 50,
                     stopPercentage: 1.01,
                     limitPercentage: 1.011,
@@ -2422,6 +2653,7 @@ describe('place-buy-order.js', () => {
                   currentGridTradeIndex: 0,
                   currentGridTrade: {
                     triggerPercentage: 1,
+                    minPurchaseAmount: 0.0001,
                     maxPurchaseAmount: 0.001,
                     stopPercentage: 1.01,
                     limitPercentage: 1.011,
@@ -2578,6 +2810,7 @@ describe('place-buy-order.js', () => {
                   currentGridTradeIndex: 0,
                   currentGridTrade: {
                     triggerPercentage: 1,
+                    minPurchaseAmount: 0.0001,
                     maxPurchaseAmount: 0.001,
                     stopPercentage: 1.01,
                     limitPercentage: 1.011,
@@ -2733,6 +2966,7 @@ describe('place-buy-order.js', () => {
                   currentGridTradeIndex: 0,
                   currentGridTrade: {
                     triggerPercentage: 1,
+                    minPurchaseAmount: 10,
                     maxPurchaseAmount: 100,
                     stopPercentage: 1.01,
                     limitPercentage: 1.011,

@@ -77,6 +77,8 @@
             "triggerPercentage": 1,
             "stopPercentage": 1.02,
             "limitPercentage": 1.021,
+            "minPurchaseAmount": -1,
+            "minPurchaseAmounts": {},
             "maxPurchaseAmount": -1,
             "maxPurchaseAmounts": {}
           }

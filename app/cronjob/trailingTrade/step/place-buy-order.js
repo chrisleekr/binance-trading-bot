@@ -69,8 +69,21 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  const { maxPurchaseAmount, stopPercentage, limitPercentage } =
-    currentGridTrade;
+  const {
+    minPurchaseAmount,
+    maxPurchaseAmount,
+    stopPercentage,
+    limitPercentage
+  } = currentGridTrade;
+
+  if (minPurchaseAmount <= 0) {
+    data.buy.processMessage =
+      'Min purchase amount must be configured. Please configure symbol settings.';
+    data.buy.updatedAt = moment().utc();
+
+    return data;
+  }
+
   if (maxPurchaseAmount <= 0) {
     data.buy.processMessage =
       'Max purchase amount must be configured. Please configure symbol settings.';
@@ -104,6 +117,15 @@ const execute = async (logger, rawData) => {
     data.buy.processMessage =
       `Do not place a buy order for the grid trade #${humanisedGridTradeIndex} ` +
       `as not enough ${quoteAsset} to buy ${baseAsset}.`;
+    data.buy.updatedAt = moment().utc();
+
+    return data;
+  }
+
+  if (freeBalance < minPurchaseAmount) {
+    data.buy.processMessage =
+      `Do not place a buy order for the grid trade #${humanisedGridTradeIndex} ` +
+      `because free balance is less than minimum purchase amount.`;
     data.buy.updatedAt = moment().utc();
 
     return data;
@@ -208,6 +230,7 @@ const execute = async (logger, rawData) => {
       priceTickPrecision,
       lotStepSizePrecision,
       minNotional,
+      minPurchaseAmount,
       maxPurchaseAmount,
       freeBalance,
       orderQuantityBeforeCommission,

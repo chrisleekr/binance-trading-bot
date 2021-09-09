@@ -70,6 +70,7 @@ class SymbolSettingIconGridBuy extends React.Component {
         triggerPercentage: gridTrade.length === 0 ? 1 : 0.8,
         stopPercentage: 1.03,
         limitPercentage: 1.031,
+        minPurchaseAmount: minNotional,
         maxPurchaseAmount: minNotional
       });
     }
@@ -114,6 +115,7 @@ class SymbolSettingIconGridBuy extends React.Component {
         triggerPercentage: true,
         stopPercentage: true,
         limitPercentage: true,
+        minPurchaseAmount: true,
         maxPurchaseAmount: true
       };
 
@@ -144,12 +146,32 @@ class SymbolSettingIconGridBuy extends React.Component {
         );
       }
 
+      // If the min purchase amount is less than the minimum notional value,
+      if (parseFloat(grid.minPurchaseAmount) < parseFloat(minNotional)) {
+        isValid = false;
+        v.minPurchaseAmount = false;
+        v.messages.push(
+          `The min purchase amount for ${quoteAsset} cannot be less than the minimum notional value ${minNotional}.`
+        );
+      }
+
       // If the max purchase amount is less than the minimum notional value,
       if (parseFloat(grid.maxPurchaseAmount) < parseFloat(minNotional)) {
         isValid = false;
         v.maxPurchaseAmount = false;
         v.messages.push(
           `The max purchase amount for ${quoteAsset} cannot be less than the minimum notional value ${minNotional}.`
+        );
+      }
+
+      // If maximum purchase amount is less than minimum purchase amount,
+      if (
+        parseFloat(grid.minPurchaseAmount) > parseFloat(grid.maxPurchaseAmount)
+      ) {
+        isValid = false;
+        v.maxPurchaseAmount = false;
+        v.messages.push(
+          `The max purchase amount for ${quoteAsset} cannot be less than the minimum purchase amount ${grid.minPurchaseAmount}.`
         );
       }
 
@@ -380,6 +402,59 @@ class SymbolSettingIconGridBuy extends React.Component {
                       disabled={grid.executed}
                       data-state-key={`${i}.limitPercentage`}
                       value={grid.limitPercentage}
+                      onChange={this.handleInputChange}
+                    />
+                  </Form.Group>
+                </div>
+                <div className='col-xs-12 col-sm-6'>
+                  <Form.Group
+                    controlId={'field-grid-buy-' + i + '-min-purchase-amount'}
+                    className='mb-2'>
+                    <Form.Label className='mb-0'>
+                      Min purchase amount{' '}
+                      <OverlayTrigger
+                        trigger='click'
+                        key={
+                          'field-grid-buy-' + i + '-min-purchase-amount-overlay'
+                        }
+                        placement='bottom'
+                        overlay={
+                          <Popover
+                            id={
+                              'field-grid-buy-' +
+                              i +
+                              '-min-purchase-amount-overlay-right'
+                            }>
+                            <Popover.Content>
+                              Set min purchase amount for symbols with quote
+                              asset "{quoteAsset}". The min purchase amount will
+                              be applied to the symbols which ends with "
+                              {quoteAsset}" if not configured the symbol
+                              configuration.
+                            </Popover.Content>
+                          </Popover>
+                        }>
+                        <Button
+                          variant='link'
+                          className='p-0 m-0 ml-1 text-info'>
+                          <i className='fas fa-question-circle fa-sm'></i>
+                        </Button>
+                      </OverlayTrigger>
+                    </Form.Label>
+                    <Form.Control
+                      size='sm'
+                      type='number'
+                      placeholder={'Enter min purchase amount'}
+                      required
+                      min='0'
+                      step='0.0001'
+                      isInvalid={
+                        _.get(validation, `${i}.minPurchaseAmount`, true) ===
+                        false
+                      }
+                      disabled={grid.executed}
+                      data-state-key={`${i}.minPurchaseAmount`}
+                      value={grid.minPurchaseAmount}
                       onChange={this.handleInputChange}
                     />
                   </Form.Group>
