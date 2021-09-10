@@ -740,7 +740,7 @@ input[type='number'] {
   background-color: #272b38;
 
   display: flex;
-  flex-flow: row wrap;
+  flex-flow: row nowrap;
 }
 
 .profit-loss-asset {

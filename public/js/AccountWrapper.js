@@ -3,7 +3,7 @@
 /* eslint-disable no-undef */
 class AccountWrapper extends React.Component {
   render() {
-    const { accountInfo, dustTransfer, sendWebSocket, isAuthenticated, symbolEstimates } =
+    const { accountInfo, dustTransfer, sendWebSocket, isAuthenticated } =
       this.props;
 
     const assets = accountInfo.balances.map((balance, index) => {
@@ -13,19 +13,6 @@ class AccountWrapper extends React.Component {
           balance={balance}></AccountWrapperAsset>
       );
     });
-
-    let groupedEstimates = {};
-    symbolEstimates.forEach((symbol) => {
-      if (!Object.keys(groupedEstimates).includes(symbol.quoteAsset)) {
-        groupedEstimates[symbol.quoteAsset] = {};
-        groupedEstimates[symbol.quoteAsset]['value'] = 0;
-        groupedEstimates[symbol.quoteAsset]['quotePrecision'] = parseFloat(symbol.tickSize) === 1 ? 0 : symbol.tickSize.indexOf(1) - 1;
-      }
-
-      groupedEstimates[symbol.quoteAsset]['value'] += symbol.estimatedValue;
-    });
-
-    console.log(groupedEstimates);
 
     return (
       <div className='accordion-wrapper account-wrapper'>
@@ -39,10 +26,6 @@ class AccountWrapper extends React.Component {
                 type='button'
                 className='btn btn-sm btn-link btn-account-balance text-uppercase font-weight-bold text-left'>
                 <span className="pr-2">Account Balance</span>
-                <br className="d-block d-sm-none" />
-                <span className="text-success">
-                  {Object.keys(groupedEstimates).map((key) => `[${key}: ${parseFloat(groupedEstimates[key]['value']).toFixed(groupedEstimates[key]['quotePrecision'])}]`).join(' ')}
-                </span>
               </button>
             </Accordion.Toggle>
             <Accordion.Collapse eventKey='0'>

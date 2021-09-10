@@ -116,7 +116,7 @@ class App extends React.Component {
       let response = {};
       try {
         response = JSON.parse(evt.data);
-      } catch (_e) {}
+      } catch (_e) { }
 
       if (response.type === 'latest') {
         // Set states
@@ -296,7 +296,6 @@ class App extends React.Component {
                 accountInfo={accountInfo}
                 dustTransfer={dustTransfer}
                 sendWebSocket={this.sendWebSocket}
-                symbolEstimates={symbolEstimates}
               />
               <ProfitLossWrapper
                 isAuthenticated={isAuthenticated}
@@ -304,6 +303,7 @@ class App extends React.Component {
                 closedTradesSetting={closedTradesSetting}
                 closedTrades={closedTrades}
                 sendWebSocket={this.sendWebSocket}
+                symbolEstimates={symbolEstimates}
               />
             </div>
             <div className='coin-wrappers'>{coinWrappers}</div>
