@@ -112,13 +112,29 @@ class ProfitLossWrapper extends React.Component {
   }
 
   render() {
-    const { sendWebSocket, isAuthenticated, closedTrades, symbolEstimates } = this.props;
+    const { sendWebSocket, isAuthenticated, closedTrades, symbolEstimates } =
+      this.props;
     const { totalPnL, symbols, selectedPeriod, closedTradesLoading } =
       this.state;
 
     if (_.isEmpty(totalPnL)) {
       return '';
     }
+
+    const groupedEstimates = {};
+    symbolEstimates.forEach(symbol => {
+      if (groupedEstimates[symbol.quoteAsset] === undefined) {
+        groupedEstimates[symbol.quoteAsset] = {
+          value: 0,
+          quotePrecision:
+            parseFloat(symbol.tickSize) === 1
+              ? 0
+              : symbol.tickSize.indexOf(1) - 1
+        };
+      }
+
+      groupedEstimates[symbol.quoteAsset].value += symbol.estimatedValue;
+    });
 
     const openTradeWrappers = Object.values(totalPnL).map((pnl, index) => {
       const percentage =
@@ -128,12 +144,20 @@ class ProfitLossWrapper extends React.Component {
           key={`open-trade-pnl-` + index}
           className='profit-loss-wrapper pt-2 pl-2 pr-2 pb-0'>
           <div className='profit-loss-wrapper-body'>
-            <span className='profit-loss-asset'>{pnl.asset}</span>{' '}
-            <span className='profit-loss-value'>
+            <div className='profit-loss-asset'>
+              {pnl.asset}
+              <br />
+              <div className='text-success text-truncate'>
+                {groupedEstimates[pnl.asset].value.toFixed(
+                  groupedEstimates[pnl.asset].quotePrecision
+                )}
+              </div>
+            </div>{' '}
+            <div className='profit-loss-value'>
               {pnl.profit > 0 ? '+' : ''}
               {pnl.profit.toFixed(5)}
               <br />({percentage}%)
-            </span>
+            </div>
           </div>
         </div>
       );
@@ -167,17 +191,6 @@ class ProfitLossWrapper extends React.Component {
       }
     );
 
-    let groupedEstimates = {};
-    symbolEstimates.forEach((symbol) => {
-      if (!Object.keys(groupedEstimates).includes(symbol.quoteAsset)) {
-        groupedEstimates[symbol.quoteAsset] = {};
-        groupedEstimates[symbol.quoteAsset]['value'] = 0;
-        groupedEstimates[symbol.quoteAsset]['quotePrecision'] = parseFloat(symbol.tickSize) === 1 ? 0 : symbol.tickSize.indexOf(1) - 1;
-      }
-
-      groupedEstimates[symbol.quoteAsset]['value'] += symbol.estimatedValue;
-    });
-
     return (
       <div className='profit-loss-container'>
         <div className='accordion-wrapper profit-loss-accordion-wrapper profit-loss-open-trades-accordion-wrapper'>
@@ -210,11 +223,6 @@ class ProfitLossWrapper extends React.Component {
                           <i className='fas fa-question-circle fa-sm'></i>
                         </Button>
                       </OverlayTrigger>
-                      {' '}
-                      <br className="d-block d-sm-none" />
-                      <span className="text-success">
-                        {Object.keys(groupedEstimates).map((key) => `[${key}: ${parseFloat(groupedEstimates[key]['value']).toFixed(groupedEstimates[key]['quotePrecision'])}]`).join(' ')}
-                      </span>
                     </div>
                   </div>
                   <div className='flex-column-right pt-2'>
@@ -278,32 +286,36 @@ class ProfitLossWrapper extends React.Component {
                   <div className='flex-column-right pt-2'>
                     <button
                       type='button'
-                      className={`btn btn-period ml-1 btn-sm ${selectedPeriod === 'd' ? 'btn-info' : 'btn-light'
-                        }`}
+                      className={`btn btn-period ml-1 btn-sm ${
+                        selectedPeriod === 'd' ? 'btn-info' : 'btn-light'
+                      }`}
                       onClick={() => this.setSelectedPeriod('d')}
                       title='Day'>
                       D
                     </button>
                     <button
                       type='button'
-                      className={`btn btn-period ml-1 btn-sm ${selectedPeriod === 'w' ? 'btn-info' : 'btn-light'
-                        }`}
+                      className={`btn btn-period ml-1 btn-sm ${
+                        selectedPeriod === 'w' ? 'btn-info' : 'btn-light'
+                      }`}
                       onClick={() => this.setSelectedPeriod('w')}
                       title='Week'>
                       W
                     </button>
                     <button
                       type='button'
-                      className={`btn btn-period ml-1 btn-sm ${selectedPeriod === 'm' ? 'btn-info' : 'btn-light'
-                        }`}
+                      className={`btn btn-period ml-1 btn-sm ${
+                        selectedPeriod === 'm' ? 'btn-info' : 'btn-light'
+                      }`}
                       onClick={() => this.setSelectedPeriod('m')}
                       title='Month'>
                       M
                     </button>
                     <button
                       type='button'
-                      className={`btn btn-period ml-1 btn-sm ${selectedPeriod === 'a' ? 'btn-info' : 'btn-light'
-                        }`}
+                      className={`btn btn-period ml-1 btn-sm ${
+                        selectedPeriod === 'a' ? 'btn-info' : 'btn-light'
+                      }`}
                       onClick={() => this.setSelectedPeriod('a')}
                       title='All'>
                       All
@@ -330,7 +342,7 @@ class ProfitLossWrapper extends React.Component {
             </Card>
           </Accordion>
         </div>
-      </div >
+      </div>
     );
   }
 }
