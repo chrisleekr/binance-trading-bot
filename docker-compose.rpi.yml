@@ -47,6 +47,16 @@ services:
       - mongo_data:/data/db
     #command: mongod --repair
 
+  binance-market-watcher:
+    container_name: binance-market-watcher
+    build:
+      context: ./binance-market-watcher/
+    networks:
+      - internal
+    ports:
+      - 9090:9090
+    restart: unless-stopped
+
 networks:
   internal:
     driver: bridge
