@@ -300,7 +300,7 @@ class SettingIconBotOptions extends React.Component {
                           <div className='row'>
                             <div className='col-12'>
                               <Form.Group
-                                controlId='field-bot-options-buy-order-limit-enabled'
+                                controlId='field-bot-options-order-limit-enabled'
                                 className='mb-2'>
                                 <Form.Check size='sm'>
                                   <Form.Check.Input
@@ -313,10 +313,10 @@ class SettingIconBotOptions extends React.Component {
                                     Enabled{' '}
                                     <OverlayTrigger
                                       trigger='click'
-                                      key='bot-options-buy-order-limit-enabled-overlay'
+                                      key='bot-options-order-limit-enabled-overlay'
                                       placement='bottom'
                                       overlay={
-                                        <Popover id='bot-options-buy-order-limit-enabled-overlay-right'>
+                                        <Popover id='bot-options-order-limit-enabled-overlay-right'>
                                           <Popover.Content>
                                             If enabled, the bot will not place
                                             orders if the conditions meet.
@@ -337,21 +337,21 @@ class SettingIconBotOptions extends React.Component {
                               <div className='row'>
                                 <div className='col-12 col-sm-6'>
                                   <Form.Group
-                                    controlId='field-bot-options-buy-order-limit-max-open-orders'
+                                    controlId='field-bot-options-order-limit-max-buy-open-orders'
                                     className='mb-2'>
                                     <Form.Label className='mb-0'>
                                       Max. Buy Open Orders
                                       <OverlayTrigger
                                         trigger='click'
-                                        key='max-open-orders-overlay'
+                                        key='max-buy-open-orders-overlay'
                                         placement='bottom'
                                         overlay={
-                                          <Popover id='max-open-orders-overlay-right'>
+                                          <Popover id='max-buy-open-orders-overlay-right'>
                                             <Popover.Content>
-                                              Set the number of concurrent open
-                                              orders for buying. If set 3, then
-                                              the bot will not place more than 3
-                                              buy open orders.
+                                              Set the maximum number of
+                                              concurrent open orders for buying.
+                                              If set 3, then the bot will not
+                                              place more than 3 buy open orders.
                                             </Popover.Content>
                                           </Popover>
                                         }>
@@ -365,7 +365,7 @@ class SettingIconBotOptions extends React.Component {
                                     <Form.Control
                                       size='sm'
                                       type='number'
-                                      placeholder='Enter number of buy open orders'
+                                      placeholder='Enter maximum number of buy open orders'
                                       required
                                       min='1'
                                       step='1'
@@ -379,16 +379,16 @@ class SettingIconBotOptions extends React.Component {
                                 </div>
                                 <div className='col-12 col-sm-6'>
                                   <Form.Group
-                                    controlId='field-bot-options-buy-order-limit-max-open-orders'
+                                    controlId='field-bot-options-order-limit-max-open-trades'
                                     className='mb-2'>
                                     <Form.Label className='mb-0'>
                                       Max. Open Trades
                                       <OverlayTrigger
                                         trigger='click'
-                                        key='max-active-orders-overlay'
+                                        key='max-open-trades-overlay'
                                         placement='bottom'
                                         overlay={
-                                          <Popover id='max-open-orders-overlay-right'>
+                                          <Popover id='max-open-trades-overlay-right'>
                                             <Popover.Content>
                                               Set the maximum number of open
                                               trades. If set 5,, then the bot
@@ -408,7 +408,7 @@ class SettingIconBotOptions extends React.Component {
                                     <Form.Control
                                       size='sm'
                                       type='number'
-                                      placeholder='Enter number of active orders'
+                                      placeholder='Enter maximum number of open trades'
                                       required
                                       min='1'
                                       step='1'
