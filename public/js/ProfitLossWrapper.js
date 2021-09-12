@@ -112,13 +112,8 @@ class ProfitLossWrapper extends React.Component {
   }
 
   render() {
-    const {
-      sendWebSocket,
-      isAuthenticated,
-      closedTrades,
-      symbolEstimates,
-      orderStats
-    } = this.props;
+    const { sendWebSocket, isAuthenticated, closedTrades, symbolEstimates } =
+      this.props;
     const { totalPnL, symbols, selectedPeriod, closedTradesLoading } =
       this.state;
 

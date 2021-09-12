@@ -307,7 +307,6 @@ class App extends React.Component {
                 closedTrades={closedTrades}
                 sendWebSocket={this.sendWebSocket}
                 symbolEstimates={symbolEstimates}
-                orderStats={orderStats}
               />
               <OrderStats orderStats={orderStats} />
             </div>
