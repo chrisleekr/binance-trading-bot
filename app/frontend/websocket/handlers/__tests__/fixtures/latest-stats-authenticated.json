@@ -2,16 +2,28 @@
   "result": true,
   "type": "latest",
   "isAuthenticated": true,
-  "botOptions": { "authentication": { "lockList": true, "lockAfter": 120 } },
+  "botOptions": {
+    "authentication": { "lockList": true, "lockAfter": 120 },
+    "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 },
+    "orderLimit": { "enabled": true, "maxBuyOpenOrders": 3, "maxOpenTrades": 5 }
+  },
   "configuration": {
     "enabled": true,
     "type": "i-am-global",
     "candles": { "interval": "15m" },
-    "botOptions": { "authentication": { "lockList": true, "lockAfter": 120 } },
+    "botOptions": {
+      "authentication": { "lockList": true, "lockAfter": 120 },
+      "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 },
+      "orderLimit": {
+        "enabled": true,
+        "maxBuyOpenOrders": 3,
+        "maxOpenTrades": 5
+      }
+    },
     "sell": {}
   },
   "common": {
-    "version": "0.0.77",
+    "version": "0.0.78",
     "gitHash": "some-hash",
     "accountInfo": {
       "makerCommission": 0,
@@ -156,7 +168,8 @@
         "trades": 5,
         "profitPercentage": 1601.995003799773
       }
-    ]
+    ],
+    "orderStats": { "numberOfOpenTrades": 6, "numberOfBuyOpenOrders": 3 }
   },
   "stats": {
     "symbols": [

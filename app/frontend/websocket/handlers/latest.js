@@ -80,7 +80,17 @@ const handleLatest = async (logger, ws, payload) => {
       closedTradesSetting: JSON.parse(
         cacheTrailingTradeCommon['closed-trades']
       ),
-      closedTrades: cacheTrailingTradeClosedTrades
+      closedTrades: cacheTrailingTradeClosedTrades,
+      orderStats: {
+        numberOfOpenTrades: parseInt(
+          cacheTrailingTradeCommon['number-of-open-trades'],
+          10
+        ),
+        numberOfBuyOpenOrders: parseInt(
+          cacheTrailingTradeCommon['number-of-buy-open-orders'],
+          10
+        )
+      }
     };
   } catch (e) {
     logger.error({ e }, 'Something wrong with trailing-trade-common cache');

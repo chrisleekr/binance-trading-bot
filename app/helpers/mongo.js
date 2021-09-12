@@ -36,6 +36,29 @@ const connect = async funcLogger => {
 };
 
 /**
+ * Count
+ *
+ * @param {*} funcLogger
+ * @param {*} collectionName
+ * @param {*} query
+ *
+ * @returns
+ */
+const count = async (funcLogger, collectionName, query) => {
+  const logger = funcLogger.child({ helper: 'mongo', funcName: 'count' });
+
+  const collection = database.collection(collectionName);
+
+  logger.info({ query }, 'Finding document from MongoDB');
+
+  const result = await collection.count(query);
+
+  logger.info({ result }, 'Found documents from MongoDB');
+
+  return result;
+};
+
+/**
  * Find all
  *
  * @param {*} funcLogger
@@ -220,6 +243,7 @@ const deleteOne = async (funcLogger, collectionName, filter) => {
 module.exports = {
   client,
   connect,
+  count,
   findAll,
   aggregate,
   findOne,

@@ -1,7 +1,11 @@
 const _ = require('lodash');
 const moment = require('moment');
 
-const { isActionDisabled } = require('../../trailingTradeHelper/common');
+const {
+  isActionDisabled,
+  getNumberOfBuyOpenOrders,
+  getNumberOfOpenTrades
+} = require('../../trailingTradeHelper/common');
 const { getGridTradeOrder } = require('../../trailingTradeHelper/order');
 
 /**
@@ -80,6 +84,64 @@ const isGreaterThanTheATHRestrictionPrice = data => {
     buyATHRestrictionEnabled === true &&
     buyTriggerPrice >= buyATHRestrictionPrice
   );
+};
+
+/**
+ * Check whether current open orders has reached maximum open orders
+ *
+ *  - current buy open order must be less than maximum buy open orders.
+ *
+ * @param {*} logger
+ * @param {*} data
+ * @returns
+ */
+const isLessThanMaxBuyOpenOrders = async (logger, data) => {
+  const {
+    symbolConfiguration: {
+      botOptions: {
+        orderLimit: {
+          enabled: orderLimitEnabled,
+          maxBuyOpenOrders: orderLimitMaxBuyOpenOrders
+        }
+      }
+    }
+  } = data;
+
+  if (orderLimitEnabled === false) {
+    return false;
+  }
+
+  const currentBuyOpenOrders = await getNumberOfBuyOpenOrders(logger);
+
+  if (currentBuyOpenOrders >= orderLimitMaxBuyOpenOrders) {
+    return true;
+  }
+
+  return false;
+};
+
+const isLessThanMaxOpenTrades = async (logger, data) => {
+  const {
+    symbolConfiguration: {
+      botOptions: {
+        orderLimit: {
+          enabled: orderLimitEnabled,
+          maxOpenTrades: orderLimitMaxOpenTrades
+        }
+      }
+    }
+  } = data;
+
+  if (orderLimitEnabled === false) {
+    return false;
+  }
+
+  const currentOpenTrades = await getNumberOfOpenTrades(logger);
+  if (currentOpenTrades >= orderLimitMaxOpenTrades) {
+    return true;
+  }
+
+  return false;
 };
 
 /**
@@ -301,6 +363,26 @@ const execute = async (logger, rawData) => {
         data,
         'wait',
         `The current price has reached the lowest price; however, it is restricted to buy the coin.`
+      );
+    }
+
+    if (await isLessThanMaxBuyOpenOrders(logger, data)) {
+      return setBuyActionAndMessage(
+        logger,
+        data,
+        'wait',
+        `The current price has reached the lowest price; however, it is restricted to buy the coin ` +
+          `because of reached maximum buy open orders.`
+      );
+    }
+
+    if (await isLessThanMaxOpenTrades(logger, data)) {
+      return setBuyActionAndMessage(
+        logger,
+        data,
+        'wait',
+        `The current price has reached the lowest price; however, it is restricted to buy the coin ` +
+          `because of reached maximum open trades.`
       );
     }
 

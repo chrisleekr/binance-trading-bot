@@ -5,7 +5,8 @@ const {
   getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
   isExceedAPILimit,
-  getAPILimit
+  getAPILimit,
+  saveOrderStats
 } = require('../../trailingTradeHelper/common');
 const { saveGridTradeOrder } = require('../../trailingTradeHelper/order');
 
@@ -30,6 +31,7 @@ const execute = async (logger, rawData) => {
       filterMinNotional: { minNotional }
     },
     symbolConfiguration: {
+      symbols,
       buy: { enabled: tradingEnabled, currentGridTradeIndex, currentGridTrade },
       system: { checkOrderExecutePeriod }
     },
@@ -267,6 +269,9 @@ const execute = async (logger, rawData) => {
     currentGridTradeIndex,
     nextCheck: moment().add(checkOrderExecutePeriod, 'seconds').format()
   });
+
+  // Save number of open orders
+  await saveOrderStats(logger, symbols);
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

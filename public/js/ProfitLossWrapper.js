@@ -112,8 +112,13 @@ class ProfitLossWrapper extends React.Component {
   }
 
   render() {
-    const { sendWebSocket, isAuthenticated, closedTrades, symbolEstimates } =
-      this.props;
+    const {
+      sendWebSocket,
+      isAuthenticated,
+      closedTrades,
+      symbolEstimates,
+      orderStats
+    } = this.props;
     const { totalPnL, symbols, selectedPeriod, closedTradesLoading } =
       this.state;
 
@@ -219,7 +224,7 @@ class ProfitLossWrapper extends React.Component {
                         }>
                         <Button
                           variant='link'
-                          className='p-0 m-0 ml-1 text-info'>
+                          className='p-0 m-0 ml-1 text-info align-baseline'>
                           <i className='fas fa-question-circle fa-sm'></i>
                         </Button>
                       </OverlayTrigger>
@@ -277,7 +282,7 @@ class ProfitLossWrapper extends React.Component {
                         }>
                         <Button
                           variant='link'
-                          className='p-0 m-0 ml-1 text-info'>
+                          className='p-0 m-0 ml-1 text-info align-baseline'>
                           <i className='fas fa-question-circle fa-sm'></i>
                         </Button>
                       </OverlayTrigger>

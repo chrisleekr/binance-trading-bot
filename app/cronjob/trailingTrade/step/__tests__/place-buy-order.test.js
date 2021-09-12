@@ -11,6 +11,7 @@ describe('place-buy-order.js', () => {
   let mockGetAccountInfoFromAPI;
   let mockIsExceedAPILimit;
   let mockGetAPILimit;
+  let mockSaveOrderStats;
 
   let mockSaveGridTradeOrder;
 
@@ -33,6 +34,7 @@ describe('place-buy-order.js', () => {
       mockGetAPILimit = jest.fn().mockResolvedValue(10);
 
       mockSaveGridTradeOrder = jest.fn().mockResolvedValue(true);
+      mockSaveOrderStats = jest.fn().mockResolvedValue(true);
     });
 
     describe('when symbol is locked', () => {
@@ -46,7 +48,8 @@ describe('place-buy-order.js', () => {
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrderStats: mockSaveOrderStats
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -69,6 +72,7 @@ describe('place-buy-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            symbols: ['BTCUPUSDT', 'ETHBTC', 'ALPHABTC', 'BTCBRL', 'BNBUSDT'],
             buy: {
               enabled: true,
               currentGridTradeIndex: 0,
@@ -108,6 +112,10 @@ describe('place-buy-order.js', () => {
 
       it('does not trigger saveGridTradeOrder', () => {
         expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveOrderStats', () => {
+        expect(mockSaveOrderStats).not.toHaveBeenCalled();
       });
 
       it('retruns expected value', () => {
@@ -126,7 +134,8 @@ describe('place-buy-order.js', () => {
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrderStats: mockSaveOrderStats
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -149,6 +158,7 @@ describe('place-buy-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            symbols: ['BTCUPUSDT', 'ETHBTC', 'ALPHABTC', 'BTCBRL', 'BNBUSDT'],
             buy: {
               enabled: true,
               currentGridTradeIndex: 0,
@@ -190,6 +200,10 @@ describe('place-buy-order.js', () => {
         expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
       });
 
+      it('does not trigger saveOrderStats', () => {
+        expect(mockSaveOrderStats).not.toHaveBeenCalled();
+      });
+
       it('retruns expected value', () => {
         expect(result).toStrictEqual(rawData);
       });
@@ -206,7 +220,8 @@ describe('place-buy-order.js', () => {
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrderStats: mockSaveOrderStats
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -229,6 +244,7 @@ describe('place-buy-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            symbols: ['BTCUPUSDT', 'ETHBTC', 'ALPHABTC', 'BTCBRL', 'BNBUSDT'],
             buy: {
               enabled: true,
               currentGridTradeIndex: 0,
@@ -282,6 +298,10 @@ describe('place-buy-order.js', () => {
         expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
       });
 
+      it('does not trigger saveOrderStats', () => {
+        expect(mockSaveOrderStats).not.toHaveBeenCalled();
+      });
+
       it('retruns expected value', () => {
         expect(result).toStrictEqual({
           ...rawData,
@@ -318,7 +338,8 @@ describe('place-buy-order.js', () => {
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrderStats: mockSaveOrderStats
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -341,6 +362,7 @@ describe('place-buy-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            symbols: ['BTCUPUSDT', 'ETHBTC', 'ALPHABTC', 'BTCBRL', 'BNBUSDT'],
             buy: {
               enabled: true,
               currentGridTradeIndex: -1,
@@ -377,6 +399,10 @@ describe('place-buy-order.js', () => {
         expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
       });
 
+      it('does not trigger saveOrderStats', () => {
+        expect(mockSaveOrderStats).not.toHaveBeenCalled();
+      });
+
       it('retruns expected value', () => {
         expect(result).toStrictEqual({
           ...rawData,
@@ -404,7 +430,8 @@ describe('place-buy-order.js', () => {
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrderStats: mockSaveOrderStats
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -427,6 +454,7 @@ describe('place-buy-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            symbols: ['BTCUPUSDT', 'ETHBTC', 'ALPHABTC', 'BTCBRL', 'BNBUSDT'],
             buy: {
               enabled: true,
               currentGridTradeIndex: 0,
@@ -471,6 +499,10 @@ describe('place-buy-order.js', () => {
         expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
       });
 
+      it('does not trigger saveOrderStats', () => {
+        expect(mockSaveOrderStats).not.toHaveBeenCalled();
+      });
+
       it('retruns expected value', () => {
         expect(result).toStrictEqual({
           ...rawData,
@@ -498,7 +530,8 @@ describe('place-buy-order.js', () => {
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrderStats: mockSaveOrderStats
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -521,6 +554,7 @@ describe('place-buy-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            symbols: ['BTCUPUSDT', 'ETHBTC', 'ALPHABTC', 'BTCBRL', 'BNBUSDT'],
             buy: {
               enabled: true,
               currentGridTradeIndex: 0,
@@ -565,6 +599,10 @@ describe('place-buy-order.js', () => {
         expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
       });
 
+      it('does not trigger saveOrderStats', () => {
+        expect(mockSaveOrderStats).not.toHaveBeenCalled();
+      });
+
       it('retruns expected value', () => {
         expect(result).toStrictEqual({
           ...rawData,
@@ -593,7 +631,8 @@ describe('place-buy-order.js', () => {
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrderStats: mockSaveOrderStats
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -660,6 +699,10 @@ describe('place-buy-order.js', () => {
           expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
         });
 
+        it('does not trigger saveOrderStats', () => {
+          expect(mockSaveOrderStats).not.toHaveBeenCalled();
+        });
+
         it('retruns expected value', () => {
           expect(result).toStrictEqual({
             ...rawData,
@@ -687,7 +730,8 @@ describe('place-buy-order.js', () => {
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrderStats: mockSaveOrderStats
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -754,6 +798,10 @@ describe('place-buy-order.js', () => {
           expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
         });
 
+        it('does not trigger saveOrderStats', () => {
+          expect(mockSaveOrderStats).not.toHaveBeenCalled();
+        });
+
         it('retruns expected value', () => {
           expect(result).toStrictEqual({
             ...rawData,
@@ -781,7 +829,8 @@ describe('place-buy-order.js', () => {
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrderStats: mockSaveOrderStats
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -848,6 +897,10 @@ describe('place-buy-order.js', () => {
           expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
         });
 
+        it('does not trigger saveOrderStats', () => {
+          expect(mockSaveOrderStats).not.toHaveBeenCalled();
+        });
+
         it('retruns expected value', () => {
           expect(result).toStrictEqual({
             ...rawData,
@@ -875,7 +928,8 @@ describe('place-buy-order.js', () => {
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrderStats: mockSaveOrderStats
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -940,6 +994,10 @@ describe('place-buy-order.js', () => {
 
         it('does not trigger saveGridTradeOrder', () => {
           expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveOrderStats', () => {
+          expect(mockSaveOrderStats).not.toHaveBeenCalled();
         });
 
         it('retruns expected value', () => {
@@ -971,7 +1029,8 @@ describe('place-buy-order.js', () => {
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrderStats: mockSaveOrderStats
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1038,6 +1097,10 @@ describe('place-buy-order.js', () => {
           expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
         });
 
+        it('does not trigger saveOrderStats', () => {
+          expect(mockSaveOrderStats).not.toHaveBeenCalled();
+        });
+
         it('retruns expected value', () => {
           expect(result).toStrictEqual({
             ...rawData,
@@ -1067,7 +1130,8 @@ describe('place-buy-order.js', () => {
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrderStats: mockSaveOrderStats
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1134,6 +1198,10 @@ describe('place-buy-order.js', () => {
           expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
         });
 
+        it('does not trigger saveOrderStats', () => {
+          expect(mockSaveOrderStats).not.toHaveBeenCalled();
+        });
+
         it('retruns expected value', () => {
           expect(result).toStrictEqual({
             ...rawData,
@@ -1163,7 +1231,8 @@ describe('place-buy-order.js', () => {
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrderStats: mockSaveOrderStats
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1230,6 +1299,10 @@ describe('place-buy-order.js', () => {
           expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
         });
 
+        it('does not trigger saveOrderStats', () => {
+          expect(mockSaveOrderStats).not.toHaveBeenCalled();
+        });
+
         it('retruns expected value', () => {
           expect(result).toStrictEqual({
             ...rawData,
@@ -1259,7 +1332,8 @@ describe('place-buy-order.js', () => {
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            saveOrderStats: mockSaveOrderStats
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1324,6 +1398,10 @@ describe('place-buy-order.js', () => {
 
         it('does not trigger saveGridTradeOrder', () => {
           expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveOrderStats', () => {
+          expect(mockSaveOrderStats).not.toHaveBeenCalled();
         });
 
         it('retruns expected value', () => {
@@ -1356,7 +1434,8 @@ describe('place-buy-order.js', () => {
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrderStats: mockSaveOrderStats
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1378,6 +1457,7 @@ describe('place-buy-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            symbols: ['BTCUPUSDT', 'ETHBTC', 'ALPHABTC', 'BTCBRL', 'BNBUSDT'],
             buy: {
               enabled: false,
               currentGridTradeIndex: 0,
@@ -1422,6 +1502,10 @@ describe('place-buy-order.js', () => {
         expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
       });
 
+      it('does not trigger saveOrderStats', () => {
+        expect(mockSaveOrderStats).not.toHaveBeenCalled();
+      });
+
       it('retruns expected value', () => {
         expect(result).toStrictEqual({
           ...rawData,
@@ -1451,7 +1535,8 @@ describe('place-buy-order.js', () => {
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          saveOrderStats: mockSaveOrderStats
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1473,6 +1558,7 @@ describe('place-buy-order.js', () => {
             filterMinNotional: { minNotional: '10.00000000' }
           },
           symbolConfiguration: {
+            symbols: ['BTCUPUSDT', 'ETHBTC', 'ALPHABTC', 'BTCBRL', 'BNBUSDT'],
             buy: {
               enabled: true,
               currentGridTradeIndex: 0,
@@ -1515,6 +1601,10 @@ describe('place-buy-order.js', () => {
 
       it('does not trigger saveGridTradeOrder', () => {
         expect(mockSaveGridTradeOrder).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveOrderStats', () => {
+        expect(mockSaveOrderStats).not.toHaveBeenCalled();
       });
 
       it('retruns expected value', () => {
@@ -1566,7 +1656,8 @@ describe('place-buy-order.js', () => {
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrderStats: mockSaveOrderStats
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1589,6 +1680,13 @@ describe('place-buy-order.js', () => {
                 filterMinNotional: { minNotional: '10.00000000' }
               },
               symbolConfiguration: {
+                symbols: [
+                  'BTCUPUSDT',
+                  'ETHBTC',
+                  'ALPHABTC',
+                  'BTCBRL',
+                  'BNBUSDT'
+                ],
                 buy: {
                   enabled: true,
                   currentGridTradeIndex: 0,
@@ -1631,6 +1729,10 @@ describe('place-buy-order.js', () => {
 
           it('does not trigger getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+          });
+
+          it('does not trigger saveOrderStats', () => {
+            expect(mockSaveOrderStats).not.toHaveBeenCalled();
           });
 
           it('retruns expected value', () => {
@@ -1683,7 +1785,8 @@ describe('place-buy-order.js', () => {
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrderStats: mockSaveOrderStats
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1706,6 +1809,13 @@ describe('place-buy-order.js', () => {
                 filterMinNotional: { minNotional: '10.00000000' }
               },
               symbolConfiguration: {
+                symbols: [
+                  'BTCUPUSDT',
+                  'ETHBTC',
+                  'ALPHABTC',
+                  'BTCBRL',
+                  'BNBUSDT'
+                ],
                 buy: {
                   enabled: true,
                   currentGridTradeIndex: 0,
@@ -1768,6 +1878,16 @@ describe('place-buy-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveOrderStats', () => {
+            expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+              'BTCUPUSDT',
+              'ETHBTC',
+              'ALPHABTC',
+              'BTCBRL',
+              'BNBUSDT'
+            ]);
           });
 
           it('retruns expected value', () => {
@@ -1840,7 +1960,8 @@ describe('place-buy-order.js', () => {
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrderStats: mockSaveOrderStats
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1863,6 +1984,13 @@ describe('place-buy-order.js', () => {
                 filterMinNotional: { minNotional: '0.00010000' }
               },
               symbolConfiguration: {
+                symbols: [
+                  'BTCUPUSDT',
+                  'ETHBTC',
+                  'ALPHABTC',
+                  'BTCBRL',
+                  'BNBUSDT'
+                ],
                 buy: {
                   enabled: true,
                   currentGridTradeIndex: 0,
@@ -1925,6 +2053,16 @@ describe('place-buy-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveOrderStats', () => {
+            expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+              'BTCUPUSDT',
+              'ETHBTC',
+              'ALPHABTC',
+              'BTCBRL',
+              'BNBUSDT'
+            ]);
           });
 
           it('retruns expected value', () => {
@@ -1997,7 +2135,8 @@ describe('place-buy-order.js', () => {
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrderStats: mockSaveOrderStats
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -2020,6 +2159,13 @@ describe('place-buy-order.js', () => {
                 filterMinNotional: { minNotional: '0.00010000' }
               },
               symbolConfiguration: {
+                symbols: [
+                  'BTCUPUSDT',
+                  'ETHBTC',
+                  'ALPHABTC',
+                  'BTCBRL',
+                  'BNBUSDT'
+                ],
                 buy: {
                   enabled: true,
                   currentGridTradeIndex: 0,
@@ -2082,6 +2228,16 @@ describe('place-buy-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveOrderStats', () => {
+            expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+              'BTCUPUSDT',
+              'ETHBTC',
+              'ALPHABTC',
+              'BTCBRL',
+              'BNBUSDT'
+            ]);
           });
 
           it('retruns expected value', () => {
@@ -2153,7 +2309,8 @@ describe('place-buy-order.js', () => {
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrderStats: mockSaveOrderStats
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -2176,6 +2333,13 @@ describe('place-buy-order.js', () => {
                 filterMinNotional: { minNotional: '10.00000000' }
               },
               symbolConfiguration: {
+                symbols: [
+                  'BTCUPUSDT',
+                  'ETHBTC',
+                  'ALPHABTC',
+                  'BTCBRL',
+                  'BNBUSDT'
+                ],
                 buy: {
                   enabled: true,
                   currentGridTradeIndex: 0,
@@ -2238,6 +2402,16 @@ describe('place-buy-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveOrderStats', () => {
+            expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+              'BTCUPUSDT',
+              'ETHBTC',
+              'ALPHABTC',
+              'BTCBRL',
+              'BNBUSDT'
+            ]);
           });
 
           it('retruns expected value', () => {
@@ -2309,7 +2483,8 @@ describe('place-buy-order.js', () => {
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrderStats: mockSaveOrderStats
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -2332,6 +2507,13 @@ describe('place-buy-order.js', () => {
                 filterMinNotional: { minNotional: '10.00000000' }
               },
               symbolConfiguration: {
+                symbols: [
+                  'BTCUPUSDT',
+                  'ETHBTC',
+                  'ALPHABTC',
+                  'BTCBRL',
+                  'BNBUSDT'
+                ],
                 buy: {
                   enabled: true,
                   currentGridTradeIndex: 1,
@@ -2394,6 +2576,16 @@ describe('place-buy-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveOrderStats', () => {
+            expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+              'BTCUPUSDT',
+              'ETHBTC',
+              'ALPHABTC',
+              'BTCBRL',
+              'BNBUSDT'
+            ]);
           });
 
           it('retruns expected value', () => {
@@ -2468,7 +2660,8 @@ describe('place-buy-order.js', () => {
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrderStats: mockSaveOrderStats
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -2491,6 +2684,13 @@ describe('place-buy-order.js', () => {
                 filterMinNotional: { minNotional: '10.00000000' }
               },
               symbolConfiguration: {
+                symbols: [
+                  'BTCUPUSDT',
+                  'ETHBTC',
+                  'ALPHABTC',
+                  'BTCBRL',
+                  'BNBUSDT'
+                ],
                 buy: {
                   enabled: true,
                   currentGridTradeIndex: 0,
@@ -2553,6 +2753,16 @@ describe('place-buy-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveOrderStats', () => {
+            expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+              'BTCUPUSDT',
+              'ETHBTC',
+              'ALPHABTC',
+              'BTCBRL',
+              'BNBUSDT'
+            ]);
           });
 
           it('retruns expected value', () => {
@@ -2625,7 +2835,8 @@ describe('place-buy-order.js', () => {
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrderStats: mockSaveOrderStats
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -2648,6 +2859,13 @@ describe('place-buy-order.js', () => {
                 filterMinNotional: { minNotional: '0.00010000' }
               },
               symbolConfiguration: {
+                symbols: [
+                  'BTCUPUSDT',
+                  'ETHBTC',
+                  'ALPHABTC',
+                  'BTCBRL',
+                  'BNBUSDT'
+                ],
                 buy: {
                   enabled: true,
                   currentGridTradeIndex: 0,
@@ -2710,6 +2928,16 @@ describe('place-buy-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveOrderStats', () => {
+            expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+              'BTCUPUSDT',
+              'ETHBTC',
+              'ALPHABTC',
+              'BTCBRL',
+              'BNBUSDT'
+            ]);
           });
 
           it('retruns expected value', () => {
@@ -2782,7 +3010,8 @@ describe('place-buy-order.js', () => {
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrderStats: mockSaveOrderStats
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -2805,6 +3034,13 @@ describe('place-buy-order.js', () => {
                 filterMinNotional: { minNotional: '0.00010000' }
               },
               symbolConfiguration: {
+                symbols: [
+                  'BTCUPUSDT',
+                  'ETHBTC',
+                  'ALPHABTC',
+                  'BTCBRL',
+                  'BNBUSDT'
+                ],
                 buy: {
                   enabled: true,
                   currentGridTradeIndex: 0,
@@ -2867,6 +3103,16 @@ describe('place-buy-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveOrderStats', () => {
+            expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+              'BTCUPUSDT',
+              'ETHBTC',
+              'ALPHABTC',
+              'BTCBRL',
+              'BNBUSDT'
+            ]);
           });
 
           it('retruns expected value', () => {
@@ -2938,7 +3184,8 @@ describe('place-buy-order.js', () => {
                 mockGetAndCacheOpenOrdersForSymbol,
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              saveOrderStats: mockSaveOrderStats
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -2961,6 +3208,13 @@ describe('place-buy-order.js', () => {
                 filterMinNotional: { minNotional: '10.00000000' }
               },
               symbolConfiguration: {
+                symbols: [
+                  'BTCUPUSDT',
+                  'ETHBTC',
+                  'ALPHABTC',
+                  'BTCBRL',
+                  'BNBUSDT'
+                ],
                 buy: {
                   enabled: true,
                   currentGridTradeIndex: 0,
@@ -3023,6 +3277,16 @@ describe('place-buy-order.js', () => {
 
           it('triggers getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('triggers saveOrderStats', () => {
+            expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+              'BTCUPUSDT',
+              'ETHBTC',
+              'ALPHABTC',
+              'BTCBRL',
+              'BNBUSDT'
+            ]);
           });
 
           it('retruns expected value', () => {

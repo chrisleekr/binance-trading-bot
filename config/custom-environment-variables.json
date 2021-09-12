@@ -122,12 +122,29 @@
         "autoTriggerBuy": {
           "enabled": {
             "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTO_TRIGGER_BUY",
-            "__description": "Set a boolean to trigger 1st grid trade for buying after removing the last buy price due to completed grid trades for selling.. Note that this action may be triggered if you sell the coin in Binance directly and the last buy price was recorded.",
+            "__description": "Set a boolean to trigger 1st grid trade for buying after removing the last buy price due to completed grid trades for selling. Note that this action may be triggered if you sell the coin in Binance directly and the last buy price was recorded.",
             "__format": "boolean"
           },
           "triggerAfter": {
             "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRIGGER_AFTER",
-            "__description": "",
+            "__description": "Set minutes to trigger buy orders for the symbol after removing the last buy price.",
+            "__format": "number"
+          }
+        },
+        "orderLimit": {
+          "enabled": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_ORDER_LIMIT_ENABLED",
+            "__description": "Set a boolean to restrict the order based on the configuration. If enabled, the bot will not place orders if the conditions meet.",
+            "__format": "boolean"
+          },
+          "maxBuyOpenOrders": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_ORDER_LIMIT_MAX_BUY_OPEN_ORDERS",
+            "__description": "Set the number of concurrent open orders for buying. If set 3, then the bot will not place more than 3 buy open orders.",
+            "__format": "number"
+          },
+          "maxOpenTrades": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_ORDER_LIMIT_MAX_OPEN_TRADES",
+            "__description": "Set the maximum number of open trades. If set 5,, then the bot will not place a buy order when there are 5 symbols recorded with the last buy price.",
             "__format": "number"
           }
         }

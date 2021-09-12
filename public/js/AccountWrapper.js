@@ -25,7 +25,7 @@ class AccountWrapper extends React.Component {
               <button
                 type='button'
                 className='btn btn-sm btn-link btn-account-balance text-uppercase font-weight-bold text-left'>
-                <span className="pr-2">Account Balance</span>
+                <span className='pr-2'>Account Balance</span>
               </button>
             </Accordion.Toggle>
             <Accordion.Collapse eventKey='0'>
@@ -44,7 +44,7 @@ class AccountWrapper extends React.Component {
             </Accordion.Collapse>
           </Card>
         </Accordion>
-      </div >
+      </div>
     );
   }
 }
