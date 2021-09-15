@@ -95,7 +95,7 @@ const isGreaterThanTheATHRestrictionPrice = data => {
  * @param {*} data
  * @returns
  */
-const isLessThanMaxBuyOpenOrders = async (logger, data) => {
+const isExceedingMaxBuyOpenOrders = async (logger, data) => {
   const {
     symbolConfiguration: {
       botOptions: {
@@ -120,7 +120,7 @@ const isLessThanMaxBuyOpenOrders = async (logger, data) => {
   return false;
 };
 
-const isLessThanMaxOpenTrades = async (logger, data) => {
+const isExceedingMaxOpenTrades = async (logger, data) => {
   const {
     symbolConfiguration: {
       botOptions: {
@@ -129,14 +129,22 @@ const isLessThanMaxOpenTrades = async (logger, data) => {
           maxOpenTrades: orderLimitMaxOpenTrades
         }
       }
-    }
+    },
+    sell: { lastBuyPrice }
   } = data;
 
   if (orderLimitEnabled === false) {
     return false;
   }
 
-  const currentOpenTrades = await getNumberOfOpenTrades(logger);
+  let currentOpenTrades = await getNumberOfOpenTrades(logger);
+
+  // If the last buy price is recorded, this is one of open trades.
+  // Deduct 1 from the current open trades and calculate it.
+  if (lastBuyPrice) {
+    currentOpenTrades -= 1;
+  }
+
   if (currentOpenTrades >= orderLimitMaxOpenTrades) {
     return true;
   }
@@ -366,7 +374,7 @@ const execute = async (logger, rawData) => {
       );
     }
 
-    if (await isLessThanMaxBuyOpenOrders(logger, data)) {
+    if (await isExceedingMaxBuyOpenOrders(logger, data)) {
       return setBuyActionAndMessage(
         logger,
         data,
@@ -376,7 +384,7 @@ const execute = async (logger, rawData) => {
       );
     }
 
-    if (await isLessThanMaxOpenTrades(logger, data)) {
+    if (await isExceedingMaxOpenTrades(logger, data)) {
       return setBuyActionAndMessage(
         logger,
         data,

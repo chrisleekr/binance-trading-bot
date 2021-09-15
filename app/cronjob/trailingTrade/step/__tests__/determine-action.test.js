@@ -975,163 +975,256 @@ describe('determine-action.js', () => {
         });
 
         describe('when number of current buy open orders more than maximum open trades', () => {
-          describe('when order limit is enabled', () => {
-            beforeEach(async () => {
-              cache.get = jest.fn().mockImplementation(_key => null);
-
-              mockGetNumberOfBuyOpenOrders = jest.fn().mockResolvedValue(3);
-              mockGetNumberOfOpenTrades = jest.fn().mockResolvedValue(6);
-
-              mockIsActionDisabled = jest.fn().mockResolvedValue({
-                isDisabled: false
-              });
-
-              jest.mock('../../../trailingTradeHelper/common', () => ({
-                isActionDisabled: mockIsActionDisabled,
-                getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
-                getNumberOfOpenTrades: mockGetNumberOfOpenTrades
-              }));
-
-              mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
-
-              jest.mock('../../../trailingTradeHelper/order', () => ({
-                getGridTradeOrder: mockGetGridTradeOrder
-              }));
-
-              rawData = {
-                action: 'not-determined',
-                symbol: 'BTCUSDT',
-                isLocked: false,
-                symbolInfo: {
-                  baseAsset: 'BTC',
-                  filterMinNotional: {
-                    minNotional: '10.00000000'
-                  }
-                },
-                baseAssetBalance: {
-                  total: 0.0003
-                },
-                symbolConfiguration: {
-                  botOptions: {
-                    orderLimit: {
-                      enabled: true,
-                      maxBuyOpenOrders: 4,
-                      maxOpenTrades: 6
-                    }
-                  },
-                  buy: {
-                    athRestriction: {
-                      enabled: true
-                    },
-                    currentGridTradeIndex: 0,
-                    currentGridTrade: {
-                      triggerPercentage: 1,
-                      stopPercentage: 1.025,
-                      limitPercentage: 1.026,
-                      maxPurchaseAmount: 10,
-                      executed: false,
-                      executedOrder: null
-                    }
-                  },
-                  sell: {
-                    stopLoss: {
-                      enabled: false
-                    },
-                    currentGridTradeIndex: 0,
-                    currentGridTrade: {
-                      triggerPercentage: 1.03,
-                      stopPercentage: 0.985,
-                      limitPercentage: 0.984,
-                      quantityPercentage: 0.8,
-                      executed: false,
-                      executedOrder: null
-                    }
+          const mockInit = ({
+            lastBuyPrice,
+            maxOpenTrades,
+            numberOfOpenTrades
+          }) => {
+            rawData = {
+              action: 'not-determined',
+              symbol: 'BTCUSDT',
+              isLocked: false,
+              symbolInfo: {
+                baseAsset: 'BTC',
+                filterMinNotional: {
+                  minNotional: '10.00000000'
+                }
+              },
+              baseAssetBalance: {
+                total: 0.0003
+              },
+              symbolConfiguration: {
+                botOptions: {
+                  orderLimit: {
+                    enabled: true,
+                    maxBuyOpenOrders: 4,
+                    maxOpenTrades
                   }
                 },
                 buy: {
-                  currentPrice: 28000,
-                  triggerPrice: 28000,
-                  athRestrictionPrice: 28100
+                  athRestriction: {
+                    enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
                 },
                 sell: {
-                  currentPrice: 28000,
-                  triggerPrice: null,
-                  lastBuyPrice: null,
-                  stopLossTriggerPrice: null
+                  stopLoss: {
+                    enabled: false
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 0.8,
+                    executed: false,
+                    executedOrder: null
+                  }
                 }
-              };
+              },
+              buy: {
+                currentPrice: 28000,
+                triggerPrice: 28000,
+                athRestrictionPrice: 28100
+              },
+              sell: {
+                currentPrice: 28000,
+                triggerPrice: null,
+                lastBuyPrice,
+                stopLossTriggerPrice: null
+              }
+            };
 
-              step = require('../determine-action');
+            cache.get = jest.fn().mockImplementation(_key => null);
 
-              result = await step.execute(logger, rawData);
+            mockGetNumberOfBuyOpenOrders = jest.fn().mockResolvedValue(3);
+            mockGetNumberOfOpenTrades = jest
+              .fn()
+              .mockResolvedValue(numberOfOpenTrades);
+
+            mockIsActionDisabled = jest.fn().mockResolvedValue({
+              isDisabled: false
             });
 
-            it('returns expected result', () => {
-              expect(result).toStrictEqual({
-                action: 'wait',
-                symbol: 'BTCUSDT',
-                isLocked: false,
-                symbolInfo: {
-                  baseAsset: 'BTC',
-                  filterMinNotional: {
-                    minNotional: '10.00000000'
-                  }
-                },
-                baseAssetBalance: {
-                  total: 0.0003
-                },
-                symbolConfiguration: {
-                  botOptions: {
-                    orderLimit: {
-                      enabled: true,
-                      maxBuyOpenOrders: 4,
-                      maxOpenTrades: 6
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              isActionDisabled: mockIsActionDisabled,
+              getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+              getNumberOfOpenTrades: mockGetNumberOfOpenTrades
+            }));
+
+            mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+            jest.mock('../../../trailingTradeHelper/order', () => ({
+              getGridTradeOrder: mockGetGridTradeOrder
+            }));
+
+            step = require('../determine-action');
+            return step;
+          };
+
+          describe('when order limit is enabled', () => {
+            describe('when the last buy price is recorded', () => {
+              describe('when number of open trade is less than max open trades', () => {
+                beforeEach(async () => {
+                  step = mockInit({
+                    lastBuyPrice: 29000,
+                    maxOpenTrades: 3,
+                    numberOfOpenTrades: 2
+                  });
+                  result = await step.execute(logger, rawData);
+                });
+
+                it('returns expected result', () => {
+                  expect(result).toMatchObject({
+                    action: 'buy',
+                    buy: {
+                      athRestrictionPrice: 28100,
+                      currentPrice: 28000,
+                      processMessage:
+                        "The current price reached the trigger price for the grid trade #1. Let's buy it.",
+                      triggerPrice: 28000,
+                      updatedAt: expect.any(Object)
                     }
-                  },
-                  buy: {
-                    athRestriction: {
-                      enabled: true
-                    },
-                    currentGridTradeIndex: 0,
-                    currentGridTrade: {
-                      triggerPercentage: 1,
-                      stopPercentage: 1.025,
-                      limitPercentage: 1.026,
-                      maxPurchaseAmount: 10,
-                      executed: false,
-                      executedOrder: null
+                  });
+                });
+              });
+
+              describe('when number of open trades is same as max open trades', () => {
+                beforeEach(async () => {
+                  step = mockInit({
+                    lastBuyPrice: 29000,
+                    maxOpenTrades: 3,
+                    numberOfOpenTrades: 3
+                  });
+                  result = await step.execute(logger, rawData);
+                });
+
+                it('returns expected result', () => {
+                  expect(result).toMatchObject({
+                    action: 'buy',
+                    buy: {
+                      athRestrictionPrice: 28100,
+                      currentPrice: 28000,
+                      processMessage:
+                        "The current price reached the trigger price for the grid trade #1. Let's buy it.",
+                      triggerPrice: 28000,
+                      updatedAt: expect.any(Object)
                     }
-                  },
-                  sell: {
-                    stopLoss: {
-                      enabled: false
-                    },
-                    currentGridTradeIndex: 0,
-                    currentGridTrade: {
-                      triggerPercentage: 1.03,
-                      stopPercentage: 0.985,
-                      limitPercentage: 0.984,
-                      quantityPercentage: 0.8,
-                      executed: false,
-                      executedOrder: null
+                  });
+                });
+              });
+
+              describe('when number of open trades is already exceeded max open trades', () => {
+                beforeEach(async () => {
+                  step = mockInit({
+                    lastBuyPrice: 29000,
+                    maxOpenTrades: 2,
+                    numberOfOpenTrades: 3
+                  });
+                  result = await step.execute(logger, rawData);
+                });
+
+                it('returns expected result', () => {
+                  expect(result).toMatchObject({
+                    action: 'wait',
+                    buy: {
+                      athRestrictionPrice: 28100,
+                      currentPrice: 28000,
+                      processMessage:
+                        `The current price has reached the lowest price; ` +
+                        `however, it is restricted to buy the coin because of reached maximum open trades.`,
+                      triggerPrice: 28000,
+                      updatedAt: expect.any(Object)
                     }
-                  }
-                },
-                buy: {
-                  currentPrice: 28000,
-                  triggerPrice: 28000,
-                  athRestrictionPrice: 28100,
-                  processMessage:
-                    `The current price has reached the lowest price; however, it is restricted to buy the coin ` +
-                    `because of reached maximum open trades.`,
-                  updatedAt: expect.any(Object)
-                },
-                sell: {
-                  currentPrice: 28000,
-                  triggerPrice: null,
-                  lastBuyPrice: null,
-                  stopLossTriggerPrice: null
-                }
+                  });
+                });
+              });
+            });
+
+            describe('when the last buy price is not recorded', () => {
+              describe('when number of open trades is less than max open trades', () => {
+                beforeEach(async () => {
+                  step = mockInit({
+                    lastBuyPrice: null,
+                    maxOpenTrades: 3,
+                    numberOfOpenTrades: 2
+                  });
+                  result = await step.execute(logger, rawData);
+                });
+
+                it('returns expected result', () => {
+                  expect(result).toMatchObject({
+                    action: 'buy',
+                    buy: {
+                      athRestrictionPrice: 28100,
+                      currentPrice: 28000,
+                      processMessage:
+                        "The current price reached the trigger price for the grid trade #1. Let's buy it.",
+                      triggerPrice: 28000,
+                      updatedAt: expect.any(Object)
+                    }
+                  });
+                });
+              });
+
+              describe('when number of open trades is same as max open trades', () => {
+                beforeEach(async () => {
+                  step = mockInit({
+                    lastBuyPrice: null,
+                    maxOpenTrades: 3,
+                    numberOfOpenTrades: 3
+                  });
+                  result = await step.execute(logger, rawData);
+                });
+
+                it('returns expected result', () => {
+                  expect(result).toMatchObject({
+                    action: 'wait',
+                    buy: {
+                      athRestrictionPrice: 28100,
+                      currentPrice: 28000,
+                      processMessage:
+                        `The current price has reached the lowest price; ` +
+                        `however, it is restricted to buy the coin because of reached maximum open trades.`,
+                      triggerPrice: 28000,
+                      updatedAt: expect.any(Object)
+                    }
+                  });
+                });
+              });
+
+              describe('when number of open trades is already exceeded max open trades', () => {
+                beforeEach(async () => {
+                  step = mockInit({
+                    lastBuyPrice: null,
+                    maxOpenTrades: 2,
+                    numberOfOpenTrades: 3
+                  });
+                  result = await step.execute(logger, rawData);
+                });
+
+                it('returns expected result', () => {
+                  expect(result).toMatchObject({
+                    action: 'wait',
+                    buy: {
+                      athRestrictionPrice: 28100,
+                      currentPrice: 28000,
+                      processMessage:
+                        `The current price has reached the lowest price; ` +
+                        `however, it is restricted to buy the coin because of reached maximum open trades.`,
+                      triggerPrice: 28000,
+                      updatedAt: expect.any(Object)
+                    }
+                  });
+                });
               });
             });
           });
