@@ -12,4 +12,5 @@ set -e
 # Execute migration
 npm run migrate:up
 
+# Execute app
 exec "$@"
