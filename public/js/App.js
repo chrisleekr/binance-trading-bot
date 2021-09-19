@@ -13,6 +13,7 @@ class App extends React.Component {
       packageVersion: '',
       gitHash: '',
       configuration: {},
+      orderStats: {},
       exchangeSymbols: [],
       symbols: [],
       apiInfo: {},
@@ -116,7 +117,7 @@ class App extends React.Component {
       let response = {};
       try {
         response = JSON.parse(evt.data);
-      } catch (_e) { }
+      } catch (_e) {}
 
       if (response.type === 'latest') {
         // Set states
@@ -125,6 +126,7 @@ class App extends React.Component {
           isAuthenticated: response.isAuthenticated,
           botOptions: response.botOptions,
           configuration: response.configuration,
+          orderStats: response.common.orderStats,
           closedTradesSetting: _.get(
             response,
             ['common', 'closedTradesSetting'],
@@ -224,6 +226,7 @@ class App extends React.Component {
       exchangeSymbols,
       symbols,
       configuration,
+      orderStats,
       accountInfo,
       closedTradesSetting,
       closedTrades,
@@ -265,12 +268,12 @@ class App extends React.Component {
       );
     });
 
-    const symbolEstimates = symbols.map((symbol) => {
+    const symbolEstimates = symbols.map(symbol => {
       return {
-        'baseAsset': symbol.symbolInfo.baseAsset,
-        'quoteAsset': symbol.symbolInfo.quoteAsset,
-        'estimatedValue': symbol.baseAssetBalance.estimatedValue,
-        'tickSize': symbol.symbolInfo.filterPrice.tickSize
+        baseAsset: symbol.symbolInfo.baseAsset,
+        quoteAsset: symbol.symbolInfo.quoteAsset,
+        estimatedValue: symbol.baseAssetBalance.estimatedValue,
+        tickSize: symbol.symbolInfo.filterPrice.tickSize
       };
     });
 
@@ -305,6 +308,7 @@ class App extends React.Component {
                 sendWebSocket={this.sendWebSocket}
                 symbolEstimates={symbolEstimates}
               />
+              <OrderStats orderStats={orderStats} />
             </div>
             <div className='coin-wrappers'>{coinWrappers}</div>
             <div className='app-body-footer-wrapper'>

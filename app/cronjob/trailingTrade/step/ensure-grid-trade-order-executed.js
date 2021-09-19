@@ -6,7 +6,8 @@ const {
   calculateLastBuyPrice,
   getAPILimit,
   isExceedAPILimit,
-  disableAction
+  disableAction,
+  saveOrderStats
 } = require('../../trailingTradeHelper/common');
 
 const {
@@ -66,14 +67,18 @@ const updateGridTradeLastOrder = async (logger, symbol, side, newOrder) => {
  * Remove last order from cache
  *
  * @param {*} logger
+ * @param {*} symbols
  * @param {*} symbol
+ * @param {*} side
  */
-const removeGridTradeLastOrder = async (logger, symbol, side) => {
+const removeGridTradeLastOrder = async (logger, symbols, symbol, side) => {
   await deleteGridTradeOrder(logger, `${symbol}-grid-trade-last-${side}-order`);
   logger.info(
     { debug: true },
     `Deleted grid trade last ${side} order from cache`
   );
+
+  await saveOrderStats(logger, symbols);
 };
 
 /**
@@ -241,6 +246,7 @@ const execute = async (logger, rawData) => {
     action,
     featureToggle: { notifyOrderExecute, notifyDebug },
     symbolConfiguration: {
+      symbols,
       system: {
         checkOrderExecutePeriod,
         temporaryDisableActionAfterConfirmingOrder
@@ -306,7 +312,7 @@ const execute = async (logger, rawData) => {
       }
 
       // Remove grid trade last order
-      await removeGridTradeLastOrder(logger, symbol, 'buy');
+      await removeGridTradeLastOrder(logger, symbols, symbol, 'buy');
 
       slackMessageOrderFilled(
         logger,
@@ -399,7 +405,7 @@ const execute = async (logger, rawData) => {
           }
 
           // Remove grid trade last order
-          await removeGridTradeLastOrder(logger, symbol, 'buy');
+          await removeGridTradeLastOrder(logger, symbols, symbol, 'buy');
 
           slackMessageOrderFilled(
             logger,
@@ -424,7 +430,7 @@ const execute = async (logger, rawData) => {
           );
         } else if (removeStatuses.includes(orderResult.status) === true) {
           // If order is no longer available, then delete from cache
-          await removeGridTradeLastOrder(logger, symbol, 'buy');
+          await removeGridTradeLastOrder(logger, symbols, symbol, 'buy');
 
           slackMessageOrderDeleted(
             logger,
@@ -498,7 +504,7 @@ const execute = async (logger, rawData) => {
       }
 
       // Remove grid trade last order
-      await removeGridTradeLastOrder(logger, symbol, 'sell');
+      await removeGridTradeLastOrder(logger, symbols, symbol, 'sell');
 
       slackMessageOrderFilled(
         logger,
@@ -586,7 +592,7 @@ const execute = async (logger, rawData) => {
           }
 
           // Remove grid trade last order
-          await removeGridTradeLastOrder(logger, symbol, 'sell');
+          await removeGridTradeLastOrder(logger, symbols, symbol, 'sell');
 
           slackMessageOrderFilled(
             logger,
@@ -611,7 +617,7 @@ const execute = async (logger, rawData) => {
           );
         } else if (removeStatuses.includes(orderResult.status) === true) {
           // If order is no longer available, then delete from cache
-          await removeGridTradeLastOrder(logger, symbol, 'sell');
+          await removeGridTradeLastOrder(logger, symbols, symbol, 'sell');
 
           slackMessageOrderDeleted(
             logger,

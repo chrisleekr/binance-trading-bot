@@ -667,6 +667,85 @@ const verifyAuthenticated = async (funcLogger, authToken) => {
   return true;
 };
 
+/**
+ * Save number of buy open orders
+ *
+ * @param {*} logger
+ * @param {*} symbols
+ */
+const saveNumberOfBuyOpenOrders = async (logger, symbols) => {
+  const numberOfBuyOpenOrders = await mongo.count(
+    logger,
+    'trailing-trade-grid-trade-orders',
+    {
+      key: {
+        $regex: `(${symbols.join('|')})-grid-trade-last-buy-order`
+      }
+    }
+  );
+
+  await cache.hset(
+    'trailing-trade-common',
+    'number-of-buy-open-orders',
+    numberOfBuyOpenOrders
+  );
+};
+
+/**
+ * Get number of buy open orders
+ *
+ * @param {*} _logger
+ * @returns
+ */
+const getNumberOfBuyOpenOrders = async _logger =>
+  parseInt(
+    (await cache.hget('trailing-trade-common', 'number-of-buy-open-orders')) ||
+      0,
+    10
+  );
+
+/**
+ * Save number of active orders
+ *
+ * @param {*} logger
+ * @param {*} symbols
+ */
+const saveNumberOfOpenTrades = async (logger, symbols) => {
+  const numberOfOpenTrades = await mongo.count(
+    logger,
+    'trailing-trade-symbols',
+    {
+      key: {
+        $regex: `(${symbols.join('|')})-last-buy-price`
+      }
+    }
+  );
+
+  await cache.hset(
+    'trailing-trade-common',
+    'number-of-open-trades',
+    numberOfOpenTrades
+  );
+};
+
+/**
+ * Get number of open trades
+ *
+ * @param {*} _logger
+ * @returns
+ */
+const getNumberOfOpenTrades = async _logger =>
+  parseInt(
+    (await cache.hget('trailing-trade-common', 'number-of-open-trades')) || 0,
+    10
+  );
+
+const saveOrderStats = async (logger, symbols) =>
+  Promise.all([
+    saveNumberOfBuyOpenOrders(logger, symbols),
+    saveNumberOfOpenTrades(logger, symbols)
+  ]);
+
 module.exports = {
   cacheExchangeSymbols,
   getAccountInfoFromAPI,
@@ -692,5 +771,10 @@ module.exports = {
   removeOverrideDataForIndicator,
   calculateLastBuyPrice,
   getSymbolInfo,
-  verifyAuthenticated
+  verifyAuthenticated,
+  saveNumberOfBuyOpenOrders,
+  getNumberOfBuyOpenOrders,
+  saveNumberOfOpenTrades,
+  getNumberOfOpenTrades,
+  saveOrderStats
 };

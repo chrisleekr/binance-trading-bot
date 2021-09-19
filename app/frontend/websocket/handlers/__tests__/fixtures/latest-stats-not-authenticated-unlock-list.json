@@ -4,7 +4,8 @@
   "isAuthenticated": false,
   "botOptions": {
     "authentication": { "lockList": false, "lockAfter": 120 },
-    "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 }
+    "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 },
+    "orderLimit": { "enabled": true, "maxBuyOpenOrders": 3, "maxOpenTrades": 5 }
   },
   "configuration": {
     "enabled": true,
@@ -12,7 +13,12 @@
     "candles": { "interval": "15m" },
     "botOptions": {
       "authentication": { "lockList": false, "lockAfter": 120 },
-      "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 }
+      "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 },
+      "orderLimit": {
+        "enabled": true,
+        "maxBuyOpenOrders": 3,
+        "maxOpenTrades": 5
+      }
     },
     "sell": {}
   },
@@ -162,7 +168,8 @@
         "trades": 5,
         "profitPercentage": 1601.995003799773
       }
-    ]
+    ],
+    "orderStats": { "numberOfOpenTrades": 6, "numberOfBuyOpenOrders": 3 }
   },
   "stats": {
     "symbols": [

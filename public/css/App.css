@@ -776,6 +776,42 @@ input[type='number'] {
 */
 
 /**
+  Start: Order Stats
+*/
+.order-stats-wrapper {
+  -webkit-border-radius: 4px;
+  -moz-border-radius: 4px;
+  border-radius: 4px;
+
+  display: flex;
+  flex-flow: row nowrap;
+}
+
+.order-stat-wrapper {
+  margin-right: 10px;
+}
+
+.order-stat-label {
+  font-weight: bold;
+  margin-right: 3px;
+}
+
+.order-stat-value {
+  background-color: #272b38;
+
+  -webkit-border-radius: 4px;
+  -moz-border-radius: 4px;
+  border-radius: 4px;
+
+  width: 15px;
+  display: inline-block;
+  text-align: center;
+}
+/**
+  End: Order Stats
+*/
+
+/**
   Start: Dust Transfer
 */
 .btn-dust-transfer {

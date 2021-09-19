@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 - Clear exchange/symbol info cache in the Redis periodically - [#284](https://github.com/chrisleekr/binance-trading-bot/issues/284)
 - Added minimum required order amount - [#84](https://github.com/chrisleekr/binance-trading-bot/issues/84)
 - Added estimates for quote assets - Thanks [@ilbuonmarcio](https://github.com/ilbuonmarcio) - [#305](https://github.com/chrisleekr/binance-trading-bot/pull/305)
+- Support limit for buy open orders/open trades - [#147](https://github.com/chrisleekr/binance-trading-bot/issues/147)
 
 ## [0.0.78] - 2021-09-05
 

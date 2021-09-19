@@ -182,6 +182,11 @@ describe('latest.test.js', () => {
             autoTriggerBuy: {
               enabled: false,
               triggerAfter: 20
+            },
+            orderLimit: {
+              enabled: true,
+              maxBuyOpenOrders: 3,
+              maxOpenTrades: 5
             }
           },
           sell: {}
@@ -230,7 +235,12 @@ describe('latest.test.js', () => {
             isAuthenticated: false,
             botOptions: {
               authentication: { lockList: true, lockAfter: 120 },
-              autoTriggerBuy: { enabled: false, triggerAfter: 20 }
+              autoTriggerBuy: { enabled: false, triggerAfter: 20 },
+              orderLimit: {
+                enabled: true,
+                maxBuyOpenOrders: 3,
+                maxOpenTrades: 5
+              }
             },
             configuration: {},
             common: {},
@@ -256,6 +266,11 @@ describe('latest.test.js', () => {
             autoTriggerBuy: {
               enabled: false,
               triggerAfter: 20
+            },
+            orderLimit: {
+              enabled: true,
+              maxBuyOpenOrders: 3,
+              maxOpenTrades: 5
             }
           },
           sell: {}
@@ -318,6 +333,15 @@ describe('latest.test.js', () => {
             authentication: {
               lockList: true,
               lockAfter: 120
+            },
+            autoTriggerBuy: {
+              enabled: false,
+              triggerAfter: 20
+            },
+            orderLimit: {
+              enabled: true,
+              maxBuyOpenOrders: 3,
+              maxOpenTrades: 5
             }
           },
           sell: {}

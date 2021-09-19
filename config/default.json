@@ -64,6 +64,11 @@
         "autoTriggerBuy": {
           "enabled": false,
           "triggerAfter": 20
+        },
+        "orderLimit": {
+          "enabled": true,
+          "maxBuyOpenOrders": 3,
+          "maxOpenTrades": 5
         }
       },
       "candles": {

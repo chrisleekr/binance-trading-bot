@@ -7,6 +7,8 @@ describe('determine-action.js', () => {
   let step;
 
   let mockIsActionDisabled;
+  let mockGetNumberOfBuyOpenOrders;
+  let mockGetNumberOfOpenTrades;
   let mockGetGridTradeOrder;
 
   describe('execute', () => {
@@ -166,6 +168,13 @@ describe('determine-action.js', () => {
             total: 0.000312
           },
           symbolConfiguration: {
+            botOptions: {
+              orderLimit: {
+                enabled: true,
+                maxBuyOpenOrders: 5,
+                maxOpenTrades: 10
+              }
+            },
             buy: {
               athRestriction: {
                 enabled: true
@@ -643,9 +652,749 @@ describe('determine-action.js', () => {
           });
         });
 
+        describe('when number of current buy open orders more than maximum buy open orders', () => {
+          describe('when order limit is enabled', () => {
+            beforeEach(async () => {
+              cache.get = jest.fn().mockImplementation(_key => null);
+
+              mockGetNumberOfBuyOpenOrders = jest.fn().mockResolvedValue(3);
+              mockGetNumberOfOpenTrades = jest.fn().mockResolvedValue(6);
+
+              mockIsActionDisabled = jest.fn().mockResolvedValue({
+                isDisabled: false
+              });
+
+              jest.mock('../../../trailingTradeHelper/common', () => ({
+                isActionDisabled: mockIsActionDisabled,
+                getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                getNumberOfOpenTrades: mockGetNumberOfOpenTrades
+              }));
+
+              mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+              jest.mock('../../../trailingTradeHelper/order', () => ({
+                getGridTradeOrder: mockGetGridTradeOrder
+              }));
+
+              rawData = {
+                action: 'not-determined',
+                symbol: 'BTCUSDT',
+                isLocked: false,
+                symbolInfo: {
+                  baseAsset: 'BTC',
+                  filterMinNotional: {
+                    minNotional: '10.00000000'
+                  }
+                },
+                baseAssetBalance: {
+                  total: 0.0003
+                },
+                symbolConfiguration: {
+                  botOptions: {
+                    orderLimit: {
+                      enabled: true,
+                      maxBuyOpenOrders: 3,
+                      maxOpenTrades: 6
+                    }
+                  },
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 10,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  sell: {
+                    stopLoss: {
+                      enabled: false
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.03,
+                      stopPercentage: 0.985,
+                      limitPercentage: 0.984,
+                      quantityPercentage: 0.8,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  }
+                },
+                buy: {
+                  currentPrice: 28000,
+                  triggerPrice: 28000,
+                  athRestrictionPrice: 28100
+                },
+                sell: {
+                  currentPrice: 28000,
+                  triggerPrice: null,
+                  lastBuyPrice: null,
+                  stopLossTriggerPrice: null
+                }
+              };
+
+              step = require('../determine-action');
+
+              result = await step.execute(logger, rawData);
+            });
+
+            it('returns expected result', () => {
+              expect(result).toStrictEqual({
+                action: 'wait',
+                symbol: 'BTCUSDT',
+                isLocked: false,
+                symbolInfo: {
+                  baseAsset: 'BTC',
+                  filterMinNotional: {
+                    minNotional: '10.00000000'
+                  }
+                },
+                baseAssetBalance: {
+                  total: 0.0003
+                },
+                symbolConfiguration: {
+                  botOptions: {
+                    orderLimit: {
+                      enabled: true,
+                      maxBuyOpenOrders: 3,
+                      maxOpenTrades: 6
+                    }
+                  },
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 10,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  sell: {
+                    stopLoss: {
+                      enabled: false
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.03,
+                      stopPercentage: 0.985,
+                      limitPercentage: 0.984,
+                      quantityPercentage: 0.8,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  }
+                },
+                buy: {
+                  currentPrice: 28000,
+                  triggerPrice: 28000,
+                  athRestrictionPrice: 28100,
+                  processMessage:
+                    `The current price has reached the lowest price; however, it is restricted to buy the coin ` +
+                    `because of reached maximum buy open orders.`,
+                  updatedAt: expect.any(Object)
+                },
+                sell: {
+                  currentPrice: 28000,
+                  triggerPrice: null,
+                  lastBuyPrice: null,
+                  stopLossTriggerPrice: null
+                }
+              });
+            });
+          });
+
+          describe('when order limit is disabled', () => {
+            beforeEach(async () => {
+              cache.get = jest.fn().mockImplementation(_key => null);
+
+              mockGetNumberOfBuyOpenOrders = jest.fn().mockResolvedValue(3);
+              mockGetNumberOfOpenTrades = jest.fn().mockResolvedValue(6);
+
+              mockIsActionDisabled = jest.fn().mockResolvedValue({
+                isDisabled: false
+              });
+
+              jest.mock('../../../trailingTradeHelper/common', () => ({
+                isActionDisabled: mockIsActionDisabled,
+                getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                getNumberOfOpenTrades: mockGetNumberOfOpenTrades
+              }));
+
+              mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+              jest.mock('../../../trailingTradeHelper/order', () => ({
+                getGridTradeOrder: mockGetGridTradeOrder
+              }));
+
+              rawData = {
+                action: 'not-determined',
+                symbol: 'BTCUSDT',
+                isLocked: false,
+                symbolInfo: {
+                  baseAsset: 'BTC',
+                  filterMinNotional: {
+                    minNotional: '10.00000000'
+                  }
+                },
+                baseAssetBalance: {
+                  total: 0.0003
+                },
+                symbolConfiguration: {
+                  botOptions: {
+                    orderLimit: {
+                      enabled: false,
+                      maxBuyOpenOrders: 3,
+                      maxOpenTrades: 6
+                    }
+                  },
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 10,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  sell: {
+                    stopLoss: {
+                      enabled: false
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.03,
+                      stopPercentage: 0.985,
+                      limitPercentage: 0.984,
+                      quantityPercentage: 0.8,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  }
+                },
+                buy: {
+                  currentPrice: 28000,
+                  triggerPrice: 28000,
+                  athRestrictionPrice: 28100
+                },
+                sell: {
+                  currentPrice: 28000,
+                  triggerPrice: null,
+                  lastBuyPrice: null,
+                  stopLossTriggerPrice: null
+                }
+              };
+
+              step = require('../determine-action');
+
+              result = await step.execute(logger, rawData);
+            });
+
+            it('returns expected result', () => {
+              expect(result).toStrictEqual({
+                action: 'buy',
+                symbol: 'BTCUSDT',
+                isLocked: false,
+                symbolInfo: {
+                  baseAsset: 'BTC',
+                  filterMinNotional: {
+                    minNotional: '10.00000000'
+                  }
+                },
+                baseAssetBalance: {
+                  total: 0.0003
+                },
+                symbolConfiguration: {
+                  botOptions: {
+                    orderLimit: {
+                      enabled: false,
+                      maxBuyOpenOrders: 3,
+                      maxOpenTrades: 6
+                    }
+                  },
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 10,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  sell: {
+                    stopLoss: {
+                      enabled: false
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.03,
+                      stopPercentage: 0.985,
+                      limitPercentage: 0.984,
+                      quantityPercentage: 0.8,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  }
+                },
+                buy: {
+                  currentPrice: 28000,
+                  triggerPrice: 28000,
+                  athRestrictionPrice: 28100,
+                  processMessage: `The current price reached the trigger price for the grid trade #1. Let's buy it.`,
+                  updatedAt: expect.any(Object)
+                },
+                sell: {
+                  currentPrice: 28000,
+                  triggerPrice: null,
+                  lastBuyPrice: null,
+                  stopLossTriggerPrice: null
+                }
+              });
+            });
+          });
+        });
+
+        describe('when number of current buy open orders more than maximum open trades', () => {
+          const mockInit = ({
+            lastBuyPrice,
+            maxOpenTrades,
+            numberOfOpenTrades
+          }) => {
+            rawData = {
+              action: 'not-determined',
+              symbol: 'BTCUSDT',
+              isLocked: false,
+              symbolInfo: {
+                baseAsset: 'BTC',
+                filterMinNotional: {
+                  minNotional: '10.00000000'
+                }
+              },
+              baseAssetBalance: {
+                total: 0.0003
+              },
+              symbolConfiguration: {
+                botOptions: {
+                  orderLimit: {
+                    enabled: true,
+                    maxBuyOpenOrders: 4,
+                    maxOpenTrades
+                  }
+                },
+                buy: {
+                  athRestriction: {
+                    enabled: true
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                },
+                sell: {
+                  stopLoss: {
+                    enabled: false
+                  },
+                  currentGridTradeIndex: 0,
+                  currentGridTrade: {
+                    triggerPercentage: 1.03,
+                    stopPercentage: 0.985,
+                    limitPercentage: 0.984,
+                    quantityPercentage: 0.8,
+                    executed: false,
+                    executedOrder: null
+                  }
+                }
+              },
+              buy: {
+                currentPrice: 28000,
+                triggerPrice: 28000,
+                athRestrictionPrice: 28100
+              },
+              sell: {
+                currentPrice: 28000,
+                triggerPrice: null,
+                lastBuyPrice,
+                stopLossTriggerPrice: null
+              }
+            };
+
+            cache.get = jest.fn().mockImplementation(_key => null);
+
+            mockGetNumberOfBuyOpenOrders = jest.fn().mockResolvedValue(3);
+            mockGetNumberOfOpenTrades = jest
+              .fn()
+              .mockResolvedValue(numberOfOpenTrades);
+
+            mockIsActionDisabled = jest.fn().mockResolvedValue({
+              isDisabled: false
+            });
+
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              isActionDisabled: mockIsActionDisabled,
+              getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+              getNumberOfOpenTrades: mockGetNumberOfOpenTrades
+            }));
+
+            mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+            jest.mock('../../../trailingTradeHelper/order', () => ({
+              getGridTradeOrder: mockGetGridTradeOrder
+            }));
+
+            step = require('../determine-action');
+            return step;
+          };
+
+          describe('when order limit is enabled', () => {
+            describe('when the last buy price is recorded', () => {
+              describe('when number of open trade is less than max open trades', () => {
+                beforeEach(async () => {
+                  step = mockInit({
+                    lastBuyPrice: 29000,
+                    maxOpenTrades: 3,
+                    numberOfOpenTrades: 2
+                  });
+                  result = await step.execute(logger, rawData);
+                });
+
+                it('returns expected result', () => {
+                  expect(result).toMatchObject({
+                    action: 'buy',
+                    buy: {
+                      athRestrictionPrice: 28100,
+                      currentPrice: 28000,
+                      processMessage:
+                        "The current price reached the trigger price for the grid trade #1. Let's buy it.",
+                      triggerPrice: 28000,
+                      updatedAt: expect.any(Object)
+                    }
+                  });
+                });
+              });
+
+              describe('when number of open trades is same as max open trades', () => {
+                beforeEach(async () => {
+                  step = mockInit({
+                    lastBuyPrice: 29000,
+                    maxOpenTrades: 3,
+                    numberOfOpenTrades: 3
+                  });
+                  result = await step.execute(logger, rawData);
+                });
+
+                it('returns expected result', () => {
+                  expect(result).toMatchObject({
+                    action: 'buy',
+                    buy: {
+                      athRestrictionPrice: 28100,
+                      currentPrice: 28000,
+                      processMessage:
+                        "The current price reached the trigger price for the grid trade #1. Let's buy it.",
+                      triggerPrice: 28000,
+                      updatedAt: expect.any(Object)
+                    }
+                  });
+                });
+              });
+
+              describe('when number of open trades is already exceeded max open trades', () => {
+                beforeEach(async () => {
+                  step = mockInit({
+                    lastBuyPrice: 29000,
+                    maxOpenTrades: 2,
+                    numberOfOpenTrades: 3
+                  });
+                  result = await step.execute(logger, rawData);
+                });
+
+                it('returns expected result', () => {
+                  expect(result).toMatchObject({
+                    action: 'wait',
+                    buy: {
+                      athRestrictionPrice: 28100,
+                      currentPrice: 28000,
+                      processMessage:
+                        `The current price has reached the lowest price; ` +
+                        `however, it is restricted to buy the coin because of reached maximum open trades.`,
+                      triggerPrice: 28000,
+                      updatedAt: expect.any(Object)
+                    }
+                  });
+                });
+              });
+            });
+
+            describe('when the last buy price is not recorded', () => {
+              describe('when number of open trades is less than max open trades', () => {
+                beforeEach(async () => {
+                  step = mockInit({
+                    lastBuyPrice: null,
+                    maxOpenTrades: 3,
+                    numberOfOpenTrades: 2
+                  });
+                  result = await step.execute(logger, rawData);
+                });
+
+                it('returns expected result', () => {
+                  expect(result).toMatchObject({
+                    action: 'buy',
+                    buy: {
+                      athRestrictionPrice: 28100,
+                      currentPrice: 28000,
+                      processMessage:
+                        "The current price reached the trigger price for the grid trade #1. Let's buy it.",
+                      triggerPrice: 28000,
+                      updatedAt: expect.any(Object)
+                    }
+                  });
+                });
+              });
+
+              describe('when number of open trades is same as max open trades', () => {
+                beforeEach(async () => {
+                  step = mockInit({
+                    lastBuyPrice: null,
+                    maxOpenTrades: 3,
+                    numberOfOpenTrades: 3
+                  });
+                  result = await step.execute(logger, rawData);
+                });
+
+                it('returns expected result', () => {
+                  expect(result).toMatchObject({
+                    action: 'wait',
+                    buy: {
+                      athRestrictionPrice: 28100,
+                      currentPrice: 28000,
+                      processMessage:
+                        `The current price has reached the lowest price; ` +
+                        `however, it is restricted to buy the coin because of reached maximum open trades.`,
+                      triggerPrice: 28000,
+                      updatedAt: expect.any(Object)
+                    }
+                  });
+                });
+              });
+
+              describe('when number of open trades is already exceeded max open trades', () => {
+                beforeEach(async () => {
+                  step = mockInit({
+                    lastBuyPrice: null,
+                    maxOpenTrades: 2,
+                    numberOfOpenTrades: 3
+                  });
+                  result = await step.execute(logger, rawData);
+                });
+
+                it('returns expected result', () => {
+                  expect(result).toMatchObject({
+                    action: 'wait',
+                    buy: {
+                      athRestrictionPrice: 28100,
+                      currentPrice: 28000,
+                      processMessage:
+                        `The current price has reached the lowest price; ` +
+                        `however, it is restricted to buy the coin because of reached maximum open trades.`,
+                      triggerPrice: 28000,
+                      updatedAt: expect.any(Object)
+                    }
+                  });
+                });
+              });
+            });
+          });
+
+          describe('when order limit is disabled', () => {
+            beforeEach(async () => {
+              cache.get = jest.fn().mockImplementation(_key => null);
+
+              mockGetNumberOfBuyOpenOrders = jest.fn().mockResolvedValue(3);
+              mockGetNumberOfOpenTrades = jest.fn().mockResolvedValue(6);
+
+              mockIsActionDisabled = jest.fn().mockResolvedValue({
+                isDisabled: false
+              });
+
+              jest.mock('../../../trailingTradeHelper/common', () => ({
+                isActionDisabled: mockIsActionDisabled,
+                getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                getNumberOfOpenTrades: mockGetNumberOfOpenTrades
+              }));
+
+              mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+              jest.mock('../../../trailingTradeHelper/order', () => ({
+                getGridTradeOrder: mockGetGridTradeOrder
+              }));
+
+              rawData = {
+                action: 'not-determined',
+                symbol: 'BTCUSDT',
+                isLocked: false,
+                symbolInfo: {
+                  baseAsset: 'BTC',
+                  filterMinNotional: {
+                    minNotional: '10.00000000'
+                  }
+                },
+                baseAssetBalance: {
+                  total: 0.0003
+                },
+                symbolConfiguration: {
+                  botOptions: {
+                    orderLimit: {
+                      enabled: false,
+                      maxBuyOpenOrders: 4,
+                      maxOpenTrades: 6
+                    }
+                  },
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 10,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  sell: {
+                    stopLoss: {
+                      enabled: false
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.03,
+                      stopPercentage: 0.985,
+                      limitPercentage: 0.984,
+                      quantityPercentage: 0.8,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  }
+                },
+                buy: {
+                  currentPrice: 28000,
+                  triggerPrice: 28000,
+                  athRestrictionPrice: 28100
+                },
+                sell: {
+                  currentPrice: 28000,
+                  triggerPrice: null,
+                  lastBuyPrice: null,
+                  stopLossTriggerPrice: null
+                }
+              };
+
+              step = require('../determine-action');
+
+              result = await step.execute(logger, rawData);
+            });
+
+            it('returns expected result', () => {
+              expect(result).toStrictEqual({
+                action: 'buy',
+                symbol: 'BTCUSDT',
+                isLocked: false,
+                symbolInfo: {
+                  baseAsset: 'BTC',
+                  filterMinNotional: {
+                    minNotional: '10.00000000'
+                  }
+                },
+                baseAssetBalance: {
+                  total: 0.0003
+                },
+                symbolConfiguration: {
+                  botOptions: {
+                    orderLimit: {
+                      enabled: false,
+                      maxBuyOpenOrders: 4,
+                      maxOpenTrades: 6
+                    }
+                  },
+                  buy: {
+                    athRestriction: {
+                      enabled: true
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1,
+                      stopPercentage: 1.025,
+                      limitPercentage: 1.026,
+                      maxPurchaseAmount: 10,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  sell: {
+                    stopLoss: {
+                      enabled: false
+                    },
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.03,
+                      stopPercentage: 0.985,
+                      limitPercentage: 0.984,
+                      quantityPercentage: 0.8,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  }
+                },
+                buy: {
+                  currentPrice: 28000,
+                  triggerPrice: 28000,
+                  athRestrictionPrice: 28100,
+                  processMessage: `The current price reached the trigger price for the grid trade #1. Let's buy it.`,
+                  updatedAt: expect.any(Object)
+                },
+                sell: {
+                  currentPrice: 28000,
+                  triggerPrice: null,
+                  lastBuyPrice: null,
+                  stopLossTriggerPrice: null
+                }
+              });
+            });
+          });
+        });
+
         describe('when the trigger price is higher than the ATH restriction price', () => {
           beforeEach(() => {
             cache.get = jest.fn().mockImplementation(_key => null);
+
+            mockGetNumberOfBuyOpenOrders = jest.fn().mockResolvedValue(1);
+            mockGetNumberOfOpenTrades = jest.fn().mockResolvedValue(6);
           });
 
           describe('when the ATH restriction is enabled', () => {
@@ -656,7 +1405,9 @@ describe('determine-action.js', () => {
                 });
 
                 jest.mock('../../../trailingTradeHelper/common', () => ({
-                  isActionDisabled: mockIsActionDisabled
+                  isActionDisabled: mockIsActionDisabled,
+                  getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                  getNumberOfOpenTrades: mockGetNumberOfOpenTrades
                 }));
 
                 mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -679,6 +1430,13 @@ describe('determine-action.js', () => {
                     total: 0.0003
                   },
                   symbolConfiguration: {
+                    botOptions: {
+                      orderLimit: {
+                        enabled: true,
+                        maxBuyOpenOrders: 5,
+                        maxOpenTrades: 10
+                      }
+                    },
                     buy: {
                       athRestriction: {
                         enabled: true
@@ -741,6 +1499,13 @@ describe('determine-action.js', () => {
                     total: 0.0003
                   },
                   symbolConfiguration: {
+                    botOptions: {
+                      orderLimit: {
+                        enabled: true,
+                        maxBuyOpenOrders: 5,
+                        maxOpenTrades: 10
+                      }
+                    },
                     buy: {
                       athRestriction: {
                         enabled: true
@@ -795,7 +1560,9 @@ describe('determine-action.js', () => {
                 });
 
                 jest.mock('../../../trailingTradeHelper/common', () => ({
-                  isActionDisabled: mockIsActionDisabled
+                  isActionDisabled: mockIsActionDisabled,
+                  getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                  getNumberOfOpenTrades: mockGetNumberOfOpenTrades
                 }));
 
                 mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -818,6 +1585,13 @@ describe('determine-action.js', () => {
                     total: 0.0003
                   },
                   symbolConfiguration: {
+                    botOptions: {
+                      orderLimit: {
+                        enabled: true,
+                        maxBuyOpenOrders: 5,
+                        maxOpenTrades: 10
+                      }
+                    },
                     buy: {
                       athRestriction: {
                         enabled: true
@@ -880,6 +1654,13 @@ describe('determine-action.js', () => {
                     total: 0.0003
                   },
                   symbolConfiguration: {
+                    botOptions: {
+                      orderLimit: {
+                        enabled: true,
+                        maxBuyOpenOrders: 5,
+                        maxOpenTrades: 10
+                      }
+                    },
                     buy: {
                       athRestriction: {
                         enabled: true
@@ -936,7 +1717,9 @@ describe('determine-action.js', () => {
                 });
 
                 jest.mock('../../../trailingTradeHelper/common', () => ({
-                  isActionDisabled: mockIsActionDisabled
+                  isActionDisabled: mockIsActionDisabled,
+                  getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                  getNumberOfOpenTrades: mockGetNumberOfOpenTrades
                 }));
 
                 mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -959,6 +1742,13 @@ describe('determine-action.js', () => {
                     total: 0.0003
                   },
                   symbolConfiguration: {
+                    botOptions: {
+                      orderLimit: {
+                        enabled: true,
+                        maxBuyOpenOrders: 5,
+                        maxOpenTrades: 10
+                      }
+                    },
                     buy: {
                       athRestriction: {
                         enabled: false
@@ -1021,6 +1811,13 @@ describe('determine-action.js', () => {
                     total: 0.0003
                   },
                   symbolConfiguration: {
+                    botOptions: {
+                      orderLimit: {
+                        enabled: true,
+                        maxBuyOpenOrders: 5,
+                        maxOpenTrades: 10
+                      }
+                    },
                     buy: {
                       athRestriction: {
                         enabled: false
@@ -1075,7 +1872,9 @@ describe('determine-action.js', () => {
                 });
 
                 jest.mock('../../../trailingTradeHelper/common', () => ({
-                  isActionDisabled: mockIsActionDisabled
+                  isActionDisabled: mockIsActionDisabled,
+                  getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                  getNumberOfOpenTrades: mockGetNumberOfOpenTrades
                 }));
 
                 mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -1098,6 +1897,13 @@ describe('determine-action.js', () => {
                     total: 0.0003
                   },
                   symbolConfiguration: {
+                    botOptions: {
+                      orderLimit: {
+                        enabled: true,
+                        maxBuyOpenOrders: 5,
+                        maxOpenTrades: 10
+                      }
+                    },
                     buy: {
                       athRestriction: {
                         enabled: false
@@ -1160,6 +1966,13 @@ describe('determine-action.js', () => {
                     total: 0.0003
                   },
                   symbolConfiguration: {
+                    botOptions: {
+                      orderLimit: {
+                        enabled: true,
+                        maxBuyOpenOrders: 5,
+                        maxOpenTrades: 10
+                      }
+                    },
                     buy: {
                       athRestriction: {
                         enabled: false
@@ -1216,7 +2029,9 @@ describe('determine-action.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              isActionDisabled: mockIsActionDisabled
+              isActionDisabled: mockIsActionDisabled,
+              getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+              getNumberOfOpenTrades: mockGetNumberOfOpenTrades
             }));
 
             mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -1239,6 +2054,13 @@ describe('determine-action.js', () => {
                 total: 0.0003
               },
               symbolConfiguration: {
+                botOptions: {
+                  orderLimit: {
+                    enabled: true,
+                    maxBuyOpenOrders: 5,
+                    maxOpenTrades: 10
+                  }
+                },
                 buy: {
                   athRestriction: {
                     enabled: true
@@ -1301,6 +2123,13 @@ describe('determine-action.js', () => {
                 total: 0.0003
               },
               symbolConfiguration: {
+                botOptions: {
+                  orderLimit: {
+                    enabled: true,
+                    maxBuyOpenOrders: 5,
+                    maxOpenTrades: 10
+                  }
+                },
                 buy: {
                   athRestriction: {
                     enabled: true
@@ -1357,7 +2186,9 @@ describe('determine-action.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              isActionDisabled: mockIsActionDisabled
+              isActionDisabled: mockIsActionDisabled,
+              getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+              getNumberOfOpenTrades: mockGetNumberOfOpenTrades
             }));
 
             mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -1380,6 +2211,13 @@ describe('determine-action.js', () => {
                 total: 0.0006
               },
               symbolConfiguration: {
+                botOptions: {
+                  orderLimit: {
+                    enabled: true,
+                    maxBuyOpenOrders: 5,
+                    maxOpenTrades: 10
+                  }
+                },
                 buy: {
                   athRestriction: {
                     enabled: true
@@ -1430,7 +2268,9 @@ describe('determine-action.js', () => {
               });
 
               jest.mock('../../../trailingTradeHelper/common', () => ({
-                isActionDisabled: mockIsActionDisabled
+                isActionDisabled: mockIsActionDisabled,
+                getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                getNumberOfOpenTrades: mockGetNumberOfOpenTrades
               }));
 
               mockGetGridTradeOrder = jest.fn().mockResolvedValue({
@@ -1461,6 +2301,13 @@ describe('determine-action.js', () => {
                   total: 0.0006
                 },
                 symbolConfiguration: {
+                  botOptions: {
+                    orderLimit: {
+                      enabled: true,
+                      maxBuyOpenOrders: 5,
+                      maxOpenTrades: 10
+                    }
+                  },
                   buy: {
                     athRestriction: {
                       enabled: true
@@ -1519,7 +2366,9 @@ describe('determine-action.js', () => {
               });
 
               jest.mock('../../../trailingTradeHelper/common', () => ({
-                isActionDisabled: mockIsActionDisabled
+                isActionDisabled: mockIsActionDisabled,
+                getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                getNumberOfOpenTrades: mockGetNumberOfOpenTrades
               }));
 
               mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -1548,6 +2397,13 @@ describe('determine-action.js', () => {
                   total: 0.0006
                 },
                 symbolConfiguration: {
+                  botOptions: {
+                    orderLimit: {
+                      enabled: true,
+                      maxBuyOpenOrders: 5,
+                      maxOpenTrades: 10
+                    }
+                  },
                   buy: {
                     athRestriction: {
                       enabled: true
@@ -1604,7 +2460,9 @@ describe('determine-action.js', () => {
               });
 
               jest.mock('../../../trailingTradeHelper/common', () => ({
-                isActionDisabled: mockIsActionDisabled
+                isActionDisabled: mockIsActionDisabled,
+                getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                getNumberOfOpenTrades: mockGetNumberOfOpenTrades
               }));
 
               mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -1633,6 +2491,13 @@ describe('determine-action.js', () => {
                   total: 0.0006
                 },
                 symbolConfiguration: {
+                  botOptions: {
+                    orderLimit: {
+                      enabled: true,
+                      maxBuyOpenOrders: 5,
+                      maxOpenTrades: 10
+                    }
+                  },
                   buy: {
                     athRestriction: {
                       enabled: true
@@ -1689,7 +2554,9 @@ describe('determine-action.js', () => {
               });
 
               jest.mock('../../../trailingTradeHelper/common', () => ({
-                isActionDisabled: mockIsActionDisabled
+                isActionDisabled: mockIsActionDisabled,
+                getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                getNumberOfOpenTrades: mockGetNumberOfOpenTrades
               }));
 
               mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -1712,6 +2579,13 @@ describe('determine-action.js', () => {
                   total: 0.0006
                 },
                 symbolConfiguration: {
+                  botOptions: {
+                    orderLimit: {
+                      enabled: true,
+                      maxBuyOpenOrders: 5,
+                      maxOpenTrades: 10
+                    }
+                  },
                   buy: {
                     athRestriction: {
                       enabled: true
@@ -1774,6 +2648,13 @@ describe('determine-action.js', () => {
                   total: 0.0006
                 },
                 symbolConfiguration: {
+                  botOptions: {
+                    orderLimit: {
+                      enabled: true,
+                      maxBuyOpenOrders: 5,
+                      maxOpenTrades: 10
+                    }
+                  },
                   buy: {
                     athRestriction: {
                       enabled: true
@@ -1838,6 +2719,13 @@ describe('determine-action.js', () => {
                   total: 0.0006
                 },
                 symbolConfiguration: {
+                  botOptions: {
+                    orderLimit: {
+                      enabled: true,
+                      maxBuyOpenOrders: 5,
+                      maxOpenTrades: 10
+                    }
+                  },
                   buy: {
                     athRestriction: {
                       enabled: true
@@ -1893,7 +2781,9 @@ describe('determine-action.js', () => {
                 });
 
                 jest.mock('../../../trailingTradeHelper/common', () => ({
-                  isActionDisabled: mockIsActionDisabled
+                  isActionDisabled: mockIsActionDisabled,
+                  getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                  getNumberOfOpenTrades: mockGetNumberOfOpenTrades
                 }));
 
                 mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -1922,6 +2812,13 @@ describe('determine-action.js', () => {
                     total: 0.0006
                   },
                   symbolConfiguration: {
+                    botOptions: {
+                      orderLimit: {
+                        enabled: true,
+                        maxBuyOpenOrders: 5,
+                        maxOpenTrades: 10
+                      }
+                    },
                     buy: {
                       athRestriction: {
                         enabled: true
@@ -1978,7 +2875,9 @@ describe('determine-action.js', () => {
                 });
 
                 jest.mock('../../../trailingTradeHelper/common', () => ({
-                  isActionDisabled: mockIsActionDisabled
+                  isActionDisabled: mockIsActionDisabled,
+                  getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                  getNumberOfOpenTrades: mockGetNumberOfOpenTrades
                 }));
 
                 mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -2007,6 +2906,13 @@ describe('determine-action.js', () => {
                     total: 0.0006
                   },
                   symbolConfiguration: {
+                    botOptions: {
+                      orderLimit: {
+                        enabled: true,
+                        maxBuyOpenOrders: 5,
+                        maxOpenTrades: 10
+                      }
+                    },
                     buy: {
                       athRestriction: {
                         enabled: true
@@ -2062,7 +2968,9 @@ describe('determine-action.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              isActionDisabled: mockIsActionDisabled
+              isActionDisabled: mockIsActionDisabled,
+              getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+              getNumberOfOpenTrades: mockGetNumberOfOpenTrades
             }));
 
             mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -2085,6 +2993,13 @@ describe('determine-action.js', () => {
                 total: 0.0006
               },
               symbolConfiguration: {
+                botOptions: {
+                  orderLimit: {
+                    enabled: true,
+                    maxBuyOpenOrders: 5,
+                    maxOpenTrades: 10
+                  }
+                },
                 buy: {
                   athRestriction: {
                     enabled: true
@@ -2147,6 +3062,13 @@ describe('determine-action.js', () => {
                 total: 0.0006
               },
               symbolConfiguration: {
+                botOptions: {
+                  orderLimit: {
+                    enabled: true,
+                    maxBuyOpenOrders: 5,
+                    maxOpenTrades: 10
+                  }
+                },
                 buy: {
                   athRestriction: {
                     enabled: true

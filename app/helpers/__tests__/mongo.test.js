@@ -10,6 +10,7 @@ describe('mongo.js', () => {
 
   let result;
   let mockCollection;
+  let mockCount;
   let mockFind;
   let mockFindOne;
   let mockAggregate;
@@ -92,6 +93,58 @@ describe('mongo.js', () => {
       it('does not triggers process.exit', () => {
         expect(process.exit).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('count', () => {
+    beforeEach(async () => {
+      mockCount = jest.fn().mockReturnValue(3);
+      mockCollection = jest.fn(() => ({
+        count: mockCount
+      }));
+
+      mockDBCommand = jest.fn().mockResolvedValue(true);
+      mockDB = jest.fn(() => ({
+        command: mockDBCommand,
+        collection: mockCollection
+      }));
+
+      mockMongoClient = jest.fn(() => ({
+        connect: jest.fn().mockResolvedValue(true),
+        db: mockDB
+      }));
+
+      jest.mock('mongodb', () => ({
+        MongoClient: mockMongoClient
+      }));
+
+      require('mongodb');
+
+      mongo = require('../mongo');
+
+      await mongo.connect(logger);
+
+      result = await mongo.count(logger, 'trailing-trade-symbols', {
+        key: {
+          $regex: '(BTCUSDT|BNBUSDT)-last-buy-price'
+        }
+      });
+    });
+
+    it('triggers database.collection', () => {
+      expect(mockCollection).toHaveBeenCalledWith('trailing-trade-symbols');
+    });
+
+    it('triggers collection.count', () => {
+      expect(mockCount).toHaveBeenCalledWith({
+        key: {
+          $regex: '(BTCUSDT|BNBUSDT)-last-buy-price'
+        }
+      });
+    });
+
+    it('returns expected result', () => {
+      expect(result).toStrictEqual(3);
     });
   });
 

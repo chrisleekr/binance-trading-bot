@@ -68,6 +68,7 @@ module.exports = grunt => {
           './public/dist/js/AccountWrapper.min.js',
           './public/dist/js/QuoteAssetGridTradeArchiveIcon.min.js',
           './public/dist/js/ProfitLossWrapper.min.js',
+          './public/dist/js/OrderStats.min.js',
           './public/dist/js/Status.min.js',
           './public/dist/js/Footer.min.js',
           './public/dist/js/FilterIcon.min.js',

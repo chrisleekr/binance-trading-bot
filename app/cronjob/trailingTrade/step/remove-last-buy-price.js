@@ -5,7 +5,8 @@ const {
   getAndCacheOpenOrdersForSymbol,
   getAPILimit,
   isActionDisabled,
-  removeLastBuyPrice: removeLastBuyPriceFromDatabase
+  removeLastBuyPrice: removeLastBuyPriceFromDatabase,
+  saveOrderStats
 } = require('../../trailingTradeHelper/common');
 const {
   archiveSymbolGridTrade,
@@ -54,6 +55,7 @@ const removeLastBuyPrice = async (
 ) => {
   const {
     symbolConfiguration: {
+      symbols,
       botOptions: {
         autoTriggerBuy: {
           enabled: autoTriggerBuyEnabled,
@@ -65,6 +67,9 @@ const removeLastBuyPrice = async (
 
   // Delete the last buy price from the database
   await removeLastBuyPriceFromDatabase(logger, symbol);
+
+  // Save number of active orders
+  await saveOrderStats(logger, symbols);
 
   slack.sendMessage(
     `${symbol} Action (${moment().format(
