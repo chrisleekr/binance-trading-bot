@@ -2121,4 +2121,126 @@ describe('common.js', () => {
       expect(cacheMock.hset).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('saveOverrideAction', () => {
+    beforeEach(async () => {
+      const { cache, slack, PubSub, logger } = require('../../../helpers');
+
+      slackMock = slack;
+      loggerMock = logger;
+      PubSubMock = PubSub;
+      cacheMock = cache;
+
+      cacheMock.hset = jest.fn().mockResolvedValue(true);
+      slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+      PubSubMock.publish = jest.fn().mockResolvedValue(true);
+
+      commonHelper = require('../common');
+      result = await commonHelper.saveOverrideAction(
+        loggerMock,
+        'BTCUSDT',
+        {
+          action: 'buy',
+          actionAt: '2021-09-22T00:20:00Z',
+          triggeredBy: 'auto-trigger'
+        },
+        `The bot queued to trigger the grid trade for buying` +
+          ` after 20 minutes later.`
+      );
+    });
+
+    it('triggers cache.hset', () => {
+      expect(cacheMock.hset).toHaveBeenCalledWith(
+        'trailing-trade-override',
+        'BTCUSDT',
+        JSON.stringify({
+          action: 'buy',
+          actionAt: '2021-09-22T00:20:00Z',
+          triggeredBy: 'auto-trigger'
+        })
+      );
+    });
+
+    it('triggers slack.sendMessage', () => {
+      expect(slackMock.sendMessage).toHaveBeenCalledWith(
+        expect.stringContaining('BTCUSDT')
+      );
+
+      expect(slackMock.sendMessage).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'The bot queued to trigger the grid trade for buying'
+        )
+      );
+    });
+
+    it('triggers PubSub.publish', () => {
+      expect(PubSubMock.publish).toHaveBeenCalledWith('frontend-notification', {
+        type: 'info',
+        title:
+          `The bot queued to trigger the grid trade for buying` +
+          ` after 20 minutes later.`
+      });
+    });
+  });
+
+  describe('saveOverrideIndicatorAction', () => {
+    beforeEach(async () => {
+      const { cache, slack, PubSub, logger } = require('../../../helpers');
+
+      slackMock = slack;
+      loggerMock = logger;
+      PubSubMock = PubSub;
+      cacheMock = cache;
+
+      cacheMock.hset = jest.fn().mockResolvedValue(true);
+      slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+      PubSubMock.publish = jest.fn().mockResolvedValue(true);
+
+      commonHelper = require('../common');
+      result = await commonHelper.saveOverrideIndicatorAction(
+        loggerMock,
+        'global',
+        {
+          action: 'dust-transfer',
+          params: {
+            some: 'param'
+          },
+          actionAt: '2021-09-25T00:00:00Z',
+          triggeredBy: 'user'
+        },
+        'The dust transfer request received by the bot. Wait for executing the dust transfer.'
+      );
+    });
+
+    it('triggers cache.hset', () => {
+      expect(cacheMock.hset).toHaveBeenCalledWith(
+        'trailing-trade-indicator-override',
+        'global',
+        JSON.stringify({
+          action: 'dust-transfer',
+          params: {
+            some: 'param'
+          },
+          actionAt: '2021-09-25T00:00:00Z',
+          triggeredBy: 'user'
+        })
+      );
+    });
+
+    it('triggers slack.sendMessage', () => {
+      expect(slackMock.sendMessage).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'The dust transfer request received by the bot. Wait for executing the dust transfer.'
+        )
+      );
+    });
+
+    it('triggers PubSub.publish', () => {
+      expect(PubSubMock.publish).toHaveBeenCalledWith('frontend-notification', {
+        type: 'info',
+        title:
+          'The dust transfer request received by the bot. Wait for executing the dust transfer.'
+      });
+    });
+  });
 });

@@ -1,5 +1,7 @@
 const moment = require('moment');
-const { cache, PubSub } = require('../../../helpers');
+const {
+  saveOverrideAction
+} = require('../../../cronjob/trailingTradeHelper/common');
 
 const handleManualTrade = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start manual trade');
@@ -8,20 +10,17 @@ const handleManualTrade = async (logger, ws, payload) => {
     data: { symbol, order }
   } = payload;
 
-  await cache.hset(
-    'trailing-trade-override',
-    `${symbol}`,
-    JSON.stringify({
+  await saveOverrideAction(
+    logger,
+    symbol,
+    {
       action: 'manual-trade',
       order,
-      actionAt: moment()
-    })
+      actionAt: moment().format(),
+      triggeredBy: 'user'
+    },
+    'The manual order received by the bot. Wait for placing the order.'
   );
-
-  PubSub.publish('frontend-notification', {
-    type: 'info',
-    title: 'The order received by the bot. Wait for placing the order.'
-  });
 
   ws.send(
     JSON.stringify({

@@ -740,11 +740,86 @@ const getNumberOfOpenTrades = async _logger =>
     10
   );
 
+/**
+ * Save order statistics
+ *
+ * @param {*} logger
+ * @param {*} symbols
+ * @returns
+ */
 const saveOrderStats = async (logger, symbols) =>
   Promise.all([
     saveNumberOfBuyOpenOrders(logger, symbols),
     saveNumberOfOpenTrades(logger, symbols)
   ]);
+
+/**
+ * Save override action
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} overrideData
+ * @param {*} overrideReason
+ */
+const saveOverrideAction = async (
+  logger,
+  symbol,
+  overrideData,
+  overrideReason
+) => {
+  await cache.hset(
+    'trailing-trade-override',
+    `${symbol}`,
+    JSON.stringify(overrideData)
+  );
+
+  slack.sendMessage(
+    `${symbol} Action (${moment().format('HH:mm:ss.SSS')}): Queued action: ${
+      overrideData.action
+    }\n` +
+      `- Message: ${overrideReason}\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
+  );
+
+  PubSub.publish('frontend-notification', {
+    type: 'info',
+    title: overrideReason
+  });
+};
+
+/**
+ * Save override action for indicator
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} overrideData
+ * @param {*} overrideReason
+ */
+const saveOverrideIndicatorAction = async (
+  logger,
+  type,
+  overrideData,
+  overrideReason
+) => {
+  await cache.hset(
+    'trailing-trade-indicator-override',
+    type,
+    JSON.stringify(overrideData)
+  );
+
+  slack.sendMessage(
+    `Action (${moment().format('HH:mm:ss.SSS')}): Queued action: ${
+      overrideData.action
+    }\n` +
+      `- Message: ${overrideReason}\n` +
+      `- Current API Usage: ${getAPILimit(logger)}`
+  );
+
+  PubSub.publish('frontend-notification', {
+    type: 'info',
+    title: overrideReason
+  });
+};
 
 module.exports = {
   cacheExchangeSymbols,
@@ -776,5 +851,7 @@ module.exports = {
   getNumberOfBuyOpenOrders,
   saveNumberOfOpenTrades,
   getNumberOfOpenTrades,
-  saveOrderStats
+  saveOrderStats,
+  saveOverrideAction,
+  saveOverrideIndicatorAction
 };

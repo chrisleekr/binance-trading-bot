@@ -4,8 +4,8 @@ describe('manual-trade.js', () => {
   let mockWebSocketServerWebSocketSend;
 
   let loggerMock;
-  let cacheMock;
-  let PubSubMock;
+
+  let mockSaveOverrideAction;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -15,17 +15,18 @@ describe('manual-trade.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockSaveOverrideAction = jest.fn().mockResolvedValue(true);
+
+    jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
+      saveOverrideAction: mockSaveOverrideAction
+    }));
   });
 
   beforeEach(async () => {
-    const { cache, logger, PubSub } = require('../../../../helpers');
+    const { logger } = require('../../../../helpers');
 
-    cacheMock = cache;
     loggerMock = logger;
-    PubSubMock = PubSub;
-
-    cacheMock.hset = jest.fn().mockResolvedValue(true);
-    PubSubMock.publish = jest.fn().mockResolvedValue(true);
 
     const { handleManualTrade } = require('../manual-trade');
     await handleManualTrade(loggerMock, mockWebSocketServer, {
@@ -38,24 +39,20 @@ describe('manual-trade.js', () => {
     });
   });
 
-  it('triggers cache.hset', () => {
-    expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
-      'trailing-trade-override'
+  it('triggers saveOverrideAction', () => {
+    expect(mockSaveOverrideAction).toHaveBeenCalledWith(
+      loggerMock,
+      'BTCUSDT',
+      {
+        action: 'manual-trade',
+        order: {
+          some: 'value'
+        },
+        actionAt: expect.any(String),
+        triggeredBy: 'user'
+      },
+      'The manual order received by the bot. Wait for placing the order.'
     );
-    expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual('BTCUSDT');
-    const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
-    expect(args).toStrictEqual({
-      action: 'manual-trade',
-      order: { some: 'value' },
-      actionAt: expect.any(String)
-    });
-  });
-
-  it('triggers PubSub.publish', () => {
-    expect(PubSubMock.publish).toHaveBeenCalledWith('frontend-notification', {
-      type: 'info',
-      title: 'The order received by the bot. Wait for placing the order.'
-    });
   });
 
   it('triggers ws.send', () => {

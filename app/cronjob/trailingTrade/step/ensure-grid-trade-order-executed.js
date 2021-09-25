@@ -243,8 +243,7 @@ const execute = async (logger, rawData) => {
 
   const {
     symbol,
-    action,
-    featureToggle: { notifyOrderExecute, notifyDebug },
+    featureToggle: { notifyOrderExecute },
     symbolConfiguration: {
       symbols,
       system: {
@@ -254,17 +253,8 @@ const execute = async (logger, rawData) => {
     }
   } = data;
 
-  if (action !== 'not-determined') {
-    logger.info(
-      { action },
-      'Action is already defined, do not try to ensure grid order executed.'
-    );
-    return data;
-  }
-
   if (isExceedAPILimit(logger)) {
     logger.info(
-      { action },
       'The API limit is exceed, do not try to ensure grid order executed.'
     );
     return data;
@@ -291,25 +281,7 @@ const execute = async (logger, rawData) => {
       await calculateLastBuyPrice(logger, symbol, lastBuyOrder);
 
       // Save grid trade to the database
-      const saveGridTradeResult = await saveGridTrade(
-        logger,
-        data,
-        lastBuyOrder
-      );
-
-      if (notifyDebug) {
-        slack.sendMessage(
-          `${symbol} BUY Grid Trade Updated Result (${moment().format(
-            'HH:mm:ss.SSS'
-          )}): \n` +
-            `- Save Grid Trade Result: \`\`\`${JSON.stringify(
-              _.get(saveGridTradeResult, 'result', 'Not defined'),
-              undefined,
-              2
-            )}\`\`\`\n` +
-            `- Current API Usage: ${getAPILimit(logger)}`
-        );
-      }
+      await saveGridTrade(logger, data, lastBuyOrder);
 
       // Remove grid trade last order
       await removeGridTradeLastOrder(logger, symbols, symbol, 'buy');
@@ -385,24 +357,10 @@ const execute = async (logger, rawData) => {
           await calculateLastBuyPrice(logger, symbol, orderResult);
 
           // Save grid trade to the database
-          const saveGridTradeResult = await saveGridTrade(logger, data, {
+          await saveGridTrade(logger, data, {
             ...lastBuyOrder,
             ...orderResult
           });
-
-          if (notifyDebug) {
-            slack.sendMessage(
-              `${symbol} BUY Grid Trade Updated Result (${moment().format(
-                'HH:mm:ss.SSS'
-              )}): \n` +
-                `- Save Grid Trade Result: \`\`\`${JSON.stringify(
-                  _.get(saveGridTradeResult, 'result', 'Not defined'),
-                  undefined,
-                  2
-                )}\`\`\`\n` +
-                `- Current API Usage: ${getAPILimit(logger)}`
-            );
-          }
 
           // Remove grid trade last order
           await removeGridTradeLastOrder(logger, symbols, symbol, 'buy');
@@ -484,24 +442,7 @@ const execute = async (logger, rawData) => {
       logger.info({ lastSellOrder }, 'Order has already filled.');
 
       // Save grid trade to the database
-      const saveGridTradeResult = await saveGridTrade(
-        logger,
-        data,
-        lastSellOrder
-      );
-      if (notifyDebug) {
-        slack.sendMessage(
-          `${symbol} SELL Grid Trade Updated Result (${moment().format(
-            'HH:mm:ss.SSS'
-          )}): \n` +
-            `- Save Grid Trade Result: \`\`\`${JSON.stringify(
-              _.get(saveGridTradeResult, 'result', 'Not defined'),
-              undefined,
-              2
-            )}\`\`\`\n` +
-            `- Current API Usage: ${getAPILimit(logger)}`
-        );
-      }
+      await saveGridTrade(logger, data, lastSellOrder);
 
       // Remove grid trade last order
       await removeGridTradeLastOrder(logger, symbols, symbol, 'sell');
@@ -572,24 +513,10 @@ const execute = async (logger, rawData) => {
           logger.info({ lastSellOrder }, 'The order is filled.');
 
           // Save grid trade to the database
-          const saveGridTradeResult = await saveGridTrade(logger, data, {
+          await saveGridTrade(logger, data, {
             ...lastSellOrder,
             ...orderResult
           });
-
-          if (notifyDebug) {
-            slack.sendMessage(
-              `${symbol} SELL Grid Trade Updated Result (${moment().format(
-                'HH:mm:ss.SSS'
-              )}): \n` +
-                `- Save Grid Trade Result: \`\`\`${JSON.stringify(
-                  _.get(saveGridTradeResult, 'result', 'Not defined'),
-                  undefined,
-                  2
-                )}\`\`\`\n` +
-                `- Current API Usage: ${getAPILimit(logger)}`
-            );
-          }
 
           // Remove grid trade last order
           await removeGridTradeLastOrder(logger, symbols, symbol, 'sell');

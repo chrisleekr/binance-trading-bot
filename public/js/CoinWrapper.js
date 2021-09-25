@@ -65,12 +65,15 @@ class CoinWrapper extends React.Component {
             sendWebSocket={sendWebSocket}
             isAuthenticated={isAuthenticated}
           />
+          <CoinWrapperTradingView
+            symbolInfo={symbolInfo}></CoinWrapperTradingView>
 
           <CoinWrapperBuySignal
             symbolInfo={symbolInfo}
             sendWebSocket={sendWebSocket}
             isAuthenticated={isAuthenticated}
           />
+
           <CoinWrapperBuyOrders
             symbolInfo={symbolInfo}
             sendWebSocket={sendWebSocket}

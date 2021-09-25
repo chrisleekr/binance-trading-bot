@@ -4,8 +4,9 @@ describe('symbol-trigger-buy.test.js', () => {
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
-  let mockCache;
   let mockLogger;
+
+  let mockSaveOverrideAction;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -15,15 +16,18 @@ describe('symbol-trigger-buy.test.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockSaveOverrideAction = jest.fn().mockResolvedValue(true);
+
+    jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
+      saveOverrideAction: mockSaveOverrideAction
+    }));
   });
 
   describe('when symbol is provided', () => {
     beforeEach(async () => {
-      const { cache, logger } = require('../../../../helpers');
-      mockCache = cache;
+      const { logger } = require('../../../../helpers');
       mockLogger = logger;
-
-      mockCache.hset = jest.fn().mockResolvedValue(true);
 
       const { handleSymbolTriggerBuy } = require('../symbol-trigger-buy');
       await handleSymbolTriggerBuy(mockLogger, mockWebSocketServer, {
@@ -33,18 +37,17 @@ describe('symbol-trigger-buy.test.js', () => {
       });
     });
 
-    it('triggers cache.hset', () => {
-      expect(mockCache.hset.mock.calls[0][0]).toStrictEqual(
-        'trailing-trade-override'
+    it('triggers saveOverrideAction', () => {
+      expect(mockSaveOverrideAction).toHaveBeenCalledWith(
+        mockLogger,
+        'BTCUSDT',
+        {
+          action: 'buy',
+          actionAt: expect.any(String),
+          triggeredBy: 'user'
+        },
+        'The buy order received by the bot. Wait for placing the order.'
       );
-
-      expect(mockCache.hset.mock.calls[0][1]).toStrictEqual('BTCUSDT');
-
-      const args = JSON.parse(mockCache.hset.mock.calls[0][2]);
-      expect(args).toStrictEqual({
-        action: 'buy',
-        actionAt: expect.any(String)
-      });
     });
 
     it('triggers ws.send', () => {

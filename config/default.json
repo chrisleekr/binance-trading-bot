@@ -63,12 +63,19 @@
         },
         "autoTriggerBuy": {
           "enabled": false,
-          "triggerAfter": 20
+          "triggerAfter": 20,
+          "conditions": {
+            "whenLessThanATHRestriction": true,
+            "afterDisabledPeriod": true
+          }
         },
         "orderLimit": {
           "enabled": true,
           "maxBuyOpenOrders": 3,
           "maxOpenTrades": 5
+        },
+        "tradingView": {
+          "showTechnicalAnalysisWidget": true
         }
       },
       "candles": {

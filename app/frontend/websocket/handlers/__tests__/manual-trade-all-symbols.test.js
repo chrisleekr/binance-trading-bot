@@ -6,12 +6,11 @@ describe('manual-trade-all-symbols.js', () => {
   let mockWebSocketServerWebSocketSend;
 
   let loggerMock;
-  let cacheMock;
   let PubSubMock;
 
   let mockGetGlobalConfiguration;
 
-  let index;
+  let mockSaveOverrideAction;
 
   const orders = {
     side: 'buy',
@@ -231,24 +230,28 @@ describe('manual-trade-all-symbols.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockSaveOverrideAction = jest.fn().mockResolvedValue(true);
+
+    jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
+      saveOverrideAction: mockSaveOverrideAction
+    }));
   });
 
   beforeEach(async () => {
-    const { cache, logger, PubSub } = require('../../../../helpers');
+    const { logger, PubSub } = require('../../../../helpers');
 
-    cacheMock = cache;
     loggerMock = logger;
     PubSubMock = PubSub;
 
-    cacheMock.hset = jest.fn().mockResolvedValue(true);
     PubSubMock.publish = jest.fn().mockResolvedValue(true);
   });
 
   describe('buy', () => {
     beforeAll(() => {
-      index = 0;
       orders.side = 'buy';
     });
+
     beforeEach(async () => {
       mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
         system: { placeManualOrderInterval: 5 }
@@ -277,31 +280,31 @@ describe('manual-trade-all-symbols.js', () => {
         const quoteOrderQty = parseFloat(baseAsset.quoteOrderQty);
 
         if (quoteOrderQty > 0) {
-          it(`triggers cache.hset for ${symbol}`, () => {
-            expect(cacheMock.hset.mock.calls[index][0]).toStrictEqual(
-              'trailing-trade-override'
-            );
-            expect(cacheMock.hset.mock.calls[index][1]).toStrictEqual(symbol);
-            const args = JSON.parse(cacheMock.hset.mock.calls[index][2]);
-            expect(args).toStrictEqual({
-              action: 'manual-trade',
-              order: {
-                side: 'buy',
-                buy: {
-                  type: 'market',
-                  marketType: 'total',
-                  quoteOrderQty
-                }
+          it('triggers saveOverrideAction', () => {
+            expect(mockSaveOverrideAction).toHaveBeenCalledWith(
+              loggerMock,
+              symbol,
+              {
+                action: 'manual-trade',
+                order: {
+                  side: 'buy',
+                  buy: {
+                    type: 'market',
+                    marketType: 'total',
+                    quoteOrderQty
+                  }
+                },
+                actionAt: expect.any(String),
+                triggeredBy: 'user'
               },
-              actionAt: expect.any(String)
-            });
-            index += 1;
+              `Order for ${symbol} has been queued.`
+            );
           });
         } else {
-          it(`does not trigger cache.hset for ${symbol}`, () => {
+          it('does not trigger saveOverrideAction', () => {
             // Get all symbols called with cache.hset
             const symbols = _.reduce(
-              cacheMock.hset.mock.calls,
+              mockSaveOverrideAction.mock.calls,
               (newSymbols, s) => {
                 newSymbols.push(s[1]);
                 return newSymbols;
@@ -335,7 +338,6 @@ describe('manual-trade-all-symbols.js', () => {
 
   describe('sell', () => {
     beforeAll(() => {
-      index = 0;
       orders.side = 'sell';
     });
 
@@ -367,31 +369,31 @@ describe('manual-trade-all-symbols.js', () => {
         const marketQuantity = parseFloat(baseAsset.marketQuantity);
 
         if (marketQuantity > 0) {
-          it(`triggers cache.hset for ${symbol}`, () => {
-            expect(cacheMock.hset.mock.calls[index][0]).toStrictEqual(
-              'trailing-trade-override'
-            );
-            expect(cacheMock.hset.mock.calls[index][1]).toStrictEqual(symbol);
-            const args = JSON.parse(cacheMock.hset.mock.calls[index][2]);
-            expect(args).toStrictEqual({
-              action: 'manual-trade',
-              order: {
-                side: 'sell',
-                sell: {
-                  type: 'market',
-                  marketType: 'amount',
-                  marketQuantity
-                }
+          it('triggers saveOverrideAction', () => {
+            expect(mockSaveOverrideAction).toHaveBeenCalledWith(
+              loggerMock,
+              symbol,
+              {
+                action: 'manual-trade',
+                order: {
+                  side: 'sell',
+                  sell: {
+                    type: 'market',
+                    marketType: 'amount',
+                    marketQuantity
+                  }
+                },
+                actionAt: expect.any(String),
+                triggeredBy: 'user'
               },
-              actionAt: expect.any(String)
-            });
-            index += 1;
+              `Order for ${symbol} has been queued.`
+            );
           });
         } else {
-          it(`does not trigger cache.hset for ${symbol}`, () => {
+          it('does not trigger saveOverrideAction', () => {
             // Get all symbols called with cache.hset
             const symbols = _.reduce(
-              cacheMock.hset.mock.calls,
+              mockSaveOverrideAction.mock.calls,
               (newSymbols, s) => {
                 newSymbols.push(s[1]);
                 return newSymbols;

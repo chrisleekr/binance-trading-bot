@@ -1,5 +1,7 @@
 const moment = require('moment');
-const { cache, PubSub } = require('../../../helpers');
+const {
+  saveOverrideAction
+} = require('../../../cronjob/trailingTradeHelper/common');
 
 const handleSymbolTriggerSell = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol trigger sell');
@@ -8,19 +10,16 @@ const handleSymbolTriggerSell = async (logger, ws, payload) => {
 
   const { symbol } = symbolInfo;
 
-  await cache.hset(
-    'trailing-trade-override',
-    `${symbol}`,
-    JSON.stringify({
+  await saveOverrideAction(
+    logger,
+    symbol,
+    {
       action: 'sell',
-      actionAt: moment()
-    })
+      actionAt: moment().format(),
+      triggeredBy: 'user'
+    },
+    'The sell order received by the bot. Wait for placing the order.'
   );
-
-  PubSub.publish('frontend-notification', {
-    type: 'info',
-    title: 'The order received by the bot. Wait for placing the order.'
-  });
 
   ws.send(JSON.stringify({ result: true, type: 'symbol-trigger-sell-result' }));
 };

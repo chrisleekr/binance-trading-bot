@@ -1,12 +1,13 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { cache, slack, PubSub } = require('../../../helpers');
+const { slack, PubSub } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
   getAPILimit,
   isActionDisabled,
   removeLastBuyPrice: removeLastBuyPriceFromDatabase,
-  saveOrderStats
+  saveOrderStats,
+  saveOverrideAction
 } = require('../../trailingTradeHelper/common');
 const {
   archiveSymbolGridTrade,
@@ -111,30 +112,17 @@ const removeLastBuyPrice = async (
   await deleteSymbolGridTrade(logger, symbol);
 
   if (autoTriggerBuyEnabled) {
-    await cache.hset(
-      'trailing-trade-override',
-      `${symbol}`,
-      JSON.stringify({
+    await saveOverrideAction(
+      logger,
+      symbol,
+      {
         action: 'buy',
-        actionAt: moment().add(autoTriggerBuyTriggerAfter, 'minutes')
-      })
-    );
-
-    slack.sendMessage(
-      `${symbol} Action (${moment().format(
-        'HH:mm:ss.SSS'
-      )}): Queued buy action\n` +
-        `- Message: The bot queued to trigger the grid trade for buying` +
-        ` after ${autoTriggerBuyTriggerAfter} minutes later.\n` +
-        `- Current API Usage: ${getAPILimit(logger)}`
-    );
-
-    PubSub.publish('frontend-notification', {
-      type: 'info',
-      title:
-        `The bot queued to trigger the grid trade for buying` +
+        actionAt: moment().add(autoTriggerBuyTriggerAfter, 'minutes').format(),
+        triggeredBy: 'auto-trigger'
+      },
+      `The bot queued to trigger the grid trade for buying` +
         ` after ${autoTriggerBuyTriggerAfter} minutes later.`
-    });
+    );
   }
 };
 

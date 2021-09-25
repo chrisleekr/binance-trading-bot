@@ -4,7 +4,14 @@
 class CoinWrapperAction extends React.Component {
   render() {
     const {
-      symbolInfo: { symbol, action, buy, isLocked, isActionDisabled },
+      symbolInfo: {
+        symbol,
+        action,
+        buy,
+        isLocked,
+        isActionDisabled,
+        overrideData
+      },
       sendWebSocket,
       isAuthenticated
     } = this.props;
@@ -53,6 +60,21 @@ class CoinWrapperAction extends React.Component {
       label = `Disabled by ${isActionDisabled.disabledBy}`;
     }
 
+    let renderOverrideAction = '';
+    if (_.isEmpty(overrideData) === false) {
+      renderOverrideAction = (
+        <div className='coin-info-column coin-info-column-title border-bottom-0 m-0 p-0'>
+          <div
+            className='bg-light text-dark w-100 px-1'
+            title={overrideData.actionAt}>
+            Action <strong>{overrideData.action}</strong> will be executed{' '}
+            {moment(overrideData.actionAt).fromNow()}, triggered by{' '}
+            {overrideData.triggeredBy}.
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title border-bottom-0 mb-0 pb-0'>
@@ -92,6 +114,7 @@ class CoinWrapperAction extends React.Component {
             )}
           </div>
         </div>
+        {renderOverrideAction}
       </div>
     );
   }

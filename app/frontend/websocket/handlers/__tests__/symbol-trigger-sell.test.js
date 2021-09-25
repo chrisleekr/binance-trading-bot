@@ -4,9 +4,9 @@ describe('symbol-trigger-sell.test.js', () => {
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
-  let mockCache;
-  let mockPubSub;
   let mockLogger;
+
+  let mockSaveOverrideAction;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -16,17 +16,18 @@ describe('symbol-trigger-sell.test.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockSaveOverrideAction = jest.fn().mockResolvedValue(true);
+
+    jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
+      saveOverrideAction: mockSaveOverrideAction
+    }));
   });
 
   describe('when symbol is provided', () => {
     beforeEach(async () => {
-      const { cache, logger, PubSub } = require('../../../../helpers');
-      mockCache = cache;
+      const { logger } = require('../../../../helpers');
       mockLogger = logger;
-      mockPubSub = PubSub;
-
-      mockPubSub.publish = jest.fn().mockResolvedValue(true);
-      mockCache.hset = jest.fn().mockResolvedValue(true);
 
       const { handleSymbolTriggerSell } = require('../symbol-trigger-sell');
       await handleSymbolTriggerSell(mockLogger, mockWebSocketServer, {
@@ -36,18 +37,17 @@ describe('symbol-trigger-sell.test.js', () => {
       });
     });
 
-    it('triggers cache.hset', () => {
-      expect(mockCache.hset.mock.calls[0][0]).toStrictEqual(
-        'trailing-trade-override'
+    it('triggers saveOverrideAction', () => {
+      expect(mockSaveOverrideAction).toHaveBeenCalledWith(
+        mockLogger,
+        'BTCUSDT',
+        {
+          action: 'sell',
+          actionAt: expect.any(String),
+          triggeredBy: 'user'
+        },
+        'The sell order received by the bot. Wait for placing the order.'
       );
-
-      expect(mockCache.hset.mock.calls[0][1]).toStrictEqual('BTCUSDT');
-
-      const args = JSON.parse(mockCache.hset.mock.calls[0][2]);
-      expect(args).toStrictEqual({
-        action: 'sell',
-        actionAt: expect.any(String)
-      });
     });
 
     it('triggers ws.send', () => {
