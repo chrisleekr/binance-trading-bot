@@ -148,9 +148,7 @@ const execute = async (logger, rawData) => {
   } = data;
 
   if (isExceedAPILimit(logger)) {
-    logger.info(
-      'The API limit is exceed, do not try to ensure grid order executed.'
-    );
+    logger.info('The API limit is exceed, do not try to ensure manual order.');
     return data;
   }
 
