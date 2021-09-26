@@ -7,6 +7,8 @@ describe('get-override-action.js', () => {
 
   let mockGetOverrideDataForSymbol;
   let mockRemoveOverrideDataForSymbol;
+  let mockIsActionDisabled;
+  let mockSaveOverrideAction;
 
   describe('execute', () => {
     beforeEach(() => {
@@ -14,23 +16,32 @@ describe('get-override-action.js', () => {
 
       mockGetOverrideDataForSymbol = jest.fn();
       mockRemoveOverrideDataForSymbol = jest.fn();
+      mockIsActionDisabled = jest.fn();
+      mockSaveOverrideAction = jest.fn();
+
+      const { logger } = require('../../../../helpers');
+
+      loggerMock = logger;
+
+      jest.mock('../../../trailingTradeHelper/common', () => ({
+        getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+        removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol,
+        isActionDisabled: mockIsActionDisabled,
+        saveOverrideAction: mockSaveOverrideAction
+      }));
     });
 
     describe('when symbol is locked', () => {
       beforeEach(async () => {
-        const { logger } = require('../../../../helpers');
-
-        loggerMock = logger;
-
-        jest.mock('../../../trailingTradeHelper/common', () => ({
-          getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
-          removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol
-        }));
-
         rawData = {
           action: 'not-determined',
           symbol: 'BTCUSDT',
-          isLocked: true
+          isLocked: true,
+          symbolConfiguration: {
+            botOptions: {
+              autoTriggerBuy: { triggerAfter: 20 }
+            }
+          }
         };
 
         const step = require('../get-override-action');
@@ -41,26 +52,27 @@ describe('get-override-action.js', () => {
         expect(result).toStrictEqual({
           action: 'not-determined',
           symbol: 'BTCUSDT',
-          isLocked: true
+          isLocked: true,
+          symbolConfiguration: {
+            botOptions: {
+              autoTriggerBuy: { triggerAfter: 20 }
+            }
+          }
         });
       });
     });
 
     describe('when action is not "not-determined"', () => {
       beforeEach(async () => {
-        const { logger } = require('../../../../helpers');
-
-        loggerMock = logger;
-
-        jest.mock('../../../trailingTradeHelper/common', () => ({
-          getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
-          removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol
-        }));
-
         rawData = {
           action: 'buy-order-wait',
           symbol: 'BTCUSDT',
-          isLocked: false
+          isLocked: false,
+          symbolConfiguration: {
+            botOptions: {
+              autoTriggerBuy: { triggerAfter: 20 }
+            }
+          }
         };
 
         const step = require('../get-override-action');
@@ -71,187 +83,36 @@ describe('get-override-action.js', () => {
         expect(result).toStrictEqual({
           action: 'buy-order-wait',
           symbol: 'BTCUSDT',
-          isLocked: false
+          isLocked: false,
+          symbolConfiguration: {
+            botOptions: {
+              autoTriggerBuy: { triggerAfter: 20 }
+            }
+          }
         });
       });
     });
 
     describe('when action is "not-determined"', () => {
-      describe('when action is manual-trade', () => {
+      describe('when override data is not retrieved', () => {
         beforeEach(async () => {
-          const { logger } = require('../../../../helpers');
-
-          loggerMock = logger;
-
-          mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
-            action: 'manual-trade',
-            order: {
-              some: 'data'
-            }
-          });
+          mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue(null);
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
-            removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol
+            removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol,
+            isActionDisabled: mockIsActionDisabled,
+            saveOverrideAction: mockSaveOverrideAction
           }));
 
           rawData = {
             action: 'not-determined',
-            symbol: 'BTCUSDT',
-            isLocked: false
-          };
-
-          const step = require('../get-override-action');
-          result = await step.execute(loggerMock, rawData);
-        });
-
-        it('triggers getOverrideDataForSymbol', () => {
-          expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
-            loggerMock,
-            'BTCUSDT'
-          );
-        });
-
-        it('triggers removeOverrideDataForSymbol', () => {
-          expect(mockRemoveOverrideDataForSymbol).toHaveBeenCalledWith(
-            loggerMock,
-            'BTCUSDT'
-          );
-        });
-
-        it('retruns expected result', () => {
-          expect(result).toStrictEqual({
-            action: 'manual-trade',
             symbol: 'BTCUSDT',
             isLocked: false,
-            order: {
-              some: 'data'
+            symbolConfiguration: {
+              botOptions: {
+                autoTriggerBuy: { triggerAfter: 20 }
+              }
             }
-          });
-        });
-      });
-
-      describe('when action is cancel-order', () => {
-        beforeEach(async () => {
-          const { logger } = require('../../../../helpers');
-
-          loggerMock = logger;
-
-          mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
-            action: 'cancel-order',
-            order: {
-              some: 'data'
-            }
-          });
-          jest.mock('../../../trailingTradeHelper/common', () => ({
-            getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
-            removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol
-          }));
-
-          rawData = {
-            action: 'not-determined',
-            symbol: 'BTCUSDT',
-            isLocked: false
-          };
-
-          const step = require('../get-override-action');
-          result = await step.execute(loggerMock, rawData);
-        });
-
-        it('triggers getOverrideDataForSymbol', () => {
-          expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
-            loggerMock,
-            'BTCUSDT'
-          );
-        });
-
-        it('triggers removeOverrideDataForSymbol', () => {
-          expect(mockRemoveOverrideDataForSymbol).toHaveBeenCalledWith(
-            loggerMock,
-            'BTCUSDT'
-          );
-        });
-
-        it('retruns expected result', () => {
-          expect(result).toStrictEqual({
-            action: 'cancel-order',
-            symbol: 'BTCUSDT',
-            isLocked: false,
-            order: {
-              some: 'data'
-            }
-          });
-        });
-      });
-
-      describe('when action is buy', () => {
-        beforeEach(async () => {
-          const { logger } = require('../../../../helpers');
-
-          loggerMock = logger;
-
-          mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
-            action: 'buy'
-          });
-          jest.mock('../../../trailingTradeHelper/common', () => ({
-            getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
-            removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol
-          }));
-
-          rawData = {
-            action: 'not-determined',
-            symbol: 'BTCUSDT',
-            isLocked: false
-          };
-
-          const step = require('../get-override-action');
-          result = await step.execute(loggerMock, rawData);
-        });
-
-        it('triggers getOverrideDataForSymbol', () => {
-          expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
-            loggerMock,
-            'BTCUSDT'
-          );
-        });
-
-        it('triggers removeOverrideDataForSymbol', () => {
-          expect(mockRemoveOverrideDataForSymbol).toHaveBeenCalledWith(
-            loggerMock,
-            'BTCUSDT'
-          );
-        });
-
-        it('retruns expected result', () => {
-          expect(result).toStrictEqual({
-            action: 'buy',
-            symbol: 'BTCUSDT',
-            isLocked: false,
-            order: {}
-          });
-        });
-      });
-
-      describe('when action is not matching', () => {
-        beforeEach(async () => {
-          const { logger } = require('../../../../helpers');
-
-          loggerMock = logger;
-
-          mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
-            action: 'something-unknown',
-            order: {
-              some: 'data'
-            }
-          });
-          jest.mock('../../../trailingTradeHelper/common', () => ({
-            getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
-            removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol
-          }));
-
-          rawData = {
-            action: 'not-determined',
-            symbol: 'BTCUSDT',
-            isLocked: false
           };
 
           const step = require('../get-override-action');
@@ -273,7 +134,775 @@ describe('get-override-action.js', () => {
           expect(result).toStrictEqual({
             action: 'not-determined',
             symbol: 'BTCUSDT',
-            isLocked: false
+            isLocked: false,
+            symbolConfiguration: {
+              botOptions: {
+                autoTriggerBuy: { triggerAfter: 20 }
+              }
+            },
+            overrideData: {}
+          });
+        });
+      });
+
+      describe('when action is manual-trade', () => {
+        beforeEach(async () => {
+          mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
+            action: 'manual-trade',
+            order: {
+              some: 'data'
+            }
+          });
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+            removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol,
+            isActionDisabled: mockIsActionDisabled,
+            saveOverrideAction: mockSaveOverrideAction
+          }));
+
+          rawData = {
+            action: 'not-determined',
+            symbol: 'BTCUSDT',
+            isLocked: false,
+            symbolConfiguration: {
+              botOptions: {
+                autoTriggerBuy: { triggerAfter: 20 }
+              }
+            }
+          };
+
+          const step = require('../get-override-action');
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers getOverrideDataForSymbol', () => {
+          expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
+
+        it('triggers removeOverrideDataForSymbol', () => {
+          expect(mockRemoveOverrideDataForSymbol).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
+
+        it('retruns expected result', () => {
+          expect(result).toStrictEqual({
+            action: 'manual-trade',
+            symbol: 'BTCUSDT',
+            isLocked: false,
+            symbolConfiguration: {
+              botOptions: {
+                autoTriggerBuy: { triggerAfter: 20 }
+              }
+            },
+            overrideData: {
+              action: 'manual-trade',
+              order: {
+                some: 'data'
+              }
+            },
+            order: {
+              some: 'data'
+            }
+          });
+        });
+      });
+
+      describe('when action is cancel-order', () => {
+        beforeEach(async () => {
+          mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
+            action: 'cancel-order',
+            order: {
+              some: 'data'
+            }
+          });
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+            removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol,
+            isActionDisabled: mockIsActionDisabled,
+            saveOverrideAction: mockSaveOverrideAction
+          }));
+
+          rawData = {
+            action: 'not-determined',
+            symbol: 'BTCUSDT',
+            isLocked: false,
+            symbolConfiguration: {
+              botOptions: {
+                autoTriggerBuy: { triggerAfter: 20 }
+              }
+            }
+          };
+
+          const step = require('../get-override-action');
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers getOverrideDataForSymbol', () => {
+          expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
+
+        it('triggers removeOverrideDataForSymbol', () => {
+          expect(mockRemoveOverrideDataForSymbol).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
+
+        it('retruns expected result', () => {
+          expect(result).toStrictEqual({
+            action: 'cancel-order',
+            symbol: 'BTCUSDT',
+            isLocked: false,
+            symbolConfiguration: {
+              botOptions: {
+                autoTriggerBuy: { triggerAfter: 20 }
+              }
+            },
+            overrideData: {
+              action: 'cancel-order',
+              order: {
+                some: 'data'
+              }
+            },
+            order: {
+              some: 'data'
+            }
+          });
+        });
+      });
+
+      describe('when action is buy', () => {
+        describe('when action is not triggered by auto trigger', () => {
+          beforeEach(async () => {
+            mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
+              action: 'buy'
+            });
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+              removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol,
+              isActionDisabled: mockIsActionDisabled,
+              saveOverrideAction: mockSaveOverrideAction
+            }));
+
+            rawData = {
+              action: 'not-determined',
+              symbol: 'BTCUSDT',
+              isLocked: false,
+              symbolConfiguration: {
+                botOptions: {
+                  autoTriggerBuy: { triggerAfter: 20 }
+                }
+              }
+            };
+
+            const step = require('../get-override-action');
+            result = await step.execute(loggerMock, rawData);
+          });
+
+          it('triggers getOverrideDataForSymbol', () => {
+            expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCUSDT'
+            );
+          });
+
+          it('triggers removeOverrideDataForSymbol', () => {
+            expect(mockRemoveOverrideDataForSymbol).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCUSDT'
+            );
+          });
+
+          it('retruns expected result', () => {
+            expect(result).toStrictEqual({
+              action: 'buy',
+              symbol: 'BTCUSDT',
+              isLocked: false,
+              symbolConfiguration: {
+                botOptions: {
+                  autoTriggerBuy: { triggerAfter: 20 }
+                }
+              },
+              overrideData: {
+                action: 'buy'
+              },
+              order: {}
+            });
+          });
+        });
+
+        describe('when buy action is triggered by auto trigger', () => {
+          beforeEach(async () => {
+            mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
+              action: 'buy',
+              order: {
+                some: 'data'
+              },
+              triggeredBy: 'auto-trigger'
+            });
+
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+              removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol,
+              isActionDisabled: mockIsActionDisabled,
+              saveOverrideAction: mockSaveOverrideAction
+            }));
+          });
+
+          describe('when ATH Restriction is enabled', () => {
+            describe('when auto trigger buy condition is enabled', () => {
+              describe('when current price is more than ATH restriction price', () => {
+                beforeEach(async () => {
+                  rawData = {
+                    action: 'not-determined',
+                    symbol: 'BTCUSDT',
+                    isLocked: false,
+                    symbolConfiguration: {
+                      buy: {
+                        athRestriction: {
+                          enabled: true
+                        }
+                      },
+                      botOptions: {
+                        autoTriggerBuy: {
+                          triggerAfter: 20,
+                          conditions: {
+                            whenLessThanATHRestriction: true,
+                            afterDisabledPeriod: false
+                          }
+                        }
+                      }
+                    },
+                    buy: {
+                      currentPrice: 1000,
+                      athRestrictionPrice: 900
+                    }
+                  };
+
+                  const step = require('../get-override-action');
+                  result = await step.execute(loggerMock, rawData);
+                });
+
+                it('triggers getOverrideDataForSymbol', () => {
+                  expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
+                    loggerMock,
+                    'BTCUSDT'
+                  );
+                });
+
+                it('does not trigger removeOverrideDataForSymbol', () => {
+                  expect(
+                    mockRemoveOverrideDataForSymbol
+                  ).not.toHaveBeenCalled();
+                });
+
+                it('triggers saveOverrideAction', () => {
+                  expect(mockSaveOverrideAction).toHaveBeenCalledWith(
+                    loggerMock,
+                    'BTCUSDT',
+                    {
+                      action: 'buy',
+                      order: {
+                        some: 'data'
+                      },
+                      actionAt: expect.any(String),
+                      triggeredBy: 'auto-trigger'
+                    },
+                    `The auto-trigger buy action needs to be re-scheduled ` +
+                      `because the current price is higher than ATH restriction price.`
+                  );
+                });
+
+                it('retruns expected result', () => {
+                  expect(result).toStrictEqual({
+                    action: 'not-determined',
+                    symbol: 'BTCUSDT',
+                    isLocked: false,
+                    symbolConfiguration: {
+                      buy: {
+                        athRestriction: {
+                          enabled: true
+                        }
+                      },
+                      botOptions: {
+                        autoTriggerBuy: {
+                          triggerAfter: 20,
+                          conditions: {
+                            whenLessThanATHRestriction: true,
+                            afterDisabledPeriod: false
+                          }
+                        }
+                      }
+                    },
+                    buy: {
+                      athRestrictionPrice: 900,
+                      currentPrice: 1000
+                    },
+                    overrideData: {
+                      action: 'buy',
+                      order: {
+                        some: 'data'
+                      },
+                      triggeredBy: 'auto-trigger'
+                    }
+                  });
+                });
+              });
+
+              describe('when current price is less than ATH restriction price', () => {
+                beforeEach(async () => {
+                  rawData = {
+                    action: 'not-determined',
+                    symbol: 'BTCUSDT',
+                    isLocked: false,
+                    symbolConfiguration: {
+                      buy: {
+                        athRestriction: {
+                          enabled: true
+                        }
+                      },
+                      botOptions: {
+                        autoTriggerBuy: {
+                          triggerAfter: 20,
+                          conditions: {
+                            whenLessThanATHRestriction: true,
+                            afterDisabledPeriod: false
+                          }
+                        }
+                      }
+                    },
+                    buy: {
+                      currentPrice: 900,
+                      athRestrictionPrice: 1000
+                    }
+                  };
+
+                  const step = require('../get-override-action');
+                  result = await step.execute(loggerMock, rawData);
+                });
+
+                it('triggers getOverrideDataForSymbol', () => {
+                  expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
+                    loggerMock,
+                    'BTCUSDT'
+                  );
+                });
+
+                it('triggers removeOverrideDataForSymbol', () => {
+                  expect(mockRemoveOverrideDataForSymbol).toHaveBeenCalledWith(
+                    loggerMock,
+                    'BTCUSDT'
+                  );
+                });
+
+                it('does not trigger saveOverrideAction', () => {
+                  expect(mockSaveOverrideAction).not.toHaveBeenCalled();
+                });
+
+                it('retruns expected result', () => {
+                  expect(result).toStrictEqual({
+                    action: 'buy',
+                    symbol: 'BTCUSDT',
+                    isLocked: false,
+                    symbolConfiguration: {
+                      buy: {
+                        athRestriction: {
+                          enabled: true
+                        }
+                      },
+                      botOptions: {
+                        autoTriggerBuy: {
+                          triggerAfter: 20,
+                          conditions: {
+                            whenLessThanATHRestriction: true,
+                            afterDisabledPeriod: false
+                          }
+                        }
+                      }
+                    },
+                    buy: {
+                      athRestrictionPrice: 1000,
+                      currentPrice: 900
+                    },
+                    overrideData: {
+                      action: 'buy',
+                      order: {
+                        some: 'data'
+                      },
+                      triggeredBy: 'auto-trigger'
+                    },
+                    order: {
+                      some: 'data'
+                    }
+                  });
+                });
+              });
+            });
+
+            describe('when auto trigger buy condition is disabled', () => {
+              beforeEach(async () => {
+                rawData = {
+                  action: 'not-determined',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: true
+                      }
+                    },
+                    botOptions: {
+                      autoTriggerBuy: {
+                        triggerAfter: 20,
+                        conditions: {
+                          whenLessThanATHRestriction: false,
+                          afterDisabledPeriod: false
+                        }
+                      }
+                    }
+                  },
+                  buy: {
+                    currentPrice: 1000,
+                    athRestrictionPrice: 900
+                  }
+                };
+
+                const step = require('../get-override-action');
+                result = await step.execute(loggerMock, rawData);
+              });
+
+              it('triggers getOverrideDataForSymbol', () => {
+                expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
+                  loggerMock,
+                  'BTCUSDT'
+                );
+              });
+
+              it('triggers removeOverrideDataForSymbol', () => {
+                expect(mockRemoveOverrideDataForSymbol).toHaveBeenCalledWith(
+                  loggerMock,
+                  'BTCUSDT'
+                );
+              });
+
+              it('does not trigger saveOverrideAction', () => {
+                expect(mockSaveOverrideAction).not.toHaveBeenCalled();
+              });
+
+              it('retruns expected result', () => {
+                expect(result).toStrictEqual({
+                  action: 'buy',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: true
+                      }
+                    },
+                    botOptions: {
+                      autoTriggerBuy: {
+                        triggerAfter: 20,
+                        conditions: {
+                          whenLessThanATHRestriction: false,
+                          afterDisabledPeriod: false
+                        }
+                      }
+                    }
+                  },
+                  buy: {
+                    athRestrictionPrice: 900,
+                    currentPrice: 1000
+                  },
+                  overrideData: {
+                    action: 'buy',
+                    order: {
+                      some: 'data'
+                    },
+                    triggeredBy: 'auto-trigger'
+                  },
+                  order: {
+                    some: 'data'
+                  }
+                });
+              });
+            });
+          });
+
+          describe('when the action is disabled', () => {
+            beforeEach(() => {
+              mockIsActionDisabled = jest.fn().mockResolvedValue({
+                isDisabled: true,
+                ttl: 300,
+                disabledBy: 'sell order',
+                message: 'Disabled action after confirming the sell order.',
+                canResume: false,
+                canRemoveLastBuyPrice: false
+              });
+
+              jest.mock('../../../trailingTradeHelper/common', () => ({
+                getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+                removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol,
+                isActionDisabled: mockIsActionDisabled,
+                saveOverrideAction: mockSaveOverrideAction
+              }));
+            });
+
+            describe('when after disable period condition is enabled', () => {
+              beforeEach(async () => {
+                rawData = {
+                  action: 'not-determined',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: true
+                      }
+                    },
+                    botOptions: {
+                      autoTriggerBuy: {
+                        triggerAfter: 20,
+                        conditions: {
+                          whenLessThanATHRestriction: false,
+                          afterDisabledPeriod: true
+                        }
+                      }
+                    }
+                  },
+                  buy: {
+                    currentPrice: 1000,
+                    athRestrictionPrice: 900
+                  }
+                };
+
+                const step = require('../get-override-action');
+                result = await step.execute(loggerMock, rawData);
+              });
+
+              it('triggers getOverrideDataForSymbol', () => {
+                expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
+                  loggerMock,
+                  'BTCUSDT'
+                );
+              });
+
+              it('does not trigger removeOverrideDataForSymbol', () => {
+                expect(mockRemoveOverrideDataForSymbol).not.toHaveBeenCalled();
+              });
+
+              it('triggers saveOverrideAction', () => {
+                expect(mockSaveOverrideAction).toHaveBeenCalledWith(
+                  loggerMock,
+                  'BTCUSDT',
+                  {
+                    action: 'buy',
+                    order: {
+                      some: 'data'
+                    },
+                    actionAt: expect.any(String),
+                    triggeredBy: 'auto-trigger'
+                  },
+                  `The auto-trigger buy action needs to be re-scheduled because ` +
+                    `the action is disabled at the moment.`
+                );
+              });
+
+              it('retruns expected result', () => {
+                expect(result).toStrictEqual({
+                  action: 'not-determined',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: true
+                      }
+                    },
+                    botOptions: {
+                      autoTriggerBuy: {
+                        triggerAfter: 20,
+                        conditions: {
+                          whenLessThanATHRestriction: false,
+                          afterDisabledPeriod: true
+                        }
+                      }
+                    }
+                  },
+                  buy: {
+                    athRestrictionPrice: 900,
+                    currentPrice: 1000
+                  },
+                  overrideData: {
+                    action: 'buy',
+                    order: {
+                      some: 'data'
+                    },
+                    triggeredBy: 'auto-trigger'
+                  }
+                });
+              });
+            });
+
+            describe('when after disable period condition is disabled', () => {
+              beforeEach(async () => {
+                rawData = {
+                  action: 'not-determined',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: true
+                      }
+                    },
+                    botOptions: {
+                      autoTriggerBuy: {
+                        triggerAfter: 20,
+                        conditions: {
+                          whenLessThanATHRestriction: false,
+                          afterDisabledPeriod: false
+                        }
+                      }
+                    }
+                  },
+                  buy: {
+                    currentPrice: 1000,
+                    athRestrictionPrice: 900
+                  }
+                };
+
+                const step = require('../get-override-action');
+                result = await step.execute(loggerMock, rawData);
+              });
+
+              it('triggers getOverrideDataForSymbol', () => {
+                expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
+                  loggerMock,
+                  'BTCUSDT'
+                );
+              });
+
+              it('triggers removeOverrideDataForSymbol', () => {
+                expect(mockRemoveOverrideDataForSymbol).toHaveBeenCalledWith(
+                  loggerMock,
+                  'BTCUSDT'
+                );
+              });
+
+              it('does not trigger saveOverrideAction', () => {
+                expect(mockSaveOverrideAction).not.toHaveBeenCalled();
+              });
+
+              it('retruns expected result', () => {
+                expect(result).toStrictEqual({
+                  action: 'buy',
+                  symbol: 'BTCUSDT',
+                  isLocked: false,
+                  symbolConfiguration: {
+                    buy: {
+                      athRestriction: {
+                        enabled: true
+                      }
+                    },
+                    botOptions: {
+                      autoTriggerBuy: {
+                        triggerAfter: 20,
+                        conditions: {
+                          whenLessThanATHRestriction: false,
+                          afterDisabledPeriod: false
+                        }
+                      }
+                    }
+                  },
+                  buy: {
+                    athRestrictionPrice: 900,
+                    currentPrice: 1000
+                  },
+                  overrideData: {
+                    action: 'buy',
+                    order: {
+                      some: 'data'
+                    },
+                    triggeredBy: 'auto-trigger'
+                  },
+                  order: {
+                    some: 'data'
+                  }
+                });
+              });
+            });
+          });
+
+          describe('when no need to reschedule', () => {});
+        });
+      });
+
+      describe('when action is not matching', () => {
+        beforeEach(async () => {
+          mockGetOverrideDataForSymbol = jest.fn().mockResolvedValue({
+            action: 'something-unknown',
+            order: {
+              some: 'data'
+            }
+          });
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getOverrideDataForSymbol: mockGetOverrideDataForSymbol,
+            removeOverrideDataForSymbol: mockRemoveOverrideDataForSymbol,
+            isActionDisabled: mockIsActionDisabled,
+            saveOverrideAction: mockSaveOverrideAction
+          }));
+
+          rawData = {
+            action: 'not-determined',
+            symbol: 'BTCUSDT',
+            isLocked: false,
+            symbolConfiguration: {
+              botOptions: {
+                autoTriggerBuy: { triggerAfter: 20 }
+              }
+            }
+          };
+
+          const step = require('../get-override-action');
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers getOverrideDataForSymbol', () => {
+          expect(mockGetOverrideDataForSymbol).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT'
+          );
+        });
+
+        it('does not trigger removeOverrideDataForSymbol', () => {
+          expect(mockRemoveOverrideDataForSymbol).not.toHaveBeenCalled();
+        });
+
+        it('retruns expected result', () => {
+          expect(result).toStrictEqual({
+            action: 'not-determined',
+            symbol: 'BTCUSDT',
+            isLocked: false,
+            symbolConfiguration: {
+              botOptions: {
+                autoTriggerBuy: { triggerAfter: 20 }
+              }
+            },
+            overrideData: {
+              action: 'something-unknown',
+              order: {
+                some: 'data'
+              }
+            }
           });
         });
       });

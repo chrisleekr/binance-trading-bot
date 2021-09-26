@@ -4,8 +4,8 @@ describe('dust-transfer-execute.js', () => {
   let mockWebSocketServerWebSocketSend;
 
   let loggerMock;
-  let cacheMock;
-  let PubSubMock;
+
+  let mockSaveOverrideIndicatorAction;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -15,17 +15,18 @@ describe('dust-transfer-execute.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockSaveOverrideIndicatorAction = jest.fn().mockResolvedValue(true);
+
+    jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
+      saveOverrideIndicatorAction: mockSaveOverrideIndicatorAction
+    }));
   });
 
   beforeEach(async () => {
-    const { cache, logger, PubSub } = require('../../../../helpers');
+    const { logger } = require('../../../../helpers');
 
-    cacheMock = cache;
     loggerMock = logger;
-    PubSubMock = PubSub;
-
-    cacheMock.hset = jest.fn().mockResolvedValue(true);
-    PubSubMock.publish = jest.fn().mockResolvedValue(true);
 
     const { handleDustTransferExecute } = require('../dust-transfer-execute');
     await handleDustTransferExecute(loggerMock, mockWebSocketServer, {
@@ -35,25 +36,18 @@ describe('dust-transfer-execute.js', () => {
     });
   });
 
-  it('triggers cache.hset', () => {
-    expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
-      'trailing-trade-indicator-override'
+  it('triggers saveOverrideAction', () => {
+    expect(mockSaveOverrideIndicatorAction).toHaveBeenCalledWith(
+      loggerMock,
+      'global',
+      {
+        action: 'dust-transfer',
+        params: ['TRX', 'ETH'],
+        actionAt: expect.any(String),
+        triggeredBy: 'user'
+      },
+      'The dust transfer request received by the bot. Wait for executing the dust transfer.'
     );
-    expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual('global');
-    const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
-    expect(args).toStrictEqual({
-      action: 'dust-transfer',
-      params: ['TRX', 'ETH'],
-      actionAt: expect.any(String)
-    });
-  });
-
-  it('triggers PubSub.publish', () => {
-    expect(PubSubMock.publish).toHaveBeenCalledWith('frontend-notification', {
-      title:
-        'The dust transfer request received by the bot. Wait for executing the dust transfer.',
-      type: 'info'
-    });
   });
 
   it('triggers ws.send', () => {

@@ -1,12 +1,9 @@
 /* eslint-disable no-await-in-loop */
-const moment = require('moment');
-const _ = require('lodash');
 
-const { slack, binance } = require('../../../helpers');
+const { binance } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI,
-  getAPILimit
+  getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -53,7 +50,6 @@ const execute = async (logger, rawData) => {
 
   const {
     symbol,
-    featureToggle,
     action,
     isLocked,
     openOrders,
@@ -111,25 +107,6 @@ const execute = async (logger, rawData) => {
           data.accountInfo = await getAccountInfoFromAPI(logger);
 
           data.action = 'buy-order-checking';
-
-          if (_.get(featureToggle, 'notifyDebug', false) === true) {
-            slack.sendMessage(
-              `${symbol} Action (${moment().format(
-                'HH:mm:ss.SSS'
-              )}): Failed cancelling buy order\n` +
-                `- Message: Binance API returned an error when cancelling the buy order.` +
-                ` Refreshed open orders and wait for next tick.\n` +
-                `\`\`\`${JSON.stringify(
-                  {
-                    order,
-                    openOrders: data.openOrders
-                  },
-                  undefined,
-                  2
-                )}\`\`\`\n` +
-                `- Current API Usage: ${getAPILimit(logger)}`
-            );
-          }
         } else {
           // Reset buy open orders
           data.buy.openOrders = [];
@@ -178,26 +155,6 @@ const execute = async (logger, rawData) => {
           data.accountInfo = await getAccountInfoFromAPI(logger);
 
           data.action = 'sell-order-checking';
-
-          if (_.get(featureToggle, 'notifyDebug', false) === true) {
-            slack.sendMessage(
-              `${symbol} Action (${moment().format(
-                'HH:mm:ss.SSS'
-              )}): Failed cancelling sell order\n` +
-                `- Message: Binance API returned an error when cancelling the buy order.` +
-                ` Refreshed open orders and wait for next tick.\n` +
-                `\`\`\`${JSON.stringify(
-                  {
-                    order,
-                    openOrders: data.openOrders,
-                    accountInfo: data.accountInfo
-                  },
-                  undefined,
-                  2
-                )}\`\`\`\n` +
-                `- Current API Usage: ${getAPILimit(logger)}`
-            );
-          }
         } else {
           // Reset sell open orders
           data.sell.openOrders = [];

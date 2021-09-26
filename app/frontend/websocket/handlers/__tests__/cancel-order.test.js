@@ -4,8 +4,8 @@ describe('cancel-order.js', () => {
   let mockWebSocketServerWebSocketSend;
 
   let loggerMock;
-  let cacheMock;
-  let PubSubMock;
+
+  let mockSaveOverrideAction;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -15,17 +15,18 @@ describe('cancel-order.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockSaveOverrideAction = jest.fn().mockResolvedValue(true);
+
+    jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
+      saveOverrideAction: mockSaveOverrideAction
+    }));
   });
 
   beforeEach(async () => {
-    const { cache, logger, PubSub } = require('../../../../helpers');
+    const { logger } = require('../../../../helpers');
 
-    cacheMock = cache;
     loggerMock = logger;
-    PubSubMock = PubSub;
-
-    cacheMock.hset = jest.fn().mockResolvedValue(true);
-    PubSubMock.publish = jest.fn().mockResolvedValue(true);
 
     const { handleCancelOrder } = require('../cancel-order');
     await handleCancelOrder(loggerMock, mockWebSocketServer, {
@@ -38,25 +39,18 @@ describe('cancel-order.js', () => {
     });
   });
 
-  it('triggers cache.hset', () => {
-    expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
-      'trailing-trade-override'
+  it('triggers saveOverrideAction', () => {
+    expect(mockSaveOverrideAction).toHaveBeenCalledWith(
+      loggerMock,
+      'BTCUSDT',
+      {
+        action: 'cancel-order',
+        order: { some: 'value' },
+        actionAt: expect.any(String),
+        triggeredBy: 'user'
+      },
+      'Cancelling the order action has been received. Wait for cancelling the order.'
     );
-    expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual('BTCUSDT');
-    const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
-    expect(args).toStrictEqual({
-      action: 'cancel-order',
-      order: { some: 'value' },
-      actionAt: expect.any(String)
-    });
-  });
-
-  it('triggers PubSub.publish', () => {
-    expect(PubSubMock.publish).toHaveBeenCalledWith('frontend-notification', {
-      type: 'info',
-      title:
-        'Cancelling the order action has been received. Wait for cancelling the order.'
-    });
   });
 
   it('triggers ws.send', () => {

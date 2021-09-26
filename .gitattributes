@@ -24,6 +24,9 @@ RELEASENOTES text eol=lf
 
 # Declare files that will always have CRLF line endings on checkout.
 *.sln text eol=crlf
+*.eot text eol=crlf
+*.ttf text eol=crlf
+
 
 # Denote all files that are truly binary and should not be modified.
 *.acorn binary
@@ -39,3 +42,8 @@ RELEASENOTES text eol=lf
 *.exe binary
 *.jar binary
 *.phar binary
+*.eot binary
+*.otf binary
+*.ttf binary
+*.woff binary
+*.woff2 binary

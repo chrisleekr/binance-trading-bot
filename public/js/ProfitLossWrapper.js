@@ -137,6 +137,10 @@ class ProfitLossWrapper extends React.Component {
     });
 
     const openTradeWrappers = Object.values(totalPnL).map((pnl, index) => {
+      if (groupedEstimates[pnl.asset] === undefined) {
+        return '';
+      }
+
       const percentage =
         pnl.amount > 0 ? ((pnl.profit / pnl.amount) * 100).toFixed(2) : 0;
       return (

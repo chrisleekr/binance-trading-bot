@@ -1,5 +1,7 @@
 const moment = require('moment');
-const { cache, PubSub } = require('../../../helpers');
+const {
+  saveOverrideAction
+} = require('../../../cronjob/trailingTradeHelper/common');
 
 const handleCancelOrder = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start cancel order');
@@ -8,21 +10,17 @@ const handleCancelOrder = async (logger, ws, payload) => {
     data: { symbol, order }
   } = payload;
 
-  await cache.hset(
-    'trailing-trade-override',
-    `${symbol}`,
-    JSON.stringify({
+  await saveOverrideAction(
+    logger,
+    symbol,
+    {
       action: 'cancel-order',
       order,
-      actionAt: moment()
-    })
+      actionAt: moment().format(),
+      triggeredBy: 'user'
+    },
+    'Cancelling the order action has been received. Wait for cancelling the order.'
   );
-
-  PubSub.publish('frontend-notification', {
-    type: 'info',
-    title:
-      'Cancelling the order action has been received. Wait for cancelling the order.'
-  });
 
   ws.send(
     JSON.stringify({

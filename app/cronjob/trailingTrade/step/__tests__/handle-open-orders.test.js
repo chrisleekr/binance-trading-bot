@@ -364,15 +364,26 @@ describe('handle-open-orders.js', () => {
             step = require('../handle-open-orders');
           });
 
-          describe('when notifyDebug is true', () => {
-            beforeEach(async () => {
-              rawData = {
-                symbol: 'BTCUSDT',
-                isLocked: false,
-                featureToggle: {
-                  notifyDebug: true
-                },
-                action: 'not-determined',
+          beforeEach(async () => {
+            rawData = {
+              symbol: 'BTCUSDT',
+              isLocked: false,
+              featureToggle: {
+                notifyDebug: false
+              },
+              action: 'not-determined',
+              openOrders: [
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46838,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'BUY'
+                }
+              ],
+              buy: {
+                limitPrice: 1800,
                 openOrders: [
                   {
                     symbol: 'BTCUSDT',
@@ -382,165 +393,64 @@ describe('handle-open-orders.js', () => {
                     type: 'STOP_LOSS_LIMIT',
                     side: 'BUY'
                   }
-                ],
-                buy: {
-                  limitPrice: 1800,
-                  openOrders: [
-                    {
-                      symbol: 'BTCUSDT',
-                      orderId: 46838,
-                      price: '1799.58000000',
-                      stopPrice: '1800.1000',
-                      type: 'STOP_LOSS_LIMIT',
-                      side: 'BUY'
-                    }
-                  ]
-                },
-                sell: {
-                  limitPrice: 1800,
-                  openOrders: []
-                }
-              };
+                ]
+              },
+              sell: {
+                limitPrice: 1800,
+                openOrders: []
+              }
+            };
 
-              result = await step.execute(loggerMock, rawData);
-            });
+            result = await step.execute(loggerMock, rawData);
+          });
 
-            it('triggers cancelOrder', () => {
-              expect(binanceMock.client.cancelOrder).toHaveBeenCalledWith({
-                symbol: 'BTCUSDT',
-                orderId: 46838
-              });
-            });
-
-            it('triggers getAndCacheOpenOrdersForSymbol', () => {
-              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
-            });
-
-            it('triggers getAccountInfoFromAPI', () => {
-              expect(mockGetAccountInfoFromAPI).toHaveBeenCalledWith(
-                loggerMock
-              );
-            });
-
-            it('triggers slack.sendMessage', () => {
-              expect(slackMock.sendMessage).toHaveBeenCalled();
-            });
-
-            it('returns expected value', () => {
-              expect(result).toStrictEqual({
-                symbol: 'BTCUSDT',
-                isLocked: false,
-                featureToggle: {
-                  notifyDebug: true
-                },
-                action: 'buy-order-checking',
-                openOrders: [
-                  {
-                    symbol: 'BTCUSDT',
-                    orderId: 46839,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'BUY'
-                  },
-                  {
-                    symbol: 'BTCUSDT',
-                    orderId: 46841,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'SELL'
-                  }
-                ],
-                buy: {
-                  limitPrice: 1800,
-                  openOrders: [
-                    {
-                      symbol: 'BTCUSDT',
-                      orderId: 46839,
-                      price: '1799.58000000',
-                      stopPrice: '1800.1000',
-                      type: 'STOP_LOSS_LIMIT',
-                      side: 'BUY'
-                    }
-                  ]
-                },
-                sell: { limitPrice: 1800, openOrders: [] },
-                accountInfo: accountInfoJSON
-              });
+          it('triggers cancelOrder', () => {
+            expect(binanceMock.client.cancelOrder).toHaveBeenCalledWith({
+              symbol: 'BTCUSDT',
+              orderId: 46838
             });
           });
 
-          describe('when notifyDebug is false', () => {
-            beforeEach(async () => {
-              rawData = {
-                symbol: 'BTCUSDT',
-                isLocked: false,
-                featureToggle: {
-                  notifyDebug: false
+          it('triggers getAndCacheOpenOrdersForSymbol', () => {
+            expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
+          });
+
+          it('triggers getAccountInfoFromAPI', () => {
+            expect(mockGetAccountInfoFromAPI).toHaveBeenCalledWith(loggerMock);
+          });
+
+          it('does not trigger slack.sendMessage', () => {
+            expect(slackMock.sendMessage).not.toHaveBeenCalled();
+          });
+
+          it('returns expected value', () => {
+            expect(result).toStrictEqual({
+              symbol: 'BTCUSDT',
+              isLocked: false,
+              featureToggle: {
+                notifyDebug: false
+              },
+              action: 'buy-order-checking',
+              openOrders: [
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46839,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'BUY'
                 },
-                action: 'not-determined',
-                openOrders: [
-                  {
-                    symbol: 'BTCUSDT',
-                    orderId: 46838,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'BUY'
-                  }
-                ],
-                buy: {
-                  limitPrice: 1800,
-                  openOrders: [
-                    {
-                      symbol: 'BTCUSDT',
-                      orderId: 46838,
-                      price: '1799.58000000',
-                      stopPrice: '1800.1000',
-                      type: 'STOP_LOSS_LIMIT',
-                      side: 'BUY'
-                    }
-                  ]
-                },
-                sell: {
-                  limitPrice: 1800,
-                  openOrders: []
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46841,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'SELL'
                 }
-              };
-
-              result = await step.execute(loggerMock, rawData);
-            });
-
-            it('triggers cancelOrder', () => {
-              expect(binanceMock.client.cancelOrder).toHaveBeenCalledWith({
-                symbol: 'BTCUSDT',
-                orderId: 46838
-              });
-            });
-
-            it('triggers getAndCacheOpenOrdersForSymbol', () => {
-              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
-            });
-
-            it('triggers getAccountInfoFromAPI', () => {
-              expect(mockGetAccountInfoFromAPI).toHaveBeenCalledWith(
-                loggerMock
-              );
-            });
-
-            it('does not trigger slack.sendMessage', () => {
-              expect(slackMock.sendMessage).not.toHaveBeenCalled();
-            });
-
-            it('returns expected value', () => {
-              expect(result).toStrictEqual({
-                symbol: 'BTCUSDT',
-                isLocked: false,
-                featureToggle: {
-                  notifyDebug: false
-                },
-                action: 'buy-order-checking',
+              ],
+              buy: {
+                limitPrice: 1800,
                 openOrders: [
                   {
                     symbol: 'BTCUSDT',
@@ -549,32 +459,11 @@ describe('handle-open-orders.js', () => {
                     stopPrice: '1800.1000',
                     type: 'STOP_LOSS_LIMIT',
                     side: 'BUY'
-                  },
-                  {
-                    symbol: 'BTCUSDT',
-                    orderId: 46841,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'SELL'
                   }
-                ],
-                buy: {
-                  limitPrice: 1800,
-                  openOrders: [
-                    {
-                      symbol: 'BTCUSDT',
-                      orderId: 46839,
-                      price: '1799.58000000',
-                      stopPrice: '1800.1000',
-                      type: 'STOP_LOSS_LIMIT',
-                      side: 'BUY'
-                    }
-                  ]
-                },
-                sell: { limitPrice: 1800, openOrders: [] },
-                accountInfo: accountInfoJSON
-              });
+                ]
+              },
+              sell: { limitPrice: 1800, openOrders: [] },
+              accountInfo: accountInfoJSON
             });
           });
         });
@@ -827,15 +716,30 @@ describe('handle-open-orders.js', () => {
             step = require('../handle-open-orders');
           });
 
-          describe('when notifyDebug is true', () => {
-            beforeEach(async () => {
-              rawData = {
-                symbol: 'BTCUSDT',
-                isLocked: false,
-                featureToggle: {
-                  notifyDebug: true
-                },
-                action: 'not-determined',
+          beforeEach(async () => {
+            rawData = {
+              symbol: 'BTCUSDT',
+              isLocked: false,
+              featureToggle: {
+                notifyDebug: false
+              },
+              action: 'not-determined',
+              openOrders: [
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46838,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'SELL'
+                }
+              ],
+              buy: {
+                limitPrice: 1800,
+                openOrders: []
+              },
+              sell: {
+                limitPrice: 1801,
                 openOrders: [
                   {
                     symbol: 'BTCUSDT',
@@ -845,161 +749,61 @@ describe('handle-open-orders.js', () => {
                     type: 'STOP_LOSS_LIMIT',
                     side: 'SELL'
                   }
-                ],
-                buy: {
-                  limitPrice: 1800,
-                  openOrders: []
-                },
-                sell: {
-                  limitPrice: 1801,
-                  openOrders: [
-                    {
-                      symbol: 'BTCUSDT',
-                      orderId: 46838,
-                      price: '1799.58000000',
-                      stopPrice: '1800.1000',
-                      type: 'STOP_LOSS_LIMIT',
-                      side: 'SELL'
-                    }
-                  ]
-                }
-              };
+                ]
+              }
+            };
 
-              result = await step.execute(loggerMock, rawData);
-            });
+            result = await step.execute(loggerMock, rawData);
+          });
 
-            it('triggers cancelOrder', () => {
-              expect(binanceMock.client.cancelOrder).toHaveBeenCalledWith({
-                symbol: 'BTCUSDT',
-                orderId: 46838
-              });
-            });
-
-            it('triggers getAndCacheOpenOrdersForSymbol', () => {
-              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
-            });
-
-            it('triggers getAccountInfoFromAPI', () => {
-              expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
-            });
-
-            it('triggers slack.sendMessage', () => {
-              expect(slackMock.sendMessage).toHaveBeenCalled();
-            });
-
-            it('returns expected value', () => {
-              expect(result).toStrictEqual({
-                symbol: 'BTCUSDT',
-                isLocked: false,
-                featureToggle: {
-                  notifyDebug: true
-                },
-                action: 'sell-order-checking',
-                openOrders: [
-                  {
-                    symbol: 'BTCUSDT',
-                    orderId: 46840,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'SELL'
-                  },
-                  {
-                    symbol: 'BTCUSDT',
-                    orderId: 46841,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'BUY'
-                  }
-                ],
-                buy: { limitPrice: 1800, openOrders: [] },
-                sell: {
-                  limitPrice: 1801,
-                  openOrders: [
-                    {
-                      symbol: 'BTCUSDT',
-                      orderId: 46840,
-                      price: '1799.58000000',
-                      stopPrice: '1800.1000',
-                      type: 'STOP_LOSS_LIMIT',
-                      side: 'SELL'
-                    }
-                  ]
-                },
-                accountInfo: accountInfoJSON
-              });
+          it('triggers cancelOrder', () => {
+            expect(binanceMock.client.cancelOrder).toHaveBeenCalledWith({
+              symbol: 'BTCUSDT',
+              orderId: 46838
             });
           });
 
-          describe('when notifyDebug is false', () => {
-            beforeEach(async () => {
-              rawData = {
-                symbol: 'BTCUSDT',
-                isLocked: false,
-                featureToggle: {
-                  notifyDebug: false
+          it('triggers getAndCacheOpenOrdersForSymbol', () => {
+            expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
+          });
+
+          it('triggers getAccountInfoFromAPI', () => {
+            expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+          });
+
+          it('does not trigger slack.sendMessage', () => {
+            expect(slackMock.sendMessage).not.toHaveBeenCalled();
+          });
+
+          it('returns expected value', () => {
+            expect(result).toStrictEqual({
+              symbol: 'BTCUSDT',
+              isLocked: false,
+              featureToggle: {
+                notifyDebug: false
+              },
+              action: 'sell-order-checking',
+              openOrders: [
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46840,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'SELL'
                 },
-                action: 'not-determined',
-                openOrders: [
-                  {
-                    symbol: 'BTCUSDT',
-                    orderId: 46838,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'SELL'
-                  }
-                ],
-                buy: {
-                  limitPrice: 1800,
-                  openOrders: []
-                },
-                sell: {
-                  limitPrice: 1801,
-                  openOrders: [
-                    {
-                      symbol: 'BTCUSDT',
-                      orderId: 46838,
-                      price: '1799.58000000',
-                      stopPrice: '1800.1000',
-                      type: 'STOP_LOSS_LIMIT',
-                      side: 'SELL'
-                    }
-                  ]
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46841,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'BUY'
                 }
-              };
-
-              result = await step.execute(loggerMock, rawData);
-            });
-
-            it('triggers cancelOrder', () => {
-              expect(binanceMock.client.cancelOrder).toHaveBeenCalledWith({
-                symbol: 'BTCUSDT',
-                orderId: 46838
-              });
-            });
-
-            it('triggers getAndCacheOpenOrdersForSymbol', () => {
-              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
-            });
-
-            it('triggers getAccountInfoFromAPI', () => {
-              expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
-            });
-
-            it('does not trigger slack.sendMessage', () => {
-              expect(slackMock.sendMessage).not.toHaveBeenCalled();
-            });
-
-            it('returns expected value', () => {
-              expect(result).toStrictEqual({
-                symbol: 'BTCUSDT',
-                isLocked: false,
-                featureToggle: {
-                  notifyDebug: false
-                },
-                action: 'sell-order-checking',
+              ],
+              buy: { limitPrice: 1800, openOrders: [] },
+              sell: {
+                limitPrice: 1801,
                 openOrders: [
                   {
                     symbol: 'BTCUSDT',
@@ -1008,32 +812,10 @@ describe('handle-open-orders.js', () => {
                     stopPrice: '1800.1000',
                     type: 'STOP_LOSS_LIMIT',
                     side: 'SELL'
-                  },
-                  {
-                    symbol: 'BTCUSDT',
-                    orderId: 46841,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'BUY'
                   }
-                ],
-                buy: { limitPrice: 1800, openOrders: [] },
-                sell: {
-                  limitPrice: 1801,
-                  openOrders: [
-                    {
-                      symbol: 'BTCUSDT',
-                      orderId: 46840,
-                      price: '1799.58000000',
-                      stopPrice: '1800.1000',
-                      type: 'STOP_LOSS_LIMIT',
-                      side: 'SELL'
-                    }
-                  ]
-                },
-                accountInfo: accountInfoJSON
-              });
+                ]
+              },
+              accountInfo: accountInfoJSON
             });
           });
         });

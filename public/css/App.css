@@ -924,3 +924,7 @@ input[type='number'] {
 /**
   End: Trade Modal
 */
+
+.tradingview-widget-container iframe {
+  overflow-y: none;
+}

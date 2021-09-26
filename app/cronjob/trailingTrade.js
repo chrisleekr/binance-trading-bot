@@ -93,10 +93,6 @@ const execute = async logger => {
             stepFunc: getSymbolInfo
           },
           {
-            stepName: 'get-override-action',
-            stepFunc: getOverrideAction
-          },
-          {
             stepName: 'ensure-manual-order',
             stepFunc: ensureManualOrder
           },
@@ -115,6 +111,10 @@ const execute = async logger => {
           {
             stepName: 'get-indicators',
             stepFunc: getIndicators
+          },
+          {
+            stepName: 'get-override-action',
+            stepFunc: getOverrideAction
           },
           {
             stepName: 'handle-open-orders',

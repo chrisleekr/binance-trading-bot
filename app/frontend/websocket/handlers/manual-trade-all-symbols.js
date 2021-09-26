@@ -1,9 +1,12 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { cache, PubSub } = require('../../../helpers');
+const { PubSub } = require('../../../helpers');
 const {
   getGlobalConfiguration
 } = require('../../../cronjob/trailingTradeHelper/configuration');
+const {
+  saveOverrideAction
+} = require('../../../cronjob/trailingTradeHelper/common');
 
 const handleManualTradeAllSymbols = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start manual trade all symbols');
@@ -45,19 +48,16 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
                 quoteOrderQty
               }
             },
-            actionAt: currentTime
+            actionAt: currentTime.format(),
+            triggeredBy: 'user'
           };
 
           logger.info({ symbolOrder }, `Queueing order for ${symbol}.`);
 
-          cache.hset(
-            'trailing-trade-override',
-            `${symbol}`,
-            JSON.stringify(symbolOrder)
-          );
-
-          logger.info(
-            { baseAsset, symbolOrder },
+          saveOverrideAction(
+            logger,
+            symbol,
+            symbolOrder,
             `Order for ${symbol} has been queued.`
           );
 
@@ -87,18 +87,16 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
                 marketQuantity
               }
             },
-            actionAt: currentTime
+            actionAt: currentTime.format(),
+            triggeredBy: 'user'
           };
+
           logger.info({ symbolOrder }, `Queueing order for ${symbol}.`);
 
-          cache.hset(
-            'trailing-trade-override',
-            `${symbol}`,
-            JSON.stringify(symbolOrder)
-          );
-
-          logger.info(
-            { baseAsset, symbolOrder },
+          saveOverrideAction(
+            logger,
+            symbol,
+            symbolOrder,
             `Order for ${symbol} has been queued.`
           );
 

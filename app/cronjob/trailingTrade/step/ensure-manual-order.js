@@ -4,7 +4,8 @@ const _ = require('lodash');
 const { PubSub, binance, slack } = require('../../../helpers');
 const {
   calculateLastBuyPrice,
-  getAPILimit
+  getAPILimit,
+  isExceedAPILimit
 } = require('../../trailingTradeHelper/common');
 
 const {
@@ -145,6 +146,11 @@ const execute = async (logger, rawData) => {
       system: { checkManualOrderPeriod }
     }
   } = data;
+
+  if (isExceedAPILimit(logger)) {
+    logger.info('The API limit is exceed, do not try to ensure manual order.');
+    return data;
+  }
 
   const manualOrders = await getManualOrders(logger, symbol);
 

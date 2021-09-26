@@ -1,5 +1,7 @@
 const moment = require('moment');
-const { cache, PubSub } = require('../../../helpers');
+const {
+  saveOverrideIndicatorAction
+} = require('../../../cronjob/trailingTradeHelper/common');
 
 const handleDustTransferExecute = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start dust transfer execute');
@@ -8,21 +10,17 @@ const handleDustTransferExecute = async (logger, ws, payload) => {
     data: { dustTransfer }
   } = payload;
 
-  await cache.hset(
-    'trailing-trade-indicator-override',
+  await saveOverrideIndicatorAction(
+    logger,
     'global',
-    JSON.stringify({
+    {
       action: 'dust-transfer',
       params: dustTransfer,
-      actionAt: moment()
-    })
+      actionAt: moment().format(),
+      triggeredBy: 'user'
+    },
+    'The dust transfer request received by the bot. Wait for executing the dust transfer.'
   );
-
-  PubSub.publish('frontend-notification', {
-    type: 'info',
-    title:
-      'The dust transfer request received by the bot. Wait for executing the dust transfer.'
-  });
 
   ws.send(
     JSON.stringify({

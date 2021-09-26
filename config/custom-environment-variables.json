@@ -129,6 +129,18 @@
             "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRIGGER_AFTER",
             "__description": "Set minutes to trigger buy orders for the symbol after removing the last buy price.",
             "__format": "number"
+          },
+          "conditions": {
+            "whenLessThanATHRestriction": {
+              "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTO_TRIGGER_BY_CONDITIONS_WHEN_LESS_THAN_ATH_RESTRICTION",
+              "__description": "Set a boolean to reschedule the auto-buy trigger action if the price is over the ATH restriction.",
+              "__format": "boolean"
+            },
+            "afterDisabledPeriod": {
+              "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTO_TRIGGER_BY_CONDITIONS_AFTER_DISABLED_PERIOD",
+              "__description": "Set a boolean to reschedule the auto-buy trigger action if the action is currently disabled by the stop-loss or other actions.",
+              "__format": "boolean"
+            }
           }
         },
         "orderLimit": {
@@ -146,6 +158,13 @@
             "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_ORDER_LIMIT_MAX_OPEN_TRADES",
             "__description": "Set the maximum number of open trades. If set 5,, then the bot will not place a buy order when there are 5 symbols recorded with the last buy price.",
             "__format": "number"
+          }
+        },
+        "tradingView": {
+          "showTechnicalAnalysisWidget": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRADING_VIEW_SHOW_TECHNICAL_ANALYSIS_WIDGET",
+            "__description": "Set a boolean to display the TradingView technical analysis widget in the frontend.",
+            "__format": "boolean"
           }
         }
       },

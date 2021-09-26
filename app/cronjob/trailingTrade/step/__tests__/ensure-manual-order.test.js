@@ -12,6 +12,7 @@ describe('ensure-manual-order.js', () => {
 
   let mockCalculateLastBuyPrice;
   let mockGetAPILimit;
+  let mockIsExceedAPILimit;
 
   let mockGetSymbolGridTrade;
   let mockSaveSymbolGridTrade;
@@ -40,6 +41,13 @@ describe('ensure-manual-order.js', () => {
 
       mockCalculateLastBuyPrice = jest.fn().mockResolvedValue(true);
       mockGetAPILimit = jest.fn().mockResolvedValue(10);
+      mockIsExceedAPILimit = jest.fn().mockReturnValue(false);
+
+      jest.mock('../../../trailingTradeHelper/common', () => ({
+        calculateLastBuyPrice: mockCalculateLastBuyPrice,
+        getAPILimit: mockGetAPILimit,
+        isExceedAPILimit: mockIsExceedAPILimit
+      }));
 
       mockGetSymbolGridTrade = jest.fn().mockResolvedValue({
         buy: [
@@ -56,13 +64,79 @@ describe('ensure-manual-order.js', () => {
       mockSaveManualOrder = jest.fn().mockResolvedValue(true);
     });
 
-    describe('when manual buy order is not available', () => {
+    describe('when api limit exceeded', () => {
       beforeEach(async () => {
+        mockIsExceedAPILimit = jest.fn().mockReturnValue(true);
+
         jest.mock('../../../trailingTradeHelper/common', () => ({
           calculateLastBuyPrice: mockCalculateLastBuyPrice,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          isExceedAPILimit: mockIsExceedAPILimit
         }));
 
+        jest.mock('../../../trailingTradeHelper/configuration', () => ({
+          getSymbolGridTrade: mockGetSymbolGridTrade,
+          saveSymbolGridTrade: mockSaveSymbolGridTrade
+        }));
+
+        jest.mock('../../../trailingTradeHelper/order', () => ({
+          getManualOrders: mockGetManualOrders,
+          deleteManualOrder: mockDeleteManualOrder,
+          saveManualOrder: mockSaveManualOrder
+        }));
+
+        const step = require('../ensure-manual-order');
+
+        rawData = {
+          symbol: 'BTCUSDT',
+          isLocked: false,
+          featureToggle: { notifyDebug: true },
+          symbolConfiguration: {
+            system: {
+              checkManualOrderPeriod: 10
+            }
+          }
+        };
+
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('does not trigger binance.client.getOrder', () => {
+        expect(binanceMock.client.getOrder).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger deleteManualOrder', () => {
+        expect(mockDeleteManualOrder).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveSymbolGridTrade', () => {
+        expect(mockSaveSymbolGridTrade).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger saveManualOrder', () => {
+        expect(mockSaveManualOrder).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger calculateLastBuyPrice', () => {
+        expect(mockCalculateLastBuyPrice).not.toHaveBeenCalled();
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          symbol: 'BTCUSDT',
+          isLocked: false,
+          featureToggle: { notifyDebug: true },
+          symbolConfiguration: {
+            system: {
+              checkManualOrderPeriod: 10
+            }
+          }
+        });
+      });
+    });
+
+    describe('when manual buy order is not available', () => {
+      beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
           getSymbolGridTrade: mockGetSymbolGridTrade,
           saveSymbolGridTrade: mockSaveSymbolGridTrade
@@ -213,11 +287,6 @@ describe('ensure-manual-order.js', () => {
       ].forEach(testData => {
         describe(`${testData.desc}`, () => {
           beforeEach(async () => {
-            jest.mock('../../../trailingTradeHelper/common', () => ({
-              calculateLastBuyPrice: mockCalculateLastBuyPrice,
-              getAPILimit: mockGetAPILimit
-            }));
-
             jest.mock('../../../trailingTradeHelper/configuration', () => ({
               getSymbolGridTrade: mockGetSymbolGridTrade,
               saveSymbolGridTrade: mockSaveSymbolGridTrade
@@ -407,11 +476,6 @@ describe('ensure-manual-order.js', () => {
       ].forEach(testData => {
         describe(`${testData.desc}`, () => {
           beforeEach(async () => {
-            jest.mock('../../../trailingTradeHelper/common', () => ({
-              calculateLastBuyPrice: mockCalculateLastBuyPrice,
-              getAPILimit: mockGetAPILimit
-            }));
-
             mockGetManualOrders = jest
               .fn()
               .mockResolvedValue(testData.cacheResults);
