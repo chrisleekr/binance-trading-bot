@@ -66,16 +66,17 @@
           "triggerAfter": 20,
           "conditions": {
             "whenLessThanATHRestriction": true,
-            "afterDisabledPeriod": true
+            "afterDisabledPeriod": true,
+            "tradingView": {
+              "whenStrongBuy": true,
+              "whenBuy": true
+            }
           }
         },
         "orderLimit": {
           "enabled": true,
           "maxBuyOpenOrders": 3,
           "maxOpenTrades": 5
-        },
-        "tradingView": {
-          "showTechnicalAnalysisWidget": true
         }
       },
       "candles": {
@@ -104,6 +105,10 @@
             "limit": 30
           },
           "restrictionPercentage": 0.9
+        },
+        "tradingView": {
+          "whenStrongBuy": true,
+          "whenBuy": true
         }
       },
       "sell": {

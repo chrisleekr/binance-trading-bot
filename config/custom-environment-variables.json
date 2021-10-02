@@ -140,6 +140,18 @@
               "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTO_TRIGGER_BY_CONDITIONS_AFTER_DISABLED_PERIOD",
               "__description": "Set a boolean to reschedule the auto-buy trigger action if the action is currently disabled by the stop-loss or other actions.",
               "__format": "boolean"
+            },
+            "tradingView": {
+              "whenStrongBuy": {
+                "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTO_TRIGGER_BY_CONDITIONS_TRADINGVIEW_WHEN_STRONG_BUY",
+                "__description": "Set a boolean to trigger the auto-buy trigger action if the TradingView recommendation is `Strong buy`. If the recommendation is not `Strong buy`, then the bot will re-schedule the auto-buy trigger action.",
+                "__format": "boolean"
+              },
+              "whenBuy": {
+                "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTO_TRIGGER_BY_CONDITIONS_TRADINGVIEW_WHEN_BUY",
+                "__description": "Set a boolean to trigger the auto-buy trigger action if the TradingView recommendation is `Buy`. If the recommendation is not `Buy`, then the bot will re-schedule the auto-buy trigger action.",
+                "__format": "boolean"
+              }
             }
           }
         },
@@ -158,13 +170,6 @@
             "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_ORDER_LIMIT_MAX_OPEN_TRADES",
             "__description": "Set the maximum number of open trades. If set 5,, then the bot will not place a buy order when there are 5 symbols recorded with the last buy price.",
             "__format": "number"
-          }
-        },
-        "tradingView": {
-          "showTechnicalAnalysisWidget": {
-            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRADING_VIEW_SHOW_TECHNICAL_ANALYSIS_WIDGET",
-            "__description": "Set a boolean to display the TradingView technical analysis widget in the frontend.",
-            "__format": "boolean"
           }
         }
       },
@@ -207,6 +212,18 @@
           "restrictionPercentage": {
             "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_ATH_RESTRICTION_RESTRICTION_PERCENTAGE",
             "__format": "number"
+          }
+        },
+        "tradingView": {
+          "enabledOnly": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_TRADINGVIEW_ENABLED_ONLY",
+            "__description": "Set a boolean to trigger the buy action when the TradingView recommendation is `Buy` or `Strong buy`.",
+            "__format": "boolean"
+          },
+          "executeOnlyWhen": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_TRADINGVIEW_EXECUTE_ONLY_WHEN",
+            "__description": "Set recommendations that allow executing the buy trigger action. If the TradingView summary recommendation is  `Buy` or `Strong buy`, the buy action will be triggered. Other recommendations won't be triggering the buy action.  Allowed format is `[\"buy\", \"strong_buy\"]`.",
+            "__format": "json"
           }
         }
       },

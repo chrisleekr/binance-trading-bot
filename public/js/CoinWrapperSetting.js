@@ -235,6 +235,33 @@ class CoinWrapperSetting extends React.Component {
               </div>
             </div>
           </div>
+          <div className='coin-info-sub-wrapper'>
+            <div className='coin-info-sub-label'>Buy - Trading View</div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Allow when recommendation is <code>Strong buy</code>:
+              </span>
+              <span className='coin-info-value'>
+                {symbolConfiguration.buy.tradingView.whenStrongBuy ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </span>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Allow when recommendation is <code>Buy</code>:
+              </span>
+              <span className='coin-info-value'>
+                {symbolConfiguration.buy.tradingView.whenBuy ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </span>
+            </div>
+          </div>
 
           <div className='coin-info-sub-wrapper'>
             <div className='coin-info-sub-label'>Sell</div>
@@ -315,6 +342,59 @@ class CoinWrapperSetting extends React.Component {
                     'minutes'
                   )
                   .humanize()}
+              </div>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Re-schedule when the current price is over ATH restriction:
+              </span>
+              <div className='coin-info-value'>
+                {symbolConfiguration.botOptions.autoTriggerBuy.conditions
+                  .whenLessThanATHRestriction ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </div>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Re-schedule when the action is disabled:
+              </span>
+              <div className='coin-info-value'>
+                {symbolConfiguration.botOptions.autoTriggerBuy.conditions
+                  .afterDisabledPeriod ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </div>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Allow when TradingView recommendation is <code>Strong buy</code>
+                :
+              </span>
+              <div className='coin-info-value'>
+                {symbolConfiguration.botOptions.autoTriggerBuy.conditions
+                  .tradingView.whenStrongBuy ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </div>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Allow when TradingView recommendation is <code>Buy</code>:
+              </span>
+              <div className='coin-info-value'>
+                {symbolConfiguration.botOptions.autoTriggerBuy.conditions
+                  .tradingView.whenBuy ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
               </div>
             </div>
           </div>

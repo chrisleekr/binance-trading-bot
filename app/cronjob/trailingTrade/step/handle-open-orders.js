@@ -1,9 +1,11 @@
 /* eslint-disable no-await-in-loop */
+const moment = require('moment');
 
 const { binance } = require('../../../helpers');
 const {
   getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI
+  getAccountInfoFromAPI,
+  saveOverrideAction
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -107,6 +109,18 @@ const execute = async (logger, rawData) => {
           data.accountInfo = await getAccountInfoFromAPI(logger);
 
           data.action = 'buy-order-checking';
+
+          await saveOverrideAction(
+            logger,
+            symbol,
+            {
+              action: 'buy',
+              actionAt: moment().format(),
+              triggeredBy: 'buy-cancelled',
+              notify: false
+            },
+            `The bot will place a buy order in the next tick.`
+          );
         } else {
           // Reset buy open orders
           data.buy.openOrders = [];

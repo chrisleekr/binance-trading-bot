@@ -280,7 +280,7 @@ class SettingIconBotOptions extends React.Component {
                             </div>
 
                             <div className='col-12'>
-                              <strong>Conditions:</strong>
+                              <strong>Conditions</strong>
                             </div>
                             <div className='col-6'>
                               <Form.Group
@@ -297,7 +297,8 @@ class SettingIconBotOptions extends React.Component {
                                     onChange={this.handleInputChange}
                                   />
                                   <Form.Check.Label>
-                                    Re-schedule when less than ATH restriction{' '}
+                                    Re-schedule when the current price is over
+                                    ATH restriction{' '}
                                     <OverlayTrigger
                                       trigger='click'
                                       key='bot-options-auto-trigger-buy-conditions-when-less-than-ath-restriction-overlay'
@@ -348,6 +349,120 @@ class SettingIconBotOptions extends React.Component {
                                             the auto-buy trigger action if the
                                             action is currently disabled by the
                                             stop-loss or other actions.
+                                          </Popover.Content>
+                                        </Popover>
+                                      }>
+                                      <Button
+                                        variant='link'
+                                        className='p-0 m-0 ml-1 text-info'>
+                                        <i className='fas fa-question-circle fa-sm'></i>
+                                      </Button>
+                                    </OverlayTrigger>
+                                  </Form.Check.Label>
+                                </Form.Check>
+                              </Form.Group>
+                            </div>
+                            <div className='col-12'>
+                              <strong>
+                                TradingView{' '}
+                                <OverlayTrigger
+                                  trigger='click'
+                                  key='bot-options-auto-trigger-buy-conditions-tradingview-when-strong-buy-overlay'
+                                  placement='bottom'
+                                  overlay={
+                                    <Popover id='bot-options-auto-trigger-buy-conditions-tradingview-when-strong-buy-overlay-right'>
+                                      <Popover.Content>
+                                        TradingView is the service that provides
+                                        technical analysis based on various
+                                        indicators such as oscillators and
+                                        moving averages. The bot is integrated
+                                        with TradingView summary recommendation
+                                        to control the auto-trigger buy action.
+                                      </Popover.Content>
+                                    </Popover>
+                                  }>
+                                  <Button
+                                    variant='link'
+                                    className='p-0 m-0 ml-1 text-info'>
+                                    <i className='fas fa-question-circle fa-sm'></i>
+                                  </Button>
+                                </OverlayTrigger>
+                              </strong>
+                            </div>
+                            <div className='col-6'>
+                              <Form.Group
+                                controlId='field-bot-options-auto-trigger-buy-condition-tradingview-when-strong-buy'
+                                className='mb-2'>
+                                <Form.Check size='sm'>
+                                  <Form.Check.Input
+                                    type='checkbox'
+                                    data-state-key='autoTriggerBuy.conditions.tradingView.whenStrongBuy'
+                                    checked={
+                                      botOptions.autoTriggerBuy.conditions
+                                        .tradingView.whenStrongBuy
+                                    }
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <Form.Check.Label>
+                                    Allwo auto buy trigger when recommendation
+                                    is <code>Strong buy</code>{' '}
+                                    <OverlayTrigger
+                                      trigger='click'
+                                      key='bot-options-auto-trigger-buy-conditions-tradingview-when-strong-buy-overlay'
+                                      placement='bottom'
+                                      overlay={
+                                        <Popover id='bot-options-auto-trigger-buy-conditions-tradingview-when-strong-buy-overlay-right'>
+                                          <Popover.Content>
+                                            If enabled, the bot will trigger the
+                                            auto-buy trigger action if the
+                                            TradingView recommendation is
+                                            `Strong buy`. If the recommendation
+                                            is not `Strong buy`, then the bot
+                                            will re-schedule the auto-buy
+                                            trigger action.
+                                          </Popover.Content>
+                                        </Popover>
+                                      }>
+                                      <Button
+                                        variant='link'
+                                        className='p-0 m-0 ml-1 text-info'>
+                                        <i className='fas fa-question-circle fa-sm'></i>
+                                      </Button>
+                                    </OverlayTrigger>
+                                  </Form.Check.Label>
+                                </Form.Check>
+                              </Form.Group>
+                            </div>
+                            <div className='col-6'>
+                              <Form.Group
+                                controlId='field-bot-options-auto-trigger-buy-condition-tradingview-when-buy'
+                                className='mb-2'>
+                                <Form.Check size='sm'>
+                                  <Form.Check.Input
+                                    type='checkbox'
+                                    data-state-key='autoTriggerBuy.conditions.tradingView.whenBuy'
+                                    checked={
+                                      botOptions.autoTriggerBuy.conditions
+                                        .tradingView.whenBuy
+                                    }
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <Form.Check.Label>
+                                    Allow auto buy trigger when recommendation
+                                    is <code>Buy</code>{' '}
+                                    <OverlayTrigger
+                                      trigger='click'
+                                      key='bot-options-auto-trigger-buy-conditions-tradingview-when-buy-overlay'
+                                      placement='bottom'
+                                      overlay={
+                                        <Popover id='bot-options-auto-trigger-buy-conditions-tradingview-when-buy-overlay-right'>
+                                          <Popover.Content>
+                                            If enabled, the bot will trigger the
+                                            auto-buy trigger action if the
+                                            TradingView recommendation is `Buy`.
+                                            If the recommendation is not `Buy`,
+                                            then the bot will re-schedule the
+                                            auto-buy trigger action.
                                           </Popover.Content>
                                         </Popover>
                                       }>
@@ -504,69 +619,6 @@ class SettingIconBotOptions extends React.Component {
                                   </Form.Group>
                                 </div>
                               </div>
-                            </div>
-                          </div>
-                        </Card.Body>
-                      </Accordion.Collapse>
-                    </Card>
-                  </Accordion>
-
-                  <Accordion defaultActiveKey='0'>
-                    <Card className='mt-1'>
-                      <Card.Header className='px-2 py-1'>
-                        <Accordion.Toggle
-                          as={Button}
-                          variant='link'
-                          eventKey='0'
-                          className='p-0 fs-7 text-uppercase'>
-                          Trading View
-                        </Accordion.Toggle>
-                      </Card.Header>
-                      <Accordion.Collapse eventKey='0'>
-                        <Card.Body className='px-2 py-1'>
-                          <div className='row'>
-                            <div className='col-12'>
-                              <Form.Group
-                                controlId='field-bot-options-trading-view-show-teachnical-analysis-widget'
-                                className='mb-2'>
-                                <Form.Check size='sm'>
-                                  <Form.Check.Input
-                                    type='checkbox'
-                                    data-state-key='tradingView.showTechnicalAnalysisWidget'
-                                    checked={
-                                      botOptions.tradingView
-                                        .showTechnicalAnalysisWidget
-                                    }
-                                    onChange={this.handleInputChange}
-                                  />
-                                  <Form.Check.Label>
-                                    Show Technical Analysis Widget{' '}
-                                    <OverlayTrigger
-                                      trigger='click'
-                                      key='bot-options-trading-view-show-teachnical-analysis-widget-overlay'
-                                      placement='bottom'
-                                      overlay={
-                                        <Popover id='bot-options-trading-view-show-teachnical-analysis-widget-overlay-right'>
-                                          <Popover.Content>
-                                            If enabled, the bot will display the
-                                            TradingView technical analysis
-                                            widget in the frontend.
-                                          </Popover.Content>
-                                        </Popover>
-                                      }>
-                                      <Button
-                                        variant='link'
-                                        className='p-0 m-0 ml-1 text-info'>
-                                        <i className='fas fa-question-circle fa-sm'></i>
-                                      </Button>
-                                    </OverlayTrigger>
-                                  </Form.Check.Label>
-                                </Form.Check>
-                              </Form.Group>
-                              <span className='text-muted'>
-                                To apply this change, please refresh the
-                                frontend.
-                              </span>
                             </div>
                           </div>
                         </Card.Body>

@@ -31,3 +31,5 @@ docker-compose.yml
 docker-compose.server.yml
 
 .git
+
+tradingview

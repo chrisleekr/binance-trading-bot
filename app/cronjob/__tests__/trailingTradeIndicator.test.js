@@ -20,6 +20,7 @@ describe('trailingTradeIndicator', () => {
   let mockExecuteDustTransfer;
   let mockGetClosedTrades;
   let mockGetOrderStats;
+  let mockGetTradingView;
   let mockSaveDataToCache;
 
   let mockLockSymbol;
@@ -147,6 +148,13 @@ describe('trailingTradeIndicator', () => {
       }
     }));
 
+    mockGetTradingView = jest.fn().mockImplementation((_logger, rawData) => ({
+      ...rawData,
+      ...{
+        tradingView: 'retrieved'
+      }
+    }));
+
     mockSaveDataToCache = jest.fn().mockImplementation((_logger, rawData) => ({
       ...rawData,
       ...{
@@ -166,6 +174,7 @@ describe('trailingTradeIndicator', () => {
       executeDustTransfer: mockExecuteDustTransfer,
       getClosedTrades: mockGetClosedTrades,
       getOrderStats: mockGetOrderStats,
+      getTradingView: mockGetTradingView,
       saveDataToCache: mockSaveDataToCache
     }));
   };
@@ -236,6 +245,7 @@ describe('trailingTradeIndicator', () => {
             dustTransfer: 'dust-transfer',
             getClosedTrades: 'executed',
             getOrderStats: 'retrieved',
+            tradingView: 'retrieved',
             saved: 'data-to-cache'
           }
         },

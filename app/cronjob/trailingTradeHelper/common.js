@@ -773,18 +773,22 @@ const saveOverrideAction = async (
     JSON.stringify(overrideData)
   );
 
-  slack.sendMessage(
-    `${symbol} Action (${moment().format('HH:mm:ss.SSS')}): Queued action: ${
-      overrideData.action
-    }\n` +
-      `- Message: ${overrideReason}\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
-  );
+  const notify = _.get(overrideData, 'notify', true);
 
-  PubSub.publish('frontend-notification', {
-    type: 'info',
-    title: overrideReason
-  });
+  if (notify) {
+    slack.sendMessage(
+      `${symbol} Action (${moment().format('HH:mm:ss.SSS')}): Queued action: ${
+        overrideData.action
+      }\n` +
+        `- Message: ${overrideReason}\n` +
+        `- Current API Usage: ${getAPILimit(logger)}`
+    );
+
+    PubSub.publish('frontend-notification', {
+      type: 'info',
+      title: overrideReason
+    });
+  }
 };
 
 /**
@@ -807,18 +811,22 @@ const saveOverrideIndicatorAction = async (
     JSON.stringify(overrideData)
   );
 
-  slack.sendMessage(
-    `Action (${moment().format('HH:mm:ss.SSS')}): Queued action: ${
-      overrideData.action
-    }\n` +
-      `- Message: ${overrideReason}\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
-  );
+  const notify = _.get(overrideData, 'notify', true);
 
-  PubSub.publish('frontend-notification', {
-    type: 'info',
-    title: overrideReason
-  });
+  if (notify) {
+    slack.sendMessage(
+      `Action (${moment().format('HH:mm:ss.SSS')}): Queued action: ${
+        overrideData.action
+      }\n` +
+        `- Message: ${overrideReason}\n` +
+        `- Current API Usage: ${getAPILimit(logger)}`
+    );
+
+    PubSub.publish('frontend-notification', {
+      type: 'info',
+      title: overrideReason
+    });
+  }
 };
 
 module.exports = {

@@ -10,6 +10,61 @@ const {
 } = require('../../trailingTradeHelper/common');
 const { saveGridTradeOrder } = require('../../trailingTradeHelper/order');
 
+const isAllowedTradingViewRecommendation = data => {
+  const {
+    symbolConfiguration: {
+      buy: {
+        tradingView: {
+          whenStrongBuy: tradingViewWhenStrongBuy,
+          whenBuy: tradingViewWhenBuy
+        }
+      }
+    },
+    tradingView,
+    overrideData
+  } = data;
+
+  // If this is override action, then process buy regardless recommendation.
+  if (_.isEmpty(overrideData) === false) {
+    return { isTradingViewAllowed: true, tradingViewRejectedReason: '' };
+  }
+
+  const tradingViewSummaryRecommendation = _.get(
+    tradingView,
+    'result.summary.RECOMMENDATION',
+    ''
+  );
+
+  // Get allowed recommendation
+  const allowedRecommendations = [];
+  if (tradingViewWhenStrongBuy) {
+    allowedRecommendations.push('strong_buy');
+  }
+
+  if (tradingViewWhenBuy) {
+    allowedRecommendations.push('buy');
+  }
+
+  // If summary recommendation is not allowed recommendation, then prevent buy
+  if (
+    tradingViewSummaryRecommendation !== '' &&
+    allowedRecommendations.length > 0 &&
+    allowedRecommendations.includes(
+      tradingViewSummaryRecommendation.toLowerCase()
+    ) === false
+  ) {
+    return {
+      isTradingViewAllowed: false,
+      tradingViewRejectedReason:
+        `Do not place an order because ` +
+        `TradingView recommendation is ${tradingViewSummaryRecommendation}.`
+    };
+  }
+
+  // Otherwise, simply allow
+  return { isTradingViewAllowed: true, tradingViewRejectedReason: '' };
+};
+
 /**
  * Place a buy order if has enough balance
  *
@@ -66,6 +121,15 @@ const execute = async (logger, rawData) => {
 
   if (currentGridTrade === null) {
     data.buy.processMessage = `Current grid trade is not defined. Cannot place an order.`;
+    data.buy.updatedAt = moment().utc();
+
+    return data;
+  }
+
+  const { isTradingViewAllowed, tradingViewRejectedReason } =
+    isAllowedTradingViewRecommendation(data);
+  if (isTradingViewAllowed === false) {
+    data.buy.processMessage = tradingViewRejectedReason;
     data.buy.updatedAt = moment().utc();
 
     return data;

@@ -30,6 +30,16 @@ services:
       options:
         max-size: '1G'
 
+  tradingview:
+    container_name: tradingview
+    build:
+      context: ./tradingview
+    networks:
+      - internal
+    restart: unless-stopped
+    ports:
+      - 8082:8080
+
   binance-redis:
     container_name: binance-redis
     image: redis:6.2

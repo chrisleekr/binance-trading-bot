@@ -11,7 +11,7 @@ describe('handle-open-orders.js', () => {
 
   let mockGetAccountInfoFromAPI;
   let mockGetAndCacheOpenOrdersForSymbol;
-  let mockGetAPILimit;
+  let mockSaveOverrideAction;
 
   const accountInfoJSON = require('./fixtures/binance-account-info.json');
 
@@ -19,7 +19,7 @@ describe('handle-open-orders.js', () => {
     beforeEach(() => {
       jest.clearAllMocks().resetModules();
 
-      mockGetAPILimit = jest.fn().mockReturnValue(10);
+      mockSaveOverrideAction = jest.fn().mockResolvedValue(true);
     });
 
     describe('when symbol is locked', () => {
@@ -38,7 +38,7 @@ describe('handle-open-orders.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAPILimit: mockGetAPILimit
+          saveOverrideAction: mockSaveOverrideAction
         }));
 
         step = require('../handle-open-orders');
@@ -136,7 +136,7 @@ describe('handle-open-orders.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAPILimit: mockGetAPILimit
+          saveOverrideAction: mockSaveOverrideAction
         }));
 
         step = require('../handle-open-orders');
@@ -234,7 +234,7 @@ describe('handle-open-orders.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAPILimit: mockGetAPILimit
+          saveOverrideAction: mockSaveOverrideAction
         }));
 
         step = require('../handle-open-orders');
@@ -358,7 +358,7 @@ describe('handle-open-orders.js', () => {
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               getAndCacheOpenOrdersForSymbol:
                 mockGetAndCacheOpenOrdersForSymbol,
-              getAPILimit: mockGetAPILimit
+              saveOverrideAction: mockSaveOverrideAction
             }));
 
             step = require('../handle-open-orders');
@@ -421,6 +421,20 @@ describe('handle-open-orders.js', () => {
 
           it('does not trigger slack.sendMessage', () => {
             expect(slackMock.sendMessage).not.toHaveBeenCalled();
+          });
+
+          it('triggers saveOverrideAction', () => {
+            expect(mockSaveOverrideAction).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCUSDT',
+              {
+                action: 'buy',
+                actionAt: expect.any(String),
+                triggeredBy: 'buy-cancelled',
+                notify: false
+              },
+              'The bot will place a buy order in the next tick.'
+            );
           });
 
           it('returns expected value', () => {
@@ -487,7 +501,7 @@ describe('handle-open-orders.js', () => {
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               getAndCacheOpenOrdersForSymbol:
                 mockGetAndCacheOpenOrdersForSymbol,
-              getAPILimit: mockGetAPILimit
+              saveOverrideAction: mockSaveOverrideAction
             }));
 
             step = require('../handle-open-orders');
@@ -581,7 +595,7 @@ describe('handle-open-orders.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-            getAPILimit: mockGetAPILimit
+            saveOverrideAction: mockSaveOverrideAction
           }));
 
           step = require('../handle-open-orders');
@@ -710,7 +724,7 @@ describe('handle-open-orders.js', () => {
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               getAndCacheOpenOrdersForSymbol:
                 mockGetAndCacheOpenOrdersForSymbol,
-              getAPILimit: mockGetAPILimit
+              saveOverrideAction: mockSaveOverrideAction
             }));
 
             step = require('../handle-open-orders');
@@ -839,7 +853,7 @@ describe('handle-open-orders.js', () => {
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               getAndCacheOpenOrdersForSymbol:
                 mockGetAndCacheOpenOrdersForSymbol,
-              getAPILimit: mockGetAPILimit
+              saveOverrideAction: mockSaveOverrideAction
             }));
 
             step = require('../handle-open-orders');
@@ -923,7 +937,7 @@ describe('handle-open-orders.js', () => {
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-            getAPILimit: mockGetAPILimit
+            saveOverrideAction: mockSaveOverrideAction
           }));
 
           step = require('../handle-open-orders');
