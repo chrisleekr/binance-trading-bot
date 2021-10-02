@@ -265,6 +265,7 @@ The bot will also set the symbol to be temporarily disabled for 60 minutes to av
 - Stop-Loss
 - Restrict buying with ATH price
 - Grid Trade for buy/sell
+- Integrated with TradingView Technical Analysis
 
 ### Frontend + WebSocket
 

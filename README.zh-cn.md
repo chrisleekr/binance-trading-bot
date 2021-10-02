@@ -233,6 +233,7 @@ The final profit would be
 - 同时监控多个硬币
 - 止损
 - 限制最高价格的购买次数
+- Integrated with TradingView Technical Analysis
 
 ### 前端 + WebSocket
 
