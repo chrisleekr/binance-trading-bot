@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 - Enhanced auto-trigger buy feature - [#316](https://github.com/chrisleekr/binance-trading-bot/issues/316)
 - Added TradingView Technical Analysis - [#327](https://github.com/chrisleekr/binance-trading-bot/issues/327)
-- Updated buy/auto-buy trigger action to integrate with TradingView Technical Analysis
+- Updated buy/auto-buy trigger action to integrate with TradingView Technical Analysis - [#327](https://github.com/chrisleekr/binance-trading-bot/issues/327)
 
 ## [0.0.79] - 2021-09-19
 
