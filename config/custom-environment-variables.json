@@ -171,6 +171,18 @@
             "__description": "Set the maximum number of open trades. If set 5,, then the bot will not place a buy order when there are 5 symbols recorded with the last buy price.",
             "__format": "number"
           }
+        },
+        "tradingView": {
+          "interval": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRADING_VIEW_INTERVAL",
+            "__description": "Set the interval to retrieve TradingView technical analysis. If empty, it will use candles -> interval. Available interval: 1m, 5m, 15m, 30m, 1h, 2h, 4h, 1d, 1w, 1m",
+            "__format": "string"
+          },
+          "useOnlyWithin": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRADING_VIEW_USE_ONLY_WITHIN",
+            "__description": "Set the minutes to allow to use TradingView technical analysis data. If the data is older than configured minutes, the bot will ignore the TradingView technical analysis data. This is due to avoid the issue with TradingView downtime.",
+            "__format": "number"
+          }
         }
       },
       "candles": {

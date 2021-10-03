@@ -729,7 +729,7 @@ class SettingIcon extends React.Component {
                                         </Button>
                                       </OverlayTrigger>
                                     </div>
-                                    <div className='col-12'>
+                                    <div className='col-12 col-md-6'>
                                       <Form.Group
                                         controlId='field-buy-tradingview-when-strong-buy'
                                         className='mb-2'>
@@ -776,7 +776,7 @@ class SettingIcon extends React.Component {
                                         </Form.Check>
                                       </Form.Group>
                                     </div>
-                                    <div className='col-12'>
+                                    <div className='col-12 col-md-6'>
                                       <Form.Group
                                         controlId='field-buy-tradingview-when-buy'
                                         className='mb-2'>

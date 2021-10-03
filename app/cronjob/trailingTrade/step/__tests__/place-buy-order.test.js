@@ -1,3 +1,4 @@
+const moment = require('moment');
 const _ = require('lodash');
 
 /* eslint-disable global-require */
@@ -86,6 +87,11 @@ describe('place-buy-order.js', () => {
             tradingView: {
               whenStrongBuy: false,
               whenBuy: false
+            }
+          },
+          botOptions: {
+            tradingView: {
+              useOnlyWithin: 5
             }
           },
           system: {
@@ -295,6 +301,11 @@ describe('place-buy-order.js', () => {
                   whenBuy: false
                 }
               },
+              botOptions: {
+                tradingView: {
+                  useOnlyWithin: 5
+                }
+              },
               system: {
                 checkOrderExecutePeriod: 10
               }
@@ -304,6 +315,195 @@ describe('place-buy-order.js', () => {
             buy: {
               currentPrice: 200,
               openOrders: []
+            },
+            tradingView: {
+              result: {
+                time: moment()
+                  .utc()
+                  .subtract('1', 'minute')
+                  .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
+                summary: {
+                  RECOMMENDATION: 'NEUTRAL'
+                }
+              }
+            }
+          };
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers binance.client.order', () => {
+          expect(binanceMock.client.order).toHaveBeenCalledWith({
+            price: 202.2,
+            quantity: 0.24,
+            side: 'buy',
+            stopPrice: 202,
+            symbol: 'BTCUPUSDT',
+            timeInForce: 'GTC',
+            type: 'STOP_LOSS_LIMIT'
+          });
+        });
+
+        it('triggers saveGridTradeOrder for grid trade last buy order', () => {
+          expect(mockSaveGridTradeOrder).toHaveBeenCalledWith(
+            loggerMock,
+            `BTCUPUSDT-grid-trade-last-buy-order`,
+            {
+              symbol: 'BTCUPUSDT',
+              orderId: 2701762317,
+              orderListId: -1,
+              clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+              transactTime: 1626946722520,
+              currentGridTradeIndex: 0,
+              nextCheck: expect.any(String)
+            }
+          );
+        });
+
+        it('triggers getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
+        });
+
+        it('triggers getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+        });
+
+        it('triggers saveOrderStats', () => {
+          expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+            'BTCUPUSDT',
+            'ETHBTC',
+            'ALPHABTC',
+            'BTCBRL',
+            'BNBUSDT'
+          ]);
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toMatchObject({
+            openOrders: [
+              {
+                orderId: 123,
+                price: 202.2,
+                quantity: 0.24,
+                side: 'buy',
+                stopPrice: 202,
+                symbol: 'BTCUPUSDT',
+                timeInForce: 'GTC',
+                type: 'STOP_LOSS_LIMIT'
+              }
+            ],
+            buy: {
+              currentPrice: 200,
+              openOrders: [
+                {
+                  orderId: 123,
+                  price: 202.2,
+                  quantity: 0.24,
+                  side: 'buy',
+                  stopPrice: 202,
+                  symbol: 'BTCUPUSDT',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ],
+              processMessage:
+                'Placed new stop loss limit order for buying of grid trade #1.',
+              updatedAt: expect.any(Object)
+            }
+          });
+        });
+      });
+
+      describe('when tradingView was updated older than configured minutes', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+            {
+              orderId: 123,
+              price: 202.2,
+              quantity: 0.24,
+              side: 'buy',
+              stopPrice: 202,
+              symbol: 'BTCUPUSDT',
+              timeInForce: 'GTC',
+              type: 'STOP_LOSS_LIMIT'
+            }
+          ]);
+
+          binanceMock.client.order = jest.fn().mockResolvedValue({
+            symbol: 'BTCUPUSDT',
+            orderId: 2701762317,
+            orderListId: -1,
+            clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+            transactTime: 1626946722520
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit,
+            saveOrderStats: mockSaveOrderStats
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = {
+            symbol: 'BTCUPUSDT',
+            isLocked: false,
+            featureToggle: {
+              notifyDebug: true
+            },
+            symbolInfo: {
+              baseAsset: 'BTCUP',
+              quoteAsset: 'USDT',
+              filterLotSize: { stepSize: '0.01000000', minQty: '0.01000000' },
+              filterPrice: { tickSize: '0.00100000' },
+              filterMinNotional: { minNotional: '10.00000000' }
+            },
+            symbolConfiguration: {
+              symbols: ['BTCUPUSDT', 'ETHBTC', 'ALPHABTC', 'BTCBRL', 'BNBUSDT'],
+              buy: {
+                enabled: true,
+                currentGridTradeIndex: 0,
+                currentGridTrade: {
+                  triggerPercentage: 1,
+                  minPurchaseAmount: 10,
+                  maxPurchaseAmount: 50,
+                  stopPercentage: 1.01,
+                  limitPercentage: 1.011,
+                  executed: false,
+                  executedOrder: null
+                },
+                tradingView: {
+                  whenStrongBuy: true,
+                  whenBuy: true
+                }
+              },
+              botOptions: {
+                tradingView: {
+                  useOnlyWithin: 5
+                }
+              },
+              system: {
+                checkOrderExecutePeriod: 10
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 101 },
+            buy: {
+              currentPrice: 200,
+              openOrders: []
+            },
+            tradingView: {
+              result: {
+                time: moment()
+                  .utc()
+                  .subtract('6', 'minute')
+                  .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
+                summary: {
+                  RECOMMENDATION: 'STRONG_BUY'
+                }
+              }
             }
           };
 
@@ -465,6 +665,11 @@ describe('place-buy-order.js', () => {
                     whenBuy: true
                   }
                 },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
+                  }
+                },
                 system: {
                   checkOrderExecutePeriod: 10
                 }
@@ -477,6 +682,10 @@ describe('place-buy-order.js', () => {
               },
               tradingView: {
                 result: {
+                  time: moment()
+                    .utc()
+                    .subtract('1', 'minute')
+                    .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
                   summary: {
                     RECOMMENDATION: 'STRONG_BUY'
                   }
@@ -641,6 +850,11 @@ describe('place-buy-order.js', () => {
                     whenBuy: true
                   }
                 },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
+                  }
+                },
                 system: {
                   checkOrderExecutePeriod: 10
                 }
@@ -653,6 +867,10 @@ describe('place-buy-order.js', () => {
               },
               tradingView: {
                 result: {
+                  time: moment()
+                    .utc()
+                    .subtract('1', 'minute')
+                    .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
                   summary: {
                     RECOMMENDATION: 'BUY'
                   }
@@ -817,6 +1035,11 @@ describe('place-buy-order.js', () => {
                     whenBuy: true
                   }
                 },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
+                  }
+                },
                 system: {
                   checkOrderExecutePeriod: 10
                 }
@@ -829,6 +1052,10 @@ describe('place-buy-order.js', () => {
               },
               tradingView: {
                 result: {
+                  time: moment()
+                    .utc()
+                    .subtract('1', 'minute')
+                    .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
                   summary: {
                     RECOMMENDATION: 'NEUTRAL'
                   }
@@ -924,6 +1151,11 @@ describe('place-buy-order.js', () => {
                     whenBuy: true
                   }
                 },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
+                  }
+                },
                 system: {
                   checkOrderExecutePeriod: 10
                 }
@@ -936,6 +1168,10 @@ describe('place-buy-order.js', () => {
               },
               tradingView: {
                 result: {
+                  time: moment()
+                    .utc()
+                    .subtract('1', 'minute')
+                    .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
                   summary: {
                     RECOMMENDATION: 'STRONG_BUY'
                   }
@@ -1150,6 +1386,11 @@ describe('place-buy-order.js', () => {
                   whenBuy: false
                 }
               },
+              botOptions: {
+                tradingView: {
+                  useOnlyWithin: 5
+                }
+              },
               system: {
                 checkOrderExecutePeriod: 10
               }
@@ -1202,6 +1443,11 @@ describe('place-buy-order.js', () => {
                 tradingView: {
                   whenStrongBuy: false,
                   whenBuy: false
+                }
+              },
+              botOptions: {
+                tradingView: {
+                  useOnlyWithin: 5
                 }
               },
               system: {
@@ -1258,6 +1504,11 @@ describe('place-buy-order.js', () => {
                   whenBuy: false
                 }
               },
+              botOptions: {
+                tradingView: {
+                  useOnlyWithin: 5
+                }
+              },
               system: {
                 checkOrderExecutePeriod: 10
               }
@@ -1310,6 +1561,11 @@ describe('place-buy-order.js', () => {
                 tradingView: {
                   whenStrongBuy: false,
                   whenBuy: false
+                }
+              },
+              botOptions: {
+                tradingView: {
+                  useOnlyWithin: 5
                 }
               },
               system: {
@@ -1387,6 +1643,11 @@ describe('place-buy-order.js', () => {
                   whenBuy: false
                 }
               },
+              botOptions: {
+                tradingView: {
+                  useOnlyWithin: 5
+                }
+              },
               system: {
                 checkOrderExecutePeriod: 10
               }
@@ -1441,6 +1702,11 @@ describe('place-buy-order.js', () => {
                 tradingView: {
                   whenStrongBuy: false,
                   whenBuy: false
+                }
+              },
+              botOptions: {
+                tradingView: {
+                  useOnlyWithin: 5
                 }
               },
               system: {
@@ -1499,6 +1765,11 @@ describe('place-buy-order.js', () => {
                   whenBuy: false
                 }
               },
+              botOptions: {
+                tradingView: {
+                  useOnlyWithin: 5
+                }
+              },
               system: {
                 checkOrderExecutePeriod: 10
               }
@@ -1553,6 +1824,11 @@ describe('place-buy-order.js', () => {
                 tradingView: {
                   whenStrongBuy: false,
                   whenBuy: false
+                }
+              },
+              botOptions: {
+                tradingView: {
+                  useOnlyWithin: 5
                 }
               },
               system: {
@@ -1749,6 +2025,11 @@ describe('place-buy-order.js', () => {
                     whenBuy: false
                   }
                 },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
+                  }
+                },
                 system: {
                   checkOrderExecutePeriod: 10
                 }
@@ -1840,6 +2121,11 @@ describe('place-buy-order.js', () => {
                   tradingView: {
                     whenStrongBuy: false,
                     whenBuy: false
+                  }
+                },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
                   }
                 },
                 system: {
@@ -1963,6 +2249,11 @@ describe('place-buy-order.js', () => {
                     whenBuy: false
                   }
                 },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
+                  }
+                },
                 system: {
                   checkOrderExecutePeriod: 10
                 }
@@ -2082,6 +2373,11 @@ describe('place-buy-order.js', () => {
                   tradingView: {
                     whenStrongBuy: false,
                     whenBuy: false
+                  }
+                },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
                   }
                 },
                 system: {
@@ -2205,6 +2501,11 @@ describe('place-buy-order.js', () => {
                     whenBuy: false
                   }
                 },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
+                  }
+                },
                 system: {
                   checkOrderExecutePeriod: 10
                 }
@@ -2324,6 +2625,11 @@ describe('place-buy-order.js', () => {
                   tradingView: {
                     whenStrongBuy: false,
                     whenBuy: false
+                  }
+                },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
                   }
                 },
                 system: {
@@ -2511,6 +2817,11 @@ describe('place-buy-order.js', () => {
                     whenBuy: false
                   }
                 },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
+                  }
+                },
                 system: {
                   checkOrderExecutePeriod: 10
                 }
@@ -2630,6 +2941,11 @@ describe('place-buy-order.js', () => {
                   tradingView: {
                     whenStrongBuy: false,
                     whenBuy: false
+                  }
+                },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
                   }
                 },
                 system: {
@@ -2753,6 +3069,11 @@ describe('place-buy-order.js', () => {
                     whenBuy: false
                   }
                 },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
+                  }
+                },
                 system: {
                   checkOrderExecutePeriod: 10
                 }
@@ -2872,6 +3193,11 @@ describe('place-buy-order.js', () => {
                   tradingView: {
                     whenStrongBuy: false,
                     whenBuy: false
+                  }
+                },
+                botOptions: {
+                  tradingView: {
+                    useOnlyWithin: 5
                   }
                 },
                 system: {

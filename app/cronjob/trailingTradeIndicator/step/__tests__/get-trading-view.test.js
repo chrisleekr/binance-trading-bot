@@ -40,16 +40,8 @@ describe('get-trading-view.js', () => {
         expectedInterval: '15m'
       },
       {
-        interval: '30m',
-        expectedInterval: '1h'
-      },
-      {
         interval: '1h',
         expectedInterval: '1h'
-      },
-      {
-        interval: '2h',
-        expectedInterval: '4h'
       },
       {
         interval: '4h',
@@ -78,7 +70,10 @@ describe('get-trading-view.js', () => {
           rawData = {
             symbol: 'BTCUSDT',
             symbolConfiguration: {
-              candles: { interval: t.interval }
+              candles: { interval: t.interval },
+              botOptions: {
+                tradingView: { interval: '' }
+              }
             },
             tradingView: {}
           };
@@ -122,7 +117,10 @@ describe('get-trading-view.js', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
             symbolConfiguration: {
-              candles: { interval: t.interval }
+              candles: { interval: t.interval },
+              botOptions: {
+                tradingView: { interval: '' }
+              }
             },
             tradingView: {
               request: {
@@ -139,6 +137,91 @@ describe('get-trading-view.js', () => {
       });
     });
 
+    describe('symbol configuration has tradingView interval configured', () => {
+      beforeEach(async () => {
+        axiosMock.get = jest.fn().mockResolvedValue({
+          data: {
+            request: {
+              interval: '15m'
+            },
+            result: {
+              summary: {
+                RECOMMENDATION: 'BUY'
+              }
+            }
+          }
+        });
+
+        rawData = {
+          symbol: 'BTCUSDT',
+          symbolConfiguration: {
+            candles: { interval: '1h' },
+            botOptions: {
+              tradingView: {
+                interval: '15m'
+              }
+            }
+          },
+          tradingView: {}
+        };
+
+        const step = require('../get-trading-view');
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('triggers axios.get', () => {
+        expect(axiosMock.get).toHaveBeenCalledWith('http://tradingview:8080', {
+          params: {
+            symbol: 'BTCUSDT',
+            screener: 'CRYPTO',
+            exchange: 'BINANCE',
+            interval: '15m'
+          }
+        });
+      });
+
+      it('triggers cache.hset', () => {
+        expect(cacheMock.hset).toHaveBeenCalledWith(
+          'trailing-trade-tradingview',
+          'BTCUSDT',
+          JSON.stringify({
+            request: {
+              interval: '15m'
+            },
+            result: {
+              summary: {
+                RECOMMENDATION: 'BUY'
+              }
+            }
+          })
+        );
+      });
+
+      it('retruns expected result', () => {
+        expect(result).toStrictEqual({
+          symbol: 'BTCUSDT',
+          symbolConfiguration: {
+            candles: { interval: '1h' },
+            botOptions: {
+              tradingView: {
+                interval: '15m'
+              }
+            }
+          },
+          tradingView: {
+            request: {
+              interval: '15m'
+            },
+            result: {
+              summary: {
+                RECOMMENDATION: 'BUY'
+              }
+            }
+          }
+        });
+      });
+    });
+
     describe(`when axios throws an error`, () => {
       beforeEach(async () => {
         axiosMock.get = jest
@@ -148,7 +231,10 @@ describe('get-trading-view.js', () => {
         rawData = {
           symbol: 'BTCUSDT',
           symbolConfiguration: {
-            candles: { interval: '15m' }
+            candles: { interval: '15m' },
+            botOptions: {
+              tradingView: { interval: '' }
+            }
           },
           tradingView: {}
         };
@@ -176,7 +262,10 @@ describe('get-trading-view.js', () => {
         expect(result).toStrictEqual({
           symbol: 'BTCUSDT',
           symbolConfiguration: {
-            candles: { interval: '15m' }
+            candles: { interval: '15m' },
+            botOptions: {
+              tradingView: { interval: '' }
+            }
           },
           tradingView: {}
         });

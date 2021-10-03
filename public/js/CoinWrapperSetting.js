@@ -398,6 +398,26 @@ class CoinWrapperSetting extends React.Component {
               </div>
             </div>
           </div>
+
+          <div className='coin-info-sub-wrapper'>
+            <div className='coin-info-sub-label'>Bot Options - TradingView</div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>Interval:</span>
+              <span className='coin-info-value'>
+                {symbolConfiguration.botOptions.tradingView.interval !== ''
+                  ? symbolConfiguration.botOptions.tradingView.interval
+                  : symbolConfiguration.candles.interval}
+              </span>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Use data only updated within:
+              </span>
+              <span className='coin-info-value'>
+                {symbolConfiguration.botOptions.tradingView.useOnlyWithin}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     );

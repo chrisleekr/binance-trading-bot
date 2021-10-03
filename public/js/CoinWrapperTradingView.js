@@ -39,6 +39,11 @@ class CoinWrapperTradingView extends React.Component {
         symbolInfo: {
           filterPrice: { tickSize }
         },
+        symbolConfiguration: {
+          botOptions: {
+            tradingView: { useOnlyWithin: tradingViewUseOnlyWithin }
+          }
+        },
         tradingView
       }
     } = this.props;
@@ -282,6 +287,22 @@ class CoinWrapperTradingView extends React.Component {
       );
     });
 
+    let updatedWithinAlert = '';
+    const updatedAt = moment
+      .utc(tradingView.result.time, 'YYYY-MM-DDTHH:mm:ss.SSSSSS')
+      .add(tradingViewUseOnlyWithin, 'minutes');
+    const currentTime = moment.utc();
+    if (updatedAt.isBefore(currentTime)) {
+      updatedWithinAlert = (
+        <div className='coin-info-column coin-info-column-title border-bottom-0 m-0 p-0'>
+          <div className='bg-light text-dark w-100 px-1'>
+            The data is older than {tradingViewUseOnlyWithin} minute(s). This
+            data will not be used until it is updated.
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title'>
@@ -355,6 +376,7 @@ class CoinWrapperTradingView extends React.Component {
                 .fromNow()}
             </span>
           </div>
+          {updatedWithinAlert}
           <div
             className={`coin-info-content-setting ${
               collapsed ? 'd-none' : ''

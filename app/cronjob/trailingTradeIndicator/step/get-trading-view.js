@@ -5,10 +5,6 @@ const getInterval = interval => {
   switch (interval) {
     case '3m':
       return '5m';
-    case '30m':
-      return '1h';
-    case '2h':
-      return '4h';
     default:
       return interval;
   }
@@ -26,7 +22,10 @@ const execute = async (logger, rawData) => {
   const {
     symbol,
     symbolConfiguration: {
-      candles: { interval }
+      candles: { interval },
+      botOptions: {
+        tradingView: { interval: tradingViewInterval }
+      }
     }
   } = data;
 
@@ -34,7 +33,9 @@ const execute = async (logger, rawData) => {
     symbol,
     screener: 'CRYPTO',
     exchange: 'BINANCE',
-    interval: getInterval(interval)
+    interval: getInterval(
+      tradingViewInterval !== '' ? tradingViewInterval : interval
+    )
   };
 
   try {

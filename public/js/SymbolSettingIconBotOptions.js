@@ -379,6 +379,119 @@ class SymbolSettingIconBotOptions extends React.Component {
                       </Accordion.Collapse>
                     </Card>
                   </Accordion>
+
+                  <Accordion defaultActiveKey='0'>
+                    <Card className='mt-1'>
+                      <Card.Header className='px-2 py-1'>
+                        <Accordion.Toggle
+                          as={Button}
+                          variant='link'
+                          eventKey='0'
+                          className='p-0 fs-7 text-uppercase'>
+                          TradingView
+                        </Accordion.Toggle>
+                      </Card.Header>
+                      <Accordion.Collapse eventKey='0'>
+                        <Card.Body className='px-2 py-1'>
+                          <div className='row'>
+                            <div className='col-12 col-md-6'>
+                              <Form.Group
+                                controlId='field-bot-options-tradingview-interval'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  Interval
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='bot-options-tradingview-intervaloverlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='bot-options-tradingview-intervaloverlay-right'>
+                                        <Popover.Content>
+                                          Set TradingView candle interval. If
+                                          empty, it will use candles -&gt;
+                                          interval.
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fas fa-question-circle fa-sm'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <Form.Control
+                                  size='sm'
+                                  as='select'
+                                  required
+                                  data-state-key='tradingView.interval'
+                                  value={botOptions.tradingView.interval}
+                                  onChange={this.handleInputChange}>
+                                  <option value=''>
+                                    Use candle -&gt; interval
+                                  </option>
+                                  <option value='1m'>1m</option>
+                                  <option value='5m'>5m</option>
+                                  <option value='15m'>15m</option>
+                                  <option value='30m'>30m</option>
+                                  <option value='1h'>1h</option>
+                                  <option value='2h'>2h</option>
+                                  <option value='4h'>4h</option>
+                                  <option value='1d'>1d</option>
+                                </Form.Control>
+                              </Form.Group>
+                            </div>
+                            <div className='col-12 col-md-6'>
+                              <Form.Group
+                                controlId='field-bot-options-tradingview-use-only-within'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  Use data only updated within
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='tradingview-use-only-within-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='tradingview-use-only-within-overlay-right'>
+                                        <Popover.Content>
+                                          Set the minutes to allow to use
+                                          TradingView technical analysis data.
+                                          If the data is older than configured
+                                          minutes, the bot will ignore the
+                                          TradingView technical analysis data.
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fas fa-question-circle fa-sm'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+
+                                <InputGroup size='sm'>
+                                  <Form.Control
+                                    type='number'
+                                    placeholder='Enter minutes'
+                                    required
+                                    min='1'
+                                    step='1'
+                                    data-state-key='tradingView.useOnlyWithin'
+                                    value={botOptions.tradingView.useOnlyWithin}
+                                    onChange={this.handleInputChange}
+                                  />
+                                  <InputGroup.Append>
+                                    <InputGroup.Text>minutes</InputGroup.Text>
+                                  </InputGroup.Append>
+                                </InputGroup>
+                              </Form.Group>
+                            </div>
+                          </div>
+                        </Card.Body>
+                      </Accordion.Collapse>
+                    </Card>
+                  </Accordion>
                 </div>
               </div>
             </Card.Body>

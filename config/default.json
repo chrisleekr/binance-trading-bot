@@ -77,6 +77,10 @@
           "enabled": true,
           "maxBuyOpenOrders": 3,
           "maxOpenTrades": 5
+        },
+        "tradingView": {
+          "interval": "",
+          "useOnlyWithin": 5
         }
       },
       "candles": {

@@ -10,7 +10,7 @@ const {
 } = require('../../trailingTradeHelper/common');
 const { saveGridTradeOrder } = require('../../trailingTradeHelper/order');
 
-const isAllowedTradingViewRecommendation = data => {
+const isAllowedTradingViewRecommendation = (logger, data) => {
   const {
     symbolConfiguration: {
       buy: {
@@ -18,6 +18,9 @@ const isAllowedTradingViewRecommendation = data => {
           whenStrongBuy: tradingViewWhenStrongBuy,
           whenBuy: tradingViewWhenBuy
         }
+      },
+      botOptions: {
+        tradingView: { useOnlyWithin: tradingViewUseOnlyWithin }
       }
     },
     tradingView,
@@ -26,14 +29,43 @@ const isAllowedTradingViewRecommendation = data => {
 
   // If this is override action, then process buy regardless recommendation.
   if (_.isEmpty(overrideData) === false) {
+    logger.info(
+      { overrideData },
+      'Override data is not empty. Ignore TradingView recommendation.'
+    );
     return { isTradingViewAllowed: true, tradingViewRejectedReason: '' };
   }
 
+  // If there is no tradingView result time or recommendation, then ignore TradingView recommendation.
+  const tradingViewTime = _.get(tradingView, 'result.time', '');
   const tradingViewSummaryRecommendation = _.get(
     tradingView,
     'result.summary.RECOMMENDATION',
     ''
   );
+  if (tradingViewTime === '' || tradingViewSummaryRecommendation === '') {
+    logger.info(
+      { tradingViewTime, tradingViewSummaryRecommendation },
+      'TradingView time or recommendation is empty. Ignore TradingView recommendation.'
+    );
+    return { isTradingViewAllowed: true, tradingViewRejectedReason: '' };
+  }
+
+  // If tradingViewTime is more than configured time, then ignore TradingView recommendation.
+  const tradingViewUpdatedAt = moment
+    .utc(tradingViewTime, 'YYYY-MM-DDTHH:mm:ss.SSSSSS')
+    .add(tradingViewUseOnlyWithin, 'minutes');
+  const currentTime = moment.utc();
+  if (tradingViewUpdatedAt.isBefore(currentTime)) {
+    logger.info(
+      {
+        tradingViewUpdatedAt: tradingViewUpdatedAt.format(),
+        currentTime: currentTime.format()
+      },
+      `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. Ignore TradingView recommendation.`
+    );
+    return { isTradingViewAllowed: true, tradingViewRejectedReason: '' };
+  }
 
   // Get allowed recommendation
   const allowedRecommendations = [];
@@ -47,7 +79,6 @@ const isAllowedTradingViewRecommendation = data => {
 
   // If summary recommendation is not allowed recommendation, then prevent buy
   if (
-    tradingViewSummaryRecommendation !== '' &&
     allowedRecommendations.length > 0 &&
     allowedRecommendations.includes(
       tradingViewSummaryRecommendation.toLowerCase()
@@ -127,7 +158,7 @@ const execute = async (logger, rawData) => {
   }
 
   const { isTradingViewAllowed, tradingViewRejectedReason } =
-    isAllowedTradingViewRecommendation(data);
+    isAllowedTradingViewRecommendation(logger, data);
   if (isTradingViewAllowed === false) {
     data.buy.processMessage = tradingViewRejectedReason;
     data.buy.updatedAt = moment().utc();
