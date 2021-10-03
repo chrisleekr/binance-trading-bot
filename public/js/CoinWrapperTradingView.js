@@ -58,85 +58,77 @@ class CoinWrapperTradingView extends React.Component {
     const oscillators = [
       {
         name: 'Relative Strength Index (14)',
-        indicator: _.get(tradingView, 'result.indicators["RSI"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["RSI"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.oscillators.COMPUTE.RSI
       },
       {
         name: 'Stochastic %K (14, 3, 3)',
-        indicator: _.get(
-          tradingView,
-          'result.indicators["Stoch.K"]',
-          0
+        indicator: (
+          _.get(tradingView, 'result.indicators["Stoch.K"]') || 0
         ).toFixed(quotePrecision),
         recommend: tradingView.result.oscillators.COMPUTE['STOCH.K']
       },
       {
         name: 'Commodity Channel Index (20)',
-        indicator: _.get(tradingView, 'result.indicators["CCI20"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["CCI20"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.oscillators.COMPUTE['CCI']
       },
       {
         name: 'Average Directional Index (14)',
-        indicator: _.get(tradingView, 'result.indicators["ADX"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["ADX"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.oscillators.COMPUTE['ADX']
       },
       {
         name: 'Awesome Oscillator',
-        indicator: _.get(tradingView, 'result.indicators["AO"]', 0).toFixed(
+        indicator: (_.get(tradingView, 'result.indicators["AO"]') || 0).toFixed(
           quotePrecision
         ),
         recommend: tradingView.result.oscillators.COMPUTE['AO']
       },
       {
         name: 'Momentum (10)',
-        indicator: _.get(tradingView, 'result.indicators["Mom"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["Mom"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.oscillators.COMPUTE['Mom']
       },
       {
         name: 'MACD Level (12, 26)',
-        indicator: _.get(
-          tradingView,
-          'result.indicators["MACD.macd"]',
-          0
+        indicator: (
+          _.get(tradingView, 'result.indicators["MACD.macd"]') || 0
         ).toFixed(quotePrecision),
         recommend: tradingView.result.oscillators.COMPUTE['MACD']
       },
       {
         name: 'Stochastic RSI Fast',
-        indicator: _.get(
-          tradingView,
-          'result.indicators["Stoch.RSI.K"]',
-          0
+        indicator: (
+          _.get(tradingView, 'result.indicators["Stoch.RSI.K"]') || 0
         ).toFixed(quotePrecision),
         recommend: tradingView.result.oscillators.COMPUTE['Stoch.RSI']
       },
       {
         name: 'Williams Percent Range (14)',
-        indicator: _.get(tradingView, 'result.indicators["W.R"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["W.R"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.oscillators.COMPUTE['W%R']
       },
       {
         name: 'Bull Bear Power',
-        indicator: _.get(
-          tradingView,
-          'result.indicators["BBPower"]',
-          0
+        indicator: (
+          _.get(tradingView, 'result.indicators["BBPower"]') || 0
         ).toFixed(quotePrecision),
         recommend: tradingView.result.oscillators.COMPUTE['BBP']
       },
       {
         name: 'Ultimate Oscillator (7, 14, 28)',
-        indicator: _.get(tradingView, 'result.indicators["UO"]', 0).toFixed(
+        indicator: (_.get(tradingView, 'result.indicators["UO"]') || 0).toFixed(
           quotePrecision
         ),
         recommend: tradingView.result.oscillators.COMPUTE['UO']
@@ -162,110 +154,106 @@ class CoinWrapperTradingView extends React.Component {
     const movingAverages = [
       {
         name: 'Exponential Moving Average (10)',
-        indicator: _.get(tradingView, 'result.indicators["EMA10"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["EMA10"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['EMA10']
       },
       {
         name: 'Simple Moving Average (10)',
-        indicator: _.get(tradingView, 'result.indicators["SMA10"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["SMA10"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['SMA10']
       },
       {
         name: 'Exponential Moving Average (20)',
-        indicator: _.get(tradingView, 'result.indicators["EMA20"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["EMA20"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['EMA20']
       },
       {
         name: 'Simple Moving Average (20)',
-        indicator: _.get(tradingView, 'result.indicators["SMA20"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["SMA20"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['SMA20']
       },
       {
         name: 'Exponential Moving Average (30)',
-        indicator: _.get(tradingView, 'result.indicators["EMA30"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["EMA30"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['EMA30']
       },
       {
         name: 'Simple Moving Average (30)',
-        indicator: _.get(tradingView, 'result.indicators["SMA30"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["SMA30"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['SMA30']
       },
       {
         name: 'Exponential Moving Average (50)',
-        indicator: _.get(tradingView, 'result.indicators["EMA50"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["EMA50"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['EMA50']
       },
       {
         name: 'Simple Moving Average (50)',
-        indicator: _.get(tradingView, 'result.indicators["SMA50"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["SMA50"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['SMA50']
       },
       {
         name: 'Exponential Moving Average (100)',
-        indicator: _.get(tradingView, 'result.indicators["EMA100"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["EMA100"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['EMA100']
       },
       {
         name: 'Simple Moving Average (100)',
-        indicator: _.get(tradingView, 'result.indicators["SMA100"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["SMA100"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['SMA100']
       },
       {
         name: 'Exponential Moving Average (200)',
-        indicator: _.get(tradingView, 'result.indicators["EMA200"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["EMA200"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['EMA200']
       },
       {
         name: 'Simple Moving Average (200)',
-        indicator: _.get(tradingView, 'result.indicators["SMA200"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["SMA200"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['SMA200']
       },
       {
         name: 'Ichimoku Base Line (9, 26, 52, 26)',
-        indicator: _.get(
-          tradingView,
-          'result.indicators["Ichimoku.BLine"]',
-          0
+        indicator: (
+          _.get(tradingView, 'result.indicators["Ichimoku.BLine"]') || 0
         ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['Ichimoku']
       },
       {
         name: 'Volume Weighted Moving Average (20)',
-        indicator: _.get(tradingView, 'result.indicators["VWMA"]', 0).toFixed(
-          quotePrecision
-        ),
+        indicator: (
+          _.get(tradingView, 'result.indicators["VWMA"]') || 0
+        ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['VWMA']
       },
       {
         name: 'Hull Moving Average (9)',
-        indicator: _.get(
-          tradingView,
-          'result.indicators["HullMA9"]',
-          0
+        indicator: (
+          _.get(tradingView, 'result.indicators["HullMA9"]') || 0
         ).toFixed(quotePrecision),
         recommend: tradingView.result.moving_averages.COMPUTE['HullMA']
       }
