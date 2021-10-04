@@ -423,7 +423,6 @@ class SymbolSettingIconBotOptions extends React.Component {
                                 <Form.Control
                                   size='sm'
                                   as='select'
-                                  required
                                   data-state-key='tradingView.interval'
                                   value={botOptions.tradingView.interval}
                                   onChange={this.handleInputChange}>
