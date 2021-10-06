@@ -116,14 +116,14 @@ const extendBalancesWithDustTransfer = async (_logger, rawAccountInfo) => {
       }
 
       // https://academy.binance.com/en/articles/converting-dust-on-binance
-      // In order to qualify the dust must have a value less than 0.0003BTC
+      // In order to qualify the dust must have a value less than 0.001BTC
 
       balance.estimatedBTC = Number(
         parseFloat(cachedLatestCandle.close) * parseFloat(balance.free)
       ).toFixed(8);
 
-      // If the estimated BTC is less than 0.0003, then set dust transfer
-      if (balance.estimatedBTC <= 0.0003) {
+      // If the estimated BTC is less than 0.001, then set dust transfer
+      if (balance.estimatedBTC <= 0.001) {
         balance.canDustTransfer = true;
       }
 

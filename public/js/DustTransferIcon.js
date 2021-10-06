@@ -121,7 +121,7 @@ class DustTransferIcon extends React.Component {
           </Modal.Header>
           <Modal.Body>
             <p className='d-block text-muted mb-2'>
-              You can convert balances with a valuation below 0.0003 BTC to BNB
+              You can convert balances with a valuation below 0.001 BTC to BNB
               once every 6 hours. It is not currently possible to convert
               delisted coins.
             </p>
