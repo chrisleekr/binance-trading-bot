@@ -280,6 +280,9 @@ input[type='number'] {
   display: flex;
   flex-flow: row wrap;
 }
+.account-asset-row-valignfix {
+  opacity: 0;
+}
 
 .account-asset-label {
   flex: 1 40%;
