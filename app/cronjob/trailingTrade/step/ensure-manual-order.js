@@ -74,7 +74,7 @@ const saveGridTrade = async (logger, rawData, order) => {
   const symbolGridTrade = await getSymbolGridTrade(logger, symbol);
 
   // Append this order to manualTrade
-  const manualTrade = _.get(symbolGridTrade, 'manual', []);
+  const manualTrade = _.get(symbolGridTrade, 'manualTrade', []);
   manualTrade.push(order);
   symbolGridTrade.manualTrade = manualTrade;
 
@@ -141,7 +141,6 @@ const execute = async (logger, rawData) => {
 
   const {
     symbol,
-    featureToggle: { notifyDebug },
     symbolConfiguration: {
       system: { checkManualOrderPeriod }
     }
@@ -176,25 +175,13 @@ const execute = async (logger, rawData) => {
         'Order has already filled, calculate last buy price.'
       );
 
-      // Calculate last buy price
-      await calculateLastBuyPrice(logger, symbol, order);
+      // Calculate last buy price if buy
+      if (order.side === 'BUY') {
+        await calculateLastBuyPrice(logger, symbol, order);
+      }
 
       // Save grid trade to the database
-      const saveGridTradeResult = await saveGridTrade(logger, data, order);
-
-      if (notifyDebug) {
-        slack.sendMessage(
-          `${symbol} ${order.side} Grid Trade Updated Result (${moment().format(
-            'HH:mm:ss.SSS'
-          )}): \n` +
-            `- Save Grid Trade Result: \`\`\`${JSON.stringify(
-              _.get(saveGridTradeResult, 'result', 'Not defined'),
-              undefined,
-              2
-            )}\`\`\`\n` +
-            `- Current API Usage: ${getAPILimit(logger)}`
-        );
-      }
+      await saveGridTrade(logger, data, order);
 
       await deleteManualOrder(logger, symbol, order.orderId);
     } else {
@@ -246,30 +233,12 @@ const execute = async (logger, rawData) => {
           );
 
           // Calulate last buy price
-          await calculateLastBuyPrice(logger, symbol, orderResult);
+          if (orderResult.side === 'BUY') {
+            await calculateLastBuyPrice(logger, symbol, orderResult);
+          }
 
           // Save grid trade to the database
-          const saveGridTradeResult = await saveGridTrade(
-            logger,
-            data,
-            orderResult
-          );
-
-          if (notifyDebug) {
-            slack.sendMessage(
-              `${symbol} ${
-                order.side
-              } Grid Trade Updated Result (${moment().format(
-                'HH:mm:ss.SSS'
-              )}): \n` +
-                `- Save Grid Trade Result: \`\`\`${JSON.stringify(
-                  _.get(saveGridTradeResult, 'result', 'Not defined'),
-                  undefined,
-                  2
-                )}\`\`\`\n` +
-                `- Current API Usage: ${getAPILimit(logger)}`
-            );
-          }
+          await saveGridTrade(logger, data, orderResult);
 
           // Remove manual buy order
           await deleteManualOrder(logger, symbol, orderResult.orderId);

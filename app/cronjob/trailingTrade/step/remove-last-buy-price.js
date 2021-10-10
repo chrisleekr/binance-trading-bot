@@ -118,7 +118,9 @@ const removeLastBuyPrice = async (
       {
         action: 'buy',
         actionAt: moment().add(autoTriggerBuyTriggerAfter, 'minutes').format(),
-        triggeredBy: 'auto-trigger'
+        triggeredBy: 'auto-trigger',
+        notify: true,
+        checkTradingView: true
       },
       `The bot queued to trigger the grid trade for buying` +
         ` after ${autoTriggerBuyTriggerAfter} minutes later.`

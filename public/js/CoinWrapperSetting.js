@@ -236,7 +236,7 @@ class CoinWrapperSetting extends React.Component {
             </div>
           </div>
           <div className='coin-info-sub-wrapper'>
-            <div className='coin-info-sub-label'>Buy - Trading View</div>
+            <div className='coin-info-sub-label'>Buy - TradingView</div>
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>
                 Allow when recommendation is <code>Strong buy</code>:
@@ -316,6 +316,36 @@ class CoinWrapperSetting extends React.Component {
               <div className='coin-info-value'>
                 {symbolConfiguration.sell.stopLoss.orderType}
               </div>
+            </div>
+          </div>
+
+          <div className='coin-info-sub-wrapper'>
+            <div className='coin-info-sub-label'>Sell - TradingView</div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Force sell when recommendation is <code>Sell</code>:
+              </span>
+              <span className='coin-info-value'>
+                {symbolConfiguration.sell.tradingView
+                  .forceSellOverZeroBelowTriggerPrice.whenSell ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </span>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Force sell when recommendation is <code>Strong sell</code>:
+              </span>
+              <span className='coin-info-value'>
+                {symbolConfiguration.sell.tradingView
+                  .forceSellOverZeroBelowTriggerPrice.whenStrongSell ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </span>
             </div>
           </div>
 

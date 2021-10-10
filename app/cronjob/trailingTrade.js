@@ -79,6 +79,7 @@ const execute = async logger => {
           buy: {},
           sell: {},
           order: {},
+          canDisable: true,
           saveToCache: true
         };
 

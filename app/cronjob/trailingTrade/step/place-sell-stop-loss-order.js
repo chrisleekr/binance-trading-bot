@@ -41,7 +41,8 @@ const execute = async (logger, rawData) => {
     },
     action,
     baseAssetBalance: { free: baseAssetFreeBalance },
-    sell: { currentPrice, openOrders }
+    sell: { currentPrice, openOrders },
+    canDisable
   } = data;
 
   if (isLocked) {
@@ -156,16 +157,18 @@ const execute = async (logger, rawData) => {
   await saveSymbolGridTrade(logger, symbol, newGridTrade);
 
   // Temporary disable action
-  await disableAction(
-    symbol,
-    {
-      disabledBy: 'stop loss',
-      message: 'Temporary disabled by stop loss',
-      canResume: true,
-      canRemoveLastBuyPrice: true
-    },
-    sellStopLossDisableBuyMinutes * 60
-  );
+  if (canDisable) {
+    await disableAction(
+      symbol,
+      {
+        disabledBy: 'stop loss',
+        message: 'Temporary disabled by stop loss',
+        canResume: true,
+        canRemoveLastBuyPrice: true
+      },
+      sellStopLossDisableBuyMinutes * 60
+    );
+  }
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);

@@ -227,15 +227,15 @@
           }
         },
         "tradingView": {
-          "enabledOnly": {
-            "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_TRADINGVIEW_ENABLED_ONLY",
-            "__description": "Set a boolean to trigger the buy action when the TradingView recommendation is `Buy` or `Strong buy`.",
+          "whenStrongBuy": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_TRADINGVIEW_WHEN_STRONG_BUY",
+            "__description": "Set a boolean to use TradingView recommendation to trigger the buy. If the buy trigger price is reached, the bot will check TradingView recommendation and if it is not `Strong buy`, then the bot will not place a buy order.",
             "__format": "boolean"
           },
-          "executeOnlyWhen": {
-            "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_TRADINGVIEW_EXECUTE_ONLY_WHEN",
-            "__description": "Set recommendations that allow executing the buy trigger action. If the TradingView summary recommendation is  `Buy` or `Strong buy`, the buy action will be triggered. Other recommendations won't be triggering the buy action.  Allowed format is `[\"buy\", \"strong_buy\"]`.",
-            "__format": "json"
+          "whenBuy": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_TRADINGVIEW_WHEN_BUY",
+            "__description": "Set a boolean to use TradingView recommendation to trigger the buy. If the buy trigger price is reached, the bot will check TradingView recommendation and if it is not `Buy`, then the bot will not place a buy order.",
+            "__format": "boolean"
           }
         }
       },
@@ -270,6 +270,20 @@
             "__format": "number"
           },
           "orderType": "BINANCE_JOBS_TRAILING_TRADE_SELL_STOP_LOSS_ORDER_TYPE"
+        },
+        "tradingView": {
+          "forceSellOverZeroBelowTriggerPrice": {
+            "whenSell": {
+              "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_TRADING_VIEW_FORCE_SELL_OVER_ZERO_BELOW_TRIGGER_PRICE_WHEN_SELL",
+              "__description": "Set a boolean to use TradingView recommendation to sell the coin at the market price if the profit is over 0 but under the trigger price. When the condition is met and the TradingView recommendation is `Sell`, then the bot will place a market sell order immediately. If the auto-buy trigger is enabled, then it will place a buy order later. Note that this action can cause loss if the profit is less than commission.",
+              "__format": "boolean"
+            },
+            "whenStrongSell": {
+              "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_TRADING_VIEW_FORCE_SELL_OVER_ZERO_BELOW_TRIGGER_PRICE_WHEN_STRONG_SELL",
+              "__description": "Set a boolean to use TradingView recommendation to sell the coin at the market price if the profit is over 0 but under the trigger price. When the condition is met and the TradingView recommendation is `Strong sell`, then the bot will place a market sell order immediately. If the auto-buy trigger is enabled, then it will place a buy order later. Note that this action can cause loss if the profit is less than commission.",
+              "__format": "boolean"
+            }
+          }
         }
       },
       "system": {

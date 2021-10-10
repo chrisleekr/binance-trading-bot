@@ -431,7 +431,8 @@ describe('handle-open-orders.js', () => {
                 action: 'buy',
                 actionAt: expect.any(String),
                 triggeredBy: 'buy-cancelled',
-                notify: false
+                notify: false,
+                checkTradingView: true
               },
               'The bot will place a buy order in the next tick.'
             );

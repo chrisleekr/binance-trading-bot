@@ -6,18 +6,29 @@ const {
   getAccountInfoFromAPI,
   isExceedAPILimit,
   getAPILimit,
-  saveOrderStats
+  saveOrderStats,
+  saveOverrideAction
 } = require('../../trailingTradeHelper/common');
 const { saveGridTradeOrder } = require('../../trailingTradeHelper/order');
 
+/**
+ * Check whether recommendation is allowed or not.
+ *
+ * @param {*} logger
+ * @param {*} data
+ * @returns
+ */
 const isAllowedTradingViewRecommendation = (logger, data) => {
   const {
+    symbol,
+    featureToggle: { notifyDebug },
     symbolConfiguration: {
       buy: {
         tradingView: {
           whenStrongBuy: tradingViewWhenStrongBuy,
           whenBuy: tradingViewWhenBuy
-        }
+        },
+        currentGridTradeIndex
       },
       botOptions: {
         tradingView: { useOnlyWithin: tradingViewUseOnlyWithin }
@@ -27,8 +38,14 @@ const isAllowedTradingViewRecommendation = (logger, data) => {
     overrideData
   } = data;
 
+  const overrideCheckTradingView = _.get(
+    overrideData,
+    'checkTradingView',
+    false
+  );
+
   // If this is override action, then process buy regardless recommendation.
-  if (_.isEmpty(overrideData) === false) {
+  if (overrideCheckTradingView === false && _.isEmpty(overrideData) === false) {
     logger.info(
       { overrideData },
       'Override data is not empty. Ignore TradingView recommendation.'
@@ -38,6 +55,7 @@ const isAllowedTradingViewRecommendation = (logger, data) => {
 
   // If there is no tradingView result time or recommendation, then ignore TradingView recommendation.
   const tradingViewTime = _.get(tradingView, 'result.time', '');
+
   const tradingViewSummaryRecommendation = _.get(
     tradingView,
     'result.summary.RECOMMENDATION',
@@ -92,6 +110,16 @@ const isAllowedTradingViewRecommendation = (logger, data) => {
     };
   }
 
+  if (notifyDebug) {
+    const humanisedGridTradeIndex = currentGridTradeIndex + 1;
+    slack.sendMessage(
+      `${symbol} Buy Action Grid Trade #${humanisedGridTradeIndex} (${moment().format(
+        'HH:mm:ss.SSS'
+      )}): TradingView Recommendation ${tradingViewSummaryRecommendation}\n` +
+        `- Current API Usage: ${getAPILimit(logger)}`
+    );
+  }
+
   // Otherwise, simply allow
   return { isTradingViewAllowed: true, tradingViewRejectedReason: '' };
 };
@@ -123,7 +151,9 @@ const execute = async (logger, rawData) => {
     },
     action,
     quoteAssetBalance: { free: quoteAssetFreeBalance },
-    buy: { currentPrice, openOrders }
+    buy: { currentPrice, triggerPrice, openOrders },
+    tradingView,
+    overrideData
   } = data;
 
   const humanisedGridTradeIndex = currentGridTradeIndex + 1;
@@ -160,6 +190,31 @@ const execute = async (logger, rawData) => {
   const { isTradingViewAllowed, tradingViewRejectedReason } =
     isAllowedTradingViewRecommendation(logger, data);
   if (isTradingViewAllowed === false) {
+    // Notify as it's important message for now.
+    // Eventually, should convert to logging to reduce unnecessary notifications.
+    slack.sendMessage(
+      `${symbol} Buy Action Grid Trade #${humanisedGridTradeIndex} (${moment().format(
+        'HH:mm:ss.SSS'
+      )}): Action Ignored \n` +
+        `- Message: ${tradingViewRejectedReason}\n` +
+        `- Current API Usage: ${getAPILimit(logger)}`
+    );
+
+    // TODO: This needs to be configurable.
+    await saveOverrideAction(
+      logger,
+      symbol,
+      {
+        action: 'buy',
+        actionAt: moment().add(1, 'minutes').format(),
+        triggeredBy: 'buy-order-trading-view',
+        notify: false,
+        checkTradingView: true
+      },
+      `The bot queued to trigger the grid trade for buying` +
+        ` because of TradingView recommendation.`
+    );
+
     data.buy.processMessage = tradingViewRejectedReason;
     data.buy.updatedAt = moment().utc();
 
@@ -334,7 +389,16 @@ const execute = async (logger, rawData) => {
       orderQuantity,
       currentPrice,
       stopPercentage,
-      limitPrice
+      limitPrice,
+      triggerPrice,
+      tradingView: {
+        request: _.get(tradingView, 'request', {}),
+        result: {
+          time: _.get(tradingView, 'result.time', ''),
+          summary: _.get(tradingView, 'result.summary', {})
+        }
+      },
+      overrideData
     };
   }
 
@@ -342,11 +406,8 @@ const execute = async (logger, rawData) => {
     `${symbol} Buy Action Grid Trade #${humanisedGridTradeIndex} (${moment().format(
       'HH:mm:ss.SSS'
     )}): *STOP_LOSS_LIMIT*\n` +
-      `- Order Params: \`\`\`${JSON.stringify(
-        notifyMessage,
-        undefined,
-        2
-      )}\`\`\`\n` +
+      `- Order Params: \n` +
+      `\`\`\`${JSON.stringify(notifyMessage, undefined, 2)}\`\`\`\n` +
       `- Current API Usage: ${getAPILimit(logger)}`
   );
 

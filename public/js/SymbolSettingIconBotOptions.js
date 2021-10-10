@@ -296,7 +296,7 @@ class SymbolSettingIconBotOptions extends React.Component {
                                         onChange={this.handleInputChange}
                                       />
                                       <Form.Check.Label>
-                                        Allwo auto buy trigger when
+                                        Allow auto buy trigger when
                                         recommendation is{' '}
                                         <code>Strong buy</code>{' '}
                                         <OverlayTrigger

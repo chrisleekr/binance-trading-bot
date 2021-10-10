@@ -44,7 +44,9 @@ describe('symbol-trigger-buy.test.js', () => {
         {
           action: 'buy',
           actionAt: expect.any(String),
-          triggeredBy: 'user'
+          triggeredBy: 'user',
+          notify: true,
+          checkTradingView: false
         },
         'The buy order received by the bot. Wait for placing the order.'
       );

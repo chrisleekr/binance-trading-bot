@@ -130,6 +130,12 @@ Then the bot will execute 2nd purchase for the coin. The last buy price will be 
 
 - Final last buy price: ($50 + $100)/(0.5 COIN + 1.29 COIN) = $83.80
 
+##### In-depth Buy Configuration in-depth
+
+The detailed document for buy configuration available here.
+
+[https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario)
+
 ### 卖出信号
 
 If there is enough balance for selling and the last buy price is recorded in the bot, then the bot will start monitoring the sell signal of the grid trade #1. Once the current price reaches the trigger price of the grid trade #1, then the bot will place a STOP-LOSS-LIMIT order to sell. If the current price continuously rises, then the bot will cancel the previous order and re-place the new STOP-LOSS-LIMIT order with the new price.
@@ -224,6 +230,12 @@ The final profit would be
 - 1st sell: $94.9 * 0.895 = $84.9355
 - 2nd sell: $87.21 * 0.895 = $78.05295
 - Final profit: $162 (8% profit)
+
+##### In-depth Sell Configuration
+
+The detailed document for buy configuration available here.
+
+[https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario)
 
 ### [功能](https://github.com/chrisleekr/binance-trading-bot/wiki/Features)
 

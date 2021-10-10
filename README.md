@@ -135,6 +135,12 @@ Then the bot will execute 2nd purchase for the coin. The last buy price will be 
 
 - Final last buy price: ($50 + $100)/(0.5 COIN + 1.29 COIN) = $83.80
 
+##### In-depth Buy Configuration in-depth
+
+The detailed document for buy configuration available here.
+
+[https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario)
+
 ### Sell Signal
 
 If there is enough balance for selling and the last buy price is recorded in the bot, then the bot will start monitoring the sell signal of the grid trade #1. Once the current price reaches the trigger price of the grid trade #1, then the bot will place a STOP-LOSS-LIMIT order to sell. If the current price continuously rises, then the bot will cancel the previous order and re-place the new STOP-LOSS-LIMIT order with the new price.
@@ -230,31 +236,11 @@ The final profit would be
 - 2nd sell: $87.21 * 0.895 = $78.05295
 - Final profit: $162 (8% profit)
 
-#### Sell Stop-Loss Scenario
+##### In-depth Sell Configuration
 
-Let say, if the sell Stop-Loss configurations are set as below:
+The detailed document for buy configuration available here.
 
-- Max loss percentage: 0.90
-- Temporary disable for buying (minutes): 60
-
-And the market is as below:
-
-- Current price: $95
-- Last buy price: $100
-- Stop-Loss price: $90
-
-Then the bot will not place a Stop-Loss order because the Stop-Loss price ($90) is less than the current price ($95).
-
-If the price is continuously falling, then the bot will keep monitoring until the price reaches the Stop-Loss price.
-
-In the next tick, the market changes as below:
-
-- Current price: $90
-- Stop-Loss price: $90
-
-The bot will place new MARKET order for selling because the current price ($90) is less or equal than the Stop-Loss price ($90). In real trading, the quantity may be different.
-
-The bot will also set the symbol to be temporarily disabled for 60 minutes to avoid buying/sell continuously. In the frontend, the action will display the pause icon and how long left to be enabled again. The symbol can be enabled by clicking the play icon.
+[https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario)
 
 ### [Features](https://github.com/chrisleekr/binance-trading-bot/wiki/Features)
 

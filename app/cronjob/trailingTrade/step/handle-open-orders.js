@@ -117,7 +117,8 @@ const execute = async (logger, rawData) => {
               action: 'buy',
               actionAt: moment().format(),
               triggeredBy: 'buy-cancelled',
-              notify: false
+              notify: false,
+              checkTradingView: true
             },
             `The bot will place a buy order in the next tick.`
           );

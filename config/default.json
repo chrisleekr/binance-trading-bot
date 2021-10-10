@@ -131,6 +131,12 @@
           "maxLossPercentage": 0.8,
           "disableBuyMinutes": 360,
           "orderType": "market"
+        },
+        "tradingView": {
+          "forceSellOverZeroBelowTriggerPrice": {
+            "whenSell": false,
+            "whenStrongSell": false
+          }
         }
       },
       "system": {

@@ -807,7 +807,9 @@ describe('remove-last-buy-price.js', () => {
                   {
                     action: 'buy',
                     actionAt: expect.any(String),
-                    triggeredBy: 'auto-trigger'
+                    triggeredBy: 'auto-trigger',
+                    notify: true,
+                    checkTradingView: true
                   },
                   `The bot queued to trigger the grid trade for buying` +
                     ` after ${test.rawData.symbolConfiguration.botOptions.autoTriggerBuy.triggerAfter} minutes later.`
@@ -1017,7 +1019,9 @@ describe('remove-last-buy-price.js', () => {
               {
                 action: 'buy',
                 actionAt: expect.any(String),
-                triggeredBy: 'auto-trigger'
+                triggeredBy: 'auto-trigger',
+                notify: true,
+                checkTradingView: true
               },
               `The bot queued to trigger the grid trade for buying` +
                 ` after 20 minutes later.`
