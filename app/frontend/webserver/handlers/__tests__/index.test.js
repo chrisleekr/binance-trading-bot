@@ -7,6 +7,7 @@ describe('index', () => {
   let mockHandleGridTradeArchiveDelete;
   let mockHandleClosedTradesSetPeriod;
   let mockHandle404;
+  let mockHandleStatus;
 
   let mockLoginLimiter;
 
@@ -18,6 +19,7 @@ describe('index', () => {
     mockHandleGridTradeArchiveDelete = jest.fn().mockResolvedValue(true);
     mockHandleClosedTradesSetPeriod = jest.fn().mockResolvedValue(true);
     mockHandle404 = jest.fn().mockResolvedValue(true);
+    mockHandleStatus = jest.fn().mockResolvedValue(true);
 
     mockLoginLimiter = jest.fn().mockReturnValue(true);
 
@@ -39,6 +41,10 @@ describe('index', () => {
 
     jest.mock('../404', () => ({
       handle404: mockHandle404
+    }));
+
+    jest.mock('../status', () => ({
+      handleStatus: mockHandleStatus
     }));
 
     index = require('../index');
@@ -69,6 +75,10 @@ describe('index', () => {
       'logger',
       'app'
     );
+  });
+
+  it('triggers handleStatus', () => {
+    expect(mockHandleStatus).toHaveBeenCalledWith('logger', 'app');
   });
 
   it('triggers handle404', () => {

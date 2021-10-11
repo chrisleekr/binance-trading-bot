@@ -299,6 +299,7 @@ class App extends React.Component {
                 accountInfo={accountInfo}
                 dustTransfer={dustTransfer}
                 sendWebSocket={this.sendWebSocket}
+                quoteEstimates={symbolEstimates}
               />
               <ProfitLossWrapper
                 isAuthenticated={isAuthenticated}
