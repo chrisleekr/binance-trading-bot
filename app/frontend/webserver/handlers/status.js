@@ -1,9 +1,10 @@
-const handleStatus = async (funcLogger, app) => {
-  app.get('/status', (req, res) =>
+const handleStatus = async (_funcLogger, app) => {
+  app.get('/status', (_req, res) =>
     res.send({
       success: true,
       status: 200,
-      message: 'OK'
+      message: 'OK',
+      data: {}
     })
   );
 };
