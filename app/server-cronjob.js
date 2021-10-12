@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const config = require('config');
 const { CronJob } = require('cron');
+const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
 
 const {
   executeAlive,
@@ -33,7 +34,10 @@ const fulfillWithTimeLimit = async (logger, timeLimit, task, failureValue) => {
 
 const runCronjob = async serverLogger => {
   const logger = serverLogger.child({ server: 'cronjob' });
-  logger.info({ config }, `API ${config.get('mode')} trading started on`);
+  logger.info(
+    { config: maskConfig(config) },
+    `API ${config.get('mode')} trading started on`
+  );
 
   const jobInstances = {};
 

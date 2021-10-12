@@ -4,6 +4,7 @@ const config = require('config');
 const { PubSub, binance, cache, slack } = require('./helpers');
 
 const { getAccountInfo } = require('./cronjob/trailingTradeHelper/common');
+const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
 
 const {
   getGlobalConfiguration
@@ -181,7 +182,10 @@ const runBinance = async serverLogger => {
   const logger = serverLogger.child({ server: 'binance' });
   const mode = config.get('mode');
 
-  logger.info({ config }, `Binance ${config.get('mode')} started on`);
+  logger.info(
+    { config: maskConfig(config) },
+    `Binance ${config.get('mode')} started on`
+  );
 
   if (mode === 'live') {
     await setupLive(logger);

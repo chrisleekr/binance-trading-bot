@@ -31,4 +31,42 @@ describe('util.js', () => {
       });
     });
   });
+
+  describe('maskConfig', () => {
+    beforeEach(() => {
+      result = util.maskConfig({
+        binance: {
+          live: {
+            apiKey: 'filled',
+            secretKey: 'filled'
+          },
+          test: {
+            apiKey: '',
+            secretKey: ''
+          }
+        },
+        other: {
+          config: 'value'
+        }
+      });
+    });
+
+    it('returns expected config', () => {
+      expect(result).toStrictEqual({
+        binance: {
+          live: {
+            apiKey: '<masked>',
+            secretKey: '<masked>'
+          },
+          test: {
+            apiKey: '',
+            secretKey: ''
+          }
+        },
+        other: {
+          config: 'value'
+        }
+      });
+    });
+  });
 });
