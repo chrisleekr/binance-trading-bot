@@ -31,7 +31,10 @@ const isAllowedTradingViewRecommendation = (logger, data) => {
         currentGridTradeIndex
       },
       botOptions: {
-        tradingView: { useOnlyWithin: tradingViewUseOnlyWithin }
+        tradingView: {
+          useOnlyWithin: tradingViewUseOnlyWithin,
+          ifExpires: tradingViewIfExpires
+        }
       }
     },
     tradingView,
@@ -75,6 +78,22 @@ const isAllowedTradingViewRecommendation = (logger, data) => {
     .add(tradingViewUseOnlyWithin, 'minutes');
   const currentTime = moment.utc();
   if (tradingViewUpdatedAt.isBefore(currentTime)) {
+    if (tradingViewIfExpires === 'do-not-buy') {
+      logger.info(
+        {
+          tradingViewUpdatedAt: tradingViewUpdatedAt.format(),
+          currentTime: currentTime.format()
+        },
+        `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. Do not buy.`
+      );
+      return {
+        isTradingViewAllowed: false,
+        tradingViewRejectedReason:
+          `Do not place an order because ` +
+          `TradingView data is older than ${tradingViewUseOnlyWithin} minutes.`
+      };
+    }
+
     logger.info(
       {
         tradingViewUpdatedAt: tradingViewUpdatedAt.format(),

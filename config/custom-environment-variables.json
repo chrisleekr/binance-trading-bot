@@ -182,6 +182,11 @@
             "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRADING_VIEW_USE_ONLY_WITHIN",
             "__description": "Set the minutes to allow to use TradingView technical analysis data. If the data is older than configured minutes, the bot will ignore the TradingView technical analysis data. This is due to avoid the issue with TradingView downtime.",
             "__format": "number"
+          },
+          "ifExpires": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRADING_VIEW_IF_EXPIRES",
+            "__description": "Set an action method if the TradingView technical analysis data is passed allowed minutes. Available: ignore, do-not-buy",
+            "__format": "string"
           }
         }
       },

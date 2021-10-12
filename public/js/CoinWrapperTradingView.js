@@ -34,6 +34,7 @@ class CoinWrapperTradingView extends React.Component {
   render() {
     const { collapsed } = this.state;
     const {
+      connected,
       symbolInfo: {
         symbol,
         symbolInfo: {
@@ -280,7 +281,8 @@ class CoinWrapperTradingView extends React.Component {
       .utc(tradingView.result.time, 'YYYY-MM-DDTHH:mm:ss.SSSSSS')
       .add(tradingViewUseOnlyWithin, 'minutes');
     const currentTime = moment.utc();
-    if (updatedAt.isBefore(currentTime)) {
+    // Show error message only if connected
+    if (connected && updatedAt.isBefore(currentTime)) {
       updatedWithinAlert = (
         <div className='coin-info-column coin-info-column-title border-bottom-0 m-0 p-0'>
           <div className='bg-light text-dark w-100 px-1'>

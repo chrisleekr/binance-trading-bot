@@ -221,6 +221,7 @@ class App extends React.Component {
 
   render() {
     const {
+      webSocket: { connected },
       packageVersion,
       gitHash,
       exchangeSymbols,
@@ -260,6 +261,7 @@ class App extends React.Component {
             index % 2 === 0 ? 'coin-wrapper-even' : 'coin-wrapper-odd'
           }
           key={'coin-wrapper-' + symbol.symbol}
+          connected={connected}
           isAuthenticated={isAuthenticated}
           symbolInfo={symbol}
           configuration={configuration}

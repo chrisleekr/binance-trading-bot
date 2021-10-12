@@ -447,6 +447,17 @@ class CoinWrapperSetting extends React.Component {
                 {symbolConfiguration.botOptions.tradingView.useOnlyWithin}
               </span>
             </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                If data passed "Use data only updated within":
+              </span>
+              <span className='coin-info-value'>
+                {symbolConfiguration.botOptions.tradingView.ifExpires ===
+                'ignore'
+                  ? 'Ignore data'
+                  : 'Do not buy'}
+              </span>
+            </div>
           </div>
         </div>
       </div>

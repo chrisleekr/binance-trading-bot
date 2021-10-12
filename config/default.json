@@ -80,7 +80,8 @@
         },
         "tradingView": {
           "interval": "",
-          "useOnlyWithin": 5
+          "useOnlyWithin": 5,
+          "ifExpires": "ignore"
         }
       },
       "candles": {

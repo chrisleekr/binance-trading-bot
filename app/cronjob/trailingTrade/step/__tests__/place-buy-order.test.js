@@ -94,7 +94,8 @@ describe('place-buy-order.js', () => {
           },
           botOptions: {
             tradingView: {
-              useOnlyWithin: 5
+              useOnlyWithin: 5,
+              ifExpires: 'ignore'
             }
           },
           system: {
@@ -265,7 +266,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               }
             },
@@ -317,7 +319,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               }
             },
@@ -361,7 +364,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               }
             },
@@ -384,7 +388,9 @@ describe('place-buy-order.js', () => {
           expectedToPlaceOrder: true
         },
         {
-          name: 'when tradingView was updated older than configured minutes, then place an order',
+          name:
+            `when tradingView was updated older than configured minutes and set as ignore ` +
+            `if expires, then place an order`,
           rawData: {
             symbol: 'BTCUPUSDT',
             featureToggle: { notifyDebug: false },
@@ -408,7 +414,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               }
             },
@@ -432,6 +439,61 @@ describe('place-buy-order.js', () => {
             overrideData: {}
           },
           expectedToPlaceOrder: true
+        },
+        {
+          name:
+            `when tradingView was updated older than configured minutes and set as do-not-buy ` +
+            `if expires, then do not place an order`,
+          rawData: {
+            symbol: 'BTCUPUSDT',
+            featureToggle: { notifyDebug: false },
+            symbolConfiguration: {
+              buy: {
+                enabled: true,
+                currentGridTradeIndex: 0,
+                currentGridTrade: {
+                  triggerPercentage: 1,
+                  minPurchaseAmount: 10,
+                  maxPurchaseAmount: 50,
+                  stopPercentage: 1.01,
+                  limitPercentage: 1.011,
+                  executed: false,
+                  executedOrder: null
+                },
+                tradingView: {
+                  whenStrongBuy: true,
+                  whenBuy: true
+                }
+              },
+              botOptions: {
+                tradingView: {
+                  useOnlyWithin: 5,
+                  ifExpires: 'do-not-buy'
+                }
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 101 },
+            buy: {
+              currentPrice: 200,
+              openOrders: []
+            },
+            tradingView: {
+              result: {
+                time: moment()
+                  .utc()
+                  .subtract('6', 'minute')
+                  .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
+                summary: {
+                  RECOMMENDATION: 'NEUTRAL'
+                }
+              }
+            },
+            overrideData: {}
+          },
+          expectedToPlaceOrder: false,
+          expectedProcessedMessage:
+            'Do not place an order because TradingView data is older than 5 minutes.'
         },
         {
           name: 'when tradingView are enabled and recommendation is strong buy, then place an order',
@@ -458,7 +520,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               }
             },
@@ -508,7 +571,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               }
             },
@@ -558,7 +622,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               }
             },
@@ -612,7 +677,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               }
             },
@@ -669,7 +735,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               }
             },
@@ -959,7 +1026,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -1018,7 +1086,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -1077,7 +1146,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -1136,7 +1206,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -1216,7 +1287,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -1277,7 +1349,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -1338,7 +1411,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -1399,7 +1473,8 @@ describe('place-buy-order.js', () => {
               },
               botOptions: {
                 tradingView: {
-                  useOnlyWithin: 5
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -1600,7 +1675,8 @@ describe('place-buy-order.js', () => {
                 },
                 botOptions: {
                   tradingView: {
-                    useOnlyWithin: 5
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 },
                 system: {
@@ -1698,7 +1774,8 @@ describe('place-buy-order.js', () => {
                 },
                 botOptions: {
                   tradingView: {
-                    useOnlyWithin: 5
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 },
                 system: {
@@ -1824,7 +1901,8 @@ describe('place-buy-order.js', () => {
                 },
                 botOptions: {
                   tradingView: {
-                    useOnlyWithin: 5
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 },
                 system: {
@@ -1950,7 +2028,8 @@ describe('place-buy-order.js', () => {
                 },
                 botOptions: {
                   tradingView: {
-                    useOnlyWithin: 5
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 },
                 system: {
@@ -2076,7 +2155,8 @@ describe('place-buy-order.js', () => {
                 },
                 botOptions: {
                   tradingView: {
-                    useOnlyWithin: 5
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 },
                 system: {
@@ -2202,7 +2282,8 @@ describe('place-buy-order.js', () => {
                 },
                 botOptions: {
                   tradingView: {
-                    useOnlyWithin: 5
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 },
                 system: {
@@ -2393,7 +2474,8 @@ describe('place-buy-order.js', () => {
                 },
                 botOptions: {
                   tradingView: {
-                    useOnlyWithin: 5
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 },
                 system: {
@@ -2519,7 +2601,8 @@ describe('place-buy-order.js', () => {
                 },
                 botOptions: {
                   tradingView: {
-                    useOnlyWithin: 5
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 },
                 system: {
@@ -2645,7 +2728,8 @@ describe('place-buy-order.js', () => {
                 },
                 botOptions: {
                   tradingView: {
-                    useOnlyWithin: 5
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 },
                 system: {
@@ -2771,7 +2855,8 @@ describe('place-buy-order.js', () => {
                 },
                 botOptions: {
                   tradingView: {
-                    useOnlyWithin: 5
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 },
                 system: {

@@ -326,7 +326,12 @@ const shouldForceSellByTradingViewRecommendation = (logger, data) => {
       `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. Ignore TradingView recommendation.`
     );
 
-    return { isTradingViewAllowed: true, tradingViewRejectedReason: '' };
+    return {
+      shouldForceSell: false,
+      forceSellMessage:
+        `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. ` +
+        `Ignore TradingView recommendation.`
+    };
   }
 
   // If current profit is less than 0 or current price is more than trigger price

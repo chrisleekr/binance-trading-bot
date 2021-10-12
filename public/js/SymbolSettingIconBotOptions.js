@@ -486,6 +486,43 @@ class SymbolSettingIconBotOptions extends React.Component {
                                 </InputGroup>
                               </Form.Group>
                             </div>
+                            <div className='col-12 col-md-6'>
+                              <Form.Group
+                                controlId='field-bot-options-tradingview-if-expires'
+                                className='mb-2'>
+                                <Form.Label className='mb-0'>
+                                  If data passed allowed updated
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='bot-options-tradingview-if-expires-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='bot-options-tradingview-if-expires-overlay-right'>
+                                        <Popover.Content>
+                                          Set an action method if the
+                                          TradingView technical analysis data is
+                                          passed allowed minutes.
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fas fa-question-circle fa-sm'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </Form.Label>
+                                <Form.Control
+                                  size='sm'
+                                  as='select'
+                                  data-state-key='tradingView.ifExpires'
+                                  value={botOptions.tradingView.ifExpires}
+                                  onChange={this.handleInputChange}>
+                                  <option value='ignore'>Ignore data</option>
+                                  <option value='do-not-buy'>Do not buy</option>
+                                </Form.Control>
+                              </Form.Group>
+                            </div>
                           </div>
                         </Card.Body>
                       </Accordion.Collapse>
