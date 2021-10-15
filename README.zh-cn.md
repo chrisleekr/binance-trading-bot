@@ -331,7 +331,7 @@ The detailed document for buy configuration available here.
 
 | Password Protected | Frontend Mobile |
 | ------------------ | --------------- |
-| ![Password Protected](https://user-images.githubusercontent.com/5715919/133920104-49d1b590-c2ba-46d7-a294-eb6b24b459f5.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/133920081-ce7da519-136a-4aca-841e-a85a9a5b249e.png) |
+| ![Password Protected](https://user-images.githubusercontent.com/5715919/133920104-49d1b590-c2ba-46d7-a294-eb6b24b459f5.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/137472107-4059fcdf-5174-4282-81af-80cea5b269a0.png) |
 
 | Setting | Manual Trade |
 | ------- | ------------ |
@@ -339,7 +339,7 @@ The detailed document for buy configuration available here.
 
 | Frontend Desktop  | Closed Trades |
 | ----------------- | ------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/133920034-0889f631-f11c-4463-8f7f-39af070df60a.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/133920059-a72972c8-18c4-4adb-9641-8dbe7ff3a14a.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/137472148-7be1e19b-3ce5-4d5a-aa28-18c55b3b48aa.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/137472190-a4c6ef0f-3399-44bb-852f-eedb7c67d629.png) |
 
 ### Sample Trade
 
