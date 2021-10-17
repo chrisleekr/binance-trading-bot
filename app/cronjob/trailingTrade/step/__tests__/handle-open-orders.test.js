@@ -434,7 +434,7 @@ describe('handle-open-orders.js', () => {
                 notify: false,
                 checkTradingView: true
               },
-              'The bot will place a buy order in the next tick.'
+              'The bot will place a buy order in the next tick because could not retrieve the cancelled order result.'
             );
           });
 

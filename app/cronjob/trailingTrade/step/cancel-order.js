@@ -42,13 +42,13 @@ const execute = async (logger, rawData) => {
   );
 
   logger.info(
-    { debug: true, function: 'order', orderParams },
-    'Cancel order params'
+    { function: 'order', orderParams, saveLog: true },
+    'The order will be cancelled.'
   );
 
   const orderResult = await binance.client.cancelOrder(orderParams);
 
-  logger.info({ orderResult }, 'Cancelling order result');
+  logger.info({ orderResult, saveLog: true }, 'The order has been cancelled.');
 
   await deleteManualOrder(logger, symbol, order.orderId);
 

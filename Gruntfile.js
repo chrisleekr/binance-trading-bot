@@ -55,6 +55,7 @@ module.exports = grunt => {
           './public/dist/js/SymbolSettingIconGridBuy.min.js',
           './public/dist/js/SymbolSettingIconGridSell.min.js',
           './public/dist/js/SymbolSettingIcon.min.js',
+          './public/dist/js/SymbolLogsIcon.min.js',
           './public/dist/js/CoinWrapperSymbol.min.js',
           './public/dist/js/CoinWrapperTradingView.min.js',
           './public/dist/js/CoinWrapper.min.js',

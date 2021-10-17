@@ -1,3 +1,4 @@
+const _ = require('lodash');
 const axios = require('axios');
 const { cache } = require('../../../helpers');
 
@@ -10,13 +11,16 @@ const getInterval = interval => {
   }
 };
 
+// This variable will store last TradingView response per symbol to avoid saving the duplicated log.
+const lastTradingView = {};
+
 /**
  * Get Tradingview indicators
  *
- * @param {*} logger
+ * @param {*} funcLogger
  * @param {*} rawData
  */
-const execute = async (logger, rawData) => {
+const execute = async (funcLogger, rawData) => {
   const data = rawData;
 
   const {
@@ -28,6 +32,8 @@ const execute = async (logger, rawData) => {
       }
     }
   } = data;
+
+  const logger = funcLogger.child({ symbol });
 
   const params = {
     symbol,
@@ -42,10 +48,24 @@ const execute = async (logger, rawData) => {
     const response = await axios.get('http://tradingview:8080', {
       params
     });
+
+    let saveLog = false;
+    if (
+      _.get(lastTradingView, `${symbol}.result.summary.RECOMMENDATION`, '') !==
+      _.get(response.data, 'result.summary.RECOMMENDATION', '')
+    ) {
+      saveLog = true;
+    }
+
     logger.info(
-      { data: response.data, tag: 'tradingview' },
-      'trading view indicators'
+      { data: response.data, saveLog },
+      `The TradingView technical analysis recommendation is "${_.get(
+        response.data,
+        'result.summary.RECOMMENDATION'
+      )}".`
     );
+
+    lastTradingView[symbol] = response.data;
     await cache.hset(
       'trailing-trade-tradingview',
       symbol,
@@ -55,8 +75,8 @@ const execute = async (logger, rawData) => {
     data.tradingView = response.data;
   } catch (err) {
     logger.error(
-      { err },
-      'Error occurred while retrieving trading view indicators'
+      { err, saveLog: true },
+      'Error occurred while retrieving TradingView technical analysis...'
     );
   }
 

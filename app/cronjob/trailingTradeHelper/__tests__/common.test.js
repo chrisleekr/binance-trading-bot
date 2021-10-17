@@ -933,6 +933,7 @@ describe('common.js', () => {
 
       commonHelper = require('../common');
       result = await commonHelper.disableAction(
+        loggerMock,
         'BTCUSDT',
         { some: 'reason' },
         60

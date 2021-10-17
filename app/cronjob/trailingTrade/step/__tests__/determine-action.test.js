@@ -413,7 +413,8 @@ describe('determine-action.js', () => {
                       triggerPrice: 28000,
                       athRestrictionPrice: 27000,
                       processMessage:
-                        'The current price has reached the lowest price; however, it is restricted to buy the coin.',
+                        `The current price has reached the lowest price; however, ` +
+                        `it is restricted to buy the coin because ATH price higher than the current price.`,
                       updatedAt: expect.any(Object)
                     },
                     sell: {

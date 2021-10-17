@@ -108,7 +108,6 @@ const loopToCheckLastReceivedAt = async logger => {
   // If last received candle time is more than a mintues, then it means something went wrong. Reconnect websocket.
   if (lastReceivedAt.diff(currentTime) / 1000 < -60) {
     logger.warn(
-      { debug: true },
       'Binance candle is not received in last mintues. Reconfigure websocket'
     );
 

@@ -56,10 +56,7 @@ const runCronjob = async serverLogger => {
         config.get(`jobs.${jobName}.cronTime`),
         async () => {
           if (jobInstances[jobName].taskRunning) {
-            logger.info(
-              { debug: true, jobName },
-              'Task is running, skip this tick'
-            );
+            logger.info({ jobName }, 'Task is running, skip this tick');
             return;
           }
           jobInstances[jobName].taskRunning = true;

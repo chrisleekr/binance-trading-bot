@@ -82,6 +82,9 @@
           "interval": "",
           "useOnlyWithin": 5,
           "ifExpires": "ignore"
+        },
+        "logs": {
+          "deleteAfter": 30
         }
       },
       "candles": {

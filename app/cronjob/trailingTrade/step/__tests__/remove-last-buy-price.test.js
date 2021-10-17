@@ -811,8 +811,8 @@ describe('remove-last-buy-price.js', () => {
                     notify: true,
                     checkTradingView: true
                   },
-                  `The bot queued to trigger the grid trade for buying` +
-                    ` after ${test.rawData.symbolConfiguration.botOptions.autoTriggerBuy.triggerAfter} minutes later.`
+                  `The bot queued the action to trigger the grid trade for buying after` +
+                    ` ${test.rawData.symbolConfiguration.botOptions.autoTriggerBuy.triggerAfter} minutes later.`
                 );
               });
             } else {
@@ -1023,8 +1023,7 @@ describe('remove-last-buy-price.js', () => {
                 notify: true,
                 checkTradingView: true
               },
-              `The bot queued to trigger the grid trade for buying` +
-                ` after 20 minutes later.`
+              `The bot queued the action to trigger the grid trade for buying after 20 minutes later.`
             );
           });
 

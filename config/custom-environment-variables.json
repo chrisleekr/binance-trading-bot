@@ -188,6 +188,13 @@
             "__description": "Set an action method if the TradingView technical analysis data is passed allowed minutes. Available: ignore, do-not-buy",
             "__format": "string"
           }
+        },
+        "logs": {
+          "deleteAfter": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_LOGS_DELETE_AFTER",
+            "__description": "Set the minutes to delete the log. If the log is older than the configured minutes, the log will be removed from the database.",
+            "__format": "number"
+          }
         }
       },
       "candles": {

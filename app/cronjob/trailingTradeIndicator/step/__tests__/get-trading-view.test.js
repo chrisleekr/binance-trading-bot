@@ -222,6 +222,186 @@ describe('get-trading-view.js', () => {
       });
     });
 
+    describe('when the recommendation is not same as previous recommendation', () => {
+      beforeEach(async () => {
+        axiosMock.get = jest
+          .fn()
+          .mockResolvedValueOnce({
+            data: {
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'BUY'
+                }
+              }
+            }
+          })
+          .mockResolvedValueOnce({
+            data: {
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL'
+                }
+              }
+            }
+          });
+
+        rawData = {
+          symbol: 'BTCUSDT',
+          symbolConfiguration: {
+            candles: { interval: '1h' },
+            botOptions: {
+              tradingView: {
+                interval: '15m'
+              }
+            }
+          },
+          tradingView: {}
+        };
+
+        loggerMock.info = jest.fn();
+
+        const step = require('../get-trading-view');
+        result = await step.execute(loggerMock, rawData);
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('triggers logger.info twice', () => {
+        expect(loggerMock.info).toHaveBeenCalledTimes(2);
+      });
+
+      it('triggers logger.info with saveLog as true', () => {
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          {
+            data: {
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'BUY'
+                }
+              }
+            },
+            saveLog: true
+          },
+          `The TradingView technical analysis recommendation is "BUY".`
+        );
+
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          {
+            data: {
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL'
+                }
+              }
+            },
+            saveLog: true
+          },
+          `The TradingView technical analysis recommendation is "SELL".`
+        );
+      });
+    });
+
+    describe('when the recommendation is same as previous recommendation', () => {
+      beforeEach(async () => {
+        axiosMock.get = jest
+          .fn()
+          .mockResolvedValueOnce({
+            data: {
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'BUY'
+                }
+              }
+            }
+          })
+          .mockResolvedValueOnce({
+            data: {
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'BUY'
+                }
+              }
+            }
+          });
+
+        rawData = {
+          symbol: 'BTCUSDT',
+          symbolConfiguration: {
+            candles: { interval: '1h' },
+            botOptions: {
+              tradingView: {
+                interval: '15m'
+              }
+            }
+          },
+          tradingView: {}
+        };
+
+        loggerMock.info = jest.fn();
+
+        const step = require('../get-trading-view');
+        result = await step.execute(loggerMock, rawData);
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('triggers logger.info twice', () => {
+        expect(loggerMock.info).toHaveBeenCalledTimes(2);
+      });
+
+      it('triggers logger.info with saveLog as true for first, false for second', () => {
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          {
+            data: {
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'BUY'
+                }
+              }
+            },
+            saveLog: true
+          },
+          `The TradingView technical analysis recommendation is "BUY".`
+        );
+
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          {
+            data: {
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'BUY'
+                }
+              }
+            },
+            saveLog: false
+          },
+          `The TradingView technical analysis recommendation is "BUY".`
+        );
+      });
+    });
+
     describe(`when axios throws an error`, () => {
       beforeEach(async () => {
         axiosMock.get = jest

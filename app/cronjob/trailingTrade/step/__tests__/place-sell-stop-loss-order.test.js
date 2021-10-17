@@ -1197,6 +1197,7 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers disableAction', () => {
             expect(mockDisableAction).toHaveBeenCalledWith(
+              loggerMock,
               'BTCUPUSDT',
               {
                 disabledBy: 'stop loss',
@@ -1393,6 +1394,7 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers disableAction', () => {
             expect(mockDisableAction).toHaveBeenCalledWith(
+              loggerMock,
               'ALPHABTC',
               {
                 disabledBy: 'stop loss',
@@ -1596,6 +1598,7 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers disableAction', () => {
             expect(mockDisableAction).toHaveBeenCalledWith(
+              loggerMock,
               'BTCBRL',
               {
                 disabledBy: 'stop loss',

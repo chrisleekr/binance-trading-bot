@@ -13,6 +13,23 @@ const {
 } = require('../../trailingTradeHelper/configuration');
 
 /**
+ * Set message and return data
+ *
+ * @param {*} logger
+ * @param {*} rawData
+ * @param {*} processMessage
+ * @returns
+ */
+const setMessage = (logger, rawData, processMessage) => {
+  const data = rawData;
+
+  logger.info({ data, saveLog: true }, processMessage);
+  data.sell.processMessage = processMessage;
+  data.sell.updatedAt = moment().utc();
+  return data;
+};
+
+/**
  * Place a sell stop-loss order when the current price reached stop-loss trigger price
  *
  * @param {*} logger
@@ -61,10 +78,11 @@ const execute = async (logger, rawData) => {
   }
 
   if (openOrders.length > 0) {
-    data.sell.processMessage = `There are open orders for ${symbol}. Do not place an order.`;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
+    return setMessage(
+      logger,
+      data,
+      `There are open orders for ${symbol}. Do not place an order.`
+    );
   }
 
   const lotPrecision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
@@ -77,12 +95,12 @@ const execute = async (logger, rawData) => {
   );
 
   if (orderQuantity <= parseFloat(minQty)) {
-    data.sell.processMessage =
+    return setMessage(
+      logger,
+      data,
       `Order quantity is less or equal than the minimum quantity - ${minQty}. ` +
-      `Do not place a stop-loss order.`;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
+        `Do not place a stop-loss order.`
+    );
   }
 
   if (orderQuantity > parseFloat(maxQty)) {
@@ -90,35 +108,38 @@ const execute = async (logger, rawData) => {
   }
 
   if (orderQuantity * currentPrice < parseFloat(minNotional)) {
-    data.sell.processMessage =
+    return setMessage(
+      logger,
+      data,
       `Notional value is less than the minimum notional value. ` +
-      `Do not place a stop-loss order.`;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
+        `Do not place a stop-loss order.`
+    );
   }
 
   if (tradingEnabled !== true) {
-    data.sell.processMessage = `Trading for ${symbol} is disabled. Do not place a stop-loss order.`;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
+    return setMessage(
+      logger,
+      data,
+      `Trading for ${symbol} is disabled. Do not place a stop-loss order.`
+    );
   }
 
   if (isExceedAPILimit(logger)) {
-    data.sell.processMessage = `Binance API limit has been exceeded. Do not place a stop-loss order.`;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
+    return setMessage(
+      logger,
+      data,
+      `Binance API limit has been exceeded. Do not place a stop-loss order.`
+    );
   }
 
   // Currently, only support market order for stop-loss.
   const allowedOrderTypes = ['market'];
   if (allowedOrderTypes.includes(sellStopLossOrderType) === false) {
-    data.sell.processMessage = `Unknown order type ${sellStopLossOrderType}. Do not place a stop-loss order.`;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
+    return setMessage(
+      logger,
+      data,
+      `Unknown order type ${sellStopLossOrderType}. Do not place a stop-loss order.`
+    );
   }
 
   const orderParams = {
@@ -141,12 +162,15 @@ const execute = async (logger, rawData) => {
   );
 
   logger.info(
-    { debug: true, function: 'order', orderParams },
-    'Sell market order params'
+    { function: 'order', orderParams, saveLog: true },
+    'The market sell order will be placed.'
   );
   const orderResult = await binance.client.order(orderParams);
 
-  logger.info({ orderResult }, 'Market order result');
+  logger.info(
+    { orderResult, saveLog: true },
+    'The market sell order has been placed.'
+  );
 
   // Save stop loss to grid trade
   const newGridTrade = {
@@ -159,6 +183,7 @@ const execute = async (logger, rawData) => {
   // Temporary disable action
   if (canDisable) {
     await disableAction(
+      logger,
       symbol,
       {
         disabledBy: 'stop loss',
@@ -190,10 +215,8 @@ const execute = async (logger, rawData) => {
       )}\`\`\`\n` +
       `- Current API Usage: ${getAPILimit(logger)}`
   );
-  data.sell.processMessage = `Placed new market order for selling.`;
-  data.sell.updatedAt = moment().utc();
 
-  return data;
+  return setMessage(logger, data, `Placed new market order for selling.`);
 };
 
 module.exports = { execute };

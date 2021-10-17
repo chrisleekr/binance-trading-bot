@@ -173,10 +173,11 @@ const isExceedingMaxOpenTrades = async (logger, data) => {
 const setBuyActionAndMessage = (logger, rawData, action, processMessage) => {
   const data = rawData;
 
-  logger.info({ tag: 'set-buy-action-and-message', data }, processMessage);
   data.action = action;
   data.buy.processMessage = processMessage;
   data.buy.updatedAt = moment().utc();
+
+  logger.info({ data, saveLog: true }, processMessage);
   return data;
 };
 
@@ -404,10 +405,11 @@ const shouldForceSellByTradingViewRecommendation = (logger, data) => {
 const setSellActionAndMessage = (logger, rawData, action, processMessage) => {
   const data = rawData;
 
-  logger.info({ data }, processMessage);
   data.action = action;
   data.sell.processMessage = processMessage;
   data.sell.updatedAt = moment().utc();
+
+  logger.info({ data, saveLog: true }, processMessage);
   return data;
 };
 
@@ -524,7 +526,8 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'wait',
-        `The current price has reached the lowest price; however, it is restricted to buy the coin.`
+        `The current price has reached the lowest price; however, it is restricted to buy the coin ` +
+          `because ATH price higher than the current price.`
       );
     }
 

@@ -8,6 +8,8 @@ describe('index', () => {
   let mockHandleClosedTradesSetPeriod;
   let mockHandle404;
   let mockHandleStatus;
+  let mockHandleGridTradeLogsGet;
+  let mockHandleGridTradeLogsExport;
 
   let mockLoginLimiter;
 
@@ -20,6 +22,8 @@ describe('index', () => {
     mockHandleClosedTradesSetPeriod = jest.fn().mockResolvedValue(true);
     mockHandle404 = jest.fn().mockResolvedValue(true);
     mockHandleStatus = jest.fn().mockResolvedValue(true);
+    mockHandleGridTradeLogsGet = jest.fn().mockResolvedValue(true);
+    mockHandleGridTradeLogsExport = jest.fn().mockResolvedValue(true);
 
     mockLoginLimiter = jest.fn().mockReturnValue(true);
 
@@ -37,6 +41,14 @@ describe('index', () => {
 
     jest.mock('../closed-trades-set-period', () => ({
       handleClosedTradesSetPeriod: mockHandleClosedTradesSetPeriod
+    }));
+
+    jest.mock('../grid-trade-logs-get', () => ({
+      handleGridTradeLogsGet: mockHandleGridTradeLogsGet
+    }));
+
+    jest.mock('../grid-trade-logs-export', () => ({
+      handleGridTradeLogsExport: mockHandleGridTradeLogsExport
     }));
 
     jest.mock('../404', () => ({
@@ -75,6 +87,14 @@ describe('index', () => {
       'logger',
       'app'
     );
+  });
+
+  it('triggers handleGridTradeLogsGet', () => {
+    expect(mockHandleGridTradeLogsGet).toHaveBeenCalledWith('logger', 'app');
+  });
+
+  it('triggers handleGridTradeLogsExport', () => {
+    expect(mockHandleGridTradeLogsExport).toHaveBeenCalledWith('logger', 'app');
   });
 
   it('triggers handleStatus', () => {

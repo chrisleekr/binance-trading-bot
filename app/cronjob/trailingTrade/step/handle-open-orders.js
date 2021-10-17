@@ -17,8 +17,8 @@ const {
  */
 const cancelOrder = async (logger, symbol, order) => {
   logger.info(
-    { debug: true, function: 'cancelOrder', order },
-    'Cancelling open orders'
+    { function: 'cancelOrder', order, saveLog: true },
+    'The order will be cancelled.'
   );
   // Cancel open orders first to make sure it does not have unsettled orders.
   let result = false;
@@ -32,8 +32,9 @@ const cancelOrder = async (logger, symbol, order) => {
     result = true;
   } catch (e) {
     logger.info(
-      { e },
-      'Cancel failed, but it is ok. The order may already be executed. We just wait for next round to be handled'
+      { e, saveLog: true },
+      `Order cancellation failed, but it is ok. ` +
+        `The order may already be cancelled or executed. The bot will check in the next tick.`
     );
   }
 
@@ -120,7 +121,7 @@ const execute = async (logger, rawData) => {
               notify: false,
               checkTradingView: true
             },
-            `The bot will place a buy order in the next tick.`
+            `The bot will place a buy order in the next tick because could not retrieve the cancelled order result.`
           );
         } else {
           // Reset buy open orders

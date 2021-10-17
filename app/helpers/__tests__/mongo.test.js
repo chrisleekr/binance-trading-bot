@@ -18,6 +18,8 @@ describe('mongo.js', () => {
   let mockUpdateOne;
   let mockDeleteMany;
   let mockDeleteOne;
+  let mockCreateIndex;
+  let mockDropIndex;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -623,6 +625,120 @@ describe('mongo.js', () => {
             j: false
           }
         }
+      );
+    });
+
+    it('returns expected result', () => {
+      expect(result).toStrictEqual(true);
+    });
+  });
+
+  describe('createIndex', () => {
+    beforeEach(async () => {
+      mockCreateIndex = jest.fn().mockResolvedValue(true);
+      mockCollection = jest.fn(() => ({
+        createIndex: mockCreateIndex
+      }));
+
+      mockDBCommand = jest.fn().mockResolvedValue(true);
+      mockDB = jest.fn(() => ({
+        command: mockDBCommand,
+        collection: mockCollection
+      }));
+
+      mockMongoClient = jest.fn(() => ({
+        connect: jest.fn().mockResolvedValue(true),
+        db: mockDB
+      }));
+
+      jest.mock('mongodb', () => ({
+        MongoClient: mockMongoClient
+      }));
+
+      require('mongodb');
+
+      mongo = require('../mongo');
+
+      await mongo.connect(logger);
+
+      result = await mongo.createIndex(
+        logger,
+        'trailing-trade-logs',
+        {
+          loggedAt: 1
+        },
+        {
+          name: 'trailing-trade-logs-logs-idx',
+          background: true,
+          expireAfterSeconds: 1800
+        }
+      );
+    });
+
+    it('triggers database.collection', () => {
+      expect(mockCollection).toHaveBeenCalledWith('trailing-trade-logs');
+    });
+
+    it('triggers collection.createIndex', () => {
+      expect(mockCreateIndex).toHaveBeenCalledWith(
+        {
+          loggedAt: 1
+        },
+        {
+          name: 'trailing-trade-logs-logs-idx',
+          background: true,
+          expireAfterSeconds: 1800
+        }
+      );
+    });
+
+    it('returns expected result', () => {
+      expect(result).toStrictEqual(true);
+    });
+  });
+
+  describe('dropIndex', () => {
+    beforeEach(async () => {
+      mockDropIndex = jest.fn().mockResolvedValue(true);
+      mockCollection = jest.fn(() => ({
+        dropIndex: mockDropIndex
+      }));
+
+      mockDBCommand = jest.fn().mockResolvedValue(true);
+      mockDB = jest.fn(() => ({
+        command: mockDBCommand,
+        collection: mockCollection
+      }));
+
+      mockMongoClient = jest.fn(() => ({
+        connect: jest.fn().mockResolvedValue(true),
+        db: mockDB
+      }));
+
+      jest.mock('mongodb', () => ({
+        MongoClient: mockMongoClient
+      }));
+
+      require('mongodb');
+
+      mongo = require('../mongo');
+
+      await mongo.connect(logger);
+
+      result = await mongo.dropIndex(
+        logger,
+        'trailing-trade-logs',
+        'trailing-trade-logs-logs-idx'
+      );
+    });
+
+    it('triggers database.collection', () => {
+      expect(mockCollection).toHaveBeenCalledWith('trailing-trade-logs');
+    });
+
+    it('triggers collection.dropIndex', () => {
+      expect(mockDropIndex).toHaveBeenCalledWith(
+        'trailing-trade-logs-logs-idx'
       );
     });
 
