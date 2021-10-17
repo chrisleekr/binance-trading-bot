@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Updated buy/auto-buy trigger/sell action to integrate with TradingView Technical Analysis - [#327](https://github.com/chrisleekr/binance-trading-bot/issues/327)
 - Fixed dust transfer base amount. Thanks  [@ilbuonmarcio](https://github.com/ilbuonmarcio) - [#346](https://github.com/chrisleekr/binance-trading-bot/pull/346)
 - Added `/status` endpoint. Thanks  [@ilbuonmarcio](https://github.com/ilbuonmarcio) - [#347](https://github.com/chrisleekr/binance-trading-bot/pull/347)
+- Added logging features for actions - [#362](https://github.com/chrisleekr/binance-trading-bot/pull/362)
 
 ## [0.0.79] - 2021-09-19
 
