@@ -766,7 +766,7 @@ const saveOverrideAction = async (
 ) => {
   logger.info(
     { overrideData, overrideReason, saveLog: true },
-    `The override action is saved. Reason: ${overrideReason}.`
+    `The override action is saved. Reason: ${overrideReason}`
   );
 
   await cache.hset(

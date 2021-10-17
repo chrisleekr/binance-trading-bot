@@ -227,17 +227,6 @@ const execute = async (logger, rawData) => {
   const { isTradingViewAllowed, tradingViewRejectedReason } =
     isAllowedTradingViewRecommendation(logger, data);
   if (isTradingViewAllowed === false) {
-    // Notify as it's important message for now.
-    // Eventually, should convert to logging to reduce unnecessary notifications.
-    // slack.sendMessage(
-    //   `${symbol} Buy Action Grid Trade #${humanisedGridTradeIndex} (${moment().format(
-    //     'HH:mm:ss.SSS'
-    //   )}): Action Ignored \n` +
-    //     `- Message: ${tradingViewRejectedReason}\n` +
-    //     `- Current API Usage: ${getAPILimit(logger)}`
-    // );
-
-    // TODO: This needs to be configurable.
     await saveOverrideAction(
       logger,
       symbol,
@@ -248,8 +237,8 @@ const execute = async (logger, rawData) => {
         notify: false,
         checkTradingView: true
       },
-      `The bot queued the action to trigger the grid trade #${humanisedGridTradeIndex} for buying` +
-        ` because of TradingView recommendation. Reason: ${tradingViewRejectedReason}`
+      `The bot queued the action to trigger the grid trade #${humanisedGridTradeIndex} for buying.` +
+        ` ${tradingViewRejectedReason}`
     );
 
     return setMessage(logger, data, tradingViewRejectedReason);
