@@ -249,7 +249,7 @@ const isLowerThanStopLossTriggerPrice = data => {
 };
 
 /**
- * Check whether should execute stop-loss if recommendation is sell or strong sell
+ * Check whether should execute stop-loss if recommendation is neutral, sell or strong sell
  *
  * @param {*} logger
  * @param {*} data
@@ -265,6 +265,7 @@ const shouldForceSellByTradingViewRecommendation = (logger, data) => {
       sell: {
         tradingView: {
           forceSellOverZeroBelowTriggerPrice: {
+            whenNeutral: tradingViewForceSellWhenNeutral,
             whenSell: tradingViewForceSellWhenSell,
             whenStrongSell: tradingViewForceSellWhenStrongSell
           }
@@ -285,6 +286,7 @@ const shouldForceSellByTradingViewRecommendation = (logger, data) => {
 
   // If tradingView force sell configuration is not enabled, then no need to process.
   if (
+    tradingViewForceSellWhenNeutral === false &&
     tradingViewForceSellWhenSell === false &&
     tradingViewForceSellWhenStrongSell === false
   ) {
@@ -363,8 +365,12 @@ const shouldForceSellByTradingViewRecommendation = (logger, data) => {
 
   logger.info({ freeBalance }, 'Free balance');
 
-  // Get allowed recommendation
+  // Get force sell recommendation
   const forceSellRecommendations = [];
+  if (tradingViewForceSellWhenNeutral) {
+    forceSellRecommendations.push('neutral');
+  }
+
   if (tradingViewForceSellWhenSell) {
     forceSellRecommendations.push('sell');
   }

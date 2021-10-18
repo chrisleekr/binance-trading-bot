@@ -285,6 +285,11 @@
         },
         "tradingView": {
           "forceSellOverZeroBelowTriggerPrice": {
+            "whenNeutral": {
+              "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_TRADING_VIEW_FORCE_SELL_OVER_ZERO_BELOW_TRIGGER_PRICE_WHEN_NEUTRAL",
+              "__description": "Set a boolean to use TradingView recommendation to sell the coin at the market price if the profit is over 0 but under the trigger price. When the condition is met and the TradingView recommendation is `Neutral`, then the bot will place a market sell order immediately. If the auto-buy trigger is enabled, then it will place a buy order later. Note that this action can cause loss if the profit is less than commission.",
+              "__format": "boolean"
+            },
             "whenSell": {
               "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_TRADING_VIEW_FORCE_SELL_OVER_ZERO_BELOW_TRIGGER_PRICE_WHEN_SELL",
               "__description": "Set a boolean to use TradingView recommendation to sell the coin at the market price if the profit is over 0 but under the trigger price. When the condition is met and the TradingView recommendation is `Sell`, then the bot will place a market sell order immediately. If the auto-buy trigger is enabled, then it will place a buy order later. Note that this action can cause loss if the profit is less than commission.",

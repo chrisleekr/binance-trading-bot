@@ -323,6 +323,19 @@ class CoinWrapperSetting extends React.Component {
             <div className='coin-info-sub-label'>Sell - TradingView</div>
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>
+                Force sell when recommendation is <code>Neutral</code>:
+              </span>
+              <span className='coin-info-value'>
+                {symbolConfiguration.sell.tradingView
+                  .forceSellOverZeroBelowTriggerPrice.whenNeutral ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </span>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
                 Force sell when recommendation is <code>Sell</code>:
               </span>
               <span className='coin-info-value'>

@@ -85,6 +85,7 @@ describe('determine-action.js', () => {
             },
             tradingView: {
               forceSellOverZeroBelowTriggerPrice: {
+                whenNeutral: true,
                 whenSell: false,
                 whenStrongSell: false
               }
@@ -1578,6 +1579,7 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: false,
                         whenSell: false,
                         whenStrongSell: false
                       }
@@ -1602,6 +1604,7 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: true,
                         whenSell: true,
                         whenStrongSell: true
                       }
@@ -1626,6 +1629,7 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: true,
                         whenSell: true,
                         whenStrongSell: true
                       }
@@ -1650,6 +1654,7 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: true,
                         whenSell: true,
                         whenStrongSell: true
                       }
@@ -1674,6 +1679,7 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: true,
                         whenSell: true,
                         whenStrongSell: true
                       }
@@ -1701,6 +1707,7 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: true,
                         whenSell: true,
                         whenStrongSell: true
                       }
@@ -1735,6 +1742,7 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: true,
                         whenSell: true,
                         whenStrongSell: true
                       }
@@ -1781,6 +1789,7 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: true,
                         whenSell: true,
                         whenStrongSell: true
                       }
@@ -1806,7 +1815,7 @@ describe('determine-action.js', () => {
               expectedAction: 'sell-wait'
             },
             {
-              name: 'when tradingView recommendation is neutral',
+              name: 'when tradingView recommendation is neutral, and allowed neutral',
               rawData: {
                 baseAssetBalance: {
                   free: 0.0004,
@@ -1816,8 +1825,48 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: true,
                         whenSell: true,
                         whenStrongSell: true
+                      }
+                    }
+                  }
+                },
+                sell: {
+                  currentProfit: 100,
+                  currentPrice: 30100,
+                  triggerPrice: 30900,
+                  lastBuyPrice: 30000,
+                  stopLossTriggerPrice: 24000
+                },
+                tradingView: {
+                  result: {
+                    time: moment().format(),
+                    summary: {
+                      RECOMMENDATION: 'NEUTRAL'
+                    }
+                  }
+                }
+              },
+              expectedAction: 'sell-stop-loss',
+              expectedProcessMessage:
+                `TradingView recommendation is NEUTRAL. The current profit (100) is more than 0 and ` +
+                `the current price (30100) is under trigger price (30900). Sell at market price.`
+            },
+            {
+              name: 'when tradingView recommendation is neutral, but only allowed sell',
+              rawData: {
+                baseAssetBalance: {
+                  free: 0.0004,
+                  total: 0.0004
+                },
+                symbolConfiguration: {
+                  sell: {
+                    tradingView: {
+                      forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: false,
+                        whenSell: true,
+                        whenStrongSell: false
                       }
                     }
                   }
@@ -1851,6 +1900,7 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: true,
                         whenSell: false,
                         whenStrongSell: true
                       }
@@ -1886,6 +1936,7 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: true,
                         whenSell: true,
                         whenStrongSell: false
                       }
@@ -1921,6 +1972,7 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: true,
                         whenSell: true,
                         whenStrongSell: true
                       }
@@ -1959,6 +2011,7 @@ describe('determine-action.js', () => {
                   sell: {
                     tradingView: {
                       forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: true,
                         whenSell: true,
                         whenStrongSell: true
                       }
@@ -2203,6 +2256,7 @@ describe('determine-action.js', () => {
                       },
                       tradingView: {
                         forceSellOverZeroBelowTriggerPrice: {
+                          whenNeutral: true,
                           whenSell: false,
                           whenStrongSell: false
                         }

@@ -1004,6 +1004,65 @@ class SymbolSettingIcon extends React.Component {
                                   <div className='row'>
                                     <div className='col-12'>
                                       <Form.Group
+                                        controlId='field-sell-tradingview-force-sell-over-zero-below-trigger-price-when-neutral'
+                                        className='mb-2'>
+                                        <Form.Check size='sm'>
+                                          <Form.Check.Input
+                                            type='checkbox'
+                                            data-state-key='sell.tradingView.forceSellOverZeroBelowTriggerPrice.whenNeutral'
+                                            checked={
+                                              symbolConfiguration.sell
+                                                .tradingView
+                                                .forceSellOverZeroBelowTriggerPrice
+                                                .whenNeutral
+                                            }
+                                            onChange={this.handleInputChange}
+                                          />
+                                          <Form.Check.Label>
+                                            Force sell at the market price when
+                                            recommendation is{' '}
+                                            <code>Neutral</code> and the profit
+                                            is between <code>0</code> to{' '}
+                                            <code>trigger price</code>{' '}
+                                            <OverlayTrigger
+                                              trigger='click'
+                                              key='sell-tradingview-force-sell-over-zero-below-trigger-price-when-neutral-overlay'
+                                              placement='bottom'
+                                              overlay={
+                                                <Popover id='sell-tradingview-force-sell-over-zero-below-trigger-price-when-neutral-overlay-right'>
+                                                  <Popover.Content>
+                                                    If enabled, the bot will use
+                                                    TradingView recommendation
+                                                    to sell the coin at the
+                                                    market price if the profit
+                                                    is over 0 but under the
+                                                    trigger price. When the
+                                                    condition is met and the
+                                                    TradingView recommendation
+                                                    is `Neutral`, then the bot
+                                                    will place a market sell
+                                                    order immediately. If the
+                                                    auto-buy trigger is enabled,
+                                                    then it will place a buy
+                                                    order later. Note that this
+                                                    action can cause loss if the
+                                                    profit is less than
+                                                    commission.
+                                                  </Popover.Content>
+                                                </Popover>
+                                              }>
+                                              <Button
+                                                variant='link'
+                                                className='p-0 m-0 ml-1 text-info'>
+                                                <i className='fas fa-question-circle fa-sm'></i>
+                                              </Button>
+                                            </OverlayTrigger>
+                                          </Form.Check.Label>
+                                        </Form.Check>
+                                      </Form.Group>
+                                    </div>
+                                    <div className='col-12'>
+                                      <Form.Group
                                         controlId='field-sell-tradingview-force-sell-over-zero-below-trigger-price-when-sell'
                                         className='mb-2'>
                                         <Form.Check size='sm'>

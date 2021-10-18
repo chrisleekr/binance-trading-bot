@@ -138,6 +138,7 @@
         },
         "tradingView": {
           "forceSellOverZeroBelowTriggerPrice": {
+            "whenNeutral": false,
             "whenSell": false,
             "whenStrongSell": false
           }
