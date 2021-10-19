@@ -46,7 +46,8 @@ const execute = async (funcLogger, rawData) => {
 
   try {
     const response = await axios.get('http://tradingview:8080', {
-      params
+      params,
+      timeout: 5000 // timeout 5 seconds
     });
 
     let saveLog = false;

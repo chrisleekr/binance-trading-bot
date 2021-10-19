@@ -91,7 +91,8 @@ describe('get-trading-view.js', () => {
                 screener: 'CRYPTO',
                 exchange: 'BINANCE',
                 interval: t.expectedInterval
-              }
+              },
+              timeout: 5000
             }
           );
         });
@@ -176,7 +177,8 @@ describe('get-trading-view.js', () => {
             screener: 'CRYPTO',
             exchange: 'BINANCE',
             interval: '15m'
-          }
+          },
+          timeout: 5000
         });
       });
 
@@ -430,7 +432,8 @@ describe('get-trading-view.js', () => {
             screener: 'CRYPTO',
             exchange: 'BINANCE',
             interval: '15m'
-          }
+          },
+          timeout: 5000
         });
       });
 
