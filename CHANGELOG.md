@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.81] - 2021-10-23
+
+- Fixed Github actions
+
 ## [0.0.80] - 2021-10-22
 
 - Enhanced auto-trigger buy feature - [#316](https://github.com/chrisleekr/binance-trading-bot/issues/316)
