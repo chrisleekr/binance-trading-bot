@@ -31,7 +31,8 @@ services:
 
   binance-redis:
     container_name: binance-redis
-    image: redis:6.2
+    # From Redis 6.2.6 onwards, it does not support Raspberry Pi 32bit.
+    image: redis:6.2.4
     sysctls:
       net.core.somaxconn: 1024
     networks:
