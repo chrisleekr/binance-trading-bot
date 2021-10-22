@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.0.80] - 2021-10-22
 
 - Enhanced auto-trigger buy feature - [#316](https://github.com/chrisleekr/binance-trading-bot/issues/316)
 - Added TradingView Technical Analysis - [#327](https://github.com/chrisleekr/binance-trading-bot/issues/327)
