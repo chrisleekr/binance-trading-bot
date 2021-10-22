@@ -1,6 +1,7 @@
 name: Release & Docker
 
 on:
+  workflow_dispatch:
   repository_dispatch:
     types: [Release & Docker]
 
