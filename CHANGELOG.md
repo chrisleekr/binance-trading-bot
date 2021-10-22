@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.82] - 2021-10-23
+
+- Fixed Github actions
+
 ## [0.0.81] - 2021-10-23
 
 - Fixed Github actions
