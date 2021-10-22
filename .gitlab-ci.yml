@@ -51,10 +51,10 @@ production:
     - PACKAGE_VERSION=$(grep -m1 version package.json | cut -c 15- | rev | cut
       -c 3- | rev)
     - GIT_HASH=$(git rev-parse --short HEAD)
-    - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7
-      --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg
-      GIT_HASH=$GIT_HASH --build-arg NODE_ENV=production --target
-      production-stage --pull --tag
+    - docker buildx build --progress plain --platform
+      linux/amd64,linux/arm/v7,linux/arm64 --build-arg
+      PACKAGE_VERSION=$PACKAGE_VERSION --build-arg GIT_HASH=$GIT_HASH
+      --build-arg NODE_ENV=production --target production-stage --pull --tag
       $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:latest --push .
 
 production-tradingview:
@@ -87,6 +87,7 @@ production-tradingview:
     - docker context create dind
     - docker buildx create --driver docker-container --use dind
   script:
-    - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7
-      --pull --tag $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:tradingview
-      --push ./tradingview
+    - docker buildx build --progress plain --platform
+      linux/amd64,linux/arm/v7,linux/arm64 --pull --tag
+      $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:tradingview --push
+      ./tradingview

@@ -42,7 +42,7 @@ services:
 
   binance-redis:
     container_name: binance-redis
-    image: redis:6.2
+    image: redis:6.2.4
     sysctls:
       net.core.somaxconn: 1024
     restart: unless-stopped
