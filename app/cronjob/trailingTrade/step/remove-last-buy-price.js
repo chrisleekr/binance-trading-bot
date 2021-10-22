@@ -15,6 +15,23 @@ const {
 } = require('../../trailingTradeHelper/configuration');
 const { getGridTradeOrder } = require('../../trailingTradeHelper/order');
 
+/**
+ * Set message and return data
+ *
+ * @param {*} logger
+ * @param {*} rawData
+ * @param {*} processMessage
+ * @returns
+ */
+const setMessage = (logger, rawData, processMessage) => {
+  const data = rawData;
+
+  logger.info({ data, saveLog: true }, processMessage);
+  data.sell.processMessage = processMessage;
+  data.sell.updatedAt = moment().utc();
+  return data;
+};
+
 /*
  * Retrieve last grid order from cache
  *
@@ -118,9 +135,11 @@ const removeLastBuyPrice = async (
       {
         action: 'buy',
         actionAt: moment().add(autoTriggerBuyTriggerAfter, 'minutes').format(),
-        triggeredBy: 'auto-trigger'
+        triggeredBy: 'auto-trigger',
+        notify: true,
+        checkTradingView: true
       },
-      `The bot queued to trigger the grid trade for buying` +
+      `The bot queued the action to trigger the grid trade for buying` +
         ` after ${autoTriggerBuyTriggerAfter} minutes later.`
     );
   }
@@ -244,9 +263,6 @@ const execute = async (logger, rawData) => {
       processMessage
     );
 
-    data.sell.processMessage = processMessage;
-    data.sell.updatedAt = moment().utc();
-
     await removeLastBuyPrice(logger, symbol, data, processMessage, {
       lastBuyPrice,
       baseAssetQuantity,
@@ -257,7 +273,7 @@ const execute = async (logger, rawData) => {
       openOrders
     });
 
-    return data;
+    return setMessage(logger, data, processMessage);
   }
 
   if (baseAssetQuantity * currentPrice < lastBuyPriceRemoveThreshold) {
@@ -273,9 +289,6 @@ const execute = async (logger, rawData) => {
 
     logger.error({ baseAssetQuantity }, processMessage);
 
-    data.sell.processMessage = processMessage;
-    data.sell.updatedAt = moment().utc();
-
     await removeLastBuyPrice(logger, symbol, data, processMessage, {
       lastBuyPrice,
       baseAssetQuantity,
@@ -284,7 +297,7 @@ const execute = async (logger, rawData) => {
       openOrders
     });
 
-    return data;
+    return setMessage(logger, data, processMessage);
   }
 
   return data;

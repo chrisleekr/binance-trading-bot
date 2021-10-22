@@ -2520,6 +2520,161 @@ describe('place-sell-order.js', () => {
               });
             });
           });
+
+          describe('ONGUSDT', () => {
+            beforeEach(async () => {
+              mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+                {
+                  orderId: 123,
+                  price: 1.0096,
+                  quantity: 100,
+                  side: 'sell',
+                  stopPrice: 1.0175,
+                  symbol: 'ONGUSDT',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ]);
+              binanceMock.client.order = jest.fn().mockResolvedValue({
+                symbol: 'ONGUSDT',
+                orderId: 2701762317,
+                orderListId: -1,
+                clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                transactTime: 1626946722520
+              });
+
+              mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+                account: 'info'
+              });
+
+              jest.mock('../../../trailingTradeHelper/common', () => ({
+                getAndCacheOpenOrdersForSymbol:
+                  mockGetAndCacheOpenOrdersForSymbol,
+                getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+                isExceedAPILimit: mockIsExceedAPILimit,
+                getAPILimit: mockGetAPILimit
+              }));
+
+              jest.mock('../../../trailingTradeHelper/order', () => ({
+                saveGridTradeOrder: mockSaveGridTradeOrder
+              }));
+
+              const step = require('../place-sell-order');
+
+              rawData = {
+                symbol: 'ONGUSDT',
+                isLocked: false,
+                symbolInfo: {
+                  filterLotSize: {
+                    minQty: '1.00000000',
+                    maxQty: '900000.00000000',
+                    stepSize: '1.00000000'
+                  },
+                  filterPrice: { tickSize: '0.00010000' },
+                  filterMinNotional: { minNotional: '10.00000000' }
+                },
+                symbolConfiguration: {
+                  sell: {
+                    enabled: true,
+                    currentGridTradeIndex: 0,
+                    currentGridTrade: {
+                      triggerPercentage: 1.02,
+                      stopPercentage: 0.99675,
+                      limitPercentage: 0.989,
+                      quantityPercentage: 1,
+                      executed: false,
+                      executedOrder: null
+                    }
+                  },
+                  system: {
+                    checkOrderExecutePeriod: 10
+                  }
+                },
+                action: 'sell',
+                baseAssetBalance: { free: 120.25495 },
+                sell: {
+                  currentPrice: 1.0209,
+                  openOrders: []
+                }
+              };
+
+              result = await step.execute(loggerMock, rawData);
+            });
+
+            it('triggers binance.client.order', () => {
+              expect(binanceMock.client.order).toHaveBeenCalledWith({
+                price: 1.0096,
+                quantity: 119,
+                side: 'sell',
+                stopPrice: 1.0175,
+                symbol: 'ONGUSDT',
+                timeInForce: 'GTC',
+                type: 'STOP_LOSS_LIMIT'
+              });
+            });
+
+            it('triggers saveGridTradeOrder for grid trade last sell order', () => {
+              expect(mockSaveGridTradeOrder).toHaveBeenCalledWith(
+                loggerMock,
+                'ONGUSDT-grid-trade-last-sell-order',
+                {
+                  symbol: 'ONGUSDT',
+                  orderId: 2701762317,
+                  orderListId: -1,
+                  clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+                  transactTime: 1626946722520,
+                  currentGridTradeIndex: 0,
+                  nextCheck: expect.any(String)
+                }
+              );
+            });
+
+            it('triggers getAndCacheOpenOrdersForSymbol', () => {
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
+            });
+
+            it('triggers getAccountInfoFromAPI', () => {
+              expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+            });
+
+            it('retruns expected value', () => {
+              expect(result).toStrictEqual({
+                ...rawData,
+                ...{
+                  openOrders: [
+                    {
+                      orderId: 123,
+                      price: 1.0096,
+                      quantity: 100,
+                      side: 'sell',
+                      stopPrice: 1.0175,
+                      symbol: 'ONGUSDT',
+                      timeInForce: 'GTC',
+                      type: 'STOP_LOSS_LIMIT'
+                    }
+                  ],
+                  sell: {
+                    currentPrice: 1.0209,
+                    openOrders: [
+                      {
+                        orderId: 123,
+                        price: 1.0096,
+                        quantity: 100,
+                        side: 'sell',
+                        stopPrice: 1.0175,
+                        symbol: 'ONGUSDT',
+                        timeInForce: 'GTC',
+                        type: 'STOP_LOSS_LIMIT'
+                      }
+                    ],
+                    processMessage:
+                      'Placed new stop loss limit order for selling of grid trade #1.',
+                    updatedAt: expect.any(Object)
+                  }
+                }
+              });
+            });
+          });
         });
       });
     });

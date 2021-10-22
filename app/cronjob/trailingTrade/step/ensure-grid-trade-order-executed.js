@@ -57,10 +57,7 @@ const updateGridTradeLastOrder = async (logger, symbol, side, newOrder) => {
     newOrder
   );
 
-  logger.info(
-    { debug: true },
-    `Updated grid trade last ${side} order to cache`
-  );
+  logger.info(`Updated grid trade last ${side} order to cache`);
 };
 
 /**
@@ -73,10 +70,7 @@ const updateGridTradeLastOrder = async (logger, symbol, side, newOrder) => {
  */
 const removeGridTradeLastOrder = async (logger, symbols, symbol, side) => {
   await deleteGridTradeOrder(logger, `${symbol}-grid-trade-last-${side}-order`);
-  logger.info(
-    { debug: true },
-    `Deleted grid trade last ${side} order from cache`
-  );
+  logger.info(`Deleted grid trade last ${side} order from cache`);
 
   await saveOrderStats(logger, symbols);
 };
@@ -105,6 +99,17 @@ const slackMessageOrderFilled = async (
     'Undefined';
 
   const humanisedGridTradeIndex = orderParams.currentGridTradeIndex + 1;
+
+  logger.info(
+    {
+      side,
+      orderParams,
+      orderResult,
+      saveLog: true
+    },
+    `The ${side} order of the grid trade #${humanisedGridTradeIndex} ` +
+      `for ${symbol} has been executed successfully.`
+  );
 
   PubSub.publish('frontend-notification', {
     type: 'success',
@@ -154,6 +159,17 @@ const slackMessageOrderDeleted = async (
     'Undefined';
 
   const humanisedGridTradeIndex = orderParams.currentGridTradeIndex + 1;
+
+  logger.info(
+    {
+      side,
+      orderParams,
+      orderResult,
+      saveLog: true
+    },
+    `The ${side} order of the grid trade #${humanisedGridTradeIndex} ` +
+      `for ${symbol} is ${orderResult.status}. Stop monitoring.`
+  );
 
   PubSub.publish('frontend-notification', {
     type: 'success',
@@ -214,7 +230,7 @@ const saveGridTrade = async (logger, rawData, order) => {
   currentGridTrade.executedOrder = order;
 
   newGridTrade[selectedSide][currentGridTradeIndex] = currentGridTrade;
-  logger.info({ symbol, newGridTrade }, 'Saving grid trade');
+  logger.info({ symbol, newGridTrade }, 'Grid Trade updated');
 
   if (notifyDebug) {
     slack.sendMessage(
@@ -265,16 +281,13 @@ const execute = async (logger, rawData) => {
   // Ensure buy order executed
   const lastBuyOrder = await getGridTradeLastOrder(logger, symbol, 'buy');
   if (_.isEmpty(lastBuyOrder) === false) {
-    logger.info(
-      { debug: true, lastBuyOrder },
-      'Last grid trade buy order found'
-    );
+    logger.info({ lastBuyOrder }, 'Last grid trade buy order found');
 
     // If filled already, then calculate average price and save
     if (lastBuyOrder.status === 'FILLED') {
       logger.info(
-        { lastBuyOrder },
-        'Order has already filled, calculate last buy price.'
+        { lastBuyOrder, saveLog: true },
+        'The grid trade order has already filled. Calculating last buy price...'
       );
 
       // Calculate last buy price
@@ -297,6 +310,7 @@ const execute = async (logger, rawData) => {
 
       // Lock symbol action configured seconds to avoid immediate action
       await disableAction(
+        logger,
         symbol,
         {
           disabledBy: 'buy filled order',
@@ -332,9 +346,10 @@ const execute = async (logger, rawData) => {
               e,
               lastBuyOrder,
               checkOrderExecutePeriod,
-              nextCheck: updatedNextCheck.format()
+              nextCheck: updatedNextCheck.format(),
+              saveLog: true
             },
-            'The order could not be found or error occurred querying the order.'
+            'The gird trade order could not be found or error occurred querying the order.'
           );
 
           // Set last order to be checked later
@@ -349,8 +364,8 @@ const execute = async (logger, rawData) => {
         // If filled, then calculate average cost and quantity and save new last buy pirce.
         if (orderResult.status === 'FILLED') {
           logger.info(
-            { lastBuyOrder },
-            'The order is filled, caluclate last buy price.'
+            { lastBuyOrder, saveLog: true },
+            'The grid trade order is filled. Caluclating last buy price...'
           );
 
           // Calculate last buy price
@@ -376,6 +391,7 @@ const execute = async (logger, rawData) => {
 
           // Lock symbol action configured seconds to avoid immediate action
           await disableAction(
+            logger,
             symbol,
             {
               disabledBy: 'buy filled order',
@@ -387,6 +403,14 @@ const execute = async (logger, rawData) => {
             temporaryDisableActionAfterConfirmingOrder
           );
         } else if (removeStatuses.includes(orderResult.status) === true) {
+          logger.info(
+            {
+              orderResult,
+              saveLog: true
+            },
+            `The order status "${orderResult.status}" is no longer valid. Delete the order to stop monitoring.`
+          );
+
           // If order is no longer available, then delete from cache
           await removeGridTradeLastOrder(logger, symbols, symbol, 'buy');
 
@@ -409,9 +433,10 @@ const execute = async (logger, rawData) => {
             {
               orderResult,
               checkOrderExecutePeriod,
-              nextCheck: updatedNextCheck.format()
+              nextCheck: updatedNextCheck.format(),
+              saveLog: true
             },
-            'The order is not filled, update next check time.'
+            'The grid trade order is not filled.'
           );
 
           await updateGridTradeLastOrder(logger, symbol, 'buy', {
@@ -432,10 +457,7 @@ const execute = async (logger, rawData) => {
   // Ensure buy order executed
   const lastSellOrder = await getGridTradeLastOrder(logger, symbol, 'sell');
   if (_.isEmpty(lastSellOrder) === false) {
-    logger.info(
-      { debug: true, lastSellOrder },
-      'Last grid trade sell order found'
-    );
+    logger.info({ lastSellOrder }, 'Last grid trade sell order found');
 
     // If filled already, then calculate average price and save
     if (lastSellOrder.status === 'FILLED') {
@@ -458,6 +480,7 @@ const execute = async (logger, rawData) => {
 
       // Lock symbol action configured seconds to avoid immediate action
       await disableAction(
+        logger,
         symbol,
         {
           disabledBy: 'sell filled order',
@@ -494,9 +517,10 @@ const execute = async (logger, rawData) => {
               e,
               lastSellOrder,
               checkOrderExecutePeriod,
-              nextCheck: updatedNextCheck.format()
+              nextCheck: updatedNextCheck.format(),
+              saveLog: true
             },
-            'The order could not be found or error occurred querying the order.'
+            'The grid trade order could not be found or error occurred querying the order.'
           );
 
           // Set last order to be checked later
@@ -532,6 +556,7 @@ const execute = async (logger, rawData) => {
 
           // Lock symbol action configured seconds to avoid immediate action
           await disableAction(
+            logger,
             symbol,
             {
               disabledBy: 'sell filled order',
@@ -565,9 +590,10 @@ const execute = async (logger, rawData) => {
             {
               orderResult,
               checkOrderExecutePeriod,
-              nextCheck: updatedNextCheck.format()
+              nextCheck: updatedNextCheck.format(),
+              saveLog: true
             },
-            'The order is not filled, update next check time.'
+            'The grid trade order is not filled.'
           );
 
           await updateGridTradeLastOrder(logger, symbol, 'sell', {

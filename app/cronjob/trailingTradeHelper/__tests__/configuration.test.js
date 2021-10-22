@@ -16,9 +16,16 @@ describe('configuration.js', () => {
       cache.hdelall = jest.fn().mockResolvedValue(true);
       PubSub.publish = jest.fn().mockReturnValue(true);
       mongo.upsertOne = jest.fn().mockResolvedValue(true);
+      mongo.dropIndex = jest.fn().mockResolvedValue(true);
+      mongo.createIndex = jest.fn().mockResolvedValue(true);
 
       result = await configuration.saveGlobalConfiguration(logger, {
-        myKey: 'value'
+        myKey: 'value',
+        botOptions: {
+          logs: {
+            deleteAfter: 30
+          }
+        }
       });
     });
 
@@ -33,7 +40,15 @@ describe('configuration.js', () => {
         logger,
         'trailing-trade-common',
         { key: 'configuration' },
-        { key: 'configuration', myKey: 'value' }
+        {
+          key: 'configuration',
+          myKey: 'value',
+          botOptions: {
+            logs: {
+              deleteAfter: 30
+            }
+          }
+        }
       );
     });
 
@@ -51,6 +66,8 @@ describe('configuration.js', () => {
         cache.del = jest.fn().mockResolvedValue(true);
         mongo.upsertOne = jest.fn().mockResolvedValue(true);
         mongo.findOne = jest.fn((_logger, _collection, _filter) => null);
+        mongo.dropIndex = jest.fn().mockResolvedValue(true);
+        mongo.createIndex = jest.fn().mockResolvedValue(true);
         PubSub.publish = jest.fn().mockReturnValue(true);
 
         config.get = jest.fn(key => {
@@ -62,6 +79,11 @@ describe('configuration.js', () => {
                 stopLoss: {
                   enabled: true,
                   key: 'value'
+                }
+              },
+              botOptions: {
+                logs: {
+                  deleteAfter: 30
                 }
               }
             };
@@ -86,6 +108,11 @@ describe('configuration.js', () => {
                 enabled: true,
                 key: 'value'
               }
+            },
+            botOptions: {
+              logs: {
+                deleteAfter: 30
+              }
             }
           }
         );
@@ -99,6 +126,11 @@ describe('configuration.js', () => {
             stopLoss: {
               enabled: true,
               key: 'value'
+            }
+          },
+          botOptions: {
+            logs: {
+              deleteAfter: 30
             }
           }
         });
@@ -2716,6 +2748,8 @@ describe('configuration.js', () => {
   describe('getConfiguration', () => {
     beforeEach(() => {
       mongo.upsertOne = jest.fn().mockResolvedValue(true);
+      mongo.dropIndex = jest.fn().mockResolvedValue(true);
+      mongo.createIndex = jest.fn().mockResolvedValue(true);
 
       cache.del = jest.fn().mockResolvedValue(true);
       cache.hdelall = jest.fn().mockResolvedValue(true);
@@ -2744,6 +2778,11 @@ describe('configuration.js', () => {
             candles: {
               interval: '1h',
               limit: 100
+            },
+            botOptions: {
+              logs: {
+                deleteAfter: 30
+              }
             },
             buy: {
               enabled: true,
@@ -2917,6 +2956,11 @@ describe('configuration.js', () => {
                     orderType: 'market'
                   }
                 },
+                botOptions: {
+                  logs: {
+                    deleteAfter: 30
+                  }
+                },
                 system: {
                   temporaryDisableActionAfterConfirmingOrder: 10,
                   checkManualBuyOrderPeriod: 10,
@@ -3060,6 +3104,11 @@ describe('configuration.js', () => {
                   orderType: 'market'
                 }
               },
+              botOptions: {
+                logs: {
+                  deleteAfter: 30
+                }
+              },
               system: {
                 temporaryDisableActionAfterConfirmingOrder: 10,
                 checkManualBuyOrderPeriod: 10,
@@ -3123,6 +3172,11 @@ describe('configuration.js', () => {
                 maxLossPercentage: 0.95,
                 disableBuyMinutes: 60,
                 orderType: 'market'
+              }
+            },
+            botOptions: {
+              logs: {
+                deleteAfter: 30
               }
             },
             system: {
@@ -3247,6 +3301,11 @@ describe('configuration.js', () => {
                   orderType: 'market'
                 }
               },
+              botOptions: {
+                logs: {
+                  deleteAfter: 30
+                }
+              },
               system: {
                 temporaryDisableActionAfterConfirmingOrder: 20,
                 checkManualBuyOrderPeriod: 5,
@@ -3320,6 +3379,11 @@ describe('configuration.js', () => {
                 quantityPercentage: 1,
                 executed: false,
                 executedOrder: null
+              }
+            },
+            botOptions: {
+              logs: {
+                deleteAfter: 30
               }
             },
             system: {
@@ -3435,6 +3499,11 @@ describe('configuration.js', () => {
                       orderType: 'market'
                     }
                   },
+                  botOptions: {
+                    logs: {
+                      deleteAfter: 30
+                    }
+                  },
                   system: {
                     temporaryDisableActionAfterConfirmingOrder: 10,
                     checkManualBuyOrderPeriod: 10,
@@ -3537,6 +3606,11 @@ describe('configuration.js', () => {
                   quantityPercentage: 0.5,
                   executed: false,
                   executedOrder: null
+                }
+              },
+              botOptions: {
+                logs: {
+                  deleteAfter: 30
                 }
               },
               system: {
@@ -3664,6 +3738,11 @@ describe('configuration.js', () => {
                       }
                     ]
                   },
+                  botOptions: {
+                    logs: {
+                      deleteAfter: 30
+                    }
+                  },
                   system: {
                     temporaryDisableActionAfterConfirmingOrder: 20,
                     checkManualBuyOrderPeriod: 10,
@@ -3785,6 +3864,11 @@ describe('configuration.js', () => {
                   executedOrder: null
                 }
               },
+              botOptions: {
+                logs: {
+                  deleteAfter: 30
+                }
+              },
               system: {
                 temporaryDisableActionAfterConfirmingOrder: 20,
                 checkManualBuyOrderPeriod: 10,
@@ -3897,6 +3981,11 @@ describe('configuration.js', () => {
                   executedOrder: null
                 }
               },
+              botOptions: {
+                logs: {
+                  deleteAfter: 30
+                }
+              },
               system: {
                 temporaryDisableActionAfterConfirmingOrder: 20,
                 checkManualBuyOrderPeriod: 5,
@@ -3948,6 +4037,9 @@ describe('configuration.js', () => {
             expect(result).toStrictEqual({
               enabled: true,
               some: 'symbol-value',
+              cronTime: '* * * * * *',
+              symbols: ['BTCUSDT', 'ETHUSDT', 'ETHBTC', 'XRPBTC'],
+              candles: { interval: '1h', limit: 100 },
               buy: {
                 enabled: false,
                 gridTrade: [
@@ -4006,9 +4098,11 @@ describe('configuration.js', () => {
                   executedOrder: null
                 }
               },
-              cronTime: '* * * * * *',
-              symbols: ['BTCUSDT', 'ETHUSDT', 'ETHBTC', 'XRPBTC'],
-              candles: { interval: '1h', limit: 100 },
+              botOptions: {
+                logs: {
+                  deleteAfter: 30
+                }
+              },
               system: {
                 temporaryDisableActionAfterConfirmingOrder: 20,
                 checkManualBuyOrderPeriod: 5,
@@ -4243,6 +4337,9 @@ describe('configuration.js', () => {
                 expect(result).toStrictEqual({
                   key: 'BTCUSDT-configuration',
                   candles: { interval: '1h', limit: 50 },
+                  enabled: true,
+                  cronTime: '* * * * * *',
+                  symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
                   buy: {
                     enabled: true,
                     gridTrade: [
@@ -4310,9 +4407,11 @@ describe('configuration.js', () => {
                       executedOrder: null
                     }
                   },
-                  enabled: true,
-                  cronTime: '* * * * * *',
-                  symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+                  botOptions: {
+                    logs: {
+                      deleteAfter: 30
+                    }
+                  },
                   system: {
                     temporaryDisableActionAfterConfirmingOrder: 10,
                     checkManualBuyOrderPeriod: 10,
@@ -4495,6 +4594,9 @@ describe('configuration.js', () => {
                 expect(result).toStrictEqual({
                   key: 'BTCUSDT-configuration',
                   candles: { interval: '1h', limit: 50 },
+                  enabled: true,
+                  cronTime: '* * * * * *',
+                  symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
                   buy: {
                     enabled: true,
                     gridTrade: [
@@ -4596,9 +4698,11 @@ describe('configuration.js', () => {
                       executedOrder: null
                     }
                   },
-                  enabled: true,
-                  cronTime: '* * * * * *',
-                  symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+                  botOptions: {
+                    logs: {
+                      deleteAfter: 30
+                    }
+                  },
                   system: {
                     temporaryDisableActionAfterConfirmingOrder: 10,
                     checkManualBuyOrderPeriod: 10,
@@ -4780,6 +4884,9 @@ describe('configuration.js', () => {
               expect(result).toStrictEqual({
                 key: 'BTCUSDT-configuration',
                 candles: { interval: '1h', limit: 50 },
+                enabled: true,
+                cronTime: '* * * * * *',
+                symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
                 buy: {
                   enabled: true,
                   gridTrade: [
@@ -4856,9 +4963,11 @@ describe('configuration.js', () => {
                     executedOrder: null
                   }
                 },
-                enabled: true,
-                cronTime: '* * * * * *',
-                symbols: ['BNBUSDT', 'TRXBUSD', 'LTCUSDT', 'XRPBTC'],
+                botOptions: {
+                  logs: {
+                    deleteAfter: 30
+                  }
+                },
                 system: {
                   temporaryDisableActionAfterConfirmingOrder: 10,
                   checkManualBuyOrderPeriod: 10,

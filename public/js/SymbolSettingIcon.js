@@ -612,6 +612,149 @@ class SymbolSettingIcon extends React.Component {
                           </Accordion.Collapse>
                         </Card>
                       </Accordion>
+
+                      <Accordion defaultActiveKey='0'>
+                        <Card className='mt-1'>
+                          <Card.Header className='px-2 py-1'>
+                            <Accordion.Toggle
+                              as={Button}
+                              variant='link'
+                              eventKey='0'
+                              className='p-0 fs-7 text-uppercase'>
+                              TradingView{' '}
+                            </Accordion.Toggle>
+                          </Card.Header>
+                          <Accordion.Collapse eventKey='0'>
+                            <Card.Body className='px-2 py-1'>
+                              <div className='row'>
+                                <div className='col-12'>
+                                  What is{' '}
+                                  <a
+                                    href='https://www.tradingview.com/symbols/BTCUSDT/technicals/'
+                                    target='_blank'
+                                    rel='noreferrer'>
+                                    TradingView
+                                  </a>
+                                  ?{' '}
+                                  <OverlayTrigger
+                                    trigger='click'
+                                    key='bot-options-auto-trigger-buy-conditions-tradingview-when-strong-buy-overlay'
+                                    placement='bottom'
+                                    overlay={
+                                      <Popover id='bot-options-auto-trigger-buy-conditions-tradingview-when-strong-buy-overlay-right'>
+                                        <Popover.Content>
+                                          TradingView is the service that
+                                          provides technical analysis based on
+                                          various indicators such as oscillators
+                                          and moving averages. The bot is
+                                          integrated with TradingView summary
+                                          recommendation to control the buy
+                                          action.
+                                        </Popover.Content>
+                                      </Popover>
+                                    }>
+                                    <Button
+                                      variant='link'
+                                      className='p-0 m-0 ml-1 text-info'>
+                                      <i className='fas fa-question-circle fa-sm'></i>
+                                    </Button>
+                                  </OverlayTrigger>
+                                </div>
+                                <div className='col-12'>
+                                  <Form.Group
+                                    controlId='field-buy-tradingview-when-strong-buy'
+                                    className='mb-2'>
+                                    <Form.Check size='sm'>
+                                      <Form.Check.Input
+                                        type='checkbox'
+                                        data-state-key='buy.tradingView.whenStrongBuy'
+                                        checked={
+                                          symbolConfiguration.buy.tradingView
+                                            .whenStrongBuy
+                                        }
+                                        onChange={this.handleInputChange}
+                                      />
+                                      <Form.Check.Label>
+                                        Allow buy trigger when recommendation is{' '}
+                                        <code>Strong buy</code>{' '}
+                                        <OverlayTrigger
+                                          trigger='click'
+                                          key='buy-tradingview-when-strong-buy-overlay'
+                                          placement='bottom'
+                                          overlay={
+                                            <Popover id='buy-tradingview-when-strong-buy-overlay-right'>
+                                              <Popover.Content>
+                                                If enabled, the bot will use
+                                                TradingView recommendation to
+                                                trigger the buy. If the buy
+                                                trigger price is reached, the
+                                                bot will check TradingView
+                                                recommendation and if it is not
+                                                `Strong buy`, then the bot will
+                                                not place a buy order.
+                                              </Popover.Content>
+                                            </Popover>
+                                          }>
+                                          <Button
+                                            variant='link'
+                                            className='p-0 m-0 ml-1 text-info'>
+                                            <i className='fas fa-question-circle fa-sm'></i>
+                                          </Button>
+                                        </OverlayTrigger>
+                                      </Form.Check.Label>
+                                    </Form.Check>
+                                  </Form.Group>
+                                </div>
+                                <div className='col-12'>
+                                  <Form.Group
+                                    controlId='field-buy-tradingview-when-buy'
+                                    className='mb-2'>
+                                    <Form.Check size='sm'>
+                                      <Form.Check.Input
+                                        type='checkbox'
+                                        data-state-key='buy.tradingView.whenBuy'
+                                        checked={
+                                          symbolConfiguration.buy.tradingView
+                                            .whenBuy
+                                        }
+                                        onChange={this.handleInputChange}
+                                      />
+                                      <Form.Check.Label>
+                                        Allow buy trigger when recommendation is{' '}
+                                        <code>Buy</code>{' '}
+                                        <OverlayTrigger
+                                          trigger='click'
+                                          key='buy-tradingview-when-buy-overlay'
+                                          placement='bottom'
+                                          overlay={
+                                            <Popover id='buy-tradingview-when-buy-overlay-right'>
+                                              <Popover.Content>
+                                                If enabled, the bot will use
+                                                TradingView recommendation to
+                                                trigger the buy. If the buy
+                                                trigger price is reached, the
+                                                bot will check TradingView
+                                                recommendation and if it is not
+                                                `Buy`, then the bot will not
+                                                place a buy order.
+                                              </Popover.Content>
+                                            </Popover>
+                                          }>
+                                          <Button
+                                            variant='link'
+                                            className='p-0 m-0 ml-1 text-info'>
+                                            <i className='fas fa-question-circle fa-sm'></i>
+                                          </Button>
+                                        </OverlayTrigger>
+                                      </Form.Check.Label>
+                                    </Form.Check>
+                                  </Form.Group>
+                                </div>
+                              </div>
+                            </Card.Body>
+                          </Accordion.Collapse>
+                        </Card>
+                      </Accordion>
                     </Card.Body>
                   </Accordion.Collapse>
                 </Card>
@@ -835,6 +978,204 @@ class SymbolSettingIcon extends React.Component {
                                           }
                                           onChange={this.handleInputChange}
                                         />
+                                      </Form.Group>
+                                    </div>
+                                  </div>
+                                </Card.Body>
+                              </Accordion.Collapse>
+                            </Card>
+                          </Accordion>
+                        </div>
+
+                        <div className='col-12'>
+                          <Accordion defaultActiveKey='0'>
+                            <Card className='mt-1'>
+                              <Card.Header className='px-2 py-1'>
+                                <Accordion.Toggle
+                                  as={Button}
+                                  variant='link'
+                                  eventKey='0'
+                                  className='p-0 fs-7 text-uppercase'>
+                                  TradingView
+                                </Accordion.Toggle>
+                              </Card.Header>
+                              <Accordion.Collapse eventKey='0'>
+                                <Card.Body className='px-2 py-1'>
+                                  <div className='row'>
+                                    <div className='col-12'>
+                                      <Form.Group
+                                        controlId='field-sell-tradingview-force-sell-over-zero-below-trigger-price-when-neutral'
+                                        className='mb-2'>
+                                        <Form.Check size='sm'>
+                                          <Form.Check.Input
+                                            type='checkbox'
+                                            data-state-key='sell.tradingView.forceSellOverZeroBelowTriggerPrice.whenNeutral'
+                                            checked={
+                                              symbolConfiguration.sell
+                                                .tradingView
+                                                .forceSellOverZeroBelowTriggerPrice
+                                                .whenNeutral
+                                            }
+                                            onChange={this.handleInputChange}
+                                          />
+                                          <Form.Check.Label>
+                                            Force sell at the market price when
+                                            recommendation is{' '}
+                                            <code>Neutral</code> and the profit
+                                            is between <code>0</code> to{' '}
+                                            <code>trigger price</code>{' '}
+                                            <OverlayTrigger
+                                              trigger='click'
+                                              key='sell-tradingview-force-sell-over-zero-below-trigger-price-when-neutral-overlay'
+                                              placement='bottom'
+                                              overlay={
+                                                <Popover id='sell-tradingview-force-sell-over-zero-below-trigger-price-when-neutral-overlay-right'>
+                                                  <Popover.Content>
+                                                    If enabled, the bot will use
+                                                    TradingView recommendation
+                                                    to sell the coin at the
+                                                    market price if the profit
+                                                    is over 0 but under the
+                                                    trigger price. When the
+                                                    condition is met and the
+                                                    TradingView recommendation
+                                                    is `Neutral`, then the bot
+                                                    will place a market sell
+                                                    order immediately. If the
+                                                    auto-buy trigger is enabled,
+                                                    then it will place a buy
+                                                    order later. Note that this
+                                                    action can cause loss if the
+                                                    profit is less than
+                                                    commission.
+                                                  </Popover.Content>
+                                                </Popover>
+                                              }>
+                                              <Button
+                                                variant='link'
+                                                className='p-0 m-0 ml-1 text-info'>
+                                                <i className='fas fa-question-circle fa-sm'></i>
+                                              </Button>
+                                            </OverlayTrigger>
+                                          </Form.Check.Label>
+                                        </Form.Check>
+                                      </Form.Group>
+                                    </div>
+                                    <div className='col-12'>
+                                      <Form.Group
+                                        controlId='field-sell-tradingview-force-sell-over-zero-below-trigger-price-when-sell'
+                                        className='mb-2'>
+                                        <Form.Check size='sm'>
+                                          <Form.Check.Input
+                                            type='checkbox'
+                                            data-state-key='sell.tradingView.forceSellOverZeroBelowTriggerPrice.whenSell'
+                                            checked={
+                                              symbolConfiguration.sell
+                                                .tradingView
+                                                .forceSellOverZeroBelowTriggerPrice
+                                                .whenSell
+                                            }
+                                            onChange={this.handleInputChange}
+                                          />
+                                          <Form.Check.Label>
+                                            Force sell at the market price when
+                                            recommendation is <code>Sell</code>{' '}
+                                            and the profit is between{' '}
+                                            <code>0</code> to{' '}
+                                            <code>trigger price</code>{' '}
+                                            <OverlayTrigger
+                                              trigger='click'
+                                              key='sell-tradingview-force-sell-over-zero-below-trigger-price-when-sell-overlay'
+                                              placement='bottom'
+                                              overlay={
+                                                <Popover id='sell-tradingview-force-sell-over-zero-below-trigger-price-when-sell-overlay-right'>
+                                                  <Popover.Content>
+                                                    If enabled, the bot will use
+                                                    TradingView recommendation
+                                                    to sell the coin at the
+                                                    market price if the profit
+                                                    is over 0 but under the
+                                                    trigger price. When the
+                                                    condition is met and the
+                                                    TradingView recommendation
+                                                    is `Sell`, then the bot will
+                                                    place a market sell order
+                                                    immediately. If the auto-buy
+                                                    trigger is enabled, then it
+                                                    will place a buy order
+                                                    later. Note that this action
+                                                    can cause loss if the profit
+                                                    is less than commission.
+                                                  </Popover.Content>
+                                                </Popover>
+                                              }>
+                                              <Button
+                                                variant='link'
+                                                className='p-0 m-0 ml-1 text-info'>
+                                                <i className='fas fa-question-circle fa-sm'></i>
+                                              </Button>
+                                            </OverlayTrigger>
+                                          </Form.Check.Label>
+                                        </Form.Check>
+                                      </Form.Group>
+                                    </div>
+                                    <div className='col-12'>
+                                      <Form.Group
+                                        controlId='field-sell-tradingview-force-sell-over-zero-below-trigger-price-when-strong-sell'
+                                        className='mb-2'>
+                                        <Form.Check size='sm'>
+                                          <Form.Check.Input
+                                            type='checkbox'
+                                            data-state-key='sell.tradingView.forceSellOverZeroBelowTriggerPrice.whenStrongSell'
+                                            checked={
+                                              symbolConfiguration.sell
+                                                .tradingView
+                                                .forceSellOverZeroBelowTriggerPrice
+                                                .whenStrongSell
+                                            }
+                                            onChange={this.handleInputChange}
+                                          />
+                                          <Form.Check.Label>
+                                            Force sell at the market price when
+                                            recommendation is{' '}
+                                            <code>Strong sell</code> and the
+                                            profit is between <code>0</code> to{' '}
+                                            <code>trigger price</code>{' '}
+                                            <OverlayTrigger
+                                              trigger='click'
+                                              key='sell-tradingview-force-sell-over-zero-below-trigger-price-when-strong-sell-overlay'
+                                              placement='bottom'
+                                              overlay={
+                                                <Popover id='sell-tradingview-force-sell-over-zero-below-trigger-price-when-strong-sell-overlay-right'>
+                                                  <Popover.Content>
+                                                    If enabled, the bot will use
+                                                    TradingView recommendation
+                                                    to sell the coin at the
+                                                    market price if the profit
+                                                    is over 0 but under the
+                                                    trigger price. When the
+                                                    condition is met and the
+                                                    TradingView recommendation
+                                                    is `Strong sell`, then the
+                                                    bot will place a market sell
+                                                    order immediately. If the
+                                                    auto-buy trigger is enabled,
+                                                    then it will place a buy
+                                                    order later. Note that this
+                                                    action can cause loss if the
+                                                    profit is less than
+                                                    commission.
+                                                  </Popover.Content>
+                                                </Popover>
+                                              }>
+                                              <Button
+                                                variant='link'
+                                                className='p-0 m-0 ml-1 text-info'>
+                                                <i className='fas fa-question-circle fa-sm'></i>
+                                              </Button>
+                                            </OverlayTrigger>
+                                          </Form.Check.Label>
+                                        </Form.Check>
                                       </Form.Group>
                                     </div>
                                   </div>

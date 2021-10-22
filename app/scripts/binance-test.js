@@ -1,26 +1,8 @@
 /* istanbul ignore file */
-const _ = require('lodash');
 const config = require('config');
 const { binance, logger } = require('../helpers');
 
-const maskConfig = orgConfig => {
-  const maskedConfig = _.cloneDeep(orgConfig);
-
-  const maskedPaths = [
-    'binance.live.apiKey',
-    'binance.live.secretKey',
-    'binance.test.apiKey',
-    'binance.test.secretKey'
-  ];
-
-  maskedPaths.forEach(path => {
-    if (_.get(maskedConfig, path, '') !== '') {
-      _.set(maskedConfig, path, '<masked>');
-    }
-  });
-
-  return maskedConfig;
-};
+const { maskConfig } = require('../cronjob/trailingTradeHelper/util');
 
 (async () => {
   const maskededConfig = maskConfig(config);

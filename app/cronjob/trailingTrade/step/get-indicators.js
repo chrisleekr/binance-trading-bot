@@ -58,6 +58,13 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
+  const cachedTradingView =
+    JSON.parse(await cache.hget('trailing-trade-tradingview', `${symbol}`)) ||
+    {};
+
+  // Set trading view
+  data.tradingView = cachedTradingView;
+
   // Set last candle
   data.lastCandle = cachedLatestCandle;
   // Merge indicator data

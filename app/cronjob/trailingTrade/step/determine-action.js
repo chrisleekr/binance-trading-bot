@@ -1,10 +1,12 @@
 const _ = require('lodash');
 const moment = require('moment');
+const { slack } = require('../../../helpers');
 
 const {
   isActionDisabled,
   getNumberOfBuyOpenOrders,
-  getNumberOfOpenTrades
+  getNumberOfOpenTrades,
+  getAPILimit
 } = require('../../trailingTradeHelper/common');
 const { getGridTradeOrder } = require('../../trailingTradeHelper/order');
 
@@ -120,6 +122,13 @@ const isExceedingMaxBuyOpenOrders = async (logger, data) => {
   return false;
 };
 
+/**
+ * Check whether max number of open trades has reached
+ *
+ * @param {*} logger
+ * @param {*} data
+ * @returns
+ */
 const isExceedingMaxOpenTrades = async (logger, data) => {
   const {
     symbolConfiguration: {
@@ -164,10 +173,11 @@ const isExceedingMaxOpenTrades = async (logger, data) => {
 const setBuyActionAndMessage = (logger, rawData, action, processMessage) => {
   const data = rawData;
 
-  logger.info({ tag: 'set-buy-action-and-message', data }, processMessage);
   data.action = action;
   data.buy.processMessage = processMessage;
   data.buy.updatedAt = moment().utc();
+
+  logger.info({ data, saveLog: true }, processMessage);
   return data;
 };
 
@@ -239,6 +249,157 @@ const isLowerThanStopLossTriggerPrice = data => {
 };
 
 /**
+ * Check whether should execute stop-loss if recommendation is neutral, sell or strong sell
+ *
+ * @param {*} logger
+ * @param {*} data
+ * @returns
+ */
+const shouldForceSellByTradingViewRecommendation = (logger, data) => {
+  const {
+    symbolInfo: {
+      filterLotSize: { stepSize },
+      filterMinNotional: { minNotional }
+    },
+    symbolConfiguration: {
+      sell: {
+        tradingView: {
+          forceSellOverZeroBelowTriggerPrice: {
+            whenNeutral: tradingViewForceSellWhenNeutral,
+            whenSell: tradingViewForceSellWhenSell,
+            whenStrongSell: tradingViewForceSellWhenStrongSell
+          }
+        }
+      },
+      botOptions: {
+        tradingView: { useOnlyWithin: tradingViewUseOnlyWithin }
+      }
+    },
+    baseAssetBalance: { free: baseAssetFreeBalance },
+    sell: {
+      currentProfit: sellCurrentProfit,
+      currentPrice: sellCurrentPrice,
+      triggerPrice: sellTriggerPrice
+    },
+    tradingView
+  } = data;
+
+  // If tradingView force sell configuration is not enabled, then no need to process.
+  if (
+    tradingViewForceSellWhenNeutral === false &&
+    tradingViewForceSellWhenSell === false &&
+    tradingViewForceSellWhenStrongSell === false
+  ) {
+    logger.info(
+      { tradingViewForceSellWhenSell, tradingViewForceSellWhenStrongSell },
+      'TradingView recommendation is not enabled.'
+    );
+
+    return { shouldForceSell: false, forceSellMessage: '' };
+  }
+
+  const tradingViewTime = _.get(tradingView, 'result.time', '');
+
+  const tradingViewSummaryRecommendation = _.get(
+    tradingView,
+    'result.summary.RECOMMENDATION',
+    ''
+  );
+
+  if (tradingViewTime === '' || tradingViewSummaryRecommendation === '') {
+    logger.info(
+      { tradingViewTime, tradingViewSummaryRecommendation },
+      'TradingView time or recommendation is empty. Ignore TradingView recommendation.'
+    );
+
+    return { shouldForceSell: false, forceSellMessage: '' };
+  }
+
+  // If tradingViewTime is more than configured time, then ignore TradingView recommendation.
+  const tradingViewUpdatedAt = moment
+    .utc(tradingViewTime, 'YYYY-MM-DDTHH:mm:ss.SSSSSS')
+    .add(tradingViewUseOnlyWithin, 'minutes');
+  const currentTime = moment.utc();
+  if (tradingViewUpdatedAt.isBefore(currentTime)) {
+    logger.info(
+      {
+        tradingViewUpdatedAt: tradingViewUpdatedAt.format(),
+        currentTime: currentTime.format()
+      },
+      `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. Ignore TradingView recommendation.`
+    );
+
+    return {
+      shouldForceSell: false,
+      forceSellMessage:
+        `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. ` +
+        `Ignore TradingView recommendation.`
+    };
+  }
+
+  // If current profit is less than 0 or current price is more than trigger price
+  if (sellCurrentProfit < 0 || sellCurrentPrice > sellTriggerPrice) {
+    logger.info(
+      { sellCurrentProfit, sellCurrentPrice, sellTriggerPrice },
+      'Current profit if less than 0 or current price is more than trigger price. Ignore TradingView recommendation.'
+    );
+
+    return { shouldForceSell: false, forceSellMessage: '' };
+  }
+
+  // Only execute when the free balance is more than minimum notional value.
+  const lotPrecision = parseFloat(stepSize) === 1 ? 0 : stepSize.indexOf(1) - 1;
+  const freeBalance = parseFloat(_.floor(baseAssetFreeBalance, lotPrecision));
+  const orderQuantity = parseFloat(
+    _.floor(freeBalance - freeBalance * (0.1 / 100), lotPrecision)
+  );
+
+  if (orderQuantity * sellCurrentPrice < parseFloat(minNotional)) {
+    logger.info(
+      { sellCurrentProfit, sellCurrentPrice, sellTriggerPrice },
+      'Order quantity is less than minimum notional value. Ignore TradingView recommendation.'
+    );
+
+    return { shouldForceSell: false, forceSellMessage: '' };
+  }
+
+  logger.info({ freeBalance }, 'Free balance');
+
+  // Get force sell recommendation
+  const forceSellRecommendations = [];
+  if (tradingViewForceSellWhenNeutral) {
+    forceSellRecommendations.push('neutral');
+  }
+
+  if (tradingViewForceSellWhenSell) {
+    forceSellRecommendations.push('sell');
+  }
+
+  if (tradingViewForceSellWhenStrongSell) {
+    forceSellRecommendations.push('strong_sell');
+  }
+
+  // If summary recommendation is force sell recommendation, then execute force sell
+  if (
+    forceSellRecommendations.length > 0 &&
+    forceSellRecommendations.includes(
+      tradingViewSummaryRecommendation.toLowerCase()
+    ) === true
+  ) {
+    return {
+      shouldForceSell: true,
+      forceSellMessage:
+        `TradingView recommendation is ${tradingViewSummaryRecommendation}. ` +
+        `The current profit (${sellCurrentProfit}) is more than 0 and the current price (${sellCurrentPrice}) ` +
+        `is under trigger price (${sellTriggerPrice}). Sell at market price.`
+    };
+  }
+
+  // Otherwise, simply ignore
+  return { shouldForceSell: false, forceSellMessage: '' };
+};
+
+/**
  * Set sell action and message
  *
  * @param {*} logger
@@ -250,10 +411,11 @@ const isLowerThanStopLossTriggerPrice = data => {
 const setSellActionAndMessage = (logger, rawData, action, processMessage) => {
   const data = rawData;
 
-  logger.info({ data }, processMessage);
   data.action = action;
   data.sell.processMessage = processMessage;
   data.sell.updatedAt = moment().utc();
+
+  logger.info({ data, saveLog: true }, processMessage);
   return data;
 };
 
@@ -370,7 +532,8 @@ const execute = async (logger, rawData) => {
         logger,
         data,
         'wait',
-        `The current price has reached the lowest price; however, it is restricted to buy the coin.`
+        `The current price has reached the lowest price; however, it is restricted to buy the coin ` +
+          `because ATH price higher than the current price.`
       );
     }
 
@@ -416,7 +579,34 @@ const execute = async (logger, rawData) => {
         `There is a last gird trade sell order. Wait.`
       );
     }
-    // And if current price is higher or equal than trigger price
+
+    // If tradingView recommendation is sell or strong sell
+    const { shouldForceSell, forceSellMessage } =
+      shouldForceSellByTradingViewRecommendation(logger, data);
+    if (shouldForceSell) {
+      // Prevent disable by stop-loss
+      data.canDisable = false;
+
+      // Notify as it's important message for now.
+      // Eventually, should convert to logging to reduce unnecessary notifications.
+      slack.sendMessage(
+        `${symbol} Action (${moment().format(
+          'HH:mm:ss.SSS'
+        )}): Force sell: \n` +
+          `- Message: ${forceSellMessage}\n` +
+          `- Current API Usage: ${getAPILimit(logger)}`
+      );
+
+      // Then sell market order
+      return setSellActionAndMessage(
+        logger,
+        data,
+        'sell-stop-loss',
+        forceSellMessage
+      );
+    }
+
+    // If current price is higher or equal than trigger price
     if (isHigherThanSellTriggerPrice(data)) {
       const checkDisable = await isActionDisabled(symbol);
       logger.info(
@@ -433,6 +623,7 @@ const execute = async (logger, rawData) => {
             `Resume sell process after ${checkDisable.ttl}s.`
         );
       }
+
       // Then sell
       return setSellActionAndMessage(
         logger,
@@ -441,6 +632,7 @@ const execute = async (logger, rawData) => {
         "The current price is more than the trigger price. Let's sell."
       );
     }
+
     if (isLowerThanStopLossTriggerPrice(data)) {
       const checkDisable = await isActionDisabled(symbol);
       logger.info(
@@ -457,6 +649,7 @@ const execute = async (logger, rawData) => {
             `Resume sell process after ${checkDisable.ttl}s.`
         );
       }
+
       // Then sell market order
       return setSellActionAndMessage(
         logger,

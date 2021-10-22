@@ -70,6 +70,8 @@ class CoinWrapperSymbol extends React.Component {
             isAuthenticated={isAuthenticated}
           />
 
+          <SymbolLogsIcon symbol={symbol} isAuthenticated={isAuthenticated} />
+
           <SymbolSettingIcon
             symbolInfo={symbolInfo}
             globalConfiguration={globalConfiguration}

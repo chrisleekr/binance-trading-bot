@@ -717,6 +717,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
             it('triggers disableAction as order filled', () => {
               expect(mockDisableAction).toHaveBeenCalledWith(
+                loggerMock,
                 t.symbol,
                 {
                   disabledBy: 'buy filled order',
@@ -803,6 +804,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
                 it('triggers disableAction after getting order result', () => {
                   expect(mockDisableAction).toHaveBeenCalledWith(
+                    loggerMock,
                     t.symbol,
                     {
                       disabledBy: 'buy filled order',
@@ -1453,6 +1455,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
             it('triggers disableAction as order filled', () => {
               expect(mockDisableAction).toHaveBeenCalledWith(
+                loggerMock,
                 t.symbol,
                 {
                   disabledBy: 'sell filled order',
@@ -1531,6 +1534,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
                 it('triggers disableAction after getting order result', () => {
                   expect(mockDisableAction).toHaveBeenCalledWith(
+                    loggerMock,
                     t.symbol,
                     {
                       disabledBy: 'sell filled order',

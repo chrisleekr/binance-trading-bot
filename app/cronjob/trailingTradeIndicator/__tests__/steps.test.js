@@ -14,6 +14,7 @@ describe('steps.js', () => {
       executeDustTransfer: expect.any(Function),
       getClosedTrades: expect.any(Function),
       getOrderStats: expect.any(Function),
+      getTradingView: expect.any(Function),
       saveDataToCache: expect.any(Function)
     });
   });

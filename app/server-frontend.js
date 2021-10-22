@@ -6,6 +6,7 @@ const config = require('config');
 const requestIp = require('request-ip');
 const { RateLimiterRedis } = require('rate-limiter-flexible');
 
+const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
 const { cache } = require('./helpers');
 
 const maxConsecutiveFails = config.get(
@@ -26,7 +27,10 @@ const { configureLocalTunnel } = require('./frontend/local-tunnel/configure');
 
 const runFrontend = async serverLogger => {
   const logger = serverLogger.child({ server: 'frontend' });
-  logger.info({ config }, `API ${config.get('mode')} frontend started on`);
+  logger.info(
+    { config: maskConfig(config) },
+    `API ${config.get('mode')} frontend started on`
+  );
 
   const app = express();
   app.use(compression());

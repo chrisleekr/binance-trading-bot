@@ -6,6 +6,45 @@ const { mongo, cache, PubSub } = require('../../helpers');
 const { getLastBuyPrice, getSymbolInfo } = require('./common');
 
 /**
+ * Reconfigure MongoDB index
+ * @param {*} logger
+ * @param {*} configuration
+ */
+const reconfigureIndex = async (logger, configuration) => {
+  logger.info('Reconfigure index');
+  const {
+    botOptions: {
+      logs: { deleteAfter: logsDeleteAfter }
+    }
+  } = configuration;
+
+  // Drop trailing-trade-logs-logs-idx
+  try {
+    await mongo.dropIndex(
+      logger,
+      'trailing-trade-logs',
+      'trailing-trade-logs-logs-idx'
+    );
+  } catch (e) {
+    /* istanbul ignore next */
+    logger.info({ e }, "Cannot find index. But it's ok to ignore.");
+  }
+
+  // Create trailing-trade-logs-logs-idx
+
+  await mongo.createIndex(
+    logger,
+    'trailing-trade-logs',
+    { loggedAt: 1 },
+    {
+      name: 'trailing-trade-logs-logs-idx',
+      background: true,
+      expireAfterSeconds: logsDeleteAfter * 60
+    }
+  );
+};
+
+/**
  * Save global configuration to mongodb
  *
  * @param {*} logger
@@ -27,6 +66,7 @@ const saveGlobalConfiguration = async (logger, configuration) => {
 
   await cache.hdelall('trailing-trade-configurations:*');
 
+  await reconfigureIndex(logger, configuration);
   PubSub.publish('reset-binance-websocket', true);
 
   return result;
@@ -163,6 +203,7 @@ const saveSymbolGridTrade = async (logger, symbol = null, gridTrade = {}) => {
     // If symbol is not provided, then return empty.
     return {};
   }
+  logger.info({ gridTrade, saveLog: true }, 'The grid trade has been updated.');
 
   const result = await mongo.upsertOne(
     logger,
@@ -307,6 +348,8 @@ const saveSymbolGridTradeArchive = async (logger, key = null, data = {}) => {
     return {};
   }
 
+  logger.info({ data, saveLog: true }, 'The grid trade has been archived.');
+
   const result = await mongo.upsertOne(
     logger,
     'trailing-trade-grid-trade-archive',
@@ -326,6 +369,13 @@ const saveSymbolGridTradeArchive = async (logger, key = null, data = {}) => {
   return result;
 };
 
+/**
+ * Archive symbol grid trade
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @returns
+ */
 const archiveSymbolGridTrade = async (logger, symbol = null) => {
   // Retrieve symbol info
   const symbolInfo = await getSymbolInfo(logger, symbol);

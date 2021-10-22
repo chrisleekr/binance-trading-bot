@@ -4,6 +4,7 @@ const config = require('config');
 const { PubSub, binance, cache, slack } = require('./helpers');
 
 const { getAccountInfo } = require('./cronjob/trailingTradeHelper/common');
+const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
 
 const {
   getGlobalConfiguration
@@ -107,7 +108,6 @@ const loopToCheckLastReceivedAt = async logger => {
   // If last received candle time is more than a mintues, then it means something went wrong. Reconnect websocket.
   if (lastReceivedAt.diff(currentTime) / 1000 < -60) {
     logger.warn(
-      { debug: true },
       'Binance candle is not received in last mintues. Reconfigure websocket'
     );
 
@@ -181,7 +181,10 @@ const runBinance = async serverLogger => {
   const logger = serverLogger.child({ server: 'binance' });
   const mode = config.get('mode');
 
-  logger.info({ config }, `Binance ${config.get('mode')} started on`);
+  logger.info(
+    { config: maskConfig(config) },
+    `Binance ${config.get('mode')} started on`
+  );
 
   if (mode === 'live') {
     await setupLive(logger);

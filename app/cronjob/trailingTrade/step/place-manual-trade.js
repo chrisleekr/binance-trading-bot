@@ -8,6 +8,23 @@ const {
 const { saveManualOrder } = require('../../trailingTradeHelper/order');
 
 /**
+ * Set message and return data
+ *
+ * @param {*} logger
+ * @param {*} rawData
+ * @param {*} processMessage
+ * @returns
+ */
+const setMessage = (logger, rawData, processMessage) => {
+  const data = rawData;
+
+  logger.info({ data, saveLog: true }, processMessage);
+  data.buy.processMessage = processMessage;
+  data.buy.updatedAt = moment().utc();
+  return data;
+};
+
+/**
  * Format order params for market total
  *
  * @param {*} logger
@@ -136,6 +153,11 @@ const slackMessageOrderParams = async (logger, symbol, side, order, params) => {
     type += ` - ${marketType.toUpperCase()}`;
   }
 
+  logger.info(
+    { side, order, params, saveLog: true },
+    `The manual ${side.toUpperCase()} order will be placed.`
+  );
+
   return slack.sendMessage(
     `${symbol} Manual ${side.toUpperCase()} Action (${moment().format(
       'HH:mm:ss.SSS'
@@ -167,6 +189,11 @@ const slackMessageOrderResult = async (
   if (type === 'MARKET') {
     type += ` - ${marketType.toUpperCase()}`;
   }
+
+  logger.info(
+    { side, order, orderResult, saveLog: true },
+    `The manual ${side.toUpperCase()} order has been placed.`
+  );
 
   PubSub.publish('frontend-notification', {
     type: 'success',
@@ -247,7 +274,7 @@ const execute = async (logger, rawData) => {
 
   const orderResult = await binance.client.order(orderParams);
 
-  logger.info({ orderResult }, 'Order result');
+  logger.info({ orderResult }, 'Manual order result');
 
   await recordOrder(logger, orderResult, checkManualOrderPeriod);
 
@@ -263,10 +290,8 @@ const execute = async (logger, rawData) => {
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
   slackMessageOrderResult(logger, symbol, order.side, order, orderResult);
-  data.buy.processMessage = `Placed new manual order.`;
-  data.buy.updatedAt = moment().utc();
 
-  return data;
+  return setMessage(logger, data, `Placed new manual order.`);
 };
 
 module.exports = { execute };

@@ -130,6 +130,12 @@ Then the bot will execute 2nd purchase for the coin. The last buy price will be 
 
 - Final last buy price: ($50 + $100)/(0.5 COIN + 1.29 COIN) = $83.80
 
+##### In-depth Buy Configuration in-depth
+
+The detailed document for buy configuration available here.
+
+[https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario)
+
 ### 卖出信号
 
 If there is enough balance for selling and the last buy price is recorded in the bot, then the bot will start monitoring the sell signal of the grid trade #1. Once the current price reaches the trigger price of the grid trade #1, then the bot will place a STOP-LOSS-LIMIT order to sell. If the current price continuously rises, then the bot will cancel the previous order and re-place the new STOP-LOSS-LIMIT order with the new price.
@@ -225,6 +231,12 @@ The final profit would be
 - 2nd sell: $87.21 * 0.895 = $78.05295
 - Final profit: $162 (8% profit)
 
+##### In-depth Sell Configuration
+
+The detailed document for buy configuration available here.
+
+[https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario)
+
 ### [功能](https://github.com/chrisleekr/binance-trading-bot/wiki/Features)
 
 - 手动交易
@@ -233,6 +245,7 @@ The final profit would be
 - 同时监控多个硬币
 - 止损
 - 限制最高价格的购买次数
+- Integrated with TradingView Technical Analysis
 
 ### 前端 + WebSocket
 
@@ -318,7 +331,7 @@ The final profit would be
 
 | Password Protected | Frontend Mobile |
 | ------------------ | --------------- |
-| ![Password Protected](https://user-images.githubusercontent.com/5715919/133920104-49d1b590-c2ba-46d7-a294-eb6b24b459f5.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/133920081-ce7da519-136a-4aca-841e-a85a9a5b249e.png) |
+| ![Password Protected](https://user-images.githubusercontent.com/5715919/133920104-49d1b590-c2ba-46d7-a294-eb6b24b459f5.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/137472107-4059fcdf-5174-4282-81af-80cea5b269a0.png) |
 
 | Setting | Manual Trade |
 | ------- | ------------ |
@@ -326,7 +339,7 @@ The final profit would be
 
 | Frontend Desktop  | Closed Trades |
 | ----------------- | ------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/133920034-0889f631-f11c-4463-8f7f-39af070df60a.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/133920059-a72972c8-18c4-4adb-9641-8dbe7ff3a14a.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/137472148-7be1e19b-3ce5-4d5a-aa28-18c55b3b48aa.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/137472190-a4c6ef0f-3399-44bb-852f-eedb7c67d629.png) |
 
 ### Sample Trade
 

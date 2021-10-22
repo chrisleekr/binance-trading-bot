@@ -16,7 +16,10 @@ const handleSymbolTriggerBuy = async (logger, ws, payload) => {
     {
       action: 'buy',
       actionAt: moment().format(),
-      triggeredBy: 'user'
+      triggeredBy: 'user',
+      notify: true,
+      // For triggering buy action must execute. So don't check TradingView recommendation.
+      checkTradingView: false
     },
     'The buy order received by the bot. Wait for placing the order.'
   );

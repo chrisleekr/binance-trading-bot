@@ -11,6 +11,23 @@ const {
 const { saveGridTradeOrder } = require('../../trailingTradeHelper/order');
 
 /**
+ * Set message and return data
+ *
+ * @param {*} logger
+ * @param {*} rawData
+ * @param {*} processMessage
+ * @returns
+ */
+const setMessage = (logger, rawData, processMessage) => {
+  const data = rawData;
+
+  logger.info({ data, saveLog: true }, processMessage);
+  data.sell.processMessage = processMessage;
+  data.sell.updatedAt = moment().utc();
+  return data;
+};
+
+/**
  * Place a sell order if has enough balance
  *
  * @param {*} logger
@@ -56,19 +73,20 @@ const execute = async (logger, rawData) => {
   }
 
   if (openOrders.length > 0) {
-    data.sell.processMessage =
+    return setMessage(
+      logger,
+      data,
       `There are open orders for ${symbol}. ` +
-      `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
+        `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`
+    );
   }
 
   if (currentGridTrade === null) {
-    data.sell.processMessage = `Current grid trade is not defined. Do not place an order.`;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
+    return setMessage(
+      logger,
+      data,
+      `Current grid trade is not defined. Do not place an order.`
+    );
   }
 
   const { stopPercentage, limitPercentage, quantityPercentage } =
@@ -113,42 +131,42 @@ const execute = async (logger, rawData) => {
   }
 
   if (orderQuantity <= parseFloat(minQty)) {
-    data.sell.processMessage =
+    return setMessage(
+      logger,
+      data,
       `Order quantity is less or equal than the minimum quantity - ${minQty}. ` +
-      `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
+        `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`
+    );
   }
   if (orderQuantity > parseFloat(maxQty)) {
     orderQuantity = parseFloat(maxQty);
   }
 
   if (orderQuantity * limitPrice < parseFloat(minNotional)) {
-    data.sell.processMessage =
+    return setMessage(
+      logger,
+      data,
       `Notional value is less than the minimum notional value. ` +
-      `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
+        `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`
+    );
   }
 
   if (tradingEnabled !== true) {
-    data.sell.processMessage =
+    return setMessage(
+      logger,
+      data,
       `Trading for ${symbol} is disabled. ` +
-      `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
+        `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`
+    );
   }
 
   if (isExceedAPILimit(logger)) {
-    data.sell.processMessage =
+    return setMessage(
+      logger,
+      data,
       `Binance API limit has been exceeded. ` +
-      `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`;
-    data.sell.updatedAt = moment().utc();
-
-    return data;
+        `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`
+    );
   }
 
   const orderParams = {
@@ -171,12 +189,15 @@ const execute = async (logger, rawData) => {
   );
 
   logger.info(
-    { debug: true, function: 'order', orderParams },
-    'Sell order params'
+    { function: 'order', orderParams, saveLog: true },
+    `The grid trade #${humanisedGridTradeIndex} sell order will be placed.`
   );
   const orderResult = await binance.client.order(orderParams);
 
-  logger.info({ orderResult }, 'Order result');
+  logger.info(
+    { orderResult, saveLog: true },
+    `The grid trade #${humanisedGridTradeIndex} sell order has been placed.`
+  );
 
   // Set last sell grid order to be checked until it is executed
 
@@ -206,10 +227,12 @@ const execute = async (logger, rawData) => {
       )}\`\`\`\n` +
       `- Current API Usage: ${getAPILimit(logger)}`
   );
-  data.sell.processMessage = `Placed new stop loss limit order for selling of grid trade #${humanisedGridTradeIndex}.`;
-  data.sell.updatedAt = moment().utc();
 
-  return data;
+  return setMessage(
+    logger,
+    data,
+    `Placed new stop loss limit order for selling of grid trade #${humanisedGridTradeIndex}.`
+  );
 };
 
 module.exports = { execute };

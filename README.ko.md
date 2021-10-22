@@ -122,6 +122,12 @@
 
 - 최종 매수 가격: : ($50 + $100)/(0.5 COIN + 1.29 COIN) = $83.80
 
+##### 매수 환경설정
+
+상세한 매수 환경설정에 대한 설명은 아래에서 보실 수 있습니다.
+
+[https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario)
+
 ### 매도 신호
 
 만약 매도를 위한 충분한 코인이 있고 매수 가격(Last buy price)가 저장되었을 경우, 프로그램은 첫번째 그리드 트레이딩을 위한 매도 신호를 모니터링하기 시작합니다. 현재 가격이 매도 시작 가격에 도달한다면, 프로그램은 매도 STOP-LOSS-LIMIT 주문을 넣습니다. 만약 현재 가격이 계속 상승한다면, 프로그램은 이전 주문을 취소하고, 새 가격으로 매도 STOP-LOSS-LIMIT 주문을 넣습니다.
@@ -217,31 +223,11 @@
 - 두번째 매도: $87.21 * 0.895 = $78.05295
 - 최종 수익: $162 (8% 수익)
 
-### 매도 스탑-로스 시나리오
+##### 매도 환경설정
 
-예를 들어, 매도 스탑-로스 환경설정이 다음과 같이 되었다고 가정해봅시다:
+상세한 매도 환경설정에 대한 설명은 아래에서 보실 수 있습니다.
 
-- 최대 손실 퍼센트(Max loss percentage): 0.90 (-10%)
-- 매수 중단 시간(분): 60
-
-그리고 현재 마켓이 아래와 같다고 가정합니다:
-
-- 현재 가격(Current price): $95
-- 매수 가격(Last buy price): $100
-- 스탑-로스 가격(Stop-Loss price): $90
-
-이럴 경우 스탑-로스 가격($90)이 현재 가격($95)보다 낮기 때문에 프로그램은 매도 주문을 넣지 않습니다.
-
-만약 현재 가격이 계속 하락한다면, 프로그램은 현재 가격이 스탑-로스 가격에 도달할때까지 계속 모니터링합니다.
-
-시간이 지나, 마켓이 다음과 같이 변했다고 가정합니다:
-
-- 현재 가격(Current price): $90
-- 스탑-로스 가격(Stop-Loss price): $90
-
-현재 가격($90)이 스탑-로스 가격($90)과 같거나 낮기때문에 프로그램은 새로운 매도 MARKET 주문을 넣습니다. 실 거래시, 주문 수량은 다를 수 있습니다.
-
-그리고 지속적인 매수/매도를 방지하기 위해서 해당 코인은 60분동안 임시로 거래가 중단됩니다. 프론트엔드는 중단 아이콘과 다시 거래 시작까지 얼마나 남았는지 시간을 보여줍니다. 거래를 바로 시작할려면 플레이 아이콘을 클릭하시면 됩니다.
+[https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario)
 
 ### [기능](https://github.com/chrisleekr/binance-trading-bot/wiki/Features)
 
@@ -252,6 +238,7 @@
 - 스탑-로스
 - 최고가일 경우 매수 제한하기
 - 매수/매도 그리드 트레이딩
+- TradingView 기술적 지표 지원
 
 ### 프론트엔드 + 웹 소켓
 
@@ -324,7 +311,7 @@
 
 | Password Protected | Frontend Mobile |
 | ------------------ | --------------- |
-| ![Password Protected](https://user-images.githubusercontent.com/5715919/133920104-49d1b590-c2ba-46d7-a294-eb6b24b459f5.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/133920081-ce7da519-136a-4aca-841e-a85a9a5b249e.png) |
+| ![Password Protected](https://user-images.githubusercontent.com/5715919/133920104-49d1b590-c2ba-46d7-a294-eb6b24b459f5.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/137472107-4059fcdf-5174-4282-81af-80cea5b269a0.png) |
 
 | Setting | Manual Trade |
 | ------- | ------------ |
@@ -332,7 +319,7 @@
 
 | Frontend Desktop  | Closed Trades |
 | ----------------- | ------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/133920034-0889f631-f11c-4463-8f7f-39af070df60a.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/133920059-a72972c8-18c4-4adb-9641-8dbe7ff3a14a.png) |
+| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/137472148-7be1e19b-3ce5-4d5a-aa28-18c55b3b48aa.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/137472190-a4c6ef0f-3399-44bb-852f-eedb7c67d629.png) |
 
 ### 샘플 거래
 

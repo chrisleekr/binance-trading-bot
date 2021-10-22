@@ -13,14 +13,14 @@ describe('get-indicators.js', () => {
   describe('execute', () => {
     beforeEach(() => {
       jest.clearAllMocks().resetModules();
+
+      const { cache, logger } = require('../../../../helpers');
+      cacheMock = cache;
+      loggerMock = logger;
     });
 
     describe('with no open orders and no last buy price', () => {
       beforeEach(async () => {
-        const { cache, logger } = require('../../../../helpers');
-        cacheMock = cache;
-        loggerMock = logger;
-
         mockGetLastBuyPrice = jest.fn().mockResolvedValue(null);
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getLastBuyPrice: mockGetLastBuyPrice
@@ -45,6 +45,25 @@ describe('get-indicators.js', () => {
             return JSON.stringify({
               symbol: 'BTCUSDT',
               close: '15555.09000000'
+            });
+          }
+
+          if (hash === 'trailing-trade-tradingview' && key === 'BTCUSDT') {
+            return JSON.stringify({
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
             });
           }
 
@@ -82,7 +101,7 @@ describe('get-indicators.js', () => {
           openOrders: []
         };
 
-        result = await step.execute(logger, rawData);
+        result = await step.execute(loggerMock, rawData);
       });
 
       it('triggers getLastBuyPrice', () => {
@@ -158,6 +177,22 @@ describe('get-indicators.js', () => {
             stopLossTriggerPrice: null,
             processMessage: '',
             updatedAt: expect.any(Object)
+          },
+          tradingView: {
+            request: {
+              symbol: 'BTCUSDT',
+              screener: 'CRYPTO',
+              exchange: 'BINANCE',
+              interval: '15m'
+            },
+            result: {
+              summary: {
+                RECOMMENDATION: 'SELL',
+                BUY: 4,
+                SELL: 14,
+                NEUTRAL: 8
+              }
+            }
           }
         });
       });
@@ -165,10 +200,6 @@ describe('get-indicators.js', () => {
 
     describe('with disabled ATH restriction', () => {
       beforeEach(async () => {
-        const { cache, logger } = require('../../../../helpers');
-        cacheMock = cache;
-        loggerMock = logger;
-
         mockGetLastBuyPrice = jest.fn().mockResolvedValue(null);
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getLastBuyPrice: mockGetLastBuyPrice
@@ -193,6 +224,25 @@ describe('get-indicators.js', () => {
             return JSON.stringify({
               symbol: 'BTCUSDT',
               close: '15555.09000000'
+            });
+          }
+
+          if (hash === 'trailing-trade-tradingview' && key === 'BTCUSDT') {
+            return JSON.stringify({
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
             });
           }
 
@@ -230,7 +280,7 @@ describe('get-indicators.js', () => {
           openOrders: []
         };
 
-        result = await step.execute(logger, rawData);
+        result = await step.execute(loggerMock, rawData);
       });
 
       it('triggers getLastBuyPrice', () => {
@@ -306,50 +356,82 @@ describe('get-indicators.js', () => {
             stopLossTriggerPrice: null,
             processMessage: '',
             updatedAt: expect.any(Object)
+          },
+          tradingView: {
+            request: {
+              symbol: 'BTCUSDT',
+              screener: 'CRYPTO',
+              exchange: 'BINANCE',
+              interval: '15m'
+            },
+            result: {
+              summary: {
+                RECOMMENDATION: 'SELL',
+                BUY: 4,
+                SELL: 14,
+                NEUTRAL: 8
+              }
+            }
           }
         });
       });
     });
 
     describe('with no open orders but has last buy price', () => {
+      beforeEach(() => {
+        mockGetLastBuyPrice = jest
+          .fn()
+          .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          getLastBuyPrice: mockGetLastBuyPrice
+        }));
+        cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+          if (
+            hash === 'trailing-trade-symbols' &&
+            key === 'BTCUSDT-indicator-data'
+          ) {
+            return JSON.stringify({
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000
+            });
+          }
+
+          if (
+            hash === 'trailing-trade-symbols' &&
+            key === 'BTCUSDT-latest-candle'
+          ) {
+            return JSON.stringify({
+              symbol: 'BTCUSDT',
+              close: '15555.09000000'
+            });
+          }
+
+          if (hash === 'trailing-trade-tradingview' && key === 'BTCUSDT') {
+            return JSON.stringify({
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
+            });
+          }
+
+          return null;
+        });
+      });
+
       describe('when buy grid trade index is null', () => {
         beforeEach(async () => {
-          const { cache, logger } = require('../../../../helpers');
-          cacheMock = cache;
-          loggerMock = logger;
-
-          mockGetLastBuyPrice = jest
-            .fn()
-            .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
-          jest.mock('../../../trailingTradeHelper/common', () => ({
-            getLastBuyPrice: mockGetLastBuyPrice
-          }));
-
-          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
-            if (
-              hash === 'trailing-trade-symbols' &&
-              key === 'BTCUSDT-indicator-data'
-            ) {
-              return JSON.stringify({
-                highestPrice: 10000,
-                lowestPrice: 8893.03,
-                athPrice: 9000
-              });
-            }
-
-            if (
-              hash === 'trailing-trade-symbols' &&
-              key === 'BTCUSDT-latest-candle'
-            ) {
-              return JSON.stringify({
-                symbol: 'BTCUSDT',
-                close: '15555.09000000'
-              });
-            }
-
-            return null;
-          });
-
           step = require('../get-indicators');
 
           rawData = {
@@ -375,7 +457,7 @@ describe('get-indicators.js', () => {
             openOrders: []
           };
 
-          result = await step.execute(logger, rawData);
+          result = await step.execute(loggerMock, rawData);
         });
 
         it('triggers getLastBuyPrice', () => {
@@ -448,6 +530,22 @@ describe('get-indicators.js', () => {
               openOrders: [],
               processMessage: '',
               updatedAt: expect.any(Object)
+            },
+            tradingView: {
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
             }
           });
         });
@@ -455,42 +553,6 @@ describe('get-indicators.js', () => {
 
       describe('when buy grid trade index is 0', () => {
         beforeEach(async () => {
-          const { cache, logger } = require('../../../../helpers');
-          cacheMock = cache;
-          loggerMock = logger;
-
-          mockGetLastBuyPrice = jest
-            .fn()
-            .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
-          jest.mock('../../../trailingTradeHelper/common', () => ({
-            getLastBuyPrice: mockGetLastBuyPrice
-          }));
-
-          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
-            if (
-              hash === 'trailing-trade-symbols' &&
-              key === 'BTCUSDT-indicator-data'
-            ) {
-              return JSON.stringify({
-                highestPrice: 10000,
-                lowestPrice: 8893.03,
-                athPrice: 9000
-              });
-            }
-
-            if (
-              hash === 'trailing-trade-symbols' &&
-              key === 'BTCUSDT-latest-candle'
-            ) {
-              return JSON.stringify({
-                symbol: 'BTCUSDT',
-                close: '15555.09000000'
-              });
-            }
-
-            return null;
-          });
-
           step = require('../get-indicators');
 
           rawData = {
@@ -522,7 +584,7 @@ describe('get-indicators.js', () => {
             openOrders: []
           };
 
-          result = await step.execute(logger, rawData);
+          result = await step.execute(loggerMock, rawData);
         });
 
         it('triggers getLastBuyPrice', () => {
@@ -601,6 +663,22 @@ describe('get-indicators.js', () => {
               openOrders: [],
               processMessage: '',
               updatedAt: expect.any(Object)
+            },
+            tradingView: {
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
             }
           });
         });
@@ -608,42 +686,6 @@ describe('get-indicators.js', () => {
 
       describe('when buy grid trade index is 1', () => {
         beforeEach(async () => {
-          const { cache, logger } = require('../../../../helpers');
-          cacheMock = cache;
-          loggerMock = logger;
-
-          mockGetLastBuyPrice = jest
-            .fn()
-            .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
-          jest.mock('../../../trailingTradeHelper/common', () => ({
-            getLastBuyPrice: mockGetLastBuyPrice
-          }));
-
-          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
-            if (
-              hash === 'trailing-trade-symbols' &&
-              key === 'BTCUSDT-indicator-data'
-            ) {
-              return JSON.stringify({
-                highestPrice: 10000,
-                lowestPrice: 8893.03,
-                athPrice: 9000
-              });
-            }
-
-            if (
-              hash === 'trailing-trade-symbols' &&
-              key === 'BTCUSDT-latest-candle'
-            ) {
-              return JSON.stringify({
-                symbol: 'BTCUSDT',
-                close: '15555.09000000'
-              });
-            }
-
-            return null;
-          });
-
           step = require('../get-indicators');
 
           rawData = {
@@ -675,7 +717,7 @@ describe('get-indicators.js', () => {
             openOrders: []
           };
 
-          result = await step.execute(logger, rawData);
+          result = await step.execute(loggerMock, rawData);
         });
 
         it('triggers getLastBuyPrice', () => {
@@ -754,6 +796,22 @@ describe('get-indicators.js', () => {
               openOrders: [],
               processMessage: '',
               updatedAt: expect.any(Object)
+            },
+            tradingView: {
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
             }
           });
         });
@@ -761,44 +819,61 @@ describe('get-indicators.js', () => {
     });
 
     describe('with open orders and has last buy price', () => {
+      beforeEach(() => {
+        mockGetLastBuyPrice = jest
+          .fn()
+          .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          getLastBuyPrice: mockGetLastBuyPrice
+        }));
+
+        cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+          if (
+            hash === 'trailing-trade-symbols' &&
+            key === 'BTCUSDT-indicator-data'
+          ) {
+            return JSON.stringify({
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000
+            });
+          }
+
+          if (
+            hash === 'trailing-trade-symbols' &&
+            key === 'BTCUSDT-latest-candle'
+          ) {
+            return JSON.stringify({
+              symbol: 'BTCUSDT',
+              close: '15555.09000000'
+            });
+          }
+
+          if (hash === 'trailing-trade-tradingview' && key === 'BTCUSDT') {
+            return JSON.stringify({
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
+            });
+          }
+
+          return null;
+        });
+      });
+
       describe('when buy grid trade index is null', () => {
         beforeEach(async () => {
-          const { cache, logger } = require('../../../../helpers');
-          cacheMock = cache;
-          loggerMock = logger;
-
-          mockGetLastBuyPrice = jest
-            .fn()
-            .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
-          jest.mock('../../../trailingTradeHelper/common', () => ({
-            getLastBuyPrice: mockGetLastBuyPrice
-          }));
-
-          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
-            if (
-              hash === 'trailing-trade-symbols' &&
-              key === 'BTCUSDT-indicator-data'
-            ) {
-              return JSON.stringify({
-                highestPrice: 10000,
-                lowestPrice: 8893.03,
-                athPrice: 9000
-              });
-            }
-
-            if (
-              hash === 'trailing-trade-symbols' &&
-              key === 'BTCUSDT-latest-candle'
-            ) {
-              return JSON.stringify({
-                symbol: 'BTCUSDT',
-                close: '15555.09000000'
-              });
-            }
-
-            return null;
-          });
-
           step = require('../get-indicators');
 
           rawData = {
@@ -854,7 +929,7 @@ describe('get-indicators.js', () => {
             ]
           };
 
-          result = await step.execute(logger, rawData);
+          result = await step.execute(loggerMock, rawData);
         });
 
         it('triggers getLastBuyPrice', () => {
@@ -1012,6 +1087,22 @@ describe('get-indicators.js', () => {
               ],
               processMessage: '',
               updatedAt: expect.any(Object)
+            },
+            tradingView: {
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
             }
           });
         });
@@ -1019,42 +1110,6 @@ describe('get-indicators.js', () => {
 
       describe('when buy grid trade index is 0', () => {
         beforeEach(async () => {
-          const { cache, logger } = require('../../../../helpers');
-          cacheMock = cache;
-          loggerMock = logger;
-
-          mockGetLastBuyPrice = jest
-            .fn()
-            .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
-          jest.mock('../../../trailingTradeHelper/common', () => ({
-            getLastBuyPrice: mockGetLastBuyPrice
-          }));
-
-          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
-            if (
-              hash === 'trailing-trade-symbols' &&
-              key === 'BTCUSDT-indicator-data'
-            ) {
-              return JSON.stringify({
-                highestPrice: 10000,
-                lowestPrice: 8893.03,
-                athPrice: 9000
-              });
-            }
-
-            if (
-              hash === 'trailing-trade-symbols' &&
-              key === 'BTCUSDT-latest-candle'
-            ) {
-              return JSON.stringify({
-                symbol: 'BTCUSDT',
-                close: '15555.09000000'
-              });
-            }
-
-            return null;
-          });
-
           step = require('../get-indicators');
 
           rawData = {
@@ -1116,7 +1171,7 @@ describe('get-indicators.js', () => {
             ]
           };
 
-          result = await step.execute(logger, rawData);
+          result = await step.execute(loggerMock, rawData);
         });
 
         it('triggers getLastBuyPrice', () => {
@@ -1280,6 +1335,22 @@ describe('get-indicators.js', () => {
               ],
               processMessage: '',
               updatedAt: expect.any(Object)
+            },
+            tradingView: {
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
             }
           });
         });
@@ -1287,42 +1358,6 @@ describe('get-indicators.js', () => {
 
       describe('when buy grid trade index is 1', () => {
         beforeEach(async () => {
-          const { cache, logger } = require('../../../../helpers');
-          cacheMock = cache;
-          loggerMock = logger;
-
-          mockGetLastBuyPrice = jest
-            .fn()
-            .mockResolvedValue({ lastBuyPrice: 9000, quantity: 1 });
-          jest.mock('../../../trailingTradeHelper/common', () => ({
-            getLastBuyPrice: mockGetLastBuyPrice
-          }));
-
-          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
-            if (
-              hash === 'trailing-trade-symbols' &&
-              key === 'BTCUSDT-indicator-data'
-            ) {
-              return JSON.stringify({
-                highestPrice: 10000,
-                lowestPrice: 8893.03,
-                athPrice: 9000
-              });
-            }
-
-            if (
-              hash === 'trailing-trade-symbols' &&
-              key === 'BTCUSDT-latest-candle'
-            ) {
-              return JSON.stringify({
-                symbol: 'BTCUSDT',
-                close: '15555.09000000'
-              });
-            }
-
-            return null;
-          });
-
           step = require('../get-indicators');
 
           rawData = {
@@ -1384,7 +1419,7 @@ describe('get-indicators.js', () => {
             ]
           };
 
-          result = await step.execute(logger, rawData);
+          result = await step.execute(loggerMock, rawData);
         });
 
         it('triggers getLastBuyPrice', () => {
@@ -1548,6 +1583,22 @@ describe('get-indicators.js', () => {
               ],
               processMessage: '',
               updatedAt: expect.any(Object)
+            },
+            tradingView: {
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
             }
           });
         });
@@ -1556,10 +1607,6 @@ describe('get-indicators.js', () => {
 
     describe('with open orders but no last buy price', () => {
       beforeEach(async () => {
-        const { cache, logger } = require('../../../../helpers');
-        cacheMock = cache;
-        loggerMock = logger;
-
         mockGetLastBuyPrice = jest.fn().mockResolvedValue(null);
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getLastBuyPrice: mockGetLastBuyPrice
@@ -1584,6 +1631,25 @@ describe('get-indicators.js', () => {
             return JSON.stringify({
               symbol: 'BTCUSDT',
               close: '15555.09000000'
+            });
+          }
+
+          if (hash === 'trailing-trade-tradingview' && key === 'BTCUSDT') {
+            return JSON.stringify({
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
             });
           }
 
@@ -1652,7 +1718,7 @@ describe('get-indicators.js', () => {
           ]
         };
 
-        result = await step.execute(logger, rawData);
+        result = await step.execute(loggerMock, rawData);
       });
 
       it('triggers expected value', () => {
@@ -1809,6 +1875,22 @@ describe('get-indicators.js', () => {
             ],
             processMessage: '',
             updatedAt: expect.any(Object)
+          },
+          tradingView: {
+            request: {
+              symbol: 'BTCUSDT',
+              screener: 'CRYPTO',
+              exchange: 'BINANCE',
+              interval: '15m'
+            },
+            result: {
+              summary: {
+                RECOMMENDATION: 'SELL',
+                BUY: 4,
+                SELL: 14,
+                NEUTRAL: 8
+              }
+            }
           }
         });
       });
@@ -1816,10 +1898,6 @@ describe('get-indicators.js', () => {
 
     describe('with balance is not found', () => {
       beforeEach(async () => {
-        const { cache, logger } = require('../../../../helpers');
-        cacheMock = cache;
-        loggerMock = logger;
-
         mockGetLastBuyPrice = jest.fn().mockResolvedValue(null);
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getLastBuyPrice: mockGetLastBuyPrice
@@ -1844,6 +1922,25 @@ describe('get-indicators.js', () => {
             return JSON.stringify({
               symbol: 'BTCUSDT',
               close: '15555.09000000'
+            });
+          }
+
+          if (hash === 'trailing-trade-tradingview' && key === 'BTCUSDT') {
+            return JSON.stringify({
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
             });
           }
 
@@ -1889,7 +1986,7 @@ describe('get-indicators.js', () => {
           }
         };
 
-        result = await step.execute(logger, rawData);
+        result = await step.execute(loggerMock, rawData);
       });
 
       it('triggers expected value', () => {
@@ -1961,6 +2058,22 @@ describe('get-indicators.js', () => {
             openOrders: [],
             processMessage: 'World',
             updatedAt: expect.any(Object)
+          },
+          tradingView: {
+            request: {
+              symbol: 'BTCUSDT',
+              screener: 'CRYPTO',
+              exchange: 'BINANCE',
+              interval: '15m'
+            },
+            result: {
+              summary: {
+                RECOMMENDATION: 'SELL',
+                BUY: 4,
+                SELL: 14,
+                NEUTRAL: 8
+              }
+            }
           }
         });
       });
@@ -1968,10 +2081,6 @@ describe('get-indicators.js', () => {
 
     describe('when there is no indicator data cache', () => {
       beforeEach(async () => {
-        const { cache, logger } = require('../../../../helpers');
-        cacheMock = cache;
-        loggerMock = logger;
-
         mockGetLastBuyPrice = jest.fn().mockResolvedValue(null);
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getLastBuyPrice: mockGetLastBuyPrice
@@ -2022,7 +2131,7 @@ describe('get-indicators.js', () => {
           openOrders: []
         };
 
-        result = await step.execute(logger, rawData);
+        result = await step.execute(loggerMock, rawData);
       });
 
       it('returns expected value', () => {
@@ -2060,10 +2169,6 @@ describe('get-indicators.js', () => {
 
     describe('when there is no latest candle cache', () => {
       beforeEach(async () => {
-        const { cache, logger } = require('../../../../helpers');
-        cacheMock = cache;
-        loggerMock = logger;
-
         mockGetLastBuyPrice = jest.fn().mockResolvedValue(null);
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getLastBuyPrice: mockGetLastBuyPrice
@@ -2113,7 +2218,7 @@ describe('get-indicators.js', () => {
           openOrders: []
         };
 
-        result = await step.execute(logger, rawData);
+        result = await step.execute(loggerMock, rawData);
       });
 
       it('returns expected value', () => {
@@ -2145,6 +2250,148 @@ describe('get-indicators.js', () => {
           baseAssetBalance: { total: 0.1 },
           openOrders: [],
           saveToCache: false
+        });
+      });
+    });
+
+    describe('when there is no tradingview indicator', () => {
+      beforeEach(async () => {
+        mockGetLastBuyPrice = jest.fn().mockResolvedValue(null);
+        jest.mock('../../../trailingTradeHelper/common', () => ({
+          getLastBuyPrice: mockGetLastBuyPrice
+        }));
+
+        cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+          if (
+            hash === 'trailing-trade-symbols' &&
+            key === 'BTCUSDT-indicator-data'
+          ) {
+            return JSON.stringify({
+              highestPrice: 10000,
+              lowestPrice: 8893.03,
+              athPrice: 9000
+            });
+          }
+
+          if (
+            hash === 'trailing-trade-symbols' &&
+            key === 'BTCUSDT-latest-candle'
+          ) {
+            return JSON.stringify({
+              symbol: 'BTCUSDT',
+              close: '15555.09000000'
+            });
+          }
+
+          return null;
+        });
+
+        step = require('../get-indicators');
+        rawData = {
+          symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
+          symbolConfiguration: {
+            buy: {
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.021
+              },
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
+            },
+            sell: {
+              currentGridTrade: {
+                triggerPercentage: 1.06,
+                limitPercentage: 0.979
+              },
+              stopLoss: { maxLossPercentage: 0.8 }
+            }
+          },
+          baseAssetBalance: {
+            total: 0.1
+          },
+          openOrders: []
+        };
+
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('triggers expected value', () => {
+        expect(result).toStrictEqual({
+          symbol: 'BTCUSDT',
+          symbolInfo: {
+            filterMinNotional: { minNotional: '10.000' }
+          },
+          symbolConfiguration: {
+            buy: {
+              currentGridTradeIndex: 0,
+              currentGridTrade: {
+                triggerPercentage: 1.01,
+                limitPercentage: 1.021
+              },
+              athRestriction: {
+                enabled: true,
+                restrictionPercentage: 0.9
+              }
+            },
+            sell: {
+              currentGridTrade: {
+                triggerPercentage: 1.06,
+                limitPercentage: 0.979
+              },
+              stopLoss: {
+                maxLossPercentage: 0.8
+              }
+            }
+          },
+          baseAssetBalance: {
+            total: 0.1,
+            estimatedValue: 1555.509,
+            isLessThanMinNotionalValue: false
+          },
+          openOrders: [],
+          indicators: {
+            highestPrice: 10000,
+            lowestPrice: 8893.03,
+            athPrice: 9000
+          },
+          lastCandle: {
+            symbol: 'BTCUSDT',
+            close: '15555.09000000'
+          },
+          buy: {
+            currentPrice: 15555.09,
+            limitPrice: 15881.746889999999,
+            highestPrice: 10000,
+            lowestPrice: 8893.03,
+            triggerPrice: 8981.9603,
+            athPrice: 9000,
+            athRestrictionPrice: 8100,
+            difference: 73.18146017634923,
+            openOrders: [],
+            processMessage: '',
+            updatedAt: expect.any(Object)
+          },
+          sell: {
+            currentPrice: 15555.09,
+            limitPrice: null,
+            lastBuyPrice: null,
+            triggerPrice: null,
+            difference: null,
+            currentProfit: null,
+            currentProfitPercentage: null,
+            stopLossDifference: null,
+            stopLossTriggerPrice: null,
+            openOrders: [],
+            processMessage: '',
+            updatedAt: expect.any(Object)
+          },
+          tradingView: {}
         });
       });
     });

@@ -12,7 +12,6 @@ services:
     environment:
       # - BINANCE_MODE=test
       - BINANCE_MODE=live
-      - BINANCE_LOG_LEVEL=ERROR
       - BINANCE_REDIS_HOST=binance-redis
       - BINANCE_REDIS_PORT=6379
       - BINANCE_REDIS_PASSWORD=secretp422
@@ -22,6 +21,13 @@ services:
       driver: 'json-file'
       options:
         max-size: '50m'
+
+  tradingview:
+    container_name: tradingview
+    image: chrisleekr/binance-trading-bot:tradingview
+    networks:
+      - internal
+    restart: unless-stopped
 
   binance-redis:
     container_name: binance-redis

@@ -331,8 +331,6 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
-            order: {},
-            saveToCache: true,
             overrideAction: { action: 'override-action' },
             ensureManualOrder: { ensured: 'manual-buy-order' },
             ensureGridTradeOrder: { ensured: 'grid-trade' },
@@ -341,6 +339,9 @@ describe('trailingTrade', () => {
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
+            order: {},
+            canDisable: true,
+            saveToCache: true,
             saved: 'data-to-cache'
           }
         },
@@ -367,8 +368,6 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
-            order: {},
-            saveToCache: true,
             overrideAction: { action: 'override-action' },
             ensureManualOrder: { ensured: 'manual-buy-order' },
             ensureGridTradeOrder: { ensured: 'grid-trade' },
@@ -377,6 +376,9 @@ describe('trailingTrade', () => {
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
+            canDisable: true,
+            order: {},
+            saveToCache: true,
             saved: 'data-to-cache'
           }
         },
@@ -403,8 +405,6 @@ describe('trailingTrade', () => {
             quoteAssetBalance: { quoteAsset: 'balance' },
             buy: { should: 'buy?', actioned: 'yes' },
             sell: { should: 'sell?', actioned: 'yes' },
-            order: {},
-            saveToCache: true,
             overrideAction: { action: 'override-action' },
             ensureManualOrder: { ensured: 'manual-buy-order' },
             ensureGridTradeOrder: { ensured: 'grid-trade' },
@@ -413,6 +413,9 @@ describe('trailingTrade', () => {
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
+            canDisable: true,
+            order: {},
+            saveToCache: true,
             saved: 'data-to-cache'
           }
         },
@@ -703,9 +706,10 @@ describe('trailingTrade', () => {
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
-            saved: 'data-to-cache',
             order: {},
-            saveToCache: true
+            canDisable: true,
+            saveToCache: true,
+            saved: 'data-to-cache'
           }
         },
         'TrailingTrade: Finish process...'
@@ -739,9 +743,10 @@ describe('trailingTrade', () => {
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
-            saved: 'data-to-cache',
             order: {},
-            saveToCache: true
+            canDisable: true,
+            saveToCache: true,
+            saved: 'data-to-cache'
           }
         },
         'TrailingTrade: Finish process...'
@@ -775,9 +780,10 @@ describe('trailingTrade', () => {
             cancelOrder: { cancelled: 'existing-order' },
             stopLoss: 'processed',
             removed: 'last-buy-price',
-            saved: 'data-to-cache',
             order: {},
-            saveToCache: true
+            canDisable: true,
+            saveToCache: true,
+            saved: 'data-to-cache'
           }
         },
         'TrailingTrade: Finish process...'

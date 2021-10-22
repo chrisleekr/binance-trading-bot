@@ -5,6 +5,8 @@ describe('webserver/handlers/status', () => {
   let resSendMock;
 
   beforeEach(async () => {
+    jest.clearAllMocks().resetModules();
+
     resSendMock = jest.fn().mockResolvedValue(true);
     appMock.get = jest.fn().mockImplementation((_path, func) => {
       func(null, { send: resSendMock });
@@ -20,7 +22,8 @@ describe('webserver/handlers/status', () => {
     expect(resSendMock).toHaveBeenCalledWith({
       success: true,
       status: 200,
-      message: 'OK'
+      message: 'OK',
+      data: {}
     });
   });
 });

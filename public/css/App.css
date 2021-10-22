@@ -60,6 +60,14 @@ input[type='number'] {
   font-size: 0.8rem !important;
 }
 
+.fs-8 {
+  font-size: 0.7rem !important;
+}
+
+.fs-9 {
+  font-size: 0.6rem !important;
+}
+
 .w-10 {
   width: 10% !important;
 }
@@ -74,6 +82,10 @@ input[type='number'] {
 
 .w-30 {
   width: 30% !important;
+}
+
+.w-row-3 {
+  width: 33.33333% !important;
 }
 
 .w-40 {
@@ -195,6 +207,23 @@ input[type='number'] {
 .coin-info-column-price .coin-info-value-with-icon i {
   color: #fff;
   font-size: 15px;
+}
+
+.coin-info-column-rows {
+  display: flex;
+  flex-flow: column wrap;
+}
+
+.coin-info-column-row {
+  display: flex;
+  flex-flow: row wrap;
+}
+
+.coin-info-column-row .coin-info-column {
+  flex: 1 1 auto;
+
+  border: 1px solid rgba(86, 61, 124, 0.15);
+  display: inline-block;
 }
 
 .accordion-wrapper {
@@ -436,6 +465,11 @@ input[type='number'] {
 .coin-info-value {
   flex: 1 auto;
   line-height: 23px;
+}
+
+.coin-info-column-tradingview .coin-info-label,
+.coin-info-column-tradingview .coin-info-value {
+  line-height: inherit;
 }
 
 .coin-info-label {

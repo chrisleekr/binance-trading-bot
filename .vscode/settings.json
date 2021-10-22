@@ -15,7 +15,15 @@
     "**/coverage": true,
     "**/node_modules": true
   },
-  "cSpell.words": ["Bollinger", "MACD", "bbands", "chrisleekr", "mrkdwn", "tulind"],
+  "cSpell.words": [
+    "bbands",
+    "Bollinger",
+    "chrisleekr",
+    "MACD",
+    "mrkdwn",
+    "tradingview",
+    "tulind"
+  ],
   "eslint.format.enable": true,
   "eslint.codeActionsOnSave.mode": "all"
 }

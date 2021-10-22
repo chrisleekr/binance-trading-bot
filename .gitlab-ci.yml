@@ -56,3 +56,37 @@ production:
       GIT_HASH=$GIT_HASH --build-arg NODE_ENV=production --target
       production-stage --pull --tag
       $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:latest --push .
+
+production-tradingview:
+  stage: build production
+  image: docker:20-dind
+  services:
+    - name: docker:20-dind
+      alias: docker
+      command: ['--tls=false']
+  variables:
+    DOCKER_HOST: tcp://docker:2375/
+    DOCKER_DRIVER: overlay2
+    DOCKER_TLS_CERTDIR: ''
+  tags:
+    - dind
+  only:
+    - master
+    - development
+  before_script:
+    - apk add curl git
+    - mkdir -p ~/.docker/cli-plugins/
+    - BUILDX_LATEST_BIN_URI=$(curl -s -L
+      https://github.com/docker/buildx/releases/latest | grep 'linux-amd64' |
+      grep 'href' | sed 's/.*href="/https:\/\/github.com/g; s/amd64".*/amd64/g')
+    - curl -s -L ${BUILDX_LATEST_BIN_URI} -o ~/.docker/cli-plugins/docker-buildx
+    - chmod a+x ~/.docker/cli-plugins/docker-buildx
+    - docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER"
+      --password-stdin $CI_REGISTRY
+    - docker context create dind
+    - docker buildx create --driver docker-container --use dind
+  script:
+    - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7
+      --pull --tag $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:tradingview
+      --push ./tradingview

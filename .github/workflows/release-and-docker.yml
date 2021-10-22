@@ -66,3 +66,15 @@ jobs:
           tags: |
             chrisleekr/binance-trading-bot:latest
             chrisleekr/binance-trading-bot:${{ env.PACKAGE_VERSION }}
+
+      # https://github.com/docker/build-push-action#multi-platform-image
+      - name: Build/Push production docker image - tradingview
+        uses: docker/build-push-action@v2
+        with:
+          context: ./tradingview
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm/v7,linux/arm64
+          push: true
+          tags: |
+            chrisleekr/binance-trading-bot:tradingview
+            chrisleekr/binance-trading-bot:tradingview-${{ env.PACKAGE_VERSION }}

@@ -221,7 +221,8 @@ describe('ensure-manual-order.js', () => {
                 side: 'BUY'
               }
             }
-          ]
+          ],
+          expectedCalculateLastBuyPrice: true
         },
         {
           desc: 'with MARKET order and has no existing last buy price',
@@ -250,7 +251,8 @@ describe('ensure-manual-order.js', () => {
                 ]
               }
             }
-          ]
+          ],
+          expectedCalculateLastBuyPrice: true
         },
         {
           desc: 'with MARKET order and has existing last buy price',
@@ -282,7 +284,41 @@ describe('ensure-manual-order.js', () => {
                 ]
               }
             }
-          ]
+          ],
+          expectedCalculateLastBuyPrice: true
+        },
+        {
+          desc: 'Sell with MARKET order and has existing last buy price',
+          symbol: 'BNBUSDT',
+          lastBuyPriceDoc: {
+            lastBuyPrice: 20.782000000000004,
+            quantity: 2.405
+          },
+          featureToggle: { notifyDebug: false },
+          orderId: 160868057,
+          cacheResults: [
+            {
+              order: {
+                symbol: 'CAKEUSDT',
+                orderId: 160868057,
+                executedQty: '3.00000000',
+                cummulativeQuoteQty: '61.33200000',
+                status: 'FILLED',
+                type: 'MARKET',
+                side: 'SELL',
+                fills: [
+                  {
+                    price: '20.44400000',
+                    qty: '3.00000000',
+                    commission: '0.00010912',
+                    commissionAsset: 'BNB',
+                    tradeId: 26893880
+                  }
+                ]
+              }
+            }
+          ],
+          expectedCalculateLastBuyPrice: false
         }
       ].forEach(testData => {
         describe(`${testData.desc}`, () => {
@@ -318,13 +354,19 @@ describe('ensure-manual-order.js', () => {
             result = await step.execute(loggerMock, rawData);
           });
 
-          it('triggers calculateLastBuyPrice', () => {
-            expect(mockCalculateLastBuyPrice).toHaveBeenCalledWith(
-              loggerMock,
-              testData.symbol,
-              testData.cacheResults[0].order
-            );
-          });
+          if (testData.expectedCalculateLastBuyPrice) {
+            it('triggers calculateLastBuyPrice', () => {
+              expect(mockCalculateLastBuyPrice).toHaveBeenCalledWith(
+                loggerMock,
+                testData.symbol,
+                testData.cacheResults[0].order
+              );
+            });
+          } else {
+            it('does not trigger calculateLastBuyPrice', () => {
+              expect(mockCalculateLastBuyPrice).not.toHaveBeenCalled();
+            });
+          }
 
           it('triggers deleteManualOrder', () => {
             expect(mockDeleteManualOrder).toHaveBeenCalledWith(
@@ -360,7 +402,7 @@ describe('ensure-manual-order.js', () => {
       });
     });
 
-    describe('when manual buy order is not filled', () => {
+    describe('when manual order is not filled', () => {
       [
         {
           desc: 'with LIMIT order and FILLED',
@@ -397,7 +439,8 @@ describe('ensure-manual-order.js', () => {
             type: 'LIMIT',
             side: 'BUY'
           },
-          expectedCalculateLastBuyPrice: true
+          expectedCalculateLastBuyPrice: true,
+          expectedFilledOrder: true
         },
         {
           desc: 'with MARKET order and FILLED',
@@ -434,7 +477,46 @@ describe('ensure-manual-order.js', () => {
             type: 'MARKET',
             side: 'BUY'
           },
-          expectedCalculateLastBuyPrice: true
+          expectedCalculateLastBuyPrice: true,
+          expectedFilledOrder: true
+        },
+        {
+          desc: 'Sell with MARKET order and FILLED',
+          symbol: 'CAKEUSDT',
+          lastBuyPriceDoc: {
+            lastBuyPrice: 30,
+            quantity: 3
+          },
+          featureToggle: { notifyDebug: true },
+          orderId: 159653829,
+          cacheResults: [
+            {
+              order: {
+                symbol: 'CAKEUSDT',
+                orderId: 159653829,
+                origQty: '1.00000000',
+                executedQty: '1.00000000',
+                cummulativeQuoteQty: '19.54900000',
+                status: 'NEW',
+                type: 'MARKET',
+                side: 'SELL',
+                nextCheck: moment()
+                  .subtract(5, 'minute')
+                  .format('YYYY-MM-DDTHH:mm:ssZ')
+              }
+            }
+          ],
+          getOrderResult: {
+            symbol: 'CAKEUSDT',
+            orderId: 159653829,
+            executedQty: '1.00000000',
+            cummulativeQuoteQty: '19.54900000',
+            status: 'FILLED',
+            type: 'MARKET',
+            side: 'SELL'
+          },
+          expectedCalculateLastBuyPrice: false,
+          expectedFilledOrder: true
         },
         {
           desc: 'with MARKET order and FILLED, but not yet to check',
@@ -471,7 +553,46 @@ describe('ensure-manual-order.js', () => {
             type: 'MARKET',
             side: 'BUY'
           },
-          expectedCalculateLastBuyPrice: false
+          expectedCalculateLastBuyPrice: false,
+          expectedFilledOrder: false
+        },
+        {
+          desc: 'with MARKET order and FILLED, but not yet to check',
+          symbol: 'CAKEUSDT',
+          lastBuyPriceDoc: {
+            lastBuyPrice: 30,
+            quantity: 3
+          },
+          featureToggle: { notifyDebug: false },
+          orderId: 159653829,
+          cacheResults: [
+            {
+              order: {
+                symbol: 'CAKEUSDT',
+                orderId: 159653829,
+                origQty: '1.00000000',
+                executedQty: '1.00000000',
+                cummulativeQuoteQty: '19.54900000',
+                status: 'NEW',
+                type: 'MARKET',
+                side: 'SELL',
+                nextCheck: moment()
+                  .add(5, 'minute')
+                  .format('YYYY-MM-DDTHH:mm:ssZ')
+              }
+            }
+          ],
+          getOrderResult: {
+            symbol: 'CAKEUSDT',
+            orderId: 159653829,
+            executedQty: '1.00000000',
+            cummulativeQuoteQty: '19.54900000',
+            status: 'FILLED',
+            type: 'MARKET',
+            side: 'SELL'
+          },
+          expectedCalculateLastBuyPrice: false,
+          expectedFilledOrder: false
         }
       ].forEach(testData => {
         describe(`${testData.desc}`, () => {
@@ -514,7 +635,13 @@ describe('ensure-manual-order.js', () => {
                 testData.getOrderResult
               );
             });
+          } else {
+            it('does not trigger calculateLastBuyPrice', () => {
+              expect(mockCalculateLastBuyPrice).not.toHaveBeenCalled();
+            });
+          }
 
+          if (testData.expectedFilledOrder) {
             it('triggers deleteManualOrder', () => {
               expect(mockDeleteManualOrder).toHaveBeenCalledWith(
                 loggerMock,
@@ -546,10 +673,6 @@ describe('ensure-manual-order.js', () => {
               );
             });
           } else {
-            it('does not trigger calculateLastBuyPrice', () => {
-              expect(mockCalculateLastBuyPrice).not.toHaveBeenCalled();
-            });
-
             it('does not trigger deleteManualOrder', () => {
               expect(mockDeleteManualOrder).not.toHaveBeenCalled();
             });

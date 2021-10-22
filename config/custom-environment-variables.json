@@ -140,6 +140,18 @@
               "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTO_TRIGGER_BY_CONDITIONS_AFTER_DISABLED_PERIOD",
               "__description": "Set a boolean to reschedule the auto-buy trigger action if the action is currently disabled by the stop-loss or other actions.",
               "__format": "boolean"
+            },
+            "tradingView": {
+              "whenStrongBuy": {
+                "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTO_TRIGGER_BY_CONDITIONS_TRADINGVIEW_WHEN_STRONG_BUY",
+                "__description": "Set a boolean to trigger the auto-buy trigger action if the TradingView recommendation is `Strong buy`. If the recommendation is not `Strong buy`, then the bot will re-schedule the auto-buy trigger action.",
+                "__format": "boolean"
+              },
+              "whenBuy": {
+                "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_AUTO_TRIGGER_BY_CONDITIONS_TRADINGVIEW_WHEN_BUY",
+                "__description": "Set a boolean to trigger the auto-buy trigger action if the TradingView recommendation is `Buy`. If the recommendation is not `Buy`, then the bot will re-schedule the auto-buy trigger action.",
+                "__format": "boolean"
+              }
             }
           }
         },
@@ -161,10 +173,27 @@
           }
         },
         "tradingView": {
-          "showTechnicalAnalysisWidget": {
-            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRADING_VIEW_SHOW_TECHNICAL_ANALYSIS_WIDGET",
-            "__description": "Set a boolean to display the TradingView technical analysis widget in the frontend.",
-            "__format": "boolean"
+          "interval": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRADING_VIEW_INTERVAL",
+            "__description": "Set the interval to retrieve TradingView technical analysis. If empty, it will use candles -> interval. Available interval: 1m, 5m, 15m, 30m, 1h, 2h, 4h, 1d, 1w, 1m",
+            "__format": "string"
+          },
+          "useOnlyWithin": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRADING_VIEW_USE_ONLY_WITHIN",
+            "__description": "Set the minutes to allow to use TradingView technical analysis data. If the data is older than configured minutes, the bot will ignore the TradingView technical analysis data. This is due to avoid the issue with TradingView downtime.",
+            "__format": "number"
+          },
+          "ifExpires": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_TRADING_VIEW_IF_EXPIRES",
+            "__description": "Set an action method if the TradingView technical analysis data is passed allowed minutes. Available: ignore, do-not-buy",
+            "__format": "string"
+          }
+        },
+        "logs": {
+          "deleteAfter": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BOT_OPTIONS_LOGS_DELETE_AFTER",
+            "__description": "Set the minutes to delete the log. If the log is older than the configured minutes, the log will be removed from the database.",
+            "__format": "number"
           }
         }
       },
@@ -208,6 +237,18 @@
             "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_ATH_RESTRICTION_RESTRICTION_PERCENTAGE",
             "__format": "number"
           }
+        },
+        "tradingView": {
+          "whenStrongBuy": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_TRADINGVIEW_WHEN_STRONG_BUY",
+            "__description": "Set a boolean to use TradingView recommendation to trigger the buy. If the buy trigger price is reached, the bot will check TradingView recommendation and if it is not `Strong buy`, then the bot will not place a buy order.",
+            "__format": "boolean"
+          },
+          "whenBuy": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_BUY_TRADINGVIEW_WHEN_BUY",
+            "__description": "Set a boolean to use TradingView recommendation to trigger the buy. If the buy trigger price is reached, the bot will check TradingView recommendation and if it is not `Buy`, then the bot will not place a buy order.",
+            "__format": "boolean"
+          }
         }
       },
       "sell": {
@@ -241,6 +282,25 @@
             "__format": "number"
           },
           "orderType": "BINANCE_JOBS_TRAILING_TRADE_SELL_STOP_LOSS_ORDER_TYPE"
+        },
+        "tradingView": {
+          "forceSellOverZeroBelowTriggerPrice": {
+            "whenNeutral": {
+              "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_TRADING_VIEW_FORCE_SELL_OVER_ZERO_BELOW_TRIGGER_PRICE_WHEN_NEUTRAL",
+              "__description": "Set a boolean to use TradingView recommendation to sell the coin at the market price if the profit is over 0 but under the trigger price. When the condition is met and the TradingView recommendation is `Neutral`, then the bot will place a market sell order immediately. If the auto-buy trigger is enabled, then it will place a buy order later. Note that this action can cause loss if the profit is less than commission.",
+              "__format": "boolean"
+            },
+            "whenSell": {
+              "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_TRADING_VIEW_FORCE_SELL_OVER_ZERO_BELOW_TRIGGER_PRICE_WHEN_SELL",
+              "__description": "Set a boolean to use TradingView recommendation to sell the coin at the market price if the profit is over 0 but under the trigger price. When the condition is met and the TradingView recommendation is `Sell`, then the bot will place a market sell order immediately. If the auto-buy trigger is enabled, then it will place a buy order later. Note that this action can cause loss if the profit is less than commission.",
+              "__format": "boolean"
+            },
+            "whenStrongSell": {
+              "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_TRADING_VIEW_FORCE_SELL_OVER_ZERO_BELOW_TRIGGER_PRICE_WHEN_STRONG_SELL",
+              "__description": "Set a boolean to use TradingView recommendation to sell the coin at the market price if the profit is over 0 but under the trigger price. When the condition is met and the TradingView recommendation is `Strong sell`, then the bot will place a market sell order immediately. If the auto-buy trigger is enabled, then it will place a buy order later. Note that this action can cause loss if the profit is less than commission.",
+              "__format": "boolean"
+            }
+          }
         }
       },
       "system": {

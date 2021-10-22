@@ -51,7 +51,7 @@ const execute = async (logger, rawData) => {
 
   // Retrieve candles
   logger.info(
-    { debug: true, function: 'candles', interval, limit },
+    { function: 'candles', interval, limit },
     'Retrieving candles from API'
   );
   const candles = await binance.client.candles({
@@ -75,7 +75,6 @@ const execute = async (logger, rawData) => {
   if (buyATHRestrictionEnabled) {
     logger.info(
       {
-        debug: true,
         function: 'athCandles',
         buyATHRestrictionEnabled,
         buyATHRestrictionCandlesInterval,
@@ -97,7 +96,6 @@ const execute = async (logger, rawData) => {
   } else {
     logger.info(
       {
-        debug: true,
         function: 'athCandles',
         buyATHRestrictionEnabled,
         buyATHRestrictionCandlesInterval,

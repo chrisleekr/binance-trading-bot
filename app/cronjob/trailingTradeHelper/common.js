@@ -201,10 +201,7 @@ const getAccountInfo = async logger => {
  * @param {*} logger
  */
 const getOpenOrdersFromAPI = async logger => {
-  logger.info(
-    { debug: true, function: 'openOrders' },
-    'Retrieving open orders from API'
-  );
+  logger.info({ function: 'openOrders' }, 'Retrieving open orders from API');
   const openOrders = await binance.client.openOrders({
     recvWindow: 10000
   });
@@ -221,7 +218,7 @@ const getOpenOrdersFromAPI = async logger => {
  */
 const getOpenOrdersBySymbolFromAPI = async (logger, symbol) => {
   logger.info(
-    { debug: true, function: 'openOrders' },
+    { function: 'openOrders' },
     'Retrieving open orders by symbol from API'
   );
   const openOrders = await binance.client.openOrders({
@@ -283,8 +280,8 @@ const getLastBuyPrice = async (logger, symbol) =>
  */
 const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity }) => {
   logger.info(
-    { tag: 'save-last-buy-price', symbol, lastBuyPrice, quantity },
-    'Save last buy price'
+    { lastBuyPrice, quantity, saveLog: true },
+    'The last buy price has been saved.'
   );
   const result = await mongo.upsertOne(
     logger,
@@ -304,10 +301,7 @@ const saveLastBuyPrice = async (logger, symbol, { lastBuyPrice, quantity }) => {
 };
 
 const removeLastBuyPrice = async (logger, symbol) => {
-  logger.info(
-    { tag: 'remove-last-buy-price', symbol },
-    'Remove last buy price'
-  );
+  logger.info({ saveLog: true }, 'The last buy price has been removed.');
 
   const result = await mongo.deleteOne(logger, 'trailing-trade-symbols', {
     key: `${symbol}-last-buy-price`
@@ -329,7 +323,7 @@ const removeLastBuyPrice = async (logger, symbol) => {
  * @returns
  */
 const lockSymbol = async (logger, symbol, ttl = 5) => {
-  logger.info({ debug: true, symbol }, `Lock ${symbol} for ${ttl} seconds`);
+  logger.info({ symbol }, `Lock ${symbol} for ${ttl} seconds`);
   return cache.hset('bot-lock', symbol, true, ttl);
 };
 
@@ -344,15 +338,9 @@ const isSymbolLocked = async (logger, symbol) => {
   const isLocked = (await cache.hget('bot-lock', symbol)) === 'true';
 
   if (isLocked === true) {
-    logger.info(
-      { debug: true, symbol, isLocked },
-      `🔒 Symbol is locked - ${symbol}`
-    );
+    logger.info({ symbol, isLocked }, `🔒 Symbol is locked - ${symbol}`);
   } else {
-    logger.info(
-      { debug: true, symbol, isLocked },
-      `🔓 Symbol is not locked - ${symbol} `
-    );
+    logger.info({ symbol, isLocked }, `🔓 Symbol is not locked - ${symbol} `);
   }
   return isLocked;
 };
@@ -365,21 +353,27 @@ const isSymbolLocked = async (logger, symbol) => {
  * @returns
  */
 const unlockSymbol = async (logger, symbol) => {
-  logger.info({ debug: true, symbol }, `Unlock ${symbol}`);
+  logger.info({ symbol }, `Unlock ${symbol}`);
   return cache.hdel('bot-lock', symbol);
 };
 
 /**
  * Disable action
  *
+ * @param {*} logger
  * @param {*} symbol
  * @param {*} reason
  * @param {*} ttl
  *
  * @returns
  */
-const disableAction = async (symbol, reason, ttl) =>
-  cache.set(`${symbol}-disable-action`, JSON.stringify(reason), ttl);
+const disableAction = async (logger, symbol, reason, ttl) => {
+  logger.info(
+    { reason, ttl, saveLog: true },
+    `The action is disabled. Reason: ${_.get(reason, 'message', 'Unknown')}`
+  );
+  return cache.set(`${symbol}-disable-action`, JSON.stringify(reason), ttl);
+};
 
 /**
  * Check if the action is disabled.
@@ -408,7 +402,7 @@ const isActionDisabled = async symbol => {
  * @returns
  */
 const deleteDisableAction = async (logger, symbol) => {
-  logger.info({ debug: true, symbol }, `Enable action for ${symbol}`);
+  logger.info({ saveLog: true }, `The action is enabled.`);
   return cache.del(`${symbol}-disable-action`);
 };
 
@@ -459,8 +453,11 @@ const getOverrideDataForSymbol = async (_logger, symbol) => {
  * @param {*} symbol
  * @returns
  */
-const removeOverrideDataForSymbol = async (_logger, symbol) =>
-  cache.hdel('trailing-trade-override', symbol);
+const removeOverrideDataForSymbol = async (logger, symbol) => {
+  logger.info({ saveLog: true }, 'The override data is removed.');
+
+  return cache.hdel('trailing-trade-override', symbol);
+};
 
 /**
  * Get override data for Indicator
@@ -520,8 +517,8 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
   const newLastBuyPrice = newTotalAmount / newQuantity;
 
   logger.info(
-    { newLastBuyPrice, newTotalAmount, newQuantity },
-    'New last buy price'
+    { newLastBuyPrice, newTotalAmount, newQuantity, saveLog: true },
+    `The last buy price will be saved. New last buy price: ${newLastBuyPrice}`
   );
   await saveLastBuyPrice(logger, symbol, {
     lastBuyPrice: newLastBuyPrice,
@@ -577,7 +574,7 @@ const getSymbolInfo = async (logger, symbol) => {
   let exchangeInfo = cachedExchangeInfo;
   if (_.isEmpty(cachedExchangeInfo) === true) {
     logger.info(
-      { debug: true, function: 'exchangeInfo' },
+      { function: 'exchangeInfo' },
       'Request exchange info from Binance.'
     );
     exchangeInfo = await binance.client.exchangeInfo();
@@ -767,24 +764,33 @@ const saveOverrideAction = async (
   overrideData,
   overrideReason
 ) => {
+  logger.info(
+    { overrideData, overrideReason, saveLog: true },
+    `The override action is saved. Reason: ${overrideReason}`
+  );
+
   await cache.hset(
     'trailing-trade-override',
     `${symbol}`,
     JSON.stringify(overrideData)
   );
 
-  slack.sendMessage(
-    `${symbol} Action (${moment().format('HH:mm:ss.SSS')}): Queued action: ${
-      overrideData.action
-    }\n` +
-      `- Message: ${overrideReason}\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
-  );
+  const notify = _.get(overrideData, 'notify', true);
 
-  PubSub.publish('frontend-notification', {
-    type: 'info',
-    title: overrideReason
-  });
+  if (notify) {
+    slack.sendMessage(
+      `${symbol} Action (${moment().format('HH:mm:ss.SSS')}): Queued action: ${
+        overrideData.action
+      }\n` +
+        `- Message: ${overrideReason}\n` +
+        `- Current API Usage: ${getAPILimit(logger)}`
+    );
+
+    PubSub.publish('frontend-notification', {
+      type: 'info',
+      title: overrideReason
+    });
+  }
 };
 
 /**
@@ -807,18 +813,22 @@ const saveOverrideIndicatorAction = async (
     JSON.stringify(overrideData)
   );
 
-  slack.sendMessage(
-    `Action (${moment().format('HH:mm:ss.SSS')}): Queued action: ${
-      overrideData.action
-    }\n` +
-      `- Message: ${overrideReason}\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
-  );
+  const notify = _.get(overrideData, 'notify', true);
 
-  PubSub.publish('frontend-notification', {
-    type: 'info',
-    title: overrideReason
-  });
+  if (notify) {
+    slack.sendMessage(
+      `Action (${moment().format('HH:mm:ss.SSS')}): Queued action: ${
+        overrideData.action
+      }\n` +
+        `- Message: ${overrideReason}\n` +
+        `- Current API Usage: ${getAPILimit(logger)}`
+    );
+
+    PubSub.publish('frontend-notification', {
+      type: 'info',
+      title: overrideReason
+    });
+  }
 };
 
 module.exports = {

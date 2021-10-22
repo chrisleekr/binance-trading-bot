@@ -83,7 +83,8 @@ describe('place-sell-stop-loss-order.js', () => {
           },
           action: 'not-determined',
           baseAssetBalance: { free: 0.5 },
-          sell: { currentPrice: 200, openOrders: [] }
+          sell: { currentPrice: 200, openOrders: [] },
+          canDisable: true
         };
 
         result = await step.execute(loggerMock, rawData);
@@ -156,7 +157,8 @@ describe('place-sell-stop-loss-order.js', () => {
           },
           action: 'not-determined',
           baseAssetBalance: { free: 0.5 },
-          sell: { currentPrice: 200, openOrders: [] }
+          sell: { currentPrice: 200, openOrders: [] },
+          canDisable: true
         };
 
         result = await step.execute(loggerMock, rawData);
@@ -241,7 +243,8 @@ describe('place-sell-stop-loss-order.js', () => {
                 stopPrice: '198.000000'
               }
             ]
-          }
+          },
+          canDisable: true
         };
 
         result = await step.execute(loggerMock, rawData);
@@ -338,7 +341,8 @@ describe('place-sell-stop-loss-order.js', () => {
             sell: {
               currentPrice: 200,
               openOrders: []
-            }
+            },
+            canDisable: true
           };
 
           result = await step.execute(loggerMock, rawData);
@@ -426,7 +430,8 @@ describe('place-sell-stop-loss-order.js', () => {
             sell: {
               currentPrice: 200,
               openOrders: []
-            }
+            },
+            canDisable: true
           };
 
           result = await step.execute(loggerMock, rawData);
@@ -514,7 +519,8 @@ describe('place-sell-stop-loss-order.js', () => {
             sell: {
               currentPrice: 268748,
               openOrders: []
-            }
+            },
+            canDisable: true
           };
 
           result = await step.execute(loggerMock, rawData);
@@ -604,7 +610,8 @@ describe('place-sell-stop-loss-order.js', () => {
             sell: {
               currentPrice: 200,
               openOrders: []
-            }
+            },
+            canDisable: true
           };
 
           result = await step.execute(loggerMock, rawData);
@@ -691,7 +698,8 @@ describe('place-sell-stop-loss-order.js', () => {
             sell: {
               currentPrice: 0.00003771,
               openOrders: []
-            }
+            },
+            canDisable: true
           };
 
           result = await step.execute(loggerMock, rawData);
@@ -778,7 +786,8 @@ describe('place-sell-stop-loss-order.js', () => {
             sell: {
               currentPrice: 268748,
               openOrders: []
-            }
+            },
+            canDisable: true
           };
 
           result = await step.execute(loggerMock, rawData);
@@ -866,7 +875,8 @@ describe('place-sell-stop-loss-order.js', () => {
           sell: {
             currentPrice: 200,
             openOrders: []
-          }
+          },
+          canDisable: true
         };
 
         result = await step.execute(loggerMock, rawData);
@@ -955,7 +965,8 @@ describe('place-sell-stop-loss-order.js', () => {
           sell: {
             currentPrice: 200,
             openOrders: []
-          }
+          },
+          canDisable: true
         };
 
         result = await step.execute(loggerMock, rawData);
@@ -1042,7 +1053,8 @@ describe('place-sell-stop-loss-order.js', () => {
           sell: {
             currentPrice: 200,
             openOrders: []
-          }
+          },
+          canDisable: true
         };
 
         result = await step.execute(loggerMock, rawData);
@@ -1167,7 +1179,8 @@ describe('place-sell-stop-loss-order.js', () => {
               sell: {
                 currentPrice: 200,
                 openOrders: []
-              }
+              },
+              canDisable: true
             };
 
             result = await step.execute(loggerMock, rawData);
@@ -1184,6 +1197,7 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers disableAction', () => {
             expect(mockDisableAction).toHaveBeenCalledWith(
+              loggerMock,
               'BTCUPUSDT',
               {
                 disabledBy: 'stop loss',
@@ -1362,7 +1376,8 @@ describe('place-sell-stop-loss-order.js', () => {
               sell: {
                 currentPrice: 0.00003771,
                 openOrders: []
-              }
+              },
+              canDisable: true
             };
 
             result = await step.execute(loggerMock, rawData);
@@ -1379,6 +1394,7 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers disableAction', () => {
             expect(mockDisableAction).toHaveBeenCalledWith(
+              loggerMock,
               'ALPHABTC',
               {
                 disabledBy: 'stop loss',
@@ -1564,7 +1580,8 @@ describe('place-sell-stop-loss-order.js', () => {
               sell: {
                 currentPrice: 268748,
                 openOrders: []
-              }
+              },
+              canDisable: true
             };
 
             result = await step.execute(loggerMock, rawData);
@@ -1581,6 +1598,7 @@ describe('place-sell-stop-loss-order.js', () => {
 
           it('triggers disableAction', () => {
             expect(mockDisableAction).toHaveBeenCalledWith(
+              loggerMock,
               'BTCBRL',
               {
                 disabledBy: 'stop loss',
@@ -1768,7 +1786,8 @@ describe('place-sell-stop-loss-order.js', () => {
               sell: {
                 currentPrice: 200,
                 openOrders: []
-              }
+              },
+              canDisable: false
             };
 
             result = await step.execute(loggerMock, rawData);
@@ -1783,17 +1802,8 @@ describe('place-sell-stop-loss-order.js', () => {
             });
           });
 
-          it('triggers disableAction', () => {
-            expect(mockDisableAction).toHaveBeenCalledWith(
-              'BTCUPUSDT',
-              {
-                disabledBy: 'stop loss',
-                message: 'Temporary disabled by stop loss',
-                canResume: true,
-                canRemoveLastBuyPrice: true
-              },
-              60 * 60
-            );
+          it('does not trigger disableAction', () => {
+            expect(mockDisableAction).not.toHaveBeenCalled();
           });
 
           it('triggers getAndCacheOpenOrdersForSymbol', () => {
@@ -1804,7 +1814,7 @@ describe('place-sell-stop-loss-order.js', () => {
             expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
           });
 
-          it('triggers saveSymbolGridTrade', () => {
+          it('does not trigger saveSymbolGridTrade', () => {
             expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
               loggerMock,
               'BTCUPUSDT',
@@ -1970,7 +1980,8 @@ describe('place-sell-stop-loss-order.js', () => {
               sell: {
                 currentPrice: 0.00003771,
                 openOrders: []
-              }
+              },
+              canDisable: false
             };
 
             result = await step.execute(loggerMock, rawData);
@@ -1985,17 +1996,8 @@ describe('place-sell-stop-loss-order.js', () => {
             });
           });
 
-          it('triggers disableAction', () => {
-            expect(mockDisableAction).toHaveBeenCalledWith(
-              'ALPHABTC',
-              {
-                disabledBy: 'stop loss',
-                message: 'Temporary disabled by stop loss',
-                canResume: true,
-                canRemoveLastBuyPrice: true
-              },
-              60 * 60
-            );
+          it('does not trigger disableAction', () => {
+            expect(mockDisableAction).not.toHaveBeenCalled();
           });
 
           it('triggers getAndCacheOpenOrdersForSymbol', () => {
@@ -2172,7 +2174,8 @@ describe('place-sell-stop-loss-order.js', () => {
               sell: {
                 currentPrice: 200,
                 openOrders: []
-              }
+              },
+              canDisable: false
             };
 
             result = await step.execute(loggerMock, rawData);
@@ -2187,17 +2190,8 @@ describe('place-sell-stop-loss-order.js', () => {
             });
           });
 
-          it('triggers disableAction', () => {
-            expect(mockDisableAction).toHaveBeenCalledWith(
-              'BTCBRL',
-              {
-                disabledBy: 'stop loss',
-                message: 'Temporary disabled by stop loss',
-                canResume: true,
-                canRemoveLastBuyPrice: true
-              },
-              60 * 60
-            );
+          it('does not trigger disableAction', () => {
+            expect(mockDisableAction).not.toHaveBeenCalled();
           });
 
           it('triggers getAndCacheOpenOrdersForSymbol', () => {

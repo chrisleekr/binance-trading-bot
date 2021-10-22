@@ -27,13 +27,16 @@ const getGridTradeOrder = async (logger, key) => {
  * @param {*} order
  * @returns
  */
-const saveGridTradeOrder = async (logger, key, order) =>
-  mongo.upsertOne(
+const saveGridTradeOrder = async (logger, key, order) => {
+  logger.info({ key, order }, 'The grid trade order has been saved.');
+
+  return mongo.upsertOne(
     logger,
     'trailing-trade-grid-trade-orders',
     { key },
     { key, order }
   );
+};
 
 /**
  * Delete grid trade order
@@ -42,8 +45,11 @@ const saveGridTradeOrder = async (logger, key, order) =>
  * @param {*} key
  * @returns
  */
-const deleteGridTradeOrder = async (logger, key) =>
-  mongo.deleteOne(logger, 'trailing-trade-grid-trade-orders', { key });
+const deleteGridTradeOrder = async (logger, key) => {
+  logger.info({ key }, 'The grid trade order has been removed.');
+
+  return mongo.deleteOne(logger, 'trailing-trade-grid-trade-orders', { key });
+};
 
 /**
  * Get manual trade orders by symbol
@@ -79,13 +85,16 @@ const getManualOrder = async (logger, symbol, orderId) => {
  * @param {*} order
  * @returns
  */
-const saveManualOrder = async (logger, symbol, orderId, order) =>
-  mongo.upsertOne(
+const saveManualOrder = async (logger, symbol, orderId, order) => {
+  logger.info({ orderId, order }, 'The manual order has been saved.');
+
+  return mongo.upsertOne(
     logger,
     'trailing-trade-manual-orders',
     { symbol, orderId },
     { symbol, orderId, order }
   );
+};
 
 /**
  * Delete manual trade order
@@ -95,8 +104,14 @@ const saveManualOrder = async (logger, symbol, orderId, order) =>
  * @param {*} orderId
  * @returns
  */
-const deleteManualOrder = async (logger, symbol, orderId) =>
-  mongo.deleteOne(logger, 'trailing-trade-manual-orders', { symbol, orderId });
+const deleteManualOrder = async (logger, symbol, orderId) => {
+  logger.info({ orderId }, 'The manual order has been removed.');
+
+  return mongo.deleteOne(logger, 'trailing-trade-manual-orders', {
+    symbol,
+    orderId
+  });
+};
 
 module.exports = {
   getGridTradeOrder,

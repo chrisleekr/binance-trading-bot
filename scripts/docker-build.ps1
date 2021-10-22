@@ -21,3 +21,5 @@ switch ($env) {
 }
 
 docker build . --build-arg PACKAGE_VERSION=$packageVersion --build-arg GIT_HASH=$gitHash --build-arg NODE_ENV=$nodeEnv --target $target -t chrisleekr/binance-trading-bot:latest
+
+docker build ./tradingview -t chrisleekr/binance-trading-bot:tradingview

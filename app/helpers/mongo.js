@@ -240,6 +240,45 @@ const deleteOne = async (funcLogger, collectionName, filter) => {
   return result;
 };
 
+/**
+ * Create new index
+ *
+ * @param {*} funcLogger
+ * @param {*} collectionName
+ * @param {*} keys
+ * @param {*} options
+ * @returns
+ */
+const createIndex = async (funcLogger, collectionName, keys, options) => {
+  const logger = funcLogger.child({ helper: 'mongo', funcName: 'createIndex' });
+
+  logger.info({ collectionName, keys, options }, 'Creating index from MongoDB');
+  const collection = database.collection(collectionName);
+  const result = collection.createIndex(keys, options);
+  logger.info({ result }, 'Created index from MongoDB');
+
+  return result;
+};
+
+/**
+ * Drop index
+ *
+ * @param {*} funcLogger
+ * @param {*} collectionName
+ * @param {*} indexName
+ * @returns
+ */
+const dropIndex = async (funcLogger, collectionName, indexName) => {
+  const logger = funcLogger.child({ helper: 'mongo', funcName: 'dropIndex' });
+
+  logger.info({ collectionName, indexName }, 'Dropping index from MongoDB');
+  const collection = database.collection(collectionName);
+  const result = collection.dropIndex(indexName);
+  logger.info({ result }, 'Dropped index from MongoDB');
+
+  return result;
+};
+
 module.exports = {
   client,
   connect,
@@ -250,5 +289,7 @@ module.exports = {
   insertOne,
   upsertOne,
   deleteAll,
-  deleteOne
+  deleteOne,
+  createIndex,
+  dropIndex
 };

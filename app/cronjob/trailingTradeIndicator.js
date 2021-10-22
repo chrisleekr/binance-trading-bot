@@ -20,6 +20,7 @@ const {
   executeDustTransfer,
   getClosedTrades,
   getOrderStats,
+  getTradingView,
   saveDataToCache
 } = require('./trailingTradeIndicator/steps');
 const { slack } = require('../helpers');
@@ -41,6 +42,7 @@ const execute = async logger => {
     openOrders: [],
     overrideParams: {},
     quoteAssetStats: {},
+    tradingView: {},
     apiLimit: { start: getAPILimit(logger), end: null }
   };
 
@@ -105,6 +107,10 @@ const execute = async logger => {
       {
         stepName: 'get-order-stats',
         stepFunc: getOrderStats
+      },
+      {
+        stepName: 'get-tradingview',
+        stepFunc: getTradingView
       },
       {
         stepName: 'save-data-to-cache',
