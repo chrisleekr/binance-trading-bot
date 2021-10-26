@@ -60,15 +60,17 @@ describe('get-trading-view.js', () => {
                 interval: t.expectedInterval
               },
               result: {
-                summary: {
-                  RECOMMENDATION: 'BUY'
+                'BINANCE:BTCUSDT': {
+                  summary: {
+                    RECOMMENDATION: 'BUY'
+                  }
                 }
               }
             }
           });
 
           rawData = {
-            symbol: 'BTCUSDT',
+            globalConfiguration: { symbols: ['BTCUSDT'] },
             symbolConfiguration: {
               candles: { interval: t.interval },
               botOptions: {
@@ -87,11 +89,11 @@ describe('get-trading-view.js', () => {
             'http://tradingview:8080',
             {
               params: {
-                symbol: 'BTCUSDT',
+                symbols: ['BINANCE:BTCUSDT'],
                 screener: 'CRYPTO',
-                exchange: 'BINANCE',
                 interval: t.expectedInterval
               },
+              paramsSerializer: expect.any(Function),
               timeout: 5000
             }
           );
@@ -103,6 +105,9 @@ describe('get-trading-view.js', () => {
             'BTCUSDT',
             JSON.stringify({
               request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
                 interval: t.expectedInterval
               },
               result: {
@@ -116,7 +121,7 @@ describe('get-trading-view.js', () => {
 
         it('retruns expected result', () => {
           expect(result).toStrictEqual({
-            symbol: 'BTCUSDT',
+            globalConfiguration: { symbols: ['BTCUSDT'] },
             symbolConfiguration: {
               candles: { interval: t.interval },
               botOptions: {
@@ -128,8 +133,10 @@ describe('get-trading-view.js', () => {
                 interval: t.expectedInterval
               },
               result: {
-                summary: {
-                  RECOMMENDATION: 'BUY'
+                'BINANCE:BTCUSDT': {
+                  summary: {
+                    RECOMMENDATION: 'BUY'
+                  }
                 }
               }
             }
@@ -146,15 +153,17 @@ describe('get-trading-view.js', () => {
               interval: '15m'
             },
             result: {
-              summary: {
-                RECOMMENDATION: 'BUY'
+              'BINANCE:BTCUSDT': {
+                summary: {
+                  RECOMMENDATION: 'BUY'
+                }
               }
             }
           }
         });
 
         rawData = {
-          symbol: 'BTCUSDT',
+          globalConfiguration: { symbols: ['BTCUSDT'] },
           symbolConfiguration: {
             candles: { interval: '1h' },
             botOptions: {
@@ -173,11 +182,11 @@ describe('get-trading-view.js', () => {
       it('triggers axios.get', () => {
         expect(axiosMock.get).toHaveBeenCalledWith('http://tradingview:8080', {
           params: {
-            symbol: 'BTCUSDT',
+            symbols: ['BINANCE:BTCUSDT'],
             screener: 'CRYPTO',
-            exchange: 'BINANCE',
             interval: '15m'
           },
+          paramsSerializer: expect.any(Function),
           timeout: 5000
         });
       });
@@ -188,6 +197,9 @@ describe('get-trading-view.js', () => {
           'BTCUSDT',
           JSON.stringify({
             request: {
+              symbol: 'BTCUSDT',
+              screener: 'CRYPTO',
+              exchange: 'BINANCE',
               interval: '15m'
             },
             result: {
@@ -201,7 +213,7 @@ describe('get-trading-view.js', () => {
 
       it('retruns expected result', () => {
         expect(result).toStrictEqual({
-          symbol: 'BTCUSDT',
+          globalConfiguration: { symbols: ['BTCUSDT'] },
           symbolConfiguration: {
             candles: { interval: '1h' },
             botOptions: {
@@ -215,8 +227,10 @@ describe('get-trading-view.js', () => {
               interval: '15m'
             },
             result: {
-              summary: {
-                RECOMMENDATION: 'BUY'
+              'BINANCE:BTCUSDT': {
+                summary: {
+                  RECOMMENDATION: 'BUY'
+                }
               }
             }
           }
@@ -234,8 +248,15 @@ describe('get-trading-view.js', () => {
                 interval: '15m'
               },
               result: {
-                summary: {
-                  RECOMMENDATION: 'BUY'
+                'BINANCE:BTCUSDT': {
+                  summary: {
+                    RECOMMENDATION: 'BUY'
+                  }
+                },
+                'BINANCE:ETHUSDT': {
+                  summary: {
+                    RECOMMENDATION: 'BUY'
+                  }
                 }
               }
             }
@@ -246,15 +267,24 @@ describe('get-trading-view.js', () => {
                 interval: '15m'
               },
               result: {
-                summary: {
-                  RECOMMENDATION: 'SELL'
+                'BINANCE:BTCUSDT': {
+                  summary: {
+                    RECOMMENDATION: 'SELL'
+                  }
+                },
+                'BINANCE:ETHUSDT': {
+                  summary: {
+                    RECOMMENDATION: 'SELL'
+                  }
                 }
               }
             }
           });
 
         rawData = {
-          symbol: 'BTCUSDT',
+          globalConfiguration: {
+            symbols: ['BTCUSDT', 'ETHUSDT']
+          },
           symbolConfiguration: {
             candles: { interval: '1h' },
             botOptions: {
@@ -274,42 +304,58 @@ describe('get-trading-view.js', () => {
       });
 
       it('triggers logger.info twice', () => {
-        expect(loggerMock.info).toHaveBeenCalledTimes(2);
+        expect(loggerMock.info).toHaveBeenCalledTimes(4);
       });
 
-      it('triggers logger.info with saveLog as true', () => {
+      it('triggers logger.info with saveLog as true for BTCUSDT', () => {
         expect(loggerMock.info).toHaveBeenCalledWith(
           {
             data: {
-              request: {
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'BUY'
-                }
+              summary: {
+                RECOMMENDATION: 'BUY'
               }
             },
             saveLog: true
           },
-          `The TradingView technical analysis recommendation is "BUY".`
+          `The TradingView technical analysis recommendation for BTCUSDT is "BUY".`
         );
 
         expect(loggerMock.info).toHaveBeenCalledWith(
           {
             data: {
-              request: {
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL'
-                }
+              summary: {
+                RECOMMENDATION: 'SELL'
               }
             },
             saveLog: true
           },
-          `The TradingView technical analysis recommendation is "SELL".`
+          `The TradingView technical analysis recommendation for BTCUSDT is "SELL".`
+        );
+      });
+
+      it('triggers logger.info with saveLog as true for ETHUSDT', () => {
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          {
+            data: {
+              summary: {
+                RECOMMENDATION: 'BUY'
+              }
+            },
+            saveLog: true
+          },
+          `The TradingView technical analysis recommendation for ETHUSDT is "BUY".`
+        );
+
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          {
+            data: {
+              summary: {
+                RECOMMENDATION: 'SELL'
+              }
+            },
+            saveLog: true
+          },
+          `The TradingView technical analysis recommendation for ETHUSDT is "SELL".`
         );
       });
     });
@@ -324,8 +370,15 @@ describe('get-trading-view.js', () => {
                 interval: '15m'
               },
               result: {
-                summary: {
-                  RECOMMENDATION: 'BUY'
+                'BINANCE:BTCUSDT': {
+                  summary: {
+                    RECOMMENDATION: 'BUY'
+                  }
+                },
+                'BINANCE:ETHUSDT': {
+                  summary: {
+                    RECOMMENDATION: 'BUY'
+                  }
                 }
               }
             }
@@ -336,15 +389,24 @@ describe('get-trading-view.js', () => {
                 interval: '15m'
               },
               result: {
-                summary: {
-                  RECOMMENDATION: 'BUY'
+                'BINANCE:BTCUSDT': {
+                  summary: {
+                    RECOMMENDATION: 'BUY'
+                  }
+                },
+                'BINANCE:ETHUSDT': {
+                  summary: {
+                    RECOMMENDATION: 'BUY'
+                  }
                 }
               }
             }
           });
 
         rawData = {
-          symbol: 'BTCUSDT',
+          globalConfiguration: {
+            symbols: ['BTCUSDT', 'ETHUSDT']
+          },
           symbolConfiguration: {
             candles: { interval: '1h' },
             botOptions: {
@@ -364,43 +426,213 @@ describe('get-trading-view.js', () => {
       });
 
       it('triggers logger.info twice', () => {
-        expect(loggerMock.info).toHaveBeenCalledTimes(2);
+        expect(loggerMock.info).toHaveBeenCalledTimes(4);
       });
 
-      it('triggers logger.info with saveLog as true for first, false for second', () => {
+      it('triggers logger.info with saveLog as true for first', () => {
         expect(loggerMock.info).toHaveBeenCalledWith(
           {
             data: {
-              request: {
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'BUY'
-                }
+              summary: {
+                RECOMMENDATION: 'BUY'
               }
             },
             saveLog: true
           },
-          `The TradingView technical analysis recommendation is "BUY".`
+          `The TradingView technical analysis recommendation for BTCUSDT is "BUY".`
         );
 
         expect(loggerMock.info).toHaveBeenCalledWith(
           {
             data: {
-              request: {
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'BUY'
-                }
+              summary: {
+                RECOMMENDATION: 'BUY'
+              }
+            },
+            saveLog: true
+          },
+          `The TradingView technical analysis recommendation for ETHUSDT is "BUY".`
+        );
+      });
+
+      it('triggers logger.info with saveLog as false for second for ETHUSDT', () => {
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          {
+            data: {
+              summary: {
+                RECOMMENDATION: 'BUY'
               }
             },
             saveLog: false
           },
-          `The TradingView technical analysis recommendation is "BUY".`
+          `The TradingView technical analysis recommendation for BTCUSDT is "BUY".`
         );
+
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          {
+            data: {
+              summary: {
+                RECOMMENDATION: 'BUY'
+              }
+            },
+            saveLog: false
+          },
+          `The TradingView technical analysis recommendation for ETHUSDT is "BUY".`
+        );
+      });
+    });
+
+    describe('when tradingview result is empty', () => {
+      beforeEach(async () => {
+        axiosMock.get = jest.fn().mockResolvedValue({
+          data: {}
+        });
+
+        rawData = {
+          globalConfiguration: { symbols: ['BTCUSDT'] },
+          symbolConfiguration: {
+            candles: { interval: '1h' },
+            botOptions: {
+              tradingView: {
+                interval: '15m'
+              }
+            }
+          },
+          tradingView: {}
+        };
+
+        const step = require('../get-trading-view');
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('triggers axios.get', () => {
+        expect(axiosMock.get).toHaveBeenCalledWith('http://tradingview:8080', {
+          params: {
+            symbols: ['BINANCE:BTCUSDT'],
+            screener: 'CRYPTO',
+            interval: '15m'
+          },
+          paramsSerializer: expect.any(Function),
+          timeout: 5000
+        });
+      });
+
+      it('does not trigger cache.hset', () => {
+        expect(cacheMock.hset).not.toHaveBeenCalled();
+      });
+
+      it('retruns expected result', () => {
+        expect(result).toStrictEqual({
+          globalConfiguration: {
+            symbols: ['BTCUSDT']
+          },
+          symbolConfiguration: {
+            candles: { interval: '1h' },
+            botOptions: {
+              tradingView: { interval: '15m' }
+            }
+          },
+          tradingView: {}
+        });
+      });
+    });
+
+    describe('when tradingview result for symbol is empty', () => {
+      beforeEach(async () => {
+        axiosMock.get = jest.fn().mockResolvedValue({
+          data: {
+            request: {
+              interval: '15m'
+            },
+            result: {
+              'BINANCE:BTCUSDT': {
+                summary: {
+                  RECOMMENDATION: 'BUY'
+                }
+              },
+              'BINANCE:ETHUSDT': 'None'
+            }
+          }
+        });
+
+        rawData = {
+          globalConfiguration: { symbols: ['BTCUSDT', 'ETHUSDT'] },
+          symbolConfiguration: {
+            candles: { interval: '1h' },
+            botOptions: {
+              tradingView: {
+                interval: '15m'
+              }
+            }
+          },
+          tradingView: {}
+        };
+
+        const step = require('../get-trading-view');
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      it('triggers axios.get', () => {
+        expect(axiosMock.get).toHaveBeenCalledWith('http://tradingview:8080', {
+          params: {
+            symbols: ['BINANCE:BTCUSDT', 'BINANCE:ETHUSDT'],
+            screener: 'CRYPTO',
+            interval: '15m'
+          },
+          paramsSerializer: expect.any(Function),
+          timeout: 5000
+        });
+      });
+
+      it('triggers cache.hset once', () => {
+        expect(cacheMock.hset).toHaveBeenCalledTimes(1);
+      });
+
+      it('triggers cache.hset', () => {
+        expect(cacheMock.hset).toHaveBeenCalledWith(
+          'trailing-trade-tradingview',
+          'BTCUSDT',
+          JSON.stringify({
+            request: {
+              symbol: 'BTCUSDT',
+              screener: 'CRYPTO',
+              exchange: 'BINANCE',
+              interval: '15m'
+            },
+            result: {
+              summary: {
+                RECOMMENDATION: 'BUY'
+              }
+            }
+          })
+        );
+      });
+
+      it('retruns expected result', () => {
+        expect(result).toStrictEqual({
+          globalConfiguration: {
+            symbols: ['BTCUSDT', 'ETHUSDT']
+          },
+          symbolConfiguration: {
+            candles: { interval: '1h' },
+            botOptions: {
+              tradingView: { interval: '15m' }
+            }
+          },
+          tradingView: {
+            request: {
+              interval: '15m'
+            },
+            result: {
+              'BINANCE:BTCUSDT': {
+                summary: {
+                  RECOMMENDATION: 'BUY'
+                }
+              },
+              'BINANCE:ETHUSDT': 'None'
+            }
+          }
+        });
       });
     });
 
@@ -411,7 +643,9 @@ describe('get-trading-view.js', () => {
           .mockRejectedValue(new Error('something happened'));
 
         rawData = {
-          symbol: 'BTCUSDT',
+          globalConfiguration: {
+            symbols: ['BTCUSDT', 'ETHUSDT']
+          },
           symbolConfiguration: {
             candles: { interval: '15m' },
             botOptions: {
@@ -428,11 +662,11 @@ describe('get-trading-view.js', () => {
       it('triggers axios.get', () => {
         expect(axiosMock.get).toHaveBeenCalledWith('http://tradingview:8080', {
           params: {
-            symbol: 'BTCUSDT',
+            symbols: ['BINANCE:BTCUSDT', 'BINANCE:ETHUSDT'],
             screener: 'CRYPTO',
-            exchange: 'BINANCE',
             interval: '15m'
           },
+          paramsSerializer: expect.any(Function),
           timeout: 5000
         });
       });
@@ -443,7 +677,9 @@ describe('get-trading-view.js', () => {
 
       it('retruns expected result', () => {
         expect(result).toStrictEqual({
-          symbol: 'BTCUSDT',
+          globalConfiguration: {
+            symbols: ['BTCUSDT', 'ETHUSDT']
+          },
           symbolConfiguration: {
             candles: { interval: '15m' },
             botOptions: {

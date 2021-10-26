@@ -37,6 +37,8 @@ services:
     networks:
       - internal
     restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
     ports:
       - 8082:8080
 
