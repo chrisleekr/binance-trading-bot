@@ -104,8 +104,8 @@ class SettingIconLastBuyPriceRemoveThreshold extends React.Component {
               type='number'
               placeholder={'Enter last buy threshold for ' + quoteAsset}
               required
-              min='0.0001'
-              step='0.0001'
+              min='0.00000001'
+              step='0.00000001'
               data-state-key={quoteAsset}
               value={lastBuyPriceRemoveThresholds[quoteAsset]}
               onChange={this.handleInputChange}

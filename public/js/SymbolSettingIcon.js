@@ -390,8 +390,8 @@ class SymbolSettingIcon extends React.Component {
                                       type='number'
                                       placeholder='Enter last buy threshold'
                                       required
-                                      min='0.0001'
-                                      step='0.0001'
+                                      min='0.00000001'
+                                      step='0.00000001'
                                       data-state-key='buy.lastBuyPriceRemoveThreshold'
                                       value={
                                         symbolConfiguration.buy
