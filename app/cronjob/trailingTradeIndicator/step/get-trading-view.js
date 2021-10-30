@@ -16,36 +16,21 @@ const getInterval = interval => {
 const lastTradingView = {};
 
 /**
- * Get Tradingview indicators
+ * Retreive trading view for symbols per interval
  *
- * @param {*} funcLogger
- * @param {*} rawData
+ * @param {*} logger
+ * @param {*} symbols
+ * @param {*} interval
+ * @returns
  */
-const execute = async (funcLogger, rawData) => {
-  const data = rawData;
-
-  const {
-    globalConfiguration: { symbols },
-    symbolConfiguration: {
-      candles: { interval },
-      botOptions: {
-        tradingView: { interval: tradingViewInterval }
-      }
-    }
-  } = data;
-
-  const logger = funcLogger.child({ symbols });
-
-  const finalInterval = getInterval(
-    tradingViewInterval !== '' ? tradingViewInterval : interval
-  );
+const retrieveTradingView = async (logger, symbols, interval) => {
   const params = {
     symbols: symbols.reduce((acc, s) => {
       acc.push(`BINANCE:${s}`);
       return acc;
     }, []),
     screener: 'CRYPTO',
-    interval: finalInterval
+    interval
   };
 
   try {
@@ -56,11 +41,11 @@ const execute = async (funcLogger, rawData) => {
         p => qs.stringify(p, { arrayFormat: 'repeat' }),
       timeout: 5000 // timeout 5 seconds
     });
-
     const tradingViewResult = _.get(response.data, 'result', {});
+
     if (_.isEmpty(tradingViewResult) === true) {
       // If result is empty, do not process.
-      return data;
+      return;
     }
 
     _.forIn(tradingViewResult, (result, symbolKey) => {
@@ -84,7 +69,7 @@ const execute = async (funcLogger, rawData) => {
       // If recommendation is retrieved,
       if (newRecommendation !== '') {
         logger.info(
-          { data: result, saveLog },
+          { symbol, data: result, saveLog },
           `The TradingView technical analysis recommendation for ${symbol} is "${_.get(
             result,
             'summary.RECOMMENDATION'
@@ -100,26 +85,92 @@ const execute = async (funcLogger, rawData) => {
               symbol,
               screener: 'CRYPTO',
               exchange: 'BINANCE',
-              interval: finalInterval
+              interval
             },
             result
           })
         );
       } else {
         logger.info(
-          { data: result, saveLog },
+          { symbol, data: result, saveLog },
           `The TradingView technical analysis recommendation for ${symbol} could not be retrieved.`
         );
       }
     });
-
-    data.tradingView = response.data;
   } catch (err) {
     logger.error(
       { err, saveLog: true },
       'Error occurred while retrieving TradingView technical analysis...'
     );
   }
+};
+
+/**
+ * Get Tradingview indicators
+ *
+ * @param {*} funcLogger
+ * @param {*} rawData
+ */
+const execute = async (funcLogger, rawData) => {
+  const data = rawData;
+
+  const {
+    globalConfiguration: { symbols }
+  } = data;
+
+  const logger = funcLogger.child({ symbols });
+
+  logger.info('get-trading-view started');
+
+  if (_.isEmpty(symbols)) {
+    logger.info('No symbols configured. Do not process get-trading-view');
+    return data;
+  }
+
+  // Should get all symbol configurations and make group call per interval
+  const cachedSymbolConfigurations = await cache.hgetall(
+    'trailing-trade-configurations:',
+    'trailing-trade-configurations:*'
+  );
+
+  const tradingViewRequests = {};
+
+  _.forIn(cachedSymbolConfigurations, (value, symbol) => {
+    if (symbol === 'global') {
+      return;
+    }
+
+    const symbolConfiguration = JSON.parse(value);
+
+    const {
+      candles: { interval },
+      botOptions: {
+        tradingView: { interval: tradingViewInterval }
+      }
+    } = symbolConfiguration;
+
+    const finalInterval = getInterval(
+      tradingViewInterval !== '' ? tradingViewInterval : interval
+    );
+
+    if (tradingViewRequests[finalInterval] === undefined) {
+      tradingViewRequests[finalInterval] = {
+        symbols: [],
+        interval: finalInterval
+      };
+    }
+    tradingViewRequests[finalInterval].symbols.push(symbol);
+  });
+
+  const promises = [];
+
+  _.forIn(tradingViewRequests, async (request, _requestInterval) => {
+    promises.push(
+      retrieveTradingView(logger, request.symbols, request.interval)
+    );
+  });
+
+  Promise.all(promises);
 
   return data;
 };
