@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Enhanced TradingView using get_multiple_analysis
+
 ## [0.0.83] - 2021-10-23
 
 - Fixed Redis/TradingView docker images for Raspberry Pi - [#366](https://github.com/chrisleekr/binance-trading-bot/pull/366)

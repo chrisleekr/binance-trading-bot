@@ -20,15 +20,12 @@ const { saveGridTradeOrder } = require('../../trailingTradeHelper/order');
  */
 const isAllowedTradingViewRecommendation = (logger, data) => {
   const {
-    symbol,
-    featureToggle: { notifyDebug },
     symbolConfiguration: {
       buy: {
         tradingView: {
           whenStrongBuy: tradingViewWhenStrongBuy,
           whenBuy: tradingViewWhenBuy
-        },
-        currentGridTradeIndex
+        }
       },
       botOptions: {
         tradingView: {
@@ -127,16 +124,6 @@ const isAllowedTradingViewRecommendation = (logger, data) => {
         `Do not place an order because ` +
         `TradingView recommendation is ${tradingViewSummaryRecommendation}.`
     };
-  }
-
-  if (notifyDebug) {
-    const humanisedGridTradeIndex = currentGridTradeIndex + 1;
-    slack.sendMessage(
-      `${symbol} Buy Action Grid Trade #${humanisedGridTradeIndex} (${moment().format(
-        'HH:mm:ss.SSS'
-      )}): TradingView Recommendation ${tradingViewSummaryRecommendation}\n` +
-        `- Current API Usage: ${getAPILimit(logger)}`
-    );
   }
 
   // Otherwise, simply allow

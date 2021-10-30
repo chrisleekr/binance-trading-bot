@@ -87,7 +87,6 @@ production-tradingview:
     - docker context create dind
     - docker buildx create --driver docker-container --use dind
   script:
-    - docker buildx build --progress plain --platform
-      linux/amd64,linux/arm/v7,linux/arm64 --pull --tag
-      $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:tradingview --push
-      ./tradingview
+    - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7
+      --pull --tag $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:tradingview
+      --push ./tradingview
