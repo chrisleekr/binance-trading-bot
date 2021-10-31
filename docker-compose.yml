@@ -41,6 +41,10 @@ services:
       - PYTHONUNBUFFERED=1
     ports:
       - 8082:8080
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '50m'
 
   binance-redis:
     container_name: binance-redis

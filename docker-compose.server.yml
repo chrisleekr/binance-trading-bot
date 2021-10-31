@@ -28,6 +28,10 @@ services:
     networks:
       - internal
     restart: unless-stopped
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '50m'
 
   binance-redis:
     container_name: binance-redis
