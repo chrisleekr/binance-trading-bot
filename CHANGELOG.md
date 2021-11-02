@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Refactored TradingView python server - [#383](https://github.com/chrisleekr/binance-trading-bot/pull/383)
+
 ## [0.0.84] - 2021-10-30
 
 - Enhanced TradingView using get_multiple_analysis - [#375](https://github.com/chrisleekr/binance-trading-bot/pull/375)

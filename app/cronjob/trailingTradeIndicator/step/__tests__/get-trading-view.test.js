@@ -104,7 +104,7 @@ describe('get-trading-view.js', () => {
                 interval: '1h'
               },
               paramsSerializer: expect.any(Function),
-              timeout: 5000
+              timeout: 20000
             }
           );
         });
@@ -267,7 +267,7 @@ describe('get-trading-view.js', () => {
                 interval: '15m'
               },
               paramsSerializer: expect.any(Function),
-              timeout: 5000
+              timeout: 20000
             }
           );
 
@@ -280,7 +280,7 @@ describe('get-trading-view.js', () => {
                 interval: '5m'
               },
               paramsSerializer: expect.any(Function),
-              timeout: 5000
+              timeout: 20000
             }
           );
         });
@@ -480,7 +480,7 @@ describe('get-trading-view.js', () => {
                   interval: '15m'
                 },
                 paramsSerializer: expect.any(Function),
-                timeout: 5000
+                timeout: 20000
               }
             );
 
@@ -493,7 +493,7 @@ describe('get-trading-view.js', () => {
                   interval: '5m'
                 },
                 paramsSerializer: expect.any(Function),
-                timeout: 5000
+                timeout: 20000
               }
             );
           });
@@ -764,7 +764,7 @@ describe('get-trading-view.js', () => {
                   interval: '15m'
                 },
                 paramsSerializer: expect.any(Function),
-                timeout: 5000
+                timeout: 20000
               }
             );
 
@@ -777,7 +777,7 @@ describe('get-trading-view.js', () => {
                   interval: '5m'
                 },
                 paramsSerializer: expect.any(Function),
-                timeout: 5000
+                timeout: 20000
               }
             );
           });
@@ -988,7 +988,7 @@ describe('get-trading-view.js', () => {
             interval: '1h'
           },
           paramsSerializer: expect.any(Function),
-          timeout: 5000
+          timeout: 20000
         });
       });
 
@@ -1072,7 +1072,7 @@ describe('get-trading-view.js', () => {
             interval: '1h'
           },
           paramsSerializer: expect.any(Function),
-          timeout: 5000
+          timeout: 20000
         });
       });
 
@@ -1138,7 +1138,7 @@ describe('get-trading-view.js', () => {
             interval: '1h'
           },
           paramsSerializer: expect.any(Function),
-          timeout: 5000
+          timeout: 20000
         });
       });
 

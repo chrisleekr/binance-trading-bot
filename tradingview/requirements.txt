@@ -1,9 +1,6 @@
-certifi==2021.10.8
-chardet==4.0.0
-idna==3.3
-protobuf==3.19.0
-pybind11==2.8.0
-requests==2.26.0
-six==1.16.0
 tradingview-ta==3.2.9
+Flask==2.0.2
+waitress==2.0.0
 urllib3==1.26.7
+paste==3.5.0
+colorlog==6.5.0
