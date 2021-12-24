@@ -33,3 +33,4 @@ log
 /public/dist/*
 !/public/dist/.gitkeep
 
+*.log
