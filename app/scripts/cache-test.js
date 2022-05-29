@@ -3,6 +3,7 @@
 /* eslint-disable no-console */
 const { cache, logger } = require('../helpers');
 
+// eslint-disable-next-line no-promise-executor-return
 const sleep = async ms => new Promise(resolve => setTimeout(resolve, ms));
 
 (async () => {
