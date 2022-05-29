@@ -1,6 +1,6 @@
-tradingview-ta==3.2.9
+tradingview-ta==3.2.10
 Flask==2.0.2
-waitress==2.0.0
+waitress==2.1.1
 urllib3==1.26.7
 paste==3.5.0
 colorlog==6.5.0
