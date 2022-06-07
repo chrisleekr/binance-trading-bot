@@ -31,6 +31,13 @@ class CoinWrapperTradingView extends React.Component {
     }
   }
 
+  isTriggeredByAutoTrigger(overrideData) {
+    return (
+      _.get(overrideData, 'action', '') === 'buy' &&
+      _.get(overrideData, 'triggeredBy', '') === 'auto-trigger'
+    );
+  }
+
   render() {
     const { collapsed } = this.state;
     const {
@@ -42,10 +49,18 @@ class CoinWrapperTradingView extends React.Component {
         },
         symbolConfiguration: {
           botOptions: {
-            tradingView: { useOnlyWithin: tradingViewUseOnlyWithin }
+            tradingView: { useOnlyWithin: tradingViewUseOnlyWithin },
+            autoTriggerBuy: {
+              conditions: {
+                tradingView: {
+                  overrideInterval: autoTriggerBuyTradingViewOverrideInterval
+                }
+              }
+            }
           }
         },
-        tradingView
+        tradingView,
+        overrideData
       }
     } = this.props;
 
@@ -310,9 +325,40 @@ class CoinWrapperTradingView extends React.Component {
         </div>
         <div className='d-flex flex-column w-100'>
           <div className='coin-info-column coin-info-column-price'>
-            <span className='coin-info-label'>
+            <div className='coin-info-label'>
               Summary ({tradingView.request.interval})
-            </span>
+              {this.isTriggeredByAutoTrigger(overrideData) &&
+              autoTriggerBuyTradingViewOverrideInterval !== '' ? (
+                <OverlayTrigger
+                  trigger='click'
+                  key={'tradingview-overriden-interval-' + symbol + '-overlay'}
+                  placement='bottom'
+                  overlay={
+                    <Popover
+                      id={
+                        'tradingview-overriden-interval-' +
+                        symbol +
+                        '-overlay-right'
+                      }>
+                      <Popover.Content>
+                        TradingView interval is overridden by the auto-buy
+                        trigger. While the auto-buy trigger is active,
+                        TradingView will retrieve the data by the override
+                        interval.
+                      </Popover.Content>
+                    </Popover>
+                  }>
+                  <Button
+                    variant='link'
+                    className='p-0 m-0 ml-1 text-warning d-inline-block'
+                    style={{ lineHeight: '17px' }}>
+                    <i className='fas fa-info-circle fa-sm'></i>
+                  </Button>
+                </OverlayTrigger>
+              ) : (
+                ''
+              )}
+            </div>
             <HightlightChange
               className={
                 'coin-info-value text-bold ' +

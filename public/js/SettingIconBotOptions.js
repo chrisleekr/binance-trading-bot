@@ -389,6 +389,62 @@ class SettingIconBotOptions extends React.Component {
                                 </OverlayTrigger>
                               </strong>
                             </div>
+                            <div className='col-12'>
+                              <div className='row'>
+                                <div className='col-12 col-sm-6'>
+                                  <Form.Group
+                                    controlId='field-bot-options-auto-trigger-buy-tradingview-interval'
+                                    className='mb-2'>
+                                    <Form.Label className='mb-0'>
+                                      Override Interval
+                                      <OverlayTrigger
+                                        trigger='click'
+                                        key='bot-options-auto-trigger-buy-tradingview-intervaloverlay'
+                                        placement='bottom'
+                                        overlay={
+                                          <Popover id='bot-options-auto-trigger-buy-tradingview-intervaloverlay-right'>
+                                            <Popover.Content>
+                                              Override TradingView candle
+                                              interval while attempting auto
+                                              trigger buy. If set, the bot will
+                                              use overriden interval for
+                                              TradingView until buy order is
+                                              executed.
+                                            </Popover.Content>
+                                          </Popover>
+                                        }>
+                                        <Button
+                                          variant='link'
+                                          className='p-0 m-0 ml-1 text-info'>
+                                          <i className='fas fa-question-circle fa-sm'></i>
+                                        </Button>
+                                      </OverlayTrigger>
+                                    </Form.Label>
+                                    <Form.Control
+                                      size='sm'
+                                      as='select'
+                                      data-state-key='autoTriggerBuy.conditions.tradingView.overrideInterval'
+                                      value={
+                                        botOptions.autoTriggerBuy.conditions
+                                          .tradingView.overrideInterval
+                                      }
+                                      onChange={this.handleInputChange}>
+                                      <option value=''>
+                                        Use TradingView -&gt; interval
+                                      </option>
+                                      <option value='1m'>1m</option>
+                                      <option value='5m'>5m</option>
+                                      <option value='15m'>15m</option>
+                                      <option value='30m'>30m</option>
+                                      <option value='1h'>1h</option>
+                                      <option value='2h'>2h</option>
+                                      <option value='4h'>4h</option>
+                                      <option value='1d'>1d</option>
+                                    </Form.Control>
+                                  </Form.Group>
+                                </div>
+                              </div>
+                            </div>
                             <div className='col-12 col-md-6'>
                               <Form.Group
                                 controlId='field-bot-options-auto-trigger-buy-condition-tradingview-when-strong-buy'
@@ -822,7 +878,7 @@ class SettingIconBotOptions extends React.Component {
                                     type='number'
                                     placeholder='Enter minutes'
                                     required
-                                    min='1'
+                                    min='0'
                                     step='1'
                                     data-state-key='logs.deleteAfter'
                                     value={botOptions.logs.deleteAfter}
