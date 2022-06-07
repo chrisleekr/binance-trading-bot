@@ -8,7 +8,7 @@ const _ = require('lodash');
  */
 const roundDown = (number, decimals) =>
   // eslint-disable-next-line no-restricted-properties
-  Math.floor(number * Math.pow(10, decimals)) / Math.pow(10, decimals);
+  Math.floor(number * 10 ** decimals) / 10 ** decimals;
 
 /**
  * Mask important config key

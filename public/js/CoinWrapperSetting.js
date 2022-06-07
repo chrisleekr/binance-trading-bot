@@ -415,6 +415,18 @@ class CoinWrapperSetting extends React.Component {
             </div>
             <div className='coin-info-column coin-info-column-order'>
               <span className='coin-info-label'>
+                TradingView Overriden Interval:
+              </span>
+              <span className='coin-info-value'>
+                {symbolConfiguration.botOptions.autoTriggerBuy.conditions
+                  .tradingView.overrideInterval !== ''
+                  ? symbolConfiguration.botOptions.autoTriggerBuy.conditions
+                      .tradingView.overrideInterval
+                  : 'Use TradingView'}
+              </span>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
                 Allow when TradingView recommendation is <code>Strong buy</code>
                 :
               </span>

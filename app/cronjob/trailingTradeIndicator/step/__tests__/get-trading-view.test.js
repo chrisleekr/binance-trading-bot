@@ -31,32 +31,56 @@ describe('get-trading-view.js', () => {
             }
           };
 
-          cacheMock.hgetall = jest.fn().mockResolvedValue({
-            BTCUSDT: JSON.stringify({
-              candles: { interval: '1h', limit: 100 },
-              botOptions: {
-                tradingView: {
-                  interval: ''
+          cacheMock.hgetall = jest
+            .fn()
+            .mockResolvedValueOnce({
+              BTCUSDT: JSON.stringify({
+                candles: { interval: '1h', limit: 100 },
+                botOptions: {
+                  tradingView: {
+                    interval: ''
+                  },
+                  autoTriggerBuy: {
+                    conditions: {
+                      tradingView: {
+                        overrideInterval: ''
+                      }
+                    }
+                  }
                 }
-              }
-            }),
-            BNBUSDT: JSON.stringify({
-              candles: { interval: '1h', limit: 100 },
-              botOptions: {
-                tradingView: {
-                  interval: ''
+              }),
+              BNBUSDT: JSON.stringify({
+                candles: { interval: '1h', limit: 100 },
+                botOptions: {
+                  tradingView: {
+                    interval: ''
+                  },
+                  autoTriggerBuy: {
+                    conditions: {
+                      tradingView: {
+                        overrideInterval: ''
+                      }
+                    }
+                  }
                 }
-              }
-            }),
-            global: JSON.stringify({
-              candles: { interval: '1h', limit: 100 },
-              botOptions: {
-                tradingView: {
-                  interval: '15m'
+              }),
+              global: JSON.stringify({
+                candles: { interval: '1h', limit: 100 },
+                botOptions: {
+                  tradingView: {
+                    interval: '15m'
+                  },
+                  autoTriggerBuy: {
+                    conditions: {
+                      tradingView: {
+                        overrideInterval: ''
+                      }
+                    }
+                  }
                 }
-              }
+              })
             })
-          });
+            .mockResolvedValueOnce({});
 
           axiosMock.get = jest.fn().mockResolvedValue({
             data: {
@@ -192,24 +216,41 @@ describe('get-trading-view.js', () => {
             }
           };
 
-          cacheMock.hgetall = jest.fn().mockResolvedValue({
-            BTCUSDT: JSON.stringify({
-              candles: { interval: '1h', limit: 100 },
-              botOptions: {
-                tradingView: {
-                  interval: '15m'
+          cacheMock.hgetall = jest
+            .fn()
+            .mockResolvedValueOnce({
+              BTCUSDT: JSON.stringify({
+                candles: { interval: '1h', limit: 100 },
+                botOptions: {
+                  tradingView: {
+                    interval: '15m'
+                  },
+                  autoTriggerBuy: {
+                    conditions: {
+                      tradingView: {
+                        overrideInterval: ''
+                      }
+                    }
+                  }
                 }
-              }
-            }),
-            BNBUSDT: JSON.stringify({
-              candles: { interval: '1h', limit: 100 },
-              botOptions: {
-                tradingView: {
-                  interval: '3m'
+              }),
+              BNBUSDT: JSON.stringify({
+                candles: { interval: '1h', limit: 100 },
+                botOptions: {
+                  tradingView: {
+                    interval: '3m'
+                  },
+                  autoTriggerBuy: {
+                    conditions: {
+                      tradingView: {
+                        overrideInterval: ''
+                      }
+                    }
+                  }
                 }
-              }
+              })
             })
-          });
+            .mockResolvedValueOnce({});
 
           axiosMock.get = jest
             .fn()
@@ -360,6 +401,410 @@ describe('get-trading-view.js', () => {
         });
       });
 
+      describe('when symbols have override data for trading view', () => {
+        describe('when symbol have override interval for trading view', () => {
+          beforeEach(async () => {
+            rawData = {
+              globalConfiguration: {
+                symbols: ['BTCUSDT', 'BNBUSDT']
+              }
+            };
+
+            cacheMock.hgetall = jest
+              .fn()
+              .mockResolvedValueOnce({
+                BTCUSDT: JSON.stringify({
+                  candles: { interval: '1h', limit: 100 },
+                  botOptions: {
+                    tradingView: {
+                      interval: '15m'
+                    },
+                    autoTriggerBuy: {
+                      conditions: {
+                        tradingView: {
+                          overrideInterval: '30m'
+                        }
+                      }
+                    }
+                  }
+                }),
+                BNBUSDT: JSON.stringify({
+                  candles: { interval: '1h', limit: 100 },
+                  botOptions: {
+                    tradingView: {
+                      interval: '3m'
+                    },
+                    autoTriggerBuy: {
+                      conditions: {
+                        tradingView: {
+                          overrideInterval: '1m'
+                        }
+                      }
+                    }
+                  }
+                })
+              })
+              .mockResolvedValueOnce({
+                BNBUSDT: JSON.stringify({
+                  action: 'buy',
+                  actionAt: '2022-06-07T11:50:22+00:00',
+                  triggeredBy: 'auto-trigger',
+                  notify: true,
+                  checkTradingView: true
+                })
+              });
+
+            axiosMock.get = jest
+              .fn()
+              .mockResolvedValueOnce({
+                data: {
+                  request: {
+                    symbols: ['BINANCE:BTCUSDT'],
+                    screener: 'CRYPTO',
+                    interval: '15m'
+                  },
+                  result: {
+                    'BINANCE:BTCUSDT': {
+                      summary: {
+                        RECOMMENDATION: 'NEUTRAL'
+                      },
+                      time: '2021-10-30T08:53:53.973250'
+                    }
+                  }
+                }
+              })
+              .mockResolvedValueOnce({
+                data: {
+                  request: {
+                    symbols: ['BINANCE:BNBUSDT'],
+                    screener: 'CRYPTO',
+                    interval: '1m'
+                  },
+                  result: {
+                    'BINANCE:BNBUSDT': {
+                      summary: {
+                        RECOMMENDATION: 'BUY'
+                      },
+                      time: '2021-10-30T08:53:53.973250'
+                    }
+                  }
+                }
+              });
+
+            const step = require('../get-trading-view');
+
+            await step.execute(loggerMock, rawData);
+          });
+
+          it('triggers axios.get twice', () => {
+            expect(axiosMock.get).toHaveBeenCalledTimes(2);
+          });
+
+          it('triggers axios.get', () => {
+            expect(axiosMock.get).toHaveBeenCalledWith(
+              'http://tradingview:8080',
+              {
+                params: {
+                  symbols: ['BINANCE:BTCUSDT'],
+                  screener: 'CRYPTO',
+                  interval: '15m'
+                },
+                paramsSerializer: expect.any(Function),
+                timeout: 20000
+              }
+            );
+
+            expect(axiosMock.get).toHaveBeenCalledWith(
+              'http://tradingview:8080',
+              {
+                params: {
+                  symbols: ['BINANCE:BNBUSDT'],
+                  screener: 'CRYPTO',
+                  interval: '1m'
+                },
+                paramsSerializer: expect.any(Function),
+                timeout: 20000
+              }
+            );
+          });
+
+          it('triggers cache.hset twice', () => {
+            expect(cacheMock.hset).toHaveBeenCalledTimes(2);
+          });
+
+          it('triggers cache.hset for symbols', () => {
+            expect(cacheMock.hset).toHaveBeenCalledWith(
+              'trailing-trade-tradingview',
+              'BTCUSDT',
+              JSON.stringify({
+                request: {
+                  symbol: 'BTCUSDT',
+                  screener: 'CRYPTO',
+                  exchange: 'BINANCE',
+                  interval: '15m'
+                },
+                result: {
+                  summary: {
+                    RECOMMENDATION: 'NEUTRAL'
+                  },
+                  time: '2021-10-30T08:53:53.973250'
+                }
+              })
+            );
+
+            expect(cacheMock.hset).toHaveBeenCalledWith(
+              'trailing-trade-tradingview',
+              'BNBUSDT',
+              JSON.stringify({
+                request: {
+                  symbol: 'BNBUSDT',
+                  screener: 'CRYPTO',
+                  exchange: 'BINANCE',
+                  interval: '1m'
+                },
+                result: {
+                  summary: {
+                    RECOMMENDATION: 'BUY'
+                  },
+                  time: '2021-10-30T08:53:53.973250'
+                }
+              })
+            );
+          });
+
+          it("saves logger.info for symbols because there isn't existing recommendation", () => {
+            expect(loggerMock.info).toHaveBeenCalledWith(
+              {
+                symbol: 'BTCUSDT',
+                data: {
+                  summary: {
+                    RECOMMENDATION: 'NEUTRAL'
+                  },
+                  time: '2021-10-30T08:53:53.973250'
+                },
+                saveLog: true
+              },
+              `The TradingView technical analysis recommendation for BTCUSDT is "NEUTRAL".`
+            );
+
+            expect(loggerMock.info).toHaveBeenCalledWith(
+              {
+                symbol: 'BNBUSDT',
+                data: {
+                  summary: {
+                    RECOMMENDATION: 'BUY'
+                  },
+                  time: '2021-10-30T08:53:53.973250'
+                },
+                saveLog: true
+              },
+              `The TradingView technical analysis recommendation for BNBUSDT is "BUY".`
+            );
+          });
+        });
+
+        describe('when symbol does not have override interval for trading view', () => {
+          beforeEach(async () => {
+            rawData = {
+              globalConfiguration: {
+                symbols: ['BTCUSDT', 'BNBUSDT']
+              }
+            };
+
+            cacheMock.hgetall = jest
+              .fn()
+              .mockResolvedValueOnce({
+                BTCUSDT: JSON.stringify({
+                  candles: { interval: '1h', limit: 100 },
+                  botOptions: {
+                    tradingView: {
+                      interval: '15m'
+                    },
+                    autoTriggerBuy: {
+                      conditions: {
+                        tradingView: {
+                          overrideInterval: '30m'
+                        }
+                      }
+                    }
+                  }
+                }),
+                BNBUSDT: JSON.stringify({
+                  candles: { interval: '1h', limit: 100 },
+                  botOptions: {
+                    tradingView: {
+                      interval: '3m'
+                    },
+                    autoTriggerBuy: {
+                      conditions: {
+                        tradingView: {
+                          overrideInterval: ''
+                        }
+                      }
+                    }
+                  }
+                })
+              })
+              .mockResolvedValueOnce({
+                BNBUSDT: JSON.stringify({
+                  action: 'buy',
+                  actionAt: '2022-06-07T11:50:22+00:00',
+                  triggeredBy: 'auto-trigger',
+                  notify: true,
+                  checkTradingView: true
+                })
+              });
+
+            axiosMock.get = jest
+              .fn()
+              .mockResolvedValueOnce({
+                data: {
+                  request: {
+                    symbols: ['BINANCE:BTCUSDT'],
+                    screener: 'CRYPTO',
+                    interval: '15m'
+                  },
+                  result: {
+                    'BINANCE:BTCUSDT': {
+                      summary: {
+                        RECOMMENDATION: 'NEUTRAL'
+                      },
+                      time: '2021-10-30T08:53:53.973250'
+                    }
+                  }
+                }
+              })
+              .mockResolvedValueOnce({
+                data: {
+                  request: {
+                    symbols: ['BINANCE:BNBUSDT'],
+                    screener: 'CRYPTO',
+                    interval: '1m'
+                  },
+                  result: {
+                    'BINANCE:BNBUSDT': {
+                      summary: {
+                        RECOMMENDATION: 'BUY'
+                      },
+                      time: '2021-10-30T08:53:53.973250'
+                    }
+                  }
+                }
+              });
+
+            const step = require('../get-trading-view');
+
+            await step.execute(loggerMock, rawData);
+          });
+
+          it('triggers axios.get twice', () => {
+            expect(axiosMock.get).toHaveBeenCalledTimes(2);
+          });
+
+          it('triggers axios.get', () => {
+            expect(axiosMock.get).toHaveBeenCalledWith(
+              'http://tradingview:8080',
+              {
+                params: {
+                  symbols: ['BINANCE:BTCUSDT'],
+                  screener: 'CRYPTO',
+                  interval: '15m'
+                },
+                paramsSerializer: expect.any(Function),
+                timeout: 20000
+              }
+            );
+
+            expect(axiosMock.get).toHaveBeenCalledWith(
+              'http://tradingview:8080',
+              {
+                params: {
+                  symbols: ['BINANCE:BNBUSDT'],
+                  screener: 'CRYPTO',
+                  interval: '5m'
+                },
+                paramsSerializer: expect.any(Function),
+                timeout: 20000
+              }
+            );
+          });
+
+          it('triggers cache.hset twice', () => {
+            expect(cacheMock.hset).toHaveBeenCalledTimes(2);
+          });
+
+          it('triggers cache.hset for symbols', () => {
+            expect(cacheMock.hset).toHaveBeenCalledWith(
+              'trailing-trade-tradingview',
+              'BTCUSDT',
+              JSON.stringify({
+                request: {
+                  symbol: 'BTCUSDT',
+                  screener: 'CRYPTO',
+                  exchange: 'BINANCE',
+                  interval: '15m'
+                },
+                result: {
+                  summary: {
+                    RECOMMENDATION: 'NEUTRAL'
+                  },
+                  time: '2021-10-30T08:53:53.973250'
+                }
+              })
+            );
+
+            expect(cacheMock.hset).toHaveBeenCalledWith(
+              'trailing-trade-tradingview',
+              'BNBUSDT',
+              JSON.stringify({
+                request: {
+                  symbol: 'BNBUSDT',
+                  screener: 'CRYPTO',
+                  exchange: 'BINANCE',
+                  interval: '5m'
+                },
+                result: {
+                  summary: {
+                    RECOMMENDATION: 'BUY'
+                  },
+                  time: '2021-10-30T08:53:53.973250'
+                }
+              })
+            );
+          });
+
+          it("saves logger.info for symbols because there isn't existing recommendation", () => {
+            expect(loggerMock.info).toHaveBeenCalledWith(
+              {
+                symbol: 'BTCUSDT',
+                data: {
+                  summary: {
+                    RECOMMENDATION: 'NEUTRAL'
+                  },
+                  time: '2021-10-30T08:53:53.973250'
+                },
+                saveLog: true
+              },
+              `The TradingView technical analysis recommendation for BTCUSDT is "NEUTRAL".`
+            );
+
+            expect(loggerMock.info).toHaveBeenCalledWith(
+              {
+                symbol: 'BNBUSDT',
+                data: {
+                  summary: {
+                    RECOMMENDATION: 'BUY'
+                  },
+                  time: '2021-10-30T08:53:53.973250'
+                },
+                saveLog: true
+              },
+              `The TradingView technical analysis recommendation for BNBUSDT is "BUY".`
+            );
+          });
+        });
+      });
+
       describe('when there are existing recommendations', () => {
         describe('recommendation is same', () => {
           beforeEach(async () => {
@@ -369,24 +814,74 @@ describe('get-trading-view.js', () => {
               }
             };
 
-            cacheMock.hgetall = jest.fn().mockResolvedValue({
-              BTCUSDT: JSON.stringify({
-                candles: { interval: '1h', limit: 100 },
-                botOptions: {
-                  tradingView: {
-                    interval: '15m'
+            cacheMock.hgetall = jest
+              .fn()
+              .mockResolvedValueOnce({
+                BTCUSDT: JSON.stringify({
+                  candles: { interval: '1h', limit: 100 },
+                  botOptions: {
+                    tradingView: {
+                      interval: '15m'
+                    },
+                    autoTriggerBuy: {
+                      conditions: {
+                        tradingView: {
+                          overrideInterval: ''
+                        }
+                      }
+                    }
                   }
-                }
-              }),
-              BNBUSDT: JSON.stringify({
-                candles: { interval: '1h', limit: 100 },
-                botOptions: {
-                  tradingView: {
-                    interval: '3m'
+                }),
+                BNBUSDT: JSON.stringify({
+                  candles: { interval: '1h', limit: 100 },
+                  botOptions: {
+                    tradingView: {
+                      interval: '3m'
+                    },
+                    autoTriggerBuy: {
+                      conditions: {
+                        tradingView: {
+                          overrideInterval: ''
+                        }
+                      }
+                    }
                   }
-                }
+                })
               })
-            });
+              .mockResolvedValueOnce({})
+              .mockResolvedValueOnce({
+                BTCUSDT: JSON.stringify({
+                  candles: { interval: '1h', limit: 100 },
+                  botOptions: {
+                    tradingView: {
+                      interval: '15m'
+                    },
+                    autoTriggerBuy: {
+                      conditions: {
+                        tradingView: {
+                          overrideInterval: ''
+                        }
+                      }
+                    }
+                  }
+                }),
+                BNBUSDT: JSON.stringify({
+                  candles: { interval: '1h', limit: 100 },
+                  botOptions: {
+                    tradingView: {
+                      interval: '3m'
+                    },
+                    autoTriggerBuy: {
+                      conditions: {
+                        tradingView: {
+                          overrideInterval: ''
+                        }
+                      }
+                    }
+                  }
+                })
+              })
+              .mockResolvedValueOnce({});
 
             axiosMock.get = jest
               .fn()
@@ -653,24 +1148,74 @@ describe('get-trading-view.js', () => {
               }
             };
 
-            cacheMock.hgetall = jest.fn().mockResolvedValue({
-              BTCUSDT: JSON.stringify({
-                candles: { interval: '1h', limit: 100 },
-                botOptions: {
-                  tradingView: {
-                    interval: '15m'
+            cacheMock.hgetall = jest
+              .fn()
+              .mockResolvedValueOnce({
+                BTCUSDT: JSON.stringify({
+                  candles: { interval: '1h', limit: 100 },
+                  botOptions: {
+                    tradingView: {
+                      interval: '15m'
+                    },
+                    autoTriggerBuy: {
+                      conditions: {
+                        tradingView: {
+                          overrideInterval: ''
+                        }
+                      }
+                    }
                   }
-                }
-              }),
-              BNBUSDT: JSON.stringify({
-                candles: { interval: '1h', limit: 100 },
-                botOptions: {
-                  tradingView: {
-                    interval: '3m'
+                }),
+                BNBUSDT: JSON.stringify({
+                  candles: { interval: '1h', limit: 100 },
+                  botOptions: {
+                    tradingView: {
+                      interval: '3m'
+                    },
+                    autoTriggerBuy: {
+                      conditions: {
+                        tradingView: {
+                          overrideInterval: ''
+                        }
+                      }
+                    }
                   }
-                }
+                })
               })
-            });
+              .mockResolvedValueOnce({})
+              .mockResolvedValueOnce({
+                BTCUSDT: JSON.stringify({
+                  candles: { interval: '1h', limit: 100 },
+                  botOptions: {
+                    tradingView: {
+                      interval: '15m'
+                    },
+                    autoTriggerBuy: {
+                      conditions: {
+                        tradingView: {
+                          overrideInterval: ''
+                        }
+                      }
+                    }
+                  }
+                }),
+                BNBUSDT: JSON.stringify({
+                  candles: { interval: '1h', limit: 100 },
+                  botOptions: {
+                    tradingView: {
+                      interval: '3m'
+                    },
+                    autoTriggerBuy: {
+                      conditions: {
+                        tradingView: {
+                          overrideInterval: ''
+                        }
+                      }
+                    }
+                  }
+                })
+              })
+              .mockResolvedValueOnce({});
 
             axiosMock.get = jest
               .fn()
@@ -939,32 +1484,56 @@ describe('get-trading-view.js', () => {
           }
         };
 
-        cacheMock.hgetall = jest.fn().mockResolvedValue({
-          BTCUSDT: JSON.stringify({
-            candles: { interval: '1h', limit: 100 },
-            botOptions: {
-              tradingView: {
-                interval: ''
+        cacheMock.hgetall = jest
+          .fn()
+          .mockResolvedValueOnce({
+            BTCUSDT: JSON.stringify({
+              candles: { interval: '1h', limit: 100 },
+              botOptions: {
+                tradingView: {
+                  interval: ''
+                },
+                autoTriggerBuy: {
+                  conditions: {
+                    tradingView: {
+                      overrideInterval: ''
+                    }
+                  }
+                }
               }
-            }
-          }),
-          BNBUSDT: JSON.stringify({
-            candles: { interval: '1h', limit: 100 },
-            botOptions: {
-              tradingView: {
-                interval: ''
+            }),
+            BNBUSDT: JSON.stringify({
+              candles: { interval: '1h', limit: 100 },
+              botOptions: {
+                tradingView: {
+                  interval: ''
+                },
+                autoTriggerBuy: {
+                  conditions: {
+                    tradingView: {
+                      overrideInterval: ''
+                    }
+                  }
+                }
               }
-            }
-          }),
-          global: JSON.stringify({
-            candles: { interval: '1h', limit: 100 },
-            botOptions: {
-              tradingView: {
-                interval: '15m'
+            }),
+            global: JSON.stringify({
+              candles: { interval: '1h', limit: 100 },
+              botOptions: {
+                tradingView: {
+                  interval: '15m'
+                },
+                autoTriggerBuy: {
+                  conditions: {
+                    tradingView: {
+                      overrideInterval: ''
+                    }
+                  }
+                }
               }
-            }
+            })
           })
-        });
+          .mockResolvedValueOnce({});
 
         axiosMock.get = jest.fn().mockResolvedValue({});
 
@@ -1005,32 +1574,56 @@ describe('get-trading-view.js', () => {
           }
         };
 
-        cacheMock.hgetall = jest.fn().mockResolvedValue({
-          BTCUSDT: JSON.stringify({
-            candles: { interval: '1h', limit: 100 },
-            botOptions: {
-              tradingView: {
-                interval: ''
+        cacheMock.hgetall = jest
+          .fn()
+          .mockResolvedValueOnce({
+            BTCUSDT: JSON.stringify({
+              candles: { interval: '1h', limit: 100 },
+              botOptions: {
+                tradingView: {
+                  interval: ''
+                },
+                autoTriggerBuy: {
+                  conditions: {
+                    tradingView: {
+                      overrideInterval: ''
+                    }
+                  }
+                }
               }
-            }
-          }),
-          BNBUSDT: JSON.stringify({
-            candles: { interval: '1h', limit: 100 },
-            botOptions: {
-              tradingView: {
-                interval: ''
+            }),
+            BNBUSDT: JSON.stringify({
+              candles: { interval: '1h', limit: 100 },
+              botOptions: {
+                tradingView: {
+                  interval: ''
+                },
+                autoTriggerBuy: {
+                  conditions: {
+                    tradingView: {
+                      overrideInterval: ''
+                    }
+                  }
+                }
               }
-            }
-          }),
-          global: JSON.stringify({
-            candles: { interval: '1h', limit: 100 },
-            botOptions: {
-              tradingView: {
-                interval: '15m'
+            }),
+            global: JSON.stringify({
+              candles: { interval: '1h', limit: 100 },
+              botOptions: {
+                tradingView: {
+                  interval: '15m'
+                },
+                autoTriggerBuy: {
+                  conditions: {
+                    tradingView: {
+                      overrideInterval: ''
+                    }
+                  }
+                }
               }
-            }
+            })
           })
-        });
+          .mockResolvedValueOnce({});
 
         axiosMock.get = jest.fn().mockResolvedValue({
           data: {
@@ -1089,32 +1682,56 @@ describe('get-trading-view.js', () => {
           }
         };
 
-        cacheMock.hgetall = jest.fn().mockResolvedValue({
-          BTCUSDT: JSON.stringify({
-            candles: { interval: '1h', limit: 100 },
-            botOptions: {
-              tradingView: {
-                interval: ''
+        cacheMock.hgetall = jest
+          .fn()
+          .mockResolvedValueOnce({
+            BTCUSDT: JSON.stringify({
+              candles: { interval: '1h', limit: 100 },
+              botOptions: {
+                tradingView: {
+                  interval: ''
+                },
+                autoTriggerBuy: {
+                  conditions: {
+                    tradingView: {
+                      overrideInterval: ''
+                    }
+                  }
+                }
               }
-            }
-          }),
-          BNBUSDT: JSON.stringify({
-            candles: { interval: '1h', limit: 100 },
-            botOptions: {
-              tradingView: {
-                interval: ''
+            }),
+            BNBUSDT: JSON.stringify({
+              candles: { interval: '1h', limit: 100 },
+              botOptions: {
+                tradingView: {
+                  interval: ''
+                },
+                autoTriggerBuy: {
+                  conditions: {
+                    tradingView: {
+                      overrideInterval: ''
+                    }
+                  }
+                }
               }
-            }
-          }),
-          global: JSON.stringify({
-            candles: { interval: '1h', limit: 100 },
-            botOptions: {
-              tradingView: {
-                interval: '15m'
+            }),
+            global: JSON.stringify({
+              candles: { interval: '1h', limit: 100 },
+              botOptions: {
+                tradingView: {
+                  interval: '15m'
+                }
+              },
+              autoTriggerBuy: {
+                conditions: {
+                  tradingView: {
+                    overrideInterval: ''
+                  }
+                }
               }
-            }
+            })
           })
-        });
+          .mockResolvedValueOnce({});
 
         axiosMock.get = jest.fn().mockRejectedValue(new Error('timeout'));
 
@@ -1155,7 +1772,10 @@ describe('get-trading-view.js', () => {
           }
         };
 
-        cacheMock.hgetall = jest.fn().mockResolvedValue({});
+        cacheMock.hgetall = jest
+          .fn()
+          .mockResolvedValueOnce({})
+          .mockResolvedValueOnce({});
 
         axiosMock.get = jest.fn().mockRejectedValue(new Error('timeout'));
 
