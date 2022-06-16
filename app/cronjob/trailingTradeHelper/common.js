@@ -16,9 +16,8 @@ const isValidCachedExchangeSymbols = exchangeSymbols =>
  *  If not cached, retrieve exchange info from API and cache it.
  *
  * @param {*} logger
- * @param {*} globalConfiguration
  */
-const cacheExchangeSymbols = async (logger, _globalConfiguration) => {
+const cacheExchangeSymbols = async logger => {
   const cachedExchangeSymbols =
     JSON.parse(await cache.hget('trailing-trade-common', 'exchange-symbols')) ||
     {};
@@ -79,11 +78,11 @@ const cacheExchangeSymbols = async (logger, _globalConfiguration) => {
 };
 
 /**
- * Add estimatedBTC and canDustTransfer flags to balances
+ * Add estimatedBTC and canDustTransfer flags to balance
  *  - Leave this function for future reference
  *
- * @param {*} logger
- * @param {*} accountInfo
+ * @param {*} _logger
+ * @param {*} rawAccountInfo
  * @returns
  */
 const extendBalancesWithDustTransfer = async (_logger, rawAccountInfo) => {
@@ -831,6 +830,67 @@ const saveOverrideIndicatorAction = async (
   }
 };
 
+/**
+ * Save or update symbol candle based on time
+ *
+ * @param {*} logger
+ * @param collectionName
+ * @param candle
+ */
+const saveCandle = async (logger, collectionName, candle) => {
+  const { key, interval, time } = candle;
+  await mongo.upsertOne(
+    logger,
+    collectionName,
+    {
+      key,
+      time,
+      interval
+    },
+    candle
+  );
+};
+
+/**
+ * Update account info with new one
+ *
+ * @param {*} logger
+ * @param balances
+ * @param lastAccountUpdate
+ */
+const updateAccountInfo = async (logger, balances, lastAccountUpdate) => {
+  logger.info({ balances }, 'Updating account balances');
+  const accountInfo = await getAccountInfo(logger);
+
+  const mergedBalances = _.merge(
+    _.keyBy(accountInfo.balances, 'asset'),
+    _.keyBy(balances, 'asset')
+  );
+  accountInfo.balances = _.reduce(
+    _.values(mergedBalances),
+    (acc, b) => {
+      const balance = b;
+      if (+balance.free > 0 || +balance.locked > 0) {
+        acc.push(balance);
+      }
+
+      return acc;
+    },
+    []
+  );
+
+  // set updateTime manually because we are updating account info from websocket
+  accountInfo.updateTime = lastAccountUpdate;
+
+  await cache.hset(
+    'trailing-trade-common',
+    'account-info',
+    JSON.stringify(accountInfo)
+  );
+
+  return accountInfo;
+};
+
 module.exports = {
   cacheExchangeSymbols,
   getAccountInfoFromAPI,
@@ -863,5 +923,7 @@ module.exports = {
   getNumberOfOpenTrades,
   saveOrderStats,
   saveOverrideAction,
-  saveOverrideIndicatorAction
+  saveOverrideIndicatorAction,
+  saveCandle,
+  updateAccountInfo
 };

@@ -424,7 +424,7 @@ input[type='number'] {
   padding: 5px 0 5px 0;
 }
 
-.coin-info-sub-open-order-wrapper:first .coin-info-column-title {
+.coin-info-sub-open-order-wrapper:first-child .coin-info-column-title {
   border-top: none;
   margin-top: 0;
   padding-top: 0;
@@ -963,5 +963,32 @@ input[type='number'] {
 */
 
 .tradingview-widget-container iframe {
-  overflow-y: none;
+  overflow-y: hidden;
 }
+
+/**
+  Start: Pagination
+*/
+.pagination .page-link {
+  color: #809fff;
+  background-color: #343a40;
+  border: 1px solid #2d3237;
+}
+
+.pagination .page-item.active .page-link {
+  background-color: #6f42c1;
+  border-color: #6f42c1;
+}
+
+.pagination .page-link:hover {
+  color: #fff;
+  background-color: rgba(110, 66, 193, 0.855);
+  border-color: rgba(110, 66, 193, 0.855);
+}
+.pagination .page-item.disabled .page-link {
+  background-color: #272b38;
+  border-color: #343a40;
+}
+/**
+  End: Pagination
+*/

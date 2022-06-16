@@ -1,9 +1,8 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, slack } = require('../../../helpers');
+const { binance, slack, cache } = require('../../../helpers');
 const {
-  getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI,
+  getAccountInfo,
   isExceedAPILimit,
   disableAction,
   getAPILimit
@@ -25,7 +24,7 @@ const setMessage = (logger, rawData, processMessage) => {
 
   logger.info({ data, saveLog: true }, processMessage);
   data.sell.processMessage = processMessage;
-  data.sell.updatedAt = moment().utc();
+  data.sell.updatedAt = moment().utc().toDate();
   return data;
 };
 
@@ -90,9 +89,7 @@ const execute = async (logger, rawData) => {
   const freeBalance = parseFloat(_.floor(baseAssetFreeBalance, lotPrecision));
   logger.info({ freeBalance }, 'Free balance');
 
-  let orderQuantity = parseFloat(
-    _.floor(freeBalance - freeBalance * (0.1 / 100), lotPrecision)
-  );
+  let orderQuantity = freeBalance;
 
   if (orderQuantity <= parseFloat(minQty)) {
     return setMessage(
@@ -196,13 +193,14 @@ const execute = async (logger, rawData) => {
   }
 
   // Get open orders and update cache
-  data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+  data.openOrders =
+    JSON.parse(await cache.hget('trailing-trade-open-orders', symbol)) || [];
   data.sell.openOrders = data.openOrders.filter(
     o => o.side.toLowerCase() === 'sell'
   );
 
   // Refresh account info
-  data.accountInfo = await getAccountInfoFromAPI(logger);
+  data.accountInfo = await getAccountInfo(logger);
 
   slack.sendMessage(
     `${symbol} Sell Stop-Loss Action Result (${moment().format(

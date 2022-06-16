@@ -16,7 +16,7 @@ class AccountWrapper extends React.Component {
         elem => elem.baseAsset === balance.asset
       );
 
-      if (quoteEstimate.length == 1) {
+      if (quoteEstimate.length === 1) {
         quoteEstimate = {
           quote: quoteEstimate[0]['quoteAsset'],
           estimate: quoteEstimate[0]['estimatedValue']

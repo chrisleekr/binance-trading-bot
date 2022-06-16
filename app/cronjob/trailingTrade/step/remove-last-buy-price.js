@@ -1,8 +1,7 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { slack, PubSub } = require('../../../helpers');
+const { slack, PubSub, cache } = require('../../../helpers');
 const {
-  getAndCacheOpenOrdersForSymbol,
   getAPILimit,
   isActionDisabled,
   removeLastBuyPrice: removeLastBuyPriceFromDatabase,
@@ -28,7 +27,7 @@ const setMessage = (logger, rawData, processMessage) => {
 
   logger.info({ data, saveLog: true }, processMessage);
   data.sell.processMessage = processMessage;
-  data.sell.updatedAt = moment().utc();
+  data.sell.updatedAt = moment().utc().toDate();
   return data;
 };
 
@@ -249,7 +248,8 @@ const execute = async (logger, rawData) => {
   let refreshedOpenOrders = [];
   if (baseAssetQuantity <= parseFloat(minQty)) {
     // Final check for open orders
-    refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+    refreshedOpenOrders =
+      JSON.parse(await cache.hget('trailing-trade-open-orders', symbol)) || [];
     if (refreshedOpenOrders.length > 0) {
       logger.info('Do not remove last buy price. Found open orders.');
       return data;
@@ -278,7 +278,8 @@ const execute = async (logger, rawData) => {
 
   if (baseAssetQuantity * currentPrice < lastBuyPriceRemoveThreshold) {
     // Final check for open orders
-    refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+    refreshedOpenOrders =
+      JSON.parse(await cache.hget('trailing-trade-open-orders', symbol)) || [];
     if (refreshedOpenOrders.length > 0) {
       logger.info('Do not remove last buy price. Found open orders.');
       return data;

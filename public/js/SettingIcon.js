@@ -13,11 +13,11 @@ class SettingIcon extends React.Component {
     this.state = {
       showSettingModal: false,
       showConfirmModal: false,
-      availableSymbols: [],
       quoteAssets: [],
       minNotionals: {},
       configuration: {},
-      validation: {}
+      validation: {},
+      exchangeSymbols: {}
     };
 
     this.handleModalShow = this.handleModalShow.bind(this);
@@ -62,42 +62,39 @@ class SettingIcon extends React.Component {
   }
 
   componentDidUpdate(nextProps) {
+    if (
+      _.isEmpty(nextProps.exchangeSymbols) === false &&
+      _.isEqual(nextProps.exchangeSymbols, this.state.exchangeSymbols) === false
+    ) {
+      const { exchangeSymbols, configuration } = nextProps;
+      const { symbols: selectedSymbols } = configuration;
+
+      const { quoteAssets, minNotionals } = this.getQuoteAssets(
+        exchangeSymbols,
+        selectedSymbols,
+        configuration.buy.lastBuyPriceRemoveThresholds
+      );
+
+      this.setState({
+        quoteAssets,
+        minNotionals,
+        exchangeSymbols
+      });
+    }
+
     // Only update configuration, when the modal is closed and different.
     if (
       this.state.showSettingModal === false &&
       _.isEmpty(nextProps.configuration) === false &&
       _.isEqual(nextProps.configuration, this.state.configuration) === false
     ) {
-      const { exchangeSymbols, configuration } = nextProps;
-      const { symbols: selectedSymbols } = configuration;
-
-      const availableSymbols = _.reduce(
-        exchangeSymbols,
-        (acc, symbol) => {
-          acc.push(symbol.symbol);
-          return acc;
-        },
-        []
-      );
+      const { configuration } = nextProps;
 
       if (configuration.buy.lastBuyPriceRemoveThresholds === undefined) {
         configuration.buy.lastBuyPriceRemoveThresholds = {};
       }
 
-      const { quoteAssets, minNotionals, lastBuyPriceRemoveThresholds } =
-        this.getQuoteAssets(
-          exchangeSymbols,
-          selectedSymbols,
-          configuration.buy.lastBuyPriceRemoveThresholds
-        );
-
-      configuration.buy.lastBuyPriceRemoveThresholds =
-        lastBuyPriceRemoveThresholds;
-
       this.setState({
-        availableSymbols,
-        quoteAssets,
-        minNotionals,
         configuration
       });
     }
@@ -112,7 +109,15 @@ class SettingIcon extends React.Component {
     });
   }
 
+  componentDidMount() {
+    this.props.sendWebSocket('exchange-symbols-get');
+  }
+
   handleModalShow(modal) {
+    if (modal === 'setting') {
+      this.props.sendWebSocket('exchange-symbols-get');
+    }
+
     this.setState({
       [this.modalToStateMap[modal]]: true
     });
@@ -175,15 +180,9 @@ class SettingIcon extends React.Component {
   }
 
   render() {
-    const { isAuthenticated } = this.props;
+    const { isAuthenticated, exchangeSymbols } = this.props;
 
-    const {
-      configuration,
-      availableSymbols,
-      quoteAssets,
-      minNotionals,
-      validation
-    } = this.state;
+    const { configuration, quoteAssets, minNotionals, validation } = this.state;
     const { symbols: selectedSymbols } = configuration;
 
     if (_.isEmpty(configuration) || isAuthenticated === false) {
@@ -237,7 +236,6 @@ class SettingIcon extends React.Component {
                               onChange={selected => {
                                 // Handle selections...
                                 const { configuration } = this.state;
-                                const { exchangeSymbols } = this.props;
 
                                 configuration.symbols = selected;
 
@@ -253,6 +251,7 @@ class SettingIcon extends React.Component {
 
                                 configuration.buy.lastBuyPriceRemoveThresholds =
                                   lastBuyPriceRemoveThresholds;
+
                                 this.setState({
                                   configuration,
                                   quoteAssets,
@@ -260,7 +259,7 @@ class SettingIcon extends React.Component {
                                 });
                               }}
                               size='sm'
-                              options={availableSymbols}
+                              options={_.keys(exchangeSymbols)}
                               defaultSelected={selectedSymbols}
                               placeholder='Choose symbols to monitor...'
                             />

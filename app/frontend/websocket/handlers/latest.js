@@ -1,8 +1,7 @@
 const _ = require('lodash');
-
 const { version } = require('../../../../package.json');
 
-const { binance, cache } = require('../../../helpers');
+const { binance, cache, mongo } = require('../../../helpers');
 const {
   getConfiguration
 } = require('../../../cronjob/trailingTradeHelper/configuration');
@@ -11,19 +10,11 @@ const {
   isActionDisabled
 } = require('../../../cronjob/trailingTradeHelper/common');
 
-const getSymbolFromKey = key => {
-  const fragments = key.split('-');
-  const symbol = fragments[0];
-  fragments.shift();
-  return {
-    symbol,
-    newKey: fragments.join('-')
-  };
-};
-
 const handleLatest = async (logger, ws, payload) => {
   const globalConfiguration = await getConfiguration(logger);
-  logger.info({ globalConfiguration }, 'Configuration from MongoDB');
+  // logger.info({ globalConfiguration }, 'Configuration from MongoDB');
+
+  const { sortByDesc, searchKeyword, page } = payload.data;
 
   // If not authenticated and lock list is enabled, then do not send any information.
   if (
@@ -49,12 +40,172 @@ const handleLatest = async (logger, ws, payload) => {
 
   const cacheTrailingTradeCommon = await cache.hgetall(
     'trailing-trade-common:',
-    'trailing-trade-common:*'
+    '*'
   );
 
-  const cacheTrailingTradeSymbols = await cache.hgetall(
-    'trailing-trade-symbols:',
-    'trailing-trade-symbols:*-processed-data'
+  const symbolsCount = globalConfiguration.symbols.length;
+  const symbolsPerPage = 12;
+  const totalPages = _.ceil(symbolsCount / symbolsPerPage);
+
+  const match = {};
+
+  if (searchKeyword) {
+    match.key = {
+      $regex: searchKeyword,
+      $options: 'i'
+    };
+  }
+
+  const sortBy = payload.data.sortBy || 'default';
+  const sortDirection = sortByDesc === true ? -1 : 1;
+
+  logger.info({ sortBy, sortDirection }, 'latest');
+
+  let sortField = {
+    $cond: {
+      if: { $gt: [{ $size: '$buy.openOrders' }, 0] },
+      then: {
+        $multiply: [
+          {
+            $add: [
+              {
+                $let: {
+                  vars: {
+                    buyOpenOrder: {
+                      $arrayElemAt: ['$buy.openOrders', 0]
+                    }
+                  },
+                  in: '$buyOpenOrder.differenceToCancel'
+                }
+              },
+              3000
+            ]
+          },
+          -10
+        ]
+      },
+      else: {
+        $cond: {
+          if: { $gt: [{ $size: '$sell.openOrders' }, 0] },
+          then: {
+            $multiply: [
+              {
+                $add: [
+                  {
+                    $let: {
+                      vars: {
+                        sellOpenOrder: {
+                          $arrayElemAt: ['$sell.openOrders', 0]
+                        }
+                      },
+                      in: '$sellOpenOrder.differenceToCancel'
+                    }
+                  },
+                  2000
+                ]
+              },
+              -10
+            ]
+          },
+          else: {
+            $cond: {
+              if: {
+                $eq: ['$sell.difference', null]
+              },
+              then: '$key',
+              else: {
+                $multiply: [{ $add: ['$sell.difference', 1000] }, -10]
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+
+  if (sortBy === 'buy-difference') {
+    sortField = {
+      $cond: {
+        if: {
+          $eq: ['$buy.difference', null]
+        },
+        then: '$key',
+        else: '$buy.difference'
+      }
+    };
+  }
+
+  if (sortBy === 'sell-profit') {
+    sortField = {
+      $cond: {
+        if: {
+          $eq: ['$sell.currentProfitPercentage', null]
+        },
+        then: '$key',
+        else: '$sell.currentProfitPercentage'
+      }
+    };
+  }
+
+  if (sortBy === 'alpha') {
+    sortField = '$key';
+  }
+
+  const trailingTradeCacheQuery = [
+    {
+      $match: match
+    },
+    {
+      $project: {
+        symbol: '$symbol',
+        symbolInfo: '$symbolInfo',
+        symbolConfiguration: '$symbolConfiguration',
+        baseAssetBalance: '$baseAssetBalance',
+        quoteAssetBalance: '$quoteAssetBalance',
+        buy: '$buy',
+        sell: '$sell',
+        tradingView: '$tradingView',
+        overrideData: '$overrideData',
+        sortField
+      }
+    },
+    { $sort: { sortField: sortDirection } },
+    { $skip: (page - 1) * symbolsPerPage },
+    { $limit: symbolsPerPage }
+  ];
+
+  const cacheTrailingTradeSymbols = await mongo.aggregate(
+    logger,
+    'trailing-trade-cache',
+    trailingTradeCacheQuery
+  );
+
+  // Calculate total profit/loss
+  const cacheTrailingTradeTotalProfitAndLoss = await mongo.aggregate(
+    logger,
+    'trailing-trade-cache',
+    [
+      {
+        $group: {
+          _id: '$quoteAssetBalance.asset',
+          amount: {
+            $sum: {
+              $multiply: ['$baseAssetBalance.total', '$sell.lastBuyPrice']
+            }
+          },
+          profit: { $sum: '$sell.currentProfit' },
+          estimatedBalance: { $sum: '$baseAssetBalance.estimatedValue' }
+        }
+      },
+      {
+        $project: {
+          asset: '$_id',
+          amount: '$amount',
+          profit: '$profit',
+          estimatedBalance: '$estimatedBalance'
+        }
+      }
+    ]
   );
 
   const cacheTrailingTradeClosedTrades = _.map(
@@ -64,6 +215,8 @@ const handleLatest = async (logger, ws, payload) => {
     ),
     stats => JSON.parse(stats)
   );
+
+  const streamsCount = await cache.hget('trailing-trade-streams', 'count');
 
   const stats = {
     symbols: {}
@@ -75,12 +228,10 @@ const handleLatest = async (logger, ws, payload) => {
       version,
       gitHash: process.env.GIT_HASH || 'unspecified',
       accountInfo: JSON.parse(cacheTrailingTradeCommon['account-info']),
-      exchangeSymbols: JSON.parse(cacheTrailingTradeCommon['exchange-symbols']),
       apiInfo: binance.client.getInfo(),
       closedTradesSetting: JSON.parse(
         cacheTrailingTradeCommon['closed-trades']
       ),
-      closedTrades: cacheTrailingTradeClosedTrades,
       orderStats: {
         numberOfOpenTrades: parseInt(
           cacheTrailingTradeCommon['number-of-open-trades'],
@@ -90,26 +241,32 @@ const handleLatest = async (logger, ws, payload) => {
           cacheTrailingTradeCommon['number-of-buy-open-orders'],
           10
         )
-      }
+      },
+      closedTrades: cacheTrailingTradeClosedTrades,
+      totalProfitAndLoss: cacheTrailingTradeTotalProfitAndLoss,
+      streamsCount,
+      symbolsCount,
+      totalPages
     };
   } catch (e) {
     logger.error({ e }, 'Something wrong with trailing-trade-common cache');
     return;
   }
 
-  _.forIn(cacheTrailingTradeSymbols, (value, key) => {
-    const { symbol, newKey } = getSymbolFromKey(key);
-
-    if (newKey === 'processed-data') {
-      stats.symbols[symbol] = JSON.parse(value);
-    }
-  });
+  stats.symbols = _.keyBy(
+    _.map(cacheTrailingTradeSymbols, symbol => {
+      const modifiedSymbol = symbol;
+      modifiedSymbol.tradingView = JSON.parse(symbol.tradingView);
+      return modifiedSymbol;
+    }),
+    'symbol'
+  );
 
   stats.symbols = await Promise.all(
     _.map(stats.symbols, async symbol => {
       const newSymbol = symbol;
 
-      // Retreive action disabled
+      // Retrieve action disabled
       newSymbol.isActionDisabled = await isActionDisabled(newSymbol.symbol);
       return newSymbol;
     })

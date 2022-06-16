@@ -7,7 +7,6 @@ class ProfitLossWrapper extends React.Component {
     this.state = {
       canUpdate: true,
       symbols: {},
-      totalPnL: {},
       closedTradesLoading: false,
       closedTradesSetting: {},
       selectedPeriod: null
@@ -28,25 +27,8 @@ class ProfitLossWrapper extends React.Component {
     ) {
       const { symbols } = nextProps;
 
-      // Calculate total profit/loss
-      const totalPnL = {};
-      _.forEach(symbols, s => {
-        if (totalPnL[s.quoteAssetBalance.asset] === undefined) {
-          totalPnL[s.quoteAssetBalance.asset] = {
-            asset: s.quoteAssetBalance.asset,
-            amount: 0,
-            profit: 0
-          };
-        }
-
-        totalPnL[s.quoteAssetBalance.asset].amount +=
-          parseFloat(s.baseAssetBalance.total) * s.sell.lastBuyPrice;
-        totalPnL[s.quoteAssetBalance.asset].profit += s.sell.currentProfit;
-      });
-
       this.setState({
-        symbols,
-        totalPnL
+        symbols
       });
     }
 
@@ -112,60 +94,42 @@ class ProfitLossWrapper extends React.Component {
   }
 
   render() {
-    const { sendWebSocket, isAuthenticated, closedTrades, symbolEstimates } =
+    const { sendWebSocket, isAuthenticated, closedTrades, totalProfitAndLoss } =
       this.props;
-    const { totalPnL, symbols, selectedPeriod, closedTradesLoading } =
-      this.state;
+    const { symbols, selectedPeriod, closedTradesLoading } = this.state;
 
-    if (_.isEmpty(totalPnL)) {
+    if (_.isEmpty(totalProfitAndLoss)) {
       return '';
     }
 
-    const groupedEstimates = {};
-    symbolEstimates.forEach(symbol => {
-      if (groupedEstimates[symbol.quoteAsset] === undefined) {
-        groupedEstimates[symbol.quoteAsset] = {
-          value: 0,
-          quotePrecision:
-            parseFloat(symbol.tickSize) === 1
-              ? 0
-              : symbol.tickSize.indexOf(1) - 1
-        };
-      }
-
-      groupedEstimates[symbol.quoteAsset].value += symbol.estimatedValue;
-    });
-
-    const openTradeWrappers = Object.values(totalPnL).map((pnl, index) => {
-      if (groupedEstimates[pnl.asset] === undefined) {
-        return '';
-      }
-
-      const percentage =
-        pnl.amount > 0 ? ((pnl.profit / pnl.amount) * 100).toFixed(2) : 0;
-      return (
-        <div
-          key={`open-trade-pnl-` + index}
-          className='profit-loss-wrapper pt-2 pl-2 pr-2 pb-0'>
-          <div className='profit-loss-wrapper-body'>
-            <div className='profit-loss-asset'>
-              {pnl.asset}
-              <br />
-              <div className='text-success text-truncate'>
-                {groupedEstimates[pnl.asset].value.toFixed(
-                  groupedEstimates[pnl.asset].quotePrecision
-                )}
+    const openTradeWrappers = Object.values(totalProfitAndLoss).map(
+      (profitAndLoss, index) => {
+        const percentage =
+          profitAndLoss.amount > 0
+            ? ((profitAndLoss.profit / profitAndLoss.amount) * 100).toFixed(2)
+            : 0;
+        return (
+          <div
+            key={`open-trade-pnl-` + index}
+            className='profit-loss-wrapper pt-2 pl-2 pr-2 pb-0'>
+            <div className='profit-loss-wrapper-body'>
+              <div className='profit-loss-asset'>
+                {profitAndLoss.asset}
+                <br />
+                <div className='text-success text-truncate'>
+                  {profitAndLoss.estimatedBalance.toFixed(5)}
+                </div>
+              </div>{' '}
+              <div className='profit-loss-value'>
+                {profitAndLoss.profit > 0 ? '+' : ''}
+                {profitAndLoss.profit.toFixed(5)}
+                <br />({percentage}%)
               </div>
-            </div>{' '}
-            <div className='profit-loss-value'>
-              {pnl.profit > 0 ? '+' : ''}
-              {pnl.profit.toFixed(5)}
-              <br />({percentage}%)
             </div>
           </div>
-        </div>
-      );
-    });
+        );
+      }
+    );
 
     const closedTradeWrappers = Object.values(closedTrades).map(
       (stat, index) => {
@@ -247,7 +211,7 @@ class ProfitLossWrapper extends React.Component {
               <Accordion.Collapse eventKey='0'>
                 <Card.Body className='d-flex flex-column py-2 px-0 card-body'>
                   <div className='profit-loss-wrappers profit-loss-open-trades-wrappers'>
-                    {_.isEmpty(totalPnL) ? (
+                    {_.isEmpty(totalProfitAndLoss) ? (
                       <div className='text-center w-100 m-3'>
                         <Spinner animation='border' role='status'>
                           <span className='sr-only'>Loading...</span>

@@ -1,10 +1,11 @@
 /* eslint-disable no-await-in-loop */
 const moment = require('moment');
 
-const { binance } = require('../../../helpers');
+const _ = require('lodash');
+const { binance, cache } = require('../../../helpers');
 const {
-  getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI,
+  getAccountInfo,
+  updateAccountInfo,
   saveOverrideAction
 } = require('../../trailingTradeHelper/common');
 
@@ -57,7 +58,8 @@ const execute = async (logger, rawData) => {
     isLocked,
     openOrders,
     buy: { limitPrice: buyLimitPrice },
-    sell: { limitPrice: sellLimitPrice }
+    sell: { limitPrice: sellLimitPrice },
+    symbolInfo: { quoteAsset }
   } = data;
 
   if (isLocked) {
@@ -97,17 +99,17 @@ const execute = async (logger, rawData) => {
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
 
-          data.openOrders = await getAndCacheOpenOrdersForSymbol(
-            logger,
-            symbol
-          );
+          data.openOrders =
+            JSON.parse(
+              await cache.hget('trailing-trade-open-orders', symbol)
+            ) || [];
 
           data.buy.openOrders = data.openOrders.filter(
             o => o.side.toLowerCase() === 'buy'
           );
 
           // Refresh account info
-          data.accountInfo = await getAccountInfoFromAPI(logger);
+          data.accountInfo = await getAccountInfo(logger);
 
           data.action = 'buy-order-checking';
 
@@ -130,8 +132,28 @@ const execute = async (logger, rawData) => {
           // Set action as buy
           data.action = 'buy';
 
-          // Get account information again because the order is cancelled
-          data.accountInfo = await getAccountInfoFromAPI(logger);
+          const orderAmount = order.origQty * order.price;
+
+          // Immediately update the balance of quote asset when the order is canceled so that
+          // we don't have to wait for the websocket and to avoid the race condition
+          const balances = [
+            {
+              asset: quoteAsset,
+              free:
+                _.toNumber(data.quoteAssetBalance.free) +
+                _.toNumber(orderAmount),
+              locked:
+                _.toNumber(data.quoteAssetBalance.locked) -
+                _.toNumber(orderAmount)
+            }
+          ];
+
+          // Refresh account info
+          data.accountInfo = await updateAccountInfo(
+            logger,
+            balances,
+            moment().utc().format()
+          );
         }
       } else {
         logger.info(
@@ -158,17 +180,17 @@ const execute = async (logger, rawData) => {
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
 
-          data.openOrders = await getAndCacheOpenOrdersForSymbol(
-            logger,
-            symbol
-          );
+          data.openOrders =
+            JSON.parse(
+              await cache.hget('trailing-trade-open-orders', symbol)
+            ) || [];
 
           data.sell.openOrders = data.openOrders.filter(
             o => o.side.toLowerCase() === 'sell'
           );
 
           // Refresh account info
-          data.accountInfo = await getAccountInfoFromAPI(logger);
+          data.accountInfo = await getAccountInfo(logger);
 
           data.action = 'sell-order-checking';
         } else {
@@ -179,7 +201,7 @@ const execute = async (logger, rawData) => {
           data.action = 'sell';
 
           // Get account information again because the order is cancelled
-          data.accountInfo = await getAccountInfoFromAPI(logger);
+          data.accountInfo = await getAccountInfo(logger);
         }
       } else {
         logger.info(

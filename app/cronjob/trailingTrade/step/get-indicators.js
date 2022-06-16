@@ -1,8 +1,34 @@
 /* eslint-disable prefer-destructuring */
 const _ = require('lodash');
 const moment = require('moment');
-const { cache } = require('../../../helpers');
+const { cache, mongo } = require('../../../helpers');
 const { getLastBuyPrice } = require('../../trailingTradeHelper/common');
+
+/**
+ * Flatten candle data
+ *
+ * @param {*} candles
+ */
+const flattenCandlesData = candles => {
+  const openTime = [];
+  const high = [];
+  const low = [];
+  const close = [];
+
+  candles.forEach(candle => {
+    openTime.push(+candle.openTime);
+    high.push(+candle.high);
+    low.push(+candle.low);
+    close.push(+candle.close);
+  });
+
+  return {
+    openTime,
+    high,
+    low,
+    close
+  };
+};
 
 /**
  * Get symbol information, buy/sell indicators
@@ -19,11 +45,16 @@ const execute = async (logger, rawData) => {
       filterMinNotional: { minNotional }
     },
     symbolConfiguration: {
+      candles: { limit: candlesLimit },
       buy: {
         currentGridTradeIndex: currentBuyGridTradeIndex,
         currentGridTrade: currentBuyGridTrade,
         athRestriction: {
           enabled: buyATHRestrictionEnabled,
+          candles: {
+            limit: buyATHRestrictionCandlesLimit,
+            interval: buyATHRestrictionCandlesInterval
+          },
           restrictionPercentage: buyATHRestrictionPercentage
         }
       },
@@ -36,16 +67,93 @@ const execute = async (logger, rawData) => {
     openOrders
   } = data;
 
-  const cachedIndicator =
-    JSON.parse(
-      await cache.hget('trailing-trade-symbols', `${symbol}-indicator-data`)
-    ) || {};
+  const candles = _.orderBy(
+    await mongo.findAll(
+      logger,
+      'trailing-trade-candles',
+      {
+        key: `${symbol}`
+      },
+      {
+        sort: {
+          time: -1
+        },
+        limit: candlesLimit
+      }
+    ),
+    ['time'],
+    ['desc']
+  );
 
-  if (_.isEmpty(cachedIndicator)) {
-    logger.info('Indicator data is not retrieved, wait for cache.');
+  if (_.isEmpty(candles)) {
     data.saveToCache = false;
     return data;
   }
+
+  // Flatten candles data to get lowest price
+  const candlesData = flattenCandlesData(candles);
+
+  // Get the lowest price
+  const lowestPrice = _.min(candlesData.low);
+
+  const highestPrice = _.max(candlesData.high);
+
+  // Retrieve ATH candles
+  let athPrice = null;
+
+  if (buyATHRestrictionEnabled) {
+    logger.info(
+      {
+        debug: true,
+        function: 'athCandles',
+        buyATHRestrictionEnabled,
+        buyATHRestrictionCandlesInterval,
+        buyATHRestrictionCandlesLimit
+      },
+      'Retrieving ATH candles from MongoDB'
+    );
+
+    const athCandles = _.orderBy(
+      await mongo.findAll(
+        logger,
+        'trailing-trade-ath-candles',
+        {
+          key: `${symbol}`
+        },
+        {
+          sort: {
+            time: -1
+          },
+          limit: buyATHRestrictionCandlesLimit
+        }
+      ),
+      ['time'],
+      ['desc']
+    );
+
+    // Flatten candles data to get ATH price
+    const athCandlesData = flattenCandlesData(athCandles);
+
+    // ATH (All The High) price
+    athPrice = _.max(athCandlesData.high);
+  } else {
+    logger.info(
+      {
+        debug: true,
+        function: 'athCandles',
+        buyATHRestrictionEnabled,
+        buyATHRestrictionCandlesInterval,
+        buyATHRestrictionCandlesLimit
+      },
+      'ATH Restriction is disabled'
+    );
+  }
+
+  const latestIndicators = {
+    highestPrice,
+    lowestPrice,
+    athPrice
+  };
 
   const cachedLatestCandle =
     JSON.parse(
@@ -70,10 +178,8 @@ const execute = async (logger, rawData) => {
   // Merge indicator data
   data.indicators = {
     ...data.indicators,
-    ...cachedIndicator
+    ...latestIndicators
   };
-
-  const { highestPrice, lowestPrice, athPrice } = data.indicators;
 
   // Get current price
   const currentPrice = parseFloat(cachedLatestCandle.close);
@@ -205,7 +311,7 @@ const execute = async (logger, rawData) => {
     difference: buyDifference,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'buy'),
     processMessage: _.get(data, 'buy.processMessage', ''),
-    updatedAt: moment().utc()
+    updatedAt: moment().utc().toDate()
   };
 
   data.sell = {
@@ -220,7 +326,7 @@ const execute = async (logger, rawData) => {
     currentProfitPercentage: sellCurrentProfitPercentage,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'sell'),
     processMessage: _.get(data, 'sell.processMessage', ''),
-    updatedAt: moment().utc()
+    updatedAt: moment().utc().toDate()
   };
 
   return data;

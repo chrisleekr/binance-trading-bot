@@ -1,9 +1,8 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, slack } = require('../../../helpers');
+const { binance, slack, cache } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 const {
-  getAndCacheOpenOrdersForSymbol,
   getAccountInfoFromAPI,
   isExceedAPILimit,
   getAPILimit
@@ -23,7 +22,7 @@ const setMessage = (logger, rawData, processMessage) => {
 
   logger.info({ data, saveLog: true }, processMessage);
   data.sell.processMessage = processMessage;
-  data.sell.updatedAt = moment().utc();
+  data.sell.updatedAt = moment().utc().toDate();
   return data;
 };
 
@@ -103,19 +102,14 @@ const execute = async (logger, rawData) => {
   logger.info({ freeBalance }, 'Free balance');
 
   // If after calculating quantity percentage, it is not enough minimum notional, then simply sell all balance
-
-  let orderQuantity = parseFloat(
-    _.floor(freeBalance - freeBalance * (0.1 / 100), lotPrecision)
-  );
+  let orderQuantity = freeBalance;
 
   // When order quantity multiply quantity percentage is more than minimum notional
-  const orderQuantityWithPercentage = parseFloat(
-    _.floor(
-      freeBalance * quantityPercentage -
-        freeBalance * quantityPercentage * (0.1 / 100),
-      lotPrecision
-    )
+  const orderQuantityWithPercentage = _.floor(
+    freeBalance * quantityPercentage,
+    lotPrecision
   );
+
   logger.info(
     { orderQuantityWithPercentage: orderQuantity },
     'Calculated order quantity with quantity percentage.'
@@ -208,7 +202,8 @@ const execute = async (logger, rawData) => {
   });
 
   // Get open orders and update cache
-  data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+  data.openOrders =
+    JSON.parse(await cache.hget('trailing-trade-open-orders', symbol)) || [];
   data.sell.openOrders = data.openOrders.filter(
     o => o.side.toLowerCase() === 'sell'
   );

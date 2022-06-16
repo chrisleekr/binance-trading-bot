@@ -1,9 +1,8 @@
 const moment = require('moment');
-const { binance, slack, PubSub } = require('../../../helpers');
+const { binance, slack, PubSub, cache } = require('../../../helpers');
 const {
   getAPILimit,
-  getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI
+  getAccountInfo
 } = require('../../trailingTradeHelper/common');
 const { saveManualOrder } = require('../../trailingTradeHelper/order');
 
@@ -20,7 +19,7 @@ const setMessage = (logger, rawData, processMessage) => {
 
   logger.info({ data, saveLog: true }, processMessage);
   data.buy.processMessage = processMessage;
-  data.buy.updatedAt = moment().utc();
+  data.buy.updatedAt = moment().utc().toDate();
   return data;
 };
 
@@ -279,7 +278,8 @@ const execute = async (logger, rawData) => {
   await recordOrder(logger, orderResult, checkManualOrderPeriod);
 
   // Get open orders and update cache
-  data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+  data.openOrders =
+    JSON.parse(await cache.hget('trailing-trade-open-orders', symbol)) || [];
   data.buy.openOrders = data.openOrders.filter(
     o => o.side.toLowerCase() === 'buy'
   );
@@ -287,7 +287,7 @@ const execute = async (logger, rawData) => {
     o => o.side.toLowerCase() === 'sell'
   );
   // Refresh account info
-  data.accountInfo = await getAccountInfoFromAPI(logger);
+  data.accountInfo = await getAccountInfo(logger);
 
   slackMessageOrderResult(logger, symbol, order.side, order, orderResult);
 
