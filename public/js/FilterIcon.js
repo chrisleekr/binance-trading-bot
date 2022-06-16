@@ -111,7 +111,7 @@ class FilterIcon extends React.Component {
             }
             size='sm'
             className='btn-block mb-1'
-            onClick={() => this.setSortOption(option.sortBy)}>
+            onClick={() => this.setSortOption(option)}>
             {option.label}
           </Button>
         </div>

@@ -22,13 +22,29 @@ class App extends React.Component {
       publicURL: '',
       dustTransfer: {},
       availableSortOptions: [
-        { sortBy: 'default', label: 'Default' },
-        { sortBy: 'buy-difference-asc', label: 'Buy - Difference (asc)' },
-        { sortBy: 'buy-difference-desc', label: 'Buy - Difference (desc)' },
-        { sortBy: 'sell-profit-asc', label: 'Sell - Profit (asc)' },
-        { sortBy: 'sell-profit-desc', label: 'Sell - Profit (desc)' },
-        { sortBy: 'alpha-asc', label: 'Alphabetical (asc)' },
-        { sortBy: 'alpha-desc', label: 'Alphabetical (desc)' }
+        { sortBy: 'default', sortByDesc: false, label: 'Default' },
+        {
+          sortBy: 'buy-difference',
+          sortByDesc: false,
+          label: 'Buy - Difference (asc)'
+        },
+        {
+          sortBy: 'buy-difference',
+          sortByDesc: true,
+          label: 'Buy - Difference (desc)'
+        },
+        {
+          sortBy: 'sell-profit',
+          sortByDesc: false,
+          label: 'Sell - Profit (asc)'
+        },
+        {
+          sortBy: 'sell-profit',
+          sortByDesc: true,
+          label: 'Sell - Profit (desc)'
+        },
+        { sortBy: 'alpha', sortByDesc: false, label: 'Alphabetical (asc)' },
+        { sortBy: 'alpha', sortByDesc: true, label: 'Alphabetical (desc)' },
       ],
       selectedSortOption: {
         sortBy: 'default',
