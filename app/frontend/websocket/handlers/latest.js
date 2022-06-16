@@ -112,7 +112,7 @@ const handleLatest = async (logger, ws, payload) => {
               if: {
                 $eq: ['$sell.difference', null]
               },
-              then: '$key',
+              then: '$symbol',
               else: {
                 $multiply: [{ $add: ['$sell.difference', 1000] }, -10]
               }
@@ -129,7 +129,7 @@ const handleLatest = async (logger, ws, payload) => {
         if: {
           $eq: ['$buy.difference', null]
         },
-        then: '$key',
+        then: '$symbol',
         else: '$buy.difference'
       }
     };
@@ -141,14 +141,14 @@ const handleLatest = async (logger, ws, payload) => {
         if: {
           $eq: ['$sell.currentProfitPercentage', null]
         },
-        then: '$key',
+        then: '$symbol',
         else: '$sell.currentProfitPercentage'
       }
     };
   }
 
   if (sortBy === 'alpha') {
-    sortField = '$key';
+    sortField = '$symbol';
   }
 
   const trailingTradeCacheQuery = [
