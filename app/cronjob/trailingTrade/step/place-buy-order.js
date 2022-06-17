@@ -383,6 +383,7 @@ const execute = async (logger, rawData) => {
     minPurchaseAmount,
     maxPurchaseAmount,
     freeBalance,
+    orderQuantityBeforeCommission,
     orderQuantity,
     currentPrice,
     stopPercentage,
