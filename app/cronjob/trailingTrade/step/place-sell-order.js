@@ -3,7 +3,7 @@ const moment = require('moment');
 const { binance, slack, cache } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 const {
-  getAccountInfoFromAPI,
+  getAccountInfo,
   isExceedAPILimit,
   getAPILimit
 } = require('../../trailingTradeHelper/common');
@@ -197,8 +197,7 @@ const execute = async (logger, rawData) => {
 
   await saveGridTradeOrder(logger, `${symbol}-grid-trade-last-sell-order`, {
     ...orderResult,
-    currentGridTradeIndex,
-    nextCheck: moment().add(checkOrderExecutePeriod, 'seconds').format()
+    currentGridTradeIndex
   });
 
   // Get open orders and update cache
@@ -209,7 +208,7 @@ const execute = async (logger, rawData) => {
   );
 
   // Refresh account info
-  data.accountInfo = await getAccountInfoFromAPI(logger);
+  data.accountInfo = await getAccountInfo(logger);
 
   slack.sendMessage(
     `${symbol} Sell Action Grid Trade #${humanisedGridTradeIndex} Result (${moment().format(

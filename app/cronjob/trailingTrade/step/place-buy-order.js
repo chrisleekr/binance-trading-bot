@@ -296,12 +296,42 @@ const execute = async (logger, rawData) => {
 
   logger.info({ stopPrice, limitPrice }, 'Stop price and limit price');
 
-  const orderQuantity = _.floor(
-    1 / (limitPrice / freeBalance),
-    lotStepSizePrecision
+  const orderQuantityBeforeCommission = parseFloat(
+    _.ceil(freeBalance / limitPrice, lotStepSizePrecision)
   );
-
-  logger.info({ orderQuantity }, 'Order quantity');
+  logger.info(
+    { orderQuantityBeforeCommission },
+    'Order quantity before commission'
+  );
+  let orderQuantity = parseFloat(
+    _.floor(
+      orderQuantityBeforeCommission -
+        orderQuantityBeforeCommission * (0.1 / 100),
+      lotStepSizePrecision
+    )
+  );
+  // If free balance is exactly same as minimum notional, then it will be failed to place the order
+  // because it will be always less than minimum notional after calculating commission.
+  // To avoid the minimum notional issue, add commission to free balance
+  if (
+    orgFreeBalance > parseFloat(minNotional) &&
+    maxPurchaseAmount === parseFloat(minNotional)
+  ) {
+    // Note: For some reason, Binance rejects the order with exact amount of minimum notional amount.
+    // For example,
+    //    - Calculated limit price: 289.48 (current price) * 1.026 (limit percentage) = 297
+    //    - Calcuated order quantity: 0.0337
+    //    - Calculated quote amount: 297 * 0.0337 = 10.0089, which is over minimum notional value 10.
+    // Above the order is rejected by Binance with MIN_NOTIONAL error.
+    // As a result, I had to re-calculate if max purchase amount is exactly same as minimum notional value.
+    orderQuantity = parseFloat(
+      _.ceil(
+        (freeBalance + freeBalance * (0.1 / 100)) / limitPrice,
+        lotStepSizePrecision
+      )
+    );
+  }
+  logger.info({ orderQuantity }, 'Order quantity after commission');
 
   const orderAmount = orderQuantity * limitPrice;
 
