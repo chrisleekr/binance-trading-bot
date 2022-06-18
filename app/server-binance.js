@@ -14,13 +14,12 @@ const {
   cacheExchangeSymbols
 } = require('./cronjob/trailingTradeHelper/common');
 const {
-  getWebsocketCandlesClean,
-  refreshATHCandlesClean,
+  getWebsocketATHCandlesClean,
   setupATHCandlesWebsocket,
   syncATHCandles
 } = require('./binance/ath-candles');
 const {
-  refreshCandlesClean,
+  getWebsocketCandlesClean,
   setupCandlesWebsocket,
   syncCandles
 } = require('./binance/candles');
@@ -54,7 +53,7 @@ const setupWebsockets = async (logger, symbols) => {
     1 +
       _.size(getWebsocketTickersClean()) +
       _.size(getWebsocketCandlesClean()) +
-      _.size(getWebsocketCandlesClean())
+      _.size(getWebsocketATHCandlesClean())
   );
 };
 
@@ -75,8 +74,6 @@ const setupExchangeSymbols = async logger => {
 };
 
 const refreshCandles = async logger => {
-  refreshCandlesClean(logger);
-  refreshATHCandlesClean(logger);
   refreshTickersClean(logger);
 
   // empty all candles before restarting the bot
@@ -147,9 +144,17 @@ const setupBinance = async logger => {
       title: `Restarting ${symbol} websockets...`
     });
 
+    // Get configuration
+    const globalConfiguration = await getGlobalConfiguration(logger);
+
+    // Retrieve list of monitoring symbols
+    const { symbols } = globalConfiguration;
+
+    // Candles & ATH candles should receive all monitoring symbols to create their connection from scratch
+    // because they are grouped by symbols intervals and not by their names
     await Promise.all([
-      setupCandlesWebsocket(logger, [symbol]),
-      setupATHCandlesWebsocket(logger, [symbol]),
+      setupCandlesWebsocket(logger, symbols),
+      setupATHCandlesWebsocket(logger, symbols),
       setupTickersWebsocket(logger, [symbol])
     ]);
 

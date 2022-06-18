@@ -14,6 +14,8 @@ const setupTickersWebsocket = async (logger, symbols) => {
 
   const monitoringSymbols = _.cloneDeep(symbols);
 
+  // we are adding ${symbol}BTC to our monitoring symbols to support
+  // dust transfer feature, and we will not use them for anything else
   accountInfo.balances.reduce((acc, b) => {
     const symbol = `${b.asset}BTC`;
     // Make sure the symbol existing in Binance. Otherwise, just ignore.
@@ -35,12 +37,10 @@ const setupTickersWebsocket = async (logger, symbols) => {
       websocketTickersClean[monitoringSymbol]();
     }
 
-    websocketTickersClean[monitoringSymbol] =
-      // eslint-disable-next-line no-await-in-loop
-      binance.client.ws.miniTicker(monitoringSymbol, ticker => {
+    websocketTickersClean[monitoringSymbol] = binance.client.ws.miniTicker(
+      monitoringSymbol,
+      ticker => {
         const { eventType, eventTime, curDayClose: close } = ticker;
-        // logger.info({ ticker }, 'Received new ticker');
-
         // // Record last received date/time
         // lastReceivedAt = moment();
 
@@ -63,7 +63,8 @@ const setupTickersWebsocket = async (logger, symbols) => {
         if (canExecuteTrailingTrade) {
           executeTrailingTrade(logger, monitoringSymbol);
         }
-      });
+      }
+    );
   }
 };
 

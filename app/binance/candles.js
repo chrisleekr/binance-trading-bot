@@ -8,15 +8,17 @@ const { saveCandle } = require('../cronjob/trailingTradeHelper/common');
 let websocketCandlesClean = {};
 
 const setupCandlesWebsocket = async (logger, symbols) => {
-  _.forEach(symbols, symbol => {
-    if (symbol in websocketCandlesClean) {
-      logger.info(
-        `Existing opened stream for ${symbol}'s candles found, clean first`
-      );
-      websocketCandlesClean[symbol]();
-    }
-  });
+  // we have to reset the opened connections in any way since we are grouping the symbols by intervals
+  // and not by their names
+  if (_.isEmpty(websocketCandlesClean) === false) {
+    logger.info('Existing opened socket for candles found, clean first');
+    _.forEach(websocketCandlesClean, (clean, _key) => {
+      clean();
+    });
+    websocketCandlesClean = {};
+  }
 
+  // the symbols grouped by intervals to decrease the number of opened streams
   const symbolsGroupedByIntervals = _.groupBy(symbols, async symbol => {
     const symbolConfiguration = await getConfiguration(logger, symbol);
 
@@ -28,7 +30,6 @@ const setupCandlesWebsocket = async (logger, symbols) => {
   });
 
   _.forEach(symbolsGroupedByIntervals, (symbolsGroup, candleInterval) => {
-    // eslint-disable-next-line no-await-in-loop
     websocketCandlesClean[candleInterval] = binance.client.ws.candles(
       symbolsGroup,
       candleInterval,
@@ -100,21 +101,10 @@ const syncCandles = async (logger, symbols) => {
   );
 };
 
-const getWebSocketCandlesClean = () => websocketCandlesClean;
-
-const refreshCandlesClean = logger => {
-  if (_.isEmpty(websocketCandlesClean) === false) {
-    logger.info('Existing opened socket for candles found, clean first');
-    _.forEach(websocketCandlesClean, (clean, _key) => {
-      clean();
-    });
-    websocketCandlesClean = {};
-  }
-};
+const getWebsocketCandlesClean = () => websocketCandlesClean;
 
 module.exports = {
   setupCandlesWebsocket,
   syncCandles,
-  getWebSocketCandlesClean,
-  refreshCandlesClean
+  getWebsocketCandlesClean
 };

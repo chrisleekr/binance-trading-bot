@@ -8,6 +8,16 @@ const { saveCandle } = require('../cronjob/trailingTradeHelper/common');
 let websocketATHCandlesClean = {};
 
 const setupATHCandlesWebsocket = async (logger, symbols) => {
+  // we have to reset the opened connections in any way since we are grouping the symbols by intervals
+  // and not by their names
+  if (_.isEmpty(websocketATHCandlesClean) === false) {
+    logger.info('Existing opened socket for candles found, clean first');
+    _.forEach(websocketATHCandlesClean, (clean, _key) => {
+      clean();
+    });
+    websocketATHCandlesClean = {};
+  }
+
   const filteredATHSymbols = [];
 
   _.forEach(symbols, async symbol => {
@@ -18,13 +28,6 @@ const setupATHCandlesWebsocket = async (logger, symbols) => {
         athRestriction: { enabled: buyATHRestrictionEnabled }
       }
     } = symbolConfiguration;
-
-    if (symbol in websocketATHCandlesClean) {
-      logger.info(
-        `Existing opened socket for ${symbol} candles found, clean first`
-      );
-      websocketATHCandlesClean[symbol]();
-    }
 
     if (buyATHRestrictionEnabled) {
       filteredATHSymbols.push(symbol);
@@ -51,24 +54,22 @@ const setupATHCandlesWebsocket = async (logger, symbols) => {
   _.forEach(
     athSymbolsGroupedByIntervals,
     async (symbolsGroup, candleInterval) => {
-      // eslint-disable-next-line no-await-in-loop
-      websocketATHCandlesClean[candleInterval] =
-        await binance.client.ws.candles(
-          symbolsGroup,
-          candleInterval,
-          candle => {
-            saveCandle(logger, 'trailing-trade-ath-candles', {
-              key: candle.symbol,
-              interval: candle.interval,
-              time: +candle.startTime,
-              open: +candle.open,
-              high: +candle.high,
-              low: +candle.low,
-              close: +candle.close,
-              volume: +candle.volume
-            });
-          }
-        );
+      websocketATHCandlesClean[candleInterval] = binance.client.ws.candles(
+        symbolsGroup,
+        candleInterval,
+        candle => {
+          saveCandle(logger, 'trailing-trade-ath-candles', {
+            key: candle.symbol,
+            interval: candle.interval,
+            time: +candle.startTime,
+            open: +candle.open,
+            high: +candle.high,
+            low: +candle.low,
+            close: +candle.close,
+            volume: +candle.volume
+          });
+        }
+      );
     }
   );
 };
@@ -139,21 +140,10 @@ const syncATHCandles = async (logger, symbols) => {
   );
 };
 
-const getWebsocketCandlesClean = () => websocketATHCandlesClean;
-
-const refreshATHCandlesClean = logger => {
-  if (_.isEmpty(websocketATHCandlesClean) === false) {
-    logger.info('Existing opened socket for candles found, clean first');
-    _.forEach(websocketATHCandlesClean, (clean, _key) => {
-      clean();
-    });
-    websocketATHCandlesClean = {};
-  }
-};
+const getWebsocketATHCandlesClean = () => websocketATHCandlesClean;
 
 module.exports = {
   setupATHCandlesWebsocket,
   syncATHCandles,
-  getWebsocketCandlesClean,
-  refreshATHCandlesClean
+  getWebsocketATHCandlesClean
 };
