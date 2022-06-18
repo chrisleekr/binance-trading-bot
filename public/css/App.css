@@ -183,10 +183,9 @@ input[type='number'] {
 }
 
 .coin-info-label-with-icon button {
-  margin: 0;
   padding: 0;
   line-height: 15px;
-  margin-left: 5px;
+  margin: 0 0 0 5px;
 }
 .coin-info-label-with-icon i {
   color: #fff;
@@ -199,10 +198,9 @@ input[type='number'] {
 }
 
 .coin-info-column-price .coin-info-value-with-icon button {
-  margin: 0;
   padding: 0;
   line-height: 15px;
-  margin-left: 5px;
+  margin: 0 0 0 5px;
 }
 .coin-info-column-price .coin-info-value-with-icon i {
   color: #fff;
@@ -284,10 +282,6 @@ input[type='number'] {
   user-select: none;
   background-color: transparent;
   border: 1px solid transparent;
-  padding: 0.375rem 0.75rem;
-  font-size: 1rem;
-  line-height: 1.5;
-  border-radius: 0.25rem;
   transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out,
     border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 
@@ -554,7 +548,7 @@ input[type='number'] {
 }
 
 .btn-manual {
-  margin: 2px 0px 0px;
+  margin: 2px 0 0;
   appearance: none;
   user-select: none;
   cursor: pointer;
