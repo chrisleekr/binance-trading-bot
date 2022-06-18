@@ -44,7 +44,7 @@ class App extends React.Component {
           label: 'Sell - Profit (desc)'
         },
         { sortBy: 'alpha', sortByDesc: false, label: 'Alphabetical (asc)' },
-        { sortBy: 'alpha', sortByDesc: true, label: 'Alphabetical (desc)' },
+        { sortBy: 'alpha', sortByDesc: true, label: 'Alphabetical (desc)' }
       ],
       selectedSortOption: {
         sortBy: 'default',

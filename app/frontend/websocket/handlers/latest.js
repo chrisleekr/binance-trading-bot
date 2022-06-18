@@ -248,8 +248,8 @@ const handleLatest = async (logger, ws, payload) => {
       symbolsCount,
       totalPages
     };
-  } catch (e) {
-    logger.error({ e }, 'Something wrong with trailing-trade-common cache');
+  } catch (err) {
+    logger.error({ err }, 'Something wrong with trailing-trade-common cache');
     return;
   }
 

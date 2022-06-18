@@ -969,6 +969,10 @@ input[type='number'] {
 /**
   Start: Pagination
 */
+.pagination {
+  justify-content: center;
+}
+
 .pagination .page-link {
   color: #809fff;
   background-color: #343a40;

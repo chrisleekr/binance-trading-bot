@@ -44,12 +44,7 @@ const execute = async (logger, rawData) => {
       filterMinNotional: { minNotional }
     },
     symbolConfiguration: {
-      sell: {
-        enabled: tradingEnabled,
-        currentGridTradeIndex,
-        currentGridTrade
-      },
-      system: { checkOrderExecutePeriod }
+      sell: { enabled: tradingEnabled, currentGridTradeIndex, currentGridTrade }
     },
     action,
     baseAssetBalance: { free: baseAssetFreeBalance },
