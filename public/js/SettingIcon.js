@@ -16,6 +16,7 @@ class SettingIcon extends React.Component {
       quoteAssets: [],
       minNotionals: {},
       configuration: {},
+      rawConfiguration: {},
       validation: {},
       exchangeSymbols: {}
     };
@@ -61,12 +62,32 @@ class SettingIcon extends React.Component {
     return { quoteAssets, minNotionals, lastBuyPriceRemoveThresholds };
   }
 
-  componentDidUpdate(nextProps) {
+  shouldUpdateState(nextProps) {
     if (
+      this.state.showSettingModal === false &&
+      _.isEmpty(nextProps.configuration) === false &&
+      _.isEqual(nextProps.configuration, this.state.rawConfiguration) === false
+    ) {
+      return true;
+    }
+
+    if (
+      this.state.showSettingModal === false &&
       _.isEmpty(nextProps.exchangeSymbols) === false &&
       _.isEqual(nextProps.exchangeSymbols, this.state.exchangeSymbols) === false
     ) {
-      const { exchangeSymbols, configuration } = nextProps;
+      return true;
+    }
+
+    return false;
+  }
+
+  componentDidUpdate(nextProps) {
+    if (this.shouldUpdateState(nextProps)) {
+      const { exchangeSymbols, configuration: rawConfiguration } = nextProps;
+
+      const configuration = _.cloneDeep(rawConfiguration);
+
       const { symbols: selectedSymbols } = configuration;
 
       const { quoteAssets, minNotionals } = this.getQuoteAssets(
@@ -75,27 +96,16 @@ class SettingIcon extends React.Component {
         configuration.buy.lastBuyPriceRemoveThresholds
       );
 
-      this.setState({
-        quoteAssets,
-        minNotionals,
-        exchangeSymbols
-      });
-    }
-
-    // Only update configuration, when the modal is closed and different.
-    if (
-      this.state.showSettingModal === false &&
-      _.isEmpty(nextProps.configuration) === false &&
-      _.isEqual(nextProps.configuration, this.state.configuration) === false
-    ) {
-      const { configuration } = nextProps;
-
       if (configuration.buy.lastBuyPriceRemoveThresholds === undefined) {
         configuration.buy.lastBuyPriceRemoveThresholds = {};
       }
 
       this.setState({
-        configuration
+        quoteAssets,
+        minNotionals,
+        exchangeSymbols,
+        configuration,
+        rawConfiguration
       });
     }
   }
