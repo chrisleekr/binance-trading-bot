@@ -1,0 +1,120 @@
+const _ = require('lodash');
+const { binance, mongo } = require('../helpers');
+const {
+  getConfiguration
+} = require('../cronjob/trailingTradeHelper/configuration');
+const { saveCandle } = require('../cronjob/trailingTradeHelper/common');
+
+let websocketCandlesClean = {};
+
+const setupCandlesWebsocket = async (logger, symbols) => {
+  _.forEach(symbols, symbol => {
+    if (symbol in websocketCandlesClean) {
+      logger.info(
+        `Existing opened stream for ${symbol}'s candles found, clean first`
+      );
+      websocketCandlesClean[symbol]();
+    }
+  });
+
+  const symbolsGroupedByIntervals = _.groupBy(symbols, async symbol => {
+    const symbolConfiguration = await getConfiguration(logger, symbol);
+
+    const {
+      candles: { interval }
+    } = symbolConfiguration;
+
+    return interval;
+  });
+
+  _.forEach(symbolsGroupedByIntervals, (symbolsGroup, candleInterval) => {
+    // eslint-disable-next-line no-await-in-loop
+    websocketCandlesClean[candleInterval] = binance.client.ws.candles(
+      symbolsGroup,
+      candleInterval,
+      candle => {
+        saveCandle(logger, 'trailing-trade-candles', {
+          key: candle.symbol,
+          interval: candle.interval,
+          time: +candle.startTime,
+          open: +candle.open,
+          high: +candle.high,
+          low: +candle.low,
+          close: +candle.close,
+          volume: +candle.volume
+        });
+      }
+    );
+  });
+};
+
+/**
+ * Retrieve ATH candles for symbols from Binance API
+ *
+ * @param {*} logger
+ * @param {string[]} symbols
+ */
+const syncCandles = async (logger, symbols) => {
+  await Promise.all(
+    symbols.map(async symbol => {
+      await mongo.deleteAll(logger, 'trailing-trade-candles', {
+        key: symbol
+      });
+
+      const symbolConfiguration = await getConfiguration(logger, symbol);
+
+      const {
+        candles: { interval, limit }
+      } = symbolConfiguration;
+
+      // Retrieve candles
+      logger.info(
+        { debug: true, function: 'candles', interval, limit },
+        `Retrieving candles from API for ${symbol}`
+      );
+
+      const getCandles = async () => {
+        const candles = await binance.client.candles({
+          symbol,
+          interval,
+          limit
+        });
+        await Promise.all(
+          candles.map(async candle =>
+            saveCandle(logger, 'trailing-trade-candles', {
+              key: symbol,
+              interval,
+              time: +candle.openTime,
+              open: +candle.open,
+              high: +candle.high,
+              low: +candle.low,
+              close: +candle.close,
+              volume: +candle.volume
+            })
+          )
+        );
+      };
+
+      return getCandles();
+    })
+  );
+};
+
+const getWebSocketCandlesClean = () => websocketCandlesClean;
+
+const refreshCandlesClean = logger => {
+  if (_.isEmpty(websocketCandlesClean) === false) {
+    logger.info('Existing opened socket for candles found, clean first');
+    _.forEach(websocketCandlesClean, (clean, _key) => {
+      clean();
+    });
+    websocketCandlesClean = {};
+  }
+};
+
+module.exports = {
+  setupCandlesWebsocket,
+  syncCandles,
+  getWebSocketCandlesClean,
+  refreshCandlesClean
+};
