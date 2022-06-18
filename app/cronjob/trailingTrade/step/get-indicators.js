@@ -260,7 +260,7 @@ const execute = async (logger, rawData) => {
   const newOpenOrders = openOrders.map(order => {
     const newOrder = order;
     newOrder.currentPrice = currentPrice;
-    newOrder.updatedAt = moment(order.time).utc();
+    newOrder.updatedAt = moment(order.time).utc().toDate();
 
     if (order.type !== 'STOP_LOSS_LIMIT') {
       return newOrder;
