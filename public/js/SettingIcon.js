@@ -62,7 +62,7 @@ class SettingIcon extends React.Component {
     return { quoteAssets, minNotionals, lastBuyPriceRemoveThresholds };
   }
 
-  shouldUpdateState(nextProps) {
+  isConfigChanged(nextProps) {
     if (
       this.state.showSettingModal === false &&
       _.isEmpty(nextProps.configuration) === false &&
@@ -71,8 +71,11 @@ class SettingIcon extends React.Component {
       return true;
     }
 
+    return false;
+  }
+
+  isExchangeSymbolsChanged(nextProps) {
     if (
-      this.state.showSettingModal === false &&
       _.isEmpty(nextProps.exchangeSymbols) === false &&
       _.isEqual(nextProps.exchangeSymbols, this.state.exchangeSymbols) === false
     ) {
@@ -83,11 +86,8 @@ class SettingIcon extends React.Component {
   }
 
   componentDidUpdate(nextProps) {
-    if (this.shouldUpdateState(nextProps)) {
-      const { exchangeSymbols, configuration: rawConfiguration } = nextProps;
-
-      const configuration = _.cloneDeep(rawConfiguration);
-
+    if (this.isExchangeSymbolsChanged(nextProps)) {
+      const { exchangeSymbols, configuration } = nextProps;
       const { symbols: selectedSymbols } = configuration;
 
       const { quoteAssets, minNotionals } = this.getQuoteAssets(
@@ -96,14 +96,23 @@ class SettingIcon extends React.Component {
         configuration.buy.lastBuyPriceRemoveThresholds
       );
 
+      this.setState({
+        quoteAssets,
+        minNotionals,
+        exchangeSymbols
+      });
+    }
+
+    // Only update configuration, when the modal is closed and different.
+    if (this.isConfigChanged(nextProps)) {
+      const { configuration: rawConfiguration } = nextProps;
+      const configuration = _.cloneDeep(rawConfiguration);
+
       if (configuration.buy.lastBuyPriceRemoveThresholds === undefined) {
         configuration.buy.lastBuyPriceRemoveThresholds = {};
       }
 
       this.setState({
-        quoteAssets,
-        minNotionals,
-        exchangeSymbols,
         configuration,
         rawConfiguration
       });
