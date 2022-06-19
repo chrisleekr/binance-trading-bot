@@ -18,38 +18,33 @@ const setupATHCandlesWebsocket = async (logger, symbols) => {
     websocketATHCandlesClean = {};
   }
 
-  const filteredATHSymbols = [];
+  const athSymbolsGroupedByIntervals = {};
 
-  _.forEach(symbols, async symbol => {
+  // the symbols grouped by intervals to decrease the number of opened streams
+  // eslint-disable-next-line no-restricted-syntax
+  for (const symbol of symbols) {
+    // eslint-disable-next-line no-await-in-loop
     const symbolConfiguration = await getConfiguration(logger, symbol);
 
     const {
       buy: {
-        athRestriction: { enabled: buyATHRestrictionEnabled }
+        athRestriction: {
+          enabled: buyATHRestrictionEnabled,
+          candles: { interval: buyATHRestrictionCandlesInterval }
+        }
       }
     } = symbolConfiguration;
 
-    if (buyATHRestrictionEnabled) {
-      filteredATHSymbols.push(symbol);
+    if (buyATHRestrictionEnabled === false) {
+      return;
     }
-  });
 
-  const athSymbolsGroupedByIntervals = _.groupBy(
-    filteredATHSymbols,
-    async symbol => {
-      const symbolConfiguration = await getConfiguration(logger, symbol);
-
-      const {
-        buy: {
-          athRestriction: {
-            candles: { interval: buyATHRestrictionCandlesInterval }
-          }
-        }
-      } = symbolConfiguration;
-
-      return buyATHRestrictionCandlesInterval;
+    if (!athSymbolsGroupedByIntervals[buyATHRestrictionCandlesInterval]) {
+      athSymbolsGroupedByIntervals[buyATHRestrictionCandlesInterval] = [];
     }
-  );
+
+    athSymbolsGroupedByIntervals[buyATHRestrictionCandlesInterval].push(symbol);
+  }
 
   _.forEach(
     athSymbolsGroupedByIntervals,

@@ -18,16 +18,24 @@ const setupCandlesWebsocket = async (logger, symbols) => {
     websocketCandlesClean = {};
   }
 
+  const symbolsGroupedByIntervals = {};
+
   // the symbols grouped by intervals to decrease the number of opened streams
-  const symbolsGroupedByIntervals = _.groupBy(symbols, async symbol => {
+  // eslint-disable-next-line no-restricted-syntax
+  for (const symbol of symbols) {
+    // eslint-disable-next-line no-await-in-loop
     const symbolConfiguration = await getConfiguration(logger, symbol);
 
     const {
       candles: { interval }
     } = symbolConfiguration;
 
-    return interval;
-  });
+    if (!symbolsGroupedByIntervals[interval]) {
+      symbolsGroupedByIntervals[interval] = [];
+    }
+
+    symbolsGroupedByIntervals[interval].push(symbol);
+  }
 
   _.forEach(symbolsGroupedByIntervals, (symbolsGroup, candleInterval) => {
     websocketCandlesClean[candleInterval] = binance.client.ws.candles(
