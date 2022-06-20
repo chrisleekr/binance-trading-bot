@@ -493,6 +493,9 @@ const deleteSymbolConfiguration = async (logger, symbol) => {
   });
 
   await cache.hdel('trailing-trade-configurations', symbol);
+
+  PubSub.publish('reset-symbol-websockets', symbol);
+
   return result;
 };
 

@@ -219,17 +219,15 @@ const slackMessageOrderResult = async (
  *
  * @param {*} logger
  * @param {*} orderResult
- * @param {*} checkManualOrderPeriod
  */
-const recordOrder = async (logger, orderResult, checkManualOrderPeriod) => {
+const recordOrder = async (logger, orderResult) => {
   const { symbol, orderId } = orderResult;
 
   // Save manual order
   logger.info({ orderResult }, 'Record  order');
 
   await saveManualOrder(logger, symbol, orderId, {
-    ...orderResult,
-    nextCheck: moment().add(checkManualOrderPeriod, 'seconds').format()
+    ...orderResult
   });
 };
 
@@ -246,9 +244,6 @@ const execute = async (logger, rawData) => {
     isLocked,
     action,
     baseAssetBalance,
-    symbolConfiguration: {
-      system: { checkManualOrderPeriod }
-    },
     order
   } = data;
 
@@ -275,7 +270,7 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Manual order result');
 
-  await recordOrder(logger, orderResult, checkManualOrderPeriod);
+  await recordOrder(logger, orderResult);
 
   // Get open orders and update cache
   data.openOrders =
