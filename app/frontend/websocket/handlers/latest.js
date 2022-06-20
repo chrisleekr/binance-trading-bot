@@ -40,7 +40,7 @@ const handleLatest = async (logger, ws, payload) => {
 
   const cacheTrailingTradeCommon = await cache.hgetall(
     'trailing-trade-common:',
-    '*'
+    'trailing-trade-common:*'
   );
 
   const symbolsCount = globalConfiguration.symbols.length;
@@ -253,19 +253,10 @@ const handleLatest = async (logger, ws, payload) => {
     return;
   }
 
-  stats.symbols = _.keyBy(
-    _.map(cacheTrailingTradeSymbols, symbol => {
-      const modifiedSymbol = symbol;
-      modifiedSymbol.tradingView = JSON.parse(symbol.tradingView);
-      return modifiedSymbol;
-    }),
-    'symbol'
-  );
-
   stats.symbols = await Promise.all(
-    _.map(stats.symbols, async symbol => {
+    _.map(cacheTrailingTradeSymbols, async symbol => {
       const newSymbol = symbol;
-
+      newSymbol.tradingView = JSON.parse(symbol.tradingView);
       // Retrieve action disabled
       newSymbol.isActionDisabled = await isActionDisabled(newSymbol.symbol);
       return newSymbol;
