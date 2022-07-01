@@ -12,51 +12,202 @@ describe('configuration.js', () => {
   });
 
   describe('saveGlobalConfiguration', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       cache.hdelall = jest.fn().mockResolvedValue(true);
       PubSub.publish = jest.fn().mockReturnValue(true);
-      mongo.upsertOne = jest.fn().mockResolvedValue(true);
-      mongo.dropIndex = jest.fn().mockResolvedValue(true);
-      mongo.createIndex = jest.fn().mockResolvedValue(true);
-
-      result = await configuration.saveGlobalConfiguration(logger, {
-        myKey: 'value',
-        botOptions: {
-          logs: {
-            deleteAfter: 30
+      mongo.findOne = jest.fn().mockResolvedValueOnce({
+        symbols: ['BTCUSDT', 'ETHUSDT'],
+        candles: {
+          interval: '1m',
+          limit: 10
+        },
+        buy: {
+          athRestriction: {
+            candles: {
+              candles: {
+                interval: '1d',
+                limit: 30
+              }
+            }
           }
         }
       });
+      mongo.upsertOne = jest.fn().mockResolvedValue(true);
+      mongo.dropIndex = jest.fn().mockResolvedValue(true);
+      mongo.createIndex = jest.fn().mockResolvedValue(true);
     });
 
-    it('triggers cache.hdelall', () => {
-      expect(cache.hdelall).toHaveBeenCalledWith(
-        'trailing-trade-configurations:*'
-      );
-    });
-
-    it('triggers mongo.upsertOne with expected value', () => {
-      expect(mongo.upsertOne).toHaveBeenCalledWith(
-        logger,
-        'trailing-trade-common',
-        { key: 'configuration' },
-        {
-          key: 'configuration',
-          myKey: 'value',
+    describe('when old and new configuration are same', () => {
+      beforeEach(async () => {
+        result = await configuration.saveGlobalConfiguration(logger, {
+          symbols: ['BTCUSDT', 'ETHUSDT'],
+          candles: {
+            interval: '1m',
+            limit: 10
+          },
+          buy: {
+            athRestriction: {
+              candles: {
+                candles: {
+                  interval: '1d',
+                  limit: 30
+                }
+              }
+            }
+          },
           botOptions: {
             logs: {
               deleteAfter: 30
             }
           }
-        }
-      );
+        });
+      });
+
+      it('triggers cache.hdelall', () => {
+        expect(cache.hdelall).toHaveBeenCalledWith(
+          'trailing-trade-configurations:*'
+        );
+      });
+
+      it('triggers mongo.upsertOne with expected value', () => {
+        expect(mongo.upsertOne).toHaveBeenCalledWith(
+          logger,
+          'trailing-trade-common',
+          { key: 'configuration' },
+          {
+            key: 'configuration',
+            symbols: ['BTCUSDT', 'ETHUSDT'],
+            candles: {
+              interval: '1m',
+              limit: 10
+            },
+            buy: {
+              athRestriction: {
+                candles: {
+                  candles: {
+                    interval: '1d',
+                    limit: 30
+                  }
+                }
+              }
+            },
+            botOptions: {
+              logs: {
+                deleteAfter: 30
+              }
+            }
+          }
+        );
+      });
+
+      it('do not trigger PubSub.publish', () => {
+        expect(PubSub.publish).not.toHaveBeenCalledWith(
+          'reset-all-websockets',
+          true
+        );
+      });
     });
 
-    it('triggers PubSub.publish', () => {
-      expect(PubSub.publish).toHaveBeenCalledWith(
-        'reset-binance-websocket',
-        true
-      );
+    describe('when symbols are different', () => {
+      beforeEach(async () => {
+        result = await configuration.saveGlobalConfiguration(logger, {
+          symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'],
+          candles: {
+            interval: '1m',
+            limit: 10
+          },
+          buy: {
+            athRestriction: {
+              candles: {
+                candles: {
+                  interval: '1d',
+                  limit: 30
+                }
+              }
+            }
+          },
+          botOptions: {
+            logs: {
+              deleteAfter: 30
+            }
+          }
+        });
+      });
+
+      it('triggers PubSub.publish', () => {
+        expect(PubSub.publish).toHaveBeenCalledWith(
+          'reset-all-websockets',
+          true
+        );
+      });
+    });
+
+    describe('when candles are different', () => {
+      beforeEach(async () => {
+        result = await configuration.saveGlobalConfiguration(logger, {
+          symbols: ['BTCUSDT', 'ETHUSDT'],
+          candles: {
+            interval: '15m',
+            limit: 100
+          },
+          buy: {
+            athRestriction: {
+              candles: {
+                candles: {
+                  interval: '1d',
+                  limit: 30
+                }
+              }
+            }
+          },
+          botOptions: {
+            logs: {
+              deleteAfter: 30
+            }
+          }
+        });
+      });
+
+      it('triggers PubSub.publish', () => {
+        expect(PubSub.publish).toHaveBeenCalledWith(
+          'reset-all-websockets',
+          true
+        );
+      });
+    });
+
+    describe('when ATH restriction candles are different', () => {
+      beforeEach(async () => {
+        result = await configuration.saveGlobalConfiguration(logger, {
+          symbols: ['BTCUSDT', 'ETHUSDT'],
+          candles: {
+            interval: '1m',
+            limit: 10
+          },
+          buy: {
+            athRestriction: {
+              candles: {
+                candles: {
+                  interval: '15m',
+                  limit: 60
+                }
+              }
+            }
+          },
+          botOptions: {
+            logs: {
+              deleteAfter: 30
+            }
+          }
+        });
+      });
+
+      it('triggers PubSub.publish', () => {
+        expect(PubSub.publish).toHaveBeenCalledWith(
+          'reset-all-websockets',
+          true
+        );
+      });
     });
   });
 
