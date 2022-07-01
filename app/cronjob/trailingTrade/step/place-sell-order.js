@@ -97,12 +97,17 @@ const execute = async (logger, rawData) => {
   logger.info({ freeBalance }, 'Free balance');
 
   // If after calculating quantity percentage, it is not enough minimum notional, then simply sell all balance
-  let orderQuantity = freeBalance;
+  let orderQuantity = parseFloat(
+    _.floor(freeBalance - freeBalance * (0.1 / 100), lotPrecision)
+  );
 
   // When order quantity multiply quantity percentage is more than minimum notional
-  const orderQuantityWithPercentage = _.floor(
-    freeBalance * quantityPercentage,
-    lotPrecision
+  const orderQuantityWithPercentage = parseFloat(
+    _.floor(
+      freeBalance * quantityPercentage -
+        freeBalance * quantityPercentage * (0.1 / 100),
+      lotPrecision
+    )
   );
 
   logger.info(
