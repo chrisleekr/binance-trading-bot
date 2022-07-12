@@ -50,7 +50,7 @@ const handleLatest = async (logger, ws, payload) => {
   const match = {};
 
   if (searchKeyword) {
-    match.key = {
+    match.symbol = {
       $regex: searchKeyword,
       $options: 'i'
     };
