@@ -1,6 +1,4 @@
 /* eslint-disable global-require */
-const moment = require('moment');
-
 describe('ensure-manual-order.js', () => {
   let result;
   let rawData;
