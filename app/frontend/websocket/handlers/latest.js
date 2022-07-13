@@ -158,6 +158,7 @@ const handleLatest = async (logger, ws, payload) => {
     {
       $project: {
         symbol: '$symbol',
+        lastCandle: '$lastCandle',
         symbolInfo: '$symbolInfo',
         symbolConfiguration: '$symbolConfiguration',
         baseAssetBalance: '$baseAssetBalance',
