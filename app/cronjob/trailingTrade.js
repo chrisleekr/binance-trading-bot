@@ -152,6 +152,10 @@ const execute = async (logger, symbol) => {
 
       stepLogger.info({ data }, `Finish step - ${stepName}`);
     }
+
+    logger.info({ symbol }, '⏹ TrailingTrade: Finish process (Debug)...');
+
+    logger.info({ symbol, data }, 'TrailingTrade: Finish process...');
   } catch (err) {
     logger.error(
       { err, errorCode: err.code, debug: true, symbol },
