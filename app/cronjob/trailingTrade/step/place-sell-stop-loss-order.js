@@ -89,7 +89,9 @@ const execute = async (logger, rawData) => {
   const freeBalance = parseFloat(_.floor(baseAssetFreeBalance, lotPrecision));
   logger.info({ freeBalance }, 'Free balance');
 
-  let orderQuantity = freeBalance;
+  let orderQuantity = parseFloat(
+    _.floor(freeBalance - freeBalance * (0.1 / 100), lotPrecision)
+  );
 
   if (orderQuantity <= parseFloat(minQty)) {
     return setMessage(
