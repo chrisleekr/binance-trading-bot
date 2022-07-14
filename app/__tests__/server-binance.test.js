@@ -1,6 +1,4 @@
 /* eslint-disable global-require */
-// const _ = require('lodash');
-
 const _ = require('lodash');
 
 describe('server-binance', () => {
@@ -9,7 +7,6 @@ describe('server-binance', () => {
   let PubSubMock;
   let loggerMock;
   let cacheMock;
-  let slackMock;
   let mongoMock;
 
   let mockGetGlobalConfiguration;
