@@ -67,6 +67,9 @@ const setupExchangeSymbols = async logger => {
     clearInterval(exchangeSymbolsInterval);
   }
 
+  // Retrieve exchange symbols and cache it
+  await cacheExchangeSymbols(logger);
+
   exchangeSymbolsInterval = setInterval(async () => {
     // Retrieve exchange symbols and cache it
     await cacheExchangeSymbols(logger);
