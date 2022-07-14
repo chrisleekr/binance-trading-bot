@@ -7,10 +7,10 @@ describe('cancel-order.js', () => {
   let slackMock;
   let loggerMock;
   let PubSubMock;
+  let cacheMock;
 
   let mockGetAPILimit;
-  let mockGetAndCacheOpenOrdersForSymbol;
-  let mockGetAccountInfoFromAPI;
+  let mockGetAccountInfo;
 
   let mockDeleteManualOrder;
 
@@ -18,18 +18,25 @@ describe('cancel-order.js', () => {
     beforeEach(() => {
       jest.clearAllMocks().resetModules();
 
-      const { binance, slack, PubSub, logger } = require('../../../../helpers');
+      const {
+        binance,
+        slack,
+        PubSub,
+        logger,
+        cache
+      } = require('../../../../helpers');
 
       binanceMock = binance;
       slackMock = slack;
       PubSubMock = PubSub;
       loggerMock = logger;
+      cacheMock = cache;
 
       slackMock.sendMessage = jest.fn().mockResolvedValue(true);
       binanceMock.client.cancelOrder = jest.fn().mockResolvedValue(true);
       mockGetAPILimit = jest.fn().mockReturnValue(10);
-      mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-      mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+      cacheMock.hget = jest.fn().mockResolvedValue(JSON.stringify([]));
+      mockGetAccountInfo = jest.fn().mockResolvedValue({
         account: 'info'
       });
       PubSubMock.publish = jest.fn().mockResolvedValue(true);
@@ -45,8 +52,7 @@ describe('cancel-order.js', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAPILimit: mockGetAPILimit,
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfo: mockGetAccountInfo
         }));
 
         const step = require('../cancel-order');
@@ -73,8 +79,7 @@ describe('cancel-order.js', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAPILimit: mockGetAPILimit,
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfo: mockGetAccountInfo
         }));
 
         const step = require('../cancel-order');
@@ -100,21 +105,22 @@ describe('cancel-order.js', () => {
     describe('when action is cancel-order', () => {
       describe('when there are open orders', () => {
         beforeEach(async () => {
-          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
-            {
-              orderId: 'new-buy-order',
-              side: 'buy'
-            },
-            {
-              orderId: 'new-sell-order',
-              side: 'sell'
-            }
-          ]);
+          cacheMock.hget = jest.fn().mockResolvedValue(
+            JSON.stringify([
+              {
+                orderId: 'new-buy-order',
+                side: 'buy'
+              },
+              {
+                orderId: 'new-sell-order',
+                side: 'sell'
+              }
+            ])
+          );
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAPILimit: mockGetAPILimit,
-            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfo: mockGetAccountInfo
           }));
 
           const step = require('../cancel-order');
@@ -219,12 +225,11 @@ describe('cancel-order.js', () => {
 
       describe('when there is no open order', () => {
         beforeEach(async () => {
-          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+          cacheMock.hget = jest.fn().mockResolvedValue(JSON.stringify([]));
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAPILimit: mockGetAPILimit,
-            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfo: mockGetAccountInfo
           }));
 
           const step = require('../cancel-order');
