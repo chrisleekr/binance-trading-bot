@@ -891,6 +891,173 @@ const updateAccountInfo = async (logger, balances, lastAccountUpdate) => {
   return accountInfo;
 };
 
+const getCacheTrailingTradeSymbols = async (
+  logger,
+  sortByDesc,
+  sortByParam,
+  page,
+  symbolsPerPage,
+  searchKeyword
+) => {
+  const match = {};
+
+  if (searchKeyword) {
+    match.symbol = {
+      $regex: searchKeyword,
+      $options: 'i'
+    };
+  }
+
+  const sortBy = sortByParam || 'default';
+  const sortDirection = sortByDesc === true ? -1 : 1;
+
+  logger.info({ sortBy, sortDirection }, 'latest');
+
+  let sortField = {
+    $cond: {
+      if: { $gt: [{ $size: '$buy.openOrders' }, 0] },
+      then: {
+        $multiply: [
+          {
+            $add: [
+              {
+                $let: {
+                  vars: {
+                    buyOpenOrder: {
+                      $arrayElemAt: ['$buy.openOrders', 0]
+                    }
+                  },
+                  in: '$buyOpenOrder.differenceToCancel'
+                }
+              },
+              3000
+            ]
+          },
+          -10
+        ]
+      },
+      else: {
+        $cond: {
+          if: { $gt: [{ $size: '$sell.openOrders' }, 0] },
+          then: {
+            $multiply: [
+              {
+                $add: [
+                  {
+                    $let: {
+                      vars: {
+                        sellOpenOrder: {
+                          $arrayElemAt: ['$sell.openOrders', 0]
+                        }
+                      },
+                      in: '$sellOpenOrder.differenceToCancel'
+                    }
+                  },
+                  2000
+                ]
+              },
+              -10
+            ]
+          },
+          else: {
+            $cond: {
+              if: {
+                $eq: ['$sell.difference', null]
+              },
+              then: '$symbol',
+              else: {
+                $multiply: [{ $add: ['$sell.difference', 1000] }, -10]
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+
+  if (sortBy === 'buy-difference') {
+    sortField = {
+      $cond: {
+        if: {
+          $eq: ['$buy.difference', null]
+        },
+        then: '$symbol',
+        else: '$buy.difference'
+      }
+    };
+  }
+
+  if (sortBy === 'sell-profit') {
+    sortField = {
+      $cond: {
+        if: {
+          $eq: ['$sell.currentProfitPercentage', null]
+        },
+        then: '$symbol',
+        else: '$sell.currentProfitPercentage'
+      }
+    };
+  }
+
+  if (sortBy === 'alpha') {
+    sortField = '$symbol';
+  }
+
+  const trailingTradeCacheQuery = [
+    {
+      $match: match
+    },
+    {
+      $project: {
+        symbol: '$symbol',
+        lastCandle: '$lastCandle',
+        symbolInfo: '$symbolInfo',
+        symbolConfiguration: '$symbolConfiguration',
+        baseAssetBalance: '$baseAssetBalance',
+        quoteAssetBalance: '$quoteAssetBalance',
+        buy: '$buy',
+        sell: '$sell',
+        tradingView: '$tradingView',
+        overrideData: '$overrideData',
+        sortField
+      }
+    },
+    { $sort: { sortField: sortDirection } },
+    { $skip: (page - 1) * symbolsPerPage },
+    { $limit: symbolsPerPage }
+  ];
+
+  return mongo.aggregate(
+    logger,
+    'trailing-trade-cache',
+    trailingTradeCacheQuery
+  );
+};
+
+const getCacheTrailingTradeTotalProfitAndLoss = logger =>
+  mongo.aggregate(logger, 'trailing-trade-cache', [
+    {
+      $group: {
+        _id: '$quoteAssetBalance.asset',
+        amount: {
+          $sum: {
+            $multiply: ['$baseAssetBalance.total', '$sell.lastBuyPrice']
+          }
+        },
+        profit: { $sum: '$sell.currentProfit' },
+        estimatedBalance: { $sum: '$baseAssetBalance.estimatedValue' }
+      }
+    },
+    {
+      $project: {
+        asset: '$_id',
+        amount: '$amount',
+        profit: '$profit',
+        estimatedBalance: '$estimatedBalance'
+      }
+    }
+  ]);
+
 module.exports = {
   cacheExchangeSymbols,
   getAccountInfoFromAPI,
@@ -925,5 +1092,7 @@ module.exports = {
   saveOverrideAction,
   saveOverrideIndicatorAction,
   saveCandle,
-  updateAccountInfo
+  updateAccountInfo,
+  getCacheTrailingTradeSymbols,
+  getCacheTrailingTradeTotalProfitAndLoss
 };
