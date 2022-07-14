@@ -38,12 +38,11 @@ describe('server-binance', () => {
     jest.useFakeTimers();
     jest.mock('config');
 
-    const { PubSub, logger, cache, slack, mongo } = require('../helpers');
+    const { PubSub, logger, cache, mongo } = require('../helpers');
 
     PubSubMock = PubSub;
     loggerMock = logger;
     cacheMock = cache;
-    slackMock = slack;
     mongoMock = mongo;
 
     config = require('config');
