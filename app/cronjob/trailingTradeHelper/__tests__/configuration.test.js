@@ -559,6 +559,7 @@ describe('configuration.js', () => {
     describe('when symbol is not provided', () => {
       beforeEach(async () => {
         cache.hdel = jest.fn().mockResolvedValue(true);
+        PubSub.publish = jest.fn().mockReturnValue(true);
         mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
         result = await configuration.saveSymbolConfiguration(logger);
@@ -571,36 +572,269 @@ describe('configuration.js', () => {
       it('returns expected value', () => {
         expect(result).toStrictEqual({});
       });
+
+      it('does not trigger reset-symbol-websockets', () => {
+        expect(PubSub.publish).not.toHaveBeenCalled();
+      });
     });
 
     describe('when symbol is provided', () => {
-      beforeEach(async () => {
-        cache.hdel = jest.fn().mockResolvedValue(true);
-        mongo.upsertOne = jest.fn().mockResolvedValue(true);
+      describe('when all configurations are same', () => {
+        beforeEach(async () => {
+          PubSub.publish = jest.fn().mockReturnValue(true);
+          cache.hdel = jest.fn().mockResolvedValue(true);
+          mongo.findOne = jest.fn().mockResolvedValueOnce({
+            symbols: ['BTCUSDT', 'ETHUSDT'],
+            candles: {
+              interval: '1m',
+              limit: 10
+            },
+            buy: {
+              athRestriction: {
+                candles: {
+                  candles: {
+                    interval: '1d',
+                    limit: 30
+                  }
+                }
+              }
+            }
+          });
+          mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
-        result = await configuration.saveSymbolConfiguration(
-          logger,
-          'BTCUSDT',
-          {
-            myKey: 'value'
-          }
-        );
+          result = await configuration.saveSymbolConfiguration(
+            logger,
+            'BTCUSDT',
+            {
+              symbols: ['BTCUSDT', 'ETHUSDT'],
+              candles: {
+                interval: '1m',
+                limit: 10
+              },
+              buy: {
+                athRestriction: {
+                  candles: {
+                    candles: {
+                      interval: '1d',
+                      limit: 30
+                    }
+                  }
+                }
+              }
+            }
+          );
+        });
+
+        it('triggers mongo.upsertOne', () => {
+          expect(mongo.upsertOne).toHaveBeenCalledWith(
+            logger,
+            'trailing-trade-symbols',
+            { key: 'BTCUSDT-configuration' },
+            {
+              key: 'BTCUSDT-configuration',
+              symbols: ['BTCUSDT', 'ETHUSDT'],
+              candles: {
+                interval: '1m',
+                limit: 10
+              },
+              buy: {
+                athRestriction: {
+                  candles: {
+                    candles: {
+                      interval: '1d',
+                      limit: 30
+                    }
+                  }
+                }
+              }
+            }
+          );
+        });
+
+        it('triggers cache.hdel', () => {
+          expect(cache.hdel).toHaveBeenCalledWith(
+            'trailing-trade-configurations',
+            'BTCUSDT'
+          );
+        });
+
+        it('does not trigger reset-symbol-websockets', () => {
+          expect(PubSub.publish).not.toHaveBeenCalled();
+        });
       });
 
-      it('triggers mongo.upsertOne', () => {
-        expect(mongo.upsertOne).toHaveBeenCalledWith(
-          logger,
-          'trailing-trade-symbols',
-          { key: 'BTCUSDT-configuration' },
-          { key: 'BTCUSDT-configuration', myKey: 'value' }
-        );
+      describe('when candles is different', () => {
+        beforeEach(async () => {
+          PubSub.publish = jest.fn().mockReturnValue(true);
+          cache.hdel = jest.fn().mockResolvedValue(true);
+          mongo.findOne = jest.fn().mockResolvedValueOnce({
+            symbols: ['BTCUSDT', 'ETHUSDT'],
+            candles: {
+              interval: '5m',
+              limit: 10
+            },
+            buy: {
+              athRestriction: {
+                candles: {
+                  candles: {
+                    interval: '1d',
+                    limit: 30
+                  }
+                }
+              }
+            }
+          });
+          mongo.upsertOne = jest.fn().mockResolvedValue(true);
+
+          result = await configuration.saveSymbolConfiguration(
+            logger,
+            'BTCUSDT',
+            {
+              symbols: ['BTCUSDT', 'ETHUSDT'],
+              candles: {
+                interval: '1m',
+                limit: 10
+              },
+              buy: {
+                athRestriction: {
+                  candles: {
+                    candles: {
+                      interval: '1d',
+                      limit: 30
+                    }
+                  }
+                }
+              }
+            }
+          );
+        });
+
+        it('triggers mongo.upsertOne', () => {
+          expect(mongo.upsertOne).toHaveBeenCalledWith(
+            logger,
+            'trailing-trade-symbols',
+            { key: 'BTCUSDT-configuration' },
+            {
+              key: 'BTCUSDT-configuration',
+              symbols: ['BTCUSDT', 'ETHUSDT'],
+              candles: {
+                interval: '1m',
+                limit: 10
+              },
+              buy: {
+                athRestriction: {
+                  candles: {
+                    candles: {
+                      interval: '1d',
+                      limit: 30
+                    }
+                  }
+                }
+              }
+            }
+          );
+        });
+
+        it('triggers cache.hdel', () => {
+          expect(cache.hdel).toHaveBeenCalledWith(
+            'trailing-trade-configurations',
+            'BTCUSDT'
+          );
+        });
+
+        it('triggers reset-symbol-websockets', () => {
+          expect(PubSub.publish).toHaveBeenCalledWith(
+            'reset-symbol-websockets',
+            'BTCUSDT'
+          );
+        });
       });
 
-      it('triggers cache.hdel', () => {
-        expect(cache.hdel).toHaveBeenCalledWith(
-          'trailing-trade-configurations',
-          'BTCUSDT'
-        );
+      describe('when athRestriction.candles is different', () => {
+        beforeEach(async () => {
+          PubSub.publish = jest.fn().mockReturnValue(true);
+          cache.hdel = jest.fn().mockResolvedValue(true);
+          mongo.findOne = jest.fn().mockResolvedValueOnce({
+            symbols: ['BTCUSDT', 'ETHUSDT'],
+            candles: {
+              interval: '1m',
+              limit: 10
+            },
+            buy: {
+              athRestriction: {
+                candles: {
+                  candles: {
+                    interval: '30m',
+                    limit: 30
+                  }
+                }
+              }
+            }
+          });
+          mongo.upsertOne = jest.fn().mockResolvedValue(true);
+
+          result = await configuration.saveSymbolConfiguration(
+            logger,
+            'BTCUSDT',
+            {
+              symbols: ['BTCUSDT', 'ETHUSDT'],
+              candles: {
+                interval: '1m',
+                limit: 10
+              },
+              buy: {
+                athRestriction: {
+                  candles: {
+                    candles: {
+                      interval: '1d',
+                      limit: 30
+                    }
+                  }
+                }
+              }
+            }
+          );
+        });
+
+        it('triggers mongo.upsertOne', () => {
+          expect(mongo.upsertOne).toHaveBeenCalledWith(
+            logger,
+            'trailing-trade-symbols',
+            { key: 'BTCUSDT-configuration' },
+            {
+              key: 'BTCUSDT-configuration',
+              symbols: ['BTCUSDT', 'ETHUSDT'],
+              candles: {
+                interval: '1m',
+                limit: 10
+              },
+              buy: {
+                athRestriction: {
+                  candles: {
+                    candles: {
+                      interval: '1d',
+                      limit: 30
+                    }
+                  }
+                }
+              }
+            }
+          );
+        });
+
+        it('triggers cache.hdel', () => {
+          expect(cache.hdel).toHaveBeenCalledWith(
+            'trailing-trade-configurations',
+            'BTCUSDT'
+          );
+        });
+
+        it('triggers reset-symbol-websockets', () => {
+          expect(PubSub.publish).toHaveBeenCalledWith(
+            'reset-symbol-websockets',
+            'BTCUSDT'
+          );
+        });
       });
     });
   });
