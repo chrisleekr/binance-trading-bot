@@ -169,6 +169,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
           desc: 'last buy order is FILLED - currentGridTradeIndex: 0',
           symbol: 'BNBUSDT',
           notifyDebug: true,
+          notifyOrderExecute: true,
           lastBuyOrder: {
             symbol: 'BNBUSDT',
             side: 'BUY',
@@ -233,6 +234,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
           desc: 'last buy order is FILLED - currentGridTradeIndex: 1',
           symbol: 'BNBUSDT',
           notifyDebug: false,
+          notifyOrderExecute: false,
           lastBuyOrder: {
             symbol: 'BNBUSDT',
             side: 'BUY',
@@ -327,7 +329,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
             saveSymbolGridTrade: null
           })
         )
-      ].forEach((t, _index) => {
+      ].forEach(t => {
         describe(`${t.desc}`, () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
@@ -366,7 +368,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
               symbol: t.symbol,
               action: 'not-determined',
               featureToggle: {
-                notifyOrderExecute: true,
+                notifyOrderExecute: t.notifyOrderExecute || false,
                 notifyDebug: t.notifyDebug || false
               },
               symbolConfiguration: {
@@ -493,11 +495,19 @@ describe('ensure-grid-trade-order-executed.js', () => {
               ]);
             });
 
-            it('triggers slack.sendMessage due to filled order', () => {
-              expect(slackMock.sendMessage).toHaveBeenCalledWith(
-                expect.stringContaining('Order Filled')
-              );
-            });
+            if (t.notifyOrderExecute === true) {
+              it('triggers slack.sendMessage due to filled order', () => {
+                expect(slackMock.sendMessage).toHaveBeenCalledWith(
+                  expect.stringContaining('Order Filled')
+                );
+              });
+            } else {
+              it('does not trigger slack.sendMessage due to filled order', () => {
+                expect(slackMock.sendMessage).not.toHaveBeenCalledWith(
+                  expect.stringContaining('Order Filled')
+                );
+              });
+            }
           } else if (
             ['CANCELED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'].includes(
               t.lastBuyOrder.status
@@ -526,11 +536,19 @@ describe('ensure-grid-trade-order-executed.js', () => {
               ]);
             });
 
-            it('triggers slack.sendMessage due to cancelled order', () => {
-              expect(slackMock.sendMessage).toHaveBeenCalledWith(
-                expect.stringContaining('Order Removed')
-              );
-            });
+            if (t.notifyOrderExecute === true) {
+              it('triggers slack.sendMessage due to cancelled order', () => {
+                expect(slackMock.sendMessage).toHaveBeenCalledWith(
+                  expect.stringContaining('Order Removed')
+                );
+              });
+            } else {
+              it('does not trigger slack.sendMessage due to cancelled order', () => {
+                expect(slackMock.sendMessage).not.toHaveBeenCalledWith(
+                  expect.stringContaining('Order Removed')
+                );
+              });
+            }
           }
 
           it('returns result', () => {
