@@ -721,7 +721,7 @@ describe('place-manual-trade.js', () => {
           }
         ]
       },
-      openOrders: [],
+      openOrders: null,
       expectedData: {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
@@ -765,7 +765,11 @@ describe('place-manual-trade.js', () => {
       beforeEach(async () => {
         cacheMock.hget = jest
           .fn()
-          .mockResolvedValue(JSON.stringify(testData.openOrders));
+          .mockResolvedValue(
+            testData.openOrders !== null
+              ? JSON.stringify(testData.openOrders)
+              : null
+          );
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfo: mockGetAccountInfo,
