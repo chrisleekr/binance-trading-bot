@@ -1,6 +1,6 @@
 const { cache } = require('../../../helpers');
 
-const handleExchangeSymbolsGet = async (logger, ws, _payload) => {
+const handleExchangeSymbolsGet = async (_logger, ws, _payload) => {
   // Get cached exchange symbols
   const exchangeSymbols =
     JSON.parse(await cache.hget('trailing-trade-common', 'exchange-symbols')) ||
