@@ -225,7 +225,7 @@ describe('cancel-order.js', () => {
 
       describe('when there is no open order', () => {
         beforeEach(async () => {
-          cacheMock.hget = jest.fn().mockResolvedValue(JSON.stringify([]));
+          cacheMock.hget = jest.fn().mockResolvedValue(null);
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAPILimit: mockGetAPILimit,
