@@ -101,8 +101,6 @@ const setupUserWebsocket = async logger => {
       };
 
       checkManualOrder();
-
-      getAndCacheOpenOrdersForSymbol(logger, symbol);
     }
   });
 };
