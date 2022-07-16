@@ -31,6 +31,7 @@ class Status extends React.Component {
                     <HightlightChange className='coin-info-value'>
                       {apiInfo.spot.usedWeight1m}
                     </HightlightChange>
+                    / 1200
                   </li>
                   <li>
                     Streams Count (Max: 1024):{' '}
