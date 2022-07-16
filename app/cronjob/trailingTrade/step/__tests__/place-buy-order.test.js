@@ -10,13 +10,13 @@ describe('place-buy-order.js', () => {
   let binanceMock;
   let slackMock;
   let loggerMock;
-  let cacheMock;
 
   let mockUpdateAccountInfo;
   let mockIsExceedAPILimit;
   let mockGetAPILimit;
   let mockSaveOrderStats;
   let mockSaveOverrideAction;
+  let mockGetAndCacheOpenOrdersForSymbol;
 
   let mockSaveGridTradeOrder;
 
@@ -26,12 +26,11 @@ describe('place-buy-order.js', () => {
     });
 
     beforeEach(async () => {
-      const { binance, slack, logger, cache } = require('../../../../helpers');
+      const { binance, slack, logger } = require('../../../../helpers');
 
       binanceMock = binance;
       slackMock = slack;
       loggerMock = logger;
-      cacheMock = cache;
 
       slackMock.sendMessage = jest.fn().mockResolvedValue(true);
       binanceMock.client.order = jest.fn().mockResolvedValue(true);
@@ -47,14 +46,15 @@ describe('place-buy-order.js', () => {
         account: 'info'
       });
 
-      cacheMock.hget = jest.fn().mockResolvedValue(JSON.stringify([]));
+      mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
 
       jest.mock('../../../trailingTradeHelper/common', () => ({
         updateAccountInfo: mockUpdateAccountInfo,
         isExceedAPILimit: mockIsExceedAPILimit,
         getAPILimit: mockGetAPILimit,
         saveOrderStats: mockSaveOrderStats,
-        saveOverrideAction: mockSaveOverrideAction
+        saveOverrideAction: mockSaveOverrideAction,
+        getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
       }));
 
       jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -116,8 +116,8 @@ describe('place-buy-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger cache.hget for trailing-trade-open-orders', () => {
-        expect(cacheMock.hget).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger updateAccountInfo', () => {
@@ -769,20 +769,18 @@ describe('place-buy-order.js', () => {
       ].forEach(t => {
         describe(`${t.name}`, () => {
           beforeEach(async () => {
-            cacheMock.hget = jest.fn().mockResolvedValue(
-              JSON.stringify([
-                {
-                  orderId: 123,
-                  price: 202.2,
-                  quantity: 0.24,
-                  side: 'buy',
-                  stopPrice: 202,
-                  symbol: 'BTCUPUSDT',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ])
-            );
+            mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+              {
+                orderId: 123,
+                price: 202.2,
+                quantity: 0.24,
+                side: 'buy',
+                stopPrice: 202,
+                symbol: 'BTCUPUSDT',
+                timeInForce: 'GTC',
+                type: 'STOP_LOSS_LIMIT'
+              }
+            ]);
 
             binanceMock.client.order = jest.fn().mockResolvedValue({
               symbol: 'BTCUPUSDT',
@@ -797,7 +795,8 @@ describe('place-buy-order.js', () => {
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit,
               saveOrderStats: mockSaveOrderStats,
-              saveOverrideAction: mockSaveOverrideAction
+              saveOverrideAction: mockSaveOverrideAction,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
             }));
 
             rawData = _.cloneDeep(orgRawData);
@@ -836,9 +835,9 @@ describe('place-buy-order.js', () => {
               );
             });
 
-            it('triggers cache.hget for trailing-trade-open-orders', () => {
-              expect(cacheMock.hget).toHaveBeenCalledWith(
-                'trailing-trade-open-orders',
+            it('triggers getAndCacheOpenOrdersForSymbol', () => {
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
                 t.rawData.symbol
               );
             });
@@ -1579,7 +1578,8 @@ describe('place-buy-order.js', () => {
           isExceedAPILimit: mockIsExceedAPILimit,
           getAPILimit: mockGetAPILimit,
           saveOrderStats: mockSaveOrderStats,
-          saveOverrideAction: mockSaveOverrideAction
+          saveOverrideAction: mockSaveOverrideAction,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         const step = require('../place-buy-order');
@@ -1609,20 +1609,18 @@ describe('place-buy-order.js', () => {
       describe('when free balance is less than minimum purchase amount', () => {
         describe('BTCUPUSDT', () => {
           beforeEach(async () => {
-            cacheMock.hget = jest.fn().mockResolvedValue(
-              JSON.stringify([
-                {
-                  orderId: 123,
-                  price: 202.2,
-                  quantity: 0.05,
-                  side: 'buy',
-                  stopPrice: 202,
-                  symbol: 'BTCUPUSDT',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ])
-            );
+            mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+              {
+                orderId: 123,
+                price: 202.2,
+                quantity: 0.05,
+                side: 'buy',
+                stopPrice: 202,
+                symbol: 'BTCUPUSDT',
+                timeInForce: 'GTC',
+                type: 'STOP_LOSS_LIMIT'
+              }
+            ]);
 
             binanceMock.client.order = jest.fn().mockResolvedValue({
               symbol: 'BTCUPUSDT',
@@ -1637,7 +1635,8 @@ describe('place-buy-order.js', () => {
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit,
               saveOrderStats: mockSaveOrderStats,
-              saveOverrideAction: mockSaveOverrideAction
+              saveOverrideAction: mockSaveOverrideAction,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
             }));
 
             const step = require('../place-buy-order');
@@ -1722,7 +1721,7 @@ describe('place-buy-order.js', () => {
         [
           {
             symbol: 'BTCUPUSDT',
-            mockCacheHget: JSON.stringify([
+            mockGetAndCacheOpenOrdersForSymbol: [
               {
                 orderId: 123,
                 price: 202.2,
@@ -1733,7 +1732,7 @@ describe('place-buy-order.js', () => {
                 timeInForce: 'GTC',
                 type: 'STOP_LOSS_LIMIT'
               }
-            ]),
+            ],
             binanceMockClientOrderResult: {
               symbol: 'BTCUPUSDT',
               orderId: 2701762317,
@@ -1849,7 +1848,7 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'ETHBTC',
-            mockCacheHget: JSON.stringify([
+            mockGetAndCacheOpenOrdersForSymbol: [
               {
                 orderId: 456,
                 price: 0.045359,
@@ -1860,7 +1859,7 @@ describe('place-buy-order.js', () => {
                 timeInForce: 'GTC',
                 type: 'STOP_LOSS_LIMIT'
               }
-            ]),
+            ],
             binanceMockClientOrderResult: {
               symbol: 'ETHBTC',
               orderId: 2701762317,
@@ -1978,7 +1977,7 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'ALPHABTC',
-            mockCacheHget: JSON.stringify([
+            mockGetAndCacheOpenOrdersForSymbol: [
               {
                 orderId: 456,
                 price: 0.00003812,
@@ -1989,7 +1988,7 @@ describe('place-buy-order.js', () => {
                 timeInForce: 'GTC',
                 type: 'STOP_LOSS_LIMIT'
               }
-            ]),
+            ],
             binanceMockClientOrderResult: {
               symbol: 'ALPHABTC',
               orderId: 2701762317,
@@ -2107,7 +2106,7 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'BTCBRL',
-            mockCacheHget: JSON.stringify([
+            mockGetAndCacheOpenOrdersForSymbol: [
               {
                 orderId: 456,
                 price: 271704,
@@ -2118,7 +2117,7 @@ describe('place-buy-order.js', () => {
                 timeInForce: 'GTC',
                 type: 'STOP_LOSS_LIMIT'
               }
-            ]),
+            ],
             binanceMockClientOrderResult: {
               symbol: 'BTCBRL',
               orderId: 2701762317,
@@ -2240,7 +2239,7 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'BNBUSDT',
-            mockCacheHget: JSON.stringify([
+            mockGetAndCacheOpenOrdersForSymbol: [
               {
                 orderId: 456,
                 price: 271704,
@@ -2251,7 +2250,7 @@ describe('place-buy-order.js', () => {
                 timeInForce: 'GTC',
                 type: 'STOP_LOSS_LIMIT'
               }
-            ]),
+            ],
             binanceMockClientOrderResult: {
               symbol: 'BNBUSDT',
               orderId: 2701762317,
@@ -2370,7 +2369,9 @@ describe('place-buy-order.js', () => {
         ].forEach(t => {
           describe(`${t.symbol}`, () => {
             beforeEach(async () => {
-              cacheMock.hget = jest.fn().mockResolvedValue(t.mockCacheHget);
+              mockGetAndCacheOpenOrdersForSymbol = jest
+                .fn()
+                .mockResolvedValue(t.mockGetAndCacheOpenOrdersForSymbol);
               binanceMock.client.order = jest
                 .fn()
                 .mockResolvedValue(t.binanceMockClientOrderResult);
@@ -2380,7 +2381,9 @@ describe('place-buy-order.js', () => {
                 isExceedAPILimit: mockIsExceedAPILimit,
                 getAPILimit: mockGetAPILimit,
                 saveOrderStats: mockSaveOrderStats,
-                saveOverrideAction: mockSaveOverrideAction
+                saveOverrideAction: mockSaveOverrideAction,
+                getAndCacheOpenOrdersForSymbol:
+                  mockGetAndCacheOpenOrdersForSymbol
               }));
 
               const step = require('../place-buy-order');
@@ -2404,9 +2407,9 @@ describe('place-buy-order.js', () => {
               );
             });
 
-            it('triggers cache.hget for trailing-trade-open-orders', () => {
-              expect(cacheMock.hget).toHaveBeenCalledWith(
-                'trailing-trade-open-orders',
+            it('triggers getAndCacheOpenOrdersForSymbol', () => {
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
                 t.symbol
               );
             });
@@ -2437,7 +2440,7 @@ describe('place-buy-order.js', () => {
         [
           {
             symbol: 'BTCUPUSDT',
-            mockCacheHget: JSON.stringify([
+            openOrders: [
               {
                 orderId: 123,
                 price: 202.2,
@@ -2448,7 +2451,7 @@ describe('place-buy-order.js', () => {
                 timeInForce: 'GTC',
                 type: 'STOP_LOSS_LIMIT'
               }
-            ]),
+            ],
             binanceMockClientOrderResult: {
               symbol: 'BTCUPUSDT',
               orderId: 2701762317,
@@ -2570,7 +2573,7 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'ETHBTC',
-            mockCacheHget: JSON.stringify([
+            openOrders: [
               {
                 orderId: 456,
                 price: 0.045359,
@@ -2581,7 +2584,7 @@ describe('place-buy-order.js', () => {
                 timeInForce: 'GTC',
                 type: 'STOP_LOSS_LIMIT'
               }
-            ]),
+            ],
             binanceMockClientOrderResult: {
               symbol: 'ETHBTC',
               orderId: 2701762317,
@@ -2703,7 +2706,7 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'ALPHABTC',
-            mockCacheHget: JSON.stringify([
+            openOrders: [
               {
                 orderId: 456,
                 price: 0.00003812,
@@ -2714,7 +2717,7 @@ describe('place-buy-order.js', () => {
                 timeInForce: 'GTC',
                 type: 'STOP_LOSS_LIMIT'
               }
-            ]),
+            ],
             binanceMockClientOrderResult: {
               symbol: 'ALPHABTC',
               orderId: 2701762317,
@@ -2836,7 +2839,7 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'BTCBRL',
-            mockCacheHget: JSON.stringify([
+            openOrders: [
               {
                 orderId: 456,
                 price: 271704,
@@ -2847,7 +2850,7 @@ describe('place-buy-order.js', () => {
                 timeInForce: 'GTC',
                 type: 'STOP_LOSS_LIMIT'
               }
-            ]),
+            ],
             binanceMockClientOrderResult: {
               symbol: 'BTCBRL',
               orderId: 2701762317,
@@ -2970,7 +2973,9 @@ describe('place-buy-order.js', () => {
         ].forEach(t => {
           describe(`${t.symbol}`, () => {
             beforeEach(async () => {
-              cacheMock.hget = jest.fn().mockResolvedValue(t.mockCacheHget);
+              mockGetAndCacheOpenOrdersForSymbol = jest
+                .fn()
+                .mockResolvedValue(t.openOrders);
 
               binanceMock.client.order = jest
                 .fn()
@@ -2981,7 +2986,9 @@ describe('place-buy-order.js', () => {
                 isExceedAPILimit: mockIsExceedAPILimit,
                 getAPILimit: mockGetAPILimit,
                 saveOrderStats: mockSaveOrderStats,
-                saveOverrideAction: mockSaveOverrideAction
+                saveOverrideAction: mockSaveOverrideAction,
+                getAndCacheOpenOrdersForSymbol:
+                  mockGetAndCacheOpenOrdersForSymbol
               }));
 
               const step = require('../place-buy-order');
@@ -3005,9 +3012,9 @@ describe('place-buy-order.js', () => {
               );
             });
 
-            it('triggers cache.hget for trailing-trade-open-orders', () => {
-              expect(cacheMock.hget).toHaveBeenCalledWith(
-                'trailing-trade-open-orders',
+            it('triggers getAndCacheOpenOrdersForSymbol', () => {
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
                 t.symbol
               );
             });
@@ -3036,7 +3043,7 @@ describe('place-buy-order.js', () => {
 
       describe('when order is placed, but cache is not returning open orders due to a cache error', () => {
         beforeEach(async () => {
-          cacheMock.hget = jest.fn().mockResolvedValue(null);
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
 
           binanceMock.client.order = jest.fn().mockResolvedValue({
             symbol: 'BTCUPUSDT',
@@ -3051,7 +3058,8 @@ describe('place-buy-order.js', () => {
             isExceedAPILimit: mockIsExceedAPILimit,
             getAPILimit: mockGetAPILimit,
             saveOrderStats: mockSaveOrderStats,
-            saveOverrideAction: mockSaveOverrideAction
+            saveOverrideAction: mockSaveOverrideAction,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
           }));
 
           const step = require('../place-buy-order');
@@ -3136,9 +3144,9 @@ describe('place-buy-order.js', () => {
           );
         });
 
-        it('triggers cache.hget for trailing-trade-open-orders', () => {
-          expect(cacheMock.hget).toHaveBeenCalledWith(
-            'trailing-trade-open-orders',
+        it('triggers getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+            loggerMock,
             'BTCUPUSDT'
           );
         });

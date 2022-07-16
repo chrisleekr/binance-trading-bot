@@ -1,8 +1,9 @@
 const moment = require('moment');
-const { binance, slack, PubSub, cache } = require('../../../helpers');
+const { binance, slack, PubSub } = require('../../../helpers');
 const {
   getAPILimit,
-  getAccountInfo
+  getAccountInfo,
+  getAndCacheOpenOrdersForSymbol
 } = require('../../trailingTradeHelper/common');
 const { saveManualOrder } = require('../../trailingTradeHelper/order');
 
@@ -267,8 +268,7 @@ const execute = async (logger, rawData) => {
   await recordOrder(logger, orderResult);
 
   // Get open orders and update cache
-  data.openOrders =
-    JSON.parse(await cache.hget('trailing-trade-open-orders', symbol)) || [];
+  data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
   data.buy.openOrders = data.openOrders.filter(
     o => o.side.toLowerCase() === 'buy'
   );

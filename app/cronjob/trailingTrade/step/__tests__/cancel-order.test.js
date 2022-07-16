@@ -7,9 +7,9 @@ describe('cancel-order.js', () => {
   let slackMock;
   let loggerMock;
   let PubSubMock;
-  let cacheMock;
 
   let mockGetAPILimit;
+  let mockGetAndCacheOpenOrdersForSymbol;
   let mockGetAccountInfo;
 
   let mockDeleteManualOrder;
@@ -18,24 +18,17 @@ describe('cancel-order.js', () => {
     beforeEach(() => {
       jest.clearAllMocks().resetModules();
 
-      const {
-        binance,
-        slack,
-        PubSub,
-        logger,
-        cache
-      } = require('../../../../helpers');
+      const { binance, slack, PubSub, logger } = require('../../../../helpers');
 
       binanceMock = binance;
       slackMock = slack;
       PubSubMock = PubSub;
       loggerMock = logger;
-      cacheMock = cache;
 
       slackMock.sendMessage = jest.fn().mockResolvedValue(true);
       binanceMock.client.cancelOrder = jest.fn().mockResolvedValue(true);
       mockGetAPILimit = jest.fn().mockReturnValue(10);
-      cacheMock.hget = jest.fn().mockResolvedValue(JSON.stringify([]));
+      mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
       mockGetAccountInfo = jest.fn().mockResolvedValue({
         account: 'info'
       });
@@ -52,6 +45,7 @@ describe('cancel-order.js', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAPILimit: mockGetAPILimit,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfo: mockGetAccountInfo
         }));
 
@@ -79,6 +73,7 @@ describe('cancel-order.js', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAPILimit: mockGetAPILimit,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           getAccountInfo: mockGetAccountInfo
         }));
 
@@ -105,21 +100,20 @@ describe('cancel-order.js', () => {
     describe('when action is cancel-order', () => {
       describe('when there are open orders', () => {
         beforeEach(async () => {
-          cacheMock.hget = jest.fn().mockResolvedValue(
-            JSON.stringify([
-              {
-                orderId: 'new-buy-order',
-                side: 'buy'
-              },
-              {
-                orderId: 'new-sell-order',
-                side: 'sell'
-              }
-            ])
-          );
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+            {
+              orderId: 'new-buy-order',
+              side: 'buy'
+            },
+            {
+              orderId: 'new-sell-order',
+              side: 'sell'
+            }
+          ]);
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAPILimit: mockGetAPILimit,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfo: mockGetAccountInfo
           }));
 
@@ -225,10 +219,11 @@ describe('cancel-order.js', () => {
 
       describe('when there is no open order', () => {
         beforeEach(async () => {
-          cacheMock.hget = jest.fn().mockResolvedValue(null);
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAPILimit: mockGetAPILimit,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             getAccountInfo: mockGetAccountInfo
           }));
 

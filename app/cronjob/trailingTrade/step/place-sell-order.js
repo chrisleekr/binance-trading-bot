@@ -1,11 +1,12 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { binance, slack, cache } = require('../../../helpers');
+const { binance, slack } = require('../../../helpers');
 const { roundDown } = require('../../trailingTradeHelper/util');
 const {
   getAccountInfo,
   isExceedAPILimit,
-  getAPILimit
+  getAPILimit,
+  getAndCacheOpenOrdersForSymbol
 } = require('../../trailingTradeHelper/common');
 const { saveGridTradeOrder } = require('../../trailingTradeHelper/order');
 
@@ -201,8 +202,7 @@ const execute = async (logger, rawData) => {
   });
 
   // Get open orders and update cache
-  data.openOrders =
-    JSON.parse(await cache.hget('trailing-trade-open-orders', symbol)) || [];
+  data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
   data.sell.openOrders = data.openOrders.filter(
     o => o.side.toLowerCase() === 'sell'
   );

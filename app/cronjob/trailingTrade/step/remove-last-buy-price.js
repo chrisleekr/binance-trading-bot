@@ -1,12 +1,13 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { slack, PubSub, cache } = require('../../../helpers');
+const { slack, PubSub } = require('../../../helpers');
 const {
   getAPILimit,
   isActionDisabled,
   removeLastBuyPrice: removeLastBuyPriceFromDatabase,
   saveOrderStats,
-  saveOverrideAction
+  saveOverrideAction,
+  getAndCacheOpenOrdersForSymbol
 } = require('../../trailingTradeHelper/common');
 const {
   archiveSymbolGridTrade,
@@ -248,8 +249,7 @@ const execute = async (logger, rawData) => {
   let refreshedOpenOrders = [];
   if (baseAssetQuantity <= parseFloat(minQty)) {
     // Final check for open orders
-    refreshedOpenOrders =
-      JSON.parse(await cache.hget('trailing-trade-open-orders', symbol)) || [];
+    refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
     if (refreshedOpenOrders.length > 0) {
       logger.info('Do not remove last buy price. Found open orders.');
       return data;
@@ -278,8 +278,7 @@ const execute = async (logger, rawData) => {
 
   if (baseAssetQuantity * currentPrice < lastBuyPriceRemoveThreshold) {
     // Final check for open orders
-    refreshedOpenOrders =
-      JSON.parse(await cache.hget('trailing-trade-open-orders', symbol)) || [];
+    refreshedOpenOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
     if (refreshedOpenOrders.length > 0) {
       logger.info('Do not remove last buy price. Found open orders.');
       return data;

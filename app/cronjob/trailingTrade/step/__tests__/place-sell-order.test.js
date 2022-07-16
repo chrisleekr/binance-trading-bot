@@ -7,11 +7,11 @@ describe('place-sell-order.js', () => {
   let binanceMock;
   let slackMock;
   let loggerMock;
-  let cacheMock;
 
   let mockGetAccountInfo;
   let mockIsExceedAPILimit;
   let mockGetAPILimit;
+  let mockGetAndCacheOpenOrdersForSymbol;
 
   let mockSaveGridTradeOrder;
 
@@ -21,12 +21,11 @@ describe('place-sell-order.js', () => {
     });
 
     beforeEach(async () => {
-      const { binance, slack, logger, cache } = require('../../../../helpers');
+      const { binance, slack, logger } = require('../../../../helpers');
 
       binanceMock = binance;
       slackMock = slack;
       loggerMock = logger;
-      cacheMock = cache;
 
       slackMock.sendMessage = jest.fn().mockResolvedValue(true);
       binanceMock.client.order = jest.fn().mockResolvedValue(true);
@@ -36,7 +35,7 @@ describe('place-sell-order.js', () => {
 
       mockSaveGridTradeOrder = jest.fn().mockResolvedValue(true);
 
-      cacheMock.hget = jest.fn().mockResolvedValue(JSON.stringify([]));
+      mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
     });
 
     describe('when symbol is locked', () => {
@@ -48,7 +47,8 @@ describe('place-sell-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfo: mockGetAccountInfo,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -98,8 +98,8 @@ describe('place-sell-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger cache.hget', () => {
-        expect(cacheMock.hget).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger getAccountInfo', () => {
@@ -120,7 +120,8 @@ describe('place-sell-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfo: mockGetAccountInfo,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -170,8 +171,8 @@ describe('place-sell-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger cache.hget', () => {
-        expect(cacheMock.hget).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger getAccountInfo', () => {
@@ -192,7 +193,8 @@ describe('place-sell-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfo: mockGetAccountInfo,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -254,8 +256,8 @@ describe('place-sell-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger cache.hget', () => {
-        expect(cacheMock.hget).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger getAccountInfo', () => {
@@ -296,7 +298,8 @@ describe('place-sell-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfo: mockGetAccountInfo,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -342,8 +345,8 @@ describe('place-sell-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger cache.hget', () => {
-        expect(cacheMock.hget).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger getAccountInfo', () => {
@@ -376,7 +379,8 @@ describe('place-sell-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAccountInfo: mockGetAccountInfo,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -429,8 +433,8 @@ describe('place-sell-order.js', () => {
           expect(binanceMock.client.order).not.toHaveBeenCalled();
         });
 
-        it('does not trigger cache.hget', () => {
-          expect(cacheMock.hget).not.toHaveBeenCalled();
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
         });
 
         it('does not trigger getAccountInfo', () => {
@@ -467,7 +471,8 @@ describe('place-sell-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAccountInfo: mockGetAccountInfo,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -520,8 +525,8 @@ describe('place-sell-order.js', () => {
           expect(binanceMock.client.order).not.toHaveBeenCalled();
         });
 
-        it('does not trigger cache.hget', () => {
-          expect(cacheMock.hget).not.toHaveBeenCalled();
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
         });
 
         it('does not trigger getAccountInfo', () => {
@@ -558,7 +563,8 @@ describe('place-sell-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAccountInfo: mockGetAccountInfo,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -611,8 +617,8 @@ describe('place-sell-order.js', () => {
           expect(binanceMock.client.order).not.toHaveBeenCalled();
         });
 
-        it('does not trigger cache.hget', () => {
-          expect(cacheMock.hget).not.toHaveBeenCalled();
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
         });
 
         it('does not trigger getAccountInfo', () => {
@@ -651,7 +657,8 @@ describe('place-sell-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAccountInfo: mockGetAccountInfo,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -704,8 +711,8 @@ describe('place-sell-order.js', () => {
           expect(binanceMock.client.order).not.toHaveBeenCalled();
         });
 
-        it('does not trigger cache.hget', () => {
-          expect(cacheMock.hget).not.toHaveBeenCalled();
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
         });
 
         it('does not trigger getAccountInfo', () => {
@@ -742,7 +749,8 @@ describe('place-sell-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAccountInfo: mockGetAccountInfo,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -795,8 +803,8 @@ describe('place-sell-order.js', () => {
           expect(binanceMock.client.order).not.toHaveBeenCalled();
         });
 
-        it('does not trigger cache.hget', () => {
-          expect(cacheMock.hget).not.toHaveBeenCalled();
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
         });
 
         it('does not trigger getAccountInfo', () => {
@@ -833,7 +841,8 @@ describe('place-sell-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAccountInfo: mockGetAccountInfo,
             isExceedAPILimit: mockIsExceedAPILimit,
-            getAPILimit: mockGetAPILimit
+            getAPILimit: mockGetAPILimit,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
           }));
 
           jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -886,8 +895,8 @@ describe('place-sell-order.js', () => {
           expect(binanceMock.client.order).not.toHaveBeenCalled();
         });
 
-        it('does not trigger cache.hget', () => {
-          expect(cacheMock.hget).not.toHaveBeenCalled();
+        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
         });
 
         it('does not trigger getAccountInfo', () => {
@@ -925,7 +934,8 @@ describe('place-sell-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfo: mockGetAccountInfo,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -978,8 +988,8 @@ describe('place-sell-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger cache.hget', () => {
-        expect(cacheMock.hget).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger getAccountInfo', () => {
@@ -1017,7 +1027,8 @@ describe('place-sell-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfo: mockGetAccountInfo,
           isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit
+          getAPILimit: mockGetAPILimit,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1070,8 +1081,8 @@ describe('place-sell-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger cache.hget', () => {
-        expect(cacheMock.hget).not.toHaveBeenCalled();
+      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
       it('does not trigger getAccountInfo', () => {
@@ -1102,20 +1113,18 @@ describe('place-sell-order.js', () => {
       describe('when the quantity is more than maximum quantity', () => {
         describe('BTCUPUSDT', () => {
           beforeEach(async () => {
-            cacheMock.hget = jest.fn().mockResolvedValue(
-              JSON.stringify([
-                {
-                  orderId: 123,
-                  price: 197.8,
-                  quantity: 100,
-                  side: 'sell',
-                  stopPrice: 198,
-                  symbol: 'BTCUPUSDT',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ])
-            );
+            mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+              {
+                orderId: 123,
+                price: 197.8,
+                quantity: 100,
+                side: 'sell',
+                stopPrice: 198,
+                symbol: 'BTCUPUSDT',
+                timeInForce: 'GTC',
+                type: 'STOP_LOSS_LIMIT'
+              }
+            ]);
             binanceMock.client.order = jest.fn().mockResolvedValue({
               symbol: 'BTCUPUSDT',
               orderId: 2701762317,
@@ -1131,7 +1140,8 @@ describe('place-sell-order.js', () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfo: mockGetAccountInfo,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1207,9 +1217,9 @@ describe('place-sell-order.js', () => {
             );
           });
 
-          it('triggers cache.hget', () => {
-            expect(cacheMock.hget).toHaveBeenCalledWith(
-              'trailing-trade-open-orders',
+          it('triggers getAndCacheOpenOrdersForSymbol', () => {
+            expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+              loggerMock,
               'BTCUPUSDT'
             );
           });
@@ -1259,20 +1269,18 @@ describe('place-sell-order.js', () => {
 
         describe('ALPHABTC', () => {
           beforeEach(async () => {
-            cacheMock.hget = jest.fn().mockResolvedValue(
-              JSON.stringify([
-                {
-                  orderId: 123,
-                  price: 0.00003729,
-                  quantity: 90000000,
-                  side: 'sell',
-                  stopPrice: 0.00003733,
-                  symbol: 'ALPHABTC',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ])
-            );
+            mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+              {
+                orderId: 123,
+                price: 0.00003729,
+                quantity: 90000000,
+                side: 'sell',
+                stopPrice: 0.00003733,
+                symbol: 'ALPHABTC',
+                timeInForce: 'GTC',
+                type: 'STOP_LOSS_LIMIT'
+              }
+            ]);
             binanceMock.client.order = jest.fn().mockResolvedValue({
               symbol: 'ALPHABTC',
               orderId: 2701762317,
@@ -1288,7 +1296,8 @@ describe('place-sell-order.js', () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfo: mockGetAccountInfo,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1364,9 +1373,9 @@ describe('place-sell-order.js', () => {
             );
           });
 
-          it('triggers cache.hget', () => {
-            expect(cacheMock.hget).toHaveBeenCalledWith(
-              'trailing-trade-open-orders',
+          it('triggers getAndCacheOpenOrdersForSymbol', () => {
+            expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+              loggerMock,
               'ALPHABTC'
             );
           });
@@ -1416,20 +1425,18 @@ describe('place-sell-order.js', () => {
 
         describe('BTCBRL', () => {
           beforeEach(async () => {
-            cacheMock.hget = jest.fn().mockResolvedValue(
-              JSON.stringify([
-                {
-                  orderId: 123,
-                  price: 265791,
-                  quantity: 9000,
-                  side: 'sell',
-                  stopPrice: 266060,
-                  symbol: 'BTCBRL',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ])
-            );
+            mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+              {
+                orderId: 123,
+                price: 265791,
+                quantity: 9000,
+                side: 'sell',
+                stopPrice: 266060,
+                symbol: 'BTCBRL',
+                timeInForce: 'GTC',
+                type: 'STOP_LOSS_LIMIT'
+              }
+            ]);
             binanceMock.client.order = jest.fn().mockResolvedValue({
               symbol: 'BTCBRL',
               orderId: 2701762317,
@@ -1445,7 +1452,8 @@ describe('place-sell-order.js', () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfo: mockGetAccountInfo,
               isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit
+              getAPILimit: mockGetAPILimit,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
             }));
 
             jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1521,9 +1529,9 @@ describe('place-sell-order.js', () => {
             );
           });
 
-          it('triggers cache.hget', () => {
-            expect(cacheMock.hget).toHaveBeenCalledWith(
-              'trailing-trade-open-orders',
+          it('triggers getAndCacheOpenOrdersForSymbol', () => {
+            expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+              loggerMock,
               'BTCBRL'
             );
           });
@@ -1576,20 +1584,18 @@ describe('place-sell-order.js', () => {
         describe('when quantity percentage is less than 1', () => {
           describe('BTCUPUSDT', () => {
             beforeEach(async () => {
-              cacheMock.hget = jest.fn().mockResolvedValue(
-                JSON.stringify([
-                  {
-                    orderId: 123,
-                    price: 197.8,
-                    quantity: 0.49,
-                    side: 'sell',
-                    stopPrice: 198,
-                    symbol: 'BTCUPUSDT',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ])
-              );
+              mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+                {
+                  orderId: 123,
+                  price: 197.8,
+                  quantity: 0.49,
+                  side: 'sell',
+                  stopPrice: 198,
+                  symbol: 'BTCUPUSDT',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ]);
               binanceMock.client.order = jest.fn().mockResolvedValue({
                 symbol: 'BTCUPUSDT',
                 orderId: 2701762317,
@@ -1605,7 +1611,9 @@ describe('place-sell-order.js', () => {
               jest.mock('../../../trailingTradeHelper/common', () => ({
                 getAccountInfo: mockGetAccountInfo,
                 isExceedAPILimit: mockIsExceedAPILimit,
-                getAPILimit: mockGetAPILimit
+                getAPILimit: mockGetAPILimit,
+                getAndCacheOpenOrdersForSymbol:
+                  mockGetAndCacheOpenOrdersForSymbol
               }));
 
               jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1681,9 +1689,9 @@ describe('place-sell-order.js', () => {
               );
             });
 
-            it('triggers cache.hget', () => {
-              expect(cacheMock.hget).toHaveBeenCalledWith(
-                'trailing-trade-open-orders',
+            it('triggers getAndCacheOpenOrdersForSymbol', () => {
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
                 'BTCUPUSDT'
               );
             });
@@ -1733,20 +1741,18 @@ describe('place-sell-order.js', () => {
 
           describe('ALPHABTC', () => {
             beforeEach(async () => {
-              cacheMock.hget = jest.fn().mockResolvedValue(
-                JSON.stringify([
-                  {
-                    orderId: 123,
-                    price: 0.00003729,
-                    quantity: 5,
-                    side: 'sell',
-                    stopPrice: 0.00003733,
-                    symbol: 'ALPHABTC',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ])
-              );
+              mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+                {
+                  orderId: 123,
+                  price: 0.00003729,
+                  quantity: 5,
+                  side: 'sell',
+                  stopPrice: 0.00003733,
+                  symbol: 'ALPHABTC',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ]);
               binanceMock.client.order = jest.fn().mockResolvedValue({
                 symbol: 'ALPHABTC',
                 orderId: 2701762317,
@@ -1762,7 +1768,9 @@ describe('place-sell-order.js', () => {
               jest.mock('../../../trailingTradeHelper/common', () => ({
                 getAccountInfo: mockGetAccountInfo,
                 isExceedAPILimit: mockIsExceedAPILimit,
-                getAPILimit: mockGetAPILimit
+                getAPILimit: mockGetAPILimit,
+                getAndCacheOpenOrdersForSymbol:
+                  mockGetAndCacheOpenOrdersForSymbol
               }));
 
               jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1838,9 +1846,9 @@ describe('place-sell-order.js', () => {
               );
             });
 
-            it('triggers cache.hget', () => {
-              expect(cacheMock.hget).toHaveBeenCalledWith(
-                'trailing-trade-open-orders',
+            it('triggers getAndCacheOpenOrdersForSymbol', () => {
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
                 'ALPHABTC'
               );
             });
@@ -1890,20 +1898,18 @@ describe('place-sell-order.js', () => {
 
           describe('BTCBRL', () => {
             beforeEach(async () => {
-              cacheMock.hget = jest.fn().mockResolvedValue(
-                JSON.stringify([
-                  {
-                    orderId: 123,
-                    price: 265791,
-                    quantity: 0.000039,
-                    side: 'sell',
-                    stopPrice: 266060,
-                    symbol: 'BTCBRL',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ])
-              );
+              mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+                {
+                  orderId: 123,
+                  price: 265791,
+                  quantity: 0.000039,
+                  side: 'sell',
+                  stopPrice: 266060,
+                  symbol: 'BTCBRL',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ]);
               binanceMock.client.order = jest.fn().mockResolvedValue({
                 symbol: 'BTCBRL',
                 orderId: 2701762317,
@@ -1919,7 +1925,9 @@ describe('place-sell-order.js', () => {
               jest.mock('../../../trailingTradeHelper/common', () => ({
                 getAccountInfo: mockGetAccountInfo,
                 isExceedAPILimit: mockIsExceedAPILimit,
-                getAPILimit: mockGetAPILimit
+                getAPILimit: mockGetAPILimit,
+                getAndCacheOpenOrdersForSymbol:
+                  mockGetAndCacheOpenOrdersForSymbol
               }));
 
               jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -1995,9 +2003,9 @@ describe('place-sell-order.js', () => {
               );
             });
 
-            it('triggers cache.hget', () => {
-              expect(cacheMock.hget).toHaveBeenCalledWith(
-                'trailing-trade-open-orders',
+            it('triggers getAndCacheOpenOrdersForSymbol', () => {
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
                 'BTCBRL'
               );
             });
@@ -2049,20 +2057,18 @@ describe('place-sell-order.js', () => {
         describe('when quantity percentage is equal to 1', () => {
           describe('BTCUPUSDT', () => {
             beforeEach(async () => {
-              cacheMock.hget = jest.fn().mockResolvedValue(
-                JSON.stringify([
-                  {
-                    orderId: 123,
-                    price: 197.8,
-                    quantity: 0.09,
-                    side: 'sell',
-                    stopPrice: 198,
-                    symbol: 'BTCUPUSDT',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ])
-              );
+              mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+                {
+                  orderId: 123,
+                  price: 197.8,
+                  quantity: 0.09,
+                  side: 'sell',
+                  stopPrice: 198,
+                  symbol: 'BTCUPUSDT',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ]);
               binanceMock.client.order = jest.fn().mockResolvedValue({
                 symbol: 'BTCUPUSDT',
                 orderId: 2701762317,
@@ -2078,7 +2084,9 @@ describe('place-sell-order.js', () => {
               jest.mock('../../../trailingTradeHelper/common', () => ({
                 getAccountInfo: mockGetAccountInfo,
                 isExceedAPILimit: mockIsExceedAPILimit,
-                getAPILimit: mockGetAPILimit
+                getAPILimit: mockGetAPILimit,
+                getAndCacheOpenOrdersForSymbol:
+                  mockGetAndCacheOpenOrdersForSymbol
               }));
 
               jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -2154,9 +2162,9 @@ describe('place-sell-order.js', () => {
               );
             });
 
-            it('triggers cache.hget', () => {
-              expect(cacheMock.hget).toHaveBeenCalledWith(
-                'trailing-trade-open-orders',
+            it('triggers getAndCacheOpenOrdersForSymbol', () => {
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
                 'BTCUPUSDT'
               );
             });
@@ -2206,20 +2214,18 @@ describe('place-sell-order.js', () => {
 
           describe('ALPHABTC', () => {
             beforeEach(async () => {
-              cacheMock.hget = jest.fn().mockResolvedValue(
-                JSON.stringify([
-                  {
-                    orderId: 123,
-                    price: 0.00003729,
-                    quantity: 10,
-                    side: 'sell',
-                    stopPrice: 0.00003733,
-                    symbol: 'ALPHABTC',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ])
-              );
+              mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+                {
+                  orderId: 123,
+                  price: 0.00003729,
+                  quantity: 10,
+                  side: 'sell',
+                  stopPrice: 0.00003733,
+                  symbol: 'ALPHABTC',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ]);
               binanceMock.client.order = jest.fn().mockResolvedValue({
                 symbol: 'ALPHABTC',
                 orderId: 2701762317,
@@ -2235,7 +2241,9 @@ describe('place-sell-order.js', () => {
               jest.mock('../../../trailingTradeHelper/common', () => ({
                 getAccountInfo: mockGetAccountInfo,
                 isExceedAPILimit: mockIsExceedAPILimit,
-                getAPILimit: mockGetAPILimit
+                getAPILimit: mockGetAPILimit,
+                getAndCacheOpenOrdersForSymbol:
+                  mockGetAndCacheOpenOrdersForSymbol
               }));
 
               jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -2311,9 +2319,9 @@ describe('place-sell-order.js', () => {
               );
             });
 
-            it('triggers cache.hget', () => {
-              expect(cacheMock.hget).toHaveBeenCalledWith(
-                'trailing-trade-open-orders',
+            it('triggers getAndCacheOpenOrdersForSymbol', () => {
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
                 'ALPHABTC'
               );
             });
@@ -2363,20 +2371,18 @@ describe('place-sell-order.js', () => {
 
           describe('BTCBRL', () => {
             beforeEach(async () => {
-              cacheMock.hget = jest.fn().mockResolvedValue(
-                JSON.stringify([
-                  {
-                    orderId: 123,
-                    price: 265791,
-                    quantity: 0.0999,
-                    side: 'sell',
-                    stopPrice: 266060,
-                    symbol: 'BTCBRL',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ])
-              );
+              mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+                {
+                  orderId: 123,
+                  price: 265791,
+                  quantity: 0.0999,
+                  side: 'sell',
+                  stopPrice: 266060,
+                  symbol: 'BTCBRL',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ]);
               binanceMock.client.order = jest.fn().mockResolvedValue({
                 symbol: 'BTCBRL',
                 orderId: 2701762317,
@@ -2392,7 +2398,9 @@ describe('place-sell-order.js', () => {
               jest.mock('../../../trailingTradeHelper/common', () => ({
                 getAccountInfo: mockGetAccountInfo,
                 isExceedAPILimit: mockIsExceedAPILimit,
-                getAPILimit: mockGetAPILimit
+                getAPILimit: mockGetAPILimit,
+                getAndCacheOpenOrdersForSymbol:
+                  mockGetAndCacheOpenOrdersForSymbol
               }));
 
               jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -2468,9 +2476,9 @@ describe('place-sell-order.js', () => {
               );
             });
 
-            it('triggers cache.hget', () => {
-              expect(cacheMock.hget).toHaveBeenCalledWith(
-                'trailing-trade-open-orders',
+            it('triggers getAndCacheOpenOrdersForSymbol', () => {
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
                 'BTCBRL'
               );
             });
@@ -2520,20 +2528,18 @@ describe('place-sell-order.js', () => {
 
           describe('ONGUSDT', () => {
             beforeEach(async () => {
-              cacheMock.hget = jest.fn().mockResolvedValue(
-                JSON.stringify([
-                  {
-                    orderId: 123,
-                    price: 1.0096,
-                    quantity: 100,
-                    side: 'sell',
-                    stopPrice: 1.0175,
-                    symbol: 'ONGUSDT',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ])
-              );
+              mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+                {
+                  orderId: 123,
+                  price: 1.0096,
+                  quantity: 100,
+                  side: 'sell',
+                  stopPrice: 1.0175,
+                  symbol: 'ONGUSDT',
+                  timeInForce: 'GTC',
+                  type: 'STOP_LOSS_LIMIT'
+                }
+              ]);
               binanceMock.client.order = jest.fn().mockResolvedValue({
                 symbol: 'ONGUSDT',
                 orderId: 2701762317,
@@ -2549,7 +2555,9 @@ describe('place-sell-order.js', () => {
               jest.mock('../../../trailingTradeHelper/common', () => ({
                 getAccountInfo: mockGetAccountInfo,
                 isExceedAPILimit: mockIsExceedAPILimit,
-                getAPILimit: mockGetAPILimit
+                getAPILimit: mockGetAPILimit,
+                getAndCacheOpenOrdersForSymbol:
+                  mockGetAndCacheOpenOrdersForSymbol
               }));
 
               jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -2625,9 +2633,9 @@ describe('place-sell-order.js', () => {
               );
             });
 
-            it('triggers cache.hget', () => {
-              expect(cacheMock.hget).toHaveBeenCalledWith(
-                'trailing-trade-open-orders',
+            it('triggers getAndCacheOpenOrdersForSymbol', () => {
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
                 'ONGUSDT'
               );
             });

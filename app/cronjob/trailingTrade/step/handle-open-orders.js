@@ -2,11 +2,12 @@
 const moment = require('moment');
 
 const _ = require('lodash');
-const { binance, cache } = require('../../../helpers');
+const { binance } = require('../../../helpers');
 const {
   getAccountInfo,
   updateAccountInfo,
-  saveOverrideAction
+  saveOverrideAction,
+  getAndCacheOpenOrdersForSymbol
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -99,10 +100,10 @@ const execute = async (logger, rawData) => {
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
 
-          data.openOrders =
-            JSON.parse(
-              await cache.hget('trailing-trade-open-orders', symbol)
-            ) || [];
+          data.openOrders = await getAndCacheOpenOrdersForSymbol(
+            logger,
+            symbol
+          );
 
           data.buy.openOrders = data.openOrders.filter(
             o => o.side.toLowerCase() === 'buy'
@@ -180,10 +181,10 @@ const execute = async (logger, rawData) => {
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
 
-          data.openOrders =
-            JSON.parse(
-              await cache.hget('trailing-trade-open-orders', symbol)
-            ) || [];
+          data.openOrders = await getAndCacheOpenOrdersForSymbol(
+            logger,
+            symbol
+          );
 
           data.sell.openOrders = data.openOrders.filter(
             o => o.side.toLowerCase() === 'sell'
