@@ -3,7 +3,6 @@ const _ = require('lodash');
 const { binance } = require('../helpers');
 
 const {
-  getAndCacheOpenOrdersForSymbol,
   updateAccountInfo,
   getAccountInfoFromAPI
 } = require('../cronjob/trailingTradeHelper/common');
