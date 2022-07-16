@@ -60,7 +60,7 @@ const execute = async (logger, rawData) => {
     openOrders,
     buy: { limitPrice: buyLimitPrice },
     sell: { limitPrice: sellLimitPrice },
-    symbolInfo: { quoteAsset }
+    symbolInfo: { quoteAsset, baseAsset }
   } = data;
 
   if (isLocked) {
@@ -135,8 +135,8 @@ const execute = async (logger, rawData) => {
 
           const orderAmount = order.origQty * order.price;
 
-          // Immediately update the balance of quote asset when the order is canceled so that
-          // we don't have to wait for the websocket and to avoid the race condition
+          // Immediately update the balance of "quote" asset when the order is canceled so that
+          // we don't have to wait for the websocket because the next action is buy
           const balances = [
             {
               asset: quoteAsset,
@@ -201,8 +201,26 @@ const execute = async (logger, rawData) => {
           // Set action as sell
           data.action = 'sell';
 
-          // Get account information again because the order is cancelled
-          data.accountInfo = await getAccountInfo(logger);
+          // Immediately update the balance of "base" asset when the order is canceled so that
+          // we don't have to wait for the websocket because the next action is sell
+          const balances = [
+            {
+              asset: baseAsset,
+              free:
+                _.toNumber(data.baseAssetBalance.free) +
+                _.toNumber(order.origQty),
+              locked:
+                _.toNumber(data.baseAssetBalance.locked) -
+                _.toNumber(order.origQty)
+            }
+          ];
+
+          // Refresh account info
+          data.accountInfo = await updateAccountInfo(
+            logger,
+            balances,
+            moment().utc().format()
+          );
         }
       } else {
         logger.info(

@@ -908,6 +908,7 @@ describe('handle-open-orders.js', () => {
                 {
                   symbol: 'BTCUSDT',
                   orderId: 46838,
+                  origQty: '0.00001',
                   price: '1799.58000000',
                   stopPrice: '1800.1000',
                   type: 'STOP_LOSS_LIMIT',
@@ -924,6 +925,7 @@ describe('handle-open-orders.js', () => {
                   {
                     symbol: 'BTCUSDT',
                     orderId: 46838,
+                    origQty: '0.00001',
                     price: '1799.58000000',
                     stopPrice: '1800.1000',
                     type: 'STOP_LOSS_LIMIT',
@@ -932,7 +934,12 @@ describe('handle-open-orders.js', () => {
                 ]
               },
               symbolInfo: {
+                baseAsset: 'BTC',
                 quoteAsset: 'USDT'
+              },
+              baseAssetBalance: {
+                free: 0,
+                locked: 0.00001
               }
             };
 
@@ -946,6 +953,28 @@ describe('handle-open-orders.js', () => {
             });
           });
 
+          it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
+            expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
+          });
+
+          it('does not trigger getAccountInfo', () => {
+            expect(mockGetAccountInfo).not.toHaveBeenCalled();
+          });
+
+          it('triggers updateAccountInfo', () => {
+            expect(mockUpdateAccountInfo).toHaveBeenCalledWith(
+              loggerMock,
+              [
+                {
+                  asset: 'BTC',
+                  free: 0.00001,
+                  locked: 0
+                }
+              ],
+              expect.any(String)
+            );
+          });
+
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
@@ -955,6 +984,7 @@ describe('handle-open-orders.js', () => {
                 {
                   symbol: 'BTCUSDT',
                   orderId: 46838,
+                  origQty: '0.00001',
                   price: '1799.58000000',
                   stopPrice: '1800.1000',
                   type: 'STOP_LOSS_LIMIT',
@@ -964,9 +994,16 @@ describe('handle-open-orders.js', () => {
               buy: { limitPrice: 1800, openOrders: [] },
               sell: { limitPrice: 1801, openOrders: [] },
               symbolInfo: {
+                baseAsset: 'BTC',
                 quoteAsset: 'USDT'
               },
-              accountInfo: accountInfoJSON
+              baseAssetBalance: {
+                free: 0,
+                locked: 0.00001
+              },
+              accountInfo: {
+                account: 'updated'
+              }
             });
           });
         });
