@@ -40,18 +40,18 @@ const setupTickersWebsocket = async (logger, symbols) => {
     websocketTickersClean[monitoringSymbol] = binance.client.ws.miniTicker(
       monitoringSymbol,
       ticker => {
-        const { eventType, eventTime, curDayClose: close } = ticker;
+        const { eventType, eventTime, curDayClose: close, symbol } = ticker;
         // // Record last received date/time
         // lastReceivedAt = moment();
 
         // Save latest candle for the symbol
         cache.hset(
           'trailing-trade-symbols',
-          `${ticker.symbol}-latest-candle`,
+          `${symbol}-latest-candle`,
           JSON.stringify({
             eventType,
             eventTime,
-            symbol: monitoringSymbol,
+            symbol,
             close
           })
         );
