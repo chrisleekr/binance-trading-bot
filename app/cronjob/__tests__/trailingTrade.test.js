@@ -962,8 +962,8 @@ describe('trailingTrade', () => {
         await trailingTradeExecute(logger, 'XRPBUSD');
       });
 
-      it('triggers slack.sendMessagage', () => {
-        expect(mockSlackSendMessage).toHaveBeenCalled();
+      it('do not trigger slack.sendMessagage', () => {
+        expect(mockSlackSendMessage).not.toHaveBeenCalled();
       });
     });
   });

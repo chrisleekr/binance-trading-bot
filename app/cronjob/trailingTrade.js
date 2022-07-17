@@ -157,6 +157,12 @@ const execute = async (logger, symbol) => {
 
     logger.info({ symbol, data }, 'TrailingTrade: Finish process...');
   } catch (err) {
+    // For the redlock fail
+    if (err.message.includes('redlock')) {
+      // Simply ignore
+      return;
+    }
+
     logger.error(
       { err, errorCode: err.code, debug: true, symbol },
       `⚠ Execution failed.`
