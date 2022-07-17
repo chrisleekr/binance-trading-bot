@@ -5,6 +5,7 @@ describe('orders.js', () => {
   let loggerMock;
   let mongoMock;
   let cacheMock;
+  let spyOnClearInterval;
 
   let mockUpdateGridTradeLastOrder;
   let mockGetOpenOrdersFromAPI;
@@ -96,6 +97,74 @@ describe('orders.js', () => {
           'BTCUSDT',
           JSON.stringify([])
         );
+      });
+    });
+
+    describe('when getOpenOrders throw an error', () => {
+      beforeEach(async () => {
+        jest.useFakeTimers();
+
+        cacheMock.hset = jest.fn().mockResolvedValue(true);
+
+        loggerMock.error = jest.fn().mockResolvedValue(true);
+
+        mockGetOpenOrdersFromAPI = jest.fn().mockRejectedValue({
+          error: 'error thrown'
+        });
+
+        jest.mock('../../cronjob/trailingTradeHelper/common', () => ({
+          getOpenOrdersFromAPI: mockGetOpenOrdersFromAPI
+        }));
+
+        const { syncOpenOrders } = require('../orders');
+
+        await syncOpenOrders(loggerMock, ['BTCUSDT', 'BNBUSDT']);
+
+        jest.advanceTimersByTime(30 * 1340);
+      });
+
+      it('triggers getOpenOrdersFromAPI', () => {
+        expect(mockGetOpenOrdersFromAPI).toHaveBeenCalled();
+      });
+
+      it('triggers logger.error', () => {
+        expect(loggerMock.error).toHaveBeenCalled();
+      });
+
+      it('does not trigger cache.hset', () => {
+        expect(cacheMock.hset).not.toHaveBeenCalled();
+      });
+    });
+    describe('when openOrdersInterval is not empty', () => {
+      beforeEach(async () => {
+        jest.useFakeTimers();
+
+        cacheMock.hset = jest.fn().mockResolvedValue(true);
+
+        loggerMock.error = jest.fn().mockResolvedValue(true);
+
+        mockGetOpenOrdersFromAPI = jest.fn().mockRejectedValue({
+          error: 'error thrown'
+        });
+
+        const spyOnSetInterval = jest.spyOn(global, 'setInterval');
+        spyOnClearInterval = jest.spyOn(global, 'clearInterval');
+        spyOnSetInterval.mockReturnValueOnce(33);
+
+        jest.mock('../../cronjob/trailingTradeHelper/common', () => ({
+          getOpenOrdersFromAPI: mockGetOpenOrdersFromAPI
+        }));
+
+        const { syncOpenOrders } = require('../orders');
+
+        await syncOpenOrders(loggerMock, ['BTCUSDT', 'BNBUSDT']);
+        await syncOpenOrders(loggerMock, ['BTCUSDT', 'BNBUSDT']);
+
+        jest.advanceTimersByTime(30 * 1340);
+      });
+
+      it('triggers clearInterval', () => {
+        expect(spyOnClearInterval).toHaveBeenCalledWith(33);
       });
     });
   });
