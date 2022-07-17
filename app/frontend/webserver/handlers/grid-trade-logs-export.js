@@ -1,6 +1,8 @@
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 
+const { tmpdir: tmpDirectory } = require('os');
+const { sep: directorySeparator } = require('path');
 const {
   verifyAuthenticated
 } = require('../../../cronjob/trailingTradeHelper/common');
@@ -42,7 +44,7 @@ const handleGridTradeLogsExport = async (funcLogger, app) => {
     const rows = await mongo.findAll(logger, 'trailing-trade-logs', match, {
       sort: { loggedAt: -1 }
     });
-    const filePath = `/tmp/${uuidv4()}.json`;
+    const filePath = `${tmpDirectory()}${directorySeparator}${uuidv4()}.json`;
     fs.writeFileSync(filePath, JSON.stringify(rows));
 
     return res.download(filePath);

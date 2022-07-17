@@ -453,6 +453,63 @@ describe('common.js', () => {
     });
   });
 
+  describe('getCachedExchangeSymbols', () => {
+    describe('when exchange symbols is not null', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+
+        cacheMock.hget = jest
+          .fn()
+          .mockResolvedValue(
+            JSON.stringify(
+              require('./fixtures/binance-cached-exchange-symbols.json')
+            )
+          );
+
+        commonHelper = require('../common');
+        result = await commonHelper.getCachedExchangeSymbols(logger);
+      });
+
+      it('triggers cache.hget', () => {
+        expect(cacheMock.hget).toHaveBeenCalledWith(
+          'trailing-trade-common',
+          'exchange-symbols'
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual(
+          require('./fixtures/binance-cached-exchange-symbols.json')
+        );
+      });
+    });
+    describe('when exchange symbols is null', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+
+        cacheMock.hget = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.getCachedExchangeSymbols(logger);
+      });
+
+      it('triggers cache.hget', () => {
+        expect(cacheMock.hget).toHaveBeenCalledWith(
+          'trailing-trade-common',
+          'exchange-symbols'
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({});
+      });
+    });
+  });
+
   describe('getAccountInfo', () => {
     describe('when there is cached account information', () => {
       beforeEach(async () => {
