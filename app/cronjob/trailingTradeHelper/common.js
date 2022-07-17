@@ -77,6 +77,10 @@ const cacheExchangeSymbols = async logger => {
   logger.info({ exchangeSymbols }, 'Saved exchange symbols to cache');
 };
 
+const getCachedExchangeSymbols = async _logger =>
+  JSON.parse(await cache.hget('trailing-trade-common', 'exchange-symbols')) ||
+  {};
+
 /**
  * Add estimatedBTC and canDustTransfer flags to balance
  *  - Leave this function for future reference
@@ -1060,6 +1064,7 @@ const getCacheTrailingTradeTotalProfitAndLoss = logger =>
 
 module.exports = {
   cacheExchangeSymbols,
+  getCachedExchangeSymbols,
   getAccountInfoFromAPI,
   getAccountInfo,
   extendBalancesWithDustTransfer,

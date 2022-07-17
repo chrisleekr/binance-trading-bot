@@ -1,6 +1,9 @@
 const _ = require('lodash');
 const { binance, cache } = require('../helpers');
-const { getAccountInfo } = require('../cronjob/trailingTradeHelper/common');
+const {
+  getAccountInfo,
+  getCachedExchangeSymbols
+} = require('../cronjob/trailingTradeHelper/common');
 const { executeTrailingTrade } = require('../cronjob');
 
 let websocketTickersClean = {};
@@ -8,9 +11,7 @@ let websocketTickersClean = {};
 const setupTickersWebsocket = async (logger, symbols) => {
   const accountInfo = await getAccountInfo(logger);
 
-  const cachedExchangeSymbols =
-    JSON.parse(await cache.hget('trailing-trade-common', 'exchange-symbols')) ||
-    {};
+  const cachedExchangeSymbols = await getCachedExchangeSymbols(logger);
 
   const monitoringSymbols = _.cloneDeep(symbols);
 
