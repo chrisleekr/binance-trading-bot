@@ -32,100 +32,51 @@ describe('save-data-to-cache.js', () => {
     });
 
     describe('when save to cache is enabled', () => {
-      describe('with tradingView', () => {
-        beforeEach(async () => {
-          mongo.upsertOne = jest.fn().mockResolvedValue(true);
+      beforeEach(async () => {
+        mongo.upsertOne = jest.fn().mockResolvedValue(true);
 
-          rawData = {
-            symbol: 'BTCUSDT',
-            saveToCache: true,
-            closedTrades: 'something',
-            accountInfo: { some: 'thing' },
-            symbolConfiguration: {
-              candles: {
-                interval: '1m'
-              },
-              symbols: ['BTCUSDT', 'ETHUSDT']
+        rawData = {
+          symbol: 'BTCUSDT',
+          saveToCache: true,
+          closedTrades: 'something',
+          accountInfo: { some: 'thing' },
+          symbolConfiguration: {
+            candles: {
+              interval: '1m'
             },
-            other: 'data',
-            tradingView: {
-              some: 'thing'
-            }
-          };
+            symbols: ['BTCUSDT', 'ETHUSDT']
+          },
+          other: 'data',
+          tradingView: {
+            some: 'thing'
+          }
+        };
 
-          result = await step.execute(logger, rawData);
-        });
-
-        it('triggers cache.hset', () => {
-          expect(mongo.upsertOne).toHaveBeenCalledWith(
-            logger,
-            'trailing-trade-cache',
-            {
-              symbol: 'BTCUSDT'
-            },
-            {
-              other: 'data',
-              saveToCache: true,
-              symbol: 'BTCUSDT',
-              symbolConfiguration: {
-                candles: {
-                  interval: '1m'
-                }
-              },
-              tradingView: '{"some":"thing"}'
-            }
-          );
-        });
-
-        it('returns expected value', () => {
-          expect(result).toStrictEqual(rawData);
-        });
+        result = await step.execute(logger, rawData);
       });
 
-      describe('without tradingview', () => {
-        beforeEach(async () => {
-          mongo.upsertOne = jest.fn().mockResolvedValue(true);
-
-          rawData = {
-            symbol: 'BTCUSDT',
+      it('triggers mongo.upsertOne', () => {
+        expect(mongo.upsertOne).toHaveBeenCalledWith(
+          logger,
+          'trailing-trade-cache',
+          {
+            symbol: 'BTCUSDT'
+          },
+          {
+            other: 'data',
             saveToCache: true,
-            closedTrades: 'something',
-            accountInfo: { some: 'thing' },
+            symbol: 'BTCUSDT',
             symbolConfiguration: {
               candles: {
                 interval: '1m'
-              },
-              symbols: ['BTCUSDT', 'ETHUSDT']
-            },
-            other: 'data'
-          };
-
-          result = await step.execute(logger, rawData);
-        });
-
-        it('triggers cache.hset', () => {
-          expect(mongo.upsertOne).toHaveBeenCalledWith(
-            logger,
-            'trailing-trade-cache',
-            {
-              symbol: 'BTCUSDT'
-            },
-            {
-              other: 'data',
-              saveToCache: true,
-              symbol: 'BTCUSDT',
-              symbolConfiguration: {
-                candles: {
-                  interval: '1m'
-                }
               }
             }
-          );
-        });
+          }
+        );
+      });
 
-        it('returns expected value', () => {
-          expect(result).toStrictEqual(rawData);
-        });
+      it('returns expected value', () => {
+        expect(result).toStrictEqual(rawData);
       });
     });
   });

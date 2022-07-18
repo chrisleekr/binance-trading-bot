@@ -3,6 +3,7 @@ const _ = require('lodash');
 
 describe('latest.test.js', () => {
   const trailingTradeCommonJson = require('./fixtures/latest-trailing-trade-common.json');
+  const trailingTradeTradingView = require('./fixtures/latest-trailing-trade-tradingview.json');
   const trailingTradeSymbols = require('./fixtures/latest-trailing-trade-symbols.json');
   const trailingTradeClosedTrades = require('./fixtures/latest-trailing-trade-closed-trades.json');
 
@@ -177,6 +178,10 @@ describe('latest.test.js', () => {
           return trailingTradeClosedTrades;
         }
 
+        if (pattern === 'trailing-trade-tradingview:*') {
+          return trailingTradeTradingView;
+        }
+
         return '';
       });
     });
@@ -344,13 +349,7 @@ describe('latest.test.js', () => {
           require('../../../../../package.json').version;
         trailingTradeStateNotAuthenticatedUnlockList.common.gitHash =
           'some-hash';
-        trailingTradeStateNotAuthenticatedUnlockList.common.closedTrades =
-          _.map(trailingTradeClosedTrades, stats => JSON.parse(stats));
-        trailingTradeStateNotAuthenticatedUnlockList.common.totalProfitAndLoss =
-          [];
-        trailingTradeStateNotAuthenticatedUnlockList.common.streamsCount = 6;
-        trailingTradeStateNotAuthenticatedUnlockList.common.symbolsCount = 5;
-        trailingTradeStateNotAuthenticatedUnlockList.common.totalPages = 1;
+
         expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
           JSON.stringify(trailingTradeStateNotAuthenticatedUnlockList)
         );
@@ -402,7 +401,7 @@ describe('latest.test.js', () => {
             hget: mockCacheHGet
           },
           config: {
-            get: mockConfigGet,
+            get: mockConfigGet
           },
           binance: {
             client: {
@@ -428,14 +427,7 @@ describe('latest.test.js', () => {
         trailingTradeStatsAuthenticated.common.version =
           require('../../../../../package.json').version;
         trailingTradeStatsAuthenticated.common.gitHash = 'some-hash';
-        trailingTradeStatsAuthenticated.common.closedTrades = _.map(
-          trailingTradeClosedTrades,
-          stats => JSON.parse(stats)
-        );
-        trailingTradeStatsAuthenticated.common.totalProfitAndLoss = [];
-        trailingTradeStatsAuthenticated.common.streamsCount = 6;
-        trailingTradeStatsAuthenticated.common.symbolsCount = 5;
-        trailingTradeStatsAuthenticated.common.totalPages = 1;
+
         expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
           JSON.stringify(trailingTradeStatsAuthenticated)
         );

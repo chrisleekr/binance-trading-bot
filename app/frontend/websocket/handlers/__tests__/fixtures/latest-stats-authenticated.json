@@ -11,7 +11,7 @@
     "enabled": true,
     "type": "i-am-global",
     "candles": { "interval": "15m" },
-    "symbols":["BTCUSDT", "BNBUSDT", "ETHBUSD", "BTCBUSD", "LTCBUSD"],
+    "symbols": ["BTCUSDT", "BNBUSDT", "ETHBUSD", "BTCBUSD", "LTCBUSD"],
     "botOptions": {
       "authentication": { "lockList": true, "lockAfter": 120 },
       "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 },
@@ -24,7 +24,7 @@
     "sell": {}
   },
   "common": {
-    "version": "0.0.78",
+    "version": "0.0.85",
     "gitHash": "some-hash",
     "accountInfo": {
       "makerCommission": 0,
@@ -50,7 +50,41 @@
     },
     "apiInfo": { "spot": { "usedWeight1m": "60" }, "futures": {} },
     "closedTradesSetting": { "loadedPeriod": "a", "selectedPeriod": "a" },
-    "orderStats": { "numberOfOpenTrades": 6, "numberOfBuyOpenOrders": 3 }
+    "orderStats": { "numberOfOpenTrades": 6, "numberOfBuyOpenOrders": 3 },
+    "closedTrades": [
+      {
+        "_id": "USDT",
+        "quoteAsset": "USDT",
+        "totalBuyQuoteQty": 2154.3501118200006,
+        "totalSellQuoteQty": 2446.3799600800007,
+        "buyGridTradeQuoteQty": 2154.3501118200006,
+        "buyManualQuoteQty": 0,
+        "sellGridTradeQuoteQty": 2276.5895458000005,
+        "sellManualQuoteQty": 0,
+        "stopLossQuoteQty": 169.79041428,
+        "profit": 292.02984826000005,
+        "trades": 113,
+        "profitPercentage": 13.555356980174984
+      },
+      {
+        "_id": "BUSD",
+        "quoteAsset": "BUSD",
+        "totalBuyQuoteQty": 83.92565970000001,
+        "totalSellQuoteQty": 1428.4105350000002,
+        "buyGridTradeQuoteQty": 83.92565970000001,
+        "buyManualQuoteQty": 0,
+        "sellGridTradeQuoteQty": 1411.6425350000002,
+        "sellManualQuoteQty": 0,
+        "stopLossQuoteQty": 16.768,
+        "profit": 1344.4848752999999,
+        "trades": 5,
+        "profitPercentage": 1601.995003799773
+      }
+    ],
+    "totalProfitAndLoss": [],
+    "streamsCount": 6,
+    "symbolsCount": 5,
+    "totalPages": 1
   },
   "stats": {
     "symbols": [
@@ -510,6 +544,25 @@
         },
         "order": {},
         "saveToCache": true,
+        "tradingView": {
+          "request": {
+            "symbol": "BTCUSDT",
+            "screener": "CRYPTO",
+            "exchange": "BINANCE",
+            "interval": "1h"
+          },
+          "result": {
+            "indicators": {
+              "summary": {
+                "BUY": 14,
+                "NEUTRAL": 10,
+                "RECOMMENDATION": "BUY",
+                "SELL": 2
+              },
+              "time": "2022-07-18T11:45:39.308508"
+            }
+          }
+        },
         "isActionDisabled": { "isDisabled": false, "ttl": -2 }
       },
       {

@@ -25,11 +25,10 @@ const execute = async (logger, rawData) => {
   const document = _.omit(data, [
     'closedTrades',
     'accountInfo',
-    'symbolConfiguration.symbols'
+    'symbolConfiguration.symbols',
+    'tradingView'
   ]);
-  if (document.tradingView) {
-    document.tradingView = JSON.stringify(document.tradingView);
-  }
+
   await mongo.upsertOne(logger, 'trailing-trade-cache', filter, document);
 
   return data;
