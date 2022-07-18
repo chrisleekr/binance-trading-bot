@@ -158,8 +158,8 @@ class SymbolSettingIconBotOptions extends React.Component {
                                       type='number'
                                       placeholder='Enter minutes'
                                       required
-                                      min='0'
-                                      step='1'
+                                      min='0.1'
+                                      step='0.1'
                                       data-state-key='autoTriggerBuy.triggerAfter'
                                       value={
                                         botOptions.autoTriggerBuy.triggerAfter
