@@ -1,6 +1,4 @@
 /* eslint-disable global-require */
-const _ = require('lodash');
-
 describe('latest.test.js', () => {
   const trailingTradeCommonJson = require('./fixtures/latest-trailing-trade-common.json');
   const trailingTradeTradingView = require('./fixtures/latest-trailing-trade-tradingview.json');
