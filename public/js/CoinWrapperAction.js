@@ -75,17 +75,47 @@ class CoinWrapperAction extends React.Component {
       );
     }
 
+    const updatedAt = moment.utc(buy.updatedAt, 'YYYY-MM-DDTHH:mm:ss.SSSSSS');
+    const currentTime = moment.utc();
+
     return (
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title border-bottom-0 mb-0 pb-0'>
           <div className='coin-info-label w-40'>
             Action -{' '}
             <span className='coin-info-value'>
-              {moment(buy.updatedAt).format('HH:mm:ss')}
+              {updatedAt.format('HH:mm:ss')}
             </span>
             {isLocked === true ? <i className='fas fa-lock ml-1'></i> : ''}
             {isActionDisabled.isDisabled === true ? (
               <i className='fas fa-pause-circle ml-1 text-warning'></i>
+            ) : (
+              ''
+            )}
+            {updatedAt.isBefore(currentTime, 'minute') ? (
+              <OverlayTrigger
+                trigger='click'
+                key='action-updated-at-alert-overlay'
+                placement='bottom'
+                overlay={
+                  <Popover id='action-updated-at-alert-overlay-right'>
+                    <Popover.Content>
+                      The bot didn't receive the price change for over a min. It
+                      means the price hasn't changed in Binance. It will be
+                      updated when the bot receives a new price change.
+                      <br />
+                      <br />
+                      Last updated: {updatedAt.fromNow()}
+                    </Popover.Content>
+                  </Popover>
+                }>
+                <Button
+                  variant='link'
+                  className='p-0 m-0 ml-1 text-white-50 d-inline-block'
+                  style={{ lineHeight: '17px' }}>
+                  <i className='fas fa-exclamation-circle mx-1'></i>
+                </Button>
+              </OverlayTrigger>
             ) : (
               ''
             )}
