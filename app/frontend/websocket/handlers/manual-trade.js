@@ -1,4 +1,5 @@
 const moment = require('moment');
+const { executeTrailingTrade } = require('../../../cronjob');
 const {
   saveOverrideAction
 } = require('../../../cronjob/trailingTradeHelper/common');
@@ -21,6 +22,8 @@ const handleManualTrade = async (logger, ws, payload) => {
     },
     'The manual order received by the bot. Wait for placing the order.'
   );
+
+  executeTrailingTrade(logger, symbol);
 
   ws.send(
     JSON.stringify({

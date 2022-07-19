@@ -6,6 +6,7 @@ describe('manual-trade.js', () => {
   let loggerMock;
 
   let mockSaveOverrideAction;
+  let mockExecuteTrailingTrade;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -20,6 +21,12 @@ describe('manual-trade.js', () => {
 
     jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
       saveOverrideAction: mockSaveOverrideAction
+    }));
+
+    mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
+
+    jest.mock('../../../../cronjob', () => ({
+      executeTrailingTrade: mockExecuteTrailingTrade
     }));
   });
 
@@ -52,6 +59,13 @@ describe('manual-trade.js', () => {
         triggeredBy: 'user'
       },
       'The manual order received by the bot. Wait for placing the order.'
+    );
+  });
+
+  it('triggers executeTrailingTrade', () => {
+    expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+      loggerMock,
+      'BTCUSDT'
     );
   });
 

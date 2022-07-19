@@ -7,6 +7,7 @@ describe('symbol-enable-action.test.js', () => {
   let mockLogger;
 
   let mockDeleteDisableAction;
+  let mockExecuteTrailingTrade;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -16,6 +17,12 @@ describe('symbol-enable-action.test.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
+
+    jest.mock('../../../../cronjob', () => ({
+      executeTrailingTrade: mockExecuteTrailingTrade
+    }));
   });
 
   describe('when symbol is provided', () => {
@@ -39,6 +46,13 @@ describe('symbol-enable-action.test.js', () => {
 
     it('triggers deleteDisableAction', () => {
       expect(mockDeleteDisableAction).toHaveBeenCalledWith(
+        mockLogger,
+        'BTCUSDT'
+      );
+    });
+
+    it('triggers executeTrailingTrade', () => {
+      expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
         mockLogger,
         'BTCUSDT'
       );
