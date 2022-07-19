@@ -445,5 +445,85 @@ describe('latest.test.js', () => {
         );
       });
     });
+
+    describe('authenticated and no git hash provided', () => {
+      beforeEach(async () => {
+        delete process.env.GIT_HASH;
+
+        mockGetConfiguration = jest.fn().mockResolvedValue({
+          enabled: true,
+          type: 'i-am-global',
+          candles: { interval: '15m' },
+          symbols: ['BTCUSDT', 'BNBUSDT', 'ETHBUSD', 'BTCBUSD', 'LTCBUSD'],
+          botOptions: {
+            authentication: {
+              lockList: true,
+              lockAfter: 120
+            },
+            autoTriggerBuy: {
+              enabled: false,
+              triggerAfter: 20
+            },
+            orderLimit: {
+              enabled: true,
+              maxBuyOpenOrders: 3,
+              maxOpenTrades: 5
+            }
+          },
+          sell: {}
+        });
+
+        jest.mock(
+          '../../../../cronjob/trailingTradeHelper/configuration',
+          () => ({
+            getConfiguration: mockGetConfiguration
+          })
+        );
+
+        jest.mock('../../../../helpers', () => ({
+          logger: {
+            info: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            child: jest.fn()
+          },
+          cache: {
+            hgetall: mockCacheHGetAll,
+            hget: mockCacheHGet
+          },
+          config: {
+            get: mockConfigGet
+          },
+          binance: {
+            client: {
+              getInfo: mockBinanceClientGetInfo
+            }
+          }
+        }));
+
+        const { logger } = require('../../../../helpers');
+        const { handleLatest } = require('../latest');
+        await handleLatest(logger, mockWebSocketServer, {
+          isAuthenticated: true,
+          data: {
+            sortBy: 'default',
+            sortByDesc: false,
+            page: 1,
+            searchKeyword: ''
+          }
+        });
+      });
+
+      it('triggers ws.send with latest', () => {
+        trailingTradeStatsAuthenticated.common.version =
+          require('../../../../../package.json').version;
+        trailingTradeStatsAuthenticated.common.gitHash = 'unspecified';
+
+        expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
+          JSON.stringify(trailingTradeStatsAuthenticated)
+        );
+      });
+    });
   });
 });
