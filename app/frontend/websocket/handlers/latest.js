@@ -81,7 +81,7 @@ const handleLatest = async (logger, ws, payload) => {
   const stats = {
     symbols: await Promise.all(
       _.map(cacheTrailingTradeSymbols, async symbol => {
-        const newSymbol = symbol;
+        const newSymbol = { ...symbol };
         try {
           newSymbol.tradingView = JSON.parse(
             cacheTradingView[newSymbol.symbol]
