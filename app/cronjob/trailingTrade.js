@@ -28,7 +28,9 @@ const {
 } = require('./trailingTrade/steps');
 const { slack } = require('../helpers');
 
-const execute = async (logger, symbol) => {
+const execute = async (rawLogger, symbol) => {
+  const logger = rawLogger.child({ jobName: 'trailingTrade' });
+
   try {
     // Retrieve account info from cache
     const accountInfo = await getAccountInfo(logger);
@@ -148,7 +150,7 @@ const execute = async (logger, symbol) => {
       stepLogger.info({ data }, `Start step - ${stepName}`);
 
       // eslint-disable-next-line no-await-in-loop
-      data = await stepFunc(logger, data);
+      data = await stepFunc(stepLogger, data);
 
       stepLogger.info({ data }, `Finish step - ${stepName}`);
     }
@@ -164,7 +166,7 @@ const execute = async (logger, symbol) => {
     }
 
     logger.error(
-      { err, errorCode: err.code, debug: true, symbol },
+      { err, errorCode: err.code, debug: true, symbol, saveLog: true },
       `⚠ Execution failed.`
     );
     if (

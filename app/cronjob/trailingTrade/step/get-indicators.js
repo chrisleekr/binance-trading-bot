@@ -161,7 +161,10 @@ const execute = async (logger, rawData) => {
     ) || {};
 
   if (_.isEmpty(cachedLatestCandle)) {
-    logger.info('Last candle is not retrieved, wait for cache.');
+    logger.info(
+      { saveLog: true },
+      'Last candle is not retrieved. The action cannot be proceed. Any override action will be removed.'
+    );
     data.saveToCache = false;
     return data;
   }

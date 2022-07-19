@@ -768,7 +768,7 @@ const saveOverrideAction = async (
   overrideReason
 ) => {
   logger.info(
-    { overrideData, overrideReason, saveLog: true },
+    { symbol, overrideData, overrideReason, saveLog: true },
     `The override action is saved. Reason: ${overrideReason}`
   );
 
