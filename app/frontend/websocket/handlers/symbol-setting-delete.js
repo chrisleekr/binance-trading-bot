@@ -12,7 +12,7 @@ const handleSymbolSettingDelete = async (logger, ws, payload) => {
 
   await deleteSymbolConfiguration(logger, symbol);
 
-  await executeTrailingTrade(logger, symbol);
+  executeTrailingTrade(logger, symbol);
 
   ws.send(
     JSON.stringify({ result: true, type: 'symbol-setting-delete-result' })

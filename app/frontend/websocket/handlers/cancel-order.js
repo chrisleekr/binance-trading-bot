@@ -23,7 +23,7 @@ const handleCancelOrder = async (logger, ws, payload) => {
     'Cancelling the order action has been received. Wait for cancelling the order.'
   );
 
-  await executeTrailingTrade(logger, symbol);
+  executeTrailingTrade(logger, symbol);
 
   ws.send(
     JSON.stringify({

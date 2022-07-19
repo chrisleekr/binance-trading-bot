@@ -44,7 +44,7 @@ const handleSymbolSettingUpdate = async (logger, ws, payload) => {
 
   await saveSymbolConfiguration(logger, symbol, symbolConfiguration);
 
-  await executeTrailingTrade(logger, symbol);
+  executeTrailingTrade(logger, symbol);
 
   ws.send(
     JSON.stringify({

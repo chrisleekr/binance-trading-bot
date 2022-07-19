@@ -25,7 +25,7 @@ const handleSymbolTriggerBuy = async (logger, ws, payload) => {
     'The buy order received by the bot. Wait for placing the order.'
   );
 
-  await executeTrailingTrade(logger, symbol);
+  executeTrailingTrade(logger, symbol);
 
   ws.send(JSON.stringify({ result: true, type: 'symbol-trigger-buy-result' }));
 };
