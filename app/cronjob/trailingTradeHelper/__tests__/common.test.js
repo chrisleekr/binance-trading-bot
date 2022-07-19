@@ -2773,6 +2773,21 @@ describe('common.js', () => {
         }
       },
       {
+        desc: 'buy-difference',
+        sortByDesc: false,
+        sortByParam: 'buy-difference',
+        searchKeyword: 'BTC',
+        sortField: {
+          $cond: {
+            if: {
+              $eq: ['$buy.difference', null]
+            },
+            then: 999,
+            else: '$buy.difference'
+          }
+        }
+      },
+      {
         desc: 'sell-profit',
         sortByDesc: false,
         sortByParam: 'sell-profit',
@@ -2783,6 +2798,21 @@ describe('common.js', () => {
               $eq: ['$sell.currentProfitPercentage', null]
             },
             then: 999,
+            else: '$sell.currentProfitPercentage'
+          }
+        }
+      },
+      {
+        desc: 'sell-profit',
+        sortByDesc: true,
+        sortByParam: 'sell-profit',
+        searchKeyword: null,
+        sortField: {
+          $cond: {
+            if: {
+              $eq: ['$sell.currentProfitPercentage', null]
+            },
+            then: -999,
             else: '$sell.currentProfitPercentage'
           }
         }

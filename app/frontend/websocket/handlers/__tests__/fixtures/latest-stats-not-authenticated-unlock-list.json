@@ -89,9 +89,9 @@
           "asset": "ETH",
           "free": "0.10001000",
           "locked": "99.90687000",
-          "quote": null,
-          "estimate": null,
-          "tickSize": null
+          "quote": "USDT",
+          "estimate": "1574.50",
+          "tickSize": "0.01000000"
         },
         {
           "asset": "LTC",

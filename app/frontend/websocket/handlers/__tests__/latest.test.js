@@ -187,6 +187,15 @@ describe('latest.test.js', () => {
 
         return '';
       });
+
+      mockGetCacheTrailingTradeQuoteEstimates = jest.fn().mockResolvedValue([
+        {
+          baseAsset: 'ETH',
+          estimatedValue: '1574.50',
+          quoteAsset: 'USDT',
+          tickSize: '0.01000000'
+        }
+      ]);
     });
 
     describe('not authenticated and locked list', () => {
