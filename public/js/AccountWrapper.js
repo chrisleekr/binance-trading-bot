@@ -3,33 +3,14 @@
 /* eslint-disable no-undef */
 class AccountWrapper extends React.Component {
   render() {
-    const {
-      accountInfo,
-      dustTransfer,
-      sendWebSocket,
-      isAuthenticated,
-      quoteEstimates
-    } = this.props;
+    const { accountInfo, dustTransfer, sendWebSocket, isAuthenticated } =
+      this.props;
 
     const assets = accountInfo.balances.map((balance, index) => {
-      let quoteEstimate = quoteEstimates.filter(
-        elem => elem.baseAsset === balance.asset
-      );
-
-      if (quoteEstimate.length === 1) {
-        quoteEstimate = {
-          quote: quoteEstimate[0]['quoteAsset'],
-          estimate: quoteEstimate[0]['estimatedValue']
-        };
-      } else {
-        quoteEstimate = null;
-      }
-
       return (
         <AccountWrapperAsset
           key={`account-wrapper-` + index}
-          balance={balance}
-          quoteEstimate={quoteEstimate}></AccountWrapperAsset>
+          balance={balance}></AccountWrapperAsset>
       );
     });
 

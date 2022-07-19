@@ -3,7 +3,7 @@
 /* eslint-disable no-undef */
 class AccountWrapperAsset extends React.Component {
   render() {
-    const { balance, quoteEstimate } = this.props;
+    const { balance } = this.props;
 
     return (
       <div className='account-wrapper-asset pt-2 pl-2 pr-2 pb-0'>
@@ -29,13 +29,13 @@ class AccountWrapperAsset extends React.Component {
               {parseFloat(balance.locked).toFixed(5)}
             </span>
           </div>
-          {quoteEstimate !== null ? (
+          {balance.quote !== null ? (
             <div className='account-asset-row'>
               <span className='account-asset-label text-success font-weight-bold'>
-                In {quoteEstimate.quote}:
+                In {balance.quote}:
               </span>
               <span className='account-asset-value text-success font-weight-bold'>
-                {parseFloat(quoteEstimate.estimate).toFixed(5)}
+                {parseFloat(balance.estimate).toFixed(5)}
               </span>
             </div>
           ) : (

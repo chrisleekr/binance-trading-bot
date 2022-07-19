@@ -12,6 +12,7 @@ describe('latest.test.js', () => {
 
   let mockGetCacheTrailingTradeSymbols;
   let mockGetCacheTrailingTradeTotalProfitAndLoss;
+  let mockGetCacheTrailingTradeQuoteEstimates;
 
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
@@ -43,6 +44,8 @@ describe('latest.test.js', () => {
     mockGetCacheTrailingTradeTotalProfitAndLoss = jest
       .fn()
       .mockResolvedValue([]);
+
+    mockGetCacheTrailingTradeQuoteEstimates = jest.fn().mockResolvedValue([]);
 
     mockCacheHGet = jest.fn().mockResolvedValue(6);
 
@@ -105,7 +108,9 @@ describe('latest.test.js', () => {
       isActionDisabled: mockIsActionDisabled,
       getCacheTrailingTradeSymbols: mockGetCacheTrailingTradeSymbols,
       getCacheTrailingTradeTotalProfitAndLoss:
-        mockGetCacheTrailingTradeTotalProfitAndLoss
+        mockGetCacheTrailingTradeTotalProfitAndLoss,
+      getCacheTrailingTradeQuoteEstimates:
+        mockGetCacheTrailingTradeQuoteEstimates
     }));
   });
 

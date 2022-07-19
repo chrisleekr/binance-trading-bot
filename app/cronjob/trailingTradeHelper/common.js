@@ -1062,6 +1062,25 @@ const getCacheTrailingTradeTotalProfitAndLoss = logger =>
     }
   ]);
 
+const getCacheTrailingTradeQuoteEstimates = logger =>
+  mongo.aggregate(logger, 'trailing-trade-cache', [
+    {
+      $match: {
+        'baseAssetBalance.estimatedValue': {
+          $gt: 0
+        }
+      }
+    },
+    {
+      $project: {
+        baseAsset: '$symbolInfo.baseAsset',
+        quoteAsset: '$symbolInfo.quoteAsset',
+        estimatedValue: '$baseAssetBalance.estimatedValue',
+        tickSize: '$symbolInfo.filterPrice.tickSize'
+      }
+    }
+  ]);
+
 module.exports = {
   cacheExchangeSymbols,
   getCachedExchangeSymbols,
@@ -1099,5 +1118,6 @@ module.exports = {
   saveCandle,
   updateAccountInfo,
   getCacheTrailingTradeSymbols,
-  getCacheTrailingTradeTotalProfitAndLoss
+  getCacheTrailingTradeTotalProfitAndLoss,
+  getCacheTrailingTradeQuoteEstimates
 };

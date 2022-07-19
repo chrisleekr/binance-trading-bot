@@ -2894,4 +2894,44 @@ describe('common.js', () => {
       );
     });
   });
+
+  describe('getCacheTrailingTradeQuoteEstimates', () => {
+    beforeEach(async () => {
+      const { mongo, logger } = require('../../../helpers');
+
+      mongoMock = mongo;
+      loggerMock = logger;
+
+      mongoMock.aggregate = jest.fn().mockResolvedValue({ some: 'data' });
+      commonHelper = require('../common');
+
+      result = await commonHelper.getCacheTrailingTradeQuoteEstimates(
+        loggerMock
+      );
+    });
+
+    it('triggers, mongo.aggregate', () => {
+      expect(mongoMock.aggregate).toHaveBeenCalledWith(
+        loggerMock,
+        'trailing-trade-cache',
+        [
+          {
+            $match: {
+              'baseAssetBalance.estimatedValue': {
+                $gt: 0
+              }
+            }
+          },
+          {
+            $project: {
+              baseAsset: '$symbolInfo.baseAsset',
+              quoteAsset: '$symbolInfo.quoteAsset',
+              estimatedValue: '$baseAssetBalance.estimatedValue',
+              tickSize: '$symbolInfo.filterPrice.tickSize'
+            }
+          }
+        ]
+      );
+    });
+  });
 });

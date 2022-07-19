@@ -9,7 +9,8 @@ const {
 const {
   isActionDisabled,
   getCacheTrailingTradeSymbols,
-  getCacheTrailingTradeTotalProfitAndLoss
+  getCacheTrailingTradeTotalProfitAndLoss,
+  getCacheTrailingTradeQuoteEstimates
 } = require('../../../cronjob/trailingTradeHelper/common');
 
 const handleLatest = async (logger, ws, payload) => {
@@ -78,15 +79,60 @@ const handleLatest = async (logger, ws, payload) => {
   const streamsCount = await cache.hget('trailing-trade-streams', 'count');
 
   const stats = {
-    symbols: {}
+    symbols: await Promise.all(
+      _.map(cacheTrailingTradeSymbols, async symbol => {
+        const newSymbol = symbol;
+        try {
+          newSymbol.tradingView = JSON.parse(
+            cacheTradingView[newSymbol.symbol]
+          );
+        } catch (e) {
+          _.unset(newSymbol, 'tradingView');
+        }
+
+        // Retrieve action disabled
+        newSymbol.isActionDisabled = await isActionDisabled(newSymbol.symbol);
+        return newSymbol;
+      })
+    )
   };
+
+  const cacheTrailingTradeQuoteEstimates =
+    await getCacheTrailingTradeQuoteEstimates(logger);
+  const quoteEstimatesGroupedByBaseAsset = _.groupBy(
+    cacheTrailingTradeQuoteEstimates,
+    'baseAsset'
+  );
 
   let common = {};
   try {
+    const accountInfo = JSON.parse(cacheTrailingTradeCommon['account-info']);
+    accountInfo.balances = accountInfo.balances.map(balance => {
+      const quoteEstimate = {
+        quote: null,
+        estimate: null,
+        tickSize: null
+      };
+
+      if (quoteEstimatesGroupedByBaseAsset[balance.asset]) {
+        quoteEstimate.quote =
+          quoteEstimatesGroupedByBaseAsset[balance.asset][0].quoteAsset;
+        quoteEstimate.estimate =
+          quoteEstimatesGroupedByBaseAsset[balance.asset][0].estimatedValue;
+        quoteEstimate.tickSize =
+          quoteEstimatesGroupedByBaseAsset[balance.asset][0].tickSize;
+      }
+
+      return {
+        ...balance,
+        ...quoteEstimate
+      };
+    });
+
     common = {
       version,
       gitHash: process.env.GIT_HASH || 'unspecified',
-      accountInfo: JSON.parse(cacheTrailingTradeCommon['account-info']),
+      accountInfo,
       apiInfo: binance.client.getInfo(),
       closedTradesSetting: JSON.parse(
         cacheTrailingTradeCommon['closed-trades']
@@ -111,21 +157,6 @@ const handleLatest = async (logger, ws, payload) => {
     logger.error({ err }, 'Something wrong with trailing-trade-common cache');
     return;
   }
-
-  stats.symbols = await Promise.all(
-    _.map(cacheTrailingTradeSymbols, async symbol => {
-      const newSymbol = symbol;
-      try {
-        newSymbol.tradingView = JSON.parse(cacheTradingView[newSymbol.symbol]);
-      } catch (e) {
-        _.unset(newSymbol, 'tradingView');
-      }
-
-      // Retrieve action disabled
-      newSymbol.isActionDisabled = await isActionDisabled(newSymbol.symbol);
-      return newSymbol;
-    })
-  );
 
   logger.info(
     {

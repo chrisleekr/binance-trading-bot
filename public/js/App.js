@@ -333,15 +333,6 @@ class App extends React.Component {
       );
     });
 
-    const symbolEstimates = symbols.map(symbol => {
-      return {
-        baseAsset: symbol.symbolInfo.baseAsset,
-        quoteAsset: symbol.symbolInfo.quoteAsset,
-        estimatedValue: symbol.baseAssetBalance.estimatedValue,
-        tickSize: symbol.symbolInfo.filterPrice.tickSize
-      };
-    });
-
     const paginationItems = [];
 
     paginationItems.push(
@@ -419,7 +410,6 @@ class App extends React.Component {
                 accountInfo={accountInfo}
                 dustTransfer={dustTransfer}
                 sendWebSocket={this.sendWebSocket}
-                quoteEstimates={symbolEstimates}
               />
               <ProfitLossWrapper
                 isAuthenticated={isAuthenticated}
