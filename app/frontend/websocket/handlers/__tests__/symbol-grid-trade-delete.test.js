@@ -10,6 +10,8 @@ describe('symbol-grid-trade-delete.test.js', () => {
   let mockArchiveSymbolGridTrade;
   let mockDeleteSymbolGridTrade;
 
+  let mockExecuteTrailingTrade;
+
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
 
@@ -25,6 +27,12 @@ describe('symbol-grid-trade-delete.test.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
+
+    jest.mock('../../../../cronjob', () => ({
+      executeTrailingTrade: mockExecuteTrailingTrade
+    }));
   });
 
   describe('when symbol is provided', () => {
@@ -78,6 +86,13 @@ describe('symbol-grid-trade-delete.test.js', () => {
 
       it('triggers deleteSymbolGridTrade', () => {
         expect(mockDeleteSymbolGridTrade).toHaveBeenCalledWith(
+          mockLogger,
+          'BTCUSDT'
+        );
+      });
+
+      it('triggers executeTrailingTrade', () => {
+        expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
           mockLogger,
           'BTCUSDT'
         );
@@ -148,6 +163,13 @@ describe('symbol-grid-trade-delete.test.js', () => {
         );
       });
 
+      it('triggers executeTrailingTrade', () => {
+        expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+          mockLogger,
+          'BTCUSDT'
+        );
+      });
+
       it('triggers ws.send', () => {
         expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
           JSON.stringify({
@@ -206,6 +228,13 @@ describe('symbol-grid-trade-delete.test.js', () => {
         );
       });
 
+      it('triggers executeTrailingTrade', () => {
+        expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+          mockLogger,
+          'BTCUSDT'
+        );
+      });
+
       it('triggers ws.send', () => {
         expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
           JSON.stringify({
@@ -256,6 +285,13 @@ describe('symbol-grid-trade-delete.test.js', () => {
 
       it('triggers deleteSymbolGridTrade', () => {
         expect(mockDeleteSymbolGridTrade).toHaveBeenCalledWith(
+          mockLogger,
+          'BTCUSDT'
+        );
+      });
+
+      it('triggers executeTrailingTrade', () => {
+        expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
           mockLogger,
           'BTCUSDT'
         );
