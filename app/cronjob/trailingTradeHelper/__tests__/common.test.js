@@ -2746,7 +2746,7 @@ describe('common.js', () => {
                     if: {
                       $eq: ['$sell.difference', null]
                     },
-                    then: '$symbol',
+                    then: '$buy.difference',
                     else: {
                       $multiply: [{ $add: ['$sell.difference', 1000] }, -10]
                     }
@@ -2767,7 +2767,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$buy.difference', null]
             },
-            then: '$symbol',
+            then: -999,
             else: '$buy.difference'
           }
         }
@@ -2782,7 +2782,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$sell.currentProfitPercentage', null]
             },
-            then: '$symbol',
+            then: 999,
             else: '$sell.currentProfitPercentage'
           }
         }

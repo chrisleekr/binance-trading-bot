@@ -333,7 +333,7 @@ const lockSymbol = async (logger, symbol, ttl = 5) => {
 /**
  * Check if symbol is locked
  *
- * @param {*} _logger
+ * @param {*} logger
  * @param {*} symbol
  * @returns
  */
@@ -436,7 +436,7 @@ const isExceedAPILimit = logger => {
 /**
  * Get override data for Symbol
  *
- * @param {*} logger
+ * @param {*} _logger
  * @param {*} symbol
  * @returns
  */
@@ -452,7 +452,7 @@ const getOverrideDataForSymbol = async (_logger, symbol) => {
 /**
  * Remove override data for Symbol
  *
- * @param {*} _logger
+ * @param {*} logger
  * @param {*} symbol
  * @returns
  */
@@ -465,7 +465,7 @@ const removeOverrideDataForSymbol = async (logger, symbol) => {
 /**
  * Get override data for Indicator
  *
- * @param {*} logger
+ * @param {*} _logger
  * @param {*} key
  * @returns
  */
@@ -800,7 +800,7 @@ const saveOverrideAction = async (
  * Save override action for indicator
  *
  * @param {*} logger
- * @param {*} symbol
+ * @param {*} type
  * @param {*} overrideData
  * @param {*} overrideReason
  */
@@ -968,7 +968,7 @@ const getCacheTrailingTradeSymbols = async (
               if: {
                 $eq: ['$sell.difference', null]
               },
-              then: '$symbol',
+              then: '$buy.difference',
               else: {
                 $multiply: [{ $add: ['$sell.difference', 1000] }, -10]
               }
@@ -985,7 +985,7 @@ const getCacheTrailingTradeSymbols = async (
         if: {
           $eq: ['$buy.difference', null]
         },
-        then: '$symbol',
+        then: sortByDesc ? -999 : 999,
         else: '$buy.difference'
       }
     };
@@ -997,7 +997,7 @@ const getCacheTrailingTradeSymbols = async (
         if: {
           $eq: ['$sell.currentProfitPercentage', null]
         },
-        then: '$symbol',
+        then: sortByDesc ? -999 : 999,
         else: '$sell.currentProfitPercentage'
       }
     };
