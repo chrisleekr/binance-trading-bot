@@ -228,33 +228,13 @@ input[type='number'] {
   margin-bottom: 10px;
 }
 
-.account-wrapper-assets {
-  display: flex;
-  flex-flow: row wrap;
-  justify-content: flex-start;
+.account-balance-assets-wrapper {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-gap: 0.5rem;
 }
 
-.account-wrapper-asset {
-  width: 20%;
-}
-
-@media (max-width: 1200px) {
-  .account-wrapper-asset {
-    width: 25%;
-  }
-}
-
-@media (max-width: 800px) {
-  .account-wrapper-asset {
-    width: 33.33%;
-  }
-}
-
-@media (max-width: 600px) {
-  .account-wrapper-asset {
-    width: 50%;
-  }
-}
+.account-wrapper-assets {}
 
 .account-wrapper-body {
   -webkit-border-radius: 10px;

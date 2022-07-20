@@ -6,7 +6,7 @@ class AccountWrapperAsset extends React.Component {
     const { balance } = this.props;
 
     return (
-      <div className='col-xl-2 col-lg-4 col-md-6 col-sm-12 pt-2 pl-2 pr-2 pb-0'>
+      <div className='account-wrapper-assets'>
         <div className='account-wrapper-body'>
           <div className='account-asset-coin d-flex justify-content-between align-items-center'>
             <span>
