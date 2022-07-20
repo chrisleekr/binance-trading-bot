@@ -30,7 +30,7 @@ class AccountWrapper extends React.Component {
             </Accordion.Toggle>
             <Accordion.Collapse eventKey='0'>
               <Card.Body className='d-flex flex-column py-2 px-0'>
-                <div className='account-balance-assets-wrapper d-flex flex-row flex-wrap justify-content-start'>
+                <div className='row no-gutters'>
                   {assets}
                 </div>
                 <div className='account-balance-assets-wrapper d-flex flex-row flex-wrap justify-content-end'>
