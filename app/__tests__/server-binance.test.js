@@ -32,13 +32,17 @@ describe('server-binance', () => {
 
   let mockGetAPILimit;
   let mockSlack;
-  let mockConfigGet;
+  let config;
 
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
     jest.useFakeTimers();
 
     const { PubSub, logger, cache, mongo, slack } = require('../helpers');
+
+    jest.mock('config');
+
+    config = require('config');
 
     PubSubMock = PubSub;
     loggerMock = logger;
@@ -54,7 +58,7 @@ describe('server-binance', () => {
   describe('when the bot is running live mode', () => {
     describe('when the bot just started', () => {
       beforeEach(async () => {
-        mockConfigGet = jest.fn(key => {
+        config.get = jest.fn(key => {
           switch (key) {
             case 'mode':
               return 'live';
@@ -62,10 +66,6 @@ describe('server-binance', () => {
               return `value-${key}`;
           }
         });
-
-        jest.mock('config', () => ({
-          get: mockConfigGet
-        }));
 
         mockLockSymbol = jest.fn().mockResolvedValue(true);
         mockUnlockSymbol = jest.fn().mockResolvedValue(true);
@@ -224,7 +224,7 @@ describe('server-binance', () => {
 
     describe('calculates number of open streams', () => {
       beforeEach(async () => {
-        mockConfigGet = jest.fn(key => {
+        config.get = jest.fn(key => {
           switch (key) {
             case 'mode':
               return 'live';
@@ -233,9 +233,6 @@ describe('server-binance', () => {
           }
         });
 
-        jest.mock('config', () => ({
-          get: mockConfigGet
-        }));
 
         mockLockSymbol = jest.fn().mockResolvedValue(true);
         mockUnlockSymbol = jest.fn().mockResolvedValue(true);
@@ -471,19 +468,12 @@ describe('server-binance', () => {
     ].forEach(errorInfo => {
       describe(`${errorInfo.label}`, () => {
         beforeEach(async () => {
-          mockConfigGet = jest.fn(key => {
-            if (key === 'mode') {
-              return 'test';
-            }
+          config.get = jest.fn(key => {
             if (key === 'featureToggle.notifyDebug') {
               return errorInfo.featureToggleNotifyDebug;
             }
             return null;
           });
-
-          jest.mock('config', () => ({
-            get: mockConfigGet
-          }));
 
           mockSyncOpenOrders = jest.fn().mockRejectedValueOnce(
             new (class CustomError extends Error {
@@ -513,11 +503,7 @@ describe('server-binance', () => {
 
     describe(`redlock error`, () => {
       beforeEach(async () => {
-        mockConfigGet = jest.fn(_key => null);
-
-        jest.mock('config', () => ({
-          get: mockConfigGet
-        }));
+        config.get = jest.fn(_key => null);
 
         mockSyncOpenOrders = jest.fn().mockResolvedValue(true);
 
@@ -543,7 +529,7 @@ describe('server-binance', () => {
 
   describe('when the bot is running test mode', () => {
     beforeEach(async () => {
-      mockConfigGet = jest.fn(key => {
+      config.get = jest.fn(key => {
         switch (key) {
           case 'mode':
             return 'test';
@@ -551,10 +537,6 @@ describe('server-binance', () => {
             return `value-${key}`;
         }
       });
-
-      jest.mock('config', () => ({
-        get: mockConfigGet
-      }));
 
       mockLockSymbol = jest.fn().mockResolvedValue(true);
       mockUnlockSymbol = jest.fn().mockResolvedValue(true);
@@ -714,7 +696,7 @@ describe('server-binance', () => {
 
   describe('when running bot twice', () => {
     beforeEach(async () => {
-      mockConfigGet = jest.fn(key => {
+      config.get = jest.fn(key => {
         switch (key) {
           case 'mode':
             return 'live';
@@ -722,10 +704,6 @@ describe('server-binance', () => {
             return `value-${key}`;
         }
       });
-
-      jest.mock('config', () => ({
-        get: mockConfigGet
-      }));
 
       mockLockSymbol = jest.fn().mockResolvedValue(true);
       mockUnlockSymbol = jest.fn().mockResolvedValue(true);
