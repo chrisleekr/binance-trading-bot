@@ -21,10 +21,12 @@ describe('orders.js', () => {
   });
 
   describe('syncOpenOrders', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
     describe('when open orders are retrieved', () => {
       beforeEach(async () => {
-        jest.useFakeTimers();
-
         cacheMock.hset = jest.fn().mockResolvedValue(true);
 
         mockGetOpenOrdersFromAPI = jest.fn().mockResolvedValue([
@@ -70,8 +72,6 @@ describe('orders.js', () => {
     });
     describe('when open orders are empty', () => {
       beforeEach(async () => {
-        jest.useFakeTimers();
-
         cacheMock.hset = jest.fn().mockResolvedValue(true);
 
         mockGetOpenOrdersFromAPI = jest.fn().mockResolvedValue([]);
@@ -102,8 +102,6 @@ describe('orders.js', () => {
 
     describe('when openOrdersInterval is not empty', () => {
       beforeEach(async () => {
-        jest.useFakeTimers();
-
         cacheMock.hset = jest.fn().mockResolvedValue(true);
 
         loggerMock.error = jest.fn().mockResolvedValue(true);
@@ -124,8 +122,6 @@ describe('orders.js', () => {
 
         await syncOpenOrders(loggerMock, ['BTCUSDT', 'BNBUSDT']);
         await syncOpenOrders(loggerMock, ['BTCUSDT', 'BNBUSDT']);
-
-        jest.advanceTimersByTime(30 * 1340);
       });
 
       it('triggers clearInterval', () => {
