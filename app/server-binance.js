@@ -1,7 +1,8 @@
 const _ = require('lodash');
 // const moment = require('moment-timezone');
 const config = require('config');
-const { PubSub, cache, mongo } = require('./helpers');
+const moment = require('moment');
+const { PubSub, cache, mongo, slack } = require('./helpers');
 
 const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
 const {
@@ -11,7 +12,8 @@ const {
   lockSymbol,
   unlockSymbol,
   getAccountInfoFromAPI,
-  cacheExchangeSymbols
+  cacheExchangeSymbols,
+  getAPILimit
 } = require('./cronjob/trailingTradeHelper/common');
 const {
   getWebsocketATHCandlesClean,
@@ -181,7 +183,41 @@ const runBinance = async serverLogger => {
     `Binance ${config.get('mode')} started on`
   );
 
-  await setupBinance(logger);
+  try {
+    await setupBinance(logger);
+  } catch (err) {
+    // For the redlock fail
+    if (err.message.includes('redlock')) {
+      // Simply ignore
+      return;
+    }
+
+    logger.error(
+      { err, errorCode: err.code, debug: true },
+      `⚠ Setup binance failed.`
+    );
+
+    if (
+      err.code === -1001 ||
+      err.code === -1021 || // Timestamp for this request is outside the recvWindow
+      err.code === 'ECONNRESET' ||
+      err.code === 'ECONNREFUSED'
+    ) {
+      // Let's silent for internal server error or assumed temporary errors
+    } else {
+      slack.sendMessage(
+        `Setup binance failed (${moment().format('HH:mm:ss.SSS')})\n` +
+          `Code: ${err.code}\n` +
+          `Message:\`\`\`${err.message}\`\`\`\n` +
+          `${
+            config.get('featureToggle.notifyDebug')
+              ? `Stack:\`\`\`${err.stack}\`\`\`\n`
+              : ''
+          }` +
+          `- Current API Usage: ${getAPILimit(logger)}`
+      );
+    }
+  }
 };
 
 module.exports = { runBinance };

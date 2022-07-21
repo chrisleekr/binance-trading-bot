@@ -1,5 +1,5 @@
 /* eslint-disable global-require */
-
+// eslint-disable-next-line max-classes-per-file
 describe('server-binance', () => {
   let config;
 
@@ -32,17 +32,24 @@ describe('server-binance', () => {
   let mockSyncOpenOrders;
   let mockSyncDatabaseOrders;
 
+  let mockGetAPILimit;
+  let mockSlack;
+
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
     jest.useFakeTimers();
-    jest.mock('config');
 
-    const { PubSub, logger, cache, mongo } = require('../helpers');
+    const { PubSub, logger, cache, mongo, slack } = require('../helpers');
 
     PubSubMock = PubSub;
     loggerMock = logger;
     cacheMock = cache;
     mongoMock = mongo;
+
+    mockSlack = slack;
+    mockSlack.sendMessage = jest.fn().mockResolvedValue(true);
+
+    mockGetAPILimit = jest.fn().mockReturnValue(10);
 
     config = require('config');
   });
@@ -97,7 +104,8 @@ describe('server-binance', () => {
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           lockSymbol: mockLockSymbol,
           unlockSymbol: mockUnlockSymbol,
-          cacheExchangeSymbols: mockCacheExchangeSymbols
+          cacheExchangeSymbols: mockCacheExchangeSymbols,
+          getAPILimit: mockGetAPILimit
         }));
 
         jest.mock('../binance/user', () => ({
@@ -300,9 +308,7 @@ describe('server-binance', () => {
           getWebsocketTickersClean: mockGetWebsocketTickersClean
         }));
 
-        PubSubMock.subscribe = jest.fn().mockImplementation((_key, cb) => {
-          cb('message', 'data');
-        });
+        PubSubMock.subscribe = jest.fn().mockResolvedValue(true);
 
         mongoMock.deleteAll = jest.fn().mockResolvedValue(true);
 
@@ -335,6 +341,195 @@ describe('server-binance', () => {
           `count`,
           1 + 5
         );
+      });
+    });
+  });
+
+  describe('with errors', () => {
+    beforeEach(async () => {
+      config.get = jest.fn(key => {
+        switch (key) {
+          case 'mode':
+            return 'live';
+          default:
+            return `value-${key}`;
+        }
+      });
+
+      mockLockSymbol = jest.fn().mockResolvedValue(true);
+      mockUnlockSymbol = jest.fn().mockResolvedValue(true);
+
+      mockSetupUserWebsocket = jest.fn().mockResolvedValue(true);
+
+      mockSyncCandles = jest.fn().mockResolvedValue(true);
+      mockSetupCandlesWebsocket = jest.fn().mockResolvedValue(true);
+      mockGetWebsocketCandlesClean = jest.fn().mockResolvedValue(1);
+
+      mockSyncATHCandles = jest.fn().mockResolvedValue(true);
+      mockSetupATHCandlesWebsocket = jest.fn().mockResolvedValue(true);
+      mockGetWebsocketATHCandlesClean = jest.fn().mockResolvedValue(1);
+
+      mockRefreshTickersClean = jest.fn().mockResolvedValue(true);
+      mockGetWebsocketTickersClean = jest.fn().mockResolvedValue(1);
+      mockSyncDatabaseOrders = jest.fn().mockResolvedValue(true);
+
+      mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
+        symbols: ['BTCUSDT', 'BNBUSDT']
+      });
+
+      mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+        account: 'info'
+      });
+
+      mockCacheExchangeSymbols = jest.fn().mockResolvedValue(true);
+
+      jest.mock('../cronjob/trailingTradeHelper/configuration', () => ({
+        getGlobalConfiguration: mockGetGlobalConfiguration
+      }));
+
+      jest.mock('../cronjob/trailingTradeHelper/common', () => ({
+        getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+        lockSymbol: mockLockSymbol,
+        unlockSymbol: mockUnlockSymbol,
+        cacheExchangeSymbols: mockCacheExchangeSymbols,
+        getAPILimit: mockGetAPILimit
+      }));
+
+      jest.mock('../binance/user', () => ({
+        setupUserWebsocket: mockSetupUserWebsocket
+      }));
+
+      jest.mock('../binance/orders', () => ({
+        syncOpenOrders: mockSyncOpenOrders,
+        syncDatabaseOrders: mockSyncDatabaseOrders
+      }));
+
+      jest.mock('../binance/candles', () => ({
+        syncCandles: mockSyncCandles,
+        setupCandlesWebsocket: mockSetupCandlesWebsocket,
+        getWebsocketCandlesClean: mockGetWebsocketCandlesClean
+      }));
+
+      jest.mock('../binance/ath-candles', () => ({
+        syncATHCandles: mockSyncATHCandles,
+        setupATHCandlesWebsocket: mockSetupATHCandlesWebsocket,
+        getWebsocketATHCandlesClean: mockGetWebsocketATHCandlesClean
+      }));
+
+      jest.mock('../binance/tickers', () => ({
+        refreshTickersClean: mockRefreshTickersClean,
+        getWebsocketTickersClean: mockGetWebsocketTickersClean,
+        setupTickersWebsocket: mockSetupTickersWebsocket
+      }));
+
+      mongoMock.deleteAll = jest.fn().mockResolvedValue(true);
+
+      PubSubMock.subscribe = jest.fn().mockResolvedValue(true);
+
+      cacheMock.hget = jest
+        .fn()
+        .mockResolvedValue(
+          JSON.stringify(require('./fixtures/exchange-symbols.json'))
+        );
+
+      cacheMock.hset = jest.fn().mockResolvedValue(true);
+    });
+
+    [
+      {
+        label: 'Error -1001',
+        code: -1001,
+        sendSlack: false,
+        featureToggleNotifyDebug: false
+      },
+      {
+        label: 'Error -1021',
+        code: -1021,
+        sendSlack: false,
+        featureToggleNotifyDebug: true
+      },
+      {
+        label: 'Error ECONNRESET',
+        code: 'ECONNRESET',
+        sendSlack: false,
+        featureToggleNotifyDebug: false
+      },
+      {
+        label: 'Error ECONNREFUSED',
+        code: 'ECONNREFUSED',
+        sendSlack: false,
+        featureToggleNotifyDebug: true
+      },
+      {
+        label: 'Error something else - with notify debug',
+        code: 'something',
+        sendSlack: true,
+        featureToggleNotifyDebug: true
+      },
+      {
+        label: 'Error something else - without notify debug',
+        code: 'something',
+        sendSlack: true,
+        featureToggleNotifyDebug: false
+      }
+    ].forEach(errorInfo => {
+      describe(`${errorInfo.label}`, () => {
+        beforeEach(async () => {
+          config.get = jest.fn(key => {
+            if (key === 'featureToggle.notifyDebug') {
+              return errorInfo.featureToggleNotifyDebug;
+            }
+            return null;
+          });
+
+          mockSyncOpenOrders = jest.fn().mockRejectedValueOnce(
+            new (class CustomError extends Error {
+              constructor() {
+                super();
+                this.code = errorInfo.code;
+                this.message = `${errorInfo.label} ${errorInfo.code}`;
+              }
+            })()
+          );
+
+          const { runBinance } = require('../server-binance');
+          await runBinance(loggerMock);
+        });
+
+        if (errorInfo.sendSlack) {
+          it('triggers slack.sendMessage', () => {
+            expect(mockSlack.sendMessage).toHaveBeenCalled();
+          });
+        } else {
+          it('does not trigger slack.sendMessagage', () => {
+            expect(mockSlack.sendMessage).not.toHaveBeenCalled();
+          });
+        }
+      });
+    });
+
+    describe(`redlock error`, () => {
+      beforeEach(async () => {
+        mockSyncOpenOrders = jest.fn().mockResolvedValue(true);
+
+        config.get = jest.fn(_key => null);
+
+        mockSetupTickersWebsocket = jest.fn().mockRejectedValueOnce(
+          new (class CustomError extends Error {
+            constructor() {
+              super();
+              this.code = 500;
+              this.message = `redlock:trailing-trade-symbols:XRPBUSD-latest-candle`;
+            }
+          })()
+        );
+
+        const { runBinance } = require('../server-binance');
+        await runBinance(loggerMock);
+      });
+
+      it('do not trigger slack.sendMessagage', () => {
+        expect(mockSlack.sendMessage).not.toHaveBeenCalled();
       });
     });
   });
