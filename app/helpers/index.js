@@ -4,6 +4,7 @@ const slack = require('./slack');
 const binance = require('./binance');
 const mongo = require('./mongo');
 const { PubSub } = require('./pubsub');
+const errorHandler = require('./error-handler');
 
 module.exports = {
   cache,
@@ -11,5 +12,6 @@ module.exports = {
   slack,
   binance,
   mongo,
-  PubSub
+  PubSub,
+  errorHandler
 };

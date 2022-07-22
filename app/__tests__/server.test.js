@@ -2,6 +2,7 @@
 describe('server', () => {
   let mockMongo;
   let mockMongoConnect;
+  let mockRunErrorHandler;
   let mockRunBinance;
   let mockRunCronJob;
   let mockRunFrontend;
@@ -16,6 +17,7 @@ describe('server', () => {
       connect: mockMongoConnect
     };
 
+    mockRunErrorHandler = jest.fn().mockResolvedValue(true);
     mockRunBinance = jest.fn().mockResolvedValue(true);
     mockRunCronJob = jest.fn().mockResolvedValue(true);
     mockRunFrontend = jest.fn().mockResolvedValue(true);
@@ -23,7 +25,10 @@ describe('server', () => {
     mockLoggerChild = jest.fn().mockResolvedValue({ child: 'logger' });
     jest.mock('../helpers', () => ({
       logger: { me: 'logger', child: mockLoggerChild },
-      mongo: mockMongo
+      mongo: mockMongo,
+      errorHandler: {
+        run: mockRunErrorHandler
+      }
     }));
 
     jest.mock('../server-binance', () => ({ runBinance: mockRunBinance }));
@@ -31,6 +36,10 @@ describe('server', () => {
     jest.mock('../server-frontend', () => ({ runFrontend: mockRunFrontend }));
 
     require('../server');
+  });
+
+  it('triggers errorHandler.run', () => {
+    expect(mockRunErrorHandler).toHaveBeenCalled();
   });
 
   it('triggers mongo.connect', () => {
