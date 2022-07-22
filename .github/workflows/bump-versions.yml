@@ -24,7 +24,7 @@ jobs:
       - name: Trigger release workflow
         uses: peter-evans/repository-dispatch@v1
         with:
-          token: ${{ secrets.GIT_CI_PASSWORD }}
+          token: ${{ secrets.GIT_REPO_ACCESS_TOKEN }}
           event-type: Release & Docker
           client-payload:
             '{"ref": "${{ steps.bump-version.outputs.PACKAGE_VERSION }}"}'

@@ -3,6 +3,7 @@ name: Release & Docker
 on:
   repository_dispatch:
     types: [Release & Docker]
+  workflow_dispatch:
 
 jobs:
   create-release:
