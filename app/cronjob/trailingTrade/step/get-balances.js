@@ -46,7 +46,7 @@ const execute = async (logger, rawData) => {
   data.baseAssetBalance = baseAssetBalance;
   data.baseAssetBalance.total = baseAssetTotalBalance;
   data.baseAssetBalance.estimatedValue = baseAssetEstimatedValue;
-  data.baseAssetBalance.updatedAt = moment(accountInfo.updateTime).format();
+  data.baseAssetBalance.updatedAt = moment(accountInfo.updateTime).toDate();
 
   data.quoteAssetBalance = quoteAssetBalance;
 

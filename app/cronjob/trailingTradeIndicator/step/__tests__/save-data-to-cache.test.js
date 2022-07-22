@@ -29,16 +29,6 @@ describe('save-data-to-cache.js', () => {
       await step.execute(logger, rawData);
     });
 
-    it('triggers cache.hset for symbol indicator data', () => {
-      expect(cache.hset).toHaveBeenCalledWith(
-        'trailing-trade-symbols',
-        'BTCUSDT-indicator-data',
-        JSON.stringify({
-          some: 'value'
-        })
-      );
-    });
-
     it('triggers cache.hset for trailing trade quote assets data', () => {
       expect(cache.hset).toHaveBeenCalledWith(
         'trailing-trade-closed-trades',

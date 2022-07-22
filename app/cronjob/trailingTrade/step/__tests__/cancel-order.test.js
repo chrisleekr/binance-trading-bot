@@ -10,7 +10,7 @@ describe('cancel-order.js', () => {
 
   let mockGetAPILimit;
   let mockGetAndCacheOpenOrdersForSymbol;
-  let mockGetAccountInfoFromAPI;
+  let mockGetAccountInfo;
 
   let mockDeleteManualOrder;
 
@@ -29,7 +29,7 @@ describe('cancel-order.js', () => {
       binanceMock.client.cancelOrder = jest.fn().mockResolvedValue(true);
       mockGetAPILimit = jest.fn().mockReturnValue(10);
       mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-      mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+      mockGetAccountInfo = jest.fn().mockResolvedValue({
         account: 'info'
       });
       PubSubMock.publish = jest.fn().mockResolvedValue(true);
@@ -46,7 +46,7 @@ describe('cancel-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAPILimit: mockGetAPILimit,
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfo: mockGetAccountInfo
         }));
 
         const step = require('../cancel-order');
@@ -74,7 +74,7 @@ describe('cancel-order.js', () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAPILimit: mockGetAPILimit,
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfo: mockGetAccountInfo
         }));
 
         const step = require('../cancel-order');
@@ -114,7 +114,7 @@ describe('cancel-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAPILimit: mockGetAPILimit,
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfo: mockGetAccountInfo
           }));
 
           const step = require('../cancel-order');
@@ -224,7 +224,7 @@ describe('cancel-order.js', () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAPILimit: mockGetAPILimit,
             getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfo: mockGetAccountInfo
           }));
 
           const step = require('../cancel-order');

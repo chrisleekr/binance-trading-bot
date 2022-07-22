@@ -3,19 +3,13 @@ const { cache } = require('../../../helpers');
 /**
  * Save data to cache
  *
- * @param {*} logger
+ * @param {*} _logger
  * @param {*} rawData
  */
 const execute = async (_logger, rawData) => {
   const data = rawData;
 
-  const { symbol, symbolInfo, indicators, closedTrades } = data;
-
-  cache.hset(
-    'trailing-trade-symbols',
-    `${symbol}-indicator-data`,
-    JSON.stringify(indicators)
-  );
+  const { symbolInfo, closedTrades } = data;
 
   const { quoteAsset } = symbolInfo;
 

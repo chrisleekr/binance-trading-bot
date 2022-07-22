@@ -2,8 +2,8 @@ const moment = require('moment');
 const { binance, slack, PubSub } = require('../../../helpers');
 const {
   getAPILimit,
-  getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI
+  getAccountInfo,
+  getAndCacheOpenOrdersForSymbol
 } = require('../../trailingTradeHelper/common');
 const { deleteManualOrder } = require('../../trailingTradeHelper/order');
 
@@ -62,7 +62,7 @@ const execute = async (logger, rawData) => {
   );
 
   // Refresh account info
-  data.accountInfo = await getAccountInfoFromAPI(logger);
+  data.accountInfo = await getAccountInfo(logger);
 
   PubSub.publish('frontend-notification', {
     type: 'success',
@@ -82,7 +82,7 @@ const execute = async (logger, rawData) => {
   );
 
   data.buy.processMessage = `The order has been cancelled.`;
-  data.buy.updatedAt = moment().utc();
+  data.buy.updatedAt = moment().utc().toDate();
 
   return data;
 };

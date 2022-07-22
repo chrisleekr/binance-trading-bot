@@ -194,4 +194,74 @@ describe('order.js', () => {
       );
     });
   });
+
+  describe('getGridTradeLastOrder', () => {
+    describe('when order is avilable', () => {
+      beforeEach(async () => {
+        mongo.findOne = jest.fn().mockResolvedValue({
+          order: {
+            id: 'order-123'
+          }
+        });
+
+        result = await order.getGridTradeLastOrder(logger, 'BTCUSDT', 'buy');
+      });
+
+      it('triggers mongo.findOne', () => {
+        expect(mongo.findOne).toHaveBeenCalledWith(
+          logger,
+          'trailing-trade-grid-trade-orders',
+          { key: 'BTCUSDT-grid-trade-last-buy-order' }
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({
+          id: 'order-123'
+        });
+      });
+    });
+
+    describe('when order is not available', () => {
+      beforeEach(async () => {
+        mongo.findOne = jest.fn().mockResolvedValue(null);
+
+        result = await order.getGridTradeLastOrder(logger, 'BTCUSDT', 'buy');
+      });
+
+      it('triggers mongo.findOne', () => {
+        expect(mongo.findOne).toHaveBeenCalledWith(
+          logger,
+          'trailing-trade-grid-trade-orders',
+          { key: 'BTCUSDT-grid-trade-last-buy-order' }
+        );
+      });
+
+      it('returns expected result', () => {
+        expect(result).toStrictEqual({});
+      });
+    });
+  });
+
+  describe('updateGridTradeLastOrder', () => {
+    beforeEach(async () => {
+      mongo.upsertOne = jest.fn().mockResolvedValue(true);
+
+      result = await order.updateGridTradeLastOrder(logger, 'BTCUSDT', 'buy', {
+        id: 'new-order'
+      });
+    });
+
+    it('triggers mongo.upsertOne', () => {
+      expect(mongo.upsertOne).toHaveBeenCalledWith(
+        logger,
+        'trailing-trade-grid-trade-orders',
+        { key: 'BTCUSDT-grid-trade-last-buy-order' },
+        {
+          key: 'BTCUSDT-grid-trade-last-buy-order',
+          order: { id: 'new-order' }
+        }
+      );
+    });
+  });
 });

@@ -14,9 +14,6 @@ const {
   getSymbolConfiguration,
   getSymbolInfo,
   getOverrideAction,
-  getAccountInfo,
-  getIndicators,
-  getOpenOrders,
   executeDustTransfer,
   getClosedTrades,
   getOrderStats,
@@ -37,9 +34,6 @@ const execute = async logger => {
     symbol: null,
     symbolConfiguration: {},
     symbolInfo: {},
-    accountInfo: {},
-    indicators: {},
-    openOrders: [],
     overrideParams: {},
     quoteAssetStats: {},
     tradingView: {},
@@ -84,21 +78,6 @@ const execute = async logger => {
       {
         stepName: 'get-symbol-info',
         stepFunc: getSymbolInfo
-      },
-      {
-        stepName: 'get-account-info',
-        stepFunc: getAccountInfo
-      },
-      {
-        stepName: 'get-indicators',
-        stepFunc: getIndicators
-      },
-      {
-        // Note that open orders for all symbols cannot exceed 40 request per minute.
-        // Hence, this must be executed every 2 seconds.
-        // After placing buy/sell orders, the bot will retrieve symbol open orders which can request every second.
-        stepName: 'get-open-orders',
-        stepFunc: getOpenOrders
       },
       {
         stepName: 'get-closed-trades',

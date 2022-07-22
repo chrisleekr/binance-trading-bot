@@ -3,17 +3,42 @@
   "type": "latest",
   "isAuthenticated": false,
   "botOptions": {
-    "authentication": { "lockList": false, "lockAfter": 120 },
-    "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 },
-    "orderLimit": { "enabled": true, "maxBuyOpenOrders": 3, "maxOpenTrades": 5 }
+    "authentication": {
+      "lockList": false,
+      "lockAfter": 120
+    },
+    "autoTriggerBuy": {
+      "enabled": false,
+      "triggerAfter": 20
+    },
+    "orderLimit": {
+      "enabled": true,
+      "maxBuyOpenOrders": 3,
+      "maxOpenTrades": 5
+    }
   },
   "configuration": {
     "enabled": true,
     "type": "i-am-global",
-    "candles": { "interval": "15m" },
+    "symbols": [
+      "BTCUSDT",
+      "BNBUSDT",
+      "ETHBUSD",
+      "BTCBUSD",
+      "LTCBUSD"
+    ],
+    "candles": {
+      "interval": "15m"
+    },
     "botOptions": {
-      "authentication": { "lockList": false, "lockAfter": 120 },
-      "autoTriggerBuy": { "enabled": false, "triggerAfter": 20 },
+      "authentication": {
+        "lockList": false,
+        "lockAfter": 120
+      },
+      "autoTriggerBuy": {
+        "enabled": false,
+        "triggerAfter": 20
+      },
       "orderLimit": {
         "enabled": true,
         "maxBuyOpenOrders": 3,
@@ -23,7 +48,7 @@
     "sell": {}
   },
   "common": {
-    "version": "0.0.78",
+    "version": "0.0.85",
     "gitHash": "some-hash",
     "accountInfo": {
       "makerCommission": 0,
@@ -36,109 +61,89 @@
       "updateTime": 1630151787045,
       "accountType": "SPOT",
       "balances": [
-        { "asset": "BNB", "free": "0.01000000", "locked": "0.04000000" },
-        { "asset": "BTC", "free": "0.00000100", "locked": "0.00000000" },
-        { "asset": "BUSD", "free": "9904.79690824", "locked": "41.96541778" },
-        { "asset": "ETH", "free": "0.10001000", "locked": "99.90687000" },
-        { "asset": "LTC", "free": "499.75398000", "locked": "0.00000000" },
-        { "asset": "TRX", "free": "500000.00000000", "locked": "0.00000000" },
-        { "asset": "USDT", "free": "379068.42127337", "locked": "0.00000000" },
-        { "asset": "XRP", "free": "50000.00000000", "locked": "0.00000000" }
+        {
+          "asset": "BNB",
+          "free": "0.01000000",
+          "locked": "0.04000000",
+          "quote": null,
+          "estimate": null,
+          "tickSize": null
+        },
+        {
+          "asset": "BTC",
+          "free": "0.00000100",
+          "locked": "0.00000000",
+          "quote": null,
+          "estimate": null,
+          "tickSize": null
+        },
+        {
+          "asset": "BUSD",
+          "free": "9904.79690824",
+          "locked": "41.96541778",
+          "quote": null,
+          "estimate": null,
+          "tickSize": null
+        },
+        {
+          "asset": "ETH",
+          "free": "0.10001000",
+          "locked": "99.90687000",
+          "quote": "USDT",
+          "estimate": "1574.50",
+          "tickSize": "0.01000000"
+        },
+        {
+          "asset": "LTC",
+          "free": "499.75398000",
+          "locked": "0.00000000",
+          "quote": null,
+          "estimate": null,
+          "tickSize": null
+        },
+        {
+          "asset": "TRX",
+          "free": "500000.00000000",
+          "locked": "0.00000000",
+          "quote": null,
+          "estimate": null,
+          "tickSize": null
+        },
+        {
+          "asset": "USDT",
+          "free": "379068.42127337",
+          "locked": "0.00000000",
+          "quote": null,
+          "estimate": null,
+          "tickSize": null
+        },
+        {
+          "asset": "XRP",
+          "free": "50000.00000000",
+          "locked": "0.00000000",
+          "quote": null,
+          "estimate": null,
+          "tickSize": null
+        }
       ],
-      "permissions": ["SPOT"]
+      "permissions": [
+        "SPOT"
+      ]
     },
-    "exchangeSymbols": {
-      "BNBBUSD": {
-        "symbol": "BNBBUSD",
-        "quoteAsset": "BUSD",
-        "minNotional": 10
+    "apiInfo": {
+      "spot": {
+        "usedWeight1m": "60"
       },
-      "BTCBUSD": {
-        "symbol": "BTCBUSD",
-        "quoteAsset": "BUSD",
-        "minNotional": 10
-      },
-      "ETHBUSD": {
-        "symbol": "ETHBUSD",
-        "quoteAsset": "BUSD",
-        "minNotional": 10
-      },
-      "LTCBUSD": {
-        "symbol": "LTCBUSD",
-        "quoteAsset": "BUSD",
-        "minNotional": 10
-      },
-      "TRXBUSD": {
-        "symbol": "TRXBUSD",
-        "quoteAsset": "BUSD",
-        "minNotional": 10
-      },
-      "XRPBUSD": {
-        "symbol": "XRPBUSD",
-        "quoteAsset": "BUSD",
-        "minNotional": 10
-      },
-      "BNBUSDT": {
-        "symbol": "BNBUSDT",
-        "quoteAsset": "USDT",
-        "minNotional": 10
-      },
-      "BTCUSDT": {
-        "symbol": "BTCUSDT",
-        "quoteAsset": "USDT",
-        "minNotional": 10
-      },
-      "ETHUSDT": {
-        "symbol": "ETHUSDT",
-        "quoteAsset": "USDT",
-        "minNotional": 10
-      },
-      "LTCUSDT": {
-        "symbol": "LTCUSDT",
-        "quoteAsset": "USDT",
-        "minNotional": 10
-      },
-      "TRXUSDT": {
-        "symbol": "TRXUSDT",
-        "quoteAsset": "USDT",
-        "minNotional": 10
-      },
-      "XRPUSDT": {
-        "symbol": "XRPUSDT",
-        "quoteAsset": "USDT",
-        "minNotional": 10
-      },
-      "BNBBTC": {
-        "symbol": "BNBBTC",
-        "quoteAsset": "BTC",
-        "minNotional": 0.0001
-      },
-      "ETHBTC": {
-        "symbol": "ETHBTC",
-        "quoteAsset": "BTC",
-        "minNotional": 0.0001
-      },
-      "LTCBTC": {
-        "symbol": "LTCBTC",
-        "quoteAsset": "BTC",
-        "minNotional": 0.0001
-      },
-      "TRXBTC": {
-        "symbol": "TRXBTC",
-        "quoteAsset": "BTC",
-        "minNotional": 0.0001
-      },
-      "XRPBTC": {
-        "symbol": "XRPBTC",
-        "quoteAsset": "BTC",
-        "minNotional": 0.0001
-      },
-      "LTCBNB": { "symbol": "LTCBNB", "quoteAsset": "BNB", "minNotional": 0.1 },
-      "TRXBNB": { "symbol": "TRXBNB", "quoteAsset": "BNB", "minNotional": 0.1 },
-      "XRPBNB": { "symbol": "XRPBNB", "quoteAsset": "BNB", "minNotional": 0.1 }
+      "futures": {}
     },
-    "apiInfo": { "spot": { "usedWeight1m": "60" }, "futures": {} },
-    "closedTradesSetting": { "loadedPeriod": "a", "selectedPeriod": "a" },
+    "closedTradesSetting": {
+      "loadedPeriod": "a",
+      "selectedPeriod": "a"
+    },
+    "orderStats": {
+      "numberOfOpenTrades": 6,
+      "numberOfBuyOpenOrders": 3
+    },
     "closedTrades": [
       {
         "_id": "USDT",
@@ -169,7 +174,10 @@
         "profitPercentage": 1601.995003799773
       }
     ],
-    "orderStats": { "numberOfOpenTrades": 6, "numberOfBuyOpenOrders": 3 }
+    "totalProfitAndLoss": [],
+    "streamsCount": 6,
+    "symbolsCount": 5,
+    "totalPages": 1
   },
   "stats": {
     "symbols": [
@@ -186,86 +194,34 @@
           "symbol": "BNBUSDT",
           "close": "485.70000000"
         },
-        "accountInfo": {
-          "makerCommission": 0,
-          "takerCommission": 0,
-          "buyerCommission": 0,
-          "sellerCommission": 0,
-          "canTrade": true,
-          "canWithdraw": false,
-          "canDeposit": false,
-          "updateTime": 1630151787045,
-          "accountType": "SPOT",
-          "balances": [
-            {
-              "asset": "BNB",
-              "free": "0.01000000",
-              "locked": "0.04000000",
-              "total": 0.05,
-              "estimatedValue": 24.285,
-              "updatedAt": "2021-08-28T11:56:27+00:00",
-              "isLessThanMinNotionalValue": false
-            },
-            {
-              "asset": "BTC",
-              "free": "0.00000100",
-              "locked": "0.00000000",
-              "total": 0.000001,
-              "estimatedValue": 0,
-              "updatedAt": "2021-08-28T11:56:27+00:00"
-            },
-            {
-              "asset": "BUSD",
-              "free": "9904.79690824",
-              "locked": "41.96541778"
-            },
-            {
-              "asset": "ETH",
-              "free": "0.10001000",
-              "locked": "99.90687000",
-              "total": 100.00688,
-              "estimatedValue": 0,
-              "updatedAt": "2021-08-28T11:56:27+00:00"
-            },
-            {
-              "asset": "LTC",
-              "free": "499.75398000",
-              "locked": "0.00000000",
-              "total": 499.75398,
-              "estimatedValue": 0,
-              "updatedAt": "2021-08-28T11:56:27+00:00"
-            },
-            {
-              "asset": "TRX",
-              "free": "500000.00000000",
-              "locked": "0.00000000"
-            },
-            {
-              "asset": "USDT",
-              "free": "379068.42127337",
-              "locked": "0.00000000"
-            },
-            { "asset": "XRP", "free": "50000.00000000", "locked": "0.00000000" }
-          ],
-          "permissions": ["SPOT"]
-        },
         "symbolConfiguration": {
           "_id": "61167428434d24b0b57ce954",
           "key": "configuration",
           "enabled": true,
           "cronTime": "* * * * * *",
-          "symbols": ["BTCUSDT", "BNBUSDT", "LTCBUSD", "BTCBUSD", "ETHBUSD"],
           "botOptions": {
-            "authentication": { "lockList": false, "lockAfter": 120 },
-            "autoTriggerBuy": { "enabled": true, "triggerAfter": 1 }
+            "authentication": {
+              "lockList": false,
+              "lockAfter": 120
+            },
+            "autoTriggerBuy": {
+              "enabled": true,
+              "triggerAfter": 1
+            }
           },
-          "candles": { "interval": "1m", "limit": 10 },
+          "candles": {
+            "interval": "1m",
+            "limit": 10
+          },
           "buy": {
             "enabled": true,
             "lastBuyPriceRemoveThreshold": 10,
             "athRestriction": {
               "enabled": false,
-              "candles": { "interval": "1d", "limit": 30 },
+              "candles": {
+                "interval": "1d",
+                "limit": 30
+              },
               "restrictionPercentage": 0.9
             },
             "maxPurchaseAmount": -1,
@@ -491,80 +447,22 @@
           "symbol": "BTCUSDT",
           "close": "48942.03000000"
         },
-        "accountInfo": {
-          "makerCommission": 0,
-          "takerCommission": 0,
-          "buyerCommission": 0,
-          "sellerCommission": 0,
-          "canTrade": true,
-          "canWithdraw": false,
-          "canDeposit": false,
-          "updateTime": 1629594092089,
-          "accountType": "SPOT",
-          "balances": [
-            {
-              "asset": "BNB",
-              "free": "0.01000000",
-              "locked": "0.04000000",
-              "total": 0.05,
-              "estimatedValue": 0,
-              "updatedAt": "2021-08-22T01:01:32+00:00"
-            },
-            {
-              "asset": "BTC",
-              "free": "0.00000100",
-              "locked": "0.00000000",
-              "total": 0.000001,
-              "estimatedValue": 0.04894203,
-              "updatedAt": "2021-08-22T01:01:32+00:00",
-              "isLessThanMinNotionalValue": true
-            },
-            {
-              "asset": "BUSD",
-              "free": "9872.94875823",
-              "locked": "40.96271040"
-            },
-            {
-              "asset": "ETH",
-              "free": "0.10001000",
-              "locked": "99.90687000",
-              "total": 100.00688,
-              "estimatedValue": 0,
-              "updatedAt": "2021-08-22T01:01:32+00:00"
-            },
-            {
-              "asset": "LTC",
-              "free": "499.75398000",
-              "locked": "0.00000000",
-              "total": 499.75398,
-              "estimatedValue": 35182.68019200001,
-              "updatedAt": "2021-08-22T01:01:32+00:00",
-              "isLessThanMinNotionalValue": false
-            },
-            {
-              "asset": "TRX",
-              "free": "500000.00000000",
-              "locked": "0.00000000"
-            },
-            {
-              "asset": "USDT",
-              "free": "378987.63247205",
-              "locked": "20.97022808"
-            },
-            { "asset": "XRP", "free": "50000.00000000", "locked": "0.00000000" }
-          ],
-          "permissions": ["SPOT"]
-        },
         "symbolConfiguration": {
           "_id": "611e5f2dd3630e44f849b05b",
           "key": "BTCUSDT-configuration",
-          "candles": { "interval": "1m", "limit": 10 },
+          "candles": {
+            "interval": "1m",
+            "limit": 10
+          },
           "buy": {
             "enabled": true,
             "lastBuyPriceRemoveThreshold": 10,
             "athRestriction": {
               "enabled": false,
-              "candles": { "interval": "1d", "limit": 30 },
+              "candles": {
+                "interval": "1d",
+                "limit": 30
+              },
               "restrictionPercentage": 0.9
             },
             "maxPurchaseAmount": -1,
@@ -617,12 +515,17 @@
             }
           },
           "botOptions": {
-            "authentication": { "lockList": false, "lockAfter": 120 },
-            "autoTriggerBuy": { "enabled": true, "triggerAfter": 1 }
+            "authentication": {
+              "lockList": false,
+              "lockAfter": 120
+            },
+            "autoTriggerBuy": {
+              "enabled": true,
+              "triggerAfter": 1
+            }
           },
           "enabled": true,
           "cronTime": "* * * * * *",
-          "symbols": ["BTCUSDT", "BNBUSDT", "LTCBUSD", "BTCBUSD", "ETHBUSD"],
           "system": {
             "temporaryDisableActionAfterConfirmingOrder": 20,
             "checkManualBuyOrderPeriod": 5,
@@ -758,7 +661,29 @@
         },
         "order": {},
         "saveToCache": true,
-        "isActionDisabled": { "isDisabled": false, "ttl": -2 }
+        "tradingView": {
+          "request": {
+            "symbol": "BTCUSDT",
+            "screener": "CRYPTO",
+            "exchange": "BINANCE",
+            "interval": "1h"
+          },
+          "result": {
+            "indicators": {
+              "summary": {
+                "BUY": 14,
+                "NEUTRAL": 10,
+                "RECOMMENDATION": "BUY",
+                "SELL": 2
+              },
+              "time": "2022-07-18T11:45:39.308508"
+            }
+          }
+        },
+        "isActionDisabled": {
+          "isDisabled": false,
+          "ttl": -2
+        }
       },
       {
         "symbol": "ETHBUSD",
@@ -773,89 +698,34 @@
           "symbol": "ETHBUSD",
           "close": "1000.01000000"
         },
-        "accountInfo": {
-          "makerCommission": 0,
-          "takerCommission": 0,
-          "buyerCommission": 0,
-          "sellerCommission": 0,
-          "canTrade": true,
-          "canWithdraw": false,
-          "canDeposit": false,
-          "updateTime": 1630151787045,
-          "accountType": "SPOT",
-          "balances": [
-            {
-              "asset": "BNB",
-              "free": "0.01000000",
-              "locked": "0.04000000",
-              "total": 0.05,
-              "estimatedValue": 24.285,
-              "updatedAt": "2021-08-28T11:56:27+00:00",
-              "isLessThanMinNotionalValue": false
-            },
-            {
-              "asset": "BTC",
-              "free": "0.00000100",
-              "locked": "0.00000000",
-              "total": 0.000001,
-              "estimatedValue": 0.04887893,
-              "updatedAt": "2021-08-28T11:56:27+00:00",
-              "isLessThanMinNotionalValue": true
-            },
-            {
-              "asset": "BUSD",
-              "free": "9904.79690824",
-              "locked": "41.96541778"
-            },
-            {
-              "asset": "ETH",
-              "free": "0.10001000",
-              "locked": "99.90687000",
-              "total": 100.00688,
-              "estimatedValue": 100007.88006879999,
-              "updatedAt": "2021-08-28T11:56:27+00:00",
-              "isLessThanMinNotionalValue": false
-            },
-            {
-              "asset": "LTC",
-              "free": "499.75398000",
-              "locked": "0.00000000",
-              "total": 499.75398,
-              "estimatedValue": 35192.675271600005,
-              "updatedAt": "2021-08-28T11:56:27+00:00",
-              "isLessThanMinNotionalValue": false
-            },
-            {
-              "asset": "TRX",
-              "free": "500000.00000000",
-              "locked": "0.00000000"
-            },
-            {
-              "asset": "USDT",
-              "free": "379068.42127337",
-              "locked": "0.00000000"
-            },
-            { "asset": "XRP", "free": "50000.00000000", "locked": "0.00000000" }
-          ],
-          "permissions": ["SPOT"]
-        },
         "symbolConfiguration": {
           "_id": "61167428434d24b0b57ce954",
           "key": "configuration",
           "enabled": true,
           "cronTime": "* * * * * *",
-          "symbols": ["BTCUSDT", "BNBUSDT", "LTCBUSD", "BTCBUSD", "ETHBUSD"],
           "botOptions": {
-            "authentication": { "lockList": false, "lockAfter": 120 },
-            "autoTriggerBuy": { "enabled": true, "triggerAfter": 1 }
+            "authentication": {
+              "lockList": false,
+              "lockAfter": 120
+            },
+            "autoTriggerBuy": {
+              "enabled": true,
+              "triggerAfter": 1
+            }
           },
-          "candles": { "interval": "1m", "limit": 10 },
+          "candles": {
+            "interval": "1m",
+            "limit": 10
+          },
           "buy": {
             "enabled": true,
             "lastBuyPriceRemoveThreshold": 10,
             "athRestriction": {
               "enabled": false,
-              "candles": { "interval": "1d", "limit": 30 },
+              "candles": {
+                "interval": "1d",
+                "limit": 30
+              },
               "restrictionPercentage": 0.9
             },
             "maxPurchaseAmount": -1,
@@ -1060,7 +930,10 @@
         },
         "order": {},
         "saveToCache": true,
-        "isActionDisabled": { "isDisabled": false, "ttl": -2 }
+        "isActionDisabled": {
+          "isDisabled": false,
+          "ttl": -2
+        }
       },
       {
         "symbol": "BTCBUSD",
@@ -1075,88 +948,34 @@
           "symbol": "BTCBUSD",
           "close": "48878.93000000"
         },
-        "accountInfo": {
-          "makerCommission": 0,
-          "takerCommission": 0,
-          "buyerCommission": 0,
-          "sellerCommission": 0,
-          "canTrade": true,
-          "canWithdraw": false,
-          "canDeposit": false,
-          "updateTime": 1630151787045,
-          "accountType": "SPOT",
-          "balances": [
-            {
-              "asset": "BNB",
-              "free": "0.01000000",
-              "locked": "0.04000000",
-              "total": 0.05,
-              "estimatedValue": 24.285,
-              "updatedAt": "2021-08-28T11:56:27+00:00",
-              "isLessThanMinNotionalValue": false
-            },
-            {
-              "asset": "BTC",
-              "free": "0.00000100",
-              "locked": "0.00000000",
-              "total": 0.000001,
-              "estimatedValue": 0.04887893,
-              "updatedAt": "2021-08-28T11:56:27+00:00",
-              "isLessThanMinNotionalValue": true
-            },
-            {
-              "asset": "BUSD",
-              "free": "9904.79690824",
-              "locked": "41.96541778"
-            },
-            {
-              "asset": "ETH",
-              "free": "0.10001000",
-              "locked": "99.90687000",
-              "total": 100.00688,
-              "estimatedValue": 0,
-              "updatedAt": "2021-08-28T11:56:27+00:00"
-            },
-            {
-              "asset": "LTC",
-              "free": "499.75398000",
-              "locked": "0.00000000",
-              "total": 499.75398,
-              "estimatedValue": 35192.675271600005,
-              "updatedAt": "2021-08-28T11:56:27+00:00",
-              "isLessThanMinNotionalValue": false
-            },
-            {
-              "asset": "TRX",
-              "free": "500000.00000000",
-              "locked": "0.00000000"
-            },
-            {
-              "asset": "USDT",
-              "free": "379068.42127337",
-              "locked": "0.00000000"
-            },
-            { "asset": "XRP", "free": "50000.00000000", "locked": "0.00000000" }
-          ],
-          "permissions": ["SPOT"]
-        },
         "symbolConfiguration": {
           "_id": "61167428434d24b0b57ce954",
           "key": "configuration",
           "enabled": true,
           "cronTime": "* * * * * *",
-          "symbols": ["BTCUSDT", "BNBUSDT", "LTCBUSD", "BTCBUSD", "ETHBUSD"],
           "botOptions": {
-            "authentication": { "lockList": false, "lockAfter": 120 },
-            "autoTriggerBuy": { "enabled": true, "triggerAfter": 1 }
+            "authentication": {
+              "lockList": false,
+              "lockAfter": 120
+            },
+            "autoTriggerBuy": {
+              "enabled": true,
+              "triggerAfter": 1
+            }
           },
-          "candles": { "interval": "1m", "limit": 10 },
+          "candles": {
+            "interval": "1m",
+            "limit": 10
+          },
           "buy": {
             "enabled": true,
             "lastBuyPriceRemoveThreshold": 10,
             "athRestriction": {
               "enabled": false,
-              "candles": { "interval": "1d", "limit": 30 },
+              "candles": {
+                "interval": "1d",
+                "limit": 30
+              },
               "restrictionPercentage": 0.9
             },
             "maxPurchaseAmount": -1,
@@ -1343,7 +1162,10 @@
         },
         "order": {},
         "saveToCache": true,
-        "isActionDisabled": { "isDisabled": false, "ttl": -2 }
+        "isActionDisabled": {
+          "isDisabled": false,
+          "ttl": -2
+        }
       },
       {
         "symbol": "LTCBUSD",
@@ -1358,87 +1180,34 @@
           "symbol": "LTCBUSD",
           "close": "70.42000000"
         },
-        "accountInfo": {
-          "makerCommission": 0,
-          "takerCommission": 0,
-          "buyerCommission": 0,
-          "sellerCommission": 0,
-          "canTrade": true,
-          "canWithdraw": false,
-          "canDeposit": false,
-          "updateTime": 1630151787045,
-          "accountType": "SPOT",
-          "balances": [
-            {
-              "asset": "BNB",
-              "free": "0.01000000",
-              "locked": "0.04000000",
-              "total": 0.05,
-              "estimatedValue": 24.285,
-              "updatedAt": "2021-08-28T11:56:27+00:00",
-              "isLessThanMinNotionalValue": false
-            },
-            {
-              "asset": "BTC",
-              "free": "0.00000100",
-              "locked": "0.00000000",
-              "total": 0.000001,
-              "estimatedValue": 0,
-              "updatedAt": "2021-08-28T11:56:27+00:00"
-            },
-            {
-              "asset": "BUSD",
-              "free": "9904.79690824",
-              "locked": "41.96541778"
-            },
-            {
-              "asset": "ETH",
-              "free": "0.10001000",
-              "locked": "99.90687000",
-              "total": 100.00688,
-              "estimatedValue": 0,
-              "updatedAt": "2021-08-28T11:56:27+00:00"
-            },
-            {
-              "asset": "LTC",
-              "free": "499.75398000",
-              "locked": "0.00000000",
-              "total": 499.75398,
-              "estimatedValue": 35192.675271600005,
-              "updatedAt": "2021-08-28T11:56:27+00:00",
-              "isLessThanMinNotionalValue": false
-            },
-            {
-              "asset": "TRX",
-              "free": "500000.00000000",
-              "locked": "0.00000000"
-            },
-            {
-              "asset": "USDT",
-              "free": "379068.42127337",
-              "locked": "0.00000000"
-            },
-            { "asset": "XRP", "free": "50000.00000000", "locked": "0.00000000" }
-          ],
-          "permissions": ["SPOT"]
-        },
         "symbolConfiguration": {
           "_id": "61167428434d24b0b57ce954",
           "key": "configuration",
           "enabled": true,
           "cronTime": "* * * * * *",
-          "symbols": ["BTCUSDT", "BNBUSDT", "LTCBUSD", "BTCBUSD", "ETHBUSD"],
           "botOptions": {
-            "authentication": { "lockList": false, "lockAfter": 120 },
-            "autoTriggerBuy": { "enabled": true, "triggerAfter": 1 }
+            "authentication": {
+              "lockList": false,
+              "lockAfter": 120
+            },
+            "autoTriggerBuy": {
+              "enabled": true,
+              "triggerAfter": 1
+            }
           },
-          "candles": { "interval": "1m", "limit": 10 },
+          "candles": {
+            "interval": "1m",
+            "limit": 10
+          },
           "buy": {
             "enabled": true,
             "lastBuyPriceRemoveThreshold": 10,
             "athRestriction": {
               "enabled": false,
-              "candles": { "interval": "1d", "limit": 30 },
+              "candles": {
+                "interval": "1d",
+                "limit": 30
+              },
               "restrictionPercentage": 0.9
             },
             "maxPurchaseAmount": -1,
@@ -1625,7 +1394,10 @@
         },
         "order": {},
         "saveToCache": true,
-        "isActionDisabled": { "isDisabled": false, "ttl": -2 }
+        "isActionDisabled": {
+          "isDisabled": false,
+          "ttl": -2
+        }
       }
     ]
   }

@@ -2,6 +2,7 @@ const moment = require('moment');
 const {
   saveOverrideAction
 } = require('../../../cronjob/trailingTradeHelper/common');
+const { executeTrailingTrade } = require('../../../cronjob');
 
 const handleCancelOrder = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start cancel order');
@@ -21,6 +22,8 @@ const handleCancelOrder = async (logger, ws, payload) => {
     },
     'Cancelling the order action has been received. Wait for cancelling the order.'
   );
+
+  executeTrailingTrade(logger, symbol);
 
   ws.send(
     JSON.stringify({

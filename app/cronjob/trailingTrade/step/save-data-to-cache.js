@@ -1,4 +1,5 @@
-const { cache } = require('../../../helpers');
+const _ = require('lodash');
+const { mongo } = require('../../../helpers');
 
 /**
  * Save data to cache
@@ -19,11 +20,17 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  cache.hset(
-    'trailing-trade-symbols',
-    `${symbol}-processed-data`,
-    JSON.stringify(data)
-  );
+  const filter = { symbol };
+
+  const document = _.omit(data, [
+    'closedTrades',
+    'accountInfo',
+    'symbolConfiguration.symbols',
+    'tradingView'
+  ]);
+
+  await mongo.upsertOne(logger, 'trailing-trade-cache', filter, document);
+
   return data;
 };
 

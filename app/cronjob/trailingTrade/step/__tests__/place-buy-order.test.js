@@ -11,12 +11,12 @@ describe('place-buy-order.js', () => {
   let slackMock;
   let loggerMock;
 
-  let mockGetAndCacheOpenOrdersForSymbol;
-  let mockGetAccountInfoFromAPI;
+  let mockUpdateAccountInfo;
   let mockIsExceedAPILimit;
   let mockGetAPILimit;
   let mockSaveOrderStats;
   let mockSaveOverrideAction;
+  let mockGetAndCacheOpenOrdersForSymbol;
 
   let mockSaveGridTradeOrder;
 
@@ -42,18 +42,19 @@ describe('place-buy-order.js', () => {
       mockSaveOrderStats = jest.fn().mockResolvedValue(true);
       mockSaveOverrideAction = jest.fn().mockResolvedValue(true);
 
-      mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-      mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+      mockUpdateAccountInfo = jest.fn().mockResolvedValue({
         account: 'info'
       });
 
+      mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+
       jest.mock('../../../trailingTradeHelper/common', () => ({
-        getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-        getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+        updateAccountInfo: mockUpdateAccountInfo,
         isExceedAPILimit: mockIsExceedAPILimit,
         getAPILimit: mockGetAPILimit,
         saveOrderStats: mockSaveOrderStats,
-        saveOverrideAction: mockSaveOverrideAction
+        saveOverrideAction: mockSaveOverrideAction,
+        getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
       }));
 
       jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -103,7 +104,7 @@ describe('place-buy-order.js', () => {
           }
         },
         action: 'buy',
-        quoteAssetBalance: { free: 0 },
+        quoteAssetBalance: { free: 0, locked: 0 },
         buy: { currentPrice: 200, openOrders: [] },
         tradingView: {},
         overrideData: {}
@@ -119,8 +120,8 @@ describe('place-buy-order.js', () => {
         expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
-      it('does not trigger getAccountInfoFromAPI', () => {
-        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      it('does not trigger updateAccountInfo', () => {
+        expect(mockUpdateAccountInfo).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveGridTradeOrder', () => {
@@ -272,7 +273,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 101 },
+            quoteAssetBalance: { free: 101, locked: 0 },
             buy: {
               currentPrice: 200,
               openOrders: []
@@ -325,7 +326,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 101 },
+            quoteAssetBalance: { free: 101, locked: 0 },
             buy: {
               currentPrice: 200,
               openOrders: []
@@ -370,7 +371,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 101 },
+            quoteAssetBalance: { free: 101, locked: 0 },
             buy: {
               currentPrice: 200,
               openOrders: []
@@ -420,7 +421,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 101 },
+            quoteAssetBalance: { free: 101, locked: 0 },
             buy: {
               currentPrice: 200,
               openOrders: []
@@ -473,7 +474,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 101 },
+            quoteAssetBalance: { free: 101, locked: 0 },
             buy: {
               currentPrice: 200,
               openOrders: []
@@ -526,7 +527,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 101 },
+            quoteAssetBalance: { free: 101, locked: 0 },
             buy: {
               currentPrice: 200,
               openOrders: []
@@ -577,7 +578,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 101 },
+            quoteAssetBalance: { free: 101, locked: 0 },
             buy: {
               currentPrice: 200,
               openOrders: []
@@ -628,7 +629,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 101 },
+            quoteAssetBalance: { free: 101, locked: 0 },
             buy: {
               currentPrice: 200,
               openOrders: []
@@ -683,7 +684,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 101 },
+            quoteAssetBalance: { free: 101, locked: 0 },
             buy: {
               currentPrice: 200,
               openOrders: []
@@ -741,7 +742,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 101 },
+            quoteAssetBalance: { free: 101, locked: 0 },
             buy: {
               currentPrice: 200,
               openOrders: []
@@ -790,13 +791,12 @@ describe('place-buy-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
-              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+              updateAccountInfo: mockUpdateAccountInfo,
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit,
               saveOrderStats: mockSaveOrderStats,
-              saveOverrideAction: mockSaveOverrideAction
+              saveOverrideAction: mockSaveOverrideAction,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
             }));
 
             rawData = _.cloneDeep(orgRawData);
@@ -830,18 +830,24 @@ describe('place-buy-order.js', () => {
                   clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
                   transactTime: 1626946722520,
                   currentGridTradeIndex:
-                    t.rawData.symbolConfiguration.buy.currentGridTradeIndex,
-                  nextCheck: expect.any(String)
+                    t.rawData.symbolConfiguration.buy.currentGridTradeIndex
                 }
               );
             });
 
             it('triggers getAndCacheOpenOrdersForSymbol', () => {
-              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
+                t.rawData.symbol
+              );
             });
 
-            it('triggers getAccountInfoFromAPI', () => {
-              expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+            it('triggers updateAccountInfo', () => {
+              expect(mockUpdateAccountInfo).toHaveBeenCalledWith(
+                loggerMock,
+                [{ asset: 'USDT', free: 52.472, locked: 48.528 }],
+                expect.any(String)
+              );
             });
 
             it('triggers saveOrderStats', () => {
@@ -1035,7 +1041,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 9 },
+            quoteAssetBalance: { free: 9, locked: 0 },
             buy: {
               currentPrice: 200,
               openOrders: []
@@ -1095,7 +1101,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 0.00009 },
+            quoteAssetBalance: { free: 0.00009, locked: 0 },
             buy: {
               currentPrice: 0.044866,
               openOrders: []
@@ -1155,7 +1161,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 0.00009 },
+            quoteAssetBalance: { free: 0.00009, locked: 0 },
             buy: {
               currentPrice: 0.00003771,
               openOrders: []
@@ -1215,7 +1221,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 9 },
+            quoteAssetBalance: { free: 9, locked: 0 },
             buy: {
               currentPrice: 268748,
               openOrders: []
@@ -1296,7 +1302,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 10.01 },
+            quoteAssetBalance: { free: 10.01, locked: 0 },
             buy: {
               currentPrice: 200,
               openOrders: []
@@ -1358,7 +1364,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 0.0001 },
+            quoteAssetBalance: { free: 0.0001, locked: 0 },
             buy: {
               currentPrice: 0.044866,
               openOrders: []
@@ -1420,7 +1426,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 0.0001 },
+            quoteAssetBalance: { free: 0.0001, locked: 0 },
             buy: {
               currentPrice: 0.00003771,
               openOrders: []
@@ -1482,7 +1488,7 @@ describe('place-buy-order.js', () => {
               }
             },
             action: 'buy',
-            quoteAssetBalance: { free: 10.01 },
+            quoteAssetBalance: { free: 10.01, locked: 0 },
             buy: {
               currentPrice: 268748,
               openOrders: []
@@ -1568,12 +1574,12 @@ describe('place-buy-order.js', () => {
         mockIsExceedAPILimit = jest.fn().mockReturnValue(true);
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          updateAccountInfo: mockUpdateAccountInfo,
           isExceedAPILimit: mockIsExceedAPILimit,
           getAPILimit: mockGetAPILimit,
           saveOrderStats: mockSaveOrderStats,
-          saveOverrideAction: mockSaveOverrideAction
+          saveOverrideAction: mockSaveOverrideAction,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         const step = require('../place-buy-order');
@@ -1615,6 +1621,7 @@ describe('place-buy-order.js', () => {
                 type: 'STOP_LOSS_LIMIT'
               }
             ]);
+
             binanceMock.client.order = jest.fn().mockResolvedValue({
               symbol: 'BTCUPUSDT',
               orderId: 2701762317,
@@ -1624,13 +1631,12 @@ describe('place-buy-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
-              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+              updateAccountInfo: mockUpdateAccountInfo,
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit,
               saveOrderStats: mockSaveOrderStats,
-              saveOverrideAction: mockSaveOverrideAction
+              saveOverrideAction: mockSaveOverrideAction,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
             }));
 
             const step = require('../place-buy-order');
@@ -1684,7 +1690,7 @@ describe('place-buy-order.js', () => {
                 }
               },
               action: 'buy',
-              quoteAssetBalance: { free: 12 },
+              quoteAssetBalance: { free: 12, locked: 0 },
               buy: {
                 currentPrice: 200,
                 openOrders: []
@@ -1783,7 +1789,7 @@ describe('place-buy-order.js', () => {
                 }
               },
               action: 'buy',
-              quoteAssetBalance: { free: 50 },
+              quoteAssetBalance: { free: 50, locked: 10 },
               buy: {
                 currentPrice: 200,
                 openOrders: []
@@ -1804,9 +1810,9 @@ describe('place-buy-order.js', () => {
               orderListId: -1,
               clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
               transactTime: 1626946722520,
-              currentGridTradeIndex: 0,
-              nextCheck: expect.any(String)
+              currentGridTradeIndex: 0
             },
+            expectedBalances: [{ asset: 'USDT', free: 39.89, locked: 20.11 }],
             expected: {
               openOrders: [
                 {
@@ -1910,7 +1916,7 @@ describe('place-buy-order.js', () => {
                 }
               },
               action: 'buy',
-              quoteAssetBalance: { free: 0.002 },
+              quoteAssetBalance: { free: 0.002, locked: 0.001 },
               buy: {
                 currentPrice: 0.044866,
                 openOrders: []
@@ -1931,9 +1937,11 @@ describe('place-buy-order.js', () => {
               orderListId: -1,
               clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
               transactTime: 1626946722520,
-              currentGridTradeIndex: 0,
-              nextCheck: expect.any(String)
+              currentGridTradeIndex: 0
             },
+            expectedBalances: [
+              { asset: 'BTC', free: 0.001863923, locked: 0.001136077 }
+            ],
             expected: {
               openOrders: [
                 {
@@ -2037,7 +2045,7 @@ describe('place-buy-order.js', () => {
                 }
               },
               action: 'buy',
-              quoteAssetBalance: { free: 0.002 },
+              quoteAssetBalance: { free: 0.002, locked: 0 },
               buy: {
                 currentPrice: 0.00003771,
                 openOrders: []
@@ -2058,9 +2066,11 @@ describe('place-buy-order.js', () => {
               orderListId: -1,
               clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
               transactTime: 1626946722520,
-              currentGridTradeIndex: 0,
-              nextCheck: expect.any(String)
+              currentGridTradeIndex: 0
             },
+            expectedBalances: [
+              { asset: 'BTC', free: 0.00188564, locked: 0.00011436000000000001 }
+            ],
             expected: {
               openOrders: [
                 {
@@ -2164,7 +2174,7 @@ describe('place-buy-order.js', () => {
                 }
               },
               action: 'buy',
-              quoteAssetBalance: { free: 15 },
+              quoteAssetBalance: { free: 15, locked: 0 },
               buy: {
                 currentPrice: 268748,
                 openOrders: []
@@ -2185,9 +2195,15 @@ describe('place-buy-order.js', () => {
               orderListId: -1,
               clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
               transactTime: 1626946722520,
-              currentGridTradeIndex: 0,
-              nextCheck: expect.any(String)
+              currentGridTradeIndex: 0
             },
+            expectedBalances: [
+              {
+                asset: 'BRL',
+                free: 4.946952000000001,
+                locked: 10.053047999999999
+              }
+            ],
             expected: {
               openOrders: [
                 {
@@ -2291,7 +2307,7 @@ describe('place-buy-order.js', () => {
                 }
               },
               action: 'buy',
-              quoteAssetBalance: { free: 100 },
+              quoteAssetBalance: { free: 100, locked: 10 },
               buy: {
                 currentPrice: 289.48,
                 openOrders: []
@@ -2312,9 +2328,11 @@ describe('place-buy-order.js', () => {
               orderListId: -1,
               clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
               transactTime: 1626946722520,
-              currentGridTradeIndex: 1,
-              nextCheck: expect.any(String)
+              currentGridTradeIndex: 1
             },
+            expectedBalances: [
+              { asset: 'USDT', free: 89.9614, locked: 20.0386 }
+            ],
             expected: {
               openOrders: [
                 {
@@ -2359,13 +2377,13 @@ describe('place-buy-order.js', () => {
                 .mockResolvedValue(t.binanceMockClientOrderResult);
 
               jest.mock('../../../trailingTradeHelper/common', () => ({
-                getAndCacheOpenOrdersForSymbol:
-                  mockGetAndCacheOpenOrdersForSymbol,
-                getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+                updateAccountInfo: mockUpdateAccountInfo,
                 isExceedAPILimit: mockIsExceedAPILimit,
                 getAPILimit: mockGetAPILimit,
                 saveOrderStats: mockSaveOrderStats,
-                saveOverrideAction: mockSaveOverrideAction
+                saveOverrideAction: mockSaveOverrideAction,
+                getAndCacheOpenOrdersForSymbol:
+                  mockGetAndCacheOpenOrdersForSymbol
               }));
 
               const step = require('../place-buy-order');
@@ -2390,11 +2408,18 @@ describe('place-buy-order.js', () => {
             });
 
             it('triggers getAndCacheOpenOrdersForSymbol', () => {
-              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
+                t.symbol
+              );
             });
 
-            it('triggers getAccountInfoFromAPI', () => {
-              expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+            it('triggers updateAccountInfo', () => {
+              expect(mockUpdateAccountInfo).toHaveBeenCalledWith(
+                loggerMock,
+                t.expectedBalances,
+                expect.any(String)
+              );
             });
 
             it('triggers saveOrderStats', () => {
@@ -2415,7 +2440,7 @@ describe('place-buy-order.js', () => {
         [
           {
             symbol: 'BTCUPUSDT',
-            mockGetAndCacheOpenOrdersForSymbol: [
+            openOrders: [
               {
                 orderId: 123,
                 price: 202.2,
@@ -2483,7 +2508,7 @@ describe('place-buy-order.js', () => {
                 }
               },
               action: 'buy',
-              quoteAssetBalance: { free: 101 },
+              quoteAssetBalance: { free: 101, locked: 0 },
               buy: {
                 currentPrice: 200,
                 openOrders: []
@@ -2504,9 +2529,15 @@ describe('place-buy-order.js', () => {
               orderListId: -1,
               clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
               transactTime: 1626946722520,
-              currentGridTradeIndex: 0,
-              nextCheck: expect.any(String)
+              currentGridTradeIndex: 0
             },
+            expectedBalances: [
+              {
+                asset: 'USDT',
+                free: 52.472,
+                locked: 48.528
+              }
+            ],
             expected: {
               openOrders: [
                 {
@@ -2542,7 +2573,7 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'ETHBTC',
-            mockGetAndCacheOpenOrdersForSymbol: [
+            openOrders: [
               {
                 orderId: 456,
                 price: 0.045359,
@@ -2610,7 +2641,7 @@ describe('place-buy-order.js', () => {
                 }
               },
               action: 'buy',
-              quoteAssetBalance: { free: 0.002 },
+              quoteAssetBalance: { free: 0.002, locked: 0 },
               buy: {
                 currentPrice: 0.044866,
                 openOrders: []
@@ -2631,9 +2662,15 @@ describe('place-buy-order.js', () => {
               orderListId: -1,
               clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
               transactTime: 1626946722520,
-              currentGridTradeIndex: 0,
-              nextCheck: expect.any(String)
+              currentGridTradeIndex: 0
             },
+            expectedBalances: [
+              {
+                asset: 'BTC',
+                free: 0.0010021020000000002,
+                locked: 0.0009978979999999999
+              }
+            ],
             expected: {
               openOrders: [
                 {
@@ -2669,7 +2706,7 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'ALPHABTC',
-            mockGetAndCacheOpenOrdersForSymbol: [
+            openOrders: [
               {
                 orderId: 456,
                 price: 0.00003812,
@@ -2737,7 +2774,7 @@ describe('place-buy-order.js', () => {
                 }
               },
               action: 'buy',
-              quoteAssetBalance: { free: 0.002 },
+              quoteAssetBalance: { free: 0.002, locked: 0 },
               buy: {
                 currentPrice: 0.00003771,
                 openOrders: []
@@ -2758,9 +2795,15 @@ describe('place-buy-order.js', () => {
               orderListId: -1,
               clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
               transactTime: 1626946722520,
-              currentGridTradeIndex: 0,
-              nextCheck: expect.any(String)
+              currentGridTradeIndex: 0
             },
+            expectedBalances: [
+              {
+                asset: 'BTC',
+                free: 0.00100888,
+                locked: 0.00099112
+              }
+            ],
             expected: {
               openOrders: [
                 {
@@ -2796,7 +2839,7 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'BTCBRL',
-            mockGetAndCacheOpenOrdersForSymbol: [
+            openOrders: [
               {
                 orderId: 456,
                 price: 271704,
@@ -2864,7 +2907,7 @@ describe('place-buy-order.js', () => {
                 }
               },
               action: 'buy',
-              quoteAssetBalance: { free: 11 },
+              quoteAssetBalance: { free: 11, locked: 0 },
               buy: {
                 currentPrice: 268748,
                 openOrders: []
@@ -2885,9 +2928,15 @@ describe('place-buy-order.js', () => {
               orderListId: -1,
               clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
               transactTime: 1626946722520,
-              currentGridTradeIndex: 0,
-              nextCheck: expect.any(String)
+              currentGridTradeIndex: 0
             },
+            expectedBalances: [
+              {
+                asset: 'BRL',
+                free: 0.13183999999999862,
+                locked: 10.868160000000001
+              }
+            ],
             expected: {
               openOrders: [
                 {
@@ -2926,20 +2975,20 @@ describe('place-buy-order.js', () => {
             beforeEach(async () => {
               mockGetAndCacheOpenOrdersForSymbol = jest
                 .fn()
-                .mockResolvedValue(t.mockGetAndCacheOpenOrdersForSymbol);
+                .mockResolvedValue(t.openOrders);
 
               binanceMock.client.order = jest
                 .fn()
                 .mockResolvedValue(t.binanceMockClientOrderResult);
 
               jest.mock('../../../trailingTradeHelper/common', () => ({
-                getAndCacheOpenOrdersForSymbol:
-                  mockGetAndCacheOpenOrdersForSymbol,
-                getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+                updateAccountInfo: mockUpdateAccountInfo,
                 isExceedAPILimit: mockIsExceedAPILimit,
                 getAPILimit: mockGetAPILimit,
                 saveOrderStats: mockSaveOrderStats,
-                saveOverrideAction: mockSaveOverrideAction
+                saveOverrideAction: mockSaveOverrideAction,
+                getAndCacheOpenOrdersForSymbol:
+                  mockGetAndCacheOpenOrdersForSymbol
               }));
 
               const step = require('../place-buy-order');
@@ -2964,11 +3013,18 @@ describe('place-buy-order.js', () => {
             });
 
             it('triggers getAndCacheOpenOrdersForSymbol', () => {
-              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalled();
+              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+                loggerMock,
+                t.symbol
+              );
             });
 
-            it('triggers getAccountInfoFromAPI', () => {
-              expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
+            it('triggers updateAccountInfo', () => {
+              expect(mockUpdateAccountInfo).toHaveBeenCalledWith(
+                loggerMock,
+                t.expectedBalances,
+                expect.any(String)
+              );
             });
 
             it('triggers saveOrderStats', () => {
@@ -2981,6 +3037,154 @@ describe('place-buy-order.js', () => {
             it('retruns expected value', () => {
               expect(result).toMatchObject(t.expected);
             });
+          });
+        });
+      });
+
+      describe('when order is placed, but cache is not returning open orders due to a cache error', () => {
+        beforeEach(async () => {
+          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+
+          binanceMock.client.order = jest.fn().mockResolvedValue({
+            symbol: 'BTCUPUSDT',
+            orderId: 2701762317,
+            orderListId: -1,
+            clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+            transactTime: 1626946722520
+          });
+
+          jest.mock('../../../trailingTradeHelper/common', () => ({
+            updateAccountInfo: mockUpdateAccountInfo,
+            isExceedAPILimit: mockIsExceedAPILimit,
+            getAPILimit: mockGetAPILimit,
+            saveOrderStats: mockSaveOrderStats,
+            saveOverrideAction: mockSaveOverrideAction,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
+          }));
+
+          const step = require('../place-buy-order');
+
+          rawData = _.cloneDeep({
+            symbol: 'BTCUPUSDT',
+            isLocked: false,
+            featureToggle: {
+              notifyDebug: true
+            },
+            symbolInfo: {
+              baseAsset: 'BTCUP',
+              quoteAsset: 'USDT',
+              filterLotSize: { stepSize: '0.01000000', minQty: '0.01000000' },
+              filterPrice: { tickSize: '0.00100000' },
+              filterMinNotional: { minNotional: '10.00000000' }
+            },
+            symbolConfiguration: {
+              symbols: ['BTCUPUSDT', 'ETHBTC', 'ALPHABTC', 'BTCBRL', 'BNBUSDT'],
+              buy: {
+                enabled: true,
+                currentGridTradeIndex: 0,
+                currentGridTrade: {
+                  triggerPercentage: 1,
+                  minPurchaseAmount: 10,
+                  maxPurchaseAmount: 50,
+                  stopPercentage: 1.01,
+                  limitPercentage: 1.011,
+                  executed: false,
+                  executedOrder: null
+                },
+                tradingView: {
+                  whenStrongBuy: false,
+                  whenBuy: false
+                }
+              },
+              botOptions: {
+                tradingView: {
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
+                }
+              },
+              system: {
+                checkOrderExecutePeriod: 10
+              }
+            },
+            action: 'buy',
+            quoteAssetBalance: { free: 101, locked: 0 },
+            buy: {
+              currentPrice: 200,
+              openOrders: []
+            }
+          });
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers binance.client.order', () => {
+          expect(binanceMock.client.order).toHaveBeenCalledWith({
+            price: 202.2,
+            quantity: 0.24,
+            side: 'buy',
+            stopPrice: 202,
+            symbol: 'BTCUPUSDT',
+            timeInForce: 'GTC',
+            type: 'STOP_LOSS_LIMIT'
+          });
+        });
+
+        it('triggers saveGridTradeOrder for grid trade last buy order', () => {
+          expect(mockSaveGridTradeOrder).toHaveBeenCalledWith(
+            loggerMock,
+            `BTCUPUSDT-grid-trade-last-buy-order`,
+            {
+              symbol: 'BTCUPUSDT',
+              orderId: 2701762317,
+              orderListId: -1,
+              clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
+              transactTime: 1626946722520,
+              currentGridTradeIndex: 0
+            }
+          );
+        });
+
+        it('triggers getAndCacheOpenOrdersForSymbol', () => {
+          expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUPUSDT'
+          );
+        });
+
+        it('triggers updateAccountInfo', () => {
+          expect(mockUpdateAccountInfo).toHaveBeenCalledWith(
+            loggerMock,
+            [
+              {
+                asset: 'USDT',
+                free: 52.472,
+                locked: 48.528
+              }
+            ],
+            expect.any(String)
+          );
+        });
+
+        it('triggers saveOrderStats', () => {
+          expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+            'BTCUPUSDT',
+            'ETHBTC',
+            'ALPHABTC',
+            'BTCBRL',
+            'BNBUSDT'
+          ]);
+        });
+
+        it('retruns expected value', () => {
+          expect(result).toMatchObject({
+            openOrders: [],
+            buy: {
+              currentPrice: 200,
+              openOrders: [],
+              processMessage:
+                'Placed new stop loss limit order for buying of grid trade #1.',
+              updatedAt: expect.any(Object)
+            }
           });
         });
       });

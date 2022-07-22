@@ -8,12 +8,12 @@ describe('remove-last-buy-price.js', () => {
   let slackMock;
   let loggerMock;
 
-  let mockGetAndCacheOpenOrdersForSymbol;
   let mockGetAPILimit;
   let mockIsActionDisabled;
   let mockRemoveLastBuyPrice;
   let mockSaveOrderStats;
   let mockSaveOverrideAction;
+  let mockGetAndCacheOpenOrdersForSymbol;
 
   let mockArchiveSymbolGridTrade;
   let mockDeleteSymbolGridTrade;
@@ -59,12 +59,12 @@ describe('remove-last-buy-price.js', () => {
     describe('when symbol is locked', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           isActionDisabled: mockIsActionDisabled,
           getAPILimit: mockGetAPILimit,
           removeLastBuyPrice: mockRemoveLastBuyPrice,
           saveOrderStats: mockSaveOrderStats,
-          saveOverrideAction: mockSaveOverrideAction
+          saveOverrideAction: mockSaveOverrideAction,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -129,12 +129,12 @@ describe('remove-last-buy-price.js', () => {
     describe('when action is not `not-determined`', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           isActionDisabled: mockIsActionDisabled,
           getAPILimit: mockGetAPILimit,
           removeLastBuyPrice: mockRemoveLastBuyPrice,
           saveOrderStats: mockSaveOrderStats,
-          saveOverrideAction: mockSaveOverrideAction
+          saveOverrideAction: mockSaveOverrideAction,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -199,12 +199,12 @@ describe('remove-last-buy-price.js', () => {
     describe('when grid trade last buy order exists', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           isActionDisabled: mockIsActionDisabled,
           getAPILimit: mockGetAPILimit,
           removeLastBuyPrice: mockRemoveLastBuyPrice,
           saveOrderStats: mockSaveOrderStats,
-          saveOverrideAction: mockSaveOverrideAction
+          saveOverrideAction: mockSaveOverrideAction,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -276,12 +276,12 @@ describe('remove-last-buy-price.js', () => {
     describe('when grid trade last sell order exists', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           isActionDisabled: mockIsActionDisabled,
           getAPILimit: mockGetAPILimit,
           removeLastBuyPrice: mockRemoveLastBuyPrice,
           saveOrderStats: mockSaveOrderStats,
-          saveOverrideAction: mockSaveOverrideAction
+          saveOverrideAction: mockSaveOverrideAction,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -353,12 +353,12 @@ describe('remove-last-buy-price.js', () => {
     describe('when last buy price is not set', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           isActionDisabled: mockIsActionDisabled,
           getAPILimit: mockGetAPILimit,
           removeLastBuyPrice: mockRemoveLastBuyPrice,
           saveOrderStats: mockSaveOrderStats,
-          saveOverrideAction: mockSaveOverrideAction
+          saveOverrideAction: mockSaveOverrideAction,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -425,12 +425,12 @@ describe('remove-last-buy-price.js', () => {
     describe('when open orders exist', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           isActionDisabled: mockIsActionDisabled,
           getAPILimit: mockGetAPILimit,
           removeLastBuyPrice: mockRemoveLastBuyPrice,
           saveOrderStats: mockSaveOrderStats,
-          saveOverrideAction: mockSaveOverrideAction
+          saveOverrideAction: mockSaveOverrideAction,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -513,12 +513,12 @@ describe('remove-last-buy-price.js', () => {
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           isActionDisabled: mockIsActionDisabled,
           getAPILimit: mockGetAPILimit,
           removeLastBuyPrice: mockRemoveLastBuyPrice,
           saveOrderStats: mockSaveOrderStats,
-          saveOverrideAction: mockSaveOverrideAction
+          saveOverrideAction: mockSaveOverrideAction,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -592,12 +592,12 @@ describe('remove-last-buy-price.js', () => {
           ]);
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             isActionDisabled: mockIsActionDisabled,
             getAPILimit: mockGetAPILimit,
             removeLastBuyPrice: mockRemoveLastBuyPrice,
             saveOrderStats: mockSaveOrderStats,
-            saveOverrideAction: mockSaveOverrideAction
+            saveOverrideAction: mockSaveOverrideAction,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
           }));
 
           jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -664,12 +664,12 @@ describe('remove-last-buy-price.js', () => {
       describe('when cannot find open orders', () => {
         beforeEach(() => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             isActionDisabled: mockIsActionDisabled,
             getAPILimit: mockGetAPILimit,
             removeLastBuyPrice: mockRemoveLastBuyPrice,
             saveOrderStats: mockSaveOrderStats,
-            saveOverrideAction: mockSaveOverrideAction
+            saveOverrideAction: mockSaveOverrideAction,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
           }));
 
           mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -852,12 +852,12 @@ describe('remove-last-buy-price.js', () => {
           ]);
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             isActionDisabled: mockIsActionDisabled,
             getAPILimit: mockGetAPILimit,
             removeLastBuyPrice: mockRemoveLastBuyPrice,
             saveOrderStats: mockSaveOrderStats,
-            saveOverrideAction: mockSaveOverrideAction
+            saveOverrideAction: mockSaveOverrideAction,
+            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
           }));
 
           jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -925,13 +925,12 @@ describe('remove-last-buy-price.js', () => {
         describe('last buy price remove threshold is same as minimum notional', () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
               isActionDisabled: mockIsActionDisabled,
               getAPILimit: mockGetAPILimit,
               removeLastBuyPrice: mockRemoveLastBuyPrice,
               saveOrderStats: mockSaveOrderStats,
-              saveOverrideAction: mockSaveOverrideAction
+              saveOverrideAction: mockSaveOverrideAction,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
             }));
 
             mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({
@@ -1054,13 +1053,12 @@ describe('remove-last-buy-price.js', () => {
         describe('last buy price remove threshold is less than minimum notional', () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
               isActionDisabled: mockIsActionDisabled,
               getAPILimit: mockGetAPILimit,
               removeLastBuyPrice: mockRemoveLastBuyPrice,
               saveOrderStats: mockSaveOrderStats,
-              saveOverrideAction: mockSaveOverrideAction
+              saveOverrideAction: mockSaveOverrideAction,
+              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
             }));
 
             mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({
@@ -1150,12 +1148,12 @@ describe('remove-last-buy-price.js', () => {
     describe('when there is enough balance', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           isActionDisabled: mockIsActionDisabled,
           getAPILimit: mockGetAPILimit,
           removeLastBuyPrice: mockRemoveLastBuyPrice,
           saveOrderStats: mockSaveOrderStats,
-          saveOverrideAction: mockSaveOverrideAction
+          saveOverrideAction: mockSaveOverrideAction,
+          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
 
         mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({

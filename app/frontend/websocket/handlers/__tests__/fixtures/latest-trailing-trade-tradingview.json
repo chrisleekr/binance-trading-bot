@@ -1,0 +1,3 @@
+{
+  "BTCUSDT": "{\"request\":{\"symbol\":\"BTCUSDT\",\"screener\":\"CRYPTO\",\"exchange\":\"BINANCE\",\"interval\":\"1h\"},\"result\":{\"indicators\":{\"summary\":{\"BUY\":14,\"NEUTRAL\":10,\"RECOMMENDATION\":\"BUY\",\"SELL\":2},\"time\":\"2022-07-18T11:45:39.308508\"}}}"
+}

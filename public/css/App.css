@@ -183,10 +183,9 @@ input[type='number'] {
 }
 
 .coin-info-label-with-icon button {
-  margin: 0;
   padding: 0;
   line-height: 15px;
-  margin-left: 5px;
+  margin: 0 0 0 5px;
 }
 .coin-info-label-with-icon i {
   color: #fff;
@@ -199,10 +198,9 @@ input[type='number'] {
 }
 
 .coin-info-column-price .coin-info-value-with-icon button {
-  margin: 0;
   padding: 0;
   line-height: 15px;
-  margin-left: 5px;
+  margin: 0 0 0 5px;
 }
 .coin-info-column-price .coin-info-value-with-icon i {
   color: #fff;
@@ -230,33 +228,13 @@ input[type='number'] {
   margin-bottom: 10px;
 }
 
-.account-wrapper-assets {
-  display: flex;
-  flex-flow: row wrap;
-  justify-content: flex-start;
+.account-balance-assets-wrapper {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-gap: 0.5rem;
 }
 
-.account-wrapper-asset {
-  width: 20%;
-}
-
-@media (max-width: 1200px) {
-  .account-wrapper-asset {
-    width: 25%;
-  }
-}
-
-@media (max-width: 800px) {
-  .account-wrapper-asset {
-    width: 33.33%;
-  }
-}
-
-@media (max-width: 600px) {
-  .account-wrapper-asset {
-    width: 50%;
-  }
-}
+.account-wrapper-assets {}
 
 .account-wrapper-body {
   -webkit-border-radius: 10px;
@@ -284,10 +262,6 @@ input[type='number'] {
   user-select: none;
   background-color: transparent;
   border: 1px solid transparent;
-  padding: 0.375rem 0.75rem;
-  font-size: 1rem;
-  line-height: 1.5;
-  border-radius: 0.25rem;
   transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out,
     border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 
@@ -424,7 +398,7 @@ input[type='number'] {
   padding: 5px 0 5px 0;
 }
 
-.coin-info-sub-open-order-wrapper:first .coin-info-column-title {
+.coin-info-sub-open-order-wrapper:first-child .coin-info-column-title {
   border-top: none;
   margin-top: 0;
   padding-top: 0;
@@ -554,7 +528,7 @@ input[type='number'] {
 }
 
 .btn-manual {
-  margin: 2px 0px 0px;
+  margin: 2px 0 0;
   appearance: none;
   user-select: none;
   cursor: pointer;
@@ -963,5 +937,36 @@ input[type='number'] {
 */
 
 .tradingview-widget-container iframe {
-  overflow-y: none;
+  overflow-y: hidden;
 }
+
+/**
+  Start: Pagination
+*/
+.pagination {
+  justify-content: center;
+}
+
+.pagination .page-link {
+  color: #809fff;
+  background-color: #343a40;
+  border: 1px solid #2d3237;
+}
+
+.pagination .page-item.active .page-link {
+  background-color: #6f42c1;
+  border-color: #6f42c1;
+}
+
+.pagination .page-link:hover {
+  color: #fff;
+  background-color: rgba(110, 66, 193, 0.855);
+  border-color: rgba(110, 66, 193, 0.855);
+}
+.pagination .page-item.disabled .page-link {
+  background-color: #272b38;
+  border-color: #343a40;
+}
+/**
+  End: Pagination
+*/

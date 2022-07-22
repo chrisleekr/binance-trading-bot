@@ -10,7 +10,7 @@ describe('get-account-info.js', () => {
   let step;
   let result;
 
-  let mockGetAccountInfoFromAPI;
+  let mockGetAccountInfo;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -36,13 +36,13 @@ describe('get-account-info.js', () => {
         cacheMock.hset = jest.fn().mockResolvedValue(true);
         PubSub.publish = jest.fn().mockResolvedValue(true);
 
-        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+        mockGetAccountInfo = jest.fn().mockResolvedValue({
           account: 'info',
           balances: [{ asset: 'BTC' }, { asset: 'XRP' }, { asset: 'ETH' }]
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfo: mockGetAccountInfo
         }));
 
         step = require('../get-account-info');
@@ -74,7 +74,7 @@ describe('get-account-info.js', () => {
 
       it('triggers PubSub.publish', () => {
         expect(PubSubMock.publish).toHaveBeenCalledWith(
-          'reset-binance-websocket',
+          'reset-all-websockets',
           true
         );
       });
@@ -110,13 +110,13 @@ describe('get-account-info.js', () => {
         cacheMock.hset = jest.fn().mockResolvedValue(true);
         PubSub.publish = jest.fn().mockResolvedValue(true);
 
-        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+        mockGetAccountInfo = jest.fn().mockResolvedValue({
           account: 'info',
           balances: [{ asset: 'BTC' }, { asset: 'XRP' }, { asset: 'ETH' }]
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfo: mockGetAccountInfo
         }));
 
         step = require('../get-account-info');
@@ -173,13 +173,13 @@ describe('get-account-info.js', () => {
         cacheMock.hset = jest.fn().mockResolvedValue(true);
         PubSub.publish = jest.fn().mockResolvedValue(true);
 
-        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+        mockGetAccountInfo = jest.fn().mockResolvedValue({
           account: 'info',
           balances: [{ asset: 'BTC' }, { asset: 'XRP' }, { asset: 'ETH' }]
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+          getAccountInfo: mockGetAccountInfo
         }));
 
         step = require('../get-account-info');
@@ -237,7 +237,7 @@ describe('get-account-info.js', () => {
           cacheMock.hset = jest.fn().mockResolvedValue(true);
           PubSub.publish = jest.fn().mockResolvedValue(true);
 
-          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          mockGetAccountInfo = jest.fn().mockResolvedValue({
             account: 'info',
             balances: [{ asset: 'BTC' }, { asset: 'XRP' }, { asset: 'ETH' }]
           });
@@ -249,7 +249,7 @@ describe('get-account-info.js', () => {
           );
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfo: mockGetAccountInfo
           }));
 
           step = require('../get-account-info');
@@ -292,7 +292,7 @@ describe('get-account-info.js', () => {
           cacheMock.hset = jest.fn().mockResolvedValue(true);
           PubSub.publish = jest.fn().mockResolvedValue(true);
 
-          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          mockGetAccountInfo = jest.fn().mockResolvedValue({
             account: 'info',
             balances: [{ asset: 'BTC' }, { asset: 'XRP' }, { asset: 'ETH' }]
           });
@@ -304,7 +304,7 @@ describe('get-account-info.js', () => {
           );
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI
+            getAccountInfo: mockGetAccountInfo
           }));
 
           step = require('../get-account-info');

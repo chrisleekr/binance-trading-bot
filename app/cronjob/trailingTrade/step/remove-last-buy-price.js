@@ -2,12 +2,12 @@ const _ = require('lodash');
 const moment = require('moment');
 const { slack, PubSub } = require('../../../helpers');
 const {
-  getAndCacheOpenOrdersForSymbol,
   getAPILimit,
   isActionDisabled,
   removeLastBuyPrice: removeLastBuyPriceFromDatabase,
   saveOrderStats,
-  saveOverrideAction
+  saveOverrideAction,
+  getAndCacheOpenOrdersForSymbol
 } = require('../../trailingTradeHelper/common');
 const {
   archiveSymbolGridTrade,
@@ -28,7 +28,7 @@ const setMessage = (logger, rawData, processMessage) => {
 
   logger.info({ data, saveLog: true }, processMessage);
   data.sell.processMessage = processMessage;
-  data.sell.updatedAt = moment().utc();
+  data.sell.updatedAt = moment().utc().toDate();
   return data;
 };
 

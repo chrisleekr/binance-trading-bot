@@ -22,6 +22,8 @@ const handleSymbolDelete = async (logger, ws, payload) => {
     await mongo.deleteOne(logger, 'trailing-trade-symbols', { key });
   });
 
+  await mongo.deleteOne(logger, 'trailing-trade-cache', { symbol });
+
   ws.send(JSON.stringify({ result: true, type: 'symbol-delete-result' }));
 };
 

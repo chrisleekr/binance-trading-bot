@@ -8,6 +8,7 @@ const {
   archiveSymbolGridTrade,
   deleteSymbolGridTrade
 } = require('../../../cronjob/trailingTradeHelper/configuration');
+const { executeTrailingTrade } = require('../../../cronjob');
 
 const handleSymbolGridTradeDelete = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start grid trade delete');
@@ -29,7 +30,7 @@ const handleSymbolGridTradeDelete = async (logger, ws, payload) => {
         } (${moment().format('HH:mm:ss.SSS')}):\n` +
           `\`\`\`` +
           ` - Profit: ${archivedGridTrade.profit}\n` +
-          ` - ProfitPercentage: ${archivedGridTrade.profitPercentage}\n` +
+          ` - Profit Percentage: ${archivedGridTrade.profitPercentage}\n` +
           ` - Total Buy Amount: ${archivedGridTrade.totalBuyQuoteQty}\n` +
           ` - Total Sell Amount: ${archivedGridTrade.totalSellQuoteQty}\n` +
           `\`\`\`\n` +
@@ -39,6 +40,8 @@ const handleSymbolGridTradeDelete = async (logger, ws, payload) => {
   }
 
   await deleteSymbolGridTrade(logger, symbol);
+
+  executeTrailingTrade(logger, symbol);
 
   ws.send(
     JSON.stringify({ result: true, type: 'symbol-grid-trade-delete-result' })

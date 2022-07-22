@@ -8,6 +8,7 @@ describe('symbol-setting-update.test.js', () => {
 
   let mockGetSymbolConfiguration;
   let mockSaveSymbolConfiguration;
+  let mockExecuteTrailingTrade;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -17,6 +18,12 @@ describe('symbol-setting-update.test.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
+
+    jest.mock('../../../../cronjob', () => ({
+      executeTrailingTrade: mockExecuteTrailingTrade
+    }));
   });
 
   describe('when configuration is valid', () => {
@@ -255,6 +262,13 @@ describe('symbol-setting-update.test.js', () => {
             ]
           }
         }
+      );
+    });
+
+    it('triggers executeTrailingTrade', () => {
+      expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+        mockLogger,
+        'BTCUSDT'
       );
     });
 

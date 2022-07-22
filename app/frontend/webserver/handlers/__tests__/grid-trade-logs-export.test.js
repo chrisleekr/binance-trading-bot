@@ -1,4 +1,8 @@
 /* eslint-disable global-require */
+const { tmpdir: tmpDirectory } = require('os');
+const { sep: directorySeparator } = require('path');
+const _ = require('lodash');
+
 describe('webserver/handlers/grid-trade-logs-export', () => {
   let loggerMock;
   let mongoMock;
@@ -129,8 +133,12 @@ describe('webserver/handlers/grid-trade-logs-export', () => {
         });
 
         it('return data', () => {
+          const tempDirLocation = _.escapeRegExp(
+            `${tmpDirectory()}${directorySeparator}`
+          );
+
           expect(rsDownload).toHaveBeenCalledWith(
-            expect.stringMatching('/tmp/(.+).json')
+            expect.stringMatching(`${tempDirLocation}(.+).json`)
           );
         });
       });
@@ -180,8 +188,12 @@ describe('webserver/handlers/grid-trade-logs-export', () => {
       });
 
       it('return data', () => {
+        const tempDirLocation = _.escapeRegExp(
+          `${tmpDirectory()}${directorySeparator}`
+        );
+
         expect(rsDownload).toHaveBeenCalledWith(
-          expect.stringMatching('/tmp/(.+).json')
+          expect.stringMatching(`${tempDirLocation}(.+).json`)
         );
       });
     });

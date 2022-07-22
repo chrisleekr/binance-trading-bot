@@ -3,7 +3,7 @@
 /* eslint-disable no-undef */
 class Status extends React.Component {
   render() {
-    const { apiInfo } = this.props;
+    const { apiInfo, streamsCount, symbolsCount } = this.props;
 
     if (!apiInfo) {
       return '';
@@ -25,11 +25,24 @@ class Status extends React.Component {
             </Accordion.Toggle>
             <Accordion.Collapse eventKey='0'>
               <Card.Body className='status-wrapper-body p-3 card-body'>
-                <ul className='status-wrapper-ul list-unstyled d-flex flex-row mb-0'>
+                <ul className='status-wrapper-ul list-unstyled mb-0'>
                   <li>
                     Used Weight (1m):{' '}
                     <HightlightChange className='coin-info-value'>
                       {apiInfo.spot.usedWeight1m}
+                    </HightlightChange>
+                    /1200
+                  </li>
+                  <li>
+                    Streams Count (Max: 1024):{' '}
+                    <HightlightChange className='coin-info-value'>
+                      {streamsCount}
+                    </HightlightChange>
+                  </li>
+                  <li>
+                    Symbols:{' '}
+                    <HightlightChange className='coin-info-value'>
+                      {symbolsCount}
                     </HightlightChange>
                   </li>
                 </ul>

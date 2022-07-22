@@ -65,6 +65,7 @@ const getManualOrders = async (logger, symbol) =>
  * Get manual trade order
  * @param {*} logger
  * @param {*} symbol
+ * @param {*} orderId
  * @returns
  */
 const getManualOrder = async (logger, symbol, orderId) => {
@@ -113,6 +114,47 @@ const deleteManualOrder = async (logger, symbol, orderId) => {
   });
 };
 
+/**
+ * Retrieve last grid order from cache
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} side
+ * @returns
+ */
+const getGridTradeLastOrder = async (logger, symbol, side) => {
+  const lastOrder =
+    (await getGridTradeOrder(
+      logger,
+      `${symbol}-grid-trade-last-${side}-order`
+    )) || {};
+
+  logger.info(
+    { lastOrder },
+    `Retrieved grid trade last ${side} order from cache`
+  );
+
+  return lastOrder;
+};
+
+/**
+ * Update grid trade order
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} side
+ * @param {*} newOrder
+ */
+const updateGridTradeLastOrder = async (logger, symbol, side, newOrder) => {
+  await saveGridTradeOrder(
+    logger,
+    `${symbol}-grid-trade-last-${side}-order`,
+    newOrder
+  );
+
+  logger.info(`Updated grid trade last ${side} order to cache`);
+};
+
 module.exports = {
   getGridTradeOrder,
   saveGridTradeOrder,
@@ -120,5 +162,7 @@ module.exports = {
   getManualOrders,
   getManualOrder,
   saveManualOrder,
-  deleteManualOrder
+  deleteManualOrder,
+  getGridTradeLastOrder,
+  updateGridTradeLastOrder
 };

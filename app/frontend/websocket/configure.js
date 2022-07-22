@@ -22,7 +22,8 @@ const {
   handleManualTradeAllSymbols,
   handleCancelOrder,
   handleDustTransferGet,
-  handleDustTransferExecute
+  handleDustTransferExecute,
+  handleExchangeSymbolsGet
 } = require('./handlers');
 
 const handleWarning = (logger, ws, message) => {
@@ -95,7 +96,8 @@ const configureWebSocket = async (server, funcLogger, { loginLimiter }) => {
         'manual-trade-all-symbols': handleManualTradeAllSymbols,
         'cancel-order': handleCancelOrder,
         'dust-transfer-get': handleDustTransferGet,
-        'dust-transfer-execute': handleDustTransferExecute
+        'dust-transfer-execute': handleDustTransferExecute,
+        'exchange-symbols-get': handleExchangeSymbolsGet
       };
 
       if (commandMaps[payload.command] === undefined) {

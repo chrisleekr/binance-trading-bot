@@ -3,6 +3,7 @@ const {
   getSymbolConfiguration,
   saveSymbolConfiguration
 } = require('../../../cronjob/trailingTradeHelper/configuration');
+const { executeTrailingTrade } = require('../../../cronjob');
 
 const handleSymbolSettingUpdate = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol setting update');
@@ -42,6 +43,8 @@ const handleSymbolSettingUpdate = async (logger, ws, payload) => {
   logger.info({ symbolConfiguration }, 'Updated symbol configuration');
 
   await saveSymbolConfiguration(logger, symbol, symbolConfiguration);
+
+  executeTrailingTrade(logger, symbol);
 
   ws.send(
     JSON.stringify({

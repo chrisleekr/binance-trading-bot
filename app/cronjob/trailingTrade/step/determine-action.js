@@ -175,7 +175,7 @@ const setBuyActionAndMessage = (logger, rawData, action, processMessage) => {
 
   data.action = action;
   data.buy.processMessage = processMessage;
-  data.buy.updatedAt = moment().utc();
+  data.buy.updatedAt = moment().utc().toDate();
 
   logger.info({ data, saveLog: true }, processMessage);
   return data;
@@ -414,7 +414,7 @@ const setSellActionAndMessage = (logger, rawData, action, processMessage) => {
 
   data.action = action;
   data.sell.processMessage = processMessage;
-  data.sell.updatedAt = moment().utc();
+  data.sell.updatedAt = moment().utc().toDate();
 
   logger.info({ data, saveLog: true }, processMessage);
   return data;

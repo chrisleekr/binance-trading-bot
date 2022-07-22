@@ -1,50 +1,89 @@
 const _ = require('lodash');
-const moment = require('moment-timezone');
+// const moment = require('moment-timezone');
 const config = require('config');
-const { PubSub, binance, cache, slack } = require('./helpers');
+const moment = require('moment');
+const { PubSub, cache, mongo, slack } = require('./helpers');
 
-const { getAccountInfo } = require('./cronjob/trailingTradeHelper/common');
 const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
-
 const {
   getGlobalConfiguration
 } = require('./cronjob/trailingTradeHelper/configuration');
+const {
+  lockSymbol,
+  unlockSymbol,
+  getAccountInfoFromAPI,
+  cacheExchangeSymbols,
+  getAPILimit
+} = require('./cronjob/trailingTradeHelper/common');
+const {
+  getWebsocketATHCandlesClean,
+  setupATHCandlesWebsocket,
+  syncATHCandles
+} = require('./binance/ath-candles');
+const {
+  getWebsocketCandlesClean,
+  setupCandlesWebsocket,
+  syncCandles
+} = require('./binance/candles');
+const {
+  getWebsocketTickersClean,
+  refreshTickersClean,
+  setupTickersWebsocket
+} = require('./binance/tickers');
+const { syncOpenOrders, syncDatabaseOrders } = require('./binance/orders');
+const { setupUserWebsocket } = require('./binance/user');
 
-let websocketCandlesClean;
-
-let lastReceivedAt = moment();
+let exchangeSymbolsInterval;
 
 /**
- * Retrieve the list of symbols to watch
- *  - This includes account's symbol to BTC pairs.
+ * Setup websocket streams
  *
- * @param {*} _logger
- * @param {*} param1
- * @returns
+ * @param {*} logger
+ * @param {*} symbols
  */
-const monitoringSymbols = async (
-  _logger,
-  { globalConfiguration, accountInfo }
-) => {
-  const { symbols: globalSymbols } = globalConfiguration;
-  // To cut the reference for the global configuration symbols
-  const symbols = _.cloneDeep(globalSymbols);
+const setupWebsockets = async (logger, symbols) => {
+  await Promise.all([
+    setupUserWebsocket(logger),
+    setupCandlesWebsocket(logger, symbols),
+    setupATHCandlesWebsocket(logger, symbols),
+    setupTickersWebsocket(logger, symbols)
+  ]);
 
-  const cachedExchangeSymbols =
-    JSON.parse(await cache.hget('trailing-trade-common', 'exchange-symbols')) ||
-    {};
+  await cache.hset(
+    'trailing-trade-streams',
+    'count',
+    1 +
+      _.size(getWebsocketTickersClean()) +
+      _.size(getWebsocketCandlesClean()) +
+      _.size(getWebsocketATHCandlesClean())
+  );
+};
 
-  return accountInfo.balances.reduce((acc, b) => {
-    const symbol = `${b.asset}BTC`;
-    // Make sure the symbol existing in Binance. Otherwise, just ignore.
-    if (
-      cachedExchangeSymbols[symbol] !== undefined &&
-      acc.includes(symbol) === false
-    ) {
-      acc.push(symbol);
-    }
-    return acc;
-  }, symbols);
+/**
+ * Setup exchange symbols and store them in cache
+ *
+ * @param {*} logger
+ */
+const setupExchangeSymbols = async logger => {
+  if (exchangeSymbolsInterval) {
+    clearInterval(exchangeSymbolsInterval);
+  }
+
+  // Retrieve exchange symbols and cache it
+  await cacheExchangeSymbols(logger);
+
+  exchangeSymbolsInterval = setInterval(async () => {
+    // Retrieve exchange symbols and cache it
+    await cacheExchangeSymbols(logger);
+  }, 60 * 1000);
+};
+
+const refreshCandles = async logger => {
+  refreshTickersClean(logger);
+
+  // empty all candles before restarting the bot
+  await mongo.deleteAll(logger, 'trailing-trade-candles', {});
+  await mongo.deleteAll(logger, 'trailing-trade-ath-candles', {});
 };
 
 /**
@@ -52,40 +91,36 @@ const monitoringSymbols = async (
  *
  * @param {*} logger
  */
-const setWebSocketCandles = async logger => {
-  logger.info('Set websocket for candles');
+const syncAll = async logger => {
+  logger.info('Start syncing the bot...');
+
+  // reset candles and streams before restart to remove any unused symbol
+  await refreshCandles(logger);
+
+  // Retrieve account info from API
+  await getAccountInfoFromAPI(logger);
 
   // Get configuration
   const globalConfiguration = await getGlobalConfiguration(logger);
 
-  // Retrieve account info from cache
-  const accountInfo = await getAccountInfo(logger);
-
-  // Retrieve list of monitoring symbols including assets BTC pairs
-  const symbols = await monitoringSymbols(logger, {
-    globalConfiguration,
-    accountInfo
-  });
+  // Retrieve list of monitoring symbols
+  const { symbols } = globalConfiguration;
 
   logger.info({ symbols }, 'Retrieved symbols');
 
-  if (websocketCandlesClean) {
-    logger.info('Existing opened socket for candles found, clean first');
-    websocketCandlesClean();
-  }
-  websocketCandlesClean = binance.client.ws.candles(symbols, '1m', candle => {
-    logger.info({ candle }, 'Received new candle');
+  // Lock all symbols for 5 minutes to ensure nothing will be executed unless all data retrieved
+  await Promise.all(symbols.map(symbol => lockSymbol(logger, symbol, 300)));
 
-    // Record last received date/time
-    lastReceivedAt = moment();
+  await setupExchangeSymbols(logger);
+  await setupWebsockets(logger, symbols);
 
-    // Save latest candle for the symbol
-    cache.hset(
-      'trailing-trade-symbols',
-      `${candle.symbol}-latest-candle`,
-      JSON.stringify(candle)
-    );
-  });
+  await syncCandles(logger, symbols);
+  await syncATHCandles(logger, symbols);
+  await syncOpenOrders(logger, symbols);
+  await syncDatabaseOrders(logger);
+
+  // Unlock all symbols when all data has been retrieved
+  await Promise.all(symbols.map(symbol => unlockSymbol(logger, symbol)));
 };
 
 /**
@@ -93,104 +128,95 @@ const setWebSocketCandles = async logger => {
  *
  * @param {*} logger
  */
-const setupLive = async logger => {
-  PubSub.subscribe('reset-binance-websocket', async (message, data) => {
+const setupBinance = async logger => {
+  PubSub.subscribe('reset-all-websockets', async (message, data) => {
     logger.info(`Message: ${message}, Data: ${data}`);
-    await setWebSocketCandles(logger);
+
+    PubSub.publish('frontend-notification', {
+      type: 'info',
+      title: 'Restarting bot...'
+    });
+
+    await syncAll(logger);
+  });
+  PubSub.subscribe('reset-symbol-websockets', async (message, data) => {
+    logger.info(`Message: ${message}, Data: ${data}`);
+
+    const symbol = message;
+
+    PubSub.publish('frontend-notification', {
+      type: 'info',
+      title: `Restarting ${symbol} websockets...`
+    });
+
+    // Get configuration
+    const globalConfiguration = await getGlobalConfiguration(logger);
+
+    // Retrieve list of monitoring symbols
+    const { symbols } = globalConfiguration;
+
+    // Candles & ATH candles should receive all monitoring symbols to create their connection from scratch
+    // because they are grouped by symbols intervals and not by their names
+    await Promise.all([
+      setupCandlesWebsocket(logger, symbols),
+      setupATHCandlesWebsocket(logger, symbols),
+      setupTickersWebsocket(logger, [symbol])
+    ]);
+
+    await syncCandles(logger, [symbol]);
+    await syncATHCandles(logger, [symbol]);
   });
 
-  await setWebSocketCandles(logger);
-};
-
-const loopToCheckLastReceivedAt = async logger => {
-  const currentTime = moment();
-
-  // If last received candle time is more than a mintues, then it means something went wrong. Reconnect websocket.
-  if (lastReceivedAt.diff(currentTime) / 1000 < -60) {
-    logger.warn(
-      'Binance candle is not received in last mintues. Reconfigure websocket'
-    );
-
-    if (config.get('featureToggle.notifyDebug')) {
-      slack.sendMessage(
-        `Binance Websocket (${moment().format(
-          'HH:mm:ss.SSS'
-        )}): The bot didn't receive new candle from Binance Websocket since ${lastReceivedAt.fromNow()}.` +
-          ` Reset Websocket connection.`
-      );
-    }
-
-    await setupLive(logger);
-  }
-
-  setTimeout(() => loopToCheckLastReceivedAt(logger), 1000);
-};
-
-/**
- * Setup retrieving latest candle from test server via API
- *
- * @param {*} logger
- */
-const setupTest = async logger => {
-  // Get configuration
-  const globalConfiguration = await getGlobalConfiguration(logger);
-
-  // Retrieve account info from cache
-  const accountInfo = await getAccountInfo(logger);
-
-  // Retrieve list of monitoring symbols including assets BTC pairs
-  const symbols = await monitoringSymbols(logger, {
-    globalConfiguration,
-    accountInfo
-  });
-
-  logger.info({ symbols }, 'Retrieved symbols');
-
-  const currentPrices = await binance.client.prices();
-
-  _.forEach(currentPrices, (currentPrice, currentSymbol) => {
-    if (symbols.includes(currentSymbol)) {
-      logger.info({ currentSymbol, currentPrice }, 'Received new price');
-
-      cache.hset(
-        'trailing-trade-symbols',
-        `${currentSymbol}-latest-candle`,
-        JSON.stringify({
-          eventType: 'kline',
-          symbol: currentSymbol,
-          close: currentPrice
-        })
-      );
-    }
-  });
-
-  // It's impossible to test async function in the setTimeout.
-  /* istanbul ignore next */
-  setTimeout(() => setupTest(logger), 1000);
+  await syncAll(logger);
 };
 
 /**
  * Configure Binance Web Socket
  *
- *  Note that Binance Test Server Web Socket is not providing test server's candles.
- *  To avoid the issue with the test server, when the mode is test, it will use API call to retrieve current prices.
- *
  * @param {*} serverLogger
  */
 const runBinance = async serverLogger => {
   const logger = serverLogger.child({ server: 'binance' });
-  const mode = config.get('mode');
 
   logger.info(
     { config: maskConfig(config) },
     `Binance ${config.get('mode')} started on`
   );
 
-  if (mode === 'live') {
-    await setupLive(logger);
-    await loopToCheckLastReceivedAt(logger);
-  } else {
-    await setupTest(logger);
+  try {
+    await setupBinance(logger);
+  } catch (err) {
+    // For the redlock fail
+    if (err.message.includes('redlock')) {
+      // Simply ignore
+      return;
+    }
+
+    logger.error(
+      { err, errorCode: err.code, debug: true },
+      `⚠ Setup binance failed.`
+    );
+
+    if (
+      err.code === -1001 ||
+      err.code === -1021 || // Timestamp for this request is outside the recvWindow
+      err.code === 'ECONNRESET' ||
+      err.code === 'ECONNREFUSED'
+    ) {
+      // Let's silent for internal server error or assumed temporary errors
+    } else {
+      slack.sendMessage(
+        `Setup binance failed (${moment().format('HH:mm:ss.SSS')})\n` +
+          `Code: ${err.code}\n` +
+          `Message:\`\`\`${err.message}\`\`\`\n` +
+          `${
+            config.get('featureToggle.notifyDebug')
+              ? `Stack:\`\`\`${err.stack}\`\`\`\n`
+              : ''
+          }` +
+          `- Current API Usage: ${getAPILimit(logger)}`
+      );
+    }
   }
 };
 

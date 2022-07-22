@@ -2,8 +2,8 @@ const moment = require('moment');
 const { binance, slack, PubSub } = require('../../../helpers');
 const {
   getAPILimit,
-  getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI
+  getAccountInfo,
+  getAndCacheOpenOrdersForSymbol
 } = require('../../trailingTradeHelper/common');
 const { saveManualOrder } = require('../../trailingTradeHelper/order');
 
@@ -20,7 +20,7 @@ const setMessage = (logger, rawData, processMessage) => {
 
   logger.info({ data, saveLog: true }, processMessage);
   data.buy.processMessage = processMessage;
-  data.buy.updatedAt = moment().utc();
+  data.buy.updatedAt = moment().utc().toDate();
   return data;
 };
 
@@ -220,17 +220,15 @@ const slackMessageOrderResult = async (
  *
  * @param {*} logger
  * @param {*} orderResult
- * @param {*} checkManualOrderPeriod
  */
-const recordOrder = async (logger, orderResult, checkManualOrderPeriod) => {
+const recordOrder = async (logger, orderResult) => {
   const { symbol, orderId } = orderResult;
 
   // Save manual order
   logger.info({ orderResult }, 'Record  order');
 
   await saveManualOrder(logger, symbol, orderId, {
-    ...orderResult,
-    nextCheck: moment().add(checkManualOrderPeriod, 'seconds').format()
+    ...orderResult
   });
 };
 
@@ -242,16 +240,7 @@ const recordOrder = async (logger, orderResult, checkManualOrderPeriod) => {
  */
 const execute = async (logger, rawData) => {
   const data = rawData;
-  const {
-    symbol,
-    isLocked,
-    action,
-    baseAssetBalance,
-    symbolConfiguration: {
-      system: { checkManualOrderPeriod }
-    },
-    order
-  } = data;
+  const { symbol, isLocked, action, baseAssetBalance, order } = data;
 
   if (isLocked) {
     logger.info({ isLocked }, 'Symbol is locked, do not process manual-trade');
@@ -276,7 +265,7 @@ const execute = async (logger, rawData) => {
 
   logger.info({ orderResult }, 'Manual order result');
 
-  await recordOrder(logger, orderResult, checkManualOrderPeriod);
+  await recordOrder(logger, orderResult);
 
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
@@ -287,7 +276,7 @@ const execute = async (logger, rawData) => {
     o => o.side.toLowerCase() === 'sell'
   );
   // Refresh account info
-  data.accountInfo = await getAccountInfoFromAPI(logger);
+  data.accountInfo = await getAccountInfo(logger);
 
   slackMessageOrderResult(logger, symbol, order.side, order, orderResult);
 

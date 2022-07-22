@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Enhanced to use WebSocket for monitoring candles/orders/account information. It's faster! - [#431](https://github.com/chrisleekr/binance-trading-bot/pull/431)
+- Updated the frontend with pagination [#431](https://github.com/chrisleekr/binance-trading-bot/pull/431)
+- Updated account balance layout in the frontend [#431](https://github.com/chrisleekr/binance-trading-bot/pull/431)
+
+Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) for all these updates!
+
 ## [0.0.85] - 2021-11-02
 
 - Refactored TradingView python server - [#383](https://github.com/chrisleekr/binance-trading-bot/pull/383)
