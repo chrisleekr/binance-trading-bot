@@ -3,8 +3,6 @@
 const { logger } = require('../../helpers');
 
 describe('trailingTrade', () => {
-  let data;
-
   let mockLoggerInfo;
   let mockSlackSendMessage;
   let mockConfigGet;
