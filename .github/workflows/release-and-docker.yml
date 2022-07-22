@@ -12,15 +12,14 @@ jobs:
     steps:
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.client_payload.ref }}
-          release_name:
+          name:
             '<Update release name for ${{ github.event.client_payload.ref }}>'
           draft: true
           prerelease: false
+          generate_release_notes: true
 
   docker-images:
     name: Build/Push production docker image
