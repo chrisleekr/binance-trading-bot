@@ -13,11 +13,11 @@ describe('error-handler', () => {
 
     config = require('config');
 
-    const { logger, slack } = require('..');
+    const { logger, slack } = require('../helpers');
 
     mockGetAPILimit = jest.fn().mockReturnValue(10);
 
-    jest.mock('../../cronjob/trailingTradeHelper/common', () => ({
+    jest.mock('../cronjob/trailingTradeHelper/common', () => ({
       getAPILimit: mockGetAPILimit
     }));
 
@@ -31,7 +31,7 @@ describe('error-handler', () => {
 
   describe('triggers process.on', () => {
     beforeEach(() => {
-      const { run: runErrorHandler } = require('../error-handler');
+      const { runErrorHandler } = require('../error-handler');
       runErrorHandler(mockLogger);
     });
 
@@ -107,7 +107,7 @@ describe('error-handler', () => {
           }
         });
 
-        const { run: runErrorHandler } = require('../error-handler');
+        const { runErrorHandler } = require('../error-handler');
         runErrorHandler(mockLogger);
       });
 
@@ -134,7 +134,7 @@ describe('error-handler', () => {
         }
       });
 
-      const { run: runErrorHandler } = require('../error-handler');
+      const { runErrorHandler } = require('../error-handler');
       runErrorHandler(mockLogger);
     });
 
@@ -155,7 +155,7 @@ describe('error-handler', () => {
           }
         });
 
-        const { run: runErrorHandler } = require('../error-handler');
+        const { runErrorHandler } = require('../error-handler');
         runErrorHandler(mockLogger);
       }).toThrow(`redlock:bot-lock:XRPBUSD`);
     });

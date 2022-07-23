@@ -1,9 +1,9 @@
 const moment = require('moment');
 const config = require('config');
-const { slack } = require('./index');
-const { getAPILimit } = require('../cronjob/trailingTradeHelper/common');
+const { slack } = require('./helpers');
+const { getAPILimit } = require('./cronjob/trailingTradeHelper/common');
 
-const run = logger => {
+const runErrorHandler = logger => {
   // This will catch the rejected Promise
   process.on('unhandledRejection', err => {
     // we will throw it to handle it in the exception
@@ -45,4 +45,4 @@ const run = logger => {
   });
 };
 
-module.exports = { run };
+module.exports = { runErrorHandler };
