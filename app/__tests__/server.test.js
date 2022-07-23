@@ -25,15 +25,15 @@ describe('server', () => {
     mockLoggerChild = jest.fn().mockResolvedValue({ child: 'logger' });
     jest.mock('../helpers', () => ({
       logger: { me: 'logger', child: mockLoggerChild },
-      mongo: mockMongo,
-      errorHandler: {
-        run: mockRunErrorHandler
-      }
+      mongo: mockMongo
     }));
 
     jest.mock('../server-binance', () => ({ runBinance: mockRunBinance }));
     jest.mock('../server-cronjob', () => ({ runCronjob: mockRunCronJob }));
     jest.mock('../server-frontend', () => ({ runFrontend: mockRunFrontend }));
+    jest.mock('../error-handler', () => ({
+      runErrorHandler: mockRunErrorHandler
+    }));
 
     require('../server');
   });
