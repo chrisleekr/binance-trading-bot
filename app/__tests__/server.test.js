@@ -2,6 +2,7 @@
 describe('server', () => {
   let mockMongo;
   let mockMongoConnect;
+  let mockRunErrorHandler;
   let mockRunBinance;
   let mockRunCronJob;
   let mockRunFrontend;
@@ -16,6 +17,7 @@ describe('server', () => {
       connect: mockMongoConnect
     };
 
+    mockRunErrorHandler = jest.fn().mockResolvedValue(true);
     mockRunBinance = jest.fn().mockResolvedValue(true);
     mockRunCronJob = jest.fn().mockResolvedValue(true);
     mockRunFrontend = jest.fn().mockResolvedValue(true);
@@ -29,8 +31,15 @@ describe('server', () => {
     jest.mock('../server-binance', () => ({ runBinance: mockRunBinance }));
     jest.mock('../server-cronjob', () => ({ runCronjob: mockRunCronJob }));
     jest.mock('../server-frontend', () => ({ runFrontend: mockRunFrontend }));
+    jest.mock('../error-handler', () => ({
+      runErrorHandler: mockRunErrorHandler
+    }));
 
     require('../server');
+  });
+
+  it('triggers errorHandler.run', () => {
+    expect(mockRunErrorHandler).toHaveBeenCalled();
   });
 
   it('triggers mongo.connect', () => {
