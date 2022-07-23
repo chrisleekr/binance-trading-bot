@@ -2,9 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.0.87] - 2022-07-23
 
-- Refactored error handling - [#434](https://github.com/chrisleekr/binance-trading-bot/pull/434)
+- Refactored error handling. Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#434](https://github.com/chrisleekr/binance-trading-bot/pull/434)
 
 ## [0.0.86] - 2022-07-22
 
