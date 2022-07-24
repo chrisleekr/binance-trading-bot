@@ -39,6 +39,8 @@ services:
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
+      # https://docs.python.org/3/howto/logging.html#logging-levels
+      - TRADINGVIEW_LOG_LEVEL=INFO
     ports:
       - 8082:8080
     logging:
@@ -59,8 +61,7 @@ services:
     volumes:
       - redis_data:/data
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
-    command:
-      redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
 
   binance-mongo:
     container_name: binance-mongo
