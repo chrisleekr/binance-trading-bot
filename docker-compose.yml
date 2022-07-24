@@ -40,7 +40,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       # https://docs.python.org/3/howto/logging.html#logging-levels
-      - TRADINGVIEW_LOG_LEVEL=WARNING
+      - TRADINGVIEW_LOG_LEVEL=INFO
     ports:
       - 8082:8080
     logging:
