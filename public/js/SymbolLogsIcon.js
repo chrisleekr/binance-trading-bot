@@ -169,6 +169,13 @@ class SymbolLogsIcon extends React.Component {
 
     const totalPages = Math.ceil(stats.rows / limit);
     // If total
+    paginationItems.push(
+      <Pagination.First
+        key='first'
+        disabled={page === 1 || totalPages === 1}
+        onClick={() => this.setPage(1)}
+      />
+    );
     if (page === 1 || totalPages === 1) {
       paginationItems.push(
         <Pagination.Prev key='pagination-item-prev' disabled />
@@ -207,6 +214,14 @@ class SymbolLogsIcon extends React.Component {
         />
       );
     }
+    const lastPage = totalPages;
+    paginationItems.push(
+      <Pagination.Last
+        key='last'
+        disabled={page === totalPages || page >= totalPages}
+        onClick={() => this.setPage(lastPage)}
+      />
+    );
 
     const logRows = rows.map((row, _index) => {
       return (
