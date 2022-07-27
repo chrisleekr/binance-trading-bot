@@ -281,28 +281,19 @@ class SymbolGridTradeArchiveIcon extends React.Component {
         />
       );
     }
-    [...Array(3).keys()].forEach(x => {
-      if (page === 1 && x === 0) {
-        paginationItems.push(
-          <Pagination.Item
-            active
-            key={`pagination-item-${x}`}
-            onClick={() => this.setPage(page)}>
-            {page}
-          </Pagination.Item>
-        );
-      } else {
-        const pageNum = page === 1 ? page + x : page + x - 1;
-        paginationItems.push(
-          <Pagination.Item
-            active={pageNum === page}
-            disabled={pageNum > totalPages}
-            key={`pagination-item-${x}`}
-            onClick={() => this.setPage(pageNum)}>
-            {pageNum}
-          </Pagination.Item>
-        );
-      }
+    const maxButtons = 8;
+    const buttons = Math.min( maxButtons , ~~totalPages );
+    [...Array(buttons).keys()].forEach(x => {
+      const pageNum = Math.min( Math.max( x + 1 , page + x + 1 - Math.ceil( buttons / 2 ) ) , totalPages + x + 1 - buttons );
+      paginationItems.push(
+        <Pagination.Item
+          active={pageNum === page}
+          disabled={pageNum > totalPages}
+          key={`pagination-item-${x}`}
+          onClick={() => this.setPage(pageNum)}>
+          {pageNum}
+        </Pagination.Item>
+      );
     });
     if (page === totalPages || page >= totalPages) {
       paginationItems.push(
