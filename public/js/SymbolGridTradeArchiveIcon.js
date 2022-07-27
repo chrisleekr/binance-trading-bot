@@ -464,6 +464,13 @@ class SymbolGridTradeArchiveIcon extends React.Component {
                 ) : (
                   <React.Fragment>
                     <div className='row'>
+                      <div className='d-flex w-100 flex-row justify-content-between px-3 mb-2'>
+                        <Pagination
+                          className='justify-content-center mb-0'
+                          size='sm'>
+                          {paginationItems}
+                        </Pagination>
+                      </div>
                       <Table striped bordered hover size='sm' responsive>
                         <thead>
                           <tr>

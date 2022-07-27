@@ -421,6 +421,7 @@ class App extends React.Component {
               />
               <OrderStats orderStats={orderStats} />
             </div>
+            <Pagination>{paginationItems}</Pagination>
             <div className='coin-wrappers'>{coinWrappers}</div>
             <Pagination>{paginationItems}</Pagination>
             <div className='app-body-footer-wrapper'>
