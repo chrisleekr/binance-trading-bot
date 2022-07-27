@@ -447,11 +447,11 @@ input[type='number'] {
 }
 
 .coin-info-label {
-  width: 65%;
+  width: auto;
 }
 
 .coin-info-value {
-  width: 35%;
+  width: auto;
 }
 
 .coin-info-column-title .coin-info-label {
