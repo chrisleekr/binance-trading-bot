@@ -41,7 +41,7 @@ class CoinWrapperBuySignal extends React.Component {
     } = symbolConfiguration;
 
     const buyGridRows = gridTrade.map((grid, i) => {
-      return (
+      return i >= 10 && !grid.executed && currentGridTradeIndex !== i && currentGridTradeIndex + 1 !== i && gridTrade.length - 1 !== i ? ('') : (
         <React.Fragment key={'coin-wrapper-buy-grid-row-' + symbol + '-' + i}>
           <div className='coin-info-column-grid'>
             <div className='coin-info-column coin-info-column-price'>
