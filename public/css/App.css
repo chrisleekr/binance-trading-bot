@@ -303,13 +303,34 @@ input[type='number'] {
 }
 
 .coin-wrapper {
-  width: 25%;
+  width: 8.33%;
   -webkit-border-radius: 10px;
   -moz-border-radius: 10px;
   border-radius: 10px;
   padding: 5px;
   margin-bottom: 10px;
-  flex: 25% auto;
+  flex: 8.33% auto;
+}
+
+@media (max-width: 3400px) {
+  .coin-wrapper {
+    width: 16.66%;
+    flex: 16.66% auto;
+  }
+}
+
+@media (max-width: 2300px) {
+  .coin-wrapper {
+    width: 25%;
+    flex: 25% auto;
+  }
+}
+
+@media (max-width: 1800px) {
+  .coin-wrapper {
+    width: 33.33%;
+    flex: 33.33% auto;
+  }
 }
 
 @media (max-width: 1200px) {
