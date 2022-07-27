@@ -267,6 +267,13 @@ class QuoteAssetGridTradeArchiveIcon extends React.Component {
 
     const totalPages = Math.ceil(stats.trades / limit);
     // If total
+    paginationItems.push(
+      <Pagination.First
+        key='first'
+        disabled={page === 1 || totalPages === 1}
+        onClick={() => this.setPage(1)}
+      />
+    );
     if (page === 1 || totalPages === 1) {
       paginationItems.push(
         <Pagination.Prev key='pagination-item-prev' disabled />
@@ -314,6 +321,14 @@ class QuoteAssetGridTradeArchiveIcon extends React.Component {
         />
       );
     }
+    const lastPage = totalPages;
+    paginationItems.push(
+      <Pagination.Last
+        key='last'
+        disabled={page === totalPages || page >= totalPages}
+        onClick={() => this.setPage(lastPage)}
+      />
+    );
 
     return (
       <div className='coin-info-quote-asset-grid-trade-archive-wrapper d-inline-block'>
