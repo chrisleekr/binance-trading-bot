@@ -626,7 +626,7 @@ const getSymbolInfo = async (logger, symbol) => {
     'filterMinNotional'
   ]);
 
-  cache.hset(
+  await cache.hset(
     'trailing-trade-symbols',
     `${symbol}-symbol-info`,
     JSON.stringify(finalSymbolInfo),
