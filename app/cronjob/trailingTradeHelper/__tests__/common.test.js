@@ -2695,6 +2695,7 @@ describe('common.js', () => {
         sortByDesc: false,
         sortByParam: null,
         searchKeyword: 'BTC',
+        page: 2,
         sortField: {
           $cond: {
             if: { $gt: [{ $size: '$buy.openOrders' }, 0] },
@@ -2762,6 +2763,7 @@ describe('common.js', () => {
         sortByDesc: true,
         sortByParam: 'buy-difference',
         searchKeyword: 'BTC',
+        page: 2,
         sortField: {
           $cond: {
             if: {
@@ -2777,6 +2779,7 @@ describe('common.js', () => {
         sortByDesc: false,
         sortByParam: 'buy-difference',
         searchKeyword: 'BTC',
+        page: 2,
         sortField: {
           $cond: {
             if: {
@@ -2792,6 +2795,7 @@ describe('common.js', () => {
         sortByDesc: false,
         sortByParam: 'sell-profit',
         searchKeyword: null,
+        page: 2,
         sortField: {
           $cond: {
             if: {
@@ -2807,6 +2811,7 @@ describe('common.js', () => {
         sortByDesc: true,
         sortByParam: 'sell-profit',
         searchKeyword: null,
+        page: 2,
         sortField: {
           $cond: {
             if: {
@@ -2819,6 +2824,22 @@ describe('common.js', () => {
       },
       {
         desc: 'alpha',
+        sortByDesc: true,
+        sortByParam: 'alpha',
+        searchKeyword: 'ETH',
+        page: 2,
+        sortField: '$symbol'
+      },
+      {
+        desc: 'alpha - incorrect page',
+        sortByDesc: true,
+        sortByParam: 'alpha',
+        searchKeyword: 'ETH',
+        page: -1,
+        sortField: '$symbol'
+      },
+      {
+        desc: 'alpha - no page provided',
         sortByDesc: true,
         sortByParam: 'alpha',
         searchKeyword: 'ETH',
@@ -2839,13 +2860,15 @@ describe('common.js', () => {
             loggerMock,
             t.sortByDesc,
             t.sortByParam,
-            2,
+            t.page,
             10,
             t.searchKeyword
           );
         });
 
         it('triggers mongo.aggregate', () => {
+          const pageNum = _.toNumber(t.page) >= 1 ? _.toNumber(t.page) : 1;
+
           expect(mongoMock.aggregate).toHaveBeenCalledWith(
             loggerMock,
             'trailing-trade-cache',
@@ -2871,7 +2894,7 @@ describe('common.js', () => {
                 }
               },
               { $sort: { sortField: t.sortByDesc ? -1 : 1 } },
-              { $skip: (2 - 1) * 10 },
+              { $skip: (pageNum - 1) * 10 },
               { $limit: 10 }
             ]
           );

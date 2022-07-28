@@ -1,4 +1,3 @@
-const moment = require('moment');
 const config = require('config');
 
 const {
@@ -20,7 +19,7 @@ const {
   getTradingView,
   saveDataToCache
 } = require('./trailingTradeIndicator/steps');
-const { slack } = require('../helpers');
+const { errorHandlerWrapper } = require('../error-handler');
 
 const execute = async logger => {
   // Retrieve feature toggles
@@ -40,7 +39,7 @@ const execute = async logger => {
     apiLimit: { start: getAPILimit(logger), end: null }
   };
 
-  try {
+  await errorHandlerWrapper(logger, 'Trailing Trade Indicator', async () => {
     data = await getGlobalConfiguration(logger, data);
     data = await getNextSymbol(logger, data);
 
@@ -116,40 +115,7 @@ const execute = async logger => {
     );
 
     logger.info({ symbol, data }, 'TrailingTradeIndicator: Finish process...');
-  } catch (err) {
-    // For the redlock fail
-    if (err.message.includes('redlock')) {
-      // Simply ignore
-      return;
-    }
-
-    logger.error(
-      { symbol: data.symbol, err, debug: true },
-      `⚠ Execution failed.`
-    );
-    if (
-      err.code === -1001 ||
-      err.code === -1021 || // Timestamp for this request is outside of the recvWindow
-      err.code === 'ECONNRESET' ||
-      err.code === 'ECONNREFUSED' ||
-      err.message.includes('redlock') // For the redlock fail
-    ) {
-      // Let's silent for internal server error or assumed temporary errors
-    } else {
-      slack.sendMessage(
-        `Execution failed (${moment().format('HH:mm:ss.SSS')})\n` +
-          `Job: Trailing Trade Indicator\n` +
-          `Code: ${err.code}\n` +
-          `Message:\`\`\`${err.message}\`\`\`\n` +
-          `${
-            config.get('featureToggle.notifyDebug')
-              ? `Stack:\`\`\`${err.stack}\`\`\`\n`
-              : ''
-          }` +
-          `- Current API Usage: ${getAPILimit(logger)}`
-      );
-    }
-  }
+  });
 };
 
 module.exports = { execute };

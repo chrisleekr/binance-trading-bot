@@ -914,6 +914,7 @@ const getCacheTrailingTradeSymbols = async (
 
   const sortBy = sortByParam || 'default';
   const sortDirection = sortByDesc === true ? -1 : 1;
+  const pageNum = _.toNumber(page) >= 1 ? _.toNumber(page) : 1;
 
   logger.info({ sortBy, sortDirection }, 'latest');
 
@@ -1027,7 +1028,7 @@ const getCacheTrailingTradeSymbols = async (
       }
     },
     { $sort: { sortField: sortDirection } },
-    { $skip: (page - 1) * symbolsPerPage },
+    { $skip: (pageNum - 1) * symbolsPerPage },
     { $limit: symbolsPerPage }
   ];
 

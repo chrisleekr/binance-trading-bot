@@ -7,12 +7,8 @@ describe('trailingTrade', () => {
   let mockSlackSendMessage;
   let mockConfigGet;
 
-  let mockCacheExchangeSymbols;
   let mockGetAccountInfo;
-  let mockLockSymbol;
   let mockIsSymbolLocked;
-  let mockUnlockSymbol;
-  let mockGetAPILimit;
 
   let mockGetSymbolConfiguration;
   let mockGetSymbolInfo;
@@ -31,14 +27,13 @@ describe('trailingTrade', () => {
   let mockPlaceSellStopLossOrder;
   let mockRemoveLastBuyPrice;
   let mockSaveDataToCache;
+  let mockErrorHandlerWrapper;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
 
     mockLoggerInfo = jest.fn();
     mockSlackSendMessage = jest.fn().mockResolvedValue(true);
-
-    mockGetAPILimit = jest.fn().mockReturnValue(10);
 
     logger.info = mockLoggerInfo;
     jest.mock('../../helpers', () => ({
@@ -51,12 +46,20 @@ describe('trailingTrade', () => {
       },
       slack: { sendMessage: mockSlackSendMessage }
     }));
+
+    mockErrorHandlerWrapper = jest
+      .fn()
+      .mockImplementation((_logger, _job, callback) =>
+        Promise.resolve(callback())
+      );
+
+    jest.mock('../../error-handler', () => ({
+      errorHandlerWrapper: mockErrorHandlerWrapper
+    }));
   });
 
   describe('without any error', () => {
     beforeEach(() => {
-      jest.clearAllMocks().resetModules();
-
       mockConfigGet = jest.fn(key => {
         if (key === 'featureToggle') {
           return {
@@ -70,11 +73,7 @@ describe('trailingTrade', () => {
         get: mockConfigGet
       }));
 
-      mockLockSymbol = jest.fn().mockResolvedValue(true);
       mockIsSymbolLocked = jest.fn().mockResolvedValue(false);
-      mockUnlockSymbol = jest.fn().mockResolvedValue(true);
-
-      mockCacheExchangeSymbols = jest.fn().mockResolvedValue(true);
 
       mockGetAccountInfo = jest.fn().mockResolvedValue({
         account: 'info'
@@ -253,12 +252,8 @@ describe('trailingTrade', () => {
         }));
 
       jest.mock('../trailingTradeHelper/common', () => ({
-        cacheExchangeSymbols: mockCacheExchangeSymbols,
         getAccountInfo: mockGetAccountInfo,
-        lockSymbol: mockLockSymbol,
-        isSymbolLocked: mockIsSymbolLocked,
-        unlockSymbol: mockUnlockSymbol,
-        getAPILimit: mockGetAPILimit
+        isSymbolLocked: mockIsSymbolLocked
       }));
 
       jest.mock('../trailingTrade/steps', () => ({
@@ -429,8 +424,6 @@ describe('trailingTrade', () => {
 
   describe('when symbol is locked', () => {
     beforeEach(async () => {
-      jest.clearAllMocks().resetModules();
-
       mockConfigGet = jest.fn(key => {
         if (key === 'featureToggle') {
           return {
@@ -444,11 +437,7 @@ describe('trailingTrade', () => {
         get: mockConfigGet
       }));
 
-      mockLockSymbol = jest.fn().mockResolvedValue(true);
       mockIsSymbolLocked = jest.fn().mockResolvedValue(true);
-      mockUnlockSymbol = jest.fn().mockResolvedValue(true);
-
-      mockCacheExchangeSymbols = jest.fn().mockResolvedValue(true);
 
       mockGetAccountInfo = jest.fn().mockResolvedValue({
         account: 'info'
@@ -627,12 +616,8 @@ describe('trailingTrade', () => {
         }));
 
       jest.mock('../trailingTradeHelper/common', () => ({
-        cacheExchangeSymbols: mockCacheExchangeSymbols,
         getAccountInfo: mockGetAccountInfo,
-        lockSymbol: mockLockSymbol,
-        isSymbolLocked: mockIsSymbolLocked,
-        unlockSymbol: mockUnlockSymbol,
-        getAPILimit: mockGetAPILimit
+        isSymbolLocked: mockIsSymbolLocked
       }));
 
       jest.mock('../trailingTrade/steps', () => ({
@@ -702,101 +687,101 @@ describe('trailingTrade', () => {
         );
       });
     });
-  });
 
-  describe('execute trailing trade for ETHUSDT', () => {
-    beforeEach(async () => {
-      const { execute: trailingTradeExecute } = require('../trailingTrade');
-      await trailingTradeExecute(logger, 'ETHUSDT');
-    });
+    describe('execute trailing trade for ETHUSDT', () => {
+      beforeEach(async () => {
+        const { execute: trailingTradeExecute } = require('../trailingTrade');
+        await trailingTradeExecute(logger, 'ETHUSDT');
+      });
 
-    it(`triggers isSymbolLocked - ETHUSDT`, () => {
-      expect(mockIsSymbolLocked).toHaveBeenCalledWith(logger, 'ETHUSDT');
-    });
+      it(`triggers isSymbolLocked - ETHUSDT`, () => {
+        expect(mockIsSymbolLocked).toHaveBeenCalledWith(logger, 'ETHUSDT');
+      });
 
-    it('returns expected result for ETHUSDT', async () => {
-      expect(mockLoggerInfo).toHaveBeenCalledWith(
-        {
-          symbol: 'ETHUSDT',
-          data: {
+      it('returns expected result for ETHUSDT', async () => {
+        expect(mockLoggerInfo).toHaveBeenCalledWith(
+          {
             symbol: 'ETHUSDT',
-            isLocked: true,
-            featureToggle: { feature1Enabled: false },
-            accountInfo: { account: 'info' },
-            symbolConfiguration: { symbol: 'configuration data' },
-            symbolInfo: { symbol: 'info' },
-            overrideAction: { action: 'override-action' },
-            ensureManualOrder: { ensured: 'manual-buy-order' },
-            ensureGridTradeOrder: { ensured: 'grid-trade' },
-            baseAssetBalance: { baseAsset: 'balance' },
-            quoteAssetBalance: { quoteAsset: 'balance' },
-            openOrders: [{ orderId: 'order-id-ETHUSDT', symbol: 'ETHUSDT' }],
-            lastCandle: { got: 'lowest value' },
-            indicators: { some: 'value' },
-            buy: { should: 'buy?', actioned: 'yes' },
-            sell: { should: 'sell?', actioned: 'yes' },
-            handled: 'open-orders',
-            action: 'determined',
-            placeManualTrade: { placed: 'manual-trade' },
-            cancelOrder: { cancelled: 'existing-order' },
-            stopLoss: 'processed',
-            removed: 'last-buy-price',
-            order: {},
-            canDisable: true,
-            saveToCache: true,
-            saved: 'data-to-cache'
-          }
-        },
-        'TrailingTrade: Finish process...'
-      );
-    });
-  });
-
-  describe('execute trailing trade for LTCUSDT', () => {
-    beforeEach(async () => {
-      const { execute: trailingTradeExecute } = require('../trailingTrade');
-      await trailingTradeExecute(logger, 'LTCUSDT');
+            data: {
+              symbol: 'ETHUSDT',
+              isLocked: true,
+              featureToggle: { feature1Enabled: false },
+              accountInfo: { account: 'info' },
+              symbolConfiguration: { symbol: 'configuration data' },
+              symbolInfo: { symbol: 'info' },
+              overrideAction: { action: 'override-action' },
+              ensureManualOrder: { ensured: 'manual-buy-order' },
+              ensureGridTradeOrder: { ensured: 'grid-trade' },
+              baseAssetBalance: { baseAsset: 'balance' },
+              quoteAssetBalance: { quoteAsset: 'balance' },
+              openOrders: [{ orderId: 'order-id-ETHUSDT', symbol: 'ETHUSDT' }],
+              lastCandle: { got: 'lowest value' },
+              indicators: { some: 'value' },
+              buy: { should: 'buy?', actioned: 'yes' },
+              sell: { should: 'sell?', actioned: 'yes' },
+              handled: 'open-orders',
+              action: 'determined',
+              placeManualTrade: { placed: 'manual-trade' },
+              cancelOrder: { cancelled: 'existing-order' },
+              stopLoss: 'processed',
+              removed: 'last-buy-price',
+              order: {},
+              canDisable: true,
+              saveToCache: true,
+              saved: 'data-to-cache'
+            }
+          },
+          'TrailingTrade: Finish process...'
+        );
+      });
     });
 
-    it(`triggers isSymbolLocked - LTCUSDT`, () => {
-      expect(mockIsSymbolLocked).toHaveBeenCalledWith(logger, 'LTCUSDT');
-    });
+    describe('execute trailing trade for LTCUSDT', () => {
+      beforeEach(async () => {
+        const { execute: trailingTradeExecute } = require('../trailingTrade');
+        await trailingTradeExecute(logger, 'LTCUSDT');
+      });
 
-    it('returns expected result for ETHUSDT', () => {
-      expect(mockLoggerInfo).toHaveBeenCalledWith(
-        {
-          symbol: 'LTCUSDT',
-          data: {
+      it(`triggers isSymbolLocked - LTCUSDT`, () => {
+        expect(mockIsSymbolLocked).toHaveBeenCalledWith(logger, 'LTCUSDT');
+      });
+
+      it('returns expected result for ETHUSDT', () => {
+        expect(mockLoggerInfo).toHaveBeenCalledWith(
+          {
             symbol: 'LTCUSDT',
-            isLocked: true,
-            featureToggle: { feature1Enabled: false },
-            accountInfo: { account: 'info' },
-            symbolConfiguration: { symbol: 'configuration data' },
-            symbolInfo: { symbol: 'info' },
-            overrideAction: { action: 'override-action' },
-            ensureManualOrder: { ensured: 'manual-buy-order' },
-            ensureGridTradeOrder: { ensured: 'grid-trade' },
-            baseAssetBalance: { baseAsset: 'balance' },
-            quoteAssetBalance: { quoteAsset: 'balance' },
-            openOrders: [{ orderId: 'order-id-LTCUSDT', symbol: 'LTCUSDT' }],
-            lastCandle: { got: 'lowest value' },
-            indicators: { some: 'value' },
-            buy: { should: 'buy?', actioned: 'yes' },
-            sell: { should: 'sell?', actioned: 'yes' },
-            handled: 'open-orders',
-            action: 'determined',
-            placeManualTrade: { placed: 'manual-trade' },
-            cancelOrder: { cancelled: 'existing-order' },
-            stopLoss: 'processed',
-            removed: 'last-buy-price',
-            order: {},
-            canDisable: true,
-            saveToCache: true,
-            saved: 'data-to-cache'
-          }
-        },
-        'TrailingTrade: Finish process...'
-      );
+            data: {
+              symbol: 'LTCUSDT',
+              isLocked: true,
+              featureToggle: { feature1Enabled: false },
+              accountInfo: { account: 'info' },
+              symbolConfiguration: { symbol: 'configuration data' },
+              symbolInfo: { symbol: 'info' },
+              overrideAction: { action: 'override-action' },
+              ensureManualOrder: { ensured: 'manual-buy-order' },
+              ensureGridTradeOrder: { ensured: 'grid-trade' },
+              baseAssetBalance: { baseAsset: 'balance' },
+              quoteAssetBalance: { quoteAsset: 'balance' },
+              openOrders: [{ orderId: 'order-id-LTCUSDT', symbol: 'LTCUSDT' }],
+              lastCandle: { got: 'lowest value' },
+              indicators: { some: 'value' },
+              buy: { should: 'buy?', actioned: 'yes' },
+              sell: { should: 'sell?', actioned: 'yes' },
+              handled: 'open-orders',
+              action: 'determined',
+              placeManualTrade: { placed: 'manual-trade' },
+              cancelOrder: { cancelled: 'existing-order' },
+              stopLoss: 'processed',
+              removed: 'last-buy-price',
+              order: {},
+              canDisable: true,
+              saveToCache: true,
+              saved: 'data-to-cache'
+            }
+          },
+          'TrailingTrade: Finish process...'
+        );
+      });
     });
   });
 });

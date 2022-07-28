@@ -5,6 +5,7 @@ const {
   getCachedExchangeSymbols
 } = require('../cronjob/trailingTradeHelper/common');
 const { executeTrailingTrade } = require('../cronjob');
+const { errorHandlerWrapper } = require('../error-handler');
 
 let websocketTickersClean = {};
 
@@ -41,29 +42,32 @@ const setupTickersWebsocket = async (logger, symbols) => {
     websocketTickersClean[monitoringSymbol] = binance.client.ws.miniTicker(
       monitoringSymbol,
       ticker => {
-        const { eventType, eventTime, curDayClose: close, symbol } = ticker;
-        // // Record last received date/time
-        // lastReceivedAt = moment();
+        errorHandlerWrapper(logger, 'Tickers', async () => {
+          const { eventType, eventTime, curDayClose: close, symbol } = ticker;
 
-        // Save latest candle for the symbol
-        cache.hset(
-          'trailing-trade-symbols',
-          `${symbol}-latest-candle`,
-          JSON.stringify({
-            eventType,
-            eventTime,
-            symbol,
-            close
-          })
-        );
+          // Save latest candle for the symbol
+          await cache.hset(
+            'trailing-trade-symbols',
+            `${symbol}-latest-candle`,
+            JSON.stringify({
+              eventType,
+              eventTime,
+              symbol,
+              close
+            })
+          );
 
-        const canExecuteTrailingTrade = symbols.includes(monitoringSymbol);
+          const canExecuteTrailingTrade = symbols.includes(monitoringSymbol);
 
-        logger.info({ ticker, canExecuteTrailingTrade }, 'Received new ticker');
+          logger.info(
+            { ticker, canExecuteTrailingTrade },
+            'Received new ticker'
+          );
 
-        if (canExecuteTrailingTrade) {
-          executeTrailingTrade(logger, monitoringSymbol);
-        }
+          if (canExecuteTrailingTrade) {
+            executeTrailingTrade(logger, monitoringSymbol);
+          }
+        });
       }
     );
   }

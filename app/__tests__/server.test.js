@@ -38,7 +38,7 @@ describe('server', () => {
     require('../server');
   });
 
-  it('triggers errorHandler.run', () => {
+  it('triggers runErrorHandler', () => {
     expect(mockRunErrorHandler).toHaveBeenCalled();
   });
 
