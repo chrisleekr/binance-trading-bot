@@ -13,7 +13,7 @@ const execute = async (_logger, rawData) => {
 
   const { quoteAsset } = symbolInfo;
 
-  await cache.hset(
+  cache.hset(
     'trailing-trade-closed-trades',
     `${quoteAsset}`,
     JSON.stringify(closedTrades)
