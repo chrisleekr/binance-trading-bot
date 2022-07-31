@@ -1,8 +1,12 @@
 /* eslint-disable max-classes-per-file */
 /* eslint-disable global-require */
-const { logger } = require('../../helpers');
+const { logger, cache } = require('../../helpers');
 
 describe('trailingTrade', () => {
+  let mockCacheHget;
+  let mockCacheHset;
+  let mockCacheHdel;
+
   let mockLoggerInfo;
   let mockSlackSendMessage;
   let mockConfigGet;
@@ -35,6 +39,10 @@ describe('trailingTrade', () => {
     mockLoggerInfo = jest.fn();
     mockSlackSendMessage = jest.fn().mockResolvedValue(true);
 
+    mockCacheHget = jest.fn().mockResolvedValue(null);
+    mockCacheHset = jest.fn().mockResolvedValue(true);
+    mockCacheHdel = jest.fn().mockResolvedValue(true);
+
     logger.info = mockLoggerInfo;
     jest.mock('../../helpers', () => ({
       logger: {
@@ -44,7 +52,8 @@ describe('trailingTrade', () => {
         debug: jest.fn(),
         child: jest.fn()
       },
-      slack: { sendMessage: mockSlackSendMessage }
+      slack: { sendMessage: mockSlackSendMessage },
+      cache: { hget: mockCacheHget, hset: mockCacheHset, hdel: mockCacheHdel }
     }));
 
     mockErrorHandlerWrapper = jest
@@ -418,6 +427,27 @@ describe('trailingTrade', () => {
           },
           'TrailingTrade: Finish process...'
         );
+      });
+    });
+
+    describe('when there is existing running executeTrailingTrade for a symbol', () => {
+      beforeEach(async () => {
+        mockCacheHget = jest.fn().mockResolvedValue('true');
+
+        const { execute: trailingTradeExecute } = require('../trailingTrade');
+        await trailingTradeExecute(logger, 'LTCUSDT');
+      });
+
+      it(`does not trigger cache.hset`, () => {
+        expect(mockCacheHset).not.toHaveBeenCalled();
+      });
+
+      it(`does not trigger getAccountInfo`, () => {
+        expect(mockGetAccountInfo).not.toHaveBeenCalled();
+      });
+
+      it(`does not trigger isSymbolLocked`, () => {
+        expect(mockIsSymbolLocked).not.toHaveBeenCalled();
       });
     });
   });

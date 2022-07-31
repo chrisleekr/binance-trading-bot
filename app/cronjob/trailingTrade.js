@@ -25,11 +25,19 @@ const {
   saveDataToCache
 } = require('./trailingTrade/steps');
 const { errorHandlerWrapper } = require('../error-handler');
+const { cache } = require('../helpers');
 
 const execute = async (rawLogger, symbol) => {
   const logger = rawLogger.child({ jobName: 'trailingTrade' });
 
   await errorHandlerWrapper(logger, 'Trailing Trade', async () => {
+    if ((await cache.hget(`execute-trailing-trade`, symbol)) === 'true') {
+      // do nothing, there is another execution task running
+      return;
+    }
+
+    await cache.hset(`execute-trailing-trade`, symbol, true);
+
     // Retrieve account info from cache
     const accountInfo = await getAccountInfo(logger);
 
@@ -156,6 +164,8 @@ const execute = async (rawLogger, symbol) => {
     logger.info({ symbol }, '⏹ TrailingTrade: Finish process (Debug)...');
 
     logger.info({ symbol, data }, 'TrailingTrade: Finish process...');
+
+    await cache.hdel(`execute-trailing-trade`, symbol);
   });
 };
 
