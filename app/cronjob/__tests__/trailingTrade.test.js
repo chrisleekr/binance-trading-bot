@@ -1,6 +1,6 @@
 /* eslint-disable max-classes-per-file */
 /* eslint-disable global-require */
-const { logger, cache } = require('../../helpers');
+const { logger } = require('../../helpers');
 
 describe('trailingTrade', () => {
   let mockCacheHget;
