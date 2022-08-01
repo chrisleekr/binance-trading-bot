@@ -75,8 +75,8 @@ class CoinWrapperAction extends React.Component {
       );
     }
 
-    const updatedAt = moment.utc(buy.updatedAt, 'YYYY-MM-DDTHH:mm:ss.SSSSSS');
-    const currentTime = moment.utc();
+    const updatedAt = moment.utc(buy.updatedAt, 'YYYY-MM-DDTHH:mm:ss.SSSSSS').local();
+    const currentTime = moment.utc().local();
 
     return (
       <div className='coin-info-sub-wrapper'>
