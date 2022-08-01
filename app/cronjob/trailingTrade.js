@@ -36,7 +36,7 @@ const execute = async (rawLogger, symbol) => {
       return;
     }
 
-    await cache.hset(`execute-trailing-trade`, symbol, true);
+    await cache.hset(`execute-trailing-trade`, symbol, true, 5);
 
     // Retrieve account info from cache
     const accountInfo = await getAccountInfo(logger);
