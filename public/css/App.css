@@ -988,6 +988,11 @@ input[type='number'] {
   background-color: #272b38;
   border-color: #343a40;
 }
+
+.pagination .page-item {
+  min-width: 2rem;
+  text-align: center;
+}
 /**
   End: Pagination
 */
