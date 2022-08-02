@@ -1,4 +1,5 @@
 /* eslint-disable global-require */
+// eslint-disable-next-line max-classes-per-file
 describe('error-handler', () => {
   let config;
 
@@ -29,70 +30,127 @@ describe('error-handler', () => {
     process.on = jest.fn().mockReturnValue(true);
   });
 
-  describe('triggers process.on', () => {
-    beforeEach(() => {
-      const { runErrorHandler } = require('../error-handler');
-      runErrorHandler(mockLogger);
+  describe('errorHandlerWrapper', () => {
+    [
+      {
+        label: 'Error -1001',
+        code: -1001,
+        sendSlack: false,
+        featureToggleNotifyDebug: false
+      },
+      {
+        label: 'Error -1021',
+        code: -1021,
+        sendSlack: false,
+        featureToggleNotifyDebug: true
+      },
+      {
+        label: 'Error ECONNRESET',
+        code: 'ECONNRESET',
+        sendSlack: false,
+        featureToggleNotifyDebug: false
+      },
+      {
+        label: 'Error ECONNREFUSED',
+        code: 'ECONNREFUSED',
+        sendSlack: false,
+        featureToggleNotifyDebug: true
+      },
+      {
+        label: 'Error something else - with notify debug',
+        code: 'something',
+        sendSlack: true,
+        featureToggleNotifyDebug: true
+      },
+      {
+        label: 'Error something else - without notify debug',
+        code: 'something',
+        sendSlack: true,
+        featureToggleNotifyDebug: false
+      }
+    ].forEach(errorInfo => {
+      describe(`${errorInfo.label}`, () => {
+        beforeEach(async () => {
+          config.get = jest.fn(key => {
+            if (key === 'featureToggle.notifyDebug') {
+              return errorInfo.featureToggleNotifyDebug;
+            }
+            return null;
+          });
+
+          const { errorHandlerWrapper } = require('../error-handler');
+          await errorHandlerWrapper(mockLogger, 'WhateverJob', () => {
+            throw new (class CustomError extends Error {
+              constructor() {
+                super();
+                this.code = errorInfo.code;
+                this.message = `${errorInfo.code}`;
+              }
+            })();
+          });
+        });
+
+        if (errorInfo.sendSlack) {
+          it('triggers slack.sendMessage', () => {
+            expect(mockSlack.sendMessage).toHaveBeenCalled();
+          });
+        } else {
+          it('does not trigger slack.sendMessage', () => {
+            expect(mockSlack.sendMessage).not.toHaveBeenCalled();
+          });
+        }
+      });
     });
 
-    it('with unhandledRejection', () => {
-      expect(process.on).toHaveBeenCalledWith(
-        'unhandledRejection',
-        expect.any(Function)
-      );
-    });
+    describe(`redlock error`, () => {
+      beforeEach(async () => {
+        config.get = jest.fn(_key => null);
 
-    it('with uncaughtException', () => {
-      expect(process.on).toHaveBeenCalledWith(
-        'uncaughtException',
-        expect.any(Function)
-      );
+        const { errorHandlerWrapper } = require('../error-handler');
+        await errorHandlerWrapper(mockLogger, 'WhateverJob', () => {
+          throw new (class CustomError extends Error {
+            constructor() {
+              super();
+              this.code = 500;
+              this.message = `redlock:lock-XRPBUSD`;
+            }
+          })();
+        });
+      });
+
+      it('do not trigger slack.sendMessagage', () => {
+        expect(mockSlack.sendMessage).not.toHaveBeenCalled();
+      });
     });
   });
 
-  [
-    {
-      label: 'Error -1001',
-      code: -1001,
-      sendSlack: false,
-      featureToggleNotifyDebug: false
-    },
-    {
-      label: 'Error -1021',
-      code: -1021,
-      sendSlack: false,
-      featureToggleNotifyDebug: true
-    },
-    {
-      label: 'Error ECONNRESET',
-      code: 'ECONNRESET',
-      sendSlack: false,
-      featureToggleNotifyDebug: false
-    },
-    {
-      label: 'Error ECONNREFUSED',
-      code: 'ECONNREFUSED',
-      sendSlack: false,
-      featureToggleNotifyDebug: true
-    },
-    {
-      label: 'Error something else - with notify debug',
-      code: 'something',
-      sendSlack: true,
-      featureToggleNotifyDebug: true
-    },
-    {
-      label: 'Error something else - without notify debug',
-      code: 'something',
-      sendSlack: true,
-      featureToggleNotifyDebug: false
-    }
-  ].forEach(errorInfo => {
-    describe(`${errorInfo.label}`, () => {
+  describe('runErrorHandler', () => {
+    describe('triggers process.on', () => {
+      beforeEach(() => {
+        const { runErrorHandler } = require('../error-handler');
+        runErrorHandler(mockLogger);
+      });
+
+      it('with unhandledRejection', () => {
+        expect(process.on).toHaveBeenCalledWith(
+          'unhandledRejection',
+          expect.any(Function)
+        );
+      });
+
+      it('with uncaughtException', () => {
+        expect(process.on).toHaveBeenCalledWith(
+          'uncaughtException',
+          expect.any(Function)
+        );
+      });
+    });
+
+    describe(`when uncaughtException received without notifyDebug`, () => {
       beforeEach(async () => {
         config.get = jest.fn(key => {
           if (key === 'featureToggle.notifyDebug') {
-            return errorInfo.featureToggleNotifyDebug;
+            return false;
           }
           return null;
         });
@@ -100,9 +158,8 @@ describe('error-handler', () => {
         process.on = jest.fn().mockImplementation((event, error) => {
           if (event === 'uncaughtException') {
             error({
-              message: errorInfo.label,
-              code: errorInfo.code,
-              stack: errorInfo.code
+              message: `something-unexpected`,
+              code: 1000
             });
           }
         });
@@ -111,53 +168,54 @@ describe('error-handler', () => {
         runErrorHandler(mockLogger);
       });
 
-      if (errorInfo.sendSlack) {
-        it('triggers slack.sendMessage', () => {
-          expect(mockSlack.sendMessage).toHaveBeenCalled();
-        });
-      } else {
-        it('does not trigger slack.sendMessage', () => {
-          expect(mockSlack.sendMessage).not.toHaveBeenCalled();
-        });
-      }
-    });
-  });
-
-  describe(`redlock error`, () => {
-    beforeEach(async () => {
-      process.on = jest.fn().mockImplementation((event, error) => {
-        if (event === 'uncaughtException') {
-          error({
-            message: `redlock:bot-lock:XRPBUSD`,
-            code: 500
-          });
-        }
+      it('triggers slack.sendMessage', () => {
+        expect(mockSlack.sendMessage).toHaveBeenCalled();
       });
-
-      const { runErrorHandler } = require('../error-handler');
-      runErrorHandler(mockLogger);
     });
 
-    it('do not trigger slack.sendMessagage', () => {
-      expect(mockSlack.sendMessage).not.toHaveBeenCalled();
-    });
-  });
+    describe(`when uncaughtException received with notifyDebug`, () => {
+      beforeEach(async () => {
+        config.get = jest.fn(key => {
+          if (key === 'featureToggle.notifyDebug') {
+            return true;
+          }
+          return null;
+        });
 
-  describe(`any warning received on unhandledRejection`, () => {
-    it('do not trigger slack.sendMessage', async () => {
-      expect(() => {
         process.on = jest.fn().mockImplementation((event, error) => {
-          if (event === 'unhandledRejection') {
+          if (event === 'uncaughtException') {
             error({
-              message: `redlock:bot-lock:XRPBUSD`,
-              code: 500
+              message: `something-unexpected`,
+              code: 1000
             });
           }
         });
 
         const { runErrorHandler } = require('../error-handler');
         runErrorHandler(mockLogger);
-      }).toThrow(`redlock:bot-lock:XRPBUSD`);
+      });
+
+      it('triggers slack.sendMessage', () => {
+        expect(mockSlack.sendMessage).toHaveBeenCalled();
+      });
+    });
+
+    describe(`when unhandledRejection received`, () => {
+      it('throws an error', async () => {
+        expect(() => {
+          process.on = jest.fn().mockImplementation((event, error) => {
+            if (event === 'unhandledRejection') {
+              error({
+                message: `something-unhandled`,
+                code: 2000
+              });
+            }
+          });
+
+          const { runErrorHandler } = require('../error-handler');
+          runErrorHandler(mockLogger);
+        }).toThrow(`something-unhandled`);
+      });
     });
   });
 });

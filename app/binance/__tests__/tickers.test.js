@@ -10,9 +10,20 @@ describe('tickers.js', () => {
   let mockExecuteTrailingTrade;
 
   let mockWebsocketTickersClean;
+  let mockErrorHandlerWrapper;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
+
+    mockErrorHandlerWrapper = jest
+      .fn()
+      .mockImplementation((_logger, _job, callback) =>
+        Promise.resolve(callback())
+      );
+
+    jest.mock('../../error-handler', () => ({
+      errorHandlerWrapper: mockErrorHandlerWrapper
+    }));
   });
 
   describe('setupTickersWebsocket', () => {

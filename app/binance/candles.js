@@ -58,7 +58,7 @@ const setupCandlesWebsocket = async (logger, symbols) => {
 };
 
 /**
- * Retrieve ATH candles for symbols from Binance API
+ * Retrieve candles for symbols from Binance API
  *
  * @param {*} logger
  * @param {string[]} symbols

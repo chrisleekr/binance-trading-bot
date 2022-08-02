@@ -76,7 +76,10 @@ const handleLatest = async (logger, ws, payload) => {
     stats => JSON.parse(stats)
   );
 
-  const streamsCount = await cache.hget('trailing-trade-streams', 'count');
+  const streamsCount = await cache.hgetWithoutLock(
+    'trailing-trade-streams',
+    'count'
+  );
 
   const stats = {
     symbols: await Promise.all(

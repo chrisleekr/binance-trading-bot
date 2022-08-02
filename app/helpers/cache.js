@@ -16,15 +16,15 @@ const redlock = new Redlock([redis], {
 
   // the max number of times Redlock will attempt
   // to lock a resource before erroring
-  retryCount: 1,
+  retryCount: 4,
 
   // the time in ms between attempts
-  retryDelay: 10, // time in ms
+  retryDelay: 200, // time in ms
 
   // the max time in ms randomly added to retries
   // to improve performance under high contention
   // see https://www.awsarchitectureblog.com/2015/03/backoff.html
-  retryJitter: 10 // time in ms
+  retryJitter: 200 // time in ms
 });
 
 /**

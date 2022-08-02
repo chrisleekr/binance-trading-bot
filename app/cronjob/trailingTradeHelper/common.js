@@ -11,26 +11,11 @@ const isValidCachedExchangeSymbols = exchangeSymbols =>
     null
   ) !== null;
 
-/**
- * Retreive cached exhcnage symbols.
- *  If not cached, retrieve exchange info from API and cache it.
- *
- * @param {*} logger
- */
-const cacheExchangeSymbols = async logger => {
-  const cachedExchangeSymbols =
-    JSON.parse(await cache.hget('trailing-trade-common', 'exchange-symbols')) ||
-    {};
-  // If there is already cached exchange symbols, don't need to cache again.
-  if (
-    _.isEmpty(cachedExchangeSymbols) === false &&
-    // For backward compatibility, verify the cached value is valid.
-    isValidCachedExchangeSymbols(cachedExchangeSymbols) === true
-  ) {
-    return;
-  }
+const getCachedExchangeSymbols = async _logger =>
+  JSON.parse(await cache.hget('trailing-trade-common', 'exchange-symbols')) ||
+  {};
 
-  // Retrieve cached exchange information
+const getCachedExchangeInfo = async logger => {
   const cachedExchangeInfo =
     JSON.parse(await cache.hget('trailing-trade-common', 'exchange-info')) ||
     {};
@@ -49,6 +34,29 @@ const cacheExchangeSymbols = async logger => {
       3600
     );
   }
+
+  return exchangeInfo;
+};
+
+/**
+ * Retreive cached exhcnage symbols.
+ *  If not cached, retrieve exchange info from API and cache it.
+ *
+ * @param {*} logger
+ */
+const cacheExchangeSymbols = async logger => {
+  const cachedExchangeSymbols = await getCachedExchangeSymbols(logger);
+  // If there is already cached exchange symbols, don't need to cache again.
+  if (
+    _.isEmpty(cachedExchangeSymbols) === false &&
+    // For backward compatibility, verify the cached value is valid.
+    isValidCachedExchangeSymbols(cachedExchangeSymbols) === true
+  ) {
+    return;
+  }
+
+  // Retrieve cached exchange information
+  const exchangeInfo = await getCachedExchangeInfo(logger);
 
   logger.info('Retrieved exchange info from API');
 
@@ -76,10 +84,6 @@ const cacheExchangeSymbols = async logger => {
 
   logger.info({ exchangeSymbols }, 'Saved exchange symbols to cache');
 };
-
-const getCachedExchangeSymbols = async _logger =>
-  JSON.parse(await cache.hget('trailing-trade-common', 'exchange-symbols')) ||
-  {};
 
 /**
  * Add estimatedBTC and canDustTransfer flags to balance
@@ -570,25 +574,7 @@ const getSymbolInfo = async (logger, symbol) => {
     return cachedSymbolInfo;
   }
 
-  const cachedExchangeInfo =
-    JSON.parse(await cache.hget('trailing-trade-common', 'exchange-info')) ||
-    {};
-
-  let exchangeInfo = cachedExchangeInfo;
-  if (_.isEmpty(cachedExchangeInfo) === true) {
-    logger.info(
-      { function: 'exchangeInfo' },
-      'Request exchange info from Binance.'
-    );
-    exchangeInfo = await binance.client.exchangeInfo();
-
-    await cache.hset(
-      'trailing-trade-common',
-      'exchange-info',
-      JSON.stringify(exchangeInfo),
-      3600
-    );
-  }
+  const exchangeInfo = await getCachedExchangeInfo(logger);
 
   logger.info({}, 'Retrieved exchange info.');
   const symbolInfo = _.filter(
@@ -626,7 +612,7 @@ const getSymbolInfo = async (logger, symbol) => {
     'filterMinNotional'
   ]);
 
-  cache.hset(
+  await cache.hset(
     'trailing-trade-symbols',
     `${symbol}-symbol-info`,
     JSON.stringify(finalSymbolInfo),
@@ -914,6 +900,7 @@ const getCacheTrailingTradeSymbols = async (
 
   const sortBy = sortByParam || 'default';
   const sortDirection = sortByDesc === true ? -1 : 1;
+  const pageNum = _.toNumber(page) >= 1 ? _.toNumber(page) : 1;
 
   logger.info({ sortBy, sortDirection }, 'latest');
 
@@ -1027,7 +1014,7 @@ const getCacheTrailingTradeSymbols = async (
       }
     },
     { $sort: { sortField: sortDirection } },
-    { $skip: (page - 1) * symbolsPerPage },
+    { $skip: (pageNum - 1) * symbolsPerPage },
     { $limit: symbolsPerPage }
   ];
 
@@ -1084,6 +1071,7 @@ const getCacheTrailingTradeQuoteEstimates = logger =>
 module.exports = {
   cacheExchangeSymbols,
   getCachedExchangeSymbols,
+  getCachedExchangeInfo,
   getAccountInfoFromAPI,
   getAccountInfo,
   extendBalancesWithDustTransfer,

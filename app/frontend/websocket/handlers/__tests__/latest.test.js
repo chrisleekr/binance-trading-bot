@@ -18,7 +18,7 @@ describe('latest.test.js', () => {
   let mockWebSocketServerWebSocketSend;
 
   let mockConfigGet;
-  let mockCacheHGet;
+  let mockCacheHGetWithoutLock;
   let mockCacheHGetAll;
   let mockPubSubPublish;
   let mockBinanceClientGetInfo;
@@ -47,7 +47,7 @@ describe('latest.test.js', () => {
 
     mockGetCacheTrailingTradeQuoteEstimates = jest.fn().mockResolvedValue([]);
 
-    mockCacheHGet = jest.fn().mockResolvedValue(6);
+    mockCacheHGetWithoutLock = jest.fn().mockResolvedValue(6);
 
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
@@ -135,7 +135,7 @@ describe('latest.test.js', () => {
         },
         cache: {
           hgetall: mockCacheHGetAll,
-          hget: mockCacheHGet
+          hgetWithoutLock: mockCacheHGetWithoutLock
         },
         config: {
           get: mockConfigGet
@@ -331,7 +331,7 @@ describe('latest.test.js', () => {
           },
           cache: {
             hgetall: mockCacheHGetAll,
-            hget: mockCacheHGet
+            hgetWithoutLock: mockCacheHGetWithoutLock
           },
           config: {
             get: mockConfigGet
@@ -410,7 +410,7 @@ describe('latest.test.js', () => {
           },
           cache: {
             hgetall: mockCacheHGetAll,
-            hget: mockCacheHGet
+            hgetWithoutLock: mockCacheHGetWithoutLock
           },
           config: {
             get: mockConfigGet
@@ -490,7 +490,7 @@ describe('latest.test.js', () => {
           },
           cache: {
             hgetall: mockCacheHGetAll,
-            hget: mockCacheHGet
+            hgetWithoutLock: mockCacheHGetWithoutLock
           },
           config: {
             get: mockConfigGet

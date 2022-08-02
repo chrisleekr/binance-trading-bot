@@ -510,6 +510,61 @@ describe('common.js', () => {
     });
   });
 
+  describe('getCachedExchangeInfo', () => {
+    describe('when exchange info is not null', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+
+        cacheMock.hget = jest
+          .fn()
+          .mockResolvedValue(
+            JSON.stringify(require('./fixtures/binance-exchange-info.json'))
+          );
+
+        commonHelper = require('../common');
+        result = await commonHelper.getCachedExchangeInfo(logger);
+      });
+
+      it('triggers cache.hget', () => {
+        expect(cacheMock.hget).toHaveBeenCalledWith(
+          'trailing-trade-common',
+          'exchange-info'
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual(
+          require('./fixtures/binance-exchange-info.json')
+        );
+      });
+    });
+    describe('when exchange info is null', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        cacheMock = cache;
+
+        cacheMock.hget = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.getCachedExchangeSymbols(logger);
+      });
+
+      it('triggers cache.hget', () => {
+        expect(cacheMock.hget).toHaveBeenCalledWith(
+          'trailing-trade-common',
+          'exchange-symbols'
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual({});
+      });
+    });
+  });
+
   describe('getAccountInfo', () => {
     describe('when there is cached account information', () => {
       beforeEach(async () => {
@@ -2695,6 +2750,7 @@ describe('common.js', () => {
         sortByDesc: false,
         sortByParam: null,
         searchKeyword: 'BTC',
+        page: 2,
         sortField: {
           $cond: {
             if: { $gt: [{ $size: '$buy.openOrders' }, 0] },
@@ -2762,6 +2818,7 @@ describe('common.js', () => {
         sortByDesc: true,
         sortByParam: 'buy-difference',
         searchKeyword: 'BTC',
+        page: 2,
         sortField: {
           $cond: {
             if: {
@@ -2777,6 +2834,7 @@ describe('common.js', () => {
         sortByDesc: false,
         sortByParam: 'buy-difference',
         searchKeyword: 'BTC',
+        page: 2,
         sortField: {
           $cond: {
             if: {
@@ -2792,6 +2850,7 @@ describe('common.js', () => {
         sortByDesc: false,
         sortByParam: 'sell-profit',
         searchKeyword: null,
+        page: 2,
         sortField: {
           $cond: {
             if: {
@@ -2807,6 +2866,7 @@ describe('common.js', () => {
         sortByDesc: true,
         sortByParam: 'sell-profit',
         searchKeyword: null,
+        page: 2,
         sortField: {
           $cond: {
             if: {
@@ -2819,6 +2879,22 @@ describe('common.js', () => {
       },
       {
         desc: 'alpha',
+        sortByDesc: true,
+        sortByParam: 'alpha',
+        searchKeyword: 'ETH',
+        page: 2,
+        sortField: '$symbol'
+      },
+      {
+        desc: 'alpha - incorrect page',
+        sortByDesc: true,
+        sortByParam: 'alpha',
+        searchKeyword: 'ETH',
+        page: -1,
+        sortField: '$symbol'
+      },
+      {
+        desc: 'alpha - no page provided',
         sortByDesc: true,
         sortByParam: 'alpha',
         searchKeyword: 'ETH',
@@ -2839,13 +2915,15 @@ describe('common.js', () => {
             loggerMock,
             t.sortByDesc,
             t.sortByParam,
-            2,
+            t.page,
             10,
             t.searchKeyword
           );
         });
 
         it('triggers mongo.aggregate', () => {
+          const pageNum = _.toNumber(t.page) >= 1 ? _.toNumber(t.page) : 1;
+
           expect(mongoMock.aggregate).toHaveBeenCalledWith(
             loggerMock,
             'trailing-trade-cache',
@@ -2871,7 +2949,7 @@ describe('common.js', () => {
                 }
               },
               { $sort: { sortField: t.sortByDesc ? -1 : 1 } },
-              { $skip: (2 - 1) * 10 },
+              { $skip: (pageNum - 1) * 10 },
               { $limit: 10 }
             ]
           );

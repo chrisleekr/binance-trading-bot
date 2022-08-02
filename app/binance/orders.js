@@ -6,6 +6,7 @@ const {
 const {
   updateGridTradeLastOrder
 } = require('../cronjob/trailingTradeHelper/order');
+const { errorHandlerWrapper } = require('../error-handler');
 
 let openOrdersInterval;
 
@@ -22,31 +23,37 @@ const syncOpenOrders = async (logger, symbols) => {
   }
 
   // We do 40 seconds interval in case one of the orders missed from the websockets
-  openOrdersInterval = setInterval(async () => {
-    const openOrders = await getOpenOrdersFromAPI(logger);
+  openOrdersInterval = setInterval(() => {
+    errorHandlerWrapper(logger, 'Orders', async () => {
+      const openOrders = await getOpenOrdersFromAPI(logger);
 
-    const initializedSymbolOpenOrders = _.reduce(
-      symbols,
-      (obj, symbol) => {
-        // eslint-disable-next-line no-param-reassign
-        obj[symbol] = [];
-        return obj;
-      },
-      {}
-    );
+      const initializedSymbolOpenOrders = _.reduce(
+        symbols,
+        (obj, symbol) => {
+          // eslint-disable-next-line no-param-reassign
+          obj[symbol] = [];
+          return obj;
+        },
+        {}
+      );
 
-    const symbolOpenOrders = _.groupBy(openOrders, 'symbol');
+      const symbolOpenOrders = _.groupBy(openOrders, 'symbol');
 
-    const mergedOpenOrders = _.merge(
-      initializedSymbolOpenOrders,
-      symbolOpenOrders
-    );
+      const mergedOpenOrders = _.merge(
+        initializedSymbolOpenOrders,
+        symbolOpenOrders
+      );
 
-    await Promise.all(
-      _.map(mergedOpenOrders, (orders, symbol) =>
-        cache.hset('trailing-trade-open-orders', symbol, JSON.stringify(orders))
-      )
-    );
+      await Promise.all(
+        _.map(mergedOpenOrders, (orders, symbol) =>
+          cache.hset(
+            'trailing-trade-open-orders',
+            symbol,
+            JSON.stringify(orders)
+          )
+        )
+      );
+    });
   }, 30 * 1310);
 };
 
