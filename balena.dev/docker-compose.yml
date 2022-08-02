@@ -1,4 +1,4 @@
-version: '3.7'
+version: '2.1'
 
 services:
   binance-bot:
@@ -6,17 +6,15 @@ services:
     image: chrisleekr/binance-trading-bot:latest
     networks:
       - internal
-    env_file:
-      - .env
     restart: unless-stopped
     environment:
-      # - BINANCE_MODE=test
-      - BINANCE_MODE=live
+      - BINANCE_MODE=test
       - BINANCE_REDIS_HOST=binance-redis
       - BINANCE_REDIS_PORT=6379
       - BINANCE_REDIS_PASSWORD=secretp422
+
     ports:
-      - 8080:80
+      - 80:80
     logging:
       driver: 'json-file'
       options:
@@ -28,9 +26,6 @@ services:
     networks:
       - internal
     restart: unless-stopped
-    environment:
-      # https://docs.python.org/3/howto/logging.html#logging-levels
-      - TRADINGVIEW_LOG_LEVEL=INFO
     logging:
       driver: 'json-file'
       options:
@@ -38,7 +33,8 @@ services:
 
   binance-redis:
     container_name: binance-redis
-    image: redis:6.2.6
+    build: ./redis
+    image: redis:6.2.6-binance-trading-bot
     sysctls:
       net.core.somaxconn: 1024
     networks:
@@ -46,7 +42,6 @@ services:
     restart: unless-stopped
     volumes:
       - redis_data:/data
-      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
     command: redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
 
   binance-mongo:
