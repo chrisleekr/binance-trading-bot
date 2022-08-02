@@ -1,0 +1,19 @@
+name: BalenaCloud Push
+
+on:
+  push:
+    # Only run workflow for pushes to specific branches
+    branches: [ master ]
+
+jobs:
+  balena-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Balena Deploy
+        uses: kevinnguyenhoang91/balena-cli-action@master
+        if: success()
+        with:
+          balena_api_token: ${{ secrets.BALENA_API_TOKEN }}
+          balena_command: "push ${{ secrets.BALENA_APPLICATION_NAME }} --pull --debug --release-tag type binance-trading-bot --source balena"
