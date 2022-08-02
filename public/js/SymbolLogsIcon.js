@@ -230,7 +230,7 @@ class SymbolLogsIcon extends React.Component {
             <td
               className='text-center align-middle'
               title={moment(row.loggedAt).format()}>
-              {moment(row.loggedAt).format('hh:mm:ss A')}
+              {moment(row.loggedAt).format('HH:mm:ss')}
             </td>
             <td>{row.msg}</td>
             <td className='text-center'>
