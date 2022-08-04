@@ -10,7 +10,8 @@ class ProfitLossWrapper extends React.Component {
       closedTradesLoading: false,
       closedTradesSetting: {},
       selectedPeriod: null,
-      selectedPeriodTZ: null
+      selectedPeriodTZ: null,
+      selectedPeriodLC: null
     };
 
     this.setUpdate = this.setUpdate.bind(this);
@@ -46,14 +47,15 @@ class ProfitLossWrapper extends React.Component {
       });
     }
 
-    const { selectedPeriod, selectedPeriodTZ } = this.state;
-    const { loadedPeriod, loadedPeriodTZ } = this.state.closedTradesSetting;
+    const { selectedPeriod, selectedPeriodTZ, selectedPeriodLC } = this.state;
+    const { loadedPeriod, loadedPeriodTZ, loadedPeriodLC } = this.state.closedTradesSetting;
 
     // Set initial selected period
     if (loadedPeriod !== undefined && selectedPeriod === null) {
       this.setState({
         selectedPeriod: loadedPeriod,
-        selectedPeriodTZ: loadedPeriodTZ
+        selectedPeriodTZ: loadedPeriodTZ,
+        selectedPeriodLC: loadedPeriodLC
       });
     }
 
@@ -83,19 +85,22 @@ class ProfitLossWrapper extends React.Component {
   }
 
   requestClosedTradesSetPeriod() {
-    const { selectedPeriod, selectedPeriodTZ } = this.state;
+    const { selectedPeriod, selectedPeriodTZ, selectedPeriodLC } = this.state;
     return axios.post('/closed-trades-set-period', {
       selectedPeriod,
-      selectedPeriodTZ
+      selectedPeriodTZ,
+      selectedPeriodLC
     });
   }
 
   setSelectedPeriod(newSelectedPeriod) {
     const newSelectedPeriodTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const newSelectedPeriodLC = Intl.DateTimeFormat().resolvedOptions().locale;
     this.setState(
       {
         selectedPeriod: newSelectedPeriod,
         selectedPeriodTZ: newSelectedPeriodTZ,
+        selectedPeriodLC: newSelectedPeriodLC
       }, () =>
       this.requestClosedTradesSetPeriod()
     );

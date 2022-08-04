@@ -1,5 +1,6 @@
 const _ = require('lodash');
 const moment = require('moment-timezone');
+require("moment/min/locales.min");
 const { cache, mongo } = require('../../../helpers');
 /**
  * Get quote asset statistics
@@ -20,22 +21,24 @@ const execute = async (logger, rawData) => {
 
   const selectedPeriod = _.get(closedTradesSetting, 'selectedPeriod', 'a');
   const selectedPeriodTZ = _.get(closedTradesSetting, 'selectedPeriodTZ', 'UTC');
+  const selectedPeriodLC = _.get(closedTradesSetting, 'selectedPeriodLC', 'us');
 
   let start = null;
   let end = null;
 
+  const momentLocale = moment.tz(selectedPeriodTZ).locale(selectedPeriodLC);
   switch (selectedPeriod) {
     case 'd':
-      start =  moment.tz(selectedPeriodTZ).startOf('day').toISOString();
-      end =  moment.tz(selectedPeriodTZ).endOf('day').toISOString();
+      start = momentLocale.startOf('day').toISOString();
+      end = momentLocale.endOf('day').toISOString();
       break;
     case 'w':
-      start =  moment.tz(selectedPeriodTZ).startOf('week').toISOString();
-      end =  moment.tz(selectedPeriodTZ).endOf('week').toISOString();
+      start = momentLocale.startOf('week').toISOString();
+      end = momentLocale.endOf('week').toISOString();
       break;
     case 'm':
-      start =  moment.tz(selectedPeriodTZ).startOf('month').toISOString();
-      end =  moment.tz(selectedPeriodTZ).endOf('month').toISOString();
+      start = momentLocale.startOf('month').toISOString();
+      end = momentLocale.endOf('month').toISOString();
       break;
     case 'a':
     default:
@@ -123,7 +126,8 @@ const execute = async (logger, rawData) => {
     JSON.stringify({
       ...closedTradesSetting,
       loadedPeriod: selectedPeriod,
-      loadedPeriodTZ: selectedPeriodTZ
+      loadedPeriodTZ: selectedPeriodTZ,
+      loadedPeriodLC: selectedPeriodLC
     })
   );
 
