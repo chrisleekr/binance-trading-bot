@@ -9,7 +9,8 @@ class ProfitLossWrapper extends React.Component {
       symbols: {},
       closedTradesLoading: false,
       closedTradesSetting: {},
-      selectedPeriod: null
+      selectedPeriod: null,
+      selectedPeriodTZ: null
     };
 
     this.setUpdate = this.setUpdate.bind(this);
@@ -45,13 +46,14 @@ class ProfitLossWrapper extends React.Component {
       });
     }
 
-    const { selectedPeriod } = this.state;
-    const { loadedPeriod } = this.state.closedTradesSetting;
+    const { selectedPeriod, selectedPeriodTZ } = this.state;
+    const { loadedPeriod, loadedPeriodTZ } = this.state.closedTradesSetting;
 
     // Set initial selected period
     if (loadedPeriod !== undefined && selectedPeriod === null) {
       this.setState({
-        selectedPeriod: loadedPeriod
+        selectedPeriod: loadedPeriod,
+        selectedPeriodTZ: loadedPeriodTZ
       });
     }
 
@@ -81,14 +83,20 @@ class ProfitLossWrapper extends React.Component {
   }
 
   requestClosedTradesSetPeriod() {
-    const { selectedPeriod } = this.state;
+    const { selectedPeriod, selectedPeriodTZ } = this.state;
     return axios.post('/closed-trades-set-period', {
-      selectedPeriod
+      selectedPeriod,
+      selectedPeriodTZ
     });
   }
 
   setSelectedPeriod(newSelectedPeriod) {
-    this.setState({ selectedPeriod: newSelectedPeriod }, () =>
+    const newSelectedPeriodTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    this.setState(
+      {
+        selectedPeriod: newSelectedPeriod,
+        selectedPeriodTZ: newSelectedPeriodTZ,
+      }, () =>
       this.requestClosedTradesSetPeriod()
     );
   }

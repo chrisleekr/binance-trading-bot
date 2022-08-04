@@ -19,22 +19,23 @@ const execute = async (logger, rawData) => {
     {};
 
   const selectedPeriod = _.get(closedTradesSetting, 'selectedPeriod', 'a');
+  const selectedPeriodTZ = _.get(closedTradesSetting, 'selectedPeriodTZ', 'UTC');
 
   let start = null;
   let end = null;
 
   switch (selectedPeriod) {
     case 'd':
-      start = moment().startOf('day').toISOString();
-      end = moment().endOf('day').toISOString();
+      start =  moment.tz(selectedPeriodTZ).startOf('day').toISOString();
+      end =  moment.tz(selectedPeriodTZ).endOf('day').toISOString();
       break;
     case 'w':
-      start = moment().startOf('week').toISOString();
-      end = moment().endOf('week').toISOString();
+      start =  moment.tz(selectedPeriodTZ).startOf('week').toISOString();
+      end =  moment.tz(selectedPeriodTZ).endOf('week').toISOString();
       break;
     case 'm':
-      start = moment().startOf('month').toISOString();
-      end = moment().endOf('month').toISOString();
+      start =  moment.tz(selectedPeriodTZ).startOf('month').toISOString();
+      end =  moment.tz(selectedPeriodTZ).endOf('month').toISOString();
       break;
     case 'a':
     default:
@@ -121,7 +122,8 @@ const execute = async (logger, rawData) => {
     'closed-trades',
     JSON.stringify({
       ...closedTradesSetting,
-      loadedPeriod: selectedPeriod
+      loadedPeriod: selectedPeriod,
+      loadedPeriodTZ: selectedPeriodTZ
     })
   );
 
