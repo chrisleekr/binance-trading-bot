@@ -269,6 +269,13 @@ class SymbolGridTradeArchiveIcon extends React.Component {
 
     const totalPages = Math.ceil(stats.trades / limit);
     // If total
+    paginationItems.push(
+      <Pagination.First
+        key='first'
+        disabled={page === 1 || totalPages === 1}
+        onClick={() => this.setPage(1)}
+      />
+    );
     if (page === 1 || totalPages === 1) {
       paginationItems.push(
         <Pagination.Prev key='pagination-item-prev' disabled />
@@ -281,28 +288,19 @@ class SymbolGridTradeArchiveIcon extends React.Component {
         />
       );
     }
-    [...Array(3).keys()].forEach(x => {
-      if (page === 1 && x === 0) {
-        paginationItems.push(
-          <Pagination.Item
-            active
-            key={`pagination-item-${x}`}
-            onClick={() => this.setPage(page)}>
-            {page}
-          </Pagination.Item>
-        );
-      } else {
-        const pageNum = page === 1 ? page + x : page + x - 1;
-        paginationItems.push(
-          <Pagination.Item
-            active={pageNum === page}
-            disabled={pageNum > totalPages}
-            key={`pagination-item-${x}`}
-            onClick={() => this.setPage(pageNum)}>
-            {pageNum}
-          </Pagination.Item>
-        );
-      }
+    const maxButtons = 8;
+    const buttons = Math.min( maxButtons , ~~totalPages );
+    [...Array(buttons).keys()].forEach(x => {
+      const pageNum = Math.min( Math.max( x + 1 , page + x + 1 - Math.ceil( buttons / 2 ) ) , totalPages + x + 1 - buttons );
+      paginationItems.push(
+        <Pagination.Item
+          active={pageNum === page}
+          disabled={pageNum > totalPages}
+          key={`pagination-item-${x}`}
+          onClick={() => this.setPage(pageNum)}>
+          {pageNum}
+        </Pagination.Item>
+      );
     });
     if (page === totalPages || page >= totalPages) {
       paginationItems.push(
@@ -316,6 +314,14 @@ class SymbolGridTradeArchiveIcon extends React.Component {
         />
       );
     }
+    const lastPage = totalPages;
+    paginationItems.push(
+      <Pagination.Last
+        key='last'
+        disabled={page === totalPages || page >= totalPages}
+        onClick={() => this.setPage(lastPage)}
+      />
+    );
 
     return (
       <div className='coin-info-symbol-grid-trade-archive-wrapper'>
@@ -464,6 +470,13 @@ class SymbolGridTradeArchiveIcon extends React.Component {
                 ) : (
                   <React.Fragment>
                     <div className='row'>
+                      <div className='d-flex w-100 flex-row justify-content-between px-3 mb-2'>
+                        <Pagination
+                          className='justify-content-center mb-0'
+                          size='sm'>
+                          {paginationItems}
+                        </Pagination>
+                      </div>
                       <Table striped bordered hover size='sm' responsive>
                         <thead>
                           <tr>
