@@ -323,8 +323,8 @@ const shouldForceSellByTradingViewRecommendation = (logger, data) => {
   if (tradingViewUpdatedAt.isBefore(currentTime)) {
     logger.info(
       {
-        tradingViewUpdatedAt: tradingViewUpdatedAt.format(),
-        currentTime: currentTime.format()
+        tradingViewUpdatedAt: tradingViewUpdatedAt.toISOString(),
+        currentTime: currentTime.toISOString()
       },
       `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. Ignore TradingView recommendation.`
     );

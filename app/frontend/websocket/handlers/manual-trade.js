@@ -17,7 +17,7 @@ const handleManualTrade = async (logger, ws, payload) => {
     {
       action: 'manual-trade',
       order,
-      actionAt: moment().format(),
+      actionAt: moment().toISOString(),
       triggeredBy: 'user'
     },
     'The manual order received by the bot. Wait for placing the order.'

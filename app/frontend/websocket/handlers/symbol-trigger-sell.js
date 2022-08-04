@@ -16,7 +16,7 @@ const handleSymbolTriggerSell = async (logger, ws, payload) => {
     symbol,
     {
       action: 'sell',
-      actionAt: moment().format(),
+      actionAt: moment().toISOString(),
       triggeredBy: 'user'
     },
     'The sell order received by the bot. Wait for placing the order.'

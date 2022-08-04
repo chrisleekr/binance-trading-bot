@@ -1588,7 +1588,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1638,7 +1638,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: undefined
                     }
@@ -1663,7 +1663,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().subtract('6', 'minutes').format(),
+                    time: moment().subtract('6', 'minutes').toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1691,7 +1691,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1723,7 +1723,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1758,7 +1758,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1805,7 +1805,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1841,7 +1841,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'NEUTRAL'
                     }
@@ -1880,7 +1880,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'NEUTRAL'
                     }
@@ -1916,7 +1916,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1952,7 +1952,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'STRONG_SELL'
                     }
@@ -1988,7 +1988,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -2027,7 +2027,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'STRONG_SELL'
                     }
