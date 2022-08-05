@@ -1,6 +1,5 @@
 const _ = require('lodash');
 const moment = require('moment-timezone');
-require("moment/min/locales.min");
 const { cache, mongo } = require('../../../helpers');
 /**
  * Get quote asset statistics
@@ -20,7 +19,11 @@ const execute = async (logger, rawData) => {
     {};
 
   const selectedPeriod = _.get(closedTradesSetting, 'selectedPeriod', 'a');
-  const selectedPeriodTZ = _.get(closedTradesSetting, 'selectedPeriodTZ', 'UTC');
+  const selectedPeriodTZ = _.get(
+    closedTradesSetting,
+    'selectedPeriodTZ',
+    'UTC'
+  );
   const selectedPeriodLC = _.get(closedTradesSetting, 'selectedPeriodLC', 'us');
 
   let start = null;
@@ -48,8 +51,8 @@ const execute = async (logger, rawData) => {
 
   if (start && end) {
     match.archivedAt = {
-      $gte: moment(start).toISOString(),
-      $lte: moment(end).toISOString()
+      $gte: start,
+      $lte: end
     };
   }
 

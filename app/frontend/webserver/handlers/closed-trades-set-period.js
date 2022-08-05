@@ -7,7 +7,10 @@ const handleClosedTradesSetPeriod = async (funcLogger, app) => {
   app.route('/closed-trades-set-period').post(async (req, res) => {
     const { selectedPeriod, selectedPeriodTZ, selectedPeriodLC } = req.body;
 
-    logger.info({ selectedPeriod, selectedPeriodTZ, selectedPeriodLC }, 'Set period for closed trades');
+    logger.info(
+      { selectedPeriod, selectedPeriodTZ, selectedPeriodLC },
+      'Set period for closed trades'
+    );
 
     const closedTradesSetting =
       JSON.parse(await cache.hget('trailing-trade-common', 'closed-trades')) ||
