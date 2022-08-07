@@ -274,7 +274,7 @@ const execute = async (logger, rawData) => {
       );
     } else {
       logger.info(
-        { lastBuyOrder, currentTime: moment() },
+        { lastBuyOrder, currentTime: moment().format() },
         'Skip checking the grid trade last buy order'
       );
     }
@@ -328,7 +328,7 @@ const execute = async (logger, rawData) => {
       );
     } else {
       logger.info(
-        { lastSellOrder, currentTime: moment() },
+        { lastSellOrder, currentTime: moment().format() },
         'Skip checking the grid trade last sell order'
       );
     }

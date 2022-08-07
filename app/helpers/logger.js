@@ -24,7 +24,7 @@ InfoStream.prototype.write = rawLog => {
       mongo.insertOne(fakeLogger, 'trailing-trade-logs', {
         symbol: log.symbol,
         msg: log.msg,
-        loggedAt: moment(log.time).toDate(),
+        loggedAt: moment(log.time).utc().toDate(),
         data: _.omit(log, [
           'msg',
           'symbol',

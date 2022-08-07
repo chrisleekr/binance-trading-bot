@@ -164,7 +164,10 @@ const execute = async (logger, rawData) => {
 
       slackMessageOrderDeleted(logger, symbol, order.side, order);
     } else {
-      logger.info({ order, currentTime: moment() }, 'Skip checking the order');
+      logger.info(
+        { order, currentTime: moment().format() },
+        'Skip checking the order'
+      );
     }
   }
 

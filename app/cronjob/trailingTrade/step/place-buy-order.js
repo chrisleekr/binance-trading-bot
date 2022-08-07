@@ -462,7 +462,7 @@ const execute = async (logger, rawData) => {
   data.accountInfo = await updateAccountInfo(
     logger,
     balances,
-    moment().utc().toISOString()
+    moment().toISOString()
   );
 
   slack.sendMessage(

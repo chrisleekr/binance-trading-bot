@@ -64,7 +64,9 @@ class SymbolGridTradeArchiveIcon extends React.Component {
     let start = null;
     let end = null;
 
-    const momentLocale = moment().locale(Intl.DateTimeFormat().resolvedOptions().locale);
+    const momentLocale = moment().locale(
+      Intl.DateTimeFormat().resolvedOptions().locale
+    );
     switch (newPeriod) {
       case 'd':
         start = momentLocale.startOf('day').toISOString();
@@ -290,9 +292,12 @@ class SymbolGridTradeArchiveIcon extends React.Component {
       );
     }
     const maxButtons = 8;
-    const buttons = Math.min( maxButtons , ~~totalPages );
+    const buttons = Math.min(maxButtons, ~~totalPages);
     [...Array(buttons).keys()].forEach(x => {
-      const pageNum = Math.min( Math.max( x + 1 , page + x + 1 - Math.ceil( buttons / 2 ) ) , totalPages + x + 1 - buttons );
+      const pageNum = Math.min(
+        Math.max(x + 1, page + x + 1 - Math.ceil(buttons / 2)),
+        totalPages + x + 1 - buttons
+      );
       paginationItems.push(
         <Pagination.Item
           active={pageNum === page}
