@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed timezone inconsistency. Thanks [@uhliksk](https://github.com/uhliksk) - [#454](https://github.com/chrisleekr/binance-trading-bot/pull/454)
 - Improved UI. Thanks [@uhliksk](https://github.com/uhliksk) - [#452](https://github.com/chrisleekr/binance-trading-bot/pull/452)
 - Improved error handler and stability. Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#448](https://github.com/chrisleekr/binance-trading-bot/pull/448)
 
