@@ -388,9 +388,12 @@ class App extends React.Component {
       />
     );
     const maxButtons = 8;
-    const buttons = Math.min( maxButtons , ~~totalPages );
+    const buttons = Math.min(maxButtons, ~~totalPages);
     [...Array(buttons).keys()].forEach(x => {
-      const pageNum = Math.min( Math.max( x + 1 , page + x + 1 - Math.ceil( buttons / 2 ) ) , totalPages + x + 1 - buttons );
+      const pageNum = Math.min(
+        Math.max(x + 1, page + x + 1 - Math.ceil(buttons / 2)),
+        totalPages + x + 1 - buttons
+      );
       paginationItems.push(
         <Pagination.Item
           active={pageNum === page}
@@ -439,6 +442,7 @@ class App extends React.Component {
                 accountInfo={accountInfo}
                 dustTransfer={dustTransfer}
                 sendWebSocket={this.sendWebSocket}
+                totalProfitAndLoss={totalProfitAndLoss}
               />
               <ProfitLossWrapper
                 isAuthenticated={isAuthenticated}

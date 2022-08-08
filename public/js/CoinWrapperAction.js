@@ -65,7 +65,7 @@ class CoinWrapperAction extends React.Component {
       renderOverrideAction = (
         <div className='coin-info-column coin-info-column-title border-bottom-0 m-0 p-0'>
           <div
-            className='bg-light text-dark w-100 px-1'
+            className='w-100 px-1 text-warning'
             title={overrideData.actionAt}>
             Action <strong>{overrideData.action}</strong> will be executed{' '}
             {moment(overrideData.actionAt).fromNow()}, triggered by{' '}
@@ -124,7 +124,10 @@ class CoinWrapperAction extends React.Component {
           </div>
 
           <div className='d-flex flex-column align-items-end'>
-            <HightlightChange className='action-label'>
+            <HightlightChange
+              className={`action-label ${
+                label.length < 10 ? 'badge-pill badge-dark' : ''
+              }`}>
               {label}
             </HightlightChange>
             {isActionDisabled.isDisabled === true ? (

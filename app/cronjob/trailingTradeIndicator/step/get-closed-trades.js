@@ -73,7 +73,10 @@ const execute = async (logger, rawData) => {
           sellManualQuoteQty: { $sum: '$sellManualQuoteQty' },
           stopLossQuoteQty: { $sum: '$stopLossQuoteQty' },
           profit: { $sum: '$profit' },
-          trades: { $sum: 1 }
+          trades: { $sum: 1 },
+          lastProfit: { $last: '$profit' },
+          lastSymbol: { $last: '$symbol' },
+          lastArchivedAt: { $last: '$archivedAt' }
         }
       },
       {
@@ -103,7 +106,10 @@ const execute = async (logger, rawData) => {
               else: 0
             }
           },
-          trades: 1
+          trades: 1,
+          lastProfit: 1,
+          lastSymbol: 1,
+          lastArchivedAt: 1
         }
       }
     ])
@@ -118,7 +124,10 @@ const execute = async (logger, rawData) => {
     stopLossQuoteQty: 0,
     profit: 0,
     profitPercentage: 0,
-    trades: 0
+    trades: 0,
+    lastProfit: 0,
+    lastSymbol: '',
+    lastArchivedAt: ''
   };
 
   data.closedTrades = closedTrades;

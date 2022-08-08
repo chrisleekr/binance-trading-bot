@@ -1029,7 +1029,9 @@ const getCacheTrailingTradeTotalProfitAndLoss = logger =>
           }
         },
         profit: { $sum: '$sell.currentProfit' },
-        estimatedBalance: { $sum: '$baseAssetBalance.estimatedValue' }
+        estimatedBalance: { $sum: '$baseAssetBalance.estimatedValue' },
+        free: { $first: '$quoteAssetBalance.free' },
+        locked: { $first: '$quoteAssetBalance.locked' }
       }
     },
     {
@@ -1037,7 +1039,9 @@ const getCacheTrailingTradeTotalProfitAndLoss = logger =>
         asset: '$_id',
         amount: '$amount',
         profit: '$profit',
-        estimatedBalance: '$estimatedBalance'
+        estimatedBalance: '$estimatedBalance',
+        free: '$free',
+        locked: '$locked'
       }
     }
   ]);

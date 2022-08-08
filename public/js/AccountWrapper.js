@@ -3,14 +3,24 @@
 /* eslint-disable no-undef */
 class AccountWrapper extends React.Component {
   render() {
-    const { accountInfo, dustTransfer, sendWebSocket, isAuthenticated } =
-      this.props;
+    const {
+      accountInfo,
+      dustTransfer,
+      sendWebSocket,
+      isAuthenticated,
+      totalProfitAndLoss
+    } = this.props;
 
     const assets = accountInfo.balances.map((balance, index) => {
       return (
         <AccountWrapperAsset
           key={`account-wrapper-` + index}
-          balance={balance}></AccountWrapperAsset>
+          balance={balance}
+          isQuoteAsset={
+            totalProfitAndLoss.find(
+              profitAndLoss => profitAndLoss.asset === balance.asset
+            ) !== undefined
+          }></AccountWrapperAsset>
       );
     });
 
