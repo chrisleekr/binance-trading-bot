@@ -52,9 +52,10 @@ const setupUserWebsocket = async logger => {
         totalQuoteTradeQuantity,
         totalTradeQuantity
       } = evt;
+      // eventTime is added to prevent last log message check.
       logger.info(
         { symbol, evt, saveLog: true },
-        `Received new report - ${eventTime}` // to prevent last log message check.
+        `There is a new update in order. - ${side} - ${orderStatus} - ${eventTime}`
       );
 
       const checkLastOrder = async () => {
