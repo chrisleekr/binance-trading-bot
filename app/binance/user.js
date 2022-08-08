@@ -51,7 +51,10 @@ const setupUserWebsocket = async logger => {
         totalQuoteTradeQuantity,
         totalTradeQuantity
       } = evt;
-      logger.info({ evt }, 'Received new report');
+      logger.info(
+        { symbol, evt, saveLog: true },
+        `Received new report - ${eventTime}` // to prevent last log message check.
+      );
 
       const checkLastOrder = async () => {
         const lastOrder = await getGridTradeLastOrder(
@@ -74,6 +77,10 @@ const setupUserWebsocket = async logger => {
             isWorking: isOrderWorking,
             updateTime: eventTime
           });
+          logger.info(
+            { symbol, lastOrder, saveLog: true },
+            'The last order has been updated.'
+          );
         }
       };
 
@@ -96,6 +103,11 @@ const setupUserWebsocket = async logger => {
             isWorking: isOrderWorking,
             updateTime: eventTime
           });
+
+          logger.info(
+            { symbol, manualOrder, saveLog: true },
+            'The manual order has been updated.'
+          );
         }
       };
 
