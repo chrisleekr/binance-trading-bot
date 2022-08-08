@@ -7,7 +7,8 @@ const {
   getAccountInfo,
   updateAccountInfo,
   saveOverrideAction,
-  getAndCacheOpenOrdersForSymbol
+  getAndCacheOpenOrdersForSymbol,
+  isExceedingMaxOpenTrades
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -156,6 +157,17 @@ const execute = async (logger, rawData) => {
             moment().toISOString()
           );
         }
+      } else if (await isExceedingMaxOpenTrades(logger, data)) {
+        // Cancel the initial buy order if max. open trades exceeded
+        data.action = 'buy-order-cancelled';
+        logger.info(
+          { data, saveLog: true },
+          `The current number of open trades has reached the maximum number of open trades. ` +
+            `The buy order will be cancelled.`
+        );
+
+        // Cancel current order
+        await cancelOrder(logger, symbol, order);
       } else {
         logger.info(
           { stopPrice: order.stopPrice, buyLimitPrice },

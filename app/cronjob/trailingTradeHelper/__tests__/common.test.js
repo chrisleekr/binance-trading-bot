@@ -15,6 +15,8 @@ describe('common.js', () => {
 
   let mockJWTVerify;
 
+  let rawData;
+
   let result;
 
   beforeEach(() => {
@@ -3040,6 +3042,208 @@ describe('common.js', () => {
           }
         ]
       );
+    });
+  });
+
+  describe('isExceedingMaxOpenTrades', () => {
+    const orgRawData = {
+      symbolConfiguration: {
+        botOptions: {
+          orderLimit: {
+            enabled: true,
+            maxOpenTrades: 6
+          }
+        }
+      },
+      sell: {
+        lastBuyPrice: 32138.799999999996
+      }
+    };
+
+    const mockInit = ({
+      orderLimitEnabled,
+      lastBuyPrice,
+      maxOpenTrades,
+      numberOfOpenTrades
+    }) => {
+      const clonedRawData = _.cloneDeep(orgRawData);
+
+      clonedRawData.symbolConfiguration.botOptions.orderLimit = {
+        enabled: orderLimitEnabled,
+        maxBuyOpenOrders: 4,
+        maxOpenTrades
+      };
+
+      clonedRawData.sell = {
+        lastBuyPrice
+      };
+
+      const { cache } = require('../../../helpers');
+
+      cacheMock = cache;
+      cacheMock.hget = jest.fn().mockResolvedValue(numberOfOpenTrades);
+
+      return clonedRawData;
+    };
+
+    describe('when order limit is enabled', () => {
+      describe('when the last buy price is recorded', () => {
+        describe('when number of current open trade is less than maximum open trades', () => {
+          beforeEach(async () => {
+            rawData = mockInit({
+              orderLimitEnabled: true,
+              lastBuyPrice: 29000,
+              maxOpenTrades: 3,
+              numberOfOpenTrades: 2
+            });
+
+            commonHelper = require('../common');
+
+            result = await commonHelper.isExceedingMaxOpenTrades(
+              loggerMock,
+              rawData
+            );
+          });
+
+          it('returns expected value', () => {
+            expect(result).toBeFalsy();
+          });
+        });
+
+        describe('when number of open trades is same as max open trades', () => {
+          beforeEach(async () => {
+            rawData = mockInit({
+              orderLimitEnabled: true,
+              lastBuyPrice: 29000,
+              maxOpenTrades: 3,
+              numberOfOpenTrades: 3
+            });
+
+            commonHelper = require('../common');
+
+            result = await commonHelper.isExceedingMaxOpenTrades(
+              loggerMock,
+              rawData
+            );
+          });
+
+          it('returns expected value', () => {
+            expect(result).toBeFalsy();
+          });
+        });
+
+        describe('when number of open trades is already exceeded max open trades', () => {
+          beforeEach(async () => {
+            rawData = mockInit({
+              orderLimitEnabled: true,
+              lastBuyPrice: 29000,
+              maxOpenTrades: 2,
+              numberOfOpenTrades: 3
+            });
+
+            commonHelper = require('../common');
+
+            result = await commonHelper.isExceedingMaxOpenTrades(
+              loggerMock,
+              rawData
+            );
+          });
+
+          it('returns expected value', () => {
+            expect(result).toBeFalsy();
+          });
+        });
+      });
+
+      describe('when the last buy price is not recorded', () => {
+        describe('when number of open trades is less than max open trades', () => {
+          beforeEach(async () => {
+            rawData = mockInit({
+              orderLimitEnabled: true,
+              lastBuyPrice: null,
+              maxOpenTrades: 3,
+              numberOfOpenTrades: 2
+            });
+
+            commonHelper = require('../common');
+
+            result = await commonHelper.isExceedingMaxOpenTrades(
+              loggerMock,
+              rawData
+            );
+          });
+
+          it('returns expected value', () => {
+            expect(result).toBeFalsy();
+          });
+        });
+
+        describe('when number of open trades is same as max open trades', () => {
+          beforeEach(async () => {
+            rawData = mockInit({
+              orderLimitEnabled: true,
+              lastBuyPrice: null,
+              maxOpenTrades: 3,
+              numberOfOpenTrades: 3
+            });
+
+            commonHelper = require('../common');
+
+            result = await commonHelper.isExceedingMaxOpenTrades(
+              loggerMock,
+              rawData
+            );
+          });
+
+          it('returns expected value', () => {
+            expect(result).toBeTruthy();
+          });
+        });
+
+        describe('when number of open trades is already exceeded max open trades', () => {
+          beforeEach(async () => {
+            rawData = mockInit({
+              orderLimitEnabled: true,
+              lastBuyPrice: null,
+              maxOpenTrades: 2,
+              numberOfOpenTrades: 3
+            });
+
+            commonHelper = require('../common');
+
+            result = await commonHelper.isExceedingMaxOpenTrades(
+              loggerMock,
+              rawData
+            );
+          });
+
+          it('returns expected value', () => {
+            expect(result).toBeTruthy();
+          });
+        });
+      });
+    });
+
+    describe('when order limit is disabled', () => {
+      beforeEach(async () => {
+        rawData = mockInit({
+          orderLimitEnabled: false,
+          lastBuyPrice: null,
+          maxOpenTrades: 2,
+          numberOfOpenTrades: 2
+        });
+
+        commonHelper = require('../common');
+
+        result = await commonHelper.isExceedingMaxOpenTrades(
+          loggerMock,
+          rawData
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toBeFalsy();
+      });
     });
   });
 });

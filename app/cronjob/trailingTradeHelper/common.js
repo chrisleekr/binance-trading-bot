@@ -1068,6 +1068,38 @@ const getCacheTrailingTradeQuoteEstimates = logger =>
     }
   ]);
 
+/**
+ * Check whether max number of open trades has reached
+ *
+ * @param {*} logger
+ * @param {*} data
+ * @returns
+ */
+const isExceedingMaxOpenTrades = async (logger, data) => {
+  const {
+    symbolConfiguration: {
+      botOptions: {
+        orderLimit: {
+          enabled: orderLimitEnabled,
+          maxOpenTrades: orderLimitMaxOpenTrades
+        }
+      }
+    },
+    sell: { lastBuyPrice }
+  } = data;
+
+  if (orderLimitEnabled === false) {
+    return false;
+  }
+
+  // If the last buy price is recorded, this is one of open trades.
+  if (lastBuyPrice) {
+    return false;
+  }
+
+  return (await getNumberOfOpenTrades(logger)) >= orderLimitMaxOpenTrades;
+};
+
 module.exports = {
   cacheExchangeSymbols,
   getCachedExchangeSymbols,
@@ -1107,5 +1139,6 @@ module.exports = {
   updateAccountInfo,
   getCacheTrailingTradeSymbols,
   getCacheTrailingTradeTotalProfitAndLoss,
-  getCacheTrailingTradeQuoteEstimates
+  getCacheTrailingTradeQuoteEstimates,
+  isExceedingMaxOpenTrades
 };

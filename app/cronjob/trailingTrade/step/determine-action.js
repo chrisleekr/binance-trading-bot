@@ -5,7 +5,7 @@ const { slack } = require('../../../helpers');
 const {
   isActionDisabled,
   getNumberOfBuyOpenOrders,
-  getNumberOfOpenTrades,
+  isExceedingMaxOpenTrades,
   getAPILimit
 } = require('../../trailingTradeHelper/common');
 const { getGridTradeOrder } = require('../../trailingTradeHelper/order');
@@ -116,45 +116,6 @@ const isExceedingMaxBuyOpenOrders = async (logger, data) => {
   const currentBuyOpenOrders = await getNumberOfBuyOpenOrders(logger);
 
   if (currentBuyOpenOrders >= orderLimitMaxBuyOpenOrders) {
-    return true;
-  }
-
-  return false;
-};
-
-/**
- * Check whether max number of open trades has reached
- *
- * @param {*} logger
- * @param {*} data
- * @returns
- */
-const isExceedingMaxOpenTrades = async (logger, data) => {
-  const {
-    symbolConfiguration: {
-      botOptions: {
-        orderLimit: {
-          enabled: orderLimitEnabled,
-          maxOpenTrades: orderLimitMaxOpenTrades
-        }
-      }
-    },
-    sell: { lastBuyPrice }
-  } = data;
-
-  if (orderLimitEnabled === false) {
-    return false;
-  }
-
-  let currentOpenTrades = await getNumberOfOpenTrades(logger);
-
-  // If the last buy price is recorded, this is one of open trades.
-  // Deduct 1 from the current open trades and calculate it.
-  if (lastBuyPrice) {
-    currentOpenTrades -= 1;
-  }
-
-  if (currentOpenTrades >= orderLimitMaxOpenTrades) {
     return true;
   }
 
