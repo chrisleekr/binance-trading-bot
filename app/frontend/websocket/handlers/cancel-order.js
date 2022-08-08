@@ -17,7 +17,7 @@ const handleCancelOrder = async (logger, ws, payload) => {
     {
       action: 'cancel-order',
       order,
-      actionAt: moment().format(),
+      actionAt: moment().toISOString(),
       triggeredBy: 'user'
     },
     'Cancelling the order action has been received. Wait for cancelling the order.'

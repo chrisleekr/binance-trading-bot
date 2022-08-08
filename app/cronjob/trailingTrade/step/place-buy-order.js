@@ -78,8 +78,8 @@ const isAllowedTradingViewRecommendation = (logger, data) => {
     if (tradingViewIfExpires === 'do-not-buy') {
       logger.info(
         {
-          tradingViewUpdatedAt: tradingViewUpdatedAt.format(),
-          currentTime: currentTime.format()
+          tradingViewUpdatedAt: tradingViewUpdatedAt.toISOString(),
+          currentTime: currentTime.toISOString()
         },
         `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. Do not buy.`
       );
@@ -93,8 +93,8 @@ const isAllowedTradingViewRecommendation = (logger, data) => {
 
     logger.info(
       {
-        tradingViewUpdatedAt: tradingViewUpdatedAt.format(),
-        currentTime: currentTime.format()
+        tradingViewUpdatedAt: tradingViewUpdatedAt.toISOString(),
+        currentTime: currentTime.toISOString()
       },
       `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. Ignore TradingView recommendation.`
     );
@@ -218,7 +218,7 @@ const execute = async (logger, rawData) => {
       symbol,
       {
         action: 'buy',
-        actionAt: moment().add(1, 'minutes').format(),
+        actionAt: moment().add(1, 'minutes').toISOString(),
         triggeredBy: 'buy-order-trading-view',
         notify: false,
         checkTradingView: true
@@ -462,7 +462,7 @@ const execute = async (logger, rawData) => {
   data.accountInfo = await updateAccountInfo(
     logger,
     balances,
-    moment().utc().format()
+    moment().toISOString()
   );
 
   slack.sendMessage(

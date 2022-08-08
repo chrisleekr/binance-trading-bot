@@ -64,18 +64,21 @@ class QuoteAssetGridTradeArchiveIcon extends React.Component {
     let start = null;
     let end = null;
 
+    const momentLocale = moment().locale(
+      Intl.DateTimeFormat().resolvedOptions().locale
+    );
     switch (newPeriod) {
       case 'd':
-        start = moment().startOf('day').toISOString();
-        end = moment().endOf('day').toISOString();
+        start = momentLocale.startOf('day').toISOString();
+        end = momentLocale.endOf('day').toISOString();
         break;
       case 'w':
-        start = moment().startOf('week').toISOString();
-        end = moment().endOf('week').toISOString();
+        start = momentLocale.startOf('week').toISOString();
+        end = momentLocale.endOf('week').toISOString();
         break;
       case 'm':
-        start = moment().startOf('month').toISOString();
-        end = moment().endOf('month').toISOString();
+        start = momentLocale.startOf('month').toISOString();
+        end = momentLocale.endOf('month').toISOString();
         break;
       case 'a':
       default:
@@ -287,9 +290,12 @@ class QuoteAssetGridTradeArchiveIcon extends React.Component {
       );
     }
     const maxButtons = 8;
-    const buttons = Math.min( maxButtons , ~~totalPages );
+    const buttons = Math.min(maxButtons, ~~totalPages);
     [...Array(buttons).keys()].forEach(x => {
-      const pageNum = Math.min( Math.max( x + 1 , page + x + 1 - Math.ceil( buttons / 2 ) ) , totalPages + x + 1 - buttons );
+      const pageNum = Math.min(
+        Math.max(x + 1, page + x + 1 - Math.ceil(buttons / 2)),
+        totalPages + x + 1 - buttons
+      );
       paginationItems.push(
         <Pagination.Item
           active={pageNum === page}

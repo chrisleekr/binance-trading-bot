@@ -134,7 +134,9 @@ const removeLastBuyPrice = async (
       symbol,
       {
         action: 'buy',
-        actionAt: moment().add(autoTriggerBuyTriggerAfter, 'minutes').format(),
+        actionAt: moment()
+          .add(autoTriggerBuyTriggerAfter, 'minutes')
+          .toISOString(),
         triggeredBy: 'auto-trigger',
         notify: true,
         checkTradingView: true

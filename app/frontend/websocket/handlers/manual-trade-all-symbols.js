@@ -49,7 +49,7 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
                 quoteOrderQty
               }
             },
-            actionAt: currentTime.format(),
+            actionAt: currentTime.toISOString(),
             triggeredBy: 'user'
           };
 
@@ -90,7 +90,7 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
                 marketQuantity
               }
             },
-            actionAt: currentTime.format(),
+            actionAt: currentTime.toISOString(),
             triggeredBy: 'user'
           };
 

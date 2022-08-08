@@ -451,12 +451,12 @@ const archiveSymbolGridTrade = async (logger, symbol = null) => {
     ..._.pick(symbolInfo, ['baseAsset', 'quoteAsset']),
     ...gridProfit,
     ..._.omit(symbolGridTrade, 'key', '_id'),
-    archivedAt: moment().format()
+    archivedAt: moment().toISOString()
   };
 
   await saveSymbolGridTradeArchive(
     logger,
-    `${symbol}-${moment().format()}`,
+    `${symbol}-${moment().toISOString()}`,
     archivedGridTrade
   );
 

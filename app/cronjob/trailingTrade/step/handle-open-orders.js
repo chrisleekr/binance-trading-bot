@@ -119,7 +119,7 @@ const execute = async (logger, rawData) => {
             symbol,
             {
               action: 'buy',
-              actionAt: moment().format(),
+              actionAt: moment().toISOString(),
               triggeredBy: 'buy-cancelled',
               notify: false,
               checkTradingView: true
@@ -153,7 +153,7 @@ const execute = async (logger, rawData) => {
           data.accountInfo = await updateAccountInfo(
             logger,
             balances,
-            moment().utc().format()
+            moment().toISOString()
           );
         }
       } else {
@@ -219,7 +219,7 @@ const execute = async (logger, rawData) => {
           data.accountInfo = await updateAccountInfo(
             logger,
             balances,
-            moment().utc().format()
+            moment().toISOString()
           );
         }
       } else {

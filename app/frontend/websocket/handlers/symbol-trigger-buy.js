@@ -16,7 +16,7 @@ const handleSymbolTriggerBuy = async (logger, ws, payload) => {
     symbol,
     {
       action: 'buy',
-      actionAt: moment().format(),
+      actionAt: moment().toISOString(),
       triggeredBy: 'user',
       notify: true,
       // For triggering buy action must execute. So don't check TradingView recommendation.
