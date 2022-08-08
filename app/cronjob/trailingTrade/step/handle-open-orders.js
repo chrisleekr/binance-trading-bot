@@ -89,7 +89,7 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'buy') {
       if (parseFloat(order.stopPrice) >= buyLimitPrice) {
         logger.info(
-          { stopPrice: order.stopPrice, buyLimitPrice },
+          { stopPrice: order.stopPrice, buyLimitPrice, saveLog: true },
           'Stop price is higher than buy limit price, cancel current buy order'
         );
 
@@ -170,7 +170,7 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'sell') {
       if (parseFloat(order.stopPrice) <= sellLimitPrice) {
         logger.info(
-          { stopPrice: order.stopPrice, sellLimitPrice },
+          { stopPrice: order.stopPrice, sellLimitPrice, saveLog: true },
           'Stop price is less than sell limit price, cancel current sell order'
         );
 
