@@ -18,9 +18,10 @@ const {
  * @param {*} order
  */
 const cancelOrder = async (logger, symbol, order) => {
+  const { side } = order;
   logger.info(
     { function: 'cancelOrder', order, saveLog: true },
-    'The order will be cancelled.'
+    `The ${side} order will be cancelled.`
   );
   // Cancel open orders first to make sure it does not have unsettled orders.
   let result = false;

@@ -54,7 +54,7 @@ const setupUserWebsocket = async logger => {
       } = evt;
       logger.info(
         { symbol, evt, saveLog: true },
-        `There is a new update in order. - ${side} - ${orderStatus}`
+        `There is a new update in order. ${orderId} - ${side} - ${orderStatus}`
       );
 
       const checkLastOrder = async () => {
