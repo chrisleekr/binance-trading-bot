@@ -308,7 +308,6 @@ describe('trailingTrade', () => {
       it('returns expected result for BTCUSDT', () => {
         expect(mockLoggerInfo).toHaveBeenCalledWith(
           {
-            symbol: 'BTCUSDT',
             data: {
               symbol: 'BTCUSDT',
               isLocked: false,
@@ -356,7 +355,6 @@ describe('trailingTrade', () => {
       it('returns expected result for ETHUSDT', () => {
         expect(mockLoggerInfo).toHaveBeenCalledWith(
           {
-            symbol: 'ETHUSDT',
             data: {
               symbol: 'ETHUSDT',
               isLocked: false,
@@ -404,7 +402,6 @@ describe('trailingTrade', () => {
       it('returns expected result for LTCUSDT', async () => {
         expect(mockLoggerInfo).toHaveBeenCalledWith(
           {
-            symbol: 'LTCUSDT',
             data: {
               symbol: 'LTCUSDT',
               isLocked: false,
@@ -676,11 +673,10 @@ describe('trailingTrade', () => {
         expect(mockIsSymbolLocked).toHaveBeenCalledWith(logger, 'BTCUSDT');
       });
 
-      it('returns expected result for BTCUSDT 1st execution', async () => {
+      it('returns expected result for BTCUSDT 1st execution', () => {
         expect(mockLoggerInfo).toHaveBeenCalledWith(
           {
-            debug: true,
-            symbol: 'BTCUSDT'
+            debug: true
           },
           '⏯ TrailingTrade: Skip process as the symbol is currently locked. It will be re-execute 10 seconds later.'
         );
@@ -690,7 +686,6 @@ describe('trailingTrade', () => {
         setTimeout(() => {
           expect(mockLoggerInfo).toHaveBeenCalledWith(
             {
-              symbol: 'BTCUSDT',
               data: {
                 symbol: 'BTCUSDT',
                 isLocked: false,

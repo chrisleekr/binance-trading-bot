@@ -32,7 +32,8 @@ const { errorHandlerWrapper } = require('../error-handler');
 const execute = async (rawLogger, symbol) => {
   const logger = rawLogger.child({
     jobName: 'trailingTrade',
-    correlationId: uuidv4()
+    correlationId: uuidv4(),
+    symbol
   });
 
   await errorHandlerWrapper(logger, 'Trailing Trade', async () => {
@@ -41,14 +42,14 @@ const execute = async (rawLogger, symbol) => {
 
     if (isLocked === true) {
       logger.info(
-        { debug: true, symbol },
+        { debug: true },
         '⏯ TrailingTrade: Skip process as the symbol is currently locked. It will be re-execute 10 seconds later.'
       );
       setTimeout(() => execute(logger, symbol), 10000);
       return;
     }
 
-    logger.info({ debug: true, symbol }, '▶ TrailingTrade: Start process...');
+    logger.info({ debug: true }, '▶ TrailingTrade: Start process...');
 
     await lockSymbol(logger, symbol);
 
@@ -160,7 +161,7 @@ const execute = async (rawLogger, symbol) => {
         stepFunc: saveDataToCache
       }
     ]) {
-      const stepLogger = logger.child({ stepName, symbol: data.symbol });
+      const stepLogger = logger.child({ stepName });
 
       stepLogger.info({ data }, `Start step - ${stepName}`);
 
@@ -173,12 +174,9 @@ const execute = async (rawLogger, symbol) => {
     // Unlock symbol for processing
     await unlockSymbol(logger, symbol);
 
-    logger.info(
-      { symbol, debug: true },
-      '⏹ TrailingTrade: Finish process (Debug)...'
-    );
+    logger.info({ debug: true }, '⏹ TrailingTrade: Finish process (Debug)...');
 
-    logger.info({ symbol, data }, 'TrailingTrade: Finish process...');
+    logger.info({ data }, 'TrailingTrade: Finish process...');
   });
 };
 
