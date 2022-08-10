@@ -41,14 +41,18 @@ const execute = async (logger, rawData) => {
     { symbol, apiLimit: getAPILimit(logger) }
   );
 
+  const { side } = order;
   logger.info(
     { function: 'order', orderParams, saveLog: true },
-    'The order will be cancelled.'
+    `The ${side.toLowerCase()} order will be cancelled.`
   );
 
   const orderResult = await binance.client.cancelOrder(orderParams);
 
-  logger.info({ orderResult, saveLog: true }, 'The order has been cancelled.');
+  logger.info(
+    { orderResult, saveLog: true },
+    `The ${side.toLowerCase()} order has been cancelled.`
+  );
 
   await deleteManualOrder(logger, symbol, order.orderId);
 
@@ -68,7 +72,7 @@ const execute = async (logger, rawData) => {
   PubSub.publish('frontend-notification', {
     type: 'success',
     title:
-      `The order for ${symbol} has been cancelled successfully.` +
+      `The ${side.toLowerCase()} order for ${symbol} has been cancelled successfully.` +
       ` If the order still display, it should be removed soon.`
   });
 
@@ -82,7 +86,7 @@ const execute = async (logger, rawData) => {
     { symbol, apiLimit: getAPILimit(logger) }
   );
 
-  data.buy.processMessage = `The order has been cancelled.`;
+  data.buy.processMessage = `The ${side.toLowerCase()} order has been cancelled.`;
   data.buy.updatedAt = moment().utc().toDate();
 
   return data;

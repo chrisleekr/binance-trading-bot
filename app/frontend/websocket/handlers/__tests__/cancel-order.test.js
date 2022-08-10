@@ -41,7 +41,8 @@ describe('cancel-order.js', () => {
       data: {
         symbol: 'BTCUSDT',
         order: {
-          some: 'value'
+          some: 'value',
+          side: 'buy'
         }
       }
     });
@@ -53,11 +54,11 @@ describe('cancel-order.js', () => {
       'BTCUSDT',
       {
         action: 'cancel-order',
-        order: { some: 'value' },
+        order: { some: 'value', side: 'buy' },
         actionAt: expect.any(String),
         triggeredBy: 'user'
       },
-      'Cancelling the order action has been received. Wait for cancelling the order.'
+      'Cancelling the buy order action has been received. Wait for cancelling the order.'
     );
   });
 
@@ -70,7 +71,7 @@ describe('cancel-order.js', () => {
       JSON.stringify({
         result: true,
         type: 'cancel-order-result',
-        message: 'Cancelling the order action has been received.'
+        message: 'Cancelling the buy order action has been received.'
       })
     );
   });

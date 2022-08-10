@@ -11,6 +11,7 @@ const handleCancelOrder = async (logger, ws, payload) => {
     data: { symbol, order }
   } = payload;
 
+  const { side } = order;
   await saveOverrideAction(
     logger,
     symbol,
@@ -20,7 +21,7 @@ const handleCancelOrder = async (logger, ws, payload) => {
       actionAt: moment().toISOString(),
       triggeredBy: 'user'
     },
-    'Cancelling the order action has been received. Wait for cancelling the order.'
+    `Cancelling the ${side.toLowerCase()} order action has been received. Wait for cancelling the order.`
   );
 
   queue.executeFor(logger, symbol);
@@ -29,7 +30,7 @@ const handleCancelOrder = async (logger, ws, payload) => {
     JSON.stringify({
       result: true,
       type: 'cancel-order-result',
-      message: 'Cancelling the order action has been received.'
+      message: `Cancelling the ${side.toLowerCase()} order action has been received.`
     })
   );
 };

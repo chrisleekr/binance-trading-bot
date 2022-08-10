@@ -146,13 +146,14 @@ describe('cancel-order.js', () => {
             sell: {
               openOrders: [
                 {
-                  orderId: 'another-sellorder',
+                  orderId: 'another-sell-order',
                   side: 'sell'
                 }
               ]
             },
             order: {
-              orderId: 'order-123'
+              orderId: 'order-123',
+              side: 'buy'
             }
           };
 
@@ -199,7 +200,7 @@ describe('cancel-order.js', () => {
                   side: 'buy'
                 }
               ],
-              processMessage: 'The order has been cancelled.',
+              processMessage: 'The buy order has been cancelled.',
               updatedAt: expect.any(Object)
             },
             sell: {
@@ -211,7 +212,8 @@ describe('cancel-order.js', () => {
               ]
             },
             order: {
-              orderId: 'order-123'
+              orderId: 'order-123',
+              side: 'buy'
             }
           });
         });
@@ -262,7 +264,8 @@ describe('cancel-order.js', () => {
               ]
             },
             order: {
-              orderId: 'order-123'
+              orderId: 'order-123',
+              side: 'buy'
             }
           };
 
@@ -295,14 +298,15 @@ describe('cancel-order.js', () => {
             openOrders: [],
             buy: {
               openOrders: [],
-              processMessage: 'The order has been cancelled.',
+              processMessage: 'The buy order has been cancelled.',
               updatedAt: expect.any(Object)
             },
             sell: {
               openOrders: []
             },
             order: {
-              orderId: 'order-123'
+              orderId: 'order-123',
+              side: 'buy'
             }
           });
         });
