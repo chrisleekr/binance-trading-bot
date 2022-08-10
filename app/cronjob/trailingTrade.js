@@ -1,8 +1,11 @@
+const { v4: uuidv4 } = require('uuid');
 const config = require('config');
 
 const {
   getAccountInfo,
-  isSymbolLocked
+  isSymbolLocked,
+  lockSymbol,
+  unlockSymbol
 } = require('./trailingTradeHelper/common');
 
 const {
@@ -25,29 +28,35 @@ const {
   saveDataToCache
 } = require('./trailingTrade/steps');
 const { errorHandlerWrapper } = require('../error-handler');
-const { cache } = require('../helpers');
 
 const execute = async (rawLogger, symbol) => {
-  const logger = rawLogger.child({ jobName: 'trailingTrade' });
+  const logger = rawLogger.child({
+    jobName: 'trailingTrade',
+    correlationId: uuidv4()
+  });
 
   await errorHandlerWrapper(logger, 'Trailing Trade', async () => {
-    if ((await cache.hget(`execute-trailing-trade`, symbol)) === 'true') {
-      // do nothing, there is another execution task running
+    // Check if the symbol is locked, if it is locked, it means the symbol is still trading.
+    const isLocked = await isSymbolLocked(logger, symbol);
+
+    if (isLocked === true) {
+      logger.info(
+        { debug: true, symbol },
+        '⏯ TrailingTrade: Skip process as the symbol is currently locked. It will be re-execute 10 seconds later.'
+      );
+      setTimeout(() => execute(logger, symbol), 10000);
       return;
     }
 
-    await cache.hset(`execute-trailing-trade`, symbol, true, 5);
+    logger.info({ debug: true, symbol }, '▶ TrailingTrade: Start process...');
+
+    await lockSymbol(logger, symbol);
 
     // Retrieve account info from cache
     const accountInfo = await getAccountInfo(logger);
 
     // Retrieve feature toggles
     const featureToggle = config.get('featureToggle');
-
-    logger.info({ debug: true, symbol }, '▶ TrailingTrade: Start process...');
-
-    // Check if the symbol is locked, if it is locked, it means the symbol is still processing.
-    const isLocked = await isSymbolLocked(logger, symbol);
 
     // Define skeleton of data structure
     let data = {
@@ -161,11 +170,15 @@ const execute = async (rawLogger, symbol) => {
       stepLogger.info({ data }, `Finish step - ${stepName}`);
     }
 
-    logger.info({ symbol }, '⏹ TrailingTrade: Finish process (Debug)...');
+    // Unlock symbol for processing
+    await unlockSymbol(logger, symbol);
+
+    logger.info(
+      { symbol, debug: true },
+      '⏹ TrailingTrade: Finish process (Debug)...'
+    );
 
     logger.info({ symbol, data }, 'TrailingTrade: Finish process...');
-
-    await cache.hdel(`execute-trailing-trade`, symbol);
   });
 };
 

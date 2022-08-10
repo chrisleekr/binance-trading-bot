@@ -10,6 +10,7 @@ describe('user.js', () => {
   let mockUpdateGridTradeLastOrder;
   let mockGetManualOrder;
   let mockSaveManualOrder;
+  let mockExecuteTrailingTrade;
 
   let mockUserClean;
 
@@ -137,6 +138,14 @@ describe('user.js', () => {
     });
 
     describe('when executionReport event received', () => {
+      beforeEach(() => {
+        mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
+
+        jest.mock('../../cronjob', () => ({
+          executeTrailingTrade: mockExecuteTrailingTrade
+        }));
+      });
+
       describe('when last order not found', () => {
         beforeEach(async () => {
           mockUserClean = jest.fn().mockResolvedValue(true);
@@ -225,10 +234,15 @@ describe('user.js', () => {
           expect(mockUpdateGridTradeLastOrder).not.toHaveBeenCalled();
         });
 
+        it('does not trigger executeTrailingTrade', () => {
+          expect(mockExecuteTrailingTrade).not.toHaveBeenCalled();
+        });
+
         it('does not trigger userClean', () => {
           expect(mockUserClean).not.toHaveBeenCalled();
         });
       });
+
       describe('when last order found', () => {
         beforeEach(async () => {
           mockUserClean = jest.fn().mockResolvedValue(true);
@@ -336,6 +350,13 @@ describe('user.js', () => {
           );
         });
 
+        it('triggers executeTrailingTrade', () => {
+          expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+            loggerMock,
+            'ETHUSDT'
+          );
+        });
+
         it('does not trigger userClean', () => {
           expect(mockUserClean).not.toHaveBeenCalled();
         });
@@ -427,6 +448,10 @@ describe('user.js', () => {
 
         it('does not trigger saveManualOrder', () => {
           expect(mockSaveManualOrder).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger executeTrailingTrade', () => {
+          expect(mockExecuteTrailingTrade).not.toHaveBeenCalled();
         });
 
         it('does not trigger userClean', () => {
@@ -537,6 +562,13 @@ describe('user.js', () => {
               type: 'STOP_LOSS_LIMIT',
               updateTime: 1642713283562
             }
+          );
+        });
+
+        it('triggers executeTrailingTrade', () => {
+          expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+            loggerMock,
+            'ETHUSDT'
           );
         });
 

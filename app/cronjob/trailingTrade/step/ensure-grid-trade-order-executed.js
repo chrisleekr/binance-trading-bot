@@ -222,7 +222,7 @@ const execute = async (logger, rawData) => {
     if (lastBuyOrder.status === 'FILLED') {
       logger.info(
         { lastBuyOrder, saveLog: true },
-        'The grid trade order has already filled. Calculating last buy price...'
+        'The grid trade order has filled. Calculating last buy price...'
       );
 
       // Calculate last buy price
