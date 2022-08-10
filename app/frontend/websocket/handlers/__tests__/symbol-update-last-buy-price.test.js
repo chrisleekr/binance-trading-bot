@@ -6,12 +6,12 @@ describe('symbol-update-last-buy-price.test.js', () => {
 
   let mockGetAccountInfo;
   let mockSaveLastBuyPrice;
-  let mockExecuteTrailingTrade;
 
   let loggerMock;
   let mongoMock;
   let cacheMock;
   let PubSubMock;
+  let mockQueue;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -22,11 +22,11 @@ describe('symbol-update-last-buy-price.test.js', () => {
       send: mockWebSocketServerWebSocketSend
     };
 
-    mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
+    mockQueue = {
+      executeFor: jest.fn().mockResolvedValue(true)
+    };
 
-    jest.mock('../../../../cronjob', () => ({
-      executeTrailingTrade: mockExecuteTrailingTrade
-    }));
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   describe('update symbol last buy price', () => {
@@ -61,8 +61,8 @@ describe('symbol-update-last-buy-price.test.js', () => {
         );
       });
 
-      it('triggers executeTrailingTrade', () => {
-        expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+      it('triggers queue.executeFor', () => {
+        expect(mockQueue.executeFor).toHaveBeenCalledWith(
           loggerMock,
           'BTCUSDT'
         );
@@ -213,8 +213,8 @@ describe('symbol-update-last-buy-price.test.js', () => {
             );
           });
 
-          it('triggers executeTrailingTrade', () => {
-            expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+          it('triggers queue.executeFor', () => {
+            expect(mockQueue.executeFor).toHaveBeenCalledWith(
               loggerMock,
               'BTCUSDT'
             );
@@ -307,8 +307,8 @@ describe('symbol-update-last-buy-price.test.js', () => {
             );
           });
 
-          it('triggers executeTrailingTrade', () => {
-            expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+          it('triggers queue.executeFor', () => {
+            expect(mockQueue.executeFor).toHaveBeenCalledWith(
               loggerMock,
               'BTCUSDT'
             );

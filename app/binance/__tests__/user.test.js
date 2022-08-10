@@ -3,6 +3,7 @@
 describe('user.js', () => {
   let binanceMock;
   let loggerMock;
+  let mockQueue;
 
   let mockGetAccountInfoFromAPI;
   let mockUpdateAccountInfo;
@@ -10,7 +11,6 @@ describe('user.js', () => {
   let mockUpdateGridTradeLastOrder;
   let mockGetManualOrder;
   let mockSaveManualOrder;
-  let mockExecuteTrailingTrade;
 
   let mockUserClean;
 
@@ -18,9 +18,17 @@ describe('user.js', () => {
     beforeEach(async () => {
       jest.clearAllMocks().resetModules();
 
+      jest.mock('../../cronjob');
+
       const { binance, logger } = require('../../helpers');
       binanceMock = binance;
       loggerMock = logger;
+
+      mockQueue = {
+        executeFor: jest.fn().mockResolvedValue(true)
+      };
+
+      jest.mock('../../cronjob/trailingTradeHelper/queue', () => mockQueue);
     });
 
     describe('when balanceUpdate event received', () => {
@@ -138,14 +146,6 @@ describe('user.js', () => {
     });
 
     describe('when executionReport event received', () => {
-      beforeEach(() => {
-        mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
-
-        jest.mock('../../cronjob', () => ({
-          executeTrailingTrade: mockExecuteTrailingTrade
-        }));
-      });
-
       describe('when last order not found', () => {
         beforeEach(async () => {
           mockUserClean = jest.fn().mockResolvedValue(true);
@@ -234,8 +234,8 @@ describe('user.js', () => {
           expect(mockUpdateGridTradeLastOrder).not.toHaveBeenCalled();
         });
 
-        it('does not trigger executeTrailingTrade', () => {
-          expect(mockExecuteTrailingTrade).not.toHaveBeenCalled();
+        it('does not trigger queue.executeFor', () => {
+          expect(mockQueue.executeFor).not.toHaveBeenCalled();
         });
 
         it('does not trigger userClean', () => {
@@ -356,8 +356,8 @@ describe('user.js', () => {
             );
           });
 
-          it('triggers executeTrailingTrade', () => {
-            expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+          it('triggers queue.executeFor', () => {
+            expect(mockQueue.executeFor).toHaveBeenCalledWith(
               loggerMock,
               'ETHUSDT'
             );
@@ -461,8 +461,8 @@ describe('user.js', () => {
             expect(mockUpdateGridTradeLastOrder).not.toHaveBeenCalled();
           });
 
-          it('does not trigger executeTrailingTrade', () => {
-            expect(mockExecuteTrailingTrade).not.toHaveBeenCalled();
+          it('does not trigger queue.executeFor', () => {
+            expect(mockQueue.executeFor).not.toHaveBeenCalled();
           });
 
           it('does not trigger userClean', () => {
@@ -559,8 +559,8 @@ describe('user.js', () => {
           expect(mockSaveManualOrder).not.toHaveBeenCalled();
         });
 
-        it('does not trigger executeTrailingTrade', () => {
-          expect(mockExecuteTrailingTrade).not.toHaveBeenCalled();
+        it('does not trigger queue.executeFor', () => {
+          expect(mockQueue.executeFor).not.toHaveBeenCalled();
         });
 
         it('does not trigger userClean', () => {
@@ -674,8 +674,8 @@ describe('user.js', () => {
           );
         });
 
-        it('triggers executeTrailingTrade', () => {
-          expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+        it('triggers queue.executeFor', () => {
+          expect(mockQueue.executeFor).toHaveBeenCalledWith(
             loggerMock,
             'ETHUSDT'
           );

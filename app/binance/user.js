@@ -1,6 +1,6 @@
 const _ = require('lodash');
-
 const { binance } = require('../helpers');
+const queue = require('../cronjob/trailingTradeHelper/queue');
 
 const {
   updateAccountInfo,
@@ -13,7 +13,6 @@ const {
   getManualOrder,
   saveManualOrder
 } = require('../cronjob/trailingTradeHelper/order');
-const { executeTrailingTrade } = require('../cronjob');
 
 let userClean;
 
@@ -95,7 +94,7 @@ const setupUserWebsocket = async logger => {
             'The last order has been updated.'
           );
 
-          executeTrailingTrade(logger, symbol);
+          queue.executeFor(logger, symbol);
         }
       };
 
@@ -124,7 +123,7 @@ const setupUserWebsocket = async logger => {
             'The manual order has been updated.'
           );
 
-          executeTrailingTrade(logger, symbol);
+          queue.executeFor(logger, symbol);
         }
       };
 
