@@ -13,6 +13,7 @@ const {
   getManualOrder,
   saveManualOrder
 } = require('../cronjob/trailingTradeHelper/order');
+const { executeTrailingTrade } = require('../cronjob');
 
 let userClean;
 
@@ -51,7 +52,10 @@ const setupUserWebsocket = async logger => {
         totalQuoteTradeQuantity,
         totalTradeQuantity
       } = evt;
-      logger.info({ evt }, 'Received new report');
+      logger.info(
+        { symbol, evt, saveLog: true },
+        `There is a new update in order. ${orderId} - ${side} - ${orderStatus}`
+      );
 
       const checkLastOrder = async () => {
         const lastOrder = await getGridTradeLastOrder(
@@ -74,6 +78,12 @@ const setupUserWebsocket = async logger => {
             isWorking: isOrderWorking,
             updateTime: eventTime
           });
+          logger.info(
+            { symbol, lastOrder, saveLog: true },
+            'The last order has been updated.'
+          );
+
+          executeTrailingTrade(logger, symbol);
         }
       };
 
@@ -96,6 +106,13 @@ const setupUserWebsocket = async logger => {
             isWorking: isOrderWorking,
             updateTime: eventTime
           });
+
+          logger.info(
+            { symbol, manualOrder, saveLog: true },
+            'The manual order has been updated.'
+          );
+
+          executeTrailingTrade(logger, symbol);
         }
       };
 

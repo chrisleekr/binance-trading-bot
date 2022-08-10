@@ -189,9 +189,12 @@ class SymbolLogsIcon extends React.Component {
       );
     }
     const maxButtons = 8;
-    const buttons = Math.min( maxButtons , ~~totalPages );
+    const buttons = Math.min(maxButtons, ~~totalPages);
     [...Array(buttons).keys()].forEach(x => {
-      const pageNum = Math.min( Math.max( x + 1 , page + x + 1 - Math.ceil( buttons / 2 ) ) , totalPages + x + 1 - buttons );
+      const pageNum = Math.min(
+        Math.max(x + 1, page + x + 1 - Math.ceil(buttons / 2)),
+        totalPages + x + 1 - buttons
+      );
       paginationItems.push(
         <Pagination.Item
           active={pageNum === page}
@@ -224,15 +227,31 @@ class SymbolLogsIcon extends React.Component {
     );
 
     const logRows = rows.map((row, _index) => {
+      const uuid = _.get(row, ['data', 'correlationId'], '').split('-').pop();
+      const step = _.get(row, ['data', 'stepName'], 'Unknown');
+      let uuidBlock = '';
+      if (uuid) {
+        uuidBlock = (
+          <div>
+            <code>
+              {uuid} - {step}
+            </code>
+          </div>
+        );
+      }
+
       return (
         <React.Fragment key={'symbol-grid-trade-log-' + row._id}>
           <tr>
             <td
-              className='text-center align-middle'
+              className='text-center align-top'
               title={moment(row.loggedAt).format()}>
-              {moment(row.loggedAt).format('HH:mm:ss')}
+              {moment(row.loggedAt).format('HH:mm:ss.SSS')}
             </td>
-            <td>{row.msg}</td>
+            <td>
+              {uuidBlock}
+              {row.msg}
+            </td>
             <td className='text-center'>
               <button
                 type='button'

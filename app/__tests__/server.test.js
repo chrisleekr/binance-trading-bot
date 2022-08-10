@@ -49,4 +49,12 @@ describe('server', () => {
   it('triggers runBinance', () => {
     expect(mockRunBinance).toHaveBeenCalled();
   });
+
+  it('triggers runCronjob', () => {
+    expect(mockRunCronJob).toHaveBeenCalled();
+  });
+
+  it('triggers runFrontend', () => {
+    expect(mockRunFrontend).toHaveBeenCalled();
+  });
 });

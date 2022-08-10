@@ -18,9 +18,10 @@ const {
  * @param {*} order
  */
 const cancelOrder = async (logger, symbol, order) => {
+  const { side } = order;
   logger.info(
     { function: 'cancelOrder', order, saveLog: true },
-    'The order will be cancelled.'
+    `The ${side} order will be cancelled.`
   );
   // Cancel open orders first to make sure it does not have unsettled orders.
   let result = false;
@@ -89,7 +90,7 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'buy') {
       if (parseFloat(order.stopPrice) >= buyLimitPrice) {
         logger.info(
-          { stopPrice: order.stopPrice, buyLimitPrice },
+          { stopPrice: order.stopPrice, buyLimitPrice, saveLog: true },
           'Stop price is higher than buy limit price, cancel current buy order'
         );
 
@@ -170,7 +171,7 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'sell') {
       if (parseFloat(order.stopPrice) <= sellLimitPrice) {
         logger.info(
-          { stopPrice: order.stopPrice, sellLimitPrice },
+          { stopPrice: order.stopPrice, sellLimitPrice, saveLog: true },
           'Stop price is less than sell limit price, cancel current sell order'
         );
 

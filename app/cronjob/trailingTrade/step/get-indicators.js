@@ -104,7 +104,6 @@ const execute = async (logger, rawData) => {
   if (buyATHRestrictionEnabled) {
     logger.info(
       {
-        debug: true,
         function: 'athCandles',
         buyATHRestrictionEnabled,
         buyATHRestrictionCandlesInterval,
