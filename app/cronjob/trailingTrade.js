@@ -40,18 +40,7 @@ const execute = async (rawLogger, symbol) => {
     // Check if the symbol is locked, if it is locked, it means the symbol is still trading.
     const isLocked = await isSymbolLocked(logger, symbol);
 
-    if (isLocked === true) {
-      logger.info(
-        { debug: true },
-        '⏯ TrailingTrade: Skip process as the symbol is currently locked. It will be re-execute 10 seconds later.'
-      );
-      setTimeout(() => execute(logger, symbol), 10000);
-      return;
-    }
-
     logger.info({ debug: true }, '▶ TrailingTrade: Start process...');
-
-    await lockSymbol(logger, symbol);
 
     // Retrieve account info from cache
     const accountInfo = await getAccountInfo(logger);
@@ -170,9 +159,6 @@ const execute = async (rawLogger, symbol) => {
 
       stepLogger.info({ data }, `Finish step - ${stepName}`);
     }
-
-    // Unlock symbol for processing
-    await unlockSymbol(logger, symbol);
 
     logger.info({ debug: true }, '⏹ TrailingTrade: Finish process (Debug)...');
 
