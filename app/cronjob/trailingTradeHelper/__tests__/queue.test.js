@@ -15,8 +15,11 @@ describe('queue', () => {
     jest.mock('config');
 
     mockQueueProcess = jest.fn().mockImplementation(cb => {
-      cb();
+      const done = jest.fn();
+      const job = jest.fn();
+      cb(job, done);
     });
+
     mockQueueObliterate = jest.fn().mockResolvedValue(true);
     mockQueueAdd = jest.fn().mockResolvedValue(true);
     mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
@@ -43,7 +46,9 @@ describe('queue', () => {
       });
 
       it('triggers new Queue for BTCUSDT', () => {
-        expect(mockQueue).toHaveBeenCalledWith('BTCUSDT', expect.any(String));
+        expect(mockQueue).toHaveBeenCalledWith('BTCUSDT', expect.any(String), {
+          prefix: `{BTCUSDT}`
+        });
       });
 
       it('triggers executeTrailingTrade for BTCUSDT', () => {
@@ -104,7 +109,10 @@ describe('queue', () => {
       });
 
       it('triggers queue.add for BTCUSDT', () => {
-        expect(mockQueueAdd).toHaveBeenCalledWith({});
+        expect(mockQueueAdd).toHaveBeenCalledWith(
+          {},
+          { removeOnComplete: true }
+        );
       });
     });
     describe('when symbol does not exist in the queue', () => {

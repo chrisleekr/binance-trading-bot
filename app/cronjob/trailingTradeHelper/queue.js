@@ -5,16 +5,20 @@ const { executeTrailingTrade } = require('../index');
 
 let queues = {};
 
+const REDIS_URL = `redis://:${config.get('redis.password')}@${config.get(
+  'redis.host'
+)}:${config.get('redis.port')}/${config.get('redis.db')}`;
+
 const create = (funcLogger, symbol) => {
   const logger = funcLogger.child({ helper: 'queue' });
 
-  const queue = new Queue(
-    symbol,
-    `redis://:${config.get('redis.password')}@${config.get(
-      'redis.host'
-    )}:${config.get('redis.port')}/${config.get('redis.db')}`
-  );
-  queue.process(_job => executeTrailingTrade(logger, symbol));
+  const queue = new Queue(symbol, REDIS_URL, {
+    prefix: `{${symbol}}`
+  });
+  queue.process(async (_job, done) => {
+    await executeTrailingTrade(logger, symbol);
+    done();
+  });
 
   return queue;
 };
@@ -45,7 +49,12 @@ const executeFor = async (funcLogger, symbol) => {
     return;
   }
 
-  await queues[symbol].add({});
+  await queues[symbol].add(
+    {},
+    {
+      removeOnComplete: true
+    }
+  );
 };
 
 module.exports = {
