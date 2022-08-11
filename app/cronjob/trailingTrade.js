@@ -3,9 +3,7 @@ const config = require('config');
 
 const {
   getAccountInfo,
-  isSymbolLocked,
-  lockSymbol,
-  unlockSymbol
+  isSymbolLocked
 } = require('./trailingTradeHelper/common');
 
 const {
