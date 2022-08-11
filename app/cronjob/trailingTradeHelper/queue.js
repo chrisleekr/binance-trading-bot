@@ -38,6 +38,13 @@ const init = async (funcLogger, symbols) => {
  * @param {*} symbol
  */
 const executeFor = async (funcLogger, symbol) => {
+  const logger = funcLogger.child({ helper: 'queue' });
+
+  if (!(symbol in queues)) {
+    logger.error({ symbol }, `No queue created for ${symbol}`);
+    return;
+  }
+
   await queues[symbol].add({});
 };
 

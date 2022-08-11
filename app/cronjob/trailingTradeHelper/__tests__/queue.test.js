@@ -95,15 +95,29 @@ describe('queue', () => {
   });
 
   describe('executeFor', () => {
-    beforeEach(async () => {
-      queue = require('../queue');
+    describe('when the symbol exists in the queue', () => {
+      beforeEach(async () => {
+        queue = require('../queue');
 
-      await queue.init(logger, ['BTCUSDT']);
-      await queue.executeFor(logger, 'BTCUSDT');
+        await queue.init(logger, ['BTCUSDT']);
+        await queue.executeFor(logger, 'BTCUSDT');
+      });
+
+      it('triggers queue.add for BTCUSDT', () => {
+        expect(mockQueueAdd).toHaveBeenCalledWith({});
+      });
     });
+    describe('when symbol does not exist in the queue', () => {
+      beforeEach(async () => {
+        queue = require('../queue');
 
-    it('triggers queue.add for BTCUSDT', () => {
-      expect(mockQueueAdd).toHaveBeenCalledWith({});
+        await queue.init(logger, ['BTCUSDT']);
+        await queue.executeFor(logger, 'ETHUSDT');
+      });
+
+      it('does not trigger queue.add for ETHUSDT', () => {
+        expect(mockQueueAdd).not.toHaveBeenCalled();
+      });
     });
   });
 });
