@@ -85,9 +85,9 @@ class CoinWrapperAction extends React.Component {
         <div className='coin-info-column coin-info-column-title border-bottom-0 mb-0 pb-0'>
           <div className='coin-info-label'>
             Action -{' '}
-            <span className='coin-info-value'>
+            <HightlightChange className='coin-info-value' id='updated-at'>
               {updatedAt.format('HH:mm:ss')}
-            </span>
+            </HightlightChange>
             {isLocked === true ? <i className='fas fa-lock ml-1'></i> : ''}
             {isActionDisabled.isDisabled === true ? (
               <i className='fas fa-pause-circle ml-1 text-warning'></i>
