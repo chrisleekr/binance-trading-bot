@@ -58,7 +58,7 @@
     "lodash": "^4.17.21",
     "lodash-webpack-plugin": "^0.11.6",
     "migrate": "^1.8.0",
-    "moment": "^2.29.3",
+    "moment": "^2.29.4",
     "moment-timezone": "^0.5.34",
     "mongodb": "4.1.0",
     "pubsub-js": "^1.9.4",
@@ -107,7 +107,7 @@
     "grunt-contrib-cssmin": "^4.0.0",
     "jest": "^28.1.0",
     "lint-staged": "^12.4.2",
-    "nodemon": "^2.0.16",
+    "nodemon": "^2.0.19",
     "prettier": "^2.6.2",
     "webpack": "^5.72.1",
     "webpack-cli": "^4.9.2"
