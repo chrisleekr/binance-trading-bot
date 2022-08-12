@@ -2,6 +2,7 @@ const config = require('config');
 const Queue = require('bull');
 const _ = require('lodash');
 const { executeTrailingTrade } = require('../index');
+const { setBullBoardQueues } = require('../../frontend/bull-board/configure');
 
 let queues = {};
 
@@ -13,12 +14,13 @@ const create = (funcLogger, symbol) => {
   const logger = funcLogger.child({ helper: 'queue' });
 
   const queue = new Queue(symbol, REDIS_URL, {
-    prefix: `{${symbol}}`
+    prefix: `bull`,
+    settings: {
+      guardInterval: 1000 // Poll interval for delayed jobs and added jobs.
+    }
   });
-  queue.process(async (_job, done) => {
-    await executeTrailingTrade(logger, symbol);
-    done();
-  });
+  // Set concurrent for the job
+  queue.process(1, async _job => executeTrailingTrade(logger, symbol));
 
   return queue;
 };
@@ -33,6 +35,9 @@ const init = async (funcLogger, symbols) => {
       queues[symbol] = create(funcLogger, symbol);
     })
   );
+
+  // Set bull board queues
+  setBullBoardQueues(queues, funcLogger);
 };
 
 /**
@@ -52,7 +57,7 @@ const executeFor = async (funcLogger, symbol) => {
   await queues[symbol].add(
     {},
     {
-      removeOnComplete: true
+      removeOnComplete: 100 // number specified the amount of jobs to keep.
     }
   );
 };

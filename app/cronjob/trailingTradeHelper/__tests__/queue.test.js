@@ -9,20 +9,21 @@ describe('queue', () => {
   let mockQueue;
 
   let mockExecuteTrailingTrade;
+  let mockSetBullBoardQueues;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
     jest.mock('config');
 
-    mockQueueProcess = jest.fn().mockImplementation(cb => {
-      const done = jest.fn();
+    mockQueueProcess = jest.fn().mockImplementation((_concurrent, cb) => {
       const job = jest.fn();
-      cb(job, done);
+      cb(job);
     });
 
     mockQueueObliterate = jest.fn().mockResolvedValue(true);
     mockQueueAdd = jest.fn().mockResolvedValue(true);
     mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
+    mockSetBullBoardQueues = jest.fn().mockResolvedValue(true);
 
     mockQueue = jest.fn().mockImplementation((_queueName, _redisUrl) => ({
       process: mockQueueProcess,
@@ -34,6 +35,10 @@ describe('queue', () => {
 
     jest.mock('../../../cronjob', () => ({
       executeTrailingTrade: mockExecuteTrailingTrade
+    }));
+
+    jest.mock('../../../frontend/bull-board/configure', () => ({
+      setBullBoardQueues: mockSetBullBoardQueues
     }));
   });
 
@@ -47,7 +52,10 @@ describe('queue', () => {
 
       it('triggers new Queue for BTCUSDT', () => {
         expect(mockQueue).toHaveBeenCalledWith('BTCUSDT', expect.any(String), {
-          prefix: `{BTCUSDT}`
+          prefix: `bull`,
+          settings: {
+            guardInterval: 1000
+          }
         });
       });
 
@@ -96,6 +104,10 @@ describe('queue', () => {
       it('triggers queue.process 6 times', () => {
         expect(mockQueueProcess).toHaveBeenCalledTimes(6);
       });
+
+      it('triggers setBullBoardQueues 2 times', () => {
+        expect(mockSetBullBoardQueues).toHaveBeenCalledTimes(2);
+      });
     });
   });
 
@@ -111,7 +123,7 @@ describe('queue', () => {
       it('triggers queue.add for BTCUSDT', () => {
         expect(mockQueueAdd).toHaveBeenCalledWith(
           {},
-          { removeOnComplete: true }
+          { removeOnComplete: 100 }
         );
       });
     });
