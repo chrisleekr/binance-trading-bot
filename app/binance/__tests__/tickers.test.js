@@ -72,8 +72,6 @@ describe('tickers.js', () => {
         return mockWebsocketTickersClean;
       });
 
-      // mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
-
       jest.mock('../../cronjob/trailingTradeHelper/common', () => ({
         getAccountInfo: mockGetAccountInfo,
         getCachedExchangeSymbols: mockGetCachedExchangeSymbols

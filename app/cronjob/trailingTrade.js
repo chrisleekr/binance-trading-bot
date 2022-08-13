@@ -35,7 +35,7 @@ const execute = async (rawLogger, symbol) => {
   });
 
   await errorHandlerWrapper(logger, 'Trailing Trade', async () => {
-    // Check if the symbol is locked, if it is locked, it means the symbol is still trading.
+    // Check if the symbol is locked, if it is locked, it means the symbol is updating in the indicator.
     const isLocked = await isSymbolLocked(logger, symbol);
 
     logger.info({ debug: true }, '▶ TrailingTrade: Start process...');
