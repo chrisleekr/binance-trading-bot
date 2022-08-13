@@ -55,7 +55,7 @@
     "lodash": "^4.17.21",
     "lodash-webpack-plugin": "^0.11.6",
     "migrate": "^1.8.0",
-    "moment": "^2.29.3",
+    "moment": "^2.29.4",
     "moment-timezone": "^0.5.34",
     "mongodb": "4.1.0",
     "pubsub-js": "^1.9.4",
