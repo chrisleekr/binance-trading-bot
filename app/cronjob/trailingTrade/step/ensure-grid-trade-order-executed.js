@@ -7,7 +7,8 @@ const {
   getAPILimit,
   isExceedAPILimit,
   disableAction,
-  saveOrderStats
+  saveOrderStats,
+  checkIfOpenOrdersExceedingMaxOpenTrades
 } = require('../../trailingTradeHelper/common');
 
 const {
@@ -17,7 +18,6 @@ const {
   deleteGridTradeOrder,
   getGridTradeLastOrder
 } = require('../../trailingTradeHelper/order');
-const queue = require('../../trailingTradeHelper/queue');
 
 /**
  * Remove last order from cache
@@ -250,12 +250,7 @@ const execute = async (logger, rawData) => {
         temporaryDisableActionAfterConfirmingOrder
       );
 
-      // Queue other symbols to check if max. open trade is reached
-      symbols.forEach(symbolToQueue => {
-        if (symbolToQueue !== symbol) {
-          queue.executeFor(logger, symbolToQueue);
-        }
-      });
+      await checkIfOpenOrdersExceedingMaxOpenTrades(logger);
     } else if (removeStatuses.includes(lastBuyOrder.status)) {
       logger.info(
         {
