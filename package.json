@@ -41,7 +41,7 @@
     "@bull-board/express": "^4.2.2",
     "axios": "^0.27.2",
     "bcryptjs": "^2.4.3",
-    "binance-api-node": "^0.11.39",
+    "binance-api-node": "^0.11.43",
     "bull": "^4.8.5",
     "bunyan": "^1.8.15",
     "clean-webpack-plugin": "^4.0.0",
