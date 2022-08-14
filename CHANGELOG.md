@@ -4,10 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Refactored the slack hander to avoid message flooding to Slack - [#471](https://github.com/chrisleekr/binance-trading-bot/pull/471)
+- Implemented queue to stabilise the trade by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#464](https://github.com/chrisleekr/binance-trading-bot/pull/464)
 - Fixed to handle order status update correctly - [#461](https://github.com/chrisleekr/binance-trading-bot/pull/461)
-- Fixed timezone inconsistency. Thanks [@uhliksk](https://github.com/uhliksk) - [#454](https://github.com/chrisleekr/binance-trading-bot/pull/454)
-- Improved UI. Thanks [@uhliksk](https://github.com/uhliksk) - [#452](https://github.com/chrisleekr/binance-trading-bot/pull/452)
-- Improved error handler and stability. Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#448](https://github.com/chrisleekr/binance-trading-bot/pull/448)
+- Fixed timezone inconsistency by [@uhliksk](https://github.com/uhliksk) - [#454](https://github.com/chrisleekr/binance-trading-bot/pull/454)
+- Improved UI by [@uhliksk](https://github.com/uhliksk) - [#452](https://github.com/chrisleekr/binance-trading-bot/pull/452)
+- Improved error handler and stability by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#448](https://github.com/chrisleekr/binance-trading-bot/pull/448)
+
+Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) and [@uhliksk](https://github.com/uhliksk) for your great contributions.
 
 ## [0.0.88] - 2022-07-24
 
