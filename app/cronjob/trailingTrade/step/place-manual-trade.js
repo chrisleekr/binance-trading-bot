@@ -158,12 +158,10 @@ const slackMessageOrderParams = async (logger, symbol, side, order, params) => {
     `The manual ${side.toUpperCase()} order will be placed.`
   );
 
-  return slack.sendMessage(
-    `${symbol} Manual ${side.toUpperCase()} Action (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *${type}*\n` +
-      `- Order Params: \`\`\`${JSON.stringify(params, undefined, 2)}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+  slack.sendMessage(
+    `*${symbol}* Manual ${side.toUpperCase()} Action: *${type}*\n` +
+      `- Order Params: \`\`\`${JSON.stringify(params, undefined, 2)}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 };
 
@@ -202,16 +200,14 @@ const slackMessageOrderResult = async (
       ` If the order is not executed, it should appear soon.`
   });
 
-  return slack.sendMessage(
-    `${symbol} Manual ${side.toUpperCase()} Result (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *${type}*\n` +
+  slack.sendMessage(
+    `*${symbol}* Manual ${side.toUpperCase()} Result: *${type}*\n` +
       `- Order Result: \`\`\`${JSON.stringify(
         orderResult,
         undefined,
         2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+      )}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 };
 

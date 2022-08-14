@@ -591,11 +591,8 @@ const execute = async (logger, rawData) => {
       // Notify as it's important message for now.
       // Eventually, should convert to logging to reduce unnecessary notifications.
       slack.sendMessage(
-        `${symbol} Action (${moment().format(
-          'HH:mm:ss.SSS'
-        )}): Force sell: \n` +
-          `- Message: ${forceSellMessage}\n` +
-          `- Current API Usage: ${getAPILimit(logger)}`
+        `*${symbol}* Action - *Force sell*: \n- Message: ${forceSellMessage}`,
+        { symbol, apiLimit: getAPILimit(logger) }
       );
 
       // Then sell market order

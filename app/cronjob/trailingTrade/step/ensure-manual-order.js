@@ -34,12 +34,10 @@ const slackMessageOrderFilled = async (logger, symbol, side, order) => {
     title: `The ${side} order for ${symbol} has been executed successfully.`
   });
 
-  return slack.sendMessage(
-    `${symbol} Manual ${side.toUpperCase()} Order Filled (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *${type}*\n` +
-      `- Order Result: \`\`\`${JSON.stringify(order, undefined, 2)}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+  slack.sendMessage(
+    `*${symbol}* Manual ${side.toUpperCase()} Order Filled: *${type}*\n` +
+      `- Order Result: \`\`\`${JSON.stringify(order, undefined, 2)}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 };
 
@@ -68,15 +66,13 @@ const saveGridTrade = async (logger, rawData, order) => {
 
   if (notifyDebug) {
     slack.sendMessage(
-      `${symbol} ${side.toUpperCase()} Grid Trade Updated (${moment().format(
-        'HH:mm:ss.SSS'
-      )}): *${type}*\n` +
+      `*${symbol}* ${side.toUpperCase()} Grid Trade Updated: *${type}*\n` +
         `- New Gird Trade: \`\`\`${JSON.stringify(
           symbolGridTrade,
           undefined,
           2
-        )}\`\`\`\n` +
-        `- Current API Usage: ${getAPILimit(logger)}`
+        )}\`\`\``,
+      { symbol, apiLimit: getAPILimit(logger) }
     );
   }
   return saveSymbolGridTrade(logger, symbol, symbolGridTrade);
@@ -98,12 +94,10 @@ const slackMessageOrderDeleted = async (logger, symbol, side, order) => {
     title: `The ${side} order for ${symbol} is ${order.status}. Stop monitoring.`
   });
 
-  return slack.sendMessage(
-    `${symbol} Manual ${side.toUpperCase()} Order Removed (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *${type}*\n` +
-      `- Order Result: \`\`\`${JSON.stringify(order, undefined, 2)}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+  slack.sendMessage(
+    `*${symbol}* Manual ${side.toUpperCase()} Order Removed: *${type}*\n` +
+      `- Order Result: \`\`\`${JSON.stringify(order, undefined, 2)}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 };
 

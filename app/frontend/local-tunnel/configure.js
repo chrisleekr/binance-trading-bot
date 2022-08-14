@@ -1,5 +1,4 @@
 const localtunnel = require('localtunnel');
-const moment = require('moment-timezone');
 const config = require('config');
 const { slack, cache } = require('../../helpers');
 
@@ -22,9 +21,7 @@ const reconnect = (logger, message, ms) => {
 
   isReconnecting = true;
   if (config.get('featureToggle.notifyDebug')) {
-    slack.sendMessage(
-      `Local Tunnel (${moment().format('HH:mm:ss.SSS')}): ${message}`
-    );
+    slack.sendMessage(`Local Tunnel:\n${message}`);
   }
   logger.warn(message);
 

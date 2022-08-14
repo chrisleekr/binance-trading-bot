@@ -406,12 +406,10 @@ const execute = async (logger, rawData) => {
   }
 
   slack.sendMessage(
-    `${symbol} Buy Action Grid Trade #${humanisedGridTradeIndex} (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *STOP_LOSS_LIMIT*\n` +
+    `*${symbol}* Action - Buy Trade #${humanisedGridTradeIndex}: *STOP_LOSS_LIMIT*\n` +
       `- Order Params: \n` +
-      `\`\`\`${JSON.stringify(notifyMessage, undefined, 2)}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+      `\`\`\`${JSON.stringify(notifyMessage, undefined, 2)}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 
   logger.info(
@@ -466,15 +464,13 @@ const execute = async (logger, rawData) => {
   );
 
   slack.sendMessage(
-    `${symbol} Buy Action Grid Trade #${humanisedGridTradeIndex} Result (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *STOP_LOSS_LIMIT*\n` +
+    `*${symbol}* Buy Action Grid Trade #${humanisedGridTradeIndex} Result: *STOP_LOSS_LIMIT*\n` +
       `- Order Result: \`\`\`${JSON.stringify(
         orderResult,
         undefined,
         2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+      )}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 
   return setMessage(

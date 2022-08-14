@@ -74,9 +74,9 @@ const handleAuth = async (funcLogger, app, { loginLimiter }) => {
       });
 
       slack.sendMessage(
-        `${config.get('appName')} Webserver (${moment().format(
-          'HH:mm:ss'
-        )}):\n❌ The bot failed to authenticate.\n` +
+        `${config.get(
+          'appName'
+        )} Webserver:\n❌ The bot failed to authenticate.\n` +
           `- Entered password: ${requestedPassword}\n` +
           `- IP: ${clientIp}`
       );
@@ -101,9 +101,9 @@ const handleAuth = async (funcLogger, app, { loginLimiter }) => {
     });
 
     slack.sendMessage(
-      `${config.get('appName')} Webserver (${moment().format(
-        'HH:mm:ss'
-      )}):\n✅ The bot succeeded to authenticate.\n- IP: ${clientIp}`
+      `${config.get(
+        'appName'
+      )} Webserver:\n✅ The bot succeeded to authenticate.\n- IP: ${clientIp}`
     );
 
     return res.send({
