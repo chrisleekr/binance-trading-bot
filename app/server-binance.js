@@ -1,6 +1,7 @@
 const _ = require('lodash');
 const config = require('config');
 const { PubSub, cache, mongo } = require('./helpers');
+const queue = require('./cronjob/trailingTradeHelper/queue');
 
 const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
 const {
@@ -104,6 +105,8 @@ const syncAll = async logger => {
   const { symbols } = globalConfiguration;
 
   logger.info({ symbols }, 'Retrieved symbols');
+
+  await queue.init(logger, symbols);
 
   // Lock all symbols for 5 minutes to ensure nothing will be executed unless all data retrieved
   await Promise.all(symbols.map(symbol => lockSymbol(logger, symbol, 300)));

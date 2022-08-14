@@ -4,7 +4,7 @@ const {
   getAccountInfo,
   saveLastBuyPrice
 } = require('../../../cronjob/trailingTradeHelper/common');
-const { executeTrailingTrade } = require('../../../cronjob');
+const queue = require('../../../cronjob/trailingTradeHelper/queue');
 
 /**
  * Delete last buy price
@@ -19,7 +19,7 @@ const deleteLastBuyPrice = async (logger, ws, symbol) => {
     key: `${symbol}-last-buy-price`
   });
 
-  executeTrailingTrade(logger, symbol);
+  queue.executeFor(logger, symbol);
 
   PubSub.publish('frontend-notification', {
     type: 'success',
@@ -97,7 +97,7 @@ const updateLastBuyPrice = async (logger, ws, symbol, lastBuyPrice) => {
     quantity: baseAssetTotalBalance
   });
 
-  executeTrailingTrade(logger, symbol);
+  queue.executeFor(logger, symbol);
 
   PubSub.publish('frontend-notification', {
     type: 'success',

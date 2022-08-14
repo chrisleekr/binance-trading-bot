@@ -1,10 +1,11 @@
 const _ = require('lodash');
 const { binance, cache } = require('../helpers');
+const queue = require('../cronjob/trailingTradeHelper/queue');
+
 const {
   getAccountInfo,
   getCachedExchangeSymbols
 } = require('../cronjob/trailingTradeHelper/common');
-const { executeTrailingTrade } = require('../cronjob');
 const { errorHandlerWrapper } = require('../error-handler');
 
 let websocketTickersClean = {};
@@ -65,7 +66,7 @@ const setupTickersWebsocket = async (logger, symbols) => {
           );
 
           if (canExecuteTrailingTrade) {
-            executeTrailingTrade(logger, monitoringSymbol);
+            queue.executeFor(logger, monitoringSymbol);
           }
         });
       }

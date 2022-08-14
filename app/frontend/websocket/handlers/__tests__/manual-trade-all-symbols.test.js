@@ -7,11 +7,11 @@ describe('manual-trade-all-symbols.js', () => {
 
   let loggerMock;
   let PubSubMock;
+  let mockQueue;
 
   let mockGetGlobalConfiguration;
 
   let mockSaveOverrideAction;
-  let mockExecuteTrailingTrade;
 
   const orders = {
     side: 'buy',
@@ -238,11 +238,11 @@ describe('manual-trade-all-symbols.js', () => {
       saveOverrideAction: mockSaveOverrideAction
     }));
 
-    mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
+    mockQueue = {
+      executeFor: jest.fn().mockResolvedValue(true)
+    };
 
-    jest.mock('../../../../cronjob', () => ({
-      executeTrailingTrade: mockExecuteTrailingTrade
-    }));
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   beforeEach(async () => {
@@ -310,8 +310,8 @@ describe('manual-trade-all-symbols.js', () => {
                 );
               });
 
-              it('triggers executeTrailingTrade', () => {
-                expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+              it('triggers queue.executeFor', () => {
+                expect(mockQueue.executeFor).toHaveBeenCalledWith(
                   loggerMock,
                   symbol
                 );
@@ -410,8 +410,8 @@ describe('manual-trade-all-symbols.js', () => {
                 );
               });
 
-              it('triggers executeTrailingTrade', () => {
-                expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+              it('triggers queue.executeFor', () => {
+                expect(mockQueue.executeFor).toHaveBeenCalledWith(
                   loggerMock,
                   'BTCUSDT'
                 );

@@ -2,7 +2,7 @@ const moment = require('moment');
 const {
   saveOverrideAction
 } = require('../../../cronjob/trailingTradeHelper/common');
-const { executeTrailingTrade } = require('../../../cronjob');
+const queue = require('../../../cronjob/trailingTradeHelper/queue');
 
 const handleSymbolTriggerSell = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol trigger sell');
@@ -22,7 +22,7 @@ const handleSymbolTriggerSell = async (logger, ws, payload) => {
     'The sell order received by the bot. Wait for placing the order.'
   );
 
-  executeTrailingTrade(logger, symbol);
+  queue.executeFor(logger, symbol);
 
   ws.send(JSON.stringify({ result: true, type: 'symbol-trigger-sell-result' }));
 };

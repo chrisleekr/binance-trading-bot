@@ -6,9 +6,10 @@ describe('symbol-setting-update.test.js', () => {
 
   let mockLogger;
 
+  let mockQueue;
+
   let mockGetSymbolConfiguration;
   let mockSaveSymbolConfiguration;
-  let mockExecuteTrailingTrade;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -19,11 +20,11 @@ describe('symbol-setting-update.test.js', () => {
       send: mockWebSocketServerWebSocketSend
     };
 
-    mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
+    mockQueue = {
+      executeFor: jest.fn().mockResolvedValue(true)
+    };
 
-    jest.mock('../../../../cronjob', () => ({
-      executeTrailingTrade: mockExecuteTrailingTrade
-    }));
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   describe('when configuration is valid', () => {
@@ -265,11 +266,8 @@ describe('symbol-setting-update.test.js', () => {
       );
     });
 
-    it('triggers executeTrailingTrade', () => {
-      expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
-        mockLogger,
-        'BTCUSDT'
-      );
+    it('triggers queue.executeFor', () => {
+      expect(mockQueue.executeFor).toHaveBeenCalledWith(mockLogger, 'BTCUSDT');
     });
 
     it('triggers ws.send', () => {

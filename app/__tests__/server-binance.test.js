@@ -1,10 +1,12 @@
 /* eslint-disable global-require */
 // eslint-disable-next-line max-classes-per-file
+const { logger } = require('../helpers');
+
 describe('server-binance', () => {
-  let PubSubMock;
-  let loggerMock;
-  let cacheMock;
-  let mongoMock;
+  let mockPubSub;
+  let mockCache;
+  let mockMongo;
+  let mockQueue;
 
   let mockGetGlobalConfiguration;
 
@@ -37,19 +39,48 @@ describe('server-binance', () => {
     jest.clearAllMocks().resetModules();
     jest.useFakeTimers();
 
-    const { PubSub, logger, cache, mongo, slack } = require('../helpers');
-
     jest.mock('config');
+    jest.mock('../cronjob');
 
     config = require('config');
 
-    PubSubMock = PubSub;
-    loggerMock = logger;
-    cacheMock = cache;
-    mongoMock = mongo;
+    mockCache = {
+      hget: jest
+        .fn()
+        .mockResolvedValue(
+          JSON.stringify(require('./fixtures/exchange-symbols.json'))
+        ),
+      hset: jest.fn().mockResolvedValue(true)
+    };
+    mockMongo = {
+      deleteAll: jest.fn().mockResolvedValue(true)
+    };
+    mockQueue = {
+      init: jest.fn().mockResolvedValue(true)
+    };
+    mockSlack = {
+      sendMessage: jest.fn().mockResolvedValue(true)
+    };
+    mockPubSub = {
+      subscribe: jest.fn(),
+      publish: jest.fn()
+    };
 
-    mockSlack = slack;
-    mockSlack.sendMessage = jest.fn().mockResolvedValue(true);
+    jest.mock('../helpers', () => ({
+      logger: {
+        info: jest.fn(),
+        error: jest.fn(),
+        warn: jest.fn(),
+        debug: jest.fn(),
+        child: jest.fn()
+      },
+      slack: mockSlack,
+      mongo: mockMongo,
+      PubSub: mockPubSub,
+      cache: mockCache
+    }));
+
+    jest.mock('../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   describe('when the bot is running live mode', () => {
@@ -132,30 +163,19 @@ describe('server-binance', () => {
           getWebsocketTickersClean: mockGetWebsocketTickersClean
         }));
 
-        mongoMock.deleteAll = jest.fn().mockResolvedValue(true);
-
-        PubSubMock.subscribe = jest.fn().mockResolvedValue(true);
-
-        cacheMock.hget = jest
-          .fn()
-          .mockResolvedValue(
-            JSON.stringify(require('./fixtures/exchange-symbols.json'))
-          );
-        cacheMock.hset = jest.fn().mockResolvedValue(true);
-
         const { runBinance } = require('../server-binance');
-        await runBinance(loggerMock);
+        await runBinance(logger);
       });
 
       it('triggers PubSub.subscribe for reset-all-websockets', () => {
-        expect(PubSubMock.subscribe).toHaveBeenCalledWith(
+        expect(mockPubSub.subscribe).toHaveBeenCalledWith(
           'reset-all-websockets',
           expect.any(Function)
         );
       });
 
       it('triggers PubSub.subscribe for reset-symbol-websockets', () => {
-        expect(PubSubMock.subscribe).toHaveBeenCalledWith(
+        expect(mockPubSub.subscribe).toHaveBeenCalledWith(
           'reset-symbol-websockets',
           expect.any(Function)
         );
@@ -170,49 +190,53 @@ describe('server-binance', () => {
       });
 
       it('triggers refreshCandles', () => {
-        expect(mongoMock.deleteAll).toHaveBeenCalledWith(
-          loggerMock,
+        expect(mockMongo.deleteAll).toHaveBeenCalledWith(
+          logger,
           'trailing-trade-candles',
           {}
         );
-        expect(mongoMock.deleteAll).toHaveBeenCalledWith(
-          loggerMock,
+        expect(mockMongo.deleteAll).toHaveBeenCalledWith(
+          logger,
           'trailing-trade-ath-candles',
           {}
         );
       });
 
       it('triggers syncCandles', () => {
-        expect(mockSyncCandles).toHaveBeenCalledWith(loggerMock, [
+        expect(mockSyncCandles).toHaveBeenCalledWith(logger, [
           'BTCUSDT',
           'BNBUSDT'
         ]);
       });
 
       it('triggers syncATHCandles', () => {
-        expect(mockSyncATHCandles).toHaveBeenCalledWith(loggerMock, [
+        expect(mockSyncATHCandles).toHaveBeenCalledWith(logger, [
           'BTCUSDT',
           'BNBUSDT'
         ]);
       });
 
       it('triggers syncOpenOrders', () => {
-        expect(mockSyncOpenOrders).toHaveBeenCalledWith(loggerMock, [
+        expect(mockSyncOpenOrders).toHaveBeenCalledWith(logger, [
           'BTCUSDT',
           'BNBUSDT'
         ]);
       });
 
       it('triggers syncDatabaseOrders', () => {
-        expect(mockSyncDatabaseOrders).toHaveBeenCalledWith(loggerMock);
+        expect(mockSyncDatabaseOrders).toHaveBeenCalledWith(logger);
       });
 
       it('triggers cache.hset', () => {
-        expect(cacheMock.hset).toHaveBeenCalledWith(
+        expect(mockCache.hset).toHaveBeenCalledWith(
           'trailing-trade-streams',
           `count`,
           1
         );
+      });
+
+      it('triggers queue.init', () => {
+        expect(mockQueue.init).toHaveBeenCalled();
       });
     });
 
@@ -303,15 +327,9 @@ describe('server-binance', () => {
           getWebsocketTickersClean: mockGetWebsocketTickersClean
         }));
 
-        PubSubMock.subscribe = jest.fn().mockResolvedValue(true);
-
-        mongoMock.deleteAll = jest.fn().mockResolvedValue(true);
-
-        cacheMock.hset = jest.fn().mockResolvedValue(true);
-
         const { runBinance } = require('../server-binance');
 
-        await runBinance(loggerMock);
+        await runBinance(logger);
       });
 
       it('triggers getWebsocketTickersClean', () => {
@@ -331,7 +349,7 @@ describe('server-binance', () => {
       });
 
       it('triggers cache.hset', () => {
-        expect(cacheMock.hset).toHaveBeenCalledWith(
+        expect(mockCache.hset).toHaveBeenCalledWith(
           'trailing-trade-streams',
           `count`,
           1 + 5
@@ -419,27 +437,23 @@ describe('server-binance', () => {
         getWebsocketTickersClean: mockGetWebsocketTickersClean
       }));
 
-      PubSubMock.subscribe = jest.fn().mockImplementation((_key, cb) => {
+      mockPubSub.subscribe = jest.fn().mockImplementation((_key, cb) => {
         cb('message', 'data');
       });
 
-      mongoMock.deleteAll = jest.fn().mockResolvedValue(true);
-
-      cacheMock.hset = jest.fn().mockResolvedValue(true);
-
       const { runBinance } = require('../server-binance');
-      await runBinance(loggerMock);
+      await runBinance(logger);
     });
 
     it('triggers PubSub.subscribe for reset-all-websockets', () => {
-      expect(PubSubMock.subscribe).toHaveBeenCalledWith(
+      expect(mockPubSub.subscribe).toHaveBeenCalledWith(
         'reset-all-websockets',
         expect.any(Function)
       );
     });
 
     it('triggers PubSub.subscribe for reset-symbol-websockets', () => {
-      expect(PubSubMock.subscribe).toHaveBeenCalledWith(
+      expect(mockPubSub.subscribe).toHaveBeenCalledWith(
         'reset-symbol-websockets',
         expect.any(Function)
       );
@@ -454,13 +468,13 @@ describe('server-binance', () => {
     });
 
     it('triggers refreshCandles', () => {
-      expect(mongoMock.deleteAll).toHaveBeenCalledWith(
-        loggerMock,
+      expect(mockMongo.deleteAll).toHaveBeenCalledWith(
+        logger,
         'trailing-trade-candles',
         {}
       );
-      expect(mongoMock.deleteAll).toHaveBeenCalledWith(
-        loggerMock,
+      expect(mockMongo.deleteAll).toHaveBeenCalledWith(
+        logger,
         'trailing-trade-ath-candles',
         {}
       );
@@ -471,7 +485,7 @@ describe('server-binance', () => {
     });
 
     it('triggers syncCandles', () => {
-      expect(mockSyncCandles).toHaveBeenCalledWith(loggerMock, [
+      expect(mockSyncCandles).toHaveBeenCalledWith(logger, [
         'BTCUSDT',
         'ETHUSDT',
         'LTCUSDT'
@@ -479,7 +493,7 @@ describe('server-binance', () => {
     });
 
     it('triggers syncATHCandles', () => {
-      expect(mockSyncATHCandles).toHaveBeenCalledWith(loggerMock, [
+      expect(mockSyncATHCandles).toHaveBeenCalledWith(logger, [
         'BTCUSDT',
         'ETHUSDT',
         'LTCUSDT'
@@ -487,7 +501,7 @@ describe('server-binance', () => {
     });
 
     it('triggers syncOpenOrders', () => {
-      expect(mockSyncOpenOrders).toHaveBeenCalledWith(loggerMock, [
+      expect(mockSyncOpenOrders).toHaveBeenCalledWith(logger, [
         'BTCUSDT',
         'ETHUSDT',
         'LTCUSDT'
@@ -495,11 +509,11 @@ describe('server-binance', () => {
     });
 
     it('triggers syncDatabaseOrders', () => {
-      expect(mockSyncDatabaseOrders).toHaveBeenCalledWith(loggerMock);
+      expect(mockSyncDatabaseOrders).toHaveBeenCalledWith(logger);
     });
 
     it('triggers cache.hset', () => {
-      expect(cacheMock.hset).toHaveBeenCalledWith(
+      expect(mockCache.hset).toHaveBeenCalledWith(
         'trailing-trade-streams',
         `count`,
         1
@@ -586,15 +600,11 @@ describe('server-binance', () => {
         getWebsocketTickersClean: mockGetWebsocketTickersClean
       }));
 
-      PubSubMock.subscribe = jest.fn().mockResolvedValue(true);
-
-      mongoMock.deleteAll = jest.fn().mockResolvedValue(true);
-
-      cacheMock.hset = jest.fn().mockResolvedValue(true);
+      mockPubSub.subscribe = jest.fn().mockResolvedValue(true);
 
       const { runBinance } = require('../server-binance');
-      await runBinance(loggerMock);
-      await runBinance(loggerMock);
+      await runBinance(logger);
+      await runBinance(logger);
     });
 
     it('triggers cacheExchangeSymbols', () => {
