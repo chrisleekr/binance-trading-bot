@@ -490,7 +490,8 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
             it('triggers PubSub.publish for check-open-orders channel', () => {
               expect(PubSubMock.publish).toHaveBeenCalledWith(
-                'check-open-orders'
+                'check-open-orders',
+                {}
               );
             });
 

@@ -249,7 +249,7 @@ const execute = async (logger, rawData) => {
         temporaryDisableActionAfterConfirmingOrder
       );
 
-      PubSub.publish('check-open-orders');
+      PubSub.publish('check-open-orders', {});
     } else if (removeStatuses.includes(lastBuyOrder.status)) {
       logger.info(
         {
