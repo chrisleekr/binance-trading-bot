@@ -166,6 +166,18 @@ const setupBinance = async logger => {
     await syncCandles(logger, [symbol]);
     await syncATHCandles(logger, [symbol]);
   });
+  PubSub.subscribe('check-open-orders', async (message, data) => {
+    logger.info(`Message: ${message}, Data: ${data}`);
+
+    const cachedOpenOrders = await cache.hgetall(
+      'trailing-trade-open-orders:',
+      'trailing-trade-open-orders:*'
+    );
+
+    const symbols = _.keys(cachedOpenOrders);
+
+    symbols.forEach(symbol => queue.executeFor(logger, symbol));
+  });
 
   await syncAll(logger);
 };

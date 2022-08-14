@@ -1128,17 +1128,6 @@ const cancelOrder = async (logger, symbol, order) => {
   return result;
 };
 
-const checkIfOpenOrdersExceedingMaxOpenTrades = async logger => {
-  const cachedOpenOrders = await cache.hgetall(
-    'trailing-trade-open-orders:',
-    'trailing-trade-open-orders:*'
-  );
-
-  const symbols = _.keys(cachedOpenOrders);
-
-  symbols.forEach(symbol => queue.executeFor(logger, symbol));
-};
-
 module.exports = {
   cacheExchangeSymbols,
   getCachedExchangeSymbols,
@@ -1180,6 +1169,5 @@ module.exports = {
   getCacheTrailingTradeTotalProfitAndLoss,
   getCacheTrailingTradeQuoteEstimates,
   isExceedingMaxOpenTrades,
-  cancelOrder,
-  checkIfOpenOrdersExceedingMaxOpenTrades
+  cancelOrder
 };

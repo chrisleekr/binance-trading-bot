@@ -7,8 +7,7 @@ const {
   getAPILimit,
   isExceedAPILimit,
   disableAction,
-  saveOrderStats,
-  checkIfOpenOrdersExceedingMaxOpenTrades
+  saveOrderStats
 } = require('../../trailingTradeHelper/common');
 
 const {
@@ -250,7 +249,7 @@ const execute = async (logger, rawData) => {
         temporaryDisableActionAfterConfirmingOrder
       );
 
-      await checkIfOpenOrdersExceedingMaxOpenTrades(logger);
+      PubSub.publish('check-open-orders');
     } else if (removeStatuses.includes(lastBuyOrder.status)) {
       logger.info(
         {

@@ -20,8 +20,6 @@ describe('ensure-grid-trade-order-executed.js', () => {
   let mockGetGridTradeLastOrder;
   let mockDeleteGridTradeOrder;
 
-  let mockCheckIfOpenOrdersExceedingMaxOpenTrades;
-
   describe('execute', () => {
     beforeEach(async () => {
       jest.clearAllMocks().resetModules();
@@ -32,10 +30,6 @@ describe('ensure-grid-trade-order-executed.js', () => {
         () => nextCheck =>
           jest.requireActual('moment')(nextCheck || '2020-01-02T00:00:00+00:00')
       );
-
-      mockCheckIfOpenOrdersExceedingMaxOpenTrades = jest
-        .fn()
-        .mockResolvedValue(true);
 
       const { slack, logger, PubSub } = require('../../../../helpers');
 
@@ -68,9 +62,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
           getAPILimit: mockGetAPILimit,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
-          saveOrderStats: mockSaveOrderStats,
-          checkIfOpenOrdersExceedingMaxOpenTrades:
-            mockCheckIfOpenOrdersExceedingMaxOpenTrades
+          saveOrderStats: mockSaveOrderStats
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -345,9 +337,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
               getAPILimit: mockGetAPILimit,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
-              saveOrderStats: mockSaveOrderStats,
-              checkIfOpenOrdersExceedingMaxOpenTrades:
-                mockCheckIfOpenOrdersExceedingMaxOpenTrades
+              saveOrderStats: mockSaveOrderStats
             }));
 
             jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -498,10 +488,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
               );
             });
 
-            it('triggers checkIfOpenOrdersExceedingMaxOpenTrades', () => {
-              expect(
-                mockCheckIfOpenOrdersExceedingMaxOpenTrades
-              ).toHaveBeenCalled();
+            it('triggers PubSub.publish for check-open-orders channel', () => {
+              expect(PubSubMock.publish).toHaveBeenCalledWith(
+                'check-open-orders'
+              );
             });
 
             it('triggers saveOrderStats', () => {

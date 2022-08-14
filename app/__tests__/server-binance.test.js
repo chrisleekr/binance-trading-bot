@@ -50,13 +50,15 @@ describe('server-binance', () => {
         .mockResolvedValue(
           JSON.stringify(require('./fixtures/exchange-symbols.json'))
         ),
-      hset: jest.fn().mockResolvedValue(true)
+      hset: jest.fn().mockResolvedValue(true),
+      hgetall: jest.fn()
     };
     mockMongo = {
       deleteAll: jest.fn().mockResolvedValue(true)
     };
     mockQueue = {
-      init: jest.fn().mockResolvedValue(true)
+      init: jest.fn().mockResolvedValue(true),
+      executeFor: jest.fn().mockResolvedValue(true)
     };
     mockSlack = {
       sendMessage: jest.fn().mockResolvedValue(true)
@@ -354,6 +356,129 @@ describe('server-binance', () => {
           `count`,
           1 + 5
         );
+      });
+    });
+
+    describe('received data in check-open-orders channel', () => {
+      beforeEach(async () => {
+        config.get = jest.fn(key => {
+          switch (key) {
+            case 'mode':
+              return 'live';
+            default:
+              return `value-${key}`;
+          }
+        });
+
+        mockLockSymbol = jest.fn().mockResolvedValue(true);
+        mockUnlockSymbol = jest.fn().mockResolvedValue(true);
+
+        mockSetupUserWebsocket = jest.fn().mockResolvedValue(true);
+
+        mockSyncCandles = jest.fn().mockResolvedValue(true);
+        mockSetupCandlesWebsocket = jest.fn().mockResolvedValue(true);
+        mockGetWebsocketCandlesClean = jest
+          .fn()
+          .mockImplementation(() => ({ '1h': () => true }));
+
+        mockSyncATHCandles = jest.fn().mockResolvedValue(true);
+        mockSetupATHCandlesWebsocket = jest.fn().mockResolvedValue(true);
+
+        mockGetWebsocketATHCandlesClean = jest
+          .fn()
+          .mockImplementation(() => ({ '1d': () => true, '30m': () => true }));
+
+        mockSetupTickersWebsocket = jest.fn().mockResolvedValue(true);
+        mockRefreshTickersClean = jest.fn().mockResolvedValue(true);
+        mockGetWebsocketTickersClean = jest.fn().mockImplementation(() => ({
+          BTCUSDT: () => true,
+          BNBUSDT: () => true
+        }));
+
+        mockSyncOpenOrders = jest.fn().mockResolvedValue(true);
+        mockSyncDatabaseOrders = jest.fn().mockResolvedValue(true);
+
+        mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
+          symbols: ['BTCUSDT', 'BNBUSDT']
+        });
+
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
+          account: 'info'
+        });
+
+        mockCacheExchangeSymbols = jest.fn().mockResolvedValue(true);
+
+        jest.mock('../cronjob/trailingTradeHelper/configuration', () => ({
+          getGlobalConfiguration: mockGetGlobalConfiguration
+        }));
+
+        jest.mock('../cronjob/trailingTradeHelper/common', () => ({
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
+          lockSymbol: mockLockSymbol,
+          unlockSymbol: mockUnlockSymbol,
+          cacheExchangeSymbols: mockCacheExchangeSymbols
+        }));
+
+        jest.mock('../binance/user', () => ({
+          setupUserWebsocket: mockSetupUserWebsocket
+        }));
+
+        jest.mock('../binance/orders', () => ({
+          syncOpenOrders: mockSyncOpenOrders,
+          syncDatabaseOrders: mockSyncDatabaseOrders
+        }));
+
+        jest.mock('../binance/candles', () => ({
+          syncCandles: mockSyncCandles,
+          setupCandlesWebsocket: mockSetupCandlesWebsocket,
+          getWebsocketCandlesClean: mockGetWebsocketCandlesClean
+        }));
+
+        jest.mock('../binance/ath-candles', () => ({
+          syncATHCandles: mockSyncATHCandles,
+          setupATHCandlesWebsocket: mockSetupATHCandlesWebsocket,
+          getWebsocketATHCandlesClean: mockGetWebsocketATHCandlesClean
+        }));
+
+        jest.mock('../binance/tickers', () => ({
+          setupTickersWebsocket: mockSetupTickersWebsocket,
+          refreshTickersClean: mockRefreshTickersClean,
+          getWebsocketTickersClean: mockGetWebsocketTickersClean
+        }));
+
+        mockPubSub.subscribe = jest.fn().mockImplementation((key, cb) => {
+          if (key === 'check-open-orders') {
+            cb('message', 'data');
+          }
+        });
+      });
+
+      describe('when open orders empty', () => {
+        beforeEach(async () => {
+          mockCache.hgetall = jest.fn().mockResolvedValue(null);
+
+          const { runBinance } = require('../server-binance');
+          await runBinance(logger);
+        });
+
+        it('does not trigger queue.executeFor', () => {
+          expect(mockQueue.executeFor).not.toHaveBeenCalled();
+        });
+      });
+
+      describe('when open orders not empty', () => {
+        beforeEach(async () => {
+          mockCache.hgetall = jest.fn().mockResolvedValue({
+            BTCUSDT: [{ orderId: 1, symbol: 'BTCUSDT' }]
+          });
+
+          const { runBinance } = require('../server-binance');
+          await runBinance(logger);
+        });
+
+        it('triggers queue.executeFor', () => {
+          expect(mockQueue.executeFor).toHaveBeenCalledWith(logger, 'BTCUSDT');
+        });
       });
     });
   });
