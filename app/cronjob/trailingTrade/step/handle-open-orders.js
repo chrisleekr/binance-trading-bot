@@ -2,48 +2,13 @@
 const moment = require('moment');
 
 const _ = require('lodash');
-const { binance } = require('../../../helpers');
 const {
+  cancelOrder,
   getAccountInfo,
   updateAccountInfo,
   saveOverrideAction,
-  getAndCacheOpenOrdersForSymbol,
-  isExceedingMaxOpenTrades
+  getAndCacheOpenOrdersForSymbol
 } = require('../../trailingTradeHelper/common');
-
-/**
- * Cancel order
- *
- * @param {*} logger
- * @param {*} symbol
- * @param {*} order
- */
-const cancelOrder = async (logger, symbol, order) => {
-  const { side } = order;
-  logger.info(
-    { function: 'cancelOrder', order, saveLog: true },
-    `The ${side} order will be cancelled.`
-  );
-  // Cancel open orders first to make sure it does not have unsettled orders.
-  let result = false;
-  try {
-    const apiResult = await binance.client.cancelOrder({
-      symbol,
-      orderId: order.orderId
-    });
-    logger.info({ apiResult }, 'Cancelled open orders');
-
-    result = true;
-  } catch (e) {
-    logger.info(
-      { e, saveLog: true },
-      `Order cancellation failed, but it is ok. ` +
-        `The order may already be cancelled or executed. The bot will check in the next tick.`
-    );
-  }
-
-  return result;
-};
 
 /**
  *
@@ -158,17 +123,6 @@ const execute = async (logger, rawData) => {
             moment().toISOString()
           );
         }
-      } else if (await isExceedingMaxOpenTrades(logger, data)) {
-        // Cancel the initial buy order if max. open trades exceeded
-        data.action = 'buy-order-cancelled';
-        logger.info(
-          { data, saveLog: true },
-          `The current number of open trades has reached the maximum number of open trades. ` +
-            `The buy order will be cancelled.`
-        );
-
-        // Cancel current order
-        await cancelOrder(logger, symbol, order);
       } else {
         logger.info(
           { stopPrice: order.stopPrice, buyLimitPrice },

@@ -1100,6 +1100,40 @@ const isExceedingMaxOpenTrades = async (logger, data) => {
   return (await getNumberOfOpenTrades(logger)) >= orderLimitMaxOpenTrades;
 };
 
+/**
+ * Cancel order
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} order
+ */
+const cancelOrder = async (logger, symbol, order) => {
+  const { side } = order;
+  logger.info(
+    { function: 'cancelOrder', order, saveLog: true },
+    `The ${side} order will be cancelled.`
+  );
+  // Cancel open orders first to make sure it does not have unsettled orders.
+  let result = false;
+  try {
+    const apiResult = await binance.client.cancelOrder({
+      symbol,
+      orderId: order.orderId
+    });
+    logger.info({ apiResult }, 'Cancelled open orders');
+
+    result = true;
+  } catch (e) {
+    logger.info(
+      { e, saveLog: true },
+      `Order cancellation failed, but it is ok. ` +
+        `The order may already be cancelled or executed. The bot will check in the next tick.`
+    );
+  }
+
+  return result;
+};
+
 module.exports = {
   cacheExchangeSymbols,
   getCachedExchangeSymbols,
@@ -1140,5 +1174,6 @@ module.exports = {
   getCacheTrailingTradeSymbols,
   getCacheTrailingTradeTotalProfitAndLoss,
   getCacheTrailingTradeQuoteEstimates,
-  isExceedingMaxOpenTrades
+  isExceedingMaxOpenTrades,
+  cancelOrder
 };

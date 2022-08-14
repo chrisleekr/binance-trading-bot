@@ -3246,4 +3246,52 @@ describe('common.js', () => {
       });
     });
   });
+
+  describe('cancelOrder', () => {
+    describe('when cancel order failed', () => {
+      beforeEach(async () => {
+        const { binance, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        binanceMock = binance;
+
+        binanceMock.client.cancelOrder = jest
+          .fn()
+          .mockRejectedValue(new Error('something happened'));
+
+        commonHelper = require('../common');
+
+        result = await commonHelper.cancelOrder(loggerMock, 'BTCUSDT', {
+          orderId: 123456,
+          side: 'BUY'
+        });
+      });
+
+      it('returns expected value', () => {
+        expect(result).toBe(false);
+      });
+    });
+
+    describe('when cancel order succeed', () => {
+      beforeEach(async () => {
+        const { binance, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        binanceMock = binance;
+
+        binanceMock.client.cancelOrder = jest.fn().mockResolvedValue(true);
+
+        commonHelper = require('../common');
+
+        result = await commonHelper.cancelOrder(loggerMock, 'BTCUSDT', {
+          orderId: 123456,
+          side: 'BUY'
+        });
+      });
+
+      it('returns expected value', () => {
+        expect(result).toBe(true);
+      });
+    });
+  });
 });
