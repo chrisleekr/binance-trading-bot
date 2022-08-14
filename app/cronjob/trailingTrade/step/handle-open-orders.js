@@ -66,6 +66,9 @@ const execute = async (logger, rawData) => {
 
         // Cancel current order
         await cancelOrder(logger, symbol, order);
+
+        // Reset buy open orders
+        data.buy.openOrders = [];
       } else if (parseFloat(order.stopPrice) >= buyLimitPrice) {
         logger.info(
           { stopPrice: order.stopPrice, buyLimitPrice, saveLog: true },
