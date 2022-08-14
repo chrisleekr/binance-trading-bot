@@ -42,7 +42,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
       slackMock.sendMessage = jest.fn().mockResolvedValue(true);
 
       mockCalculateLastBuyPrice = jest.fn().mockResolvedValue(true);
-      mockGetAPILimit = jest.fn().mockResolvedValue(10);
+      mockGetAPILimit = jest.fn().mockReturnValue(10);
       mockIsExceedAPILimit = jest.fn().mockReturnValue(false);
       mockDisableAction = jest.fn().mockResolvedValue(true);
       mockSaveOrderStats = jest.fn().mockResolvedValue(true);
@@ -498,13 +498,21 @@ describe('ensure-grid-trade-order-executed.js', () => {
             if (t.notifyOrderExecute === true) {
               it('triggers slack.sendMessage due to filled order', () => {
                 expect(slackMock.sendMessage).toHaveBeenCalledWith(
-                  expect.stringContaining('Order Filled')
+                  expect.stringContaining('Order Filled'),
+                  {
+                    apiLimit: 10,
+                    symbol: t.symbol
+                  }
                 );
               });
             } else {
               it('does not trigger slack.sendMessage due to filled order', () => {
                 expect(slackMock.sendMessage).not.toHaveBeenCalledWith(
-                  expect.stringContaining('Order Filled')
+                  expect.stringContaining('Order Filled'),
+                  {
+                    apiLimit: 10,
+                    symbol: t.symbol
+                  }
                 );
               });
             }
@@ -539,13 +547,21 @@ describe('ensure-grid-trade-order-executed.js', () => {
             if (t.notifyOrderExecute === true) {
               it('triggers slack.sendMessage due to cancelled order', () => {
                 expect(slackMock.sendMessage).toHaveBeenCalledWith(
-                  expect.stringContaining('Order Removed')
+                  expect.stringContaining('Order Removed'),
+                  {
+                    apiLimit: 10,
+                    symbol: t.symbol
+                  }
                 );
               });
             } else {
               it('does not trigger slack.sendMessage due to cancelled order', () => {
                 expect(slackMock.sendMessage).not.toHaveBeenCalledWith(
-                  expect.stringContaining('Order Removed')
+                  expect.stringContaining('Order Removed'),
+                  {
+                    apiLimit: 10,
+                    symbol: t.symbol
+                  }
                 );
               });
             }
@@ -886,7 +902,11 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
             it('triggers slack.sendMessage due to filled order', () => {
               expect(slackMock.sendMessage).toHaveBeenCalledWith(
-                expect.stringContaining('Order Filled')
+                expect.stringContaining('Order Filled'),
+                {
+                  apiLimit: 10,
+                  symbol: t.symbol
+                }
               );
             });
           } else if (
@@ -919,7 +939,11 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
             it('triggers slack.sendMessage due to cancelled order', () => {
               expect(slackMock.sendMessage).toHaveBeenCalledWith(
-                expect.stringContaining('Order Removed')
+                expect.stringContaining('Order Removed'),
+                {
+                  apiLimit: 10,
+                  symbol: t.symbol
+                }
               );
             });
           }

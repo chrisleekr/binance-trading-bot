@@ -1513,7 +1513,8 @@ describe('common.js', () => {
               undefined,
               2
             )
-          )
+          ),
+          { apiLimit: 0, symbol: 'BTCUSDT' }
         );
       });
     });
@@ -1593,7 +1594,11 @@ describe('common.js', () => {
               undefined,
               2
             )
-          )
+          ),
+          {
+            apiLimit: 0,
+            symbol: 'BTCUSDT'
+          }
         );
       });
     });
@@ -2279,13 +2284,21 @@ describe('common.js', () => {
 
       it('triggers slack.sendMessage', () => {
         expect(slackMock.sendMessage).toHaveBeenCalledWith(
-          expect.stringContaining('BTCUSDT')
+          expect.stringContaining('BTCUSDT'),
+          {
+            apiLimit: 0,
+            symbol: 'BTCUSDT'
+          }
         );
 
         expect(slackMock.sendMessage).toHaveBeenCalledWith(
           expect.stringContaining(
             'The bot queued to trigger the grid trade for buying'
-          )
+          ),
+          {
+            apiLimit: 0,
+            symbol: 'BTCUSDT'
+          }
         );
       });
 
@@ -2333,13 +2346,21 @@ describe('common.js', () => {
 
       it('triggers slack.sendMessage', () => {
         expect(slackMock.sendMessage).toHaveBeenCalledWith(
-          expect.stringContaining('BTCUSDT')
+          expect.stringContaining('BTCUSDT'),
+          {
+            apiLimit: 0,
+            symbol: 'BTCUSDT'
+          }
         );
 
         expect(slackMock.sendMessage).toHaveBeenCalledWith(
           expect.stringContaining(
             'The bot queued to trigger the grid trade for buying'
-          )
+          ),
+          {
+            apiLimit: 0,
+            symbol: 'BTCUSDT'
+          }
         );
       });
 
@@ -2447,7 +2468,10 @@ describe('common.js', () => {
         expect(slackMock.sendMessage).toHaveBeenCalledWith(
           expect.stringContaining(
             'The dust transfer request received by the bot. Wait for executing the dust transfer.'
-          )
+          ),
+          {
+            apiLimit: 0
+          }
         );
       });
 
@@ -2501,7 +2525,10 @@ describe('common.js', () => {
         expect(slackMock.sendMessage).toHaveBeenCalledWith(
           expect.stringContaining(
             'The dust transfer request received by the bot. Wait for executing the dust transfer.'
-          )
+          ),
+          {
+            apiLimit: 0
+          }
         );
       });
 

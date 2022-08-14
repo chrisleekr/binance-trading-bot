@@ -87,7 +87,11 @@ describe('symbol-grid-trade-delete.test.js', () => {
 
       it('triggers slack.sendMessage', () => {
         expect(mockSlack.sendMessage).toHaveBeenCalledWith(
-          expect.stringContaining('BTCUSDT Profit')
+          expect.stringContaining('*BTCUSDT* Profit'),
+          {
+            apiLimit: 0,
+            symbol: 'BTCUSDT'
+          }
         );
       });
 
@@ -159,7 +163,11 @@ describe('symbol-grid-trade-delete.test.js', () => {
 
       it('triggers slack.sendMessage', () => {
         expect(mockSlack.sendMessage).toHaveBeenCalledWith(
-          expect.stringContaining('BTCUSDT Loss')
+          expect.stringContaining('*BTCUSDT* Loss'),
+          {
+            apiLimit: 0,
+            symbol: 'BTCUSDT'
+          }
         );
       });
 

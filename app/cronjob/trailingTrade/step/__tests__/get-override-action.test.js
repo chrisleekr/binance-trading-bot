@@ -420,7 +420,8 @@ describe('get-override-action.js', () => {
                         some: 'data'
                       },
                       actionAt: expect.any(String),
-                      triggeredBy: 'auto-trigger'
+                      triggeredBy: 'auto-trigger',
+                      notify: false
                     },
                     `The auto-trigger buy action needs to be re-scheduled ` +
                       `because the current price is higher than ATH restriction price.`
@@ -739,7 +740,8 @@ describe('get-override-action.js', () => {
                       some: 'data'
                     },
                     actionAt: expect.any(String),
-                    triggeredBy: 'auto-trigger'
+                    triggeredBy: 'auto-trigger',
+                    notify: false
                   },
                   `The auto-trigger buy action needs to be re-scheduled because ` +
                     `the action is disabled at the moment.`
@@ -1145,7 +1147,8 @@ describe('get-override-action.js', () => {
                       action: 'buy',
                       actionAt: expect.any(String),
                       order: { some: 'data' },
-                      triggeredBy: 'auto-trigger'
+                      triggeredBy: 'auto-trigger',
+                      notify: false
                     },
                     `The auto-trigger buy action needs to be re-scheduled ` +
                       `because the TradingView recommendation is NEUTRAL.`

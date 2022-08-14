@@ -1,5 +1,4 @@
 const _ = require('lodash');
-const moment = require('moment');
 const { slack } = require('../../../helpers');
 
 const { getAPILimit } = require('../../../cronjob/trailingTradeHelper/common');
@@ -25,17 +24,15 @@ const handleSymbolGridTradeDelete = async (logger, ws, payload) => {
 
     // Notify slack
     if (_.isEmpty(archivedGridTrade) === false) {
-      await slack.sendMessage(
-        `${symbol} ${
-          archivedGridTrade.profit > 0 ? 'Profit' : 'Loss'
-        } (${moment().format('HH:mm:ss.SSS')}):\n` +
+      slack.sendMessage(
+        `*${symbol}* ${archivedGridTrade.profit > 0 ? 'Profit' : 'Loss'}:\n` +
           `\`\`\`` +
           ` - Profit: ${archivedGridTrade.profit}\n` +
           ` - Profit Percentage: ${archivedGridTrade.profitPercentage}\n` +
           ` - Total Buy Amount: ${archivedGridTrade.totalBuyQuoteQty}\n` +
           ` - Total Sell Amount: ${archivedGridTrade.totalSellQuoteQty}\n` +
-          `\`\`\`\n` +
-          `- Current API Usage: ${getAPILimit(logger)}`
+          `\`\`\``,
+        { symbol, apiLimit: getAPILimit(logger) }
       );
     }
   }

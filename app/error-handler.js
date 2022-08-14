@@ -1,4 +1,3 @@
-const moment = require('moment');
 const config = require('config');
 const { slack } = require('./helpers');
 const { getAPILimit } = require('./cronjob/trailingTradeHelper/common');
@@ -18,8 +17,8 @@ const runErrorHandler = logger => {
     const githubIssuesLink =
       'https://github.com/chrisleekr/binance-trading-bot/issues/new' +
       '?assignees=&labels=bug&template=bug_report.md&title=';
-    await slack.sendMessage(
-      `Uncaught Exception (${moment().format('HH:mm:ss.SSS')})\n` +
+    slack.sendMessage(
+      `Uncaught Exception:\n` +
         `If you see this, kindly report it to: ${githubIssuesLink}\n` +
         `Code: ${err.code}\n` +
         `Message:\`\`\`${err.message}\`\`\`\n` +
@@ -27,8 +26,8 @@ const runErrorHandler = logger => {
           config.get('featureToggle.notifyDebug')
             ? `Stack:\`\`\`${err.stack}\`\`\`\n`
             : ''
-        }` +
-        `- Current API Usage: ${getAPILimit(logger)}`
+        }`,
+      { apiLimit: getAPILimit(logger) }
     );
   });
 };
@@ -53,7 +52,7 @@ const handleError = (logger, job, err) => {
     // Let's silent for internal server error or assumed temporary errors
   } else {
     slack.sendMessage(
-      `Execution failed (${moment().format('HH:mm:ss.SSS')})\n` +
+      `Execution failed:\n` +
         `Job: ${job}\n` +
         `Code: ${err.code}\n` +
         `Message:\`\`\`${err.message}\`\`\`\n` +
@@ -61,8 +60,8 @@ const handleError = (logger, job, err) => {
           config.get('featureToggle.notifyDebug')
             ? `Stack:\`\`\`${err.stack}\`\`\`\n`
             : ''
-        }` +
-        `- Current API Usage: ${getAPILimit(logger)}`
+        }`,
+      { apiLimit: getAPILimit(logger) }
     );
   }
 };
