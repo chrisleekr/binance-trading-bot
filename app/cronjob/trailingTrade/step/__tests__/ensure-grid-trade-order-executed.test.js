@@ -20,6 +20,8 @@ describe('ensure-grid-trade-order-executed.js', () => {
   let mockGetGridTradeLastOrder;
   let mockDeleteGridTradeOrder;
 
+  let mockQueue;
+
   describe('execute', () => {
     beforeEach(async () => {
       jest.clearAllMocks().resetModules();
@@ -30,6 +32,12 @@ describe('ensure-grid-trade-order-executed.js', () => {
         () => nextCheck =>
           jest.requireActual('moment')(nextCheck || '2020-01-02T00:00:00+00:00')
       );
+
+      mockQueue = {
+        executeFor: jest.fn().mockResolvedValue(true)
+      };
+
+      jest.mock('../../../trailingTradeHelper/queue', () => mockQueue);
 
       const { slack, logger, PubSub } = require('../../../../helpers');
 
@@ -486,6 +494,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 },
                 20
               );
+            });
+
+            it('triggers queue.executeFor', () => {
+              expect(mockQueue.executeFor).toHaveBeenCalled();
             });
 
             it('triggers saveOrderStats', () => {

@@ -17,6 +17,7 @@ const {
   deleteGridTradeOrder,
   getGridTradeLastOrder
 } = require('../../trailingTradeHelper/order');
+const queue = require('../../trailingTradeHelper/queue');
 
 /**
  * Remove last order from cache
@@ -254,6 +255,13 @@ const execute = async (logger, rawData) => {
         },
         temporaryDisableActionAfterConfirmingOrder
       );
+
+      // Queue other symbols to check if max. open trade is reached
+      symbols.map(async symbolToQueue => {
+        if (symbolToQueue !== symbol) {
+          queue.executeFor(logger, symbolToQueue);
+        }
+      });
     } else if (removeStatuses.includes(lastBuyOrder.status)) {
       logger.info(
         {
