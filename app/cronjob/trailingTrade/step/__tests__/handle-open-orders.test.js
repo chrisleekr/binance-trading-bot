@@ -744,16 +744,7 @@ describe('handle-open-orders.js', () => {
               ],
               buy: {
                 limitPrice: 1810,
-                openOrders: [
-                  {
-                    symbol: 'BTCUSDT',
-                    orderId: 46838,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'BUY'
-                  }
-                ]
+                openOrders: []
               },
               sell: { limitPrice: 1800, openOrders: [] },
               symbolInfo: {
