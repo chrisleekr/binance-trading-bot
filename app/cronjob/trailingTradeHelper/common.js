@@ -2,7 +2,6 @@ const config = require('config');
 const jwt = require('jsonwebtoken');
 const _ = require('lodash');
 const { cache, binance, mongo, PubSub, slack } = require('../../helpers');
-const queue = require('./queue');
 
 const isValidCachedExchangeSymbols = exchangeSymbols =>
   _.get(
