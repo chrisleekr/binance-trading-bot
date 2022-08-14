@@ -41,7 +41,7 @@ const handleError = (logger, job, err) => {
   }
 
   logger.error(
-    { err, errorCode: err.code, debug: true },
+    { err, errorCode: err.code, debug: true, saveLog: true },
     `⚠ Execution failed.`
   );
   if (

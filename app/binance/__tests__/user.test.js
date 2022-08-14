@@ -3,6 +3,7 @@
 describe('user.js', () => {
   let binanceMock;
   let loggerMock;
+  let mockQueue;
 
   let mockGetAccountInfoFromAPI;
   let mockUpdateAccountInfo;
@@ -10,7 +11,6 @@ describe('user.js', () => {
   let mockUpdateGridTradeLastOrder;
   let mockGetManualOrder;
   let mockSaveManualOrder;
-  let mockExecuteTrailingTrade;
 
   let mockUserClean;
 
@@ -18,9 +18,17 @@ describe('user.js', () => {
     beforeEach(async () => {
       jest.clearAllMocks().resetModules();
 
+      jest.mock('../../cronjob');
+
       const { binance, logger } = require('../../helpers');
       binanceMock = binance;
       loggerMock = logger;
+
+      mockQueue = {
+        executeFor: jest.fn().mockResolvedValue(true)
+      };
+
+      jest.mock('../../cronjob/trailingTradeHelper/queue', () => mockQueue);
     });
 
     describe('when balanceUpdate event received', () => {
@@ -138,14 +146,6 @@ describe('user.js', () => {
     });
 
     describe('when executionReport event received', () => {
-      beforeEach(() => {
-        mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
-
-        jest.mock('../../cronjob', () => ({
-          executeTrailingTrade: mockExecuteTrailingTrade
-        }));
-      });
-
       describe('when last order not found', () => {
         beforeEach(async () => {
           mockUserClean = jest.fn().mockResolvedValue(true);
@@ -234,8 +234,8 @@ describe('user.js', () => {
           expect(mockUpdateGridTradeLastOrder).not.toHaveBeenCalled();
         });
 
-        it('does not trigger executeTrailingTrade', () => {
-          expect(mockExecuteTrailingTrade).not.toHaveBeenCalled();
+        it('does not trigger queue.executeFor', () => {
+          expect(mockQueue.executeFor).not.toHaveBeenCalled();
         });
 
         it('does not trigger userClean', () => {
@@ -244,121 +244,230 @@ describe('user.js', () => {
       });
 
       describe('when last order found', () => {
-        beforeEach(async () => {
-          mockUserClean = jest.fn().mockResolvedValue(true);
+        describe('received transaction time > existing transaction time', () => {
+          beforeEach(async () => {
+            mockUserClean = jest.fn().mockResolvedValue(true);
 
-          mockGridTradeLastOrder = jest
-            .fn()
-            .mockResolvedValue({ orderId: 7479643460 });
-          mockUpdateGridTradeLastOrder = jest.fn().mockResolvedValue(null);
-          mockGetManualOrder = jest.fn().mockResolvedValue(null);
-          mockSaveManualOrder = jest.fn().mockResolvedValue(null);
-
-          jest.mock('../../cronjob/trailingTradeHelper/order', () => ({
-            getGridTradeLastOrder: mockGridTradeLastOrder,
-            updateGridTradeLastOrder: mockUpdateGridTradeLastOrder,
-            getManualOrder: mockGetManualOrder,
-            saveManualOrder: mockSaveManualOrder
-          }));
-
-          binanceMock.client.ws.user = jest.fn().mockImplementationOnce(cb => {
-            /**
-             * Sample execution report
-             * {
-             *   "eventType": "executionReport",
-             *   "eventTime": 1642713283562,
-             *   "symbol": "ETHUSDT",
-             *   "newClientOrderId": "R4gzUYn9pQbOA3vAkgKTSw",
-             *   "originalClientOrderId": "",
-             *   "side": "BUY",
-             *   "orderType": "STOP_LOSS_LIMIT",
-             *   "timeInForce": "GTC",
-             *   "quantity": "0.00920000",
-             *   "price": "3248.37000000",
-             *   "executionType": "NEW",
-             *   "stopPrice": "3245.19000000",
-             *   "icebergQuantity": "0.00000000",
-             *   "orderStatus": "NEW",
-             *   "orderRejectReason": "NONE",
-             *   "orderId": 7479643460,
-             *   "orderTime": 1642713283561,
-             *   "lastTradeQuantity": "0.00000000",
-             *   "totalTradeQuantity": "0.00000000",
-             *   "priceLastTrade": "0.00000000",
-             *   "commission": "0",
-             *   "commissionAsset": null,
-             *   "tradeId": -1,
-             *   "isOrderWorking": false,
-             *   "isBuyerMaker": false,
-             *   "creationTime": 1642713283561,
-             *   "totalQuoteTradeQuantity": "0.00000000",
-             *   "orderListId": -1,
-             *   "quoteOrderQuantity": "0.00000000",
-             *   "lastQuoteTransacted": "0.00000000"
-             * }
-             */
-            cb({
-              eventType: 'executionReport',
-              eventTime: 1642713283562,
-              symbol: 'ETHUSDT',
-              side: 'BUY',
-              orderStatus: 'NEW',
-              orderType: 'STOP_LOSS_LIMIT',
-              stopPrice: '3245.19000000',
-              price: '3248.37000000',
+            mockGridTradeLastOrder = jest.fn().mockResolvedValue({
               orderId: 7479643460,
-              quantity: '0.00920000',
-              isOrderWorking: false,
-              totalQuoteTradeQuantity: '0.00000000',
-              totalTradeQuantity: '0.00000000'
+              transactTime: 1642713282000
             });
+            mockUpdateGridTradeLastOrder = jest.fn().mockResolvedValue(null);
+            mockGetManualOrder = jest.fn().mockResolvedValue(null);
+            mockSaveManualOrder = jest.fn().mockResolvedValue(null);
 
-            return mockUserClean;
+            jest.mock('../../cronjob/trailingTradeHelper/order', () => ({
+              getGridTradeLastOrder: mockGridTradeLastOrder,
+              updateGridTradeLastOrder: mockUpdateGridTradeLastOrder,
+              getManualOrder: mockGetManualOrder,
+              saveManualOrder: mockSaveManualOrder
+            }));
+
+            binanceMock.client.ws.user = jest
+              .fn()
+              .mockImplementationOnce(cb => {
+                /**
+                 * Sample execution report
+                 * {
+                 *   "eventType": "executionReport",
+                 *   "eventTime": 1642713283562,
+                 *   "symbol": "ETHUSDT",
+                 *   "newClientOrderId": "R4gzUYn9pQbOA3vAkgKTSw",
+                 *   "originalClientOrderId": "",
+                 *   "side": "BUY",
+                 *   "orderType": "STOP_LOSS_LIMIT",
+                 *   "timeInForce": "GTC",
+                 *   "quantity": "0.00920000",
+                 *   "price": "3248.37000000",
+                 *   "executionType": "NEW",
+                 *   "stopPrice": "3245.19000000",
+                 *   "icebergQuantity": "0.00000000",
+                 *   "orderStatus": "NEW",
+                 *   "orderRejectReason": "NONE",
+                 *   "orderId": 7479643460,
+                 *   "orderTime": 1642713283561,
+                 *   "lastTradeQuantity": "0.00000000",
+                 *   "totalTradeQuantity": "0.00000000",
+                 *   "priceLastTrade": "0.00000000",
+                 *   "commission": "0",
+                 *   "commissionAsset": null,
+                 *   "tradeId": -1,
+                 *   "isOrderWorking": false,
+                 *   "isBuyerMaker": false,
+                 *   "creationTime": 1642713283561,
+                 *   "totalQuoteTradeQuantity": "0.00000000",
+                 *   "orderListId": -1,
+                 *   "quoteOrderQuantity": "0.00000000",
+                 *   "lastQuoteTransacted": "0.00000000"
+                 * }
+                 */
+                cb({
+                  eventType: 'executionReport',
+                  eventTime: 1642713283562,
+                  symbol: 'ETHUSDT',
+                  side: 'BUY',
+                  orderStatus: 'NEW',
+                  orderType: 'STOP_LOSS_LIMIT',
+                  stopPrice: '3245.19000000',
+                  price: '3248.37000000',
+                  orderId: 7479643460,
+                  quantity: '0.00920000',
+                  isOrderWorking: false,
+                  totalQuoteTradeQuantity: '0.00000000',
+                  totalTradeQuantity: '0.00000000',
+                  orderTime: 1642713283561
+                });
+
+                return mockUserClean;
+              });
+
+            const { setupUserWebsocket } = require('../user');
+
+            await setupUserWebsocket(loggerMock);
           });
 
-          const { setupUserWebsocket } = require('../user');
+          it('triggers getGridTradeLastOrder', () => {
+            expect(mockGridTradeLastOrder).toHaveBeenCalledWith(
+              loggerMock,
+              'ETHUSDT',
+              'buy'
+            );
+          });
 
-          await setupUserWebsocket(loggerMock);
+          it('triggers updateGridTradeLastOrder', () => {
+            expect(mockUpdateGridTradeLastOrder).toHaveBeenCalledWith(
+              loggerMock,
+              'ETHUSDT',
+              'buy',
+              {
+                cummulativeQuoteQty: '0.00000000',
+                executedQty: '0.00000000',
+                isWorking: false,
+                orderId: 7479643460,
+                origQty: '0.00920000',
+                price: '3248.37000000',
+                side: 'BUY',
+                status: 'NEW',
+                stopPrice: '3245.19000000',
+                type: 'STOP_LOSS_LIMIT',
+                updateTime: 1642713283562,
+                transactTime: 1642713283561
+              }
+            );
+          });
+
+          it('triggers queue.executeFor', () => {
+            expect(mockQueue.executeFor).toHaveBeenCalledWith(
+              loggerMock,
+              'ETHUSDT'
+            );
+          });
+
+          it('does not trigger userClean', () => {
+            expect(mockUserClean).not.toHaveBeenCalled();
+          });
         });
+        describe('received transaction time < existing transaction time', () => {
+          beforeEach(async () => {
+            mockUserClean = jest.fn().mockResolvedValue(true);
 
-        it('triggers getGridTradeLastOrder', () => {
-          expect(mockGridTradeLastOrder).toHaveBeenCalledWith(
-            loggerMock,
-            'ETHUSDT',
-            'buy'
-          );
-        });
-
-        it('triggers updateGridTradeLastOrder', () => {
-          expect(mockUpdateGridTradeLastOrder).toHaveBeenCalledWith(
-            loggerMock,
-            'ETHUSDT',
-            'buy',
-            {
-              cummulativeQuoteQty: '0.00000000',
-              executedQty: '0.00000000',
-              isWorking: false,
+            mockGridTradeLastOrder = jest.fn().mockResolvedValue({
               orderId: 7479643460,
-              origQty: '0.00920000',
-              price: '3248.37000000',
-              side: 'BUY',
-              status: 'NEW',
-              stopPrice: '3245.19000000',
-              type: 'STOP_LOSS_LIMIT',
-              updateTime: 1642713283562
-            }
-          );
-        });
+              transactTime: 1642713282000
+            });
+            mockUpdateGridTradeLastOrder = jest.fn().mockResolvedValue(null);
+            mockGetManualOrder = jest.fn().mockResolvedValue(null);
+            mockSaveManualOrder = jest.fn().mockResolvedValue(null);
 
-        it('triggers executeTrailingTrade', () => {
-          expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
-            loggerMock,
-            'ETHUSDT'
-          );
-        });
+            jest.mock('../../cronjob/trailingTradeHelper/order', () => ({
+              getGridTradeLastOrder: mockGridTradeLastOrder,
+              updateGridTradeLastOrder: mockUpdateGridTradeLastOrder,
+              getManualOrder: mockGetManualOrder,
+              saveManualOrder: mockSaveManualOrder
+            }));
 
-        it('does not trigger userClean', () => {
-          expect(mockUserClean).not.toHaveBeenCalled();
+            binanceMock.client.ws.user = jest
+              .fn()
+              .mockImplementationOnce(cb => {
+                /**
+                 * Sample execution report
+                 * {
+                 *   "eventType": "executionReport",
+                 *   "eventTime": 1642713283562,
+                 *   "symbol": "ETHUSDT",
+                 *   "newClientOrderId": "R4gzUYn9pQbOA3vAkgKTSw",
+                 *   "originalClientOrderId": "",
+                 *   "side": "BUY",
+                 *   "orderType": "STOP_LOSS_LIMIT",
+                 *   "timeInForce": "GTC",
+                 *   "quantity": "0.00920000",
+                 *   "price": "3248.37000000",
+                 *   "executionType": "NEW",
+                 *   "stopPrice": "3245.19000000",
+                 *   "icebergQuantity": "0.00000000",
+                 *   "orderStatus": "NEW",
+                 *   "orderRejectReason": "NONE",
+                 *   "orderId": 7479643460,
+                 *   "orderTime": 1642713283561,
+                 *   "lastTradeQuantity": "0.00000000",
+                 *   "totalTradeQuantity": "0.00000000",
+                 *   "priceLastTrade": "0.00000000",
+                 *   "commission": "0",
+                 *   "commissionAsset": null,
+                 *   "tradeId": -1,
+                 *   "isOrderWorking": false,
+                 *   "isBuyerMaker": false,
+                 *   "creationTime": 1642713283561,
+                 *   "totalQuoteTradeQuantity": "0.00000000",
+                 *   "orderListId": -1,
+                 *   "quoteOrderQuantity": "0.00000000",
+                 *   "lastQuoteTransacted": "0.00000000"
+                 * }
+                 */
+                cb({
+                  eventType: 'executionReport',
+                  eventTime: 1642713283562,
+                  symbol: 'ETHUSDT',
+                  side: 'BUY',
+                  orderStatus: 'NEW',
+                  orderType: 'STOP_LOSS_LIMIT',
+                  stopPrice: '3245.19000000',
+                  price: '3248.37000000',
+                  orderId: 7479643460,
+                  quantity: '0.00920000',
+                  isOrderWorking: false,
+                  totalQuoteTradeQuantity: '0.00000000',
+                  totalTradeQuantity: '0.00000000',
+                  orderTime: 1642713281000
+                });
+
+                return mockUserClean;
+              });
+
+            const { setupUserWebsocket } = require('../user');
+
+            await setupUserWebsocket(loggerMock);
+          });
+
+          it('triggers getGridTradeLastOrder', () => {
+            expect(mockGridTradeLastOrder).toHaveBeenCalledWith(
+              loggerMock,
+              'ETHUSDT',
+              'buy'
+            );
+          });
+
+          it('does not trigger updateGridTradeLastOrder', () => {
+            expect(mockUpdateGridTradeLastOrder).not.toHaveBeenCalled();
+          });
+
+          it('does not trigger queue.executeFor', () => {
+            expect(mockQueue.executeFor).not.toHaveBeenCalled();
+          });
+
+          it('does not trigger userClean', () => {
+            expect(mockUserClean).not.toHaveBeenCalled();
+          });
         });
       });
 
@@ -450,8 +559,8 @@ describe('user.js', () => {
           expect(mockSaveManualOrder).not.toHaveBeenCalled();
         });
 
-        it('does not trigger executeTrailingTrade', () => {
-          expect(mockExecuteTrailingTrade).not.toHaveBeenCalled();
+        it('does not trigger queue.executeFor', () => {
+          expect(mockQueue.executeFor).not.toHaveBeenCalled();
         });
 
         it('does not trigger userClean', () => {
@@ -565,8 +674,8 @@ describe('user.js', () => {
           );
         });
 
-        it('triggers executeTrailingTrade', () => {
-          expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+        it('triggers queue.executeFor', () => {
+          expect(mockQueue.executeFor).toHaveBeenCalledWith(
             loggerMock,
             'ETHUSDT'
           );

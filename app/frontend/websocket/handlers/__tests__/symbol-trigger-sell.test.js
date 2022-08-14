@@ -6,8 +6,9 @@ describe('symbol-trigger-sell.test.js', () => {
 
   let mockLogger;
 
+  let mockQueue;
+
   let mockSaveOverrideAction;
-  let mockExecuteTrailingTrade;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -24,11 +25,11 @@ describe('symbol-trigger-sell.test.js', () => {
       saveOverrideAction: mockSaveOverrideAction
     }));
 
-    mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
+    mockQueue = {
+      executeFor: jest.fn().mockResolvedValue(true)
+    };
 
-    jest.mock('../../../../cronjob', () => ({
-      executeTrailingTrade: mockExecuteTrailingTrade
-    }));
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   describe('when symbol is provided', () => {
@@ -57,11 +58,8 @@ describe('symbol-trigger-sell.test.js', () => {
       );
     });
 
-    it('triggers executeTrailingTrade', () => {
-      expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
-        mockLogger,
-        'BTCUSDT'
-      );
+    it('triggers queue.executeFor', () => {
+      expect(mockQueue.executeFor).toHaveBeenCalledWith(mockLogger, 'BTCUSDT');
     });
 
     it('triggers ws.send', () => {

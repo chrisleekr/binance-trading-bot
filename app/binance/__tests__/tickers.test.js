@@ -4,10 +4,10 @@ describe('tickers.js', () => {
   let binanceMock;
   let loggerMock;
   let cacheMock;
+  let mockQueue;
 
   let mockGetAccountInfo;
   let mockGetCachedExchangeSymbols;
-  let mockExecuteTrailingTrade;
 
   let mockWebsocketTickersClean;
   let mockErrorHandlerWrapper;
@@ -32,6 +32,12 @@ describe('tickers.js', () => {
       binanceMock = binance;
       loggerMock = logger;
       cacheMock = cache;
+
+      mockQueue = {
+        executeFor: jest.fn().mockResolvedValue(true)
+      };
+
+      jest.mock('../../cronjob/trailingTradeHelper/queue', () => mockQueue);
 
       mockGetAccountInfo = jest.fn().mockResolvedValue({
         balances: [
@@ -66,16 +72,12 @@ describe('tickers.js', () => {
         return mockWebsocketTickersClean;
       });
 
-      mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
-
       jest.mock('../../cronjob/trailingTradeHelper/common', () => ({
         getAccountInfo: mockGetAccountInfo,
         getCachedExchangeSymbols: mockGetCachedExchangeSymbols
       }));
 
-      jest.mock('../../cronjob', () => ({
-        executeTrailingTrade: mockExecuteTrailingTrade
-      }));
+      jest.mock('../../cronjob');
 
       tickers = require('../tickers');
 
@@ -103,22 +105,16 @@ describe('tickers.js', () => {
       );
     });
 
-    it('triggers executeTrailingTrade twice', () => {
-      expect(mockExecuteTrailingTrade).toHaveBeenCalledTimes(2);
+    it('triggers queue.executeFor twice', () => {
+      expect(mockQueue.executeFor).toHaveBeenCalledTimes(2);
     });
 
-    it('triggers executeTrailingTrade for BTCUSDT', () => {
-      expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
-        loggerMock,
-        'BTCUSDT'
-      );
+    it('triggers queue.executeFor for BTCUSDT', () => {
+      expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
     });
 
-    it('triggers executeTrailingTrade for BNBUSDT', () => {
-      expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
-        loggerMock,
-        'BNBUSDT'
-      );
+    it('triggers queue.executeFor for BNBUSDT', () => {
+      expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BNBUSDT');
     });
 
     it('checks websocketTickersClean', () => {
@@ -136,16 +132,16 @@ describe('tickers.js', () => {
     describe('when called again', () => {
       beforeEach(async () => {
         // Reset mock counter
-        mockExecuteTrailingTrade.mockClear();
+        mockQueue.executeFor.mockClear();
         await tickers.setupTickersWebsocket(loggerMock, ['BTCUSDT']);
       });
 
-      it('triggers executeTrailingTrade twice', () => {
-        expect(mockExecuteTrailingTrade).toHaveBeenCalledTimes(1);
+      it('triggers queue.executeFor twice', () => {
+        expect(mockQueue.executeFor).toHaveBeenCalledTimes(1);
       });
 
-      it('triggers executeTrailingTrade for BTCUSDT', () => {
-        expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+      it('triggers queue.executeFor for BTCUSDT', () => {
+        expect(mockQueue.executeFor).toHaveBeenCalledWith(
           loggerMock,
           'BTCUSDT'
         );

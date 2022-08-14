@@ -1,6 +1,6 @@
 const _ = require('lodash');
-
 const { binance } = require('../helpers');
+const queue = require('../cronjob/trailingTradeHelper/queue');
 
 const {
   updateAccountInfo,
@@ -13,7 +13,6 @@ const {
   getManualOrder,
   saveManualOrder
 } = require('../cronjob/trailingTradeHelper/order');
-const { executeTrailingTrade } = require('../cronjob');
 
 let userClean;
 
@@ -50,7 +49,8 @@ const setupUserWebsocket = async logger => {
         quantity,
         isOrderWorking,
         totalQuoteTradeQuantity,
-        totalTradeQuantity
+        totalTradeQuantity,
+        orderTime: transactTime // Transaction time
       } = evt;
       logger.info(
         { symbol, evt, saveLog: true },
@@ -65,6 +65,16 @@ const setupUserWebsocket = async logger => {
         );
 
         if (_.isEmpty(lastOrder) === false) {
+          // Skip if the orderId is not match with the existing orderId
+          // or Skip if the transaction time is older than the existing order transaction time
+          // This is helpful when we received a delayed event for any reason
+          if (
+            orderId !== lastOrder.orderId ||
+            transactTime < lastOrder.transactTime
+          ) {
+            return;
+          }
+
           await updateGridTradeLastOrder(logger, symbol, side.toLowerCase(), {
             ...lastOrder,
             status: orderStatus,
@@ -76,14 +86,15 @@ const setupUserWebsocket = async logger => {
             cummulativeQuoteQty: totalQuoteTradeQuantity,
             executedQty: totalTradeQuantity,
             isWorking: isOrderWorking,
-            updateTime: eventTime
+            updateTime: eventTime,
+            transactTime
           });
           logger.info(
             { symbol, lastOrder, saveLog: true },
             'The last order has been updated.'
           );
 
-          executeTrailingTrade(logger, symbol);
+          queue.executeFor(logger, symbol);
         }
       };
 
@@ -112,7 +123,7 @@ const setupUserWebsocket = async logger => {
             'The manual order has been updated.'
           );
 
-          executeTrailingTrade(logger, symbol);
+          queue.executeFor(logger, symbol);
         }
       };
 
