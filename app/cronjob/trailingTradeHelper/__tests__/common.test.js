@@ -11,6 +11,8 @@ describe('common.js', () => {
   let slackMock;
   let loggerMock;
 
+  let mockQueue;
+
   let mockConfigGet;
 
   let mockJWTVerify;
@@ -21,6 +23,12 @@ describe('common.js', () => {
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
+
+    mockQueue = {
+      executeFor: jest.fn().mockResolvedValue(true)
+    };
+
+    jest.mock('../queue', () => mockQueue);
   });
 
   describe('cacheExchangeSymbols', () => {
@@ -3291,6 +3299,54 @@ describe('common.js', () => {
 
       it('returns expected value', () => {
         expect(result).toBe(true);
+      });
+    });
+  });
+
+  describe('checkIfOpenOrdersExceedingMaxOpenTrades', () => {
+    describe('when open orders empty', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hgetall = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.checkIfOpenOrdersExceedingMaxOpenTrades(
+          loggerMock
+        );
+      });
+
+      it('does not trigger queue.executeFor', () => {
+        expect(mockQueue.executeFor).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when open orders not empty', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hgetall = jest
+          .fn()
+          .mockResolvedValue({ BTCUSDT: [{ orderId: 1, symbol: 'BTCUSDT' }] });
+
+
+        commonHelper = require('../common');
+        result = await commonHelper.checkIfOpenOrdersExceedingMaxOpenTrades(
+          loggerMock
+        );
+      });
+
+      it('triggers queue.executeFor', () => {
+        expect(mockQueue.executeFor).toHaveBeenCalledWith(
+          loggerMock,
+          'BTCUSDT'
+        );
       });
     });
   });

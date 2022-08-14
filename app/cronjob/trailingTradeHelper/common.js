@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const _ = require('lodash');
 const moment = require('moment');
 const { cache, binance, mongo, PubSub, slack } = require('../../helpers');
+const queue = require('./queue');
 
 const isValidCachedExchangeSymbols = exchangeSymbols =>
   _.get(
@@ -1134,6 +1135,17 @@ const cancelOrder = async (logger, symbol, order) => {
   return result;
 };
 
+const checkIfOpenOrdersExceedingMaxOpenTrades = async logger => {
+  const cachedOpenOrders = await cache.hgetall(
+    'trailing-trade-open-orders:',
+    'trailing-trade-open-orders:*'
+  );
+
+  const symbols = _.keys(cachedOpenOrders);
+
+  symbols.forEach(symbol => queue.executeFor(logger, symbol));
+};
+
 module.exports = {
   cacheExchangeSymbols,
   getCachedExchangeSymbols,
@@ -1175,5 +1187,6 @@ module.exports = {
   getCacheTrailingTradeTotalProfitAndLoss,
   getCacheTrailingTradeQuoteEstimates,
   isExceedingMaxOpenTrades,
-  cancelOrder
+  cancelOrder,
+  checkIfOpenOrdersExceedingMaxOpenTrades
 };

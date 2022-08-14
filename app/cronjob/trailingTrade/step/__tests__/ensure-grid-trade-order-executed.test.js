@@ -20,7 +20,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
   let mockGetGridTradeLastOrder;
   let mockDeleteGridTradeOrder;
 
-  let mockQueue;
+  let mockCheckIfOpenOrdersExceedingMaxOpenTrades;
 
   describe('execute', () => {
     beforeEach(async () => {
@@ -33,11 +33,9 @@ describe('ensure-grid-trade-order-executed.js', () => {
           jest.requireActual('moment')(nextCheck || '2020-01-02T00:00:00+00:00')
       );
 
-      mockQueue = {
-        executeFor: jest.fn().mockResolvedValue(true)
-      };
-
-      jest.mock('../../../trailingTradeHelper/queue', () => mockQueue);
+      mockCheckIfOpenOrdersExceedingMaxOpenTrades = jest
+        .fn()
+        .mockResolvedValue(true);
 
       const { slack, logger, PubSub } = require('../../../../helpers');
 
@@ -70,7 +68,9 @@ describe('ensure-grid-trade-order-executed.js', () => {
           getAPILimit: mockGetAPILimit,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
-          saveOrderStats: mockSaveOrderStats
+          saveOrderStats: mockSaveOrderStats,
+          checkIfOpenOrdersExceedingMaxOpenTrades:
+            mockCheckIfOpenOrdersExceedingMaxOpenTrades
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -345,7 +345,9 @@ describe('ensure-grid-trade-order-executed.js', () => {
               getAPILimit: mockGetAPILimit,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
-              saveOrderStats: mockSaveOrderStats
+              saveOrderStats: mockSaveOrderStats,
+              checkIfOpenOrdersExceedingMaxOpenTrades:
+                mockCheckIfOpenOrdersExceedingMaxOpenTrades
             }));
 
             jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -496,8 +498,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
               );
             });
 
-            it('triggers queue.executeFor', () => {
-              expect(mockQueue.executeFor).toHaveBeenCalled();
+            it('triggers checkIfOpenOrdersExceedingMaxOpenTrades', () => {
+              expect(
+                mockCheckIfOpenOrdersExceedingMaxOpenTrades
+              ).toHaveBeenCalled();
             });
 
             it('triggers saveOrderStats', () => {

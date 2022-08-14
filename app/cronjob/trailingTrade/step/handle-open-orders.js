@@ -7,7 +7,8 @@ const {
   getAccountInfo,
   updateAccountInfo,
   saveOverrideAction,
-  getAndCacheOpenOrdersForSymbol
+  getAndCacheOpenOrdersForSymbol,
+  isExceedingMaxOpenTrades
 } = require('../../trailingTradeHelper/common');
 
 /**
@@ -54,7 +55,18 @@ const execute = async (logger, rawData) => {
     }
     // Is the stop price is higher than current limit price?
     if (order.side.toLowerCase() === 'buy') {
-      if (parseFloat(order.stopPrice) >= buyLimitPrice) {
+      if (await isExceedingMaxOpenTrades(logger, data)) {
+        // Cancel the initial buy order if max. open trades exceeded
+        data.action = 'buy-order-cancelled';
+        logger.info(
+          { data, saveLog: true },
+          `The current number of open trades has reached the maximum number of open trades. ` +
+            `The buy order will be cancelled.`
+        );
+
+        // Cancel current order
+        await cancelOrder(logger, symbol, order);
+      } else if (parseFloat(order.stopPrice) >= buyLimitPrice) {
         logger.info(
           { stopPrice: order.stopPrice, buyLimitPrice, saveLog: true },
           'Stop price is higher than buy limit price, cancel current buy order'
