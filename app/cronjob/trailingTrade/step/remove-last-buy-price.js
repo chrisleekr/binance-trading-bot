@@ -90,15 +90,13 @@ const removeLastBuyPrice = async (
   await saveOrderStats(logger, symbols);
 
   slack.sendMessage(
-    `${symbol} Action (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): Removed last buy price\n` +
+    `*${symbol}* Action - Removed last buy price:\n` +
       `- Message: ${processMessage}\n\`\`\`${JSON.stringify(
         extraMessages,
         undefined,
         2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+      )}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 
   PubSub.publish('frontend-notification', {
@@ -111,17 +109,15 @@ const removeLastBuyPrice = async (
 
   // Notify slack
   if (_.isEmpty(archivedGridTrade) === false) {
-    await slack.sendMessage(
-      `${symbol} ${
-        archivedGridTrade.profit > 0 ? 'Profit' : 'Loss'
-      } (${moment().format('HH:mm:ss.SSS')}):\n` +
+    slack.sendMessage(
+      `*${symbol}* ${archivedGridTrade.profit > 0 ? 'Profit' : 'Loss'}:\n` +
         `\`\`\`` +
         ` - Profit: ${archivedGridTrade.profit}\n` +
         ` - ProfitPercentage: ${archivedGridTrade.profitPercentage}\n` +
         ` - Total Buy Amount: ${archivedGridTrade.totalBuyQuoteQty}\n` +
         ` - Total Sell Amount: ${archivedGridTrade.totalSellQuoteQty}\n` +
-        `\`\`\`\n` +
-        `- Current API Usage: ${getAPILimit(logger)}`
+        `\`\`\``,
+      { symbol, apiLimit: getAPILimit(logger) }
     );
   }
 

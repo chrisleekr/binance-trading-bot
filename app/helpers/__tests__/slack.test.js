@@ -43,13 +43,16 @@ describe('slack', () => {
 
         axios.post = jest.fn().mockResolvedValue(true);
 
-        result = await slack.sendMessage('my message');
+        result = await slack.sendMessage('my message', {
+          symbol: 'BTCUSDT',
+          apiLimit: 10
+        });
       });
 
       it('triggers axios.post', () => {
         expect(axios.post).toHaveBeenCalledWith('value-slack.webhookUrl', {
           channel: 'value-slack.channel',
-          text: 'my message',
+          text: expect.stringContaining('my message'),
           type: 'mrkdwn',
           username: 'value-slack.username - value-mode'
         });
@@ -57,6 +60,20 @@ describe('slack', () => {
 
       it('returns expected value', () => {
         expect(result).toBeTruthy();
+      });
+
+      describe('if duplicated', () => {
+        beforeEach(async () => {
+          axios.post.mockClear();
+          result = await slack.sendMessage('my message', {
+            symbol: 'BTCUSDT',
+            apiLimit: 10
+          });
+        });
+
+        it('does not trigger axios.post', () => {
+          expect(axios.post).not.toHaveBeenCalled();
+        });
       });
     });
   });

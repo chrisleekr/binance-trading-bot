@@ -1,7 +1,6 @@
 const config = require('config');
 const jwt = require('jsonwebtoken');
 const _ = require('lodash');
-const moment = require('moment');
 const { cache, binance, mongo, PubSub, slack } = require('../../helpers');
 const queue = require('./queue');
 
@@ -539,9 +538,7 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
   });
 
   slack.sendMessage(
-    `${symbol} Last buy price Updated (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *${type}*\n` +
+    `*${symbol}* Last buy price Updated: *${type}*\n` +
       `- Order Result: \`\`\`${JSON.stringify(
         {
           orgLastBuyPrice,
@@ -553,8 +550,8 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
         },
         undefined,
         2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+      )}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 };
 
@@ -769,11 +766,9 @@ const saveOverrideAction = async (
 
   if (notify) {
     slack.sendMessage(
-      `${symbol} Action (${moment().format('HH:mm:ss.SSS')}): Queued action: ${
-        overrideData.action
-      }\n` +
-        `- Message: ${overrideReason}\n` +
-        `- Current API Usage: ${getAPILimit(logger)}`
+      `*${symbol}* Action - Queued action: ${overrideData.action}\n` +
+        `- Message: ${overrideReason}`,
+      { symbol, apiLimit: getAPILimit(logger) }
     );
 
     PubSub.publish('frontend-notification', {
@@ -807,11 +802,9 @@ const saveOverrideIndicatorAction = async (
 
   if (notify) {
     slack.sendMessage(
-      `Action (${moment().format('HH:mm:ss.SSS')}): Queued action: ${
-        overrideData.action
-      }\n` +
-        `- Message: ${overrideReason}\n` +
-        `- Current API Usage: ${getAPILimit(logger)}`
+      `Action - Queued action: ${overrideData.action}\n` +
+        `- Message: ${overrideReason}`,
+      { apiLimit: getAPILimit(logger) }
     );
 
     PubSub.publish('frontend-notification', {
