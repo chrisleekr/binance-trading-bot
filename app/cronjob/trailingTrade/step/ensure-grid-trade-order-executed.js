@@ -257,7 +257,7 @@ const execute = async (logger, rawData) => {
       );
 
       // Queue other symbols to check if max. open trade is reached
-      symbols.map(async symbolToQueue => {
+      symbols.forEach(symbolToQueue => {
         if (symbolToQueue !== symbol) {
           queue.executeFor(logger, symbolToQueue);
         }
