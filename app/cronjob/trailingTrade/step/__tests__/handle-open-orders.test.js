@@ -9,14 +9,11 @@ describe('handle-open-orders.js', () => {
   let slackMock;
 
   let mockCancelOrder;
-  let mockGetAccountInfo;
-  let mockGetAndCacheOpenOrdersForSymbol;
+  let mockRefreshOpenOrdersAndAccountInfo;
   let mockUpdateAccountInfo;
   let mockSaveOverrideAction;
 
   let mockIsExceedingMaxOpenTrades;
-
-  const accountInfoJSON = require('./fixtures/binance-account-info.json');
 
   describe('execute', () => {
     beforeEach(() => {
@@ -26,7 +23,14 @@ describe('handle-open-orders.js', () => {
       loggerMock = logger;
       slackMock = slack;
 
-      mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+      mockRefreshOpenOrdersAndAccountInfo = jest.fn().mockResolvedValue({
+        accountInfo: {
+          accountInfo: 'updated'
+        },
+        openOrders: [{ openOrders: 'retrieved' }],
+        buyOpenOrders: [{ buyOpenOrders: 'retrived' }],
+        sellOpenOrders: [{ sellOpenOrders: 'retrived' }]
+      });
       mockCancelOrder = jest.fn().mockResolvedValue(true);
 
       mockSaveOverrideAction = jest.fn().mockResolvedValue(true);
@@ -39,15 +43,12 @@ describe('handle-open-orders.js', () => {
 
     describe('when symbol is locked', () => {
       beforeEach(async () => {
-        mockGetAccountInfo = jest.fn().mockResolvedValue(accountInfoJSON);
-
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfo: mockGetAccountInfo,
           updateAccountInfo: mockUpdateAccountInfo,
           saveOverrideAction: mockSaveOverrideAction,
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
-          cancelOrder: mockCancelOrder
+          cancelOrder: mockCancelOrder,
+          refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
         }));
 
         step = require('../handle-open-orders');
@@ -93,12 +94,8 @@ describe('handle-open-orders.js', () => {
         expect(mockCancelOrder).not.toHaveBeenCalled();
       });
 
-      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger getAccountInfo', () => {
-        expect(mockGetAccountInfo).not.toHaveBeenCalled();
+      it('does not trigger refreshOpenOrdersAndAccountInfo', () => {
+        expect(mockRefreshOpenOrdersAndAccountInfo).not.toHaveBeenCalled();
       });
 
       it('returns expected value', () => {
@@ -137,17 +134,12 @@ describe('handle-open-orders.js', () => {
 
     describe('when action is not not-determined', () => {
       beforeEach(async () => {
-        mockGetAccountInfo = jest.fn().mockResolvedValue(accountInfoJSON);
-
-        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfo: mockGetAccountInfo,
           updateAccountInfo: mockUpdateAccountInfo,
           saveOverrideAction: mockSaveOverrideAction,
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
-          cancelOrder: mockCancelOrder
+          cancelOrder: mockCancelOrder,
+          refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
         }));
 
         step = require('../handle-open-orders');
@@ -193,12 +185,8 @@ describe('handle-open-orders.js', () => {
         expect(mockCancelOrder).not.toHaveBeenCalled();
       });
 
-      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger getAccountInfo', () => {
-        expect(mockGetAccountInfo).not.toHaveBeenCalled();
+      it('does not trigger refreshOpenOrdersAndAccountInfo', () => {
+        expect(mockRefreshOpenOrdersAndAccountInfo).not.toHaveBeenCalled();
       });
 
       it('returns expected value', () => {
@@ -237,17 +225,12 @@ describe('handle-open-orders.js', () => {
 
     describe('when order is not STOP_LOSS_LIMIT', () => {
       beforeEach(async () => {
-        mockGetAccountInfo = jest.fn().mockResolvedValue(accountInfoJSON);
-
-        mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfo: mockGetAccountInfo,
           updateAccountInfo: mockUpdateAccountInfo,
           saveOverrideAction: mockSaveOverrideAction,
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
           isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
-          cancelOrder: mockCancelOrder
+          cancelOrder: mockCancelOrder,
+          refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
         }));
 
         step = require('../handle-open-orders');
@@ -293,12 +276,8 @@ describe('handle-open-orders.js', () => {
         expect(mockCancelOrder).not.toHaveBeenCalled();
       });
 
-      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger getAccountInfo', () => {
-        expect(mockGetAccountInfo).not.toHaveBeenCalled();
+      it('does not trigger refreshOpenOrdersAndAccountInfo', () => {
+        expect(mockRefreshOpenOrdersAndAccountInfo).not.toHaveBeenCalled();
       });
 
       it('returns expected value', () => {
@@ -337,23 +316,111 @@ describe('handle-open-orders.js', () => {
 
     describe('when order is buy', () => {
       describe('when open trade limit is reached', () => {
-        describe('when order is cancelled', () => {
+        describe('when cancelling order is failedd', () => {
           beforeEach(async () => {
-            mockGetAccountInfo = jest.fn().mockResolvedValue(accountInfoJSON);
-            mockGetAndCacheOpenOrdersForSymbol = jest
-              .fn()
-              .mockResolvedValue([]);
+            mockIsExceedingMaxOpenTrades = jest.fn().mockResolvedValue(true);
+            mockCancelOrder = jest.fn().mockResolvedValue(false);
+
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              updateAccountInfo: mockUpdateAccountInfo,
+              saveOverrideAction: mockSaveOverrideAction,
+              isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
+              cancelOrder: mockCancelOrder,
+              refreshOpenOrdersAndAccountInfo:
+                mockRefreshOpenOrdersAndAccountInfo
+            }));
+
+            step = require('../handle-open-orders');
+
+            rawData = {
+              symbol: 'BTCUSDT',
+              isLocked: false,
+              action: 'not-determined',
+              openOrders: [
+                {
+                  symbol: 'BTCUSDT',
+                  orderId: 46838,
+                  price: '1799.58000000',
+                  stopPrice: '1800.1000',
+                  type: 'STOP_LOSS_LIMIT',
+                  side: 'BUY'
+                }
+              ],
+              buy: {
+                limitPrice: 1810,
+                openOrders: [
+                  {
+                    symbol: 'BTCUSDT',
+                    orderId: 46838,
+                    price: '1799.58000000',
+                    stopPrice: '1800.1000',
+                    type: 'STOP_LOSS_LIMIT',
+                    side: 'BUY'
+                  }
+                ]
+              },
+              sell: {
+                limitPrice: 1800,
+                openOrders: []
+              },
+              symbolInfo: {
+                quoteAsset: 'USDT'
+              }
+            };
+
+            result = await step.execute(loggerMock, rawData);
+          });
+
+          it('does trigger cancelOrder', () => {
+            expect(mockCancelOrder).toHaveBeenCalled();
+          });
+
+          it('triggers refreshOpenOrdersAndAccountInfo', () => {
+            expect(mockRefreshOpenOrdersAndAccountInfo).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCUSDT'
+            );
+          });
+
+          it('returns expected value', () => {
+            expect(result).toStrictEqual({
+              symbol: 'BTCUSDT',
+              isLocked: false,
+              action: 'buy-order-checking',
+              openOrders: [
+                {
+                  openOrders: 'retrieved'
+                }
+              ],
+              buy: {
+                limitPrice: 1810,
+                openOrders: [
+                  {
+                    buyOpenOrders: 'retrived'
+                  }
+                ]
+              },
+              sell: { limitPrice: 1800, openOrders: [] },
+              symbolInfo: {
+                quoteAsset: 'USDT'
+              },
+              accountInfo: { accountInfo: 'updated' }
+            });
+          });
+        });
+
+        describe('when cancelling order is succeedd', () => {
+          beforeEach(async () => {
             mockIsExceedingMaxOpenTrades = jest.fn().mockResolvedValue(true);
             mockCancelOrder = jest.fn().mockResolvedValue(true);
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfo: mockGetAccountInfo,
               updateAccountInfo: mockUpdateAccountInfo,
               saveOverrideAction: mockSaveOverrideAction,
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
-              cancelOrder: mockCancelOrder
+              cancelOrder: mockCancelOrder,
+              refreshOpenOrdersAndAccountInfo:
+                mockRefreshOpenOrdersAndAccountInfo
             }));
 
             step = require('../handle-open-orders');
@@ -407,12 +474,8 @@ describe('handle-open-orders.js', () => {
             expect(mockCancelOrder).toHaveBeenCalled();
           });
 
-          it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-            expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
-          });
-
-          it('does not trigger getAccountInfo', () => {
-            expect(mockGetAccountInfo).not.toHaveBeenCalled();
+          it('does not trigger refreshOpenOrdersAndAccountInfo', () => {
+            expect(mockRefreshOpenOrdersAndAccountInfo).not.toHaveBeenCalled();
           });
 
           it('triggers updateAccountInfo', () => {
@@ -463,125 +526,6 @@ describe('handle-open-orders.js', () => {
             });
           });
         });
-
-        describe('when order is not cancelled', () => {
-          beforeEach(async () => {
-            mockGetAccountInfo = jest.fn().mockResolvedValue(accountInfoJSON);
-            mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
-              {
-                symbol: 'BTCUSDT',
-                orderId: 46838,
-                price: '1799.58000000',
-                stopPrice: '1800.1000',
-                type: 'STOP_LOSS_LIMIT',
-                side: 'BUY'
-              }
-            ]);
-            mockIsExceedingMaxOpenTrades = jest.fn().mockResolvedValue(true);
-            mockCancelOrder = jest.fn().mockResolvedValue(false);
-
-            jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfo: mockGetAccountInfo,
-              updateAccountInfo: mockUpdateAccountInfo,
-              saveOverrideAction: mockSaveOverrideAction,
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
-              isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
-              cancelOrder: mockCancelOrder
-            }));
-
-            step = require('../handle-open-orders');
-
-            rawData = {
-              symbol: 'BTCUSDT',
-              isLocked: false,
-              action: 'not-determined',
-              openOrders: [
-                {
-                  symbol: 'BTCUSDT',
-                  orderId: 46838,
-                  price: '1799.58000000',
-                  stopPrice: '1800.1000',
-                  type: 'STOP_LOSS_LIMIT',
-                  side: 'BUY'
-                }
-              ],
-              buy: {
-                limitPrice: 1810,
-                openOrders: [
-                  {
-                    symbol: 'BTCUSDT',
-                    orderId: 46838,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'BUY'
-                  }
-                ]
-              },
-              sell: {
-                limitPrice: 1800,
-                openOrders: []
-              },
-              symbolInfo: {
-                quoteAsset: 'USDT'
-              }
-            };
-
-            result = await step.execute(loggerMock, rawData);
-          });
-
-          it('does trigger cancelOrder', () => {
-            expect(mockCancelOrder).toHaveBeenCalled();
-          });
-
-          it('triggers getAndCacheOpenOrdersForSymbol', () => {
-            expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
-              loggerMock,
-              'BTCUSDT'
-            );
-          });
-
-          it('triggers getAccountInfo', () => {
-            expect(mockGetAccountInfo).toHaveBeenCalledWith(loggerMock);
-          });
-
-          it('returns expected value', () => {
-            expect(result).toStrictEqual({
-              symbol: 'BTCUSDT',
-              isLocked: false,
-              action: 'buy-order-checking',
-              openOrders: [
-                {
-                  symbol: 'BTCUSDT',
-                  orderId: 46838,
-                  price: '1799.58000000',
-                  stopPrice: '1800.1000',
-                  type: 'STOP_LOSS_LIMIT',
-                  side: 'BUY'
-                }
-              ],
-              buy: {
-                limitPrice: 1810,
-                openOrders: [
-                  {
-                    symbol: 'BTCUSDT',
-                    orderId: 46838,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'BUY'
-                  }
-                ]
-              },
-              sell: { limitPrice: 1800, openOrders: [] },
-              symbolInfo: {
-                quoteAsset: 'USDT'
-              },
-              accountInfo: accountInfoJSON
-            });
-          });
-        });
       });
 
       describe('when stop price is higher or equal than current limit price', () => {
@@ -591,36 +535,14 @@ describe('handle-open-orders.js', () => {
 
             mockCancelOrder = jest.fn().mockResolvedValue(false);
 
-            mockGetAccountInfo = jest.fn().mockResolvedValue(accountInfoJSON);
-
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfo: mockGetAccountInfo,
               updateAccountInfo: mockUpdateAccountInfo,
               saveOverrideAction: mockSaveOverrideAction,
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
-              cancelOrder: mockCancelOrder
+              cancelOrder: mockCancelOrder,
+              refreshOpenOrdersAndAccountInfo:
+                mockRefreshOpenOrdersAndAccountInfo
             }));
-
-            mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
-              {
-                symbol: 'BTCUSDT',
-                orderId: 46839,
-                price: '1799.58000000',
-                stopPrice: '1800.1000',
-                type: 'STOP_LOSS_LIMIT',
-                side: 'BUY'
-              },
-              {
-                symbol: 'BTCUSDT',
-                orderId: 46841,
-                price: '1799.58000000',
-                stopPrice: '1800.1000',
-                type: 'STOP_LOSS_LIMIT',
-                side: 'SELL'
-              }
-            ]);
 
             step = require('../handle-open-orders');
 
@@ -681,12 +603,8 @@ describe('handle-open-orders.js', () => {
             );
           });
 
-          it('triggers getAccountInfo', () => {
-            expect(mockGetAccountInfo).toHaveBeenCalledWith(loggerMock);
-          });
-
-          it('triggers getAndCacheOpenOrdersForSymbol', () => {
-            expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+          it('triggers refreshOpenOrdersAndAccountInfo', () => {
+            expect(mockRefreshOpenOrdersAndAccountInfo).toHaveBeenCalledWith(
               loggerMock,
               'BTCUSDT'
             );
@@ -725,32 +643,14 @@ describe('handle-open-orders.js', () => {
               action: 'buy-order-checking',
               openOrders: [
                 {
-                  symbol: 'BTCUSDT',
-                  orderId: 46839,
-                  price: '1799.58000000',
-                  stopPrice: '1800.1000',
-                  type: 'STOP_LOSS_LIMIT',
-                  side: 'BUY'
-                },
-                {
-                  symbol: 'BTCUSDT',
-                  orderId: 46841,
-                  price: '1799.58000000',
-                  stopPrice: '1800.1000',
-                  type: 'STOP_LOSS_LIMIT',
-                  side: 'SELL'
+                  openOrders: 'retrieved'
                 }
               ],
               buy: {
                 limitPrice: 1800,
                 openOrders: [
                   {
-                    symbol: 'BTCUSDT',
-                    orderId: 46839,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'BUY'
+                    buyOpenOrders: 'retrived'
                   }
                 ]
               },
@@ -758,27 +658,22 @@ describe('handle-open-orders.js', () => {
               symbolInfo: {
                 quoteAsset: 'USDT'
               },
-              accountInfo: accountInfoJSON
+              accountInfo: {
+                accountInfo: 'updated'
+              }
             });
           });
         });
 
         describe('when cancelling order is succeed', () => {
           beforeEach(async () => {
-            mockGetAccountInfo = jest.fn().mockResolvedValue(accountInfoJSON);
-
-            mockGetAndCacheOpenOrdersForSymbol = jest
-              .fn()
-              .mockResolvedValue([]);
-
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfo: mockGetAccountInfo,
               updateAccountInfo: mockUpdateAccountInfo,
               saveOverrideAction: mockSaveOverrideAction,
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
-              cancelOrder: mockCancelOrder
+              cancelOrder: mockCancelOrder,
+              refreshOpenOrdersAndAccountInfo:
+                mockRefreshOpenOrdersAndAccountInfo
             }));
 
             step = require('../handle-open-orders');
@@ -844,12 +739,8 @@ describe('handle-open-orders.js', () => {
             );
           });
 
-          it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-            expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
-          });
-
-          it('does not trigger getAccountInfo', () => {
-            expect(mockGetAccountInfo).not.toHaveBeenCalled();
+          it('does not trigger refreshOpenOrdersAndAccountInfo', () => {
+            expect(mockRefreshOpenOrdersAndAccountInfo).not.toHaveBeenCalled();
           });
 
           it('triggers updateAccountInfo', () => {
@@ -901,17 +792,14 @@ describe('handle-open-orders.js', () => {
 
       describe('when order trade limit is not reached and stop price is less than current limit price', () => {
         beforeEach(async () => {
-          mockGetAccountInfo = jest.fn().mockResolvedValue(accountInfoJSON);
-          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
           mockIsExceedingMaxOpenTrades = jest.fn().mockResolvedValue(false);
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAccountInfo: mockGetAccountInfo,
             updateAccountInfo: mockUpdateAccountInfo,
             saveOverrideAction: mockSaveOverrideAction,
-            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
-            cancelOrder: mockCancelOrder
+            cancelOrder: mockCancelOrder,
+            refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
           }));
 
           step = require('../handle-open-orders');
@@ -959,12 +847,8 @@ describe('handle-open-orders.js', () => {
           expect(mockCancelOrder).not.toHaveBeenCalled();
         });
 
-        it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-          expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
-        });
-
-        it('does not trigger getAccountInfo', () => {
-          expect(mockGetAccountInfo).not.toHaveBeenCalled();
+        it('does not trigger refreshOpenOrdersAndAccountInfo', () => {
+          expect(mockRefreshOpenOrdersAndAccountInfo).not.toHaveBeenCalled();
         });
 
         it('returns expected value', () => {
@@ -1007,54 +891,44 @@ describe('handle-open-orders.js', () => {
     describe('when order is sell', () => {
       describe('when stop price is less or equal than current limit price', () => {
         describe('when cancel order is failed', () => {
-          beforeEach(() => {
+          beforeEach(async () => {
             slackMock.sendMessage = jest.fn().mockResolvedValue(true);
 
             mockCancelOrder = jest.fn().mockResolvedValue(false);
 
-            mockGetAccountInfo = jest.fn().mockResolvedValue(accountInfoJSON);
-
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfo: mockGetAccountInfo,
               updateAccountInfo: mockUpdateAccountInfo,
               saveOverrideAction: mockSaveOverrideAction,
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
-              cancelOrder: mockCancelOrder
+              cancelOrder: mockCancelOrder,
+              refreshOpenOrdersAndAccountInfo:
+                mockRefreshOpenOrdersAndAccountInfo
             }));
-          });
+            step = require('../handle-open-orders');
 
-          describe('when got getAndCacheOpenOrdersForSymbol successfully', () => {
-            beforeEach(async () => {
-              mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
+            rawData = {
+              symbol: 'BTCUSDT',
+              isLocked: false,
+              featureToggle: {
+                notifyDebug: false
+              },
+              action: 'not-determined',
+              openOrders: [
                 {
                   symbol: 'BTCUSDT',
-                  orderId: 46840,
+                  orderId: 46838,
                   price: '1799.58000000',
                   stopPrice: '1800.1000',
                   type: 'STOP_LOSS_LIMIT',
                   side: 'SELL'
-                },
-                {
-                  symbol: 'BTCUSDT',
-                  orderId: 46841,
-                  price: '1799.58000000',
-                  stopPrice: '1800.1000',
-                  type: 'STOP_LOSS_LIMIT',
-                  side: 'BUY'
                 }
-              ]);
-
-              step = require('../handle-open-orders');
-
-              rawData = {
-                symbol: 'BTCUSDT',
-                isLocked: false,
-                featureToggle: {
-                  notifyDebug: false
-                },
-                action: 'not-determined',
+              ],
+              buy: {
+                limitPrice: 1800,
+                openOrders: []
+              },
+              sell: {
+                limitPrice: 1801,
                 openOrders: [
                   {
                     symbol: 'BTCUSDT',
@@ -1064,127 +938,83 @@ describe('handle-open-orders.js', () => {
                     type: 'STOP_LOSS_LIMIT',
                     side: 'SELL'
                   }
-                ],
-                buy: {
-                  limitPrice: 1800,
-                  openOrders: []
-                },
-                sell: {
-                  limitPrice: 1801,
-                  openOrders: [
-                    {
-                      symbol: 'BTCUSDT',
-                      orderId: 46838,
-                      price: '1799.58000000',
-                      stopPrice: '1800.1000',
-                      type: 'STOP_LOSS_LIMIT',
-                      side: 'SELL'
-                    }
-                  ]
-                },
-                symbolInfo: {
-                  quoteAsset: 'USDT'
-                }
-              };
+                ]
+              },
+              symbolInfo: {
+                quoteAsset: 'USDT'
+              }
+            };
 
-              result = await step.execute(loggerMock, rawData);
-            });
+            result = await step.execute(loggerMock, rawData);
+          });
 
-            it('triggers cancelOrder', () => {
-              expect(mockCancelOrder).toHaveBeenCalledWith(
-                loggerMock,
-                'BTCUSDT',
-                {
-                  orderId: 46838,
-                  price: '1799.58000000',
-                  side: 'SELL',
-                  stopPrice: '1800.1000',
-                  symbol: 'BTCUSDT',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              );
-            });
-
-            it('triggers getAndCacheOpenOrdersForSymbol', () => {
-              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
-                loggerMock,
-                'BTCUSDT'
-              );
-            });
-
-            it('triggers getAccountInfo', () => {
-              expect(mockGetAccountInfo).toHaveBeenCalled();
-            });
-
-            it('does not trigger slack.sendMessage', () => {
-              expect(slackMock.sendMessage).not.toHaveBeenCalled();
-            });
-
-            it('returns expected value', () => {
-              expect(result).toStrictEqual({
+          it('triggers cancelOrder', () => {
+            expect(mockCancelOrder).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCUSDT',
+              {
+                orderId: 46838,
+                price: '1799.58000000',
+                side: 'SELL',
+                stopPrice: '1800.1000',
                 symbol: 'BTCUSDT',
-                isLocked: false,
-                featureToggle: {
-                  notifyDebug: false
-                },
-                action: 'sell-order-checking',
+                type: 'STOP_LOSS_LIMIT'
+              }
+            );
+          });
+
+          it('triggers refreshOpenOrdersAndAccountInfo', () => {
+            expect(mockRefreshOpenOrdersAndAccountInfo).toHaveBeenCalledWith(
+              loggerMock,
+              'BTCUSDT'
+            );
+          });
+
+          it('does not trigger slack.sendMessage', () => {
+            expect(slackMock.sendMessage).not.toHaveBeenCalled();
+          });
+
+          it('returns expected value', () => {
+            expect(result).toStrictEqual({
+              symbol: 'BTCUSDT',
+              isLocked: false,
+              featureToggle: {
+                notifyDebug: false
+              },
+              action: 'sell-order-checking',
+              openOrders: [
+                {
+                  openOrders: 'retrieved'
+                }
+              ],
+              buy: { limitPrice: 1800, openOrders: [] },
+              sell: {
+                limitPrice: 1801,
                 openOrders: [
                   {
-                    symbol: 'BTCUSDT',
-                    orderId: 46840,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'SELL'
-                  },
-                  {
-                    symbol: 'BTCUSDT',
-                    orderId: 46841,
-                    price: '1799.58000000',
-                    stopPrice: '1800.1000',
-                    type: 'STOP_LOSS_LIMIT',
-                    side: 'BUY'
+                    sellOpenOrders: 'retrived'
                   }
-                ],
-                buy: { limitPrice: 1800, openOrders: [] },
-                sell: {
-                  limitPrice: 1801,
-                  openOrders: [
-                    {
-                      symbol: 'BTCUSDT',
-                      orderId: 46840,
-                      price: '1799.58000000',
-                      stopPrice: '1800.1000',
-                      type: 'STOP_LOSS_LIMIT',
-                      side: 'SELL'
-                    }
-                  ]
-                },
-                symbolInfo: {
-                  quoteAsset: 'USDT'
-                },
-                accountInfo: accountInfoJSON
-              });
+                ]
+              },
+              symbolInfo: {
+                quoteAsset: 'USDT'
+              },
+              accountInfo: {
+                accountInfo: 'updated'
+              }
             });
           });
         });
 
         describe('when cancel order is succeed', () => {
           beforeEach(async () => {
-            mockGetAndCacheOpenOrdersForSymbol = jest
-              .fn()
-              .mockResolvedValue([]);
-
-            mockGetAccountInfo = jest.fn().mockResolvedValue(accountInfoJSON);
-
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfo: mockGetAccountInfo,
               updateAccountInfo: mockUpdateAccountInfo,
               saveOverrideAction: mockSaveOverrideAction,
-              getAndCacheOpenOrdersForSymbol:
-                mockGetAndCacheOpenOrdersForSymbol,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
-              cancelOrder: mockCancelOrder
+              cancelOrder: mockCancelOrder,
+              refreshOpenOrdersAndAccountInfo:
+                mockRefreshOpenOrdersAndAccountInfo
             }));
 
             step = require('../handle-open-orders');
@@ -1251,12 +1081,8 @@ describe('handle-open-orders.js', () => {
             );
           });
 
-          it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-            expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
-          });
-
-          it('does not trigger getAccountInfo', () => {
-            expect(mockGetAccountInfo).not.toHaveBeenCalled();
+          it('does not trigger refreshOpenOrdersAndAccountInfo', () => {
+            expect(mockRefreshOpenOrdersAndAccountInfo).not.toHaveBeenCalled();
           });
 
           it('triggers updateAccountInfo', () => {
@@ -1309,14 +1135,11 @@ describe('handle-open-orders.js', () => {
 
       describe('when stop price is more than current limit price', () => {
         beforeEach(async () => {
-          mockGetAccountInfo = jest.fn().mockResolvedValue(accountInfoJSON);
-
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAccountInfo: mockGetAccountInfo,
             saveOverrideAction: mockSaveOverrideAction,
-            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
             isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
-            cancelOrder: mockCancelOrder
+            cancelOrder: mockCancelOrder,
+            refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
           }));
 
           step = require('../handle-open-orders');
@@ -1364,8 +1187,8 @@ describe('handle-open-orders.js', () => {
           expect(mockCancelOrder).not.toHaveBeenCalled();
         });
 
-        it('does not trigger getAccountInfo', () => {
-          expect(mockGetAccountInfo).not.toHaveBeenCalled();
+        it('does not trigger refreshOpenOrdersAndAccountInfo', () => {
+          expect(mockRefreshOpenOrdersAndAccountInfo).not.toHaveBeenCalled();
         });
 
         it('returns expected value', () => {

@@ -1127,6 +1127,27 @@ const cancelOrder = async (logger, symbol, order) => {
   return result;
 };
 
+const refreshOpenOrdersAndAccountInfo = async (logger, symbol) => {
+  // Get open orders
+  const openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+
+  // Refresh account info
+  const accountInfo = await getAccountInfo(logger);
+
+  const buyOpenOrders = openOrders.filter(o => o.side.toLowerCase() === 'buy');
+
+  const sellOpenOrders = openOrders.filter(
+    o => o.side.toLowerCase() === 'sell'
+  );
+
+  return {
+    accountInfo,
+    openOrders,
+    buyOpenOrders,
+    sellOpenOrders
+  };
+};
+
 module.exports = {
   cacheExchangeSymbols,
   getCachedExchangeSymbols,
@@ -1168,5 +1189,6 @@ module.exports = {
   getCacheTrailingTradeTotalProfitAndLoss,
   getCacheTrailingTradeQuoteEstimates,
   isExceedingMaxOpenTrades,
-  cancelOrder
+  cancelOrder,
+  refreshOpenOrdersAndAccountInfo
 };

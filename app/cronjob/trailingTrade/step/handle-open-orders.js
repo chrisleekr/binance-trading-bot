@@ -4,11 +4,10 @@ const moment = require('moment');
 const _ = require('lodash');
 const {
   cancelOrder,
-  getAccountInfo,
   updateAccountInfo,
   saveOverrideAction,
-  getAndCacheOpenOrdersForSymbol,
-  isExceedingMaxOpenTrades
+  isExceedingMaxOpenTrades,
+  refreshOpenOrdersAndAccountInfo
 } = require('../../trailingTradeHelper/common');
 
 const processSuccessfulBuyOrderCancel = async (logger, data, order) => {
@@ -61,19 +60,6 @@ const processSuccessfulSellOrderCancel = async (logger, data, order) => {
   );
 
   return { accountInfo };
-};
-
-const processFailedOrderCancel = async (logger, symbol) => {
-  // Get open orders
-  const openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
-
-  // Refresh account info
-  const accountInfo = await getAccountInfo(logger);
-
-  return {
-    openOrders,
-    accountInfo
-  };
 };
 
 /**
@@ -134,14 +120,15 @@ const execute = async (logger, rawData) => {
 
         // Reset buy open orders
         if (cancelResult === false) {
-          const { openOrders: updatedOpenOrders, accountInfo } =
-            await processFailedOrderCancel(logger, symbol);
-          data.openOrders = updatedOpenOrders;
-          data.accountInfo = accountInfo;
+          const {
+            accountInfo,
+            openOrders: updatedOpenOrders,
+            buyOpenOrders
+          } = await refreshOpenOrdersAndAccountInfo(logger, symbol);
 
-          data.buy.openOrders = data.openOrders.filter(
-            o => o.side.toLowerCase() === 'buy'
-          );
+          data.accountInfo = accountInfo;
+          data.openOrders = updatedOpenOrders;
+          data.buy.openOrders = buyOpenOrders;
 
           data.action = 'buy-order-checking';
         } else {
@@ -167,14 +154,15 @@ const execute = async (logger, rawData) => {
           // If cancelling the order is failed, it means the order may already be executed or does not exist anymore.
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
-          const { openOrders: updatedOpenOrders, accountInfo } =
-            await processFailedOrderCancel(logger, symbol);
-          data.openOrders = updatedOpenOrders;
-          data.accountInfo = accountInfo;
+          const {
+            accountInfo,
+            openOrders: updatedOpenOrders,
+            buyOpenOrders
+          } = await refreshOpenOrdersAndAccountInfo(logger, symbol);
 
-          data.buy.openOrders = data.openOrders.filter(
-            o => o.side.toLowerCase() === 'buy'
-          );
+          data.accountInfo = accountInfo;
+          data.openOrders = updatedOpenOrders;
+          data.buy.openOrders = buyOpenOrders;
 
           data.action = 'buy-order-checking';
 
@@ -229,15 +217,15 @@ const execute = async (logger, rawData) => {
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
 
-          const { openOrders: updatedOpenOrders, accountInfo } =
-            await processFailedOrderCancel(logger, symbol);
+          const {
+            accountInfo,
+            openOrders: updatedOpenOrders,
+            sellOpenOrders
+          } = await refreshOpenOrdersAndAccountInfo(logger, symbol);
 
-          data.openOrders = updatedOpenOrders;
           data.accountInfo = accountInfo;
-
-          data.sell.openOrders = data.openOrders.filter(
-            o => o.side.toLowerCase() === 'sell'
-          );
+          data.openOrders = updatedOpenOrders;
+          data.sell.openOrders = sellOpenOrders;
 
           data.action = 'sell-order-checking';
         } else {

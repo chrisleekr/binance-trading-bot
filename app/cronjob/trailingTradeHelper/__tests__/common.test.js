@@ -3329,4 +3329,76 @@ describe('common.js', () => {
       });
     });
   });
+
+  describe('refreshOpenOrdersAndAccountInfo', () => {
+    beforeEach(async () => {
+      const { binance, logger, cache } = require('../../../helpers');
+
+      loggerMock = logger;
+      binanceMock = binance;
+      cacheMock = cache;
+
+      binanceMock.client.openOrders = jest.fn().mockResolvedValue([
+        {
+          symbol: 'BTCUSDT',
+          side: 'BUY'
+        },
+        {
+          symbol: 'BTCUSDT',
+          side: 'SELL'
+        }
+      ]);
+
+      cacheMock.hset = jest.fn().mockResolvedValue(true);
+      cacheMock.hgetWithoutLock = jest.fn().mockResolvedValue(
+        JSON.stringify({
+          accountInfo: 'updated'
+        })
+      );
+
+      commonHelper = require('../common');
+      result = await commonHelper.refreshOpenOrdersAndAccountInfo(
+        loggerMock,
+        'BTCUSDT'
+      );
+    });
+
+    it('triggers binance.client.openOrders', () => {
+      expect(binanceMock.client.openOrders).toHaveBeenCalled();
+    });
+
+    it('triggers cache.hgetWithoutLock', () => {
+      expect(cacheMock.hgetWithoutLock).toHaveBeenCalled();
+    });
+
+    it('returns expected results', () => {
+      expect(result).toStrictEqual({
+        accountInfo: {
+          accountInfo: 'updated'
+        },
+        openOrders: [
+          {
+            symbol: 'BTCUSDT',
+            side: 'BUY'
+          },
+          {
+            symbol: 'BTCUSDT',
+            side: 'SELL'
+          }
+        ],
+        buyOpenOrders: [
+          {
+            symbol: 'BTCUSDT',
+            side: 'BUY'
+          }
+        ],
+        sellOpenOrders: [
+          {
+            symbol: 'BTCUSDT',
+            side: 'SELL'
+          }
+        ]
+      });
+    });
+  });
 });
