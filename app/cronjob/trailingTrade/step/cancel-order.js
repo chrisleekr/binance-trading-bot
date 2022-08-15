@@ -52,6 +52,7 @@ const execute = async (logger, rawData) => {
 
   await deleteManualOrder(logger, symbol, order.orderId);
 
+  // FIXME: If you change this comment, please refactor to use common.js:refreshOpenOrdersAndAccountInfo
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
   data.buy.openOrders = data.openOrders.filter(
