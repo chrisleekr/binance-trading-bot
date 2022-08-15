@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed incorrect behaviour of exceeding max open orders by [@uhliksk](https://github.com/uhliksk) - [#462](https://github.com/chrisleekr/binance-trading-bot/pull/462)
 - Bumped vulnerable package versions - [#472](https://github.com/chrisleekr/binance-trading-bot/pull/472)
 - Refactored the slack hander to avoid message flooding to Slack - [#471](https://github.com/chrisleekr/binance-trading-bot/pull/471)
 - Implemented queue to stabilise the trade by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#464](https://github.com/chrisleekr/binance-trading-bot/pull/464)
