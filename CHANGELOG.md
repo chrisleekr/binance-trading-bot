@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.0.89] - 2022-08-16
 
 - Fixed incorrect behaviour of exceeding max open orders by [@uhliksk](https://github.com/uhliksk) - [#462](https://github.com/chrisleekr/binance-trading-bot/pull/462)
 - Bumped vulnerable package versions - [#472](https://github.com/chrisleekr/binance-trading-bot/pull/472)
