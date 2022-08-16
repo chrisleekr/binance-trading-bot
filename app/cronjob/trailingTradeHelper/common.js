@@ -1061,6 +1061,93 @@ const getCacheTrailingTradeQuoteEstimates = logger =>
     }
   ]);
 
+/**
+ * Check whether max number of open trades has reached
+ *
+ * @param {*} logger
+ * @param {*} data
+ * @returns
+ */
+const isExceedingMaxOpenTrades = async (logger, data) => {
+  const {
+    symbolConfiguration: {
+      botOptions: {
+        orderLimit: {
+          enabled: orderLimitEnabled,
+          maxOpenTrades: orderLimitMaxOpenTrades
+        }
+      }
+    },
+    sell: { lastBuyPrice }
+  } = data;
+
+  if (orderLimitEnabled === false) {
+    return false;
+  }
+
+  // If the last buy price is recorded, this is one of open trades.
+  if (lastBuyPrice) {
+    return false;
+  }
+
+  return (await getNumberOfOpenTrades(logger)) >= orderLimitMaxOpenTrades;
+};
+
+/**
+ * Cancel order
+ *
+ * @param {*} logger
+ * @param {*} symbol
+ * @param {*} order
+ */
+const cancelOrder = async (logger, symbol, order) => {
+  const { side } = order;
+  logger.info(
+    { function: 'cancelOrder', order, saveLog: true },
+    `The ${side} order will be cancelled.`
+  );
+  // Cancel open orders first to make sure it does not have unsettled orders.
+  let result = false;
+  try {
+    const apiResult = await binance.client.cancelOrder({
+      symbol,
+      orderId: order.orderId
+    });
+    logger.info({ apiResult }, 'Cancelled open orders');
+
+    result = true;
+  } catch (e) {
+    logger.info(
+      { e, saveLog: true },
+      `Order cancellation failed, but it is ok. ` +
+        `The order may already be cancelled or executed. The bot will check in the next tick.`
+    );
+  }
+
+  return result;
+};
+
+const refreshOpenOrdersAndAccountInfo = async (logger, symbol) => {
+  // Get open orders
+  const openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
+
+  // Refresh account info
+  const accountInfo = await getAccountInfo(logger);
+
+  const buyOpenOrders = openOrders.filter(o => o.side.toLowerCase() === 'buy');
+
+  const sellOpenOrders = openOrders.filter(
+    o => o.side.toLowerCase() === 'sell'
+  );
+
+  return {
+    accountInfo,
+    openOrders,
+    buyOpenOrders,
+    sellOpenOrders
+  };
+};
+
 module.exports = {
   cacheExchangeSymbols,
   getCachedExchangeSymbols,
@@ -1100,5 +1187,8 @@ module.exports = {
   updateAccountInfo,
   getCacheTrailingTradeSymbols,
   getCacheTrailingTradeTotalProfitAndLoss,
-  getCacheTrailingTradeQuoteEstimates
+  getCacheTrailingTradeQuoteEstimates,
+  isExceedingMaxOpenTrades,
+  cancelOrder,
+  refreshOpenOrdersAndAccountInfo
 };

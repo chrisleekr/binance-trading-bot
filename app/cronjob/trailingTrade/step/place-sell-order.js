@@ -202,6 +202,7 @@ const execute = async (logger, rawData) => {
     currentGridTradeIndex
   });
 
+  // FIXME: If you change this comment, please refactor to use common.js:refreshOpenOrdersAndAccountInfo
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
   data.sell.openOrders = data.openOrders.filter(

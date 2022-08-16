@@ -2,46 +2,64 @@
 const moment = require('moment');
 
 const _ = require('lodash');
-const { binance } = require('../../../helpers');
 const {
-  getAccountInfo,
+  cancelOrder,
   updateAccountInfo,
   saveOverrideAction,
-  getAndCacheOpenOrdersForSymbol
+  isExceedingMaxOpenTrades,
+  refreshOpenOrdersAndAccountInfo
 } = require('../../trailingTradeHelper/common');
 
-/**
- * Cancel order
- *
- * @param {*} logger
- * @param {*} symbol
- * @param {*} order
- */
-const cancelOrder = async (logger, symbol, order) => {
-  const { side } = order;
-  logger.info(
-    { function: 'cancelOrder', order, saveLog: true },
-    `The ${side} order will be cancelled.`
+const processSuccessfulBuyOrderCancel = async (logger, data, order) => {
+  const {
+    symbolInfo: { quoteAsset }
+  } = data;
+
+  const orderAmount = order.origQty * order.price;
+
+  // Immediately update the balance of "quote" asset when the order is canceled so that
+  // we don't have to wait for the websocket because the next action is buy
+  const balances = [
+    {
+      asset: quoteAsset,
+      free: _.toNumber(data.quoteAssetBalance.free) + _.toNumber(orderAmount),
+      locked:
+        _.toNumber(data.quoteAssetBalance.locked) - _.toNumber(orderAmount)
+    }
+  ];
+
+  // Refresh account info
+  const accountInfo = await updateAccountInfo(
+    logger,
+    balances,
+    moment().toISOString()
   );
-  // Cancel open orders first to make sure it does not have unsettled orders.
-  let result = false;
-  try {
-    const apiResult = await binance.client.cancelOrder({
-      symbol,
-      orderId: order.orderId
-    });
-    logger.info({ apiResult }, 'Cancelled open orders');
 
-    result = true;
-  } catch (e) {
-    logger.info(
-      { e, saveLog: true },
-      `Order cancellation failed, but it is ok. ` +
-        `The order may already be cancelled or executed. The bot will check in the next tick.`
-    );
-  }
+  return { accountInfo };
+};
 
-  return result;
+const processSuccessfulSellOrderCancel = async (logger, data, order) => {
+  const {
+    symbolInfo: { baseAsset }
+  } = data;
+
+  const balances = [
+    {
+      asset: baseAsset,
+      free: _.toNumber(data.baseAssetBalance.free) + _.toNumber(order.origQty),
+      locked:
+        _.toNumber(data.baseAssetBalance.locked) - _.toNumber(order.origQty)
+    }
+  ];
+
+  // Refresh account info
+  const accountInfo = await updateAccountInfo(
+    logger,
+    balances,
+    moment().toISOString()
+  );
+
+  return { accountInfo };
 };
 
 /**
@@ -60,8 +78,7 @@ const execute = async (logger, rawData) => {
     isLocked,
     openOrders,
     buy: { limitPrice: buyLimitPrice },
-    sell: { limitPrice: sellLimitPrice },
-    symbolInfo: { quoteAsset, baseAsset }
+    sell: { limitPrice: sellLimitPrice }
   } = data;
 
   if (isLocked) {
@@ -86,9 +103,46 @@ const execute = async (logger, rawData) => {
       // eslint-disable-next-line no-continue
       continue;
     }
-    // Is the stop price is higher than current limit price?
+
+    // Process buy order
     if (order.side.toLowerCase() === 'buy') {
-      if (parseFloat(order.stopPrice) >= buyLimitPrice) {
+      if (await isExceedingMaxOpenTrades(logger, data)) {
+        // Cancel the initial buy order if max. open trades exceeded
+        data.action = 'buy-order-cancelled';
+        logger.info(
+          { data, saveLog: true },
+          `The current number of open trades has reached the maximum number of open trades. ` +
+            `The buy order will be cancelled.`
+        );
+
+        // Cancel current order
+        const cancelResult = await cancelOrder(logger, symbol, order);
+
+        // Reset buy open orders
+        if (cancelResult === false) {
+          const {
+            accountInfo,
+            openOrders: updatedOpenOrders,
+            buyOpenOrders
+          } = await refreshOpenOrdersAndAccountInfo(logger, symbol);
+
+          data.accountInfo = accountInfo;
+          data.openOrders = updatedOpenOrders;
+          data.buy.openOrders = buyOpenOrders;
+
+          data.action = 'buy-order-checking';
+        } else {
+          data.buy.openOrders = [];
+
+          const { accountInfo } = await processSuccessfulBuyOrderCancel(
+            logger,
+            data,
+            order
+          );
+          data.accountInfo = accountInfo;
+        }
+      } else if (parseFloat(order.stopPrice) >= buyLimitPrice) {
+        // Is the stop price is higher than current limit price?
         logger.info(
           { stopPrice: order.stopPrice, buyLimitPrice, saveLog: true },
           'Stop price is higher than buy limit price, cancel current buy order'
@@ -100,18 +154,15 @@ const execute = async (logger, rawData) => {
           // If cancelling the order is failed, it means the order may already be executed or does not exist anymore.
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
+          const {
+            accountInfo,
+            openOrders: updatedOpenOrders,
+            buyOpenOrders
+          } = await refreshOpenOrdersAndAccountInfo(logger, symbol);
 
-          data.openOrders = await getAndCacheOpenOrdersForSymbol(
-            logger,
-            symbol
-          );
-
-          data.buy.openOrders = data.openOrders.filter(
-            o => o.side.toLowerCase() === 'buy'
-          );
-
-          // Refresh account info
-          data.accountInfo = await getAccountInfo(logger);
+          data.accountInfo = accountInfo;
+          data.openOrders = updatedOpenOrders;
+          data.buy.openOrders = buyOpenOrders;
 
           data.action = 'buy-order-checking';
 
@@ -134,28 +185,12 @@ const execute = async (logger, rawData) => {
           // Set action as buy
           data.action = 'buy';
 
-          const orderAmount = order.origQty * order.price;
-
-          // Immediately update the balance of "quote" asset when the order is canceled so that
-          // we don't have to wait for the websocket because the next action is buy
-          const balances = [
-            {
-              asset: quoteAsset,
-              free:
-                _.toNumber(data.quoteAssetBalance.free) +
-                _.toNumber(orderAmount),
-              locked:
-                _.toNumber(data.quoteAssetBalance.locked) -
-                _.toNumber(orderAmount)
-            }
-          ];
-
-          // Refresh account info
-          data.accountInfo = await updateAccountInfo(
+          const { accountInfo } = await processSuccessfulBuyOrderCancel(
             logger,
-            balances,
-            moment().toISOString()
+            data,
+            order
           );
+          data.accountInfo = accountInfo;
         }
       } else {
         logger.info(
@@ -167,8 +202,8 @@ const execute = async (logger, rawData) => {
       }
     }
 
-    // Is the stop price is less than current limit price?
     if (order.side.toLowerCase() === 'sell') {
+      // Is the stop price is less than current limit price?
       if (parseFloat(order.stopPrice) <= sellLimitPrice) {
         logger.info(
           { stopPrice: order.stopPrice, sellLimitPrice, saveLog: true },
@@ -182,17 +217,15 @@ const execute = async (logger, rawData) => {
           // Hence, refresh the order and process again in the next tick.
           // Get open orders and update cache
 
-          data.openOrders = await getAndCacheOpenOrdersForSymbol(
-            logger,
-            symbol
-          );
+          const {
+            accountInfo,
+            openOrders: updatedOpenOrders,
+            sellOpenOrders
+          } = await refreshOpenOrdersAndAccountInfo(logger, symbol);
 
-          data.sell.openOrders = data.openOrders.filter(
-            o => o.side.toLowerCase() === 'sell'
-          );
-
-          // Refresh account info
-          data.accountInfo = await getAccountInfo(logger);
+          data.accountInfo = accountInfo;
+          data.openOrders = updatedOpenOrders;
+          data.sell.openOrders = sellOpenOrders;
 
           data.action = 'sell-order-checking';
         } else {
@@ -204,24 +237,14 @@ const execute = async (logger, rawData) => {
 
           // Immediately update the balance of "base" asset when the order is canceled so that
           // we don't have to wait for the websocket because the next action is sell
-          const balances = [
-            {
-              asset: baseAsset,
-              free:
-                _.toNumber(data.baseAssetBalance.free) +
-                _.toNumber(order.origQty),
-              locked:
-                _.toNumber(data.baseAssetBalance.locked) -
-                _.toNumber(order.origQty)
-            }
-          ];
+          const { accountInfo } = await processSuccessfulSellOrderCancel(
+            logger,
+            data,
+            order
+          );
 
           // Refresh account info
-          data.accountInfo = await updateAccountInfo(
-            logger,
-            balances,
-            moment().toISOString()
-          );
+          data.accountInfo = accountInfo;
         }
       } else {
         logger.info(
