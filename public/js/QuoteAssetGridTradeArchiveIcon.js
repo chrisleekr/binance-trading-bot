@@ -18,7 +18,7 @@ class QuoteAssetGridTradeArchiveIcon extends React.Component {
       showDeleteAllByQuoteAssetModal: false,
       loading: true,
       page: 1,
-      limit: 5,
+      limit: 20,
       period: 'a',
       start: null,
       end: null,
@@ -171,7 +171,13 @@ class QuoteAssetGridTradeArchiveIcon extends React.Component {
       return (
         <React.Fragment key={'quote-asset-grid-trade-row-' + row.key}>
           <tr>
-            <td className={`text-center align-middle`}>{row.symbol}</td>
+            <td className={`text-center align-middle`}>
+              {row.symbol}
+              <br />
+              <span class='fs-9' title={moment(row.archivedAt).format()}>
+                {'Closed ' + moment(row.archivedAt).fromNow()}
+              </span>
+            </td>
             <td
               title={row.profit}
               className={`text-center align-middle ${
@@ -185,7 +191,15 @@ class QuoteAssetGridTradeArchiveIcon extends React.Component {
               <br />({parseFloat(row.profitPercentage).toFixed(2)}%)
             </td>
             <td
-              title={row.totalBuyQuoteQty}
+              title={
+                'Buy via Grid Trade: ' +
+                parseFloat(row.buyGridTradeQuoteQty).toFixed(
+                  quoteAssetTickSize
+                ) +
+                '\n' +
+                'Buy via Manual Trade: ' +
+                parseFloat(row.buyManualQuoteQty).toFixed(quoteAssetTickSize)
+              }
               className={`text-center align-middle ${
                 row.totalBuyQuoteQty === 0 ? 'text-muted' : ''
               }`}>
@@ -193,73 +207,38 @@ class QuoteAssetGridTradeArchiveIcon extends React.Component {
               {quoteAsset}
             </td>
             <td
-              title={row.totalSellQuoteQty}
+              title={
+                'Sell via Grid Trade: ' +
+                parseFloat(row.sellGridTradeQuoteQty).toFixed(
+                  quoteAssetTickSize
+                ) +
+                '\n' +
+                'Sell via Manual Trade: ' +
+                parseFloat(row.sellManualQuoteQty).toFixed(quoteAssetTickSize) +
+                '\n' +
+                'Sell via Stop Loss: ' +
+                parseFloat(row.stopLossQuoteQty).toFixed(quoteAssetTickSize)
+              }
               className={`text-center align-middle ${
                 row.totalSellQuoteQty === 0 ? 'text-muted' : ''
               }`}>
               {parseFloat(row.totalSellQuoteQty).toFixed(quoteAssetTickSize)}{' '}
               {quoteAsset}
             </td>
-          </tr>
-          <tr>
-            <td colSpan='4' className='px-3'>
-              <div className='d-flex flex-row justify-content-between'>
-                <div className='d-flex flex-column'>
-                  <span>
-                    - Buy via Grid Trade:{' '}
-                    {parseFloat(row.buyGridTradeQuoteQty).toFixed(
-                      quoteAssetTickSize
-                    )}{' '}
-                    {quoteAsset}
-                  </span>
-                  <span>
-                    - Buy via Manual Trade:{' '}
-                    {parseFloat(row.buyManualQuoteQty).toFixed(
-                      quoteAssetTickSize
-                    )}{' '}
-                    {quoteAsset}
-                  </span>
-                  <span>
-                    - Sell via Grid Trade:{' '}
-                    {parseFloat(row.sellGridTradeQuoteQty).toFixed(
-                      quoteAssetTickSize
-                    )}{' '}
-                    {quoteAsset}
-                  </span>
-                  <span>
-                    - Sell via Manual Trade:{' '}
-                    {parseFloat(row.sellManualQuoteQty).toFixed(
-                      quoteAssetTickSize
-                    )}{' '}
-                    {quoteAsset}
-                  </span>
-                  <span>
-                    - Sell via Stop Loss:{' '}
-                    {parseFloat(row.stopLossQuoteQty).toFixed(
-                      quoteAssetTickSize
-                    )}{' '}
-                    {quoteAsset}
-                  </span>
-                  <span title={moment(row.archivedAt).format()}>
-                    - Closed {moment(row.archivedAt).fromNow()}
-                  </span>
-                </div>
-                <div className='d-flex flex-column text-right align-self-center'>
-                  <button
-                    type='button'
-                    className='btn btn-sm btn-danger'
-                    onClick={() => {
-                      this.setState(
-                        {
-                          selectedDeleteByKey: row.key
-                        },
-                        () => this.handleModalShow('deleteByKey')
-                      );
-                    }}>
-                    Delete
-                  </button>
-                </div>
-              </div>
+            <td className='text-center align-middle'>
+              <button
+                type='button'
+                className='btn btn-sm btn-danger'
+                onClick={() => {
+                  this.setState(
+                    {
+                      selectedDeleteByKey: row.key
+                    },
+                    () => this.handleModalShow('deleteByKey')
+                  );
+                }}>
+                Delete
+              </button>
             </td>
           </tr>
         </React.Fragment>
@@ -488,6 +467,7 @@ class QuoteAssetGridTradeArchiveIcon extends React.Component {
                             <th className='text-center'>Profit</th>
                             <th className='text-center'>Buy</th>
                             <th className='text-center'>Sell</th>
+                            <th className='text-center'>Action</th>
                           </tr>
                         </thead>
                         <tbody>{tradeRows}</tbody>
