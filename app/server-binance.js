@@ -142,7 +142,7 @@ const setupBinance = async logger => {
   PubSub.subscribe('reset-symbol-websockets', async (message, data) => {
     logger.info(`Message: ${message}, Data: ${data}`);
 
-    const symbol = message;
+    const symbol = data;
 
     PubSub.publish('frontend-notification', {
       type: 'info',
