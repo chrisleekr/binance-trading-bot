@@ -59,7 +59,8 @@ const cacheExchangeSymbols = async logger => {
 
   logger.info('Retrieved exchange info from API');
 
-  const { symbols } = exchangeInfo;
+  let { symbols } = exchangeInfo;
+  symbols = symbols.filter(symbol => symbol.status === 'TRADING');
 
   const exchangeSymbols = symbols.reduce((acc, symbol) => {
     const minNotionalFilter = _.find(symbol.filters, {
