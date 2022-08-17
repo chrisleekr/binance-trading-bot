@@ -71,12 +71,10 @@ const slackMessageOrderFilled = async (
   });
 
   if (notifyOrderExecute) {
-    return slack.sendMessage(
-      `${symbol} ${side.toUpperCase()} Grid Trade #${humanisedGridTradeIndex} Order Filled (${moment().format(
-        'HH:mm:ss.SSS'
-      )}): *${type}*\n` +
-        `- Order Result: \`\`\`${JSON.stringify(order, undefined, 2)}\`\`\`\n` +
-        `- Current API Usage: ${getAPILimit(logger)}`
+    slack.sendMessage(
+      `*${symbol}* ${side.toUpperCase()} Grid Trade #${humanisedGridTradeIndex} Order Filled: *${type}*\n` +
+        `- Order Result: \`\`\`${JSON.stringify(order, undefined, 2)}\`\`\``,
+      { symbol, apiLimit: getAPILimit(logger) }
     );
   }
 
@@ -121,12 +119,10 @@ const slackMessageOrderDeleted = async (
   });
 
   if (notifyOrderExecute) {
-    return slack.sendMessage(
-      `${symbol} ${side.toUpperCase()} Grid Trade #${humanisedGridTradeIndex} Order Removed (${moment().format(
-        'HH:mm:ss.SSS'
-      )}): *${type}*\n` +
-        `- Order Result: \`\`\`${JSON.stringify(order, undefined, 2)}\`\`\`\n` +
-        `- Current API Usage: ${getAPILimit(logger)}`
+    slack.sendMessage(
+      `*${symbol}* ${side.toUpperCase()} Grid Trade #${humanisedGridTradeIndex} Order Removed: *${type}*\n` +
+        `- Order Result: \`\`\`${JSON.stringify(order, undefined, 2)}\`\`\``,
+      { symbol, apiLimit: getAPILimit(logger) }
     );
   }
   return true;
@@ -172,15 +168,13 @@ const saveGridTrade = async (logger, rawData, order) => {
 
   if (notifyDebug) {
     slack.sendMessage(
-      `${symbol} ${side.toUpperCase()} Grid Trade Updated (${moment().format(
-        'HH:mm:ss.SSS'
-      )}): *${type}*\n` +
+      `*${symbol}* ${side.toUpperCase()} Grid Trade Updated: *${type}*\n` +
         `- New Gird Trade: \`\`\`${JSON.stringify(
           newGridTrade,
           undefined,
           2
-        )}\`\`\`\n` +
-        `- Current API Usage: ${getAPILimit(logger)}`
+        )}\`\`\``,
+      { symbol, apiLimit: getAPILimit(logger) }
     );
   }
   return saveSymbolGridTrade(logger, symbol, newGridTrade);
@@ -222,7 +216,7 @@ const execute = async (logger, rawData) => {
     if (lastBuyOrder.status === 'FILLED') {
       logger.info(
         { lastBuyOrder, saveLog: true },
-        'The grid trade order has already filled. Calculating last buy price...'
+        'The grid trade order has filled. Calculating last buy price...'
       );
 
       // Calculate last buy price
@@ -254,6 +248,8 @@ const execute = async (logger, rawData) => {
         },
         temporaryDisableActionAfterConfirmingOrder
       );
+
+      PubSub.publish('check-open-orders', {});
     } else if (removeStatuses.includes(lastBuyOrder.status)) {
       logger.info(
         {
@@ -274,7 +270,7 @@ const execute = async (logger, rawData) => {
       );
     } else {
       logger.info(
-        { lastBuyOrder, currentTime: moment() },
+        { lastBuyOrder, currentTime: moment().format() },
         'Skip checking the grid trade last buy order'
       );
     }
@@ -328,7 +324,7 @@ const execute = async (logger, rawData) => {
       );
     } else {
       logger.info(
-        { lastSellOrder, currentTime: moment() },
+        { lastSellOrder, currentTime: moment().format() },
         'Skip checking the grid trade last sell order'
       );
     }

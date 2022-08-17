@@ -36,9 +36,9 @@ const execute = async (logger, rawData) => {
   };
 
   slack.sendMessage(
-    `${symbol} Cancel Action (${moment().format('HH:mm:ss.SSS')}): \n` +
-      `- Order: \`\`\`${JSON.stringify(order, undefined, 2)}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+    `*${symbol}* Cancel Action:\n` +
+      `- Order: \`\`\`${JSON.stringify(order, undefined, 2)}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 
   logger.info(
@@ -52,6 +52,7 @@ const execute = async (logger, rawData) => {
 
   await deleteManualOrder(logger, symbol, order.orderId);
 
+  // FIXME: If you change this comment, please refactor to use common.js:refreshOpenOrdersAndAccountInfo
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
   data.buy.openOrders = data.openOrders.filter(
@@ -72,13 +73,13 @@ const execute = async (logger, rawData) => {
   });
 
   slack.sendMessage(
-    `${symbol} Cancel Action Result (${moment().format('HH:mm:ss.SSS')}):\n` +
+    `*${symbol}* Cancel Action Result:\n` +
       `- Order Result: \`\`\`${JSON.stringify(
         orderResult,
         undefined,
         2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+      )}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 
   data.buy.processMessage = `The order has been cancelled.`;

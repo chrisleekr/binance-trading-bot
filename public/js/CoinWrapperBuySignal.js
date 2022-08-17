@@ -40,7 +40,34 @@ class CoinWrapperBuySignal extends React.Component {
       buy: { currentGridTradeIndex, gridTrade }
     } = symbolConfiguration;
 
+    let hiddenCount = 0;
+
     const buyGridRows = gridTrade.map((grid, i) => {
+      const modifiedGridTradeIndex = Math.min( Math.max ( currentGridTradeIndex , 5 ) , gridTrade.length - 5 );
+
+      function hiddenRow(i) {
+        return i >= 3 && ( i <= modifiedGridTradeIndex - 3 || i >= modifiedGridTradeIndex + 4 ) && i < gridTrade.length - 1;
+      }
+
+      const isNextHidden = hiddenRow( i + 1 );
+      const isHidden = isNextHidden || hiddenRow( i );
+
+      if ( isHidden === true ) {
+        hiddenCount++;
+
+        return isNextHidden === true ? ('') : (
+        <React.Fragment key={'coin-wrapper-buy-grid-row-hidden-' + symbol + '-' + (i - 1)}>
+          <div className='coin-info-column-grid'>
+            <div className='coin-info-column coin-info-column-price'>
+              <div className='coin-info-label text-center'>... {hiddenCount} grid trade{hiddenCount === 1 ? '' : 's'} hidden ...</div>
+            </div>
+          </div>
+        </React.Fragment>
+        );
+      } else {
+        hiddenCount = 0;
+      }
+
       return (
         <React.Fragment key={'coin-wrapper-buy-grid-row-' + symbol + '-' + i}>
           <div className='coin-info-column-grid'>

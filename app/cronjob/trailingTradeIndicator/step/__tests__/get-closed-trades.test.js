@@ -17,19 +17,29 @@ describe('get-closed-trades.js', () => {
     describe('when mongo.aggregate returns value', () => {
       [
         {
-          selectedPeriod: undefined
+          selectedPeriod: undefined,
+          selectedPeriodTZ: 'UTC',
+          selectedPeriodLC: 'us'
         },
         {
-          selectedPeriod: 'd'
+          selectedPeriod: 'd',
+          selectedPeriodTZ: 'UTC',
+          selectedPeriodLC: 'us'
         },
         {
-          selectedPeriod: 'w'
+          selectedPeriod: 'w',
+          selectedPeriodTZ: 'UTC',
+          selectedPeriodLC: 'us'
         },
         {
-          selectedPeriod: 'm'
+          selectedPeriod: 'm',
+          selectedPeriodTZ: 'UTC',
+          selectedPeriodLC: 'us'
         },
         {
-          selectedPeriod: 'a'
+          selectedPeriod: 'a',
+          selectedPeriodTZ: 'UTC',
+          selectedPeriodLC: 'us'
         }
       ].forEach(t => {
         describe(`selectedPeriod: ${t.selectedPeriod}`, () => {
@@ -46,7 +56,9 @@ describe('get-closed-trades.js', () => {
 
             cacheMock.hget = jest.fn().mockResolvedValue(
               JSON.stringify({
-                selectedPeriod: t.selectedPeriod
+                selectedPeriod: t.selectedPeriod,
+                selectedPeriodTZ: t.selectedPeriodTZ,
+                selectedPeriodLC: t.selectedPeriodLC
               })
             );
 
@@ -55,18 +67,22 @@ describe('get-closed-trades.js', () => {
             start = null;
             end = null;
 
+            const momentLocale = moment
+              .tz(t.selectedPeriodTZ)
+              .locale(t.selectedPeriodLC);
+
             switch (t.selectedPeriod) {
               case 'd':
-                start = moment().startOf('day').toISOString();
-                end = moment().endOf('day').toISOString();
+                start = momentLocale.startOf('day').toISOString();
+                end = momentLocale.endOf('day').toISOString();
                 break;
               case 'w':
-                start = moment().startOf('week').toISOString();
-                end = moment().endOf('week').toISOString();
+                start = momentLocale.startOf('week').toISOString();
+                end = momentLocale.endOf('week').toISOString();
                 break;
               case 'm':
-                start = moment().startOf('month').toISOString();
-                end = moment().endOf('month').toISOString();
+                start = momentLocale.startOf('month').toISOString();
+                end = momentLocale.endOf('month').toISOString();
                 break;
               case 'a':
               default:
@@ -74,8 +90,8 @@ describe('get-closed-trades.js', () => {
 
             if (start || end) {
               match.archivedAt = {
-                ...(start ? { $gte: moment(start).toISOString() } : {}),
-                ...(end ? { $lte: moment(end).toISOString() } : {})
+                ...(start ? { $gte: start } : {}),
+                ...(end ? { $lte: end } : {})
               };
             }
 
@@ -176,7 +192,11 @@ describe('get-closed-trades.js', () => {
               'closed-trades',
               JSON.stringify({
                 selectedPeriod: t.selectedPeriod,
-                loadedPeriod: t.selectedPeriod || 'a'
+                selectedPeriodTZ: t.selectedPeriodTZ,
+                selectedPeriodLC: t.selectedPeriodLC,
+                loadedPeriod: t.selectedPeriod || 'a',
+                loadedPeriodTZ: t.selectedPeriodTZ,
+                loadedPeriodLC: t.selectedPeriodLC
               })
             );
           });
@@ -298,7 +318,9 @@ describe('get-closed-trades.js', () => {
           'trailing-trade-common',
           'closed-trades',
           JSON.stringify({
-            loadedPeriod: 'a'
+            loadedPeriod: 'a',
+            loadedPeriodTZ: 'UTC',
+            loadedPeriodLC: 'us'
           })
         );
       });

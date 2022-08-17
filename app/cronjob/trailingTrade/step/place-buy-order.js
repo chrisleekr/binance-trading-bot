@@ -78,8 +78,8 @@ const isAllowedTradingViewRecommendation = (logger, data) => {
     if (tradingViewIfExpires === 'do-not-buy') {
       logger.info(
         {
-          tradingViewUpdatedAt: tradingViewUpdatedAt.format(),
-          currentTime: currentTime.format()
+          tradingViewUpdatedAt: tradingViewUpdatedAt.toISOString(),
+          currentTime: currentTime.toISOString()
         },
         `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. Do not buy.`
       );
@@ -93,8 +93,8 @@ const isAllowedTradingViewRecommendation = (logger, data) => {
 
     logger.info(
       {
-        tradingViewUpdatedAt: tradingViewUpdatedAt.format(),
-        currentTime: currentTime.format()
+        tradingViewUpdatedAt: tradingViewUpdatedAt.toISOString(),
+        currentTime: currentTime.toISOString()
       },
       `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. Ignore TradingView recommendation.`
     );
@@ -218,7 +218,7 @@ const execute = async (logger, rawData) => {
       symbol,
       {
         action: 'buy',
-        actionAt: moment().add(1, 'minutes').format(),
+        actionAt: moment().add(1, 'minutes').toISOString(),
         triggeredBy: 'buy-order-trading-view',
         notify: false,
         checkTradingView: true
@@ -406,12 +406,10 @@ const execute = async (logger, rawData) => {
   }
 
   slack.sendMessage(
-    `${symbol} Buy Action Grid Trade #${humanisedGridTradeIndex} (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *STOP_LOSS_LIMIT*\n` +
+    `*${symbol}* Action - Buy Trade #${humanisedGridTradeIndex}: *STOP_LOSS_LIMIT*\n` +
       `- Order Params: \n` +
-      `\`\`\`${JSON.stringify(notifyMessage, undefined, 2)}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+      `\`\`\`${JSON.stringify(notifyMessage, undefined, 2)}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 
   logger.info(
@@ -439,6 +437,7 @@ const execute = async (logger, rawData) => {
   // Save number of open orders
   await saveOrderStats(logger, symbols);
 
+  // FIXME: If you change this comment, please refactor to use common.js:refreshOpenOrdersAndAccountInfo
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
   data.buy.openOrders = data.openOrders.filter(
@@ -462,19 +461,17 @@ const execute = async (logger, rawData) => {
   data.accountInfo = await updateAccountInfo(
     logger,
     balances,
-    moment().utc().format()
+    moment().toISOString()
   );
 
   slack.sendMessage(
-    `${symbol} Buy Action Grid Trade #${humanisedGridTradeIndex} Result (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *STOP_LOSS_LIMIT*\n` +
+    `*${symbol}* Buy Action Grid Trade #${humanisedGridTradeIndex} Result: *STOP_LOSS_LIMIT*\n` +
       `- Order Result: \`\`\`${JSON.stringify(
         orderResult,
         undefined,
         2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+      )}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 
   return setMessage(

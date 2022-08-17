@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.89] - 2022-08-16
+
+- Fixed incorrect behaviour of exceeding max open orders by [@uhliksk](https://github.com/uhliksk) - [#462](https://github.com/chrisleekr/binance-trading-bot/pull/462)
+- Bumped vulnerable package versions - [#472](https://github.com/chrisleekr/binance-trading-bot/pull/472)
+- Refactored the slack hander to avoid message flooding to Slack - [#471](https://github.com/chrisleekr/binance-trading-bot/pull/471)
+- Implemented queue to stabilise the trade by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#464](https://github.com/chrisleekr/binance-trading-bot/pull/464)
+- Fixed to handle order status update correctly - [#461](https://github.com/chrisleekr/binance-trading-bot/pull/461)
+- Fixed timezone inconsistency by [@uhliksk](https://github.com/uhliksk) - [#454](https://github.com/chrisleekr/binance-trading-bot/pull/454)
+- Improved UI by [@uhliksk](https://github.com/uhliksk) - [#452](https://github.com/chrisleekr/binance-trading-bot/pull/452)
+- Improved error handler and stability by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#448](https://github.com/chrisleekr/binance-trading-bot/pull/448)
+
+Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) and [@uhliksk](https://github.com/uhliksk) for your great contributions.
+
 ## [0.0.88] - 2022-07-24
 
 - Added TRADINGVIEW_LOG_LEVEL. Thanks [@azorpax](https://github.com/azorpax) - [#436](https://github.com/chrisleekr/binance-trading-bot/pull/436)

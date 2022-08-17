@@ -1,7 +1,7 @@
 const _ = require('lodash');
-// const moment = require('moment-timezone');
 const config = require('config');
 const { PubSub, cache, mongo } = require('./helpers');
+const queue = require('./cronjob/trailingTradeHelper/queue');
 
 const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
 const {
@@ -106,6 +106,8 @@ const syncAll = async logger => {
 
   logger.info({ symbols }, 'Retrieved symbols');
 
+  await queue.init(logger, symbols);
+
   // Lock all symbols for 5 minutes to ensure nothing will be executed unless all data retrieved
   await Promise.all(symbols.map(symbol => lockSymbol(logger, symbol, 300)));
 
@@ -163,6 +165,18 @@ const setupBinance = async logger => {
 
     await syncCandles(logger, [symbol]);
     await syncATHCandles(logger, [symbol]);
+  });
+  PubSub.subscribe('check-open-orders', async (message, data) => {
+    logger.info(`Message: ${message}, Data: ${data}`);
+
+    const cachedOpenOrders = await cache.hgetall(
+      'trailing-trade-open-orders:',
+      'trailing-trade-open-orders:*'
+    );
+
+    const symbols = _.keys(cachedOpenOrders);
+
+    symbols.forEach(symbol => queue.executeFor(logger, symbol));
   });
 
   await syncAll(logger);

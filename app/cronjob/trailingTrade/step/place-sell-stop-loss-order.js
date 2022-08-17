@@ -150,15 +150,13 @@ const execute = async (logger, rawData) => {
   };
 
   slack.sendMessage(
-    `${symbol} Sell Stop-Loss Action (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *MARKET*` +
+    `*${symbol}* Sell Stop-Loss Action: *MARKET*` +
       `- Order Params: \`\`\`${JSON.stringify(
         orderParams,
         undefined,
         2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+      )}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 
   logger.info(
@@ -195,6 +193,7 @@ const execute = async (logger, rawData) => {
     );
   }
 
+  // FIXME: If you change this comment, please refactor to use common.js:refreshOpenOrdersAndAccountInfo
   // Get open orders and update cache
   data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
   data.sell.openOrders = data.openOrders.filter(
@@ -205,15 +204,13 @@ const execute = async (logger, rawData) => {
   data.accountInfo = await getAccountInfo(logger);
 
   slack.sendMessage(
-    `${symbol} Sell Stop-Loss Action Result (${moment().format(
-      'HH:mm:ss.SSS'
-    )}): *MARKET*\n` +
+    `*${symbol}* Sell Stop-Loss Action Result: *MARKET*\n` +
       `- Order Result: \`\`\`${JSON.stringify(
         orderResult,
         undefined,
         2
-      )}\`\`\`\n` +
-      `- Current API Usage: ${getAPILimit(logger)}`
+      )}\`\`\``,
+    { symbol, apiLimit: getAPILimit(logger) }
   );
 
   return setMessage(logger, data, `Placed new market order for selling.`);

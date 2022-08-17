@@ -75,17 +75,19 @@ class CoinWrapperAction extends React.Component {
       );
     }
 
-    const updatedAt = moment.utc(buy.updatedAt, 'YYYY-MM-DDTHH:mm:ss.SSSSSS');
-    const currentTime = moment.utc();
+    const updatedAt = moment
+      .utc(buy.updatedAt, 'YYYY-MM-DDTHH:mm:ss.SSSSSS')
+      .local();
+    const currentTime = moment.utc().local();
 
     return (
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title border-bottom-0 mb-0 pb-0'>
-          <div className='coin-info-label w-40'>
+          <div className='coin-info-label'>
             Action -{' '}
-            <span className='coin-info-value'>
+            <HightlightChange className='coin-info-value' id='updated-at'>
               {updatedAt.format('HH:mm:ss')}
-            </span>
+            </HightlightChange>
             {isLocked === true ? <i className='fas fa-lock ml-1'></i> : ''}
             {isActionDisabled.isDisabled === true ? (
               <i className='fas fa-pause-circle ml-1 text-warning'></i>
@@ -121,7 +123,7 @@ class CoinWrapperAction extends React.Component {
             )}
           </div>
 
-          <div className='d-flex flex-column align-items-end w-60'>
+          <div className='d-flex flex-column align-items-end'>
             <HightlightChange className='action-label'>
               {label}
             </HightlightChange>

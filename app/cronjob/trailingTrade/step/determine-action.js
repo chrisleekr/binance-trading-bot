@@ -5,7 +5,7 @@ const { slack } = require('../../../helpers');
 const {
   isActionDisabled,
   getNumberOfBuyOpenOrders,
-  getNumberOfOpenTrades,
+  isExceedingMaxOpenTrades,
   getAPILimit
 } = require('../../trailingTradeHelper/common');
 const { getGridTradeOrder } = require('../../trailingTradeHelper/order');
@@ -116,45 +116,6 @@ const isExceedingMaxBuyOpenOrders = async (logger, data) => {
   const currentBuyOpenOrders = await getNumberOfBuyOpenOrders(logger);
 
   if (currentBuyOpenOrders >= orderLimitMaxBuyOpenOrders) {
-    return true;
-  }
-
-  return false;
-};
-
-/**
- * Check whether max number of open trades has reached
- *
- * @param {*} logger
- * @param {*} data
- * @returns
- */
-const isExceedingMaxOpenTrades = async (logger, data) => {
-  const {
-    symbolConfiguration: {
-      botOptions: {
-        orderLimit: {
-          enabled: orderLimitEnabled,
-          maxOpenTrades: orderLimitMaxOpenTrades
-        }
-      }
-    },
-    sell: { lastBuyPrice }
-  } = data;
-
-  if (orderLimitEnabled === false) {
-    return false;
-  }
-
-  let currentOpenTrades = await getNumberOfOpenTrades(logger);
-
-  // If the last buy price is recorded, this is one of open trades.
-  // Deduct 1 from the current open trades and calculate it.
-  if (lastBuyPrice) {
-    currentOpenTrades -= 1;
-  }
-
-  if (currentOpenTrades >= orderLimitMaxOpenTrades) {
     return true;
   }
 
@@ -323,8 +284,8 @@ const shouldForceSellByTradingViewRecommendation = (logger, data) => {
   if (tradingViewUpdatedAt.isBefore(currentTime)) {
     logger.info(
       {
-        tradingViewUpdatedAt: tradingViewUpdatedAt.format(),
-        currentTime: currentTime.format()
+        tradingViewUpdatedAt: tradingViewUpdatedAt.toISOString(),
+        currentTime: currentTime.toISOString()
       },
       `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. Ignore TradingView recommendation.`
     );
@@ -591,11 +552,8 @@ const execute = async (logger, rawData) => {
       // Notify as it's important message for now.
       // Eventually, should convert to logging to reduce unnecessary notifications.
       slack.sendMessage(
-        `${symbol} Action (${moment().format(
-          'HH:mm:ss.SSS'
-        )}): Force sell: \n` +
-          `- Message: ${forceSellMessage}\n` +
-          `- Current API Usage: ${getAPILimit(logger)}`
+        `*${symbol}* Action - *Force sell*: \n- Message: ${forceSellMessage}`,
+        { symbol, apiLimit: getAPILimit(logger) }
       );
 
       // Then sell market order

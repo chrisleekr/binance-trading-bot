@@ -13,9 +13,9 @@ const { runErrorHandler } = require('./error-handler');
 
   await mongo.connect(logger);
 
-  await runBinance(logger);
-
-  await runCronjob(logger);
-
-  await runFrontend(logger);
+  await Promise.all([
+    runBinance(logger),
+    runCronjob(logger),
+    runFrontend(logger)
+  ]);
 })();

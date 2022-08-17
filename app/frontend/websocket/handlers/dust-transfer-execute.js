@@ -16,7 +16,7 @@ const handleDustTransferExecute = async (logger, ws, payload) => {
     {
       action: 'dust-transfer',
       params: dustTransfer,
-      actionAt: moment().format(),
+      actionAt: moment().toISOString(),
       triggeredBy: 'user'
     },
     'The dust transfer request received by the bot. Wait for executing the dust transfer.'

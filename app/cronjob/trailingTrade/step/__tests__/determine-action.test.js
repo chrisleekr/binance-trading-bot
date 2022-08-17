@@ -18,12 +18,15 @@ describe('determine-action.js', () => {
 
   let mockGetGridTradeOrder;
 
+  let mockIsExceedingMaxOpenTrades;
+
   describe('execute', () => {
     beforeEach(() => {
       jest.clearAllMocks().resetModules();
       mockGetNumberOfBuyOpenOrders = jest.fn().mockResolvedValue(1);
       mockGetNumberOfOpenTrades = jest.fn().mockResolvedValue(6);
       mockGetAPILimit = jest.fn().mockReturnValue(5);
+      mockIsExceedingMaxOpenTrades = jest.fn().mockResolvedValue(false);
     });
 
     beforeEach(async () => {
@@ -438,7 +441,8 @@ describe('determine-action.js', () => {
                     isActionDisabled: mockIsActionDisabled,
                     getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
                     getNumberOfOpenTrades: mockGetNumberOfOpenTrades,
-                    getAPILimit: mockGetAPILimit
+                    getAPILimit: mockGetAPILimit,
+                    isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades
                   }));
 
                   mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -551,7 +555,8 @@ describe('determine-action.js', () => {
                     isActionDisabled: mockIsActionDisabled,
                     getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
                     getNumberOfOpenTrades: mockGetNumberOfOpenTrades,
-                    getAPILimit: mockGetAPILimit
+                    getAPILimit: mockGetAPILimit,
+                    isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades
                   }));
 
                   mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -654,7 +659,8 @@ describe('determine-action.js', () => {
                     isActionDisabled: mockIsActionDisabled,
                     getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
                     getNumberOfOpenTrades: mockGetNumberOfOpenTrades,
-                    getAPILimit: mockGetAPILimit
+                    getAPILimit: mockGetAPILimit,
+                    isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades
                   }));
 
                   mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -768,7 +774,8 @@ describe('determine-action.js', () => {
                   isActionDisabled: mockIsActionDisabled,
                   getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
                   getNumberOfOpenTrades: mockGetNumberOfOpenTrades,
-                  getAPILimit: mockGetAPILimit
+                  getAPILimit: mockGetAPILimit,
+                  isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades
                 }));
 
                 mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -856,7 +863,8 @@ describe('determine-action.js', () => {
                   isActionDisabled: mockIsActionDisabled,
                   getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
                   getNumberOfOpenTrades: mockGetNumberOfOpenTrades,
-                  getAPILimit: mockGetAPILimit
+                  getAPILimit: mockGetAPILimit,
+                  isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades
                 }));
 
                 mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -969,13 +977,6 @@ describe('determine-action.js', () => {
                 isDisabled: false
               });
 
-              jest.mock('../../../trailingTradeHelper/common', () => ({
-                isActionDisabled: mockIsActionDisabled,
-                getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
-                getNumberOfOpenTrades: mockGetNumberOfOpenTrades,
-                getAPILimit: mockGetAPILimit
-              }));
-
               mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
 
               jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -985,248 +986,84 @@ describe('determine-action.js', () => {
               return clonedRawData;
             };
 
-            describe('when order limit is enabled', () => {
-              describe('when the last buy price is recorded', () => {
-                describe('when number of current open trade is less than maximum open trades', () => {
-                  beforeEach(async () => {
-                    rawData = mockInit({
-                      orderLimitEnabled: true,
-                      lastBuyPrice: 29000,
-                      maxOpenTrades: 3,
-                      numberOfOpenTrades: 2
-                    });
-
-                    step = require('../determine-action');
-                    result = await step.execute(loggerMock, rawData);
-                  });
-
-                  it(
-                    `should place a buy order because ` +
-                      `the current open trade is less than the maximum open trades`,
-                    () => {
-                      expect(result).toMatchObject({
-                        action: 'buy',
-                        buy: {
-                          athRestrictionPrice: 28100,
-                          currentPrice: 28000,
-                          processMessage:
-                            "The current price reached the trigger price for the grid trade #1. Let's buy it.",
-                          triggerPrice: 28000,
-                          updatedAt: expect.any(Object)
-                        }
-                      });
-                    }
-                  );
-                });
-
-                describe('when number of open trades is same as max open trades', () => {
-                  beforeEach(async () => {
-                    rawData = mockInit({
-                      orderLimitEnabled: true,
-                      lastBuyPrice: 29000,
-                      maxOpenTrades: 3,
-                      numberOfOpenTrades: 3
-                    });
-
-                    step = require('../determine-action');
-                    result = await step.execute(loggerMock, rawData);
-                  });
-
-                  it(
-                    `should place a buy order because the last buy price is recorded, ` +
-                      `which means current open trades includes this symbol order`,
-                    () => {
-                      expect(result).toMatchObject({
-                        action: 'buy',
-                        buy: {
-                          athRestrictionPrice: 28100,
-                          currentPrice: 28000,
-                          processMessage:
-                            "The current price reached the trigger price for the grid trade #1. Let's buy it.",
-                          triggerPrice: 28000,
-                          updatedAt: expect.any(Object)
-                        }
-                      });
-                    }
-                  );
-                });
-
-                describe('when number of open trades is already exceeded max open trades', () => {
-                  beforeEach(async () => {
-                    rawData = mockInit({
-                      orderLimitEnabled: true,
-                      lastBuyPrice: 29000,
-                      maxOpenTrades: 2,
-                      numberOfOpenTrades: 3
-                    });
-
-                    step = require('../determine-action');
-                    result = await step.execute(loggerMock, rawData);
-                  });
-
-                  it(
-                    `should not place a buy order because number of current open trades is ` +
-                      `exceeded the maximum number of open trade`,
-                    () => {
-                      expect(result).toMatchObject({
-                        action: 'wait',
-                        buy: {
-                          athRestrictionPrice: 28100,
-                          currentPrice: 28000,
-                          processMessage:
-                            `The current price has reached the lowest price; ` +
-                            `however, it is restricted to buy the coin because of reached maximum open trades.`,
-                          triggerPrice: 28000,
-                          updatedAt: expect.any(Object)
-                        }
-                      });
-                    }
-                  );
-                });
-              });
-
-              describe('when the last buy price is not recorded', () => {
-                describe('when number of open trades is less than max open trades', () => {
-                  beforeEach(async () => {
-                    rawData = mockInit({
-                      orderLimitEnabled: true,
-                      lastBuyPrice: null,
-                      maxOpenTrades: 3,
-                      numberOfOpenTrades: 2
-                    });
-
-                    step = require('../determine-action');
-                    result = await step.execute(loggerMock, rawData);
-                  });
-
-                  it(
-                    `should place a buy order because the nubmer of current open trade ` +
-                      `is less than the maximum number of  open trade`,
-                    () => {
-                      expect(result).toMatchObject({
-                        action: 'buy',
-                        buy: {
-                          athRestrictionPrice: 28100,
-                          currentPrice: 28000,
-                          processMessage:
-                            "The current price reached the trigger price for the grid trade #1. Let's buy it.",
-                          triggerPrice: 28000,
-                          updatedAt: expect.any(Object)
-                        }
-                      });
-                    }
-                  );
-                });
-
-                describe('when number of open trades is same as max open trades', () => {
-                  beforeEach(async () => {
-                    rawData = mockInit({
-                      orderLimitEnabled: true,
-                      lastBuyPrice: null,
-                      maxOpenTrades: 3,
-                      numberOfOpenTrades: 3
-                    });
-
-                    step = require('../determine-action');
-                    result = await step.execute(loggerMock, rawData);
-                  });
-
-                  it(
-                    `should not place a buy order because the last buy price is not recorded, ` +
-                      `which means current open trades does not include this symbol order`,
-                    () => {
-                      expect(result).toMatchObject({
-                        action: 'wait',
-                        buy: {
-                          athRestrictionPrice: 28100,
-                          currentPrice: 28000,
-                          processMessage:
-                            `The current price has reached the lowest price; ` +
-                            `however, it is restricted to buy the coin because of reached maximum open trades.`,
-                          triggerPrice: 28000,
-                          updatedAt: expect.any(Object)
-                        }
-                      });
-                    }
-                  );
-                });
-
-                describe('when number of open trades is already exceeded max open trades', () => {
-                  beforeEach(async () => {
-                    rawData = mockInit({
-                      orderLimitEnabled: true,
-                      lastBuyPrice: null,
-                      maxOpenTrades: 2,
-                      numberOfOpenTrades: 3
-                    });
-
-                    step = require('../determine-action');
-                    result = await step.execute(loggerMock, rawData);
-                  });
-
-                  it(
-                    `should not place a buy porder because number of curent open trade is ` +
-                      `exceeded the maximum number of open trade`,
-                    () => {
-                      expect(result).toMatchObject({
-                        action: 'wait',
-                        buy: {
-                          athRestrictionPrice: 28100,
-                          currentPrice: 28000,
-                          processMessage:
-                            `The current price has reached the lowest price; ` +
-                            `however, it is restricted to buy the coin because of reached maximum open trades.`,
-                          triggerPrice: 28000,
-                          updatedAt: expect.any(Object)
-                        }
-                      });
-                    }
-                  );
-                });
-              });
-            });
-
-            describe('when order limit is disabled', () => {
+            describe('when open trade limit is reached', () => {
               beforeEach(async () => {
                 rawData = mockInit({
-                  orderLimitEnabled: false,
-                  lastBuyPrice: null,
-                  maxOpenTrades: 2,
-                  numberOfOpenTrades: 2
+                  orderLimitEnabled: true,
+                  lastBuyPrice: 0
                 });
 
-                step = require('../determine-action');
+                mockIsExceedingMaxOpenTrades = jest
+                  .fn()
+                  .mockResolvedValue(true);
 
+                jest.mock('../../../trailingTradeHelper/common', () => ({
+                  isActionDisabled: mockIsActionDisabled,
+                  getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                  getNumberOfOpenTrades: mockGetNumberOfOpenTrades,
+                  getAPILimit: mockGetAPILimit,
+                  isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades
+                }));
+
+                step = require('../determine-action');
                 result = await step.execute(loggerMock, rawData);
               });
 
-              it('should place a buy order because order limit is disabled', () => {
-                expect(result).toMatchObject({
-                  action: 'buy',
-                  symbolConfiguration: {
-                    botOptions: {
-                      orderLimit: {
-                        enabled: false,
-                        maxBuyOpenOrders: 4,
-                        maxOpenTrades: 2
-                      }
+              it(
+                `should not place a buy order because ` +
+                  `the open trade limit is not reached`,
+                () => {
+                  expect(result).toMatchObject({
+                    action: 'wait',
+                    buy: {
+                      processMessage:
+                        `The current price has reached the lowest price; however, it is restricted to buy the coin ` +
+                        `because of reached maximum open trades.`,
+                      updatedAt: expect.any(Object)
                     }
-                  },
-                  buy: {
-                    currentPrice: 28000,
-                    triggerPrice: 28000,
-                    athRestrictionPrice: 28100,
-                    processMessage: `The current price reached the trigger price for the grid trade #1. Let's buy it.`,
-                    updatedAt: expect.any(Object)
-                  },
-                  sell: {
-                    currentPrice: 28000,
-                    triggerPrice: null,
-                    lastBuyPrice: null,
-                    stopLossTriggerPrice: null
-                  }
+                  });
+                }
+              );
+            });
+
+            describe('when open trade limit is not reached', () => {
+              beforeEach(async () => {
+                rawData = mockInit({
+                  orderLimitEnabled: true,
+                  lastBuyPrice: 0
                 });
+
+                mockIsExceedingMaxOpenTrades = jest
+                  .fn()
+                  .mockResolvedValue(false);
+
+                jest.mock('../../../trailingTradeHelper/common', () => ({
+                  isActionDisabled: mockIsActionDisabled,
+                  getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                  getNumberOfOpenTrades: mockGetNumberOfOpenTrades,
+                  getAPILimit: mockGetAPILimit,
+                  isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades
+                }));
+
+                step = require('../determine-action');
+                result = await step.execute(loggerMock, rawData);
               });
+
+              it(
+                `should place a buy order because ` +
+                  `the open trade limit is not reached`,
+                () => {
+                  expect(result).toMatchObject({
+                    action: 'buy',
+                    buy: {
+                      processMessage:
+                        `The current price reached the trigger price for the grid trade #1. ` +
+                        `Let's buy it.`,
+                      updatedAt: expect.any(Object)
+                    }
+                  });
+                }
+              );
             });
           });
 
@@ -1245,7 +1082,8 @@ describe('determine-action.js', () => {
                 isActionDisabled: mockIsActionDisabled,
                 getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
                 getNumberOfOpenTrades: mockGetNumberOfOpenTrades,
-                getAPILimit: mockGetAPILimit
+                getAPILimit: mockGetAPILimit,
+                isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades
               }));
 
               // Set there is no grid trade order
@@ -1588,7 +1426,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1638,7 +1476,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: undefined
                     }
@@ -1663,7 +1501,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().subtract('6', 'minutes').format(),
+                    time: moment().subtract('6', 'minutes').toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1691,7 +1529,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1723,7 +1561,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1758,7 +1596,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1805,7 +1643,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1841,7 +1679,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'NEUTRAL'
                     }
@@ -1880,7 +1718,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'NEUTRAL'
                     }
@@ -1916,7 +1754,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -1952,7 +1790,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'STRONG_SELL'
                     }
@@ -1988,7 +1826,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'SELL'
                     }
@@ -2027,7 +1865,7 @@ describe('determine-action.js', () => {
                 },
                 tradingView: {
                   result: {
-                    time: moment().format(),
+                    time: moment().toISOString(),
                     summary: {
                       RECOMMENDATION: 'STRONG_SELL'
                     }

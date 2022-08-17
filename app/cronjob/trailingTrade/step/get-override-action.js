@@ -183,7 +183,8 @@ const execute = async (logger, rawData) => {
             ...overrideData,
             actionAt: moment()
               .add(autoTriggerBuyTriggerAfter, 'minutes')
-              .format()
+              .toISOString(),
+            notify: false
           },
           rescheduleReason
         );

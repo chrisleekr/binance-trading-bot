@@ -7,7 +7,7 @@ const {
 const {
   saveOverrideAction
 } = require('../../../cronjob/trailingTradeHelper/common');
-const { executeTrailingTrade } = require('../../../cronjob');
+const queue = require('../../../cronjob/trailingTradeHelper/queue');
 
 const handleManualTradeAllSymbols = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start manual trade all symbols');
@@ -49,7 +49,7 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
                 quoteOrderQty
               }
             },
-            actionAt: currentTime.format(),
+            actionAt: currentTime.toISOString(),
             triggeredBy: 'user'
           };
 
@@ -62,7 +62,7 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
             `Order for ${symbol} has been queued.`
           );
 
-          executeTrailingTrade(logger, symbol);
+          queue.executeFor(logger, symbol);
 
           currentTime = moment(currentTime).add(
             placeManualOrderInterval,
@@ -90,7 +90,7 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
                 marketQuantity
               }
             },
-            actionAt: currentTime.format(),
+            actionAt: currentTime.toISOString(),
             triggeredBy: 'user'
           };
 
@@ -103,7 +103,7 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
             `Order for ${symbol} has been queued.`
           );
 
-          executeTrailingTrade(logger, symbol);
+          queue.executeFor(logger, symbol);
 
           currentTime = moment(currentTime).add(
             placeManualOrderInterval,

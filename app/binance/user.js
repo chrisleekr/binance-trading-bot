@@ -1,6 +1,6 @@
 const _ = require('lodash');
-
 const { binance } = require('../helpers');
+const queue = require('../cronjob/trailingTradeHelper/queue');
 
 const {
   updateAccountInfo,
@@ -49,9 +49,13 @@ const setupUserWebsocket = async logger => {
         quantity,
         isOrderWorking,
         totalQuoteTradeQuantity,
-        totalTradeQuantity
+        totalTradeQuantity,
+        orderTime: transactTime // Transaction time
       } = evt;
-      logger.info({ evt }, 'Received new report');
+      logger.info(
+        { symbol, evt, saveLog: true },
+        `There is a new update in order. ${orderId} - ${side} - ${orderStatus}`
+      );
 
       const checkLastOrder = async () => {
         const lastOrder = await getGridTradeLastOrder(
@@ -61,6 +65,16 @@ const setupUserWebsocket = async logger => {
         );
 
         if (_.isEmpty(lastOrder) === false) {
+          // Skip if the orderId is not match with the existing orderId
+          // or Skip if the transaction time is older than the existing order transaction time
+          // This is helpful when we received a delayed event for any reason
+          if (
+            orderId !== lastOrder.orderId ||
+            transactTime < lastOrder.transactTime
+          ) {
+            return;
+          }
+
           await updateGridTradeLastOrder(logger, symbol, side.toLowerCase(), {
             ...lastOrder,
             status: orderStatus,
@@ -72,8 +86,15 @@ const setupUserWebsocket = async logger => {
             cummulativeQuoteQty: totalQuoteTradeQuantity,
             executedQty: totalTradeQuantity,
             isWorking: isOrderWorking,
-            updateTime: eventTime
+            updateTime: eventTime,
+            transactTime
           });
+          logger.info(
+            { symbol, lastOrder, saveLog: true },
+            'The last order has been updated.'
+          );
+
+          queue.executeFor(logger, symbol);
         }
       };
 
@@ -96,6 +117,13 @@ const setupUserWebsocket = async logger => {
             isWorking: isOrderWorking,
             updateTime: eventTime
           });
+
+          logger.info(
+            { symbol, manualOrder, saveLog: true },
+            'The manual order has been updated.'
+          );
+
+          queue.executeFor(logger, symbol);
         }
       };
 

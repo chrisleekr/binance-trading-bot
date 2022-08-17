@@ -24,6 +24,7 @@ const loginLimiter = new RateLimiterRedis({
 const { configureWebServer } = require('./frontend/webserver/configure');
 const { configureWebSocket } = require('./frontend/websocket/configure');
 const { configureLocalTunnel } = require('./frontend/local-tunnel/configure');
+const { configureBullBoard } = require('./frontend/bull-board/configure');
 
 const runFrontend = async serverLogger => {
   const logger = serverLogger.child({ server: 'frontend' });
@@ -39,6 +40,9 @@ const runFrontend = async serverLogger => {
   app.use(express.json());
 
   app.use(express.static(path.join(__dirname, '/../public')));
+
+  // Must configure bull board before listen.
+  configureBullBoard(app, logger);
 
   const server = app.listen(80);
 

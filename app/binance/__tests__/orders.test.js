@@ -1,5 +1,4 @@
 /* eslint-disable global-require */
-
 describe('orders.js', () => {
   let binanceMock;
   let loggerMock;
@@ -9,6 +8,7 @@ describe('orders.js', () => {
 
   let mockUpdateGridTradeLastOrder;
   let mockGetOpenOrdersFromAPI;
+  let mockErrorHandlerWrapper;
 
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
@@ -18,6 +18,16 @@ describe('orders.js', () => {
     loggerMock = logger;
     cacheMock = cache;
     mongoMock = mongo;
+
+    mockErrorHandlerWrapper = jest
+      .fn()
+      .mockImplementation((_logger, _job, callback) => {
+        callback();
+      });
+
+    jest.mock('../../error-handler', () => ({
+      errorHandlerWrapper: mockErrorHandlerWrapper
+    }));
   });
 
   describe('syncOpenOrders', () => {
@@ -106,9 +116,7 @@ describe('orders.js', () => {
 
         loggerMock.error = jest.fn().mockResolvedValue(true);
 
-        mockGetOpenOrdersFromAPI = jest.fn().mockRejectedValue({
-          error: 'error thrown'
-        });
+        mockGetOpenOrdersFromAPI = jest.fn().mockResolvedValue(true);
 
         const spyOnSetInterval = jest.spyOn(global, 'setInterval');
         spyOnClearInterval = jest.spyOn(global, 'clearInterval');

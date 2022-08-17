@@ -2,6 +2,7 @@ const qs = require('qs');
 const _ = require('lodash');
 const axios = require('axios');
 const { cache } = require('../../../helpers');
+const { handleError } = require('../../../error-handler');
 
 const isTriggeredByAutoTrigger = symbolOverrideData =>
   _.get(symbolOverrideData, 'action', '') === 'buy' &&
@@ -110,19 +111,23 @@ const retrieveTradingView = async (logger, symbols, interval) => {
         );
 
         lastTradingView[symbol] = result;
-        cache.hset(
-          'trailing-trade-tradingview',
-          symbol,
-          JSON.stringify({
-            request: {
-              symbol,
-              screener: 'CRYPTO',
-              exchange: 'BINANCE',
-              interval
-            },
-            result
-          })
-        );
+        cache
+          .hset(
+            'trailing-trade-tradingview',
+            symbol,
+            JSON.stringify({
+              request: {
+                symbol,
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval
+              },
+              result
+            })
+          )
+          .catch(err =>
+            handleError(logger, `Cache Trading View - ${symbol}`, err)
+          );
       } else {
         logger.info(
           { symbol, data: result, saveLog },
@@ -212,13 +217,9 @@ const execute = async (funcLogger, rawData) => {
 
   logger.info({ tradingViewRequests }, 'TradingView requests');
 
-  const promises = [];
-
-  _.forIn(tradingViewRequests, async (request, _requestInterval) => {
-    promises.push(
-      retrieveTradingView(logger, request.symbols, request.interval)
-    );
-  });
+  const promises = _.map(tradingViewRequests, request =>
+    retrieveTradingView(logger, request.symbols, request.interval)
+  );
 
   Promise.all(promises);
 

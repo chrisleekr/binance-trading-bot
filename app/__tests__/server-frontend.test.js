@@ -15,6 +15,7 @@ describe('server-frontend', () => {
   let mockConfigureWebServer;
   let mockConfigureWebSocket;
   let mockConfigureLocalTunnel;
+  let mockConfigureBullBoard;
 
   let mockRateLimiterRedisGet;
   let mockRateLimiterRedis;
@@ -59,6 +60,7 @@ describe('server-frontend', () => {
     mockConfigureWebServer = jest.fn().mockReturnValue(true);
     mockConfigureWebSocket = jest.fn().mockReturnValue(true);
     mockConfigureLocalTunnel = jest.fn().mockReturnValue(true);
+    mockConfigureBullBoard = jest.fn().mockReturnValue(true);
 
     mockExpressStatic = jest.fn().mockReturnValue(true);
 
@@ -126,6 +128,10 @@ describe('server-frontend', () => {
     jest.mock('../frontend/local-tunnel/configure', () => ({
       configureLocalTunnel: mockConfigureLocalTunnel
     }));
+
+    jest.mock('../frontend/bull-board/configure', () => ({
+      configureBullBoard: mockConfigureBullBoard
+    }));
   });
 
   describe('web server', () => {
@@ -167,6 +173,13 @@ describe('server-frontend', () => {
           duration: 10800,
           blockDuration: 900
         });
+      });
+
+      it('triggers configureBullBoard', () => {
+        expect(mockConfigureBullBoard).toHaveBeenCalledWith(
+          expect.any(Object),
+          loggerMock
+        );
       });
 
       it('triggers server.listen', () => {
