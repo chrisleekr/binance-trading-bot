@@ -154,18 +154,13 @@ const execute = async (logger, rawData) => {
     athPrice
   };
 
-  const cachedLatestCandle =
+  let cachedLatestCandle =
     JSON.parse(
       await cache.hget('trailing-trade-symbols', `${symbol}-latest-candle`)
     ) || {};
 
   if (_.isEmpty(cachedLatestCandle)) {
-    logger.info(
-      { saveLog: true },
-      'Last candle is not retrieved. The action cannot be proceed. Any override action will be removed.'
-    );
-    data.saveToCache = false;
-    return data;
+    cachedLatestCandle = candles[0];
   }
 
   const cachedTradingView =
