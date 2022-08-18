@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Fixed incorrect symbol in reset-symbol-websockets by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#477](https://github.com/chrisleekr/binance-trading-bot/pull/477)
+- Improved UI by [@uhliksk](https://github.com/uhliksk) - [#479](https://github.com/chrisleekr/binance-trading-bot/pull/479)
+
+Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) and [@uhliksk](https://github.com/uhliksk) for your great contributions. 💯
+
 ## [0.0.89] - 2022-08-16
 
 - Fixed incorrect behaviour of exceeding max open orders by [@uhliksk](https://github.com/uhliksk) - [#462](https://github.com/chrisleekr/binance-trading-bot/pull/462)
