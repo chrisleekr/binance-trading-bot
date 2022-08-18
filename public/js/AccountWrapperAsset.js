@@ -3,13 +3,21 @@
 /* eslint-disable no-undef */
 class AccountWrapperAsset extends React.Component {
   render() {
-    const { balance } = this.props;
+    const { balance, isQuoteAsset } = this.props;
 
     return (
       <div className='account-wrapper-assets'>
-        <div className='account-wrapper-body'>
+        <div
+          className={`account-wrapper-body ${
+            isQuoteAsset === false && balance.quote === null ? 'text-muted' : ''
+          }`}>
           <div className='account-asset-coin d-flex justify-content-between align-items-center'>
-            <span>
+            <span
+              className={`${
+                isQuoteAsset === true && balance.quote === null
+                  ? 'text-warning'
+                  : ''
+              }`}>
               {(parseFloat(balance.free) + parseFloat(balance.locked)).toFixed(
                 5
               )}{' '}

@@ -48,7 +48,8 @@ class ProfitLossWrapper extends React.Component {
     }
 
     const { selectedPeriod, selectedPeriodTZ, selectedPeriodLC } = this.state;
-    const { loadedPeriod, loadedPeriodTZ, loadedPeriodLC } = this.state.closedTradesSetting;
+    const { loadedPeriod, loadedPeriodTZ, loadedPeriodLC } =
+      this.state.closedTradesSetting;
 
     // Set initial selected period
     if (loadedPeriod !== undefined && selectedPeriod === null) {
@@ -94,15 +95,16 @@ class ProfitLossWrapper extends React.Component {
   }
 
   setSelectedPeriod(newSelectedPeriod) {
-    const newSelectedPeriodTZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const newSelectedPeriodTZ =
+      Intl.DateTimeFormat().resolvedOptions().timeZone;
     const newSelectedPeriodLC = Intl.DateTimeFormat().resolvedOptions().locale;
     this.setState(
       {
         selectedPeriod: newSelectedPeriod,
         selectedPeriodTZ: newSelectedPeriodTZ,
         selectedPeriodLC: newSelectedPeriodLC
-      }, () =>
-      this.requestClosedTradesSetPeriod()
+      },
+      () => this.requestClosedTradesSetPeriod()
     );
   }
 
@@ -121,6 +123,13 @@ class ProfitLossWrapper extends React.Component {
           profitAndLoss.amount > 0
             ? ((profitAndLoss.profit / profitAndLoss.amount) * 100).toFixed(2)
             : 0;
+
+        const quoteAssetTotal =
+          profitAndLoss.amount + +profitAndLoss.free + +profitAndLoss.locked;
+        const openTradesRatio = quoteAssetTotal
+          ? (profitAndLoss.amount / quoteAssetTotal) * 100
+          : 0;
+
         return (
           <div
             key={`open-trade-pnl-` + index}
@@ -129,11 +138,32 @@ class ProfitLossWrapper extends React.Component {
               <div className='profit-loss-asset'>
                 {profitAndLoss.asset}
                 <br />
-                <div className='text-success text-truncate'>
+                <div
+                  className={`${
+                    openTradesRatio > 90
+                      ? 'text-danger'
+                      : openTradesRatio > 50
+                      ? 'text-warning'
+                      : 'text-success'
+                  } text-truncate`}>
                   {profitAndLoss.estimatedBalance.toFixed(5)}
                 </div>
+                <div class='fs-9'>
+                  {openTradesRatio.toFixed(2) +
+                    '% of ' +
+                    quoteAssetTotal.toFixed(5) +
+                    ' ' +
+                    profitAndLoss.asset}
+                </div>
               </div>{' '}
-              <div className='profit-loss-value'>
+              <div
+                className={`profit-loss-value ${
+                  profitAndLoss.profit > 0
+                    ? 'text-success'
+                    : profitAndLoss.profit < 0
+                    ? 'text-danger'
+                    : ''
+                }`}>
                 {profitAndLoss.profit > 0 ? '+' : ''}
                 {profitAndLoss.profit.toFixed(5)}
                 <br />({percentage}%)
@@ -160,11 +190,41 @@ class ProfitLossWrapper extends React.Component {
                   quoteAssetTickSize={5}
                 />
                 ({stat.trades})
+                <div class='fs-9'>
+                  {stat.lastArchivedAt
+                    ? stat.lastSymbol +
+                      ' ' +
+                      (stat.lastProfit > 0 ? '+' : '') +
+                      parseFloat(stat.lastProfit).toFixed(5) +
+                      ' ' +
+                      stat.quoteAsset
+                    : 'No closed trades yet'}
+                </div>
               </div>{' '}
               <div className='profit-loss-value'>
-                {stat.profit > 0 ? '+' : ''}
-                {stat.profit.toFixed(5)}
-                <br />({stat.profitPercentage.toFixed(2)}%)
+                <span
+                  className={`${
+                    stat.profit > 0
+                      ? 'text-success'
+                      : stat.profit < 0
+                      ? 'text-danger'
+                      : ''
+                  }`}>
+                  {stat.profit > 0 ? '+' : ''}
+                  {stat.profit.toFixed(5)}
+                  <br />({stat.profitPercentage.toFixed(2)}%)
+                </span>
+                <div
+                  class='fs-9'
+                  title={
+                    stat.lastArchivedAt
+                      ? moment(stat.lastArchivedAt).format()
+                      : ''
+                  }>
+                  {stat.lastArchivedAt
+                    ? moment(stat.lastArchivedAt).fromNow()
+                    : ''}
+                </div>
               </div>
             </div>
           </div>
@@ -226,7 +286,10 @@ class ProfitLossWrapper extends React.Component {
                   <div className='profit-loss-wrappers profit-loss-open-trades-wrappers'>
                     {_.isEmpty(totalProfitAndLoss) ? (
                       <div className='text-center w-100 m-3'>
-                        <Spinner animation='border' role='status'>
+                        <Spinner
+                          animation='border'
+                          role='status'
+                          style={{ width: '3rem', height: '3rem' }}>
                           <span className='sr-only'>Loading...</span>
                         </Spinner>
                       </div>
@@ -310,7 +373,10 @@ class ProfitLossWrapper extends React.Component {
                   <div className='profit-loss-wrappers profit-loss-open-trades-wrappers'>
                     {closedTradesLoading === true || _.isEmpty(closedTrades) ? (
                       <div className='text-center w-100 m-3'>
-                        <Spinner animation='border' role='status'>
+                        <Spinner
+                          animation='border'
+                          role='status'
+                          style={{ width: '3rem', height: '3rem' }}>
                           <span className='sr-only'>Loading...</span>
                         </Spinner>
                       </div>

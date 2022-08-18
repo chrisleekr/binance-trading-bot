@@ -300,7 +300,7 @@ class CoinWrapperTradingView extends React.Component {
     if (connected && updatedAt.isBefore(currentTime)) {
       updatedWithinAlert = (
         <div className='coin-info-column coin-info-column-title border-bottom-0 m-0 p-0'>
-          <div className='bg-light text-dark w-100 px-1'>
+          <div className='text-warning w-100 px-1'>
             The data is older than {tradingViewUseOnlyWithin} minute(s). This
             data will not be used until it is updated.
           </div>
@@ -361,7 +361,7 @@ class CoinWrapperTradingView extends React.Component {
             </div>
             <HightlightChange
               className={
-                'coin-info-value text-bold ' +
+                'coin-info-value font-weight-bold ' +
                 this.getRecommendationClass(
                   tradingView.result.summary.RECOMMENDATION
                 )
