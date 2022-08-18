@@ -1,5 +1,4 @@
 const _ = require('lodash');
-const queue = require('../cronjob/trailingTradeHelper/queue');
 const { binance, mongo } = require('../helpers');
 const {
   getConfiguration
@@ -111,8 +110,6 @@ const syncCandles = async (logger, symbols) => {
         }));
 
         await mongo.bulkWrite(logger, 'trailing-trade-candles', operations);
-
-        queue.executeFor(logger, symbol);
       };
 
       return getCandles();
