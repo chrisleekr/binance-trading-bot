@@ -148,7 +148,7 @@ class ProfitLossWrapper extends React.Component {
                   } text-truncate`}>
                   {profitAndLoss.estimatedBalance.toFixed(5)}
                 </div>
-                <div class='coin-info-column fs-9'>
+                <div class='fs-9'>
                   {openTradesRatio.toFixed(2) +
                     '% of ' +
                     quoteAssetTotal.toFixed(5) +
@@ -190,36 +190,41 @@ class ProfitLossWrapper extends React.Component {
                   quoteAssetTickSize={5}
                 />
                 ({stat.trades})
-                <div
-                  class='coin-info-column fs-9'
-                  title={
-                    stat.lastArchivedAt
-                      ? moment(stat.lastArchivedAt).format()
-                      : ''
-                  }>
+                <div class='fs-9'>
                   {stat.lastArchivedAt
                     ? stat.lastSymbol +
                       ' ' +
                       (stat.lastProfit > 0 ? '+' : '') +
                       parseFloat(stat.lastProfit).toFixed(5) +
                       ' ' +
-                      stat.quoteAsset +
-                      ' ' +
-                      moment(stat.lastArchivedAt).fromNow()
+                      stat.quoteAsset
                     : 'No closed trades yet'}
                 </div>
               </div>{' '}
-              <div
-                className={`profit-loss-value ${
-                  stat.profit > 0
-                    ? 'text-success'
-                    : stat.profit < 0
-                    ? 'text-danger'
-                    : ''
-                }`}>
-                {stat.profit > 0 ? '+' : ''}
-                {stat.profit.toFixed(5)}
-                <br />({stat.profitPercentage.toFixed(2)}%)
+              <div className='profit-loss-value'>
+                <span
+                  className={`${
+                    stat.profit > 0
+                      ? 'text-success'
+                      : stat.profit < 0
+                      ? 'text-danger'
+                      : ''
+                  }`}>
+                  {stat.profit > 0 ? '+' : ''}
+                  {stat.profit.toFixed(5)}
+                  <br />({stat.profitPercentage.toFixed(2)}%)
+                </span>
+                <div
+                  class='fs-9'
+                  title={
+                    stat.lastArchivedAt
+                      ? moment(stat.lastArchivedAt).format()
+                      : ''
+                  }>
+                  {stat.lastArchivedAt
+                    ? moment(stat.lastArchivedAt).fromNow()
+                    : ''}
+                </div>
               </div>
             </div>
           </div>
