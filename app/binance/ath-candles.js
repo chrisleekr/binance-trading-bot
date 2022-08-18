@@ -128,11 +128,6 @@ const syncATHCandles = async (logger, symbols) => {
                   low: +athCandle.low,
                   close: +athCandle.close,
                   volume: +athCandle.volume
-                },
-                $setOnInsert: {
-                  key: symbol,
-                  interval: buyATHRestrictionCandlesInterval,
-                  time: +athCandle.openTime
                 }
               },
               upsert: true

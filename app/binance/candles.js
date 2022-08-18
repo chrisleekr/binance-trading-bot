@@ -104,11 +104,6 @@ const syncCandles = async (logger, symbols) => {
                 low: +candle.low,
                 close: +candle.close,
                 volume: +candle.volume
-              },
-              $setOnInsert: {
-                key: symbol,
-                interval,
-                time: +candle.openTime
               }
             },
             upsert: true

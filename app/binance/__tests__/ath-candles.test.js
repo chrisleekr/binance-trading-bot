@@ -236,11 +236,6 @@ describe('ath-candles.js', () => {
                     low: 0.056132,
                     open: 0.05655,
                     volume: 68.888
-                  },
-                  $setOnInsert: {
-                    interval: '1d',
-                    key: 'ETHBTC',
-                    time: 1508328900000
                   }
                 },
                 upsert: true
