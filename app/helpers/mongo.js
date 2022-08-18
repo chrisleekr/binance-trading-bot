@@ -293,7 +293,7 @@ const bulkWrite = async (funcLogger, collectionName, operations) => {
 
   const collection = database.collection(collectionName);
 
-  logger.error(
+  logger.info(
     { collectionName, operations },
     'Bulk writing documents to MongoDB'
   );
