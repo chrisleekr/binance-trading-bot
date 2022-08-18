@@ -160,7 +160,12 @@ const execute = async (logger, rawData) => {
     ) || {};
 
   if (_.isEmpty(cachedLatestCandle)) {
-    cachedLatestCandle = candles[0];
+    cachedLatestCandle = {
+      eventType: '24hrMiniTicker',
+      eventTime: candles[0].time,
+      symbol: candles[0].key,
+      close: candles[0].close
+    };
   }
 
   const cachedTradingView =

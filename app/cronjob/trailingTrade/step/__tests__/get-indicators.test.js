@@ -2493,7 +2493,8 @@ describe('get-indicators.js', () => {
                   open: 8990.5,
                   high: 10000,
                   low: 8893.03,
-                  close: 9899.05
+                  close: 9899.05,
+                  time: 1660830000000
                 },
                 {
                   interval: '1h',
@@ -2501,7 +2502,8 @@ describe('get-indicators.js', () => {
                   open: 8666.4,
                   high: 9000.6,
                   low: 8899.03,
-                  close: 9000.1
+                  close: 9000.1,
+                  time: 1660830000000
                 }
               ];
             }
@@ -2512,7 +2514,8 @@ describe('get-indicators.js', () => {
                 open: 8690.5,
                 high: 9000,
                 low: 8110.04,
-                close: 9899.05
+                close: 9899.05,
+                time: 1660830000000
               },
               {
                 interval: '1d',
@@ -2520,7 +2523,8 @@ describe('get-indicators.js', () => {
                 open: 7755.66,
                 high: 8000,
                 low: 7695.6,
-                close: 8500
+                close: 8500,
+                time: 1660830000000
               }
             ];
           });
@@ -2589,15 +2593,59 @@ describe('get-indicators.js', () => {
             },
             sell: {
               currentGridTrade: {
-                triggerPercentage: 1.06,
-                limitPercentage: 0.979
+                limitPercentage: 0.979,
+                triggerPercentage: 1.06
               },
-              stopLoss: { maxLossPercentage: 0.8 }
+              stopLoss: {
+                maxLossPercentage: 0.8
+              }
             }
           },
-          baseAssetBalance: { total: 0.1 },
+          baseAssetBalance: {
+            total: 0.1,
+            estimatedValue: 989.905,
+            isLessThanMinNotionalValue: false
+          },
           openOrders: [],
-          saveToCache: false
+          indicators: {
+            highestPrice: 10000,
+            lowestPrice: 8893.03,
+            athPrice: 9000
+          },
+          lastCandle: {
+            eventType: '24hrMiniTicker',
+            eventTime: 1660830000000,
+            symbol: 'BTCUSDT',
+            close: 9899.05
+          },
+          buy: {
+            currentPrice: 9899.05,
+            limitPrice: 10106.930049999999,
+            highestPrice: 10000,
+            lowestPrice: 8893.03,
+            athPrice: 9000,
+            athRestrictionPrice: 8100,
+            triggerPrice: 8981.9603,
+            difference: 10.210351297143871,
+            openOrders: [],
+            processMessage: '',
+            updatedAt: expect.any(Object)
+          },
+          sell: {
+            currentPrice: 9899.05,
+            limitPrice: null,
+            lastBuyPrice: null,
+            triggerPrice: null,
+            difference: null,
+            currentProfit: null,
+            currentProfitPercentage: null,
+            stopLossDifference: null,
+            stopLossTriggerPrice: null,
+            openOrders: [],
+            processMessage: '',
+            updatedAt: expect.any(Object)
+          },
+          tradingView: {}
         });
       });
     });
