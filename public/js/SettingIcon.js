@@ -211,6 +211,11 @@ class SettingIcon extends React.Component {
     // Check validation if contains any false
     const isValid = Object.values(validation).includes(false) === false;
 
+    const selectedExchangeSymbols = _.map(selectedSymbols, selectedSymbol => ({
+      id: selectedSymbol,
+      symbol: selectedSymbol
+    }));
+
     return (
       <div className='header-column-icon-wrapper setting-wrapper'>
         <button
@@ -253,10 +258,15 @@ class SettingIcon extends React.Component {
                             <Typeahead
                               multiple
                               onChange={selected => {
+                                const updatedExchangeSymbols = _.map(
+                                  selected,
+                                  'id'
+                                );
+
                                 // Handle selections...
                                 const { configuration } = this.state;
 
-                                configuration.symbols = selected;
+                                configuration.symbols = updatedExchangeSymbols;
 
                                 const {
                                   quoteAssets,
@@ -264,7 +274,7 @@ class SettingIcon extends React.Component {
                                   lastBuyPriceRemoveThresholds
                                 } = this.getQuoteAssets(
                                   exchangeSymbols,
-                                  selected,
+                                  updatedExchangeSymbols,
                                   configuration.buy.lastBuyPriceRemoveThresholds
                                 );
 
@@ -278,8 +288,46 @@ class SettingIcon extends React.Component {
                                 });
                               }}
                               size='sm'
-                              options={_.keys(exchangeSymbols)}
-                              defaultSelected={selectedSymbols}
+                              labelKey='symbol'
+                              options={_.map(
+                                exchangeSymbols,
+                                exchangeSymbol => ({
+                                  ...exchangeSymbol,
+                                  id: exchangeSymbol.symbol
+                                })
+                              )}
+                              renderMenuItemChildren={(
+                                option,
+                                { text },
+                                index
+                              ) => (
+                                <React.Fragment>
+                                  <div className='d-flex justify-content-between align-items-center'>
+                                    <div>
+                                      <i
+                                        style={{ fontSize: '0.4em' }}
+                                        className={`fas fa-circle align-middle mr-2 fa-fw ${
+                                          option.status === 'TRADING'
+                                            ? 'text-success blink'
+                                            : 'text-danger'
+                                        }`}></i>
+                                      <Highlighter search={text}>
+                                        {option.symbol}
+                                      </Highlighter>
+                                    </div>
+                                    {option.status === 'TRADING' ? (
+                                      <span className='badge badge-success badge-pill'>
+                                        Active
+                                      </span>
+                                    ) : (
+                                      <span className='badge badge-danger badge-pill'>
+                                        Inactive
+                                      </span>
+                                    )}
+                                  </div>
+                                </React.Fragment>
+                              )}
+                              defaultSelected={selectedExchangeSymbols}
                               placeholder='Choose symbols to monitor...'
                             />
                           </Form.Group>
