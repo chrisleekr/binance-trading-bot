@@ -9,9 +9,8 @@ module.exports.up = async () => {
 
   logger.info('Start migration');
 
-  // Get new global configuration
-
-  cache.hdelall('trailing-trade-configurations:*');
+  await cache.hdel('trailing-trade-common', 'exchange-symbols');
+  await cache.hdel('trailing-trade-common', 'exchange-info');
 
   logger.info('Finish migration');
 };
