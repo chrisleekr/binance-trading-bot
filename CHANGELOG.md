@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Improved performance with bulk write candles to DB by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#481](https://github.com/chrisleekr/binance-trading-bot/pull/481)
 - Fixed non-active exchange symbols by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#478](https://github.com/chrisleekr/binance-trading-bot/pull/478)
 - Fixed incorrect symbol in reset-symbol-websockets by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#477](https://github.com/chrisleekr/binance-trading-bot/pull/477)
 - Improved UI by [@uhliksk](https://github.com/uhliksk) - [#479](https://github.com/chrisleekr/binance-trading-bot/pull/479)
