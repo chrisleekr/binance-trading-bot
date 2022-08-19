@@ -159,7 +159,7 @@ describe('ath-candles.js', () => {
             }
           }));
 
-        mockSaveCandle = jest.fn().mockResolvedValue(true);
+        mongoMock.bulkWrite = jest.fn().mockResolvedValue(true);
 
         mongoMock.deleteAll = jest.fn().mockResolvedValue(true);
 
@@ -185,10 +185,6 @@ describe('ath-candles.js', () => {
 
           return [];
         });
-
-        jest.mock('../../cronjob/trailingTradeHelper/common', () => ({
-          saveCandle: mockSaveCandle
-        }));
 
         jest.mock('../../cronjob/trailingTradeHelper/configuration', () => ({
           getConfiguration: mockGetConfiguration
@@ -221,24 +217,31 @@ describe('ath-candles.js', () => {
         });
       });
 
-      it('triggers saveCandle one time', () => {
-        expect(mockSaveCandle).toHaveBeenCalledTimes(1);
+      it('triggers mongo.bulkWrite one time', () => {
+        expect(mongoMock.bulkWrite).toHaveBeenCalledTimes(1);
       });
 
-      it('triggers saveCandle with expected parameters', () => {
-        expect(mockSaveCandle).toHaveBeenCalledWith(
+      it('triggers mongo.bulkWrite with expected parameters', () => {
+        expect(mongoMock.bulkWrite).toHaveBeenCalledWith(
           loggerMock,
           'trailing-trade-ath-candles',
-          {
-            close: 0.056324,
-            high: 0.056565,
-            interval: '1d',
-            key: 'ETHBTC',
-            low: 0.056132,
-            open: 0.05655,
-            time: 1508328900000,
-            volume: 68.888
-          }
+          [
+            {
+              updateOne: {
+                filter: { interval: '1d', key: 'ETHBTC', time: 1508328900000 },
+                update: {
+                  $set: {
+                    close: 0.056324,
+                    high: 0.056565,
+                    low: 0.056132,
+                    open: 0.05655,
+                    volume: 68.888
+                  }
+                },
+                upsert: true
+              }
+            }
+          ]
         );
       });
     });

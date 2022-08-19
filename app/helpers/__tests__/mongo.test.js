@@ -20,6 +20,7 @@ describe('mongo.js', () => {
   let mockDeleteOne;
   let mockCreateIndex;
   let mockDropIndex;
+  let mockBulkWrite;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -739,6 +740,127 @@ describe('mongo.js', () => {
     it('triggers collection.dropIndex', () => {
       expect(mockDropIndex).toHaveBeenCalledWith(
         'trailing-trade-logs-logs-idx'
+      );
+    });
+
+    it('returns expected result', () => {
+      expect(result).toStrictEqual(true);
+    });
+  });
+
+  describe('bulkWrite', () => {
+    beforeEach(async () => {
+      mockBulkWrite = jest.fn().mockResolvedValue(true);
+      mockCollection = jest.fn(() => ({
+        bulkWrite: mockBulkWrite
+      }));
+
+      mockDBCommand = jest.fn().mockResolvedValue(true);
+      mockDB = jest.fn(() => ({
+        command: mockDBCommand,
+        collection: mockCollection
+      }));
+
+      mockMongoClient = jest.fn(() => ({
+        connect: jest.fn().mockResolvedValue(true),
+        db: mockDB
+      }));
+
+      jest.mock('mongodb', () => ({
+        MongoClient: mockMongoClient
+      }));
+
+      require('mongodb');
+
+      mongo = require('../mongo');
+
+      await mongo.connect(logger);
+
+      result = await mongo.bulkWrite(logger, 'trailing-stop-common', [
+        {
+          insertOne: {
+            document: {
+              _id: 4,
+              char: 'Dithras',
+              class: 'barbarian',
+              lvl: 4
+            }
+          }
+        },
+        {
+          insertOne: {
+            document: {
+              _id: 5,
+              char: 'Taeln',
+              class: 'fighter',
+              lvl: 3
+            }
+          }
+        },
+        {
+          updateOne: {
+            filter: { char: 'Eldon' },
+            update: { $set: { status: 'Critical Injury' } }
+          }
+        },
+        { deleteOne: { filter: { char: 'Brisbane' } } },
+        {
+          replaceOne: {
+            filter: { char: 'Meldane' },
+            replacement: { char: 'Tanys', class: 'oracle', lvl: 4 }
+          }
+        }
+      ]);
+    });
+
+    it('triggers database.collection', () => {
+      expect(mockCollection).toHaveBeenCalledWith('trailing-stop-common');
+    });
+
+    it('triggers collection.upsertOne', () => {
+      expect(mockBulkWrite).toHaveBeenCalledWith(
+        [
+          {
+            insertOne: {
+              document: {
+                _id: 4,
+                char: 'Dithras',
+                class: 'barbarian',
+                lvl: 4
+              }
+            }
+          },
+          {
+            insertOne: {
+              document: {
+                _id: 5,
+                char: 'Taeln',
+                class: 'fighter',
+                lvl: 3
+              }
+            }
+          },
+          {
+            updateOne: {
+              filter: { char: 'Eldon' },
+              update: { $set: { status: 'Critical Injury' } }
+            }
+          },
+          { deleteOne: { filter: { char: 'Brisbane' } } },
+          {
+            replaceOne: {
+              filter: { char: 'Meldane' },
+              replacement: { char: 'Tanys', class: 'oracle', lvl: 4 }
+            }
+          }
+        ],
+        {
+          writeConcern: {
+            w: 0,
+            j: false
+          },
+          ordered: false
+        }
       );
     });
 

@@ -107,25 +107,38 @@ const syncATHCandles = async (logger, symbols) => {
             },
             `Retrieving ATH candles from API for ${symbol}`
           );
+
           const athCandles = await binance.client.candles({
             symbol,
             interval: buyATHRestrictionCandlesInterval,
             limit: buyATHRestrictionCandlesLimit
           });
-          // Save ath candles for the symbol
-          await Promise.all(
-            athCandles.map(async athCandle =>
-              saveCandle(logger, 'trailing-trade-ath-candles', {
+
+          const operations = athCandles.map(athCandle => ({
+            updateOne: {
+              filter: {
                 key: symbol,
-                interval: buyATHRestrictionCandlesInterval,
                 time: +athCandle.openTime,
-                open: +athCandle.open,
-                high: +athCandle.high,
-                low: +athCandle.low,
-                close: +athCandle.close,
-                volume: +athCandle.volume
-              })
-            )
+                interval: buyATHRestrictionCandlesInterval
+              },
+              update: {
+                $set: {
+                  open: +athCandle.open,
+                  high: +athCandle.high,
+                  low: +athCandle.low,
+                  close: +athCandle.close,
+                  volume: +athCandle.volume
+                }
+              },
+              upsert: true
+            }
+          }));
+
+          // Save ath candles for the symbol
+          await mongo.bulkWrite(
+            logger,
+            'trailing-trade-ath-candles',
+            operations
           );
         }
       };

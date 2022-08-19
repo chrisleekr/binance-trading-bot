@@ -279,6 +279,36 @@ const dropIndex = async (funcLogger, collectionName, indexName) => {
   return result;
 };
 
+/**
+ * Bulk write data
+ *
+ * @param {*} funcLogger
+ * @param {*} collectionName
+ * @param {*} operations
+ *
+ * @returns
+ */
+const bulkWrite = async (funcLogger, collectionName, operations) => {
+  const logger = funcLogger.child({ helper: 'mongo', funcName: 'bulkWrite' });
+
+  const collection = database.collection(collectionName);
+
+  logger.info(
+    { collectionName, operations },
+    'Bulk writing documents to MongoDB'
+  );
+  const result = await collection.bulkWrite(operations, {
+    writeConcern: {
+      w: 0,
+      j: false
+    },
+    ordered: false
+  });
+  logger.info({ result }, 'Finished bulk writing documents to MongoDB');
+
+  return result;
+};
+
 module.exports = {
   client,
   connect,
@@ -291,5 +321,6 @@ module.exports = {
   deleteAll,
   deleteOne,
   createIndex,
-  dropIndex
+  dropIndex,
+  bulkWrite
 };
