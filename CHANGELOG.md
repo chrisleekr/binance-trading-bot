@@ -4,10 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Fixed non-active exchange symbols by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#478](https://github.com/chrisleekr/binance-trading-bot/pull/478)
 - Fixed incorrect symbol in reset-symbol-websockets by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#477](https://github.com/chrisleekr/binance-trading-bot/pull/477)
 - Improved UI by [@uhliksk](https://github.com/uhliksk) - [#479](https://github.com/chrisleekr/binance-trading-bot/pull/479)
 
-Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) and [@uhliksk](https://github.com/uhliksk) for your great contributions. 💯
+Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) and [@uhliksk](https://github.com/uhliksk) for your great contributions. 💯 :heart:
 
 ## [0.0.89] - 2022-08-16
 
