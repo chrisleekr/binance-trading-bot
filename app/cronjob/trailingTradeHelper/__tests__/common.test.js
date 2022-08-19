@@ -49,7 +49,7 @@ describe('common.js', () => {
           );
 
         commonHelper = require('../common');
-        await commonHelper.cacheExchangeSymbols(logger, {});
+        await commonHelper.cacheExchangeSymbols(logger);
       });
 
       it('triggers cache.hget for exchange symbols', () => {
@@ -123,9 +123,7 @@ describe('common.js', () => {
           binanceMock.client.exchangeInfo = jest.fn().mockResolvedValue(null);
 
           commonHelper = require('../common');
-          await commonHelper.cacheExchangeSymbols(logger, {
-            supportFIATs: ['USDT', 'BUSD']
-          });
+          await commonHelper.cacheExchangeSymbols(logger);
         });
 
         it('triggers cache.hget for exchange symbols', () => {
@@ -198,9 +196,7 @@ describe('common.js', () => {
           binanceMock.client.exchangeInfo = jest.fn().mockResolvedValue(null);
 
           commonHelper = require('../common');
-          await commonHelper.cacheExchangeSymbols(logger, {
-            supportFIATs: ['USDT', 'BUSD']
-          });
+          await commonHelper.cacheExchangeSymbols(logger);
         });
 
         it('triggers cache.hget for exchange symbols', () => {
@@ -271,9 +267,7 @@ describe('common.js', () => {
           );
 
         commonHelper = require('../common');
-        await commonHelper.cacheExchangeSymbols(logger, {
-          supportFIATs: ['USDT', 'BUSD']
-        });
+        await commonHelper.cacheExchangeSymbols(logger);
       });
 
       it('triggers cache.hget for exchange symbols', () => {
