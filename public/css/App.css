@@ -998,3 +998,21 @@ input[type='number'] {
 /**
   End: Pagination
 */
+
+/**
+  Start: Animation
+*/
+
+.blink {
+  animation: blinker 1s linear infinite;
+}
+
+@keyframes blinker {
+  50% {
+    opacity: 0;
+  }
+}
+
+/**
+  End: Animation
+*/

@@ -67,6 +67,7 @@ const cacheExchangeSymbols = async logger => {
     });
     acc[symbol.symbol] = {
       symbol: symbol.symbol,
+      status: symbol.status,
       quoteAsset: symbol.quoteAsset,
       minNotional: parseFloat(minNotionalFilter.minNotional)
     };
