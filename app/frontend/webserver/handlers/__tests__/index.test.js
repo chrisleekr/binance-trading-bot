@@ -10,6 +10,7 @@ describe('index', () => {
   let mockHandleStatus;
   let mockHandleGridTradeLogsGet;
   let mockHandleGridTradeLogsExport;
+  let mockHandleSymbolDelete;
 
   let mockLoginLimiter;
 
@@ -24,6 +25,7 @@ describe('index', () => {
     mockHandleStatus = jest.fn().mockResolvedValue(true);
     mockHandleGridTradeLogsGet = jest.fn().mockResolvedValue(true);
     mockHandleGridTradeLogsExport = jest.fn().mockResolvedValue(true);
+    mockHandleSymbolDelete = jest.fn().mockResolvedValue(true);
 
     mockLoginLimiter = jest.fn().mockReturnValue(true);
 
@@ -57,6 +59,10 @@ describe('index', () => {
 
     jest.mock('../status', () => ({
       handleStatus: mockHandleStatus
+    }));
+
+    jest.mock('../symbol-delete', () => ({
+      handleSymbolDelete: mockHandleSymbolDelete
     }));
 
     index = require('../index');
@@ -103,5 +109,9 @@ describe('index', () => {
 
   it('triggers handle404', () => {
     expect(mockHandle404).toHaveBeenCalledWith('logger', 'app');
+  });
+
+  it('triggers handleSymbolDelete', () => {
+    expect(mockHandleSymbolDelete).toHaveBeenCalledWith('logger', 'app');
   });
 });

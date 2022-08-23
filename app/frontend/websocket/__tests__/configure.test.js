@@ -19,7 +19,6 @@ describe('websocket/configure.js', () => {
     handleLatest: null,
     handleSettingUpdate: null,
     handleSymbolUpdateLastBuyPrice: null,
-    handleSymbolDelete: null,
     handleSymbolSettingUpdate: null,
     handleSymbolSettingDelete: null,
     handleSymbolGridTradeDelete: null,
@@ -116,7 +115,6 @@ describe('websocket/configure.js', () => {
     mockHandlers.handleSymbolUpdateLastBuyPrice = jest
       .fn()
       .mockResolvedValue(true);
-    mockHandlers.handleSymbolDelete = jest.fn().mockResolvedValue(true);
     mockHandlers.handleSymbolSettingUpdate = jest.fn().mockResolvedValue(true);
     mockHandlers.handleSymbolSettingDelete = jest.fn().mockResolvedValue(true);
     mockHandlers.handleSymbolGridTradeDelete = jest
@@ -137,7 +135,6 @@ describe('websocket/configure.js', () => {
       handleSettingUpdate: mockHandlers.handleSettingUpdate,
       handleSymbolUpdateLastBuyPrice:
         mockHandlers.handleSymbolUpdateLastBuyPrice,
-      handleSymbolDelete: mockHandlers.handleSymbolDelete,
       handleSymbolSettingUpdate: mockHandlers.handleSymbolSettingUpdate,
       handleSymbolSettingDelete: mockHandlers.handleSymbolSettingDelete,
       handleSymbolGridTradeDelete: mockHandlers.handleSymbolGridTradeDelete,
@@ -564,10 +561,6 @@ describe('websocket/configure.js', () => {
     {
       command: 'symbol-update-last-buy-price',
       commandFunc: 'handleSymbolUpdateLastBuyPrice'
-    },
-    {
-      command: 'symbol-delete',
-      commandFunc: 'handleSymbolDelete'
     },
     {
       command: 'symbol-setting-update',
