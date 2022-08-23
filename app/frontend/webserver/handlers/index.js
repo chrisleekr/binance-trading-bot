@@ -6,6 +6,7 @@ const { handleGridTradeLogsGet } = require('./grid-trade-logs-get');
 const { handleGridTradeLogsExport } = require('./grid-trade-logs-export');
 const { handle404 } = require('./404');
 const { handleStatus } = require('./status');
+const { handleSymbolDelete } = require('./symbol-delete');
 
 const setHandlers = async (logger, app, { loginLimiter }) => {
   await handleAuth(logger, app, { loginLimiter });
@@ -16,6 +17,7 @@ const setHandlers = async (logger, app, { loginLimiter }) => {
   await handleGridTradeLogsExport(logger, app);
   await handleStatus(logger, app);
   await handle404(logger, app);
+  await handleSymbolDelete(logger, app);
 };
 
 module.exports = {

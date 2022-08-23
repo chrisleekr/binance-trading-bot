@@ -174,7 +174,7 @@ class QuoteAssetGridTradeArchiveIcon extends React.Component {
             <td className={`text-center align-middle`}>
               {row.symbol}
               <br />
-              <span class='fs-9' title={moment(row.archivedAt).format()}>
+              <span className='fs-9' title={moment(row.archivedAt).format()}>
                 {'Closed ' + moment(row.archivedAt).fromNow()}
               </span>
             </td>

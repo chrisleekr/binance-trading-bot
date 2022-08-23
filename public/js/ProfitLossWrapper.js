@@ -148,7 +148,7 @@ class ProfitLossWrapper extends React.Component {
                   } text-truncate`}>
                   {profitAndLoss.estimatedBalance.toFixed(5)}
                 </div>
-                <div class='fs-9'>
+                <div className='fs-9'>
                   {openTradesRatio.toFixed(2) +
                     '% of ' +
                     quoteAssetTotal.toFixed(5) +
@@ -190,7 +190,7 @@ class ProfitLossWrapper extends React.Component {
                   quoteAssetTickSize={5}
                 />
                 ({stat.trades})
-                <div class='fs-9'>
+                <div className='fs-9'>
                   {stat.lastArchivedAt
                     ? stat.lastSymbol +
                       ' ' +
@@ -215,7 +215,7 @@ class ProfitLossWrapper extends React.Component {
                   <br />({stat.profitPercentage.toFixed(2)}%)
                 </span>
                 <div
-                  class='fs-9'
+                  className='fs-9'
                   title={
                     stat.lastArchivedAt
                       ? moment(stat.lastArchivedAt).format()
