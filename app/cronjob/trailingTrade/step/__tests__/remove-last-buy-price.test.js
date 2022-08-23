@@ -17,6 +17,7 @@ describe('remove-last-buy-price.js', () => {
 
   let mockArchiveSymbolGridTrade;
   let mockDeleteSymbolGridTrade;
+  let mockGetSymbolGridTrade;
 
   let mockGetGridTradeOrder;
 
@@ -52,6 +53,7 @@ describe('remove-last-buy-price.js', () => {
         totalSellQuoteQty: 0
       });
       mockDeleteSymbolGridTrade = jest.fn().mockResolvedValue(true);
+      mockGetSymbolGridTrade = jest.fn().mockResolvedValue({});
 
       mockGetGridTradeOrder = jest.fn().mockResolvedValue({});
     });
@@ -69,7 +71,8 @@ describe('remove-last-buy-price.js', () => {
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
           archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-          deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+          deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+          getSymbolGridTrade: mockGetSymbolGridTrade
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -139,7 +142,8 @@ describe('remove-last-buy-price.js', () => {
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
           archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-          deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+          deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+          getSymbolGridTrade: mockGetSymbolGridTrade
         }));
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
@@ -209,7 +213,8 @@ describe('remove-last-buy-price.js', () => {
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
           archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-          deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+          deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+          getSymbolGridTrade: mockGetSymbolGridTrade
         }));
 
         mockGetGridTradeOrder = jest.fn().mockImplementation((_logger, key) => {
@@ -286,7 +291,8 @@ describe('remove-last-buy-price.js', () => {
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
           archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-          deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+          deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+          getSymbolGridTrade: mockGetSymbolGridTrade
         }));
 
         mockGetGridTradeOrder = jest.fn().mockImplementation((_logger, key) => {
@@ -363,7 +369,8 @@ describe('remove-last-buy-price.js', () => {
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
           archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-          deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+          deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+          getSymbolGridTrade: mockGetSymbolGridTrade
         }));
 
         mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -435,7 +442,8 @@ describe('remove-last-buy-price.js', () => {
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
           archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-          deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+          deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+          getSymbolGridTrade: mockGetSymbolGridTrade
         }));
 
         mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -523,7 +531,8 @@ describe('remove-last-buy-price.js', () => {
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
           archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-          deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+          deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+          getSymbolGridTrade: mockGetSymbolGridTrade
         }));
 
         mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -602,7 +611,8 @@ describe('remove-last-buy-price.js', () => {
 
           jest.mock('../../../trailingTradeHelper/configuration', () => ({
             archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-            deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+            deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+            getSymbolGridTrade: mockGetSymbolGridTrade
           }));
 
           mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -768,7 +778,8 @@ describe('remove-last-buy-price.js', () => {
 
               jest.mock('../../../trailingTradeHelper/configuration', () => ({
                 archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-                deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+                deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+                getSymbolGridTrade: mockGetSymbolGridTrade
               }));
 
               const step = require('../remove-last-buy-price');
@@ -862,7 +873,8 @@ describe('remove-last-buy-price.js', () => {
 
           jest.mock('../../../trailingTradeHelper/configuration', () => ({
             archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-            deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+            deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+            getSymbolGridTrade: mockGetSymbolGridTrade
           }));
 
           mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -942,7 +954,8 @@ describe('remove-last-buy-price.js', () => {
 
             jest.mock('../../../trailingTradeHelper/configuration', () => ({
               archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-              deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+              deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+              getSymbolGridTrade: mockGetSymbolGridTrade
             }));
 
             mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -1070,7 +1083,8 @@ describe('remove-last-buy-price.js', () => {
 
             jest.mock('../../../trailingTradeHelper/configuration', () => ({
               archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-              deleteSymbolGridTrade: mockDeleteSymbolGridTrade
+              deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+              getSymbolGridTrade: mockGetSymbolGridTrade
             }));
 
             mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
@@ -1146,7 +1160,7 @@ describe('remove-last-buy-price.js', () => {
     });
 
     describe('when there is enough balance', () => {
-      beforeEach(async () => {
+      beforeEach(() => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           isActionDisabled: mockIsActionDisabled,
           getAPILimit: mockGetAPILimit,
@@ -1163,18 +1177,11 @@ describe('remove-last-buy-price.js', () => {
           totalSellQuoteQty: 110
         });
 
-        jest.mock('../../../trailingTradeHelper/configuration', () => ({
-          archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-          deleteSymbolGridTrade: mockDeleteSymbolGridTrade
-        }));
-
         mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
 
         jest.mock('../../../trailingTradeHelper/order', () => ({
           getGridTradeOrder: mockGetGridTradeOrder
         }));
-
-        const step = require('../remove-last-buy-price');
 
         rawData = {
           action: 'not-determined',
@@ -1209,33 +1216,226 @@ describe('remove-last-buy-price.js', () => {
             lastBuyPrice: 160
           }
         };
-
-        result = await step.execute(loggerMock, rawData);
       });
 
-      it('does not trigger removeLastBuyPrice', () => {
-        expect(mockRemoveLastBuyPrice).not.toHaveBeenCalled();
+      describe('when symbol grid trade is empty', () => {
+        beforeEach(async () => {
+          mockGetSymbolGridTrade = jest.fn().mockResolvedValue({});
+
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
+            deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+            getSymbolGridTrade: mockGetSymbolGridTrade
+          }));
+
+          const step = require('../remove-last-buy-price');
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('does not trigger removeLastBuyPrice', () => {
+          expect(mockRemoveLastBuyPrice).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger archiveSymbolGridTrade', () => {
+          expect(mockArchiveSymbolGridTrade).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger deleteSymbolGridTrade', () => {
+          expect(mockDeleteSymbolGridTrade).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveOverrideAction', () => {
+          expect(mockSaveOverrideAction).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveOrderStats', () => {
+          expect(mockSaveOrderStats).not.toHaveBeenCalled();
+        });
+
+        it('returns expected data', () => {
+          expect(result).toStrictEqual({
+            ...rawData
+          });
+        });
       });
 
-      it('does not trigger archiveSymbolGridTrade', () => {
-        expect(mockArchiveSymbolGridTrade).not.toHaveBeenCalled();
+      describe('when sell array of symbol grid trade is empty', () => {
+        beforeEach(async () => {
+          mockGetSymbolGridTrade = jest.fn().mockResolvedValue({
+            sell: []
+          });
+
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
+            deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+            getSymbolGridTrade: mockGetSymbolGridTrade
+          }));
+
+          const step = require('../remove-last-buy-price');
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('does not trigger removeLastBuyPrice', () => {
+          expect(mockRemoveLastBuyPrice).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger archiveSymbolGridTrade', () => {
+          expect(mockArchiveSymbolGridTrade).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger deleteSymbolGridTrade', () => {
+          expect(mockDeleteSymbolGridTrade).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveOverrideAction', () => {
+          expect(mockSaveOverrideAction).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveOrderStats', () => {
+          expect(mockSaveOrderStats).not.toHaveBeenCalled();
+        });
+
+        it('returns expected data', () => {
+          expect(result).toStrictEqual({
+            ...rawData
+          });
+        });
       });
 
-      it('does not trigger deleteSymbolGridTrade', () => {
-        expect(mockDeleteSymbolGridTrade).not.toHaveBeenCalled();
+      describe('there is no sell order executed', () => {
+        beforeEach(async () => {
+          mockGetSymbolGridTrade = jest.fn().mockResolvedValue({
+            sell: [
+              {
+                executed: true
+              },
+              {
+                executed: false
+              }
+            ]
+          });
+
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
+            deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+            getSymbolGridTrade: mockGetSymbolGridTrade
+          }));
+
+          const step = require('../remove-last-buy-price');
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('does not trigger removeLastBuyPrice', () => {
+          expect(mockRemoveLastBuyPrice).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger archiveSymbolGridTrade', () => {
+          expect(mockArchiveSymbolGridTrade).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger deleteSymbolGridTrade', () => {
+          expect(mockDeleteSymbolGridTrade).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveOverrideAction', () => {
+          expect(mockSaveOverrideAction).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger saveOrderStats', () => {
+          expect(mockSaveOrderStats).not.toHaveBeenCalled();
+        });
+
+        it('returns expected data', () => {
+          expect(result).toStrictEqual({
+            ...rawData
+          });
+        });
       });
 
-      it('does not trigger saveOverrideAction', () => {
-        expect(mockSaveOverrideAction).not.toHaveBeenCalled();
-      });
+      describe('there is all sell order executed', () => {
+        beforeEach(async () => {
+          mockGetSymbolGridTrade = jest.fn().mockResolvedValue({
+            sell: [
+              {
+                executed: true
+              },
+              {
+                executed: true
+              }
+            ]
+          });
 
-      it('does not trigger saveOrderStats', () => {
-        expect(mockSaveOrderStats).not.toHaveBeenCalled();
-      });
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
+            deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+            getSymbolGridTrade: mockGetSymbolGridTrade
+          }));
 
-      it('returns expected data', () => {
-        expect(result).toStrictEqual({
-          ...rawData
+          const step = require('../remove-last-buy-price');
+
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers removeLastBuyPrice', () => {
+          expect(mockRemoveLastBuyPrice).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUPUSDT'
+          );
+        });
+
+        it('triggers archiveSymbolGridTrade', () => {
+          expect(mockArchiveSymbolGridTrade).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUPUSDT'
+          );
+        });
+
+        it('triggers deleteSymbolGridTrade', () => {
+          expect(mockDeleteSymbolGridTrade).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUPUSDT'
+          );
+        });
+
+        it('triggers saveOverrideAction', () => {
+          expect(mockSaveOverrideAction).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUPUSDT',
+            {
+              action: 'buy',
+              actionAt: expect.any(String),
+              triggeredBy: 'auto-trigger',
+              notify: true,
+              checkTradingView: true
+            },
+            `The bot queued the action to trigger the grid trade for buying after 20 minutes later.`
+          );
+        });
+
+        it('triggers saveOrderStats', () => {
+          expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+            'BTCUSDT',
+            'BNBUSDT',
+            'BTCUPUSDT'
+          ]);
+        });
+
+        it('returns expected data', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              sell: {
+                currentPrice: 200,
+                lastBuyPrice: 160,
+                processMessage:
+                  'All sell orders are executed. Delete last buy price.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
         });
       });
     });
