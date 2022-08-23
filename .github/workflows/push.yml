@@ -51,23 +51,23 @@ jobs:
           echo "GIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       # https://github.com/docker/build-push-action#multi-platform-image
-      - name: Build/Push production docker image
+      - name: Build/Push development docker image
         uses: docker/build-push-action@v2
         with:
           context: .
           file: Dockerfile
           platforms: linux/amd64,linux/arm/v7,linux/arm64
           push: true
-          target: production-stage
+          target: dev-stage
           build-args: |
             PACKAGE_VERSION=${{ env.PACKAGE_VERSION }}
             GIT_HASH=${{ env.GIT_HASH }}
-            NODE_ENV=production
+            NODE_ENV=development
           tags: |
             chrisleekr/binance-trading-bot:development
 
       # https://github.com/docker/build-push-action#multi-platform-image
-      - name: Build/Push production docker image - tradingview
+      - name: Build/Push development docker image - tradingview
         uses: docker/build-push-action@v2
         with:
           context: ./tradingview
