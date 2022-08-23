@@ -288,30 +288,11 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  // If there is open order for grid trade buy order, then do not process.
-  // const gridTradeLastBuyOrder = await getGridTradeLastOrder(
-  //   logger,
-  //   symbol,
-  //   'buy'
-  // );
-  // if (_.isEmpty(gridTradeLastBuyOrder) === false) {
-  //   logger.info(
-  //     'Do not process to remove last buy price because there is a grid trade last buy order to be confirmed.'
-  //   );
-  //   return data;
-  // }
-
   // If last buy price is null, undefined, 0, NaN or less than 0.
   if (!lastBuyPrice || lastBuyPrice <= 0) {
     logger.info('Do not process because last buy price does not exist.');
     return data;
   }
-
-  // If there is an open order, then do not process.
-  // if (_.isEmpty(openOrders) === false) {
-  //   logger.info('Do not remove last buy price in case the order is related.');
-  //   return data;
-  // }
 
   // If the action is disabled, then do not process.
   const checkDisable = await isActionDisabled(symbol);
@@ -319,6 +300,7 @@ const execute = async (logger, rawData) => {
     { tag: 'check-disable', checkDisable },
     'Checked whether symbol is disabled or not.'
   );
+
   if (checkDisable.isDisabled && checkDisable.canRemoveLastBuyPrice === false) {
     logger.info('Do not remove last buy price because action is disabled.');
     return data;
