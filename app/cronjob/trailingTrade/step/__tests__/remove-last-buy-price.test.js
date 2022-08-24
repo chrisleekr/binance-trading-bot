@@ -650,7 +650,7 @@ describe('remove-last-buy-price.js', () => {
         });
       });
 
-      describe('there is all sell order executed', () => {
+      describe('there is all sell order executed with not-determined', () => {
         beforeEach(async () => {
           mockGetSymbolGridTrade = jest.fn().mockResolvedValue({
             sell: [
@@ -671,6 +671,98 @@ describe('remove-last-buy-price.js', () => {
 
           const step = require('../remove-last-buy-price');
 
+          result = await step.execute(loggerMock, rawData);
+        });
+
+        it('triggers binance.client.cancelOrder', () => {
+          expect(binanceMock.client.cancelOrder).toHaveBeenCalledWith({
+            symbol: 'BTCUPUSDT',
+            orderId: 123456
+          });
+        });
+
+        it('triggers removeLastBuyPrice', () => {
+          expect(mockRemoveLastBuyPrice).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUPUSDT'
+          );
+        });
+
+        it('triggers archiveSymbolGridTrade', () => {
+          expect(mockArchiveSymbolGridTrade).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUPUSDT'
+          );
+        });
+
+        it('triggers deleteSymbolGridTrade', () => {
+          expect(mockDeleteSymbolGridTrade).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUPUSDT'
+          );
+        });
+
+        it('triggers saveOverrideAction', () => {
+          expect(mockSaveOverrideAction).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUPUSDT',
+            {
+              action: 'buy',
+              actionAt: expect.any(String),
+              triggeredBy: 'auto-trigger',
+              notify: true,
+              checkTradingView: true
+            },
+            `The bot queued the action to trigger the grid trade for buying after 20 minutes later.`
+          );
+        });
+
+        it('triggers saveOrderStats', () => {
+          expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
+            'BTCUSDT',
+            'BNBUSDT',
+            'BTCUPUSDT'
+          ]);
+        });
+
+        it('returns expected data', () => {
+          expect(result).toStrictEqual({
+            ...rawData,
+            ...{
+              sell: {
+                currentPrice: 200,
+                lastBuyPrice: 160,
+                processMessage:
+                  'All sell orders are executed. Delete last buy price.',
+                updatedAt: expect.any(Object)
+              }
+            }
+          });
+        });
+      });
+
+      describe('there is all sell order executed with buy-order-wait', () => {
+        beforeEach(async () => {
+          mockGetSymbolGridTrade = jest.fn().mockResolvedValue({
+            sell: [
+              {
+                executed: true
+              },
+              {
+                executed: true
+              }
+            ]
+          });
+
+          jest.mock('../../../trailingTradeHelper/configuration', () => ({
+            archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
+            deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
+            getSymbolGridTrade: mockGetSymbolGridTrade
+          }));
+
+          const step = require('../remove-last-buy-price');
+
+          rawData.action = 'buy-order-wait';
           result = await step.execute(loggerMock, rawData);
         });
 

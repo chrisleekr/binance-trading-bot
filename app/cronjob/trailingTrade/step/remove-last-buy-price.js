@@ -283,8 +283,10 @@ const execute = async (logger, rawData) => {
     return data;
   }
 
-  if (action !== 'not-determined') {
-    logger.info('Do not process to remove last buy price.');
+  if (['not-determined', 'buy-order-wait'].includes(action) === false) {
+    logger.info(
+      `Do not process to remove last buy price due to the ${action} action.`
+    );
     return data;
   }
 
