@@ -50,7 +50,8 @@ const setupUserWebsocket = async logger => {
         isOrderWorking,
         totalQuoteTradeQuantity,
         totalTradeQuantity,
-        orderTime: transactTime // Transaction time
+        orderTime: transactTime, // Transaction time
+        creationTime
       } = evt;
       logger.info(
         { symbol, evt, saveLog: true },
@@ -65,17 +66,13 @@ const setupUserWebsocket = async logger => {
         );
 
         if (_.isEmpty(lastOrder) === false) {
-          // Skip if the orderId is not match with the existing orderId
-          // or Skip if the transaction time is older than the existing order transaction time
+          // Skip if if the creation time is older than the existing order creation time
           // This is helpful when we received a delayed event for any reason
-          if (
-            orderId !== lastOrder.orderId ||
-            transactTime < lastOrder.transactTime
-          ) {
+          if (creationTime < lastOrder.creationTime) {
             return;
           }
 
-          await updateGridTradeLastOrder(logger, symbol, side.toLowerCase(), {
+          const updatedOrder = {
             ...lastOrder,
             status: orderStatus,
             type: orderType,
@@ -87,11 +84,19 @@ const setupUserWebsocket = async logger => {
             executedQty: totalTradeQuantity,
             isWorking: isOrderWorking,
             updateTime: eventTime,
-            transactTime
-          });
+            transactTime,
+            creationTime
+          };
+
+          await updateGridTradeLastOrder(
+            logger,
+            symbol,
+            side.toLowerCase(),
+            updatedOrder
+          );
           logger.info(
-            { symbol, lastOrder, saveLog: true },
-            'The last order has been updated.'
+            { symbol, updatedOrder, saveLog: true },
+            `The last order has been updated. ${orderId} - ${side} - ${orderStatus}`
           );
 
           queue.executeFor(logger, symbol);

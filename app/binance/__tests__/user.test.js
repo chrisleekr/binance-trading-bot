@@ -244,7 +244,7 @@ describe('user.js', () => {
       });
 
       describe('when last order found', () => {
-        describe('received transaction time > existing transaction time', () => {
+        describe('received creation time > existing creation time', () => {
           beforeEach(async () => {
             mockUserClean = jest.fn().mockResolvedValue(true);
 
@@ -315,7 +315,8 @@ describe('user.js', () => {
                   isOrderWorking: false,
                   totalQuoteTradeQuantity: '0.00000000',
                   totalTradeQuantity: '0.00000000',
-                  orderTime: 1642713283561
+                  orderTime: 1642713283561,
+                  creationTime: 1642713283561
                 });
 
                 return mockUserClean;
@@ -351,7 +352,8 @@ describe('user.js', () => {
                 stopPrice: '3245.19000000',
                 type: 'STOP_LOSS_LIMIT',
                 updateTime: 1642713283562,
-                transactTime: 1642713283561
+                transactTime: 1642713283561,
+                creationTime: 1642713283561
               }
             );
           });
@@ -367,13 +369,15 @@ describe('user.js', () => {
             expect(mockUserClean).not.toHaveBeenCalled();
           });
         });
+
         describe('received transaction time < existing transaction time', () => {
           beforeEach(async () => {
             mockUserClean = jest.fn().mockResolvedValue(true);
 
             mockGridTradeLastOrder = jest.fn().mockResolvedValue({
               orderId: 7479643460,
-              transactTime: 1642713282000
+              transactTime: 1642713282000,
+              creationTime: 1642713282000
             });
             mockUpdateGridTradeLastOrder = jest.fn().mockResolvedValue(null);
             mockGetManualOrder = jest.fn().mockResolvedValue(null);
@@ -438,7 +442,8 @@ describe('user.js', () => {
                   isOrderWorking: false,
                   totalQuoteTradeQuantity: '0.00000000',
                   totalTradeQuantity: '0.00000000',
-                  orderTime: 1642713281000
+                  orderTime: 1642713281000,
+                  creationTime: 1642713281000
                 });
 
                 return mockUserClean;
