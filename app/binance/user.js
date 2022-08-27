@@ -1,3 +1,4 @@
+const { v4: uuidv4 } = require('uuid');
 const _ = require('lodash');
 const { binance } = require('../helpers');
 const queue = require('../cronjob/trailingTradeHelper/queue');
@@ -53,8 +54,15 @@ const setupUserWebsocket = async logger => {
         orderTime: transactTime, // Transaction time
         creationTime
       } = evt;
-      logger.info(
-        { symbol, evt, saveLog: true },
+
+      const symbolLogger = logger.child({
+        jobName: 'trailingTrade',
+        correlationId: uuidv4(),
+        symbol
+      });
+
+      symbolLogger.info(
+        { evt, saveLog: true },
         `There is a new update in order. ${orderId} - ${side} - ${orderStatus}`
       );
 
@@ -69,6 +77,10 @@ const setupUserWebsocket = async logger => {
           // Skip if if the creation time is older than the existing order creation time
           // This is helpful when we received a delayed event for any reason
           if (creationTime < lastOrder.creationTime) {
+            symbolLogger.info(
+              { lastOrder, creationTime, saveLog: true },
+              'This order update is an old order. Do not update last grid trade order.'
+            );
             return;
           }
 
@@ -94,12 +106,12 @@ const setupUserWebsocket = async logger => {
             side.toLowerCase(),
             updatedOrder
           );
-          logger.info(
-            { symbol, updatedOrder, saveLog: true },
+          symbolLogger.info(
+            { lastOrder, updatedOrder, saveLog: true },
             `The last order has been updated. ${orderId} - ${side} - ${orderStatus}`
           );
 
-          queue.executeFor(logger, symbol);
+          queue.executeFor(symbolLogger, symbol);
         }
       };
 
