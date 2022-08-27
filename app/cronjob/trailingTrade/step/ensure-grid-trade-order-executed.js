@@ -7,7 +7,8 @@ const {
   getAPILimit,
   isExceedAPILimit,
   disableAction,
-  saveOrderStats
+  saveOrderStats,
+  refreshOpenOrdersAndAccountInfo
 } = require('../../trailingTradeHelper/common');
 
 const {
@@ -228,6 +229,16 @@ const execute = async (logger, rawData) => {
       // Remove grid trade last order
       await removeGridTradeLastOrder(logger, symbols, symbol, 'buy');
 
+      const {
+        accountInfo,
+        openOrders: updatedOpenOrders,
+        buyOpenOrders
+      } = await refreshOpenOrdersAndAccountInfo(logger, symbol);
+
+      data.accountInfo = accountInfo;
+      data.openOrders = updatedOpenOrders;
+      data.buy.openOrders = buyOpenOrders;
+
       slackMessageOrderFilled(
         logger,
         symbol,
@@ -261,6 +272,16 @@ const execute = async (logger, rawData) => {
       // If order is no longer available, then delete from cache
       await removeGridTradeLastOrder(logger, symbols, symbol, 'buy');
 
+      const {
+        accountInfo,
+        openOrders: updatedOpenOrders,
+        buyOpenOrders
+      } = await refreshOpenOrdersAndAccountInfo(logger, symbol);
+
+      data.accountInfo = accountInfo;
+      data.openOrders = updatedOpenOrders;
+      data.buy.openOrders = buyOpenOrders;
+
       slackMessageOrderDeleted(
         logger,
         symbol,
@@ -291,6 +312,16 @@ const execute = async (logger, rawData) => {
       // Remove grid trade last order
       await removeGridTradeLastOrder(logger, symbols, symbol, 'sell');
 
+      const {
+        accountInfo,
+        openOrders: updatedOpenOrders,
+        sellOpenOrders
+      } = await refreshOpenOrdersAndAccountInfo(logger, symbol);
+
+      data.accountInfo = accountInfo;
+      data.openOrders = updatedOpenOrders;
+      data.sell.openOrders = sellOpenOrders;
+
       slackMessageOrderFilled(
         logger,
         symbol,
@@ -314,6 +345,16 @@ const execute = async (logger, rawData) => {
     } else if (removeStatuses.includes(lastSellOrder.status)) {
       // If order is no longer available, then delete from cache
       await removeGridTradeLastOrder(logger, symbols, symbol, 'sell');
+
+      const {
+        accountInfo,
+        openOrders: updatedOpenOrders,
+        sellOpenOrders
+      } = await refreshOpenOrdersAndAccountInfo(logger, symbol);
+
+      data.accountInfo = accountInfo;
+      data.openOrders = updatedOpenOrders;
+      data.sell.openOrders = sellOpenOrders;
 
       slackMessageOrderDeleted(
         logger,
