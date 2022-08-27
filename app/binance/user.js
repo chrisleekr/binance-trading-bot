@@ -75,7 +75,6 @@ const setupUserWebsocket = async logger => {
         if (_.isEmpty(lastOrder) === false) {
           // Skip if the orderId is not match with the existing orderId
           // or Skip if the transaction time is older than the existing order transaction time
-          // Skip if if the creation time is older than the existing order creation time
           if (
             orderId !== lastOrder.orderId ||
             transactTime < lastOrder.transactTime
