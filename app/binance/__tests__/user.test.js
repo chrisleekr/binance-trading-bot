@@ -367,7 +367,6 @@ describe('user.js', () => {
             expect(mockUserClean).not.toHaveBeenCalled();
           });
         });
-
         describe('received transaction time < existing transaction time', () => {
           beforeEach(async () => {
             mockUserClean = jest.fn().mockResolvedValue(true);
