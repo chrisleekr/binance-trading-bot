@@ -966,7 +966,7 @@ const getCacheTrailingTradeSymbols = async (
         if: {
           $eq: ['$buy.difference', null]
         },
-        then: sortByDesc ? -999 : 999,
+        then: '$symbol',
         else: '$buy.difference'
       }
     };
@@ -978,7 +978,7 @@ const getCacheTrailingTradeSymbols = async (
         if: {
           $eq: ['$sell.currentProfitPercentage', null]
         },
-        then: sortByDesc ? -999 : 999,
+        then: '$symbol',
         else: '$sell.currentProfitPercentage'
       }
     };
