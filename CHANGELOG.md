@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Fixed sorting symbols by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#496](https://github.com/chrisleekr/binance-trading-bot/pull/496)
+
+Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) for your great contributions. 💯 :heart:
 ## [0.0.90] - 2022-08-27
 
 - Fixed handling execution report - [#495](https://github.com/chrisleekr/binance-trading-bot/pull/495)
