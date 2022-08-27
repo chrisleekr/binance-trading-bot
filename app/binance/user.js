@@ -73,8 +73,9 @@ const setupUserWebsocket = async logger => {
         );
 
         if (_.isEmpty(lastOrder) === false) {
+          // Skip if the orderId is not match with the existing orderId
+          // or Skip if the transaction time is older than the existing order transaction time
           // Skip if if the creation time is older than the existing order creation time
-          // This is helpful when we received a delayed event for any reason
           if (
             orderId !== lastOrder.orderId ||
             transactTime < lastOrder.transactTime
@@ -108,7 +109,7 @@ const setupUserWebsocket = async logger => {
             updatedOrder
           );
           symbolLogger.info(
-            { lastOrder, evt, saveLog: true },
+            { lastOrder, updatedOrder, saveLog: true },
             `The last order has been updated. ${orderId} - ${side} - ${orderStatus}`
           );
 
