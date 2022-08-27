@@ -2,8 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.0.90] - 2022-08-27
 
+- Fixed handling execution report - [#495](https://github.com/chrisleekr/binance-trading-bot/pull/495)
 - Fixed archiving grid order if all sell orders are executed - [#490](https://github.com/chrisleekr/binance-trading-bot/pull/490)
 - Update symbol delete action to remove override data - [#489](https://github.com/chrisleekr/binance-trading-bot/pull/489)
 - Improved performance with bulk write candles to DB by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#481](https://github.com/chrisleekr/binance-trading-bot/pull/481)
