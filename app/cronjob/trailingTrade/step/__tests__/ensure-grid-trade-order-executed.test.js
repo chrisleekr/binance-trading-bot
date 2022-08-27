@@ -14,6 +14,7 @@ describe('ensure-grid-trade-order-executed.js', () => {
   let mockIsExceedAPILimit;
   let mockDisableAction;
   let mockSaveOrderStats;
+  let mockRefreshOpenOrdersAndAccountInfo;
 
   let mockSaveSymbolGridTrade;
 
@@ -46,6 +47,14 @@ describe('ensure-grid-trade-order-executed.js', () => {
       mockIsExceedAPILimit = jest.fn().mockReturnValue(false);
       mockDisableAction = jest.fn().mockResolvedValue(true);
       mockSaveOrderStats = jest.fn().mockResolvedValue(true);
+      mockRefreshOpenOrdersAndAccountInfo = jest.fn().mockResolvedValue({
+        accountInfo: {
+          accountInfo: 'updated'
+        },
+        openOrders: [{ openOrders: 'retrieved' }],
+        buyOpenOrders: [{ buyOpenOrders: 'retrived' }],
+        sellOpenOrders: [{ sellOpenOrders: 'retrived' }]
+      });
 
       mockSaveSymbolGridTrade = jest.fn().mockResolvedValue(true);
 
@@ -62,7 +71,8 @@ describe('ensure-grid-trade-order-executed.js', () => {
           getAPILimit: mockGetAPILimit,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
-          saveOrderStats: mockSaveOrderStats
+          saveOrderStats: mockSaveOrderStats,
+          refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
         }));
 
         jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -146,6 +156,10 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
       it('does not trigger saveOrderStats', () => {
         expect(mockSaveOrderStats).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger refreshOpenOrdersAndAccountInfo', () => {
+        expect(mockRefreshOpenOrdersAndAccountInfo).not.toHaveBeenCalled();
       });
 
       it('does not trigger slack.sendMessage', () => {
@@ -337,7 +351,9 @@ describe('ensure-grid-trade-order-executed.js', () => {
               getAPILimit: mockGetAPILimit,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
-              saveOrderStats: mockSaveOrderStats
+              saveOrderStats: mockSaveOrderStats,
+              refreshOpenOrdersAndAccountInfo:
+                mockRefreshOpenOrdersAndAccountInfo
             }));
 
             jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -417,6 +433,13 @@ describe('ensure-grid-trade-order-executed.js', () => {
                   checkOrderExecutePeriod: 10,
                   temporaryDisableActionAfterConfirmingOrder: 20
                 }
+              },
+              openOrders: [],
+              buy: {
+                openOrders: []
+              },
+              sell: {
+                openOrders: []
               }
             };
 
@@ -447,6 +470,12 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
             it('does not trigger saveOrderStats', () => {
               expect(mockSaveOrderStats).not.toHaveBeenCalled();
+            });
+
+            it('does not trigger refreshOpenOrdersAndAccountInfo', () => {
+              expect(
+                mockRefreshOpenOrdersAndAccountInfo
+              ).not.toHaveBeenCalled();
             });
           } else if (t.lastBuyOrder.status.includes('FILLED')) {
             // do filled thing
@@ -485,6 +514,13 @@ describe('ensure-grid-trade-order-executed.js', () => {
                   canRemoveLastBuyPrice: false
                 },
                 20
+              );
+            });
+
+            it('triggers refreshOpenOrdersAndAccountInfo as order filled', () => {
+              expect(mockRefreshOpenOrdersAndAccountInfo).toHaveBeenCalledWith(
+                loggerMock,
+                t.symbol
               );
             });
 
@@ -549,6 +585,13 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 'BTCUSDT',
                 'BNBUSDT'
               ]);
+            });
+
+            it('triggers refreshOpenOrdersAndAccountInfo due to cancelled order', () => {
+              expect(mockRefreshOpenOrdersAndAccountInfo).toHaveBeenCalledWith(
+                loggerMock,
+                t.symbol
+              );
             });
 
             if (t.notifyOrderExecute === true) {
@@ -760,7 +803,9 @@ describe('ensure-grid-trade-order-executed.js', () => {
               getAPILimit: mockGetAPILimit,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
-              saveOrderStats: mockSaveOrderStats
+              saveOrderStats: mockSaveOrderStats,
+              refreshOpenOrdersAndAccountInfo:
+                mockRefreshOpenOrdersAndAccountInfo
             }));
 
             jest.mock('../../../trailingTradeHelper/configuration', () => ({
@@ -840,6 +885,13 @@ describe('ensure-grid-trade-order-executed.js', () => {
                   checkOrderExecutePeriod: 10,
                   temporaryDisableActionAfterConfirmingOrder: 20
                 }
+              },
+              openOrders: [],
+              buy: {
+                openOrders: []
+              },
+              sell: {
+                openOrders: []
               }
             };
 
@@ -882,6 +934,13 @@ describe('ensure-grid-trade-order-executed.js', () => {
               expect(mockDeleteGridTradeOrder).toHaveBeenCalledWith(
                 loggerMock,
                 `${t.symbol}-grid-trade-last-sell-order`
+              );
+            });
+
+            it('triggers refreshOpenOrdersAndAccountInfo as order filled', () => {
+              expect(mockRefreshOpenOrdersAndAccountInfo).toHaveBeenCalledWith(
+                loggerMock,
+                t.symbol
               );
             });
 
@@ -942,6 +1001,13 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 'BTCUSDT',
                 'BNBUSDT'
               ]);
+            });
+
+            it('triggers refreshOpenOrdersAndAccountInfo due to cancelled order', () => {
+              expect(mockRefreshOpenOrdersAndAccountInfo).toHaveBeenCalledWith(
+                loggerMock,
+                t.symbol
+              );
             });
 
             it('triggers slack.sendMessage due to cancelled order', () => {
