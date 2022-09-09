@@ -1320,6 +1320,8 @@ class SettingIcon extends React.Component {
                 botOptions={configuration.botOptions}
                 handleBotOptionsChange={this.handleBotOptionsChange}
               />
+
+              <SettingIconActions />
             </Modal.Body>
             <Modal.Footer>
               <div className='w-100'>

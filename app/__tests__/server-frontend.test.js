@@ -11,6 +11,7 @@ describe('server-frontend', () => {
 
   let mockCompression;
   let mockCors;
+  let mockFileUpload;
 
   let mockConfigureWebServer;
   let mockConfigureWebSocket;
@@ -42,6 +43,7 @@ describe('server-frontend', () => {
 
     mockCompression = jest.fn().mockReturnValue(true);
     mockCors = jest.fn().mockReturnValue(true);
+    mockFileUpload = jest.fn().mockReturnValue(true);
 
     mockRateLimiterRedisGet = jest.fn().mockReturnValue({ remainingPoints: 5 });
     mockRateLimiterRedis = jest.fn().mockImplementation(() => ({
@@ -81,6 +83,8 @@ describe('server-frontend', () => {
         mockCompression();
       } else if (fn.name === 'corsMiddleware') {
         mockCors();
+      } else if (fn.name === 'fileUpload') {
+        mockFileUpload();
       } else if (fn.name === 'rateLimiterMiddleware') {
         await fn(
           mockRateLimiterMiddlewareReq,

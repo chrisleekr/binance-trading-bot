@@ -234,7 +234,8 @@ input[type='number'] {
   grid-gap: 0.5rem;
 }
 
-.account-wrapper-assets {}
+.account-wrapper-assets {
+}
 
 .account-wrapper-body {
   -webkit-border-radius: 10px;
@@ -1016,3 +1017,28 @@ input[type='number'] {
 /**
   End: Animation
 */
+
+/**
+  Start: Dropzone
+**/
+.dropzone {
+  text-align: center;
+  padding: 30px;
+  border: 3px dashed #eeeeee;
+  background-color: #fafafa;
+  color: #bdbdbd;
+  cursor: pointer;
+  margin-bottom: 20px;
+}
+
+.selected-file-wrapper {
+  text-align: center;
+}
+
+.selected-file {
+  color: #000;
+  font-weight: bold;
+}
+/**
+  End: Dropzone
+**/
