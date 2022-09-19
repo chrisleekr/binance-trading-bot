@@ -103,6 +103,15 @@ describe('webserver/handlers/backup-get', () => {
         );
       });
 
+      it('triggers shell.exec', () => {
+        expect(shellMock.exec).toHaveBeenCalledWith(
+          expect.stringContaining(
+            `${process.cwd()}/scripts/backup.sh binance-mongo 27017 binance-bot`
+          ),
+          expect.any(Function)
+        );
+      });
+
       it('return failed', () => {
         expect(rsSend).toHaveBeenCalledWith({
           success: false,

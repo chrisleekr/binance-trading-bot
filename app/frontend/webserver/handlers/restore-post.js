@@ -1,4 +1,5 @@
 const shell = require('shelljs');
+const config = require('config');
 const {
   verifyAuthenticated
 } = require('../../../cronjob/trailingTradeHelper/common');
@@ -33,7 +34,9 @@ const handleRestorePost = async (funcLogger, app) => {
 
     const result = await new Promise(resolve => {
       shell.exec(
-        `${process.cwd()}/scripts/restore.sh ${filepath}`,
+        `${process.cwd()}/scripts/restore.sh ${config.get(
+          'mongo.host'
+        )} ${config.get('mongo.port')} ${filepath}`,
         (code, stdout, stderr) => {
           resolve({ code, stdout, stderr });
         }

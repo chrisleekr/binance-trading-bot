@@ -168,6 +168,15 @@ describe('webserver/handlers/restore-post', () => {
         );
       });
 
+      it('triggers shell.exec', () => {
+        expect(shellMock.exec).toHaveBeenCalledWith(
+          expect.stringContaining(
+            `${process.cwd()}/scripts/restore.sh binance-mongo 27017`
+          ),
+          expect.any(Function)
+        );
+      });
+
       it('return success', () => {
         expect(rsSend).toHaveBeenCalledWith({
           success: true,

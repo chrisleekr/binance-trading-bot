@@ -1,4 +1,5 @@
 const shell = require('shelljs');
+const config = require('config');
 const moment = require('moment');
 const {
   verifyAuthenticated
@@ -34,7 +35,11 @@ const handleBackupGet = async (funcLogger, app) => {
 
     const result = await new Promise(resolve => {
       shell.exec(
-        `${process.cwd()}/scripts/backup.sh ${filepath}`,
+        `${process.cwd()}/scripts/backup.sh ${config.get(
+          'mongo.host'
+        )} ${config.get('mongo.port')} ${config.get(
+          'mongo.database'
+        )} ${filepath}`,
         (code, stdout, stderr) => {
           resolve({ code, stdout, stderr });
         }
