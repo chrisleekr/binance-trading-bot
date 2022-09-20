@@ -5,6 +5,7 @@ const path = require('path');
 const config = require('config');
 const requestIp = require('request-ip');
 const { RateLimiterRedis } = require('rate-limiter-flexible');
+const fileUpload = require('express-fileupload');
 
 const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
 const { cache } = require('./helpers');
@@ -38,7 +39,13 @@ const runFrontend = async serverLogger => {
   app.use(cors());
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
-
+  app.use(
+    fileUpload({
+      safeFileNames: true,
+      useTempFiles: true,
+      tempFileDir: '/tmp/'
+    })
+  );
   app.use(express.static(path.join(__dirname, '/../public')));
 
   // Must configure bull board before listen.

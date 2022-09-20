@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 - Fixed sorting symbols by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#496](https://github.com/chrisleekr/binance-trading-bot/pull/496)
+- Added backup/restore functions - [#501](https://github.com/chrisleekr/binance-trading-bot/pull/501)
 
 Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) for your great contributions. 💯 :heart:
 

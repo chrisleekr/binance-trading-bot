@@ -14,6 +14,7 @@ services:
       - ./app:/srv/app
       - ./public:/srv/public
       - ./migrations:/srv/migrations
+      - ./scripts:/srv/scripts
     env_file:
       - .env
     restart: unless-stopped
