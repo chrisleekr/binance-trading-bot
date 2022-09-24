@@ -2,9 +2,6 @@ name: Push
 
 on: [push, workflow_dispatch]
 
-env:
-  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
 jobs:
   lint-and-test:
     name: Lint & Test
@@ -18,7 +15,8 @@ jobs:
           npm install
           npm run lint
           npm run test
-          bash <(curl -s https://codecov.io/bash)
+      - name: Uploading test coverage
+        uses: codecov/codecov-action@v3
 
   docker-images:
     name: Build/Push development docker image

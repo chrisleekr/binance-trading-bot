@@ -10,6 +10,9 @@ describe('setting-update.test.js', () => {
 
   let cacheMock;
   let mockLogger;
+  let PubSubMock;
+
+  let config;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -27,6 +30,46 @@ describe('setting-update.test.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    jest.mock('config');
+    config = require('config');
+
+    config.get = jest.fn(key => {
+      if (key === 'demoMode') {
+        return false;
+      }
+      return null;
+    });
+  });
+
+  describe('when demoMode is enabled', () => {
+    beforeEach(async () => {
+      const { cache, logger, PubSub } = require('../../../../helpers');
+      mockLogger = logger;
+      cacheMock = cache;
+      PubSubMock = PubSub;
+
+      PubSubMock.publish = jest.fn();
+
+      config.get = jest.fn(key => {
+        if (key === 'demoMode') {
+          return true;
+        }
+        return null;
+      });
+
+      const { handleSettingUpdate } = require('../setting-update');
+      handleSettingUpdate(logger, mockWebSocketServer, {
+        data: { newField: 'value' }
+      });
+    });
+
+    it('triggers PubSub.publish', () => {
+      expect(PubSubMock.publish).toHaveBeenCalledWith('frontend-notification', {
+        type: 'warning',
+        title: `You cannot update settings in the demo mode.`
+      });
+    });
   });
 
   describe('when configuration returns null for some reason', () => {
