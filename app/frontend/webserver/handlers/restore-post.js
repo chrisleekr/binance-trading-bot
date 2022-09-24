@@ -12,6 +12,15 @@ const handleRestorePost = async (funcLogger, app) => {
   });
 
   app.route('/restore').post(async (req, res) => {
+    if (config.get('demoMode')) {
+      return res.send({
+        success: false,
+        status: 403,
+        message: 'You cannot restore database in the demo mode.',
+        data: {}
+      });
+    }
+
     const authToken = req.header('X-AUTH-TOKEN');
 
     // Verify authentication

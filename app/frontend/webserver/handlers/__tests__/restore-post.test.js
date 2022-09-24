@@ -3,6 +3,7 @@ describe('webserver/handlers/restore-post', () => {
   let loggerMock;
 
   let shellMock;
+  let config;
 
   let rsSend;
   let archiveMv;
@@ -30,6 +31,55 @@ describe('webserver/handlers/restore-post', () => {
         func(postReq, { send: rsSend });
       })
     }));
+
+    jest.mock('config');
+    config = require('config');
+
+    config.get = jest.fn(key => {
+      switch (key) {
+        case 'demoMode':
+          return false;
+        case 'mongo.host':
+          return 'binance-mongo';
+        case 'mongo.port':
+          return 27017;
+        default:
+          return null;
+      }
+    });
+  });
+
+  describe('when it is demo mode', () => {
+    beforeEach(async () => {
+      const { logger } = require('../../../../helpers');
+
+      loggerMock = logger;
+
+      config.get = jest.fn(key => {
+        switch (key) {
+          case 'demoMode':
+            return true;
+          default:
+            return null;
+        }
+      });
+
+      postReq = {
+        header: () => 'some token'
+      };
+      const { handleRestorePost } = require('../restore-post');
+
+      await handleRestorePost(loggerMock, appMock);
+    });
+
+    it('return unauthorised', () => {
+      expect(rsSend).toHaveBeenCalledWith({
+        success: false,
+        status: 403,
+        message: 'You cannot restore database in the demo mode.',
+        data: {}
+      });
+    });
   });
 
   describe('when verification failed', () => {
