@@ -172,11 +172,15 @@ class SettingIconActionRestoreConfirmModal extends React.Component {
           {message ? (
             <div className='message-wrapper'>
               <p className='text-danger'>{message}</p>
-              <textarea
-                className='w-100'
-                style={{ height: '500px' }}
-                value={`${stderr}${stdout}`}
-                readOnly></textarea>
+              {stderr || stdout ? (
+                <textarea
+                  className='w-100'
+                  style={{ height: '500px' }}
+                  value={`${stderr || ''}${stdout || ''}`}
+                  readOnly></textarea>
+              ) : (
+                ''
+              )}
             </div>
           ) : (
             ''
