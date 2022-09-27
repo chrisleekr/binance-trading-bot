@@ -8,7 +8,7 @@ describe('place-sell-stop-loss-order.js', () => {
   let slackMock;
   let loggerMock;
 
-  let mockGetAccountInfo;
+  let mockGetAccountInfoFromAPI;
   let mockIsExceedAPILimit;
   let mockDisableAction;
   let mockGetAPILimit;
@@ -42,12 +42,12 @@ describe('place-sell-stop-loss-order.js', () => {
     describe('when symbol is locked', () => {
       beforeEach(async () => {
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-        mockGetAccountInfo = jest.fn().mockResolvedValue({
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
           account: 'info'
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfo: mockGetAccountInfo,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
           getAPILimit: mockGetAPILimit,
@@ -100,8 +100,8 @@ describe('place-sell-stop-loss-order.js', () => {
         expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
-      it('does not trigger getAccountInfo', () => {
-        expect(mockGetAccountInfo).not.toHaveBeenCalled();
+      it('does not trigger getAccountInfoFromAPI', () => {
+        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveSymbolGridTrade', () => {
@@ -116,12 +116,12 @@ describe('place-sell-stop-loss-order.js', () => {
     describe('when action is not sell-stop-loss', () => {
       beforeEach(async () => {
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-        mockGetAccountInfo = jest.fn().mockResolvedValue({
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
           account: 'info'
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfo: mockGetAccountInfo,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
           getAPILimit: mockGetAPILimit,
@@ -174,8 +174,8 @@ describe('place-sell-stop-loss-order.js', () => {
         expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
-      it('does not trigger getAccountInfo', () => {
-        expect(mockGetAccountInfo).not.toHaveBeenCalled();
+      it('does not trigger getAccountInfoFromAPI', () => {
+        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveSymbolGridTrade', () => {
@@ -190,12 +190,12 @@ describe('place-sell-stop-loss-order.js', () => {
     describe('when open orders exist', () => {
       beforeEach(async () => {
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-        mockGetAccountInfo = jest.fn().mockResolvedValue({
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
           account: 'info'
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfo: mockGetAccountInfo,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
           getAPILimit: mockGetAPILimit,
@@ -260,8 +260,8 @@ describe('place-sell-stop-loss-order.js', () => {
         expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
-      it('does not trigger getAccountInfo', () => {
-        expect(mockGetAccountInfo).not.toHaveBeenCalled();
+      it('does not trigger getAccountInfoFromAPI', () => {
+        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveSymbolGridTrade', () => {
@@ -297,12 +297,12 @@ describe('place-sell-stop-loss-order.js', () => {
       describe('BTCUPUSDT', () => {
         beforeEach(async () => {
           mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-          mockGetAccountInfo = jest.fn().mockResolvedValue({
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
             account: 'info'
           });
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAccountInfo: mockGetAccountInfo,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             disableAction: mockDisableAction,
             getAPILimit: mockGetAPILimit,
@@ -358,8 +358,8 @@ describe('place-sell-stop-loss-order.js', () => {
           expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
         });
 
-        it('does not trigger getAccountInfo', () => {
-          expect(mockGetAccountInfo).not.toHaveBeenCalled();
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
         it('does not trigger saveSymbolGridTrade', () => {
@@ -386,12 +386,12 @@ describe('place-sell-stop-loss-order.js', () => {
       describe('ALPHABTC', () => {
         beforeEach(async () => {
           mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-          mockGetAccountInfo = jest.fn().mockResolvedValue({
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
             account: 'info'
           });
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAccountInfo: mockGetAccountInfo,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             disableAction: mockDisableAction,
             getAPILimit: mockGetAPILimit,
@@ -447,8 +447,8 @@ describe('place-sell-stop-loss-order.js', () => {
           expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
         });
 
-        it('does not trigger getAccountInfo', () => {
-          expect(mockGetAccountInfo).not.toHaveBeenCalled();
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
         it('does not trigger saveSymbolGridTrade', () => {
@@ -475,12 +475,12 @@ describe('place-sell-stop-loss-order.js', () => {
       describe('BTCBRL', () => {
         beforeEach(async () => {
           mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-          mockGetAccountInfo = jest.fn().mockResolvedValue({
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
             account: 'info'
           });
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAccountInfo: mockGetAccountInfo,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             disableAction: mockDisableAction,
             getAPILimit: mockGetAPILimit,
@@ -536,8 +536,8 @@ describe('place-sell-stop-loss-order.js', () => {
           expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
         });
 
-        it('does not trigger getAccountInfo', () => {
-          expect(mockGetAccountInfo).not.toHaveBeenCalled();
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
         it('does not trigger saveSymbolGridTrade', () => {
@@ -566,12 +566,12 @@ describe('place-sell-stop-loss-order.js', () => {
       describe('BTCUPUSDT', () => {
         beforeEach(async () => {
           mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-          mockGetAccountInfo = jest.fn().mockResolvedValue({
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
             account: 'info'
           });
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAccountInfo: mockGetAccountInfo,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             disableAction: mockDisableAction,
             getAPILimit: mockGetAPILimit,
@@ -627,8 +627,8 @@ describe('place-sell-stop-loss-order.js', () => {
           expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
         });
 
-        it('does not trigger getAccountInfo', () => {
-          expect(mockGetAccountInfo).not.toHaveBeenCalled();
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
         it('does not trigger saveSymbolGridTrade', () => {
@@ -654,12 +654,12 @@ describe('place-sell-stop-loss-order.js', () => {
       describe('ALPHABTC', () => {
         beforeEach(async () => {
           mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-          mockGetAccountInfo = jest.fn().mockResolvedValue({
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
             account: 'info'
           });
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAccountInfo: mockGetAccountInfo,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             disableAction: mockDisableAction,
             getAPILimit: mockGetAPILimit,
@@ -715,8 +715,8 @@ describe('place-sell-stop-loss-order.js', () => {
           expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
         });
 
-        it('does not trigger getAccountInfo', () => {
-          expect(mockGetAccountInfo).not.toHaveBeenCalled();
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
         it('does not trigger saveSymbolGridTrade', () => {
@@ -742,12 +742,12 @@ describe('place-sell-stop-loss-order.js', () => {
       describe('BTCBRL', () => {
         beforeEach(async () => {
           mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-          mockGetAccountInfo = jest.fn().mockResolvedValue({
+          mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
             account: 'info'
           });
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAccountInfo: mockGetAccountInfo,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             disableAction: mockDisableAction,
             getAPILimit: mockGetAPILimit,
@@ -803,8 +803,8 @@ describe('place-sell-stop-loss-order.js', () => {
           expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
         });
 
-        it('does not trigger getAccountInfo', () => {
-          expect(mockGetAccountInfo).not.toHaveBeenCalled();
+        it('does not trigger getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
         });
 
         it('does not trigger saveSymbolGridTrade', () => {
@@ -831,12 +831,12 @@ describe('place-sell-stop-loss-order.js', () => {
     describe('when trading is disabled', () => {
       beforeEach(async () => {
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-        mockGetAccountInfo = jest.fn().mockResolvedValue({
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
           account: 'info'
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfo: mockGetAccountInfo,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
           getAPILimit: mockGetAPILimit,
@@ -892,8 +892,8 @@ describe('place-sell-stop-loss-order.js', () => {
         expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
-      it('does not trigger getAccountInfo', () => {
-        expect(mockGetAccountInfo).not.toHaveBeenCalled();
+      it('does not trigger getAccountInfoFromAPI', () => {
+        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveSymbolGridTrade', () => {
@@ -921,12 +921,12 @@ describe('place-sell-stop-loss-order.js', () => {
         mockIsExceedAPILimit = jest.fn().mockReturnValue(true);
 
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-        mockGetAccountInfo = jest.fn().mockResolvedValue({
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
           account: 'info'
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfo: mockGetAccountInfo,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
           getAPILimit: mockGetAPILimit,
@@ -982,8 +982,8 @@ describe('place-sell-stop-loss-order.js', () => {
         expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
-      it('does not trigger getAccountInfo', () => {
-        expect(mockGetAccountInfo).not.toHaveBeenCalled();
+      it('does not trigger getAccountInfoFromAPI', () => {
+        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveSymbolGridTrade', () => {
@@ -1009,12 +1009,12 @@ describe('place-sell-stop-loss-order.js', () => {
     describe('when stop loss order type is not market', () => {
       beforeEach(async () => {
         mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-        mockGetAccountInfo = jest.fn().mockResolvedValue({
+        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
           account: 'info'
         });
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfo: mockGetAccountInfo,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           disableAction: mockDisableAction,
           getAPILimit: mockGetAPILimit,
@@ -1070,8 +1070,8 @@ describe('place-sell-stop-loss-order.js', () => {
         expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
-      it('does not trigger getAccountInfo', () => {
-        expect(mockGetAccountInfo).not.toHaveBeenCalled();
+      it('does not trigger getAccountInfoFromAPI', () => {
+        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveSymbolGridTrade', () => {
@@ -1107,7 +1107,7 @@ describe('place-sell-stop-loss-order.js', () => {
                 type: 'MARKET'
               }
             ]);
-            mockGetAccountInfo = jest.fn().mockResolvedValue({
+            mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
               account: 'info'
             });
 
@@ -1120,7 +1120,7 @@ describe('place-sell-stop-loss-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfo: mockGetAccountInfo,
+              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
               getAPILimit: mockGetAPILimit,
@@ -1217,8 +1217,8 @@ describe('place-sell-stop-loss-order.js', () => {
             );
           });
 
-          it('triggers getAccountInfo', () => {
-            expect(mockGetAccountInfo).toHaveBeenCalled();
+          it('triggers getAccountInfoFromAPI', () => {
+            expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
           });
 
           it('triggers saveSymbolGridTrade', () => {
@@ -1299,7 +1299,7 @@ describe('place-sell-stop-loss-order.js', () => {
                 type: 'MARKET'
               }
             ]);
-            mockGetAccountInfo = jest.fn().mockResolvedValue({
+            mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
               account: 'info'
             });
 
@@ -1312,7 +1312,7 @@ describe('place-sell-stop-loss-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfo: mockGetAccountInfo,
+              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
               getAPILimit: mockGetAPILimit,
@@ -1416,8 +1416,8 @@ describe('place-sell-stop-loss-order.js', () => {
             );
           });
 
-          it('triggers getAccountInfo', () => {
-            expect(mockGetAccountInfo).toHaveBeenCalled();
+          it('triggers getAccountInfoFromAPI', () => {
+            expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
           });
 
           it('triggers saveSymbolGridTrade', () => {
@@ -1505,7 +1505,7 @@ describe('place-sell-stop-loss-order.js', () => {
                 type: 'MARKET'
               }
             ]);
-            mockGetAccountInfo = jest.fn().mockResolvedValue({
+            mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
               account: 'info'
             });
 
@@ -1518,7 +1518,7 @@ describe('place-sell-stop-loss-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfo: mockGetAccountInfo,
+              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
               getAPILimit: mockGetAPILimit,
@@ -1622,8 +1622,8 @@ describe('place-sell-stop-loss-order.js', () => {
             );
           });
 
-          it('triggers getAccountInfo', () => {
-            expect(mockGetAccountInfo).toHaveBeenCalled();
+          it('triggers getAccountInfoFromAPI', () => {
+            expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
           });
 
           it('triggers saveSymbolGridTrade', () => {
@@ -1713,7 +1713,7 @@ describe('place-sell-stop-loss-order.js', () => {
                 type: 'MARKET'
               }
             ]);
-            mockGetAccountInfo = jest.fn().mockResolvedValue({
+            mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
               account: 'info'
             });
 
@@ -1726,7 +1726,7 @@ describe('place-sell-stop-loss-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfo: mockGetAccountInfo,
+              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
               getAPILimit: mockGetAPILimit,
@@ -1820,8 +1820,8 @@ describe('place-sell-stop-loss-order.js', () => {
             );
           });
 
-          it('triggers getAccountInfo', () => {
-            expect(mockGetAccountInfo).toHaveBeenCalled();
+          it('triggers getAccountInfoFromAPI', () => {
+            expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
           });
 
           it('does not trigger saveSymbolGridTrade', () => {
@@ -1909,7 +1909,7 @@ describe('place-sell-stop-loss-order.js', () => {
                 type: 'MARKET'
               }
             ]);
-            mockGetAccountInfo = jest.fn().mockResolvedValue({
+            mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
               account: 'info'
             });
 
@@ -1922,7 +1922,7 @@ describe('place-sell-stop-loss-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfo: mockGetAccountInfo,
+              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
               getAPILimit: mockGetAPILimit,
@@ -2016,8 +2016,8 @@ describe('place-sell-stop-loss-order.js', () => {
             );
           });
 
-          it('triggers getAccountInfo', () => {
-            expect(mockGetAccountInfo).toHaveBeenCalled();
+          it('triggers getAccountInfoFromAPI', () => {
+            expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
           });
 
           it('triggers saveSymbolGridTrade', () => {
@@ -2105,7 +2105,7 @@ describe('place-sell-stop-loss-order.js', () => {
                 type: 'MARKET'
               }
             ]);
-            mockGetAccountInfo = jest.fn().mockResolvedValue({
+            mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
               account: 'info'
             });
 
@@ -2118,7 +2118,7 @@ describe('place-sell-stop-loss-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfo: mockGetAccountInfo,
+              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               disableAction: mockDisableAction,
               getAPILimit: mockGetAPILimit,
@@ -2212,8 +2212,8 @@ describe('place-sell-stop-loss-order.js', () => {
             );
           });
 
-          it('triggers getAccountInfo', () => {
-            expect(mockGetAccountInfo).toHaveBeenCalled();
+          it('triggers getAccountInfoFromAPI', () => {
+            expect(mockGetAccountInfoFromAPI).toHaveBeenCalled();
           });
 
           it('triggers saveSymbolGridTrade', () => {

@@ -2,8 +2,8 @@ const moment = require('moment');
 const { binance, slack, PubSub } = require('../../../helpers');
 const {
   getAPILimit,
-  getAccountInfo,
-  getAndCacheOpenOrdersForSymbol
+  getAndCacheOpenOrdersForSymbol,
+  getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
 const { saveManualOrder } = require('../../trailingTradeHelper/order');
 
@@ -273,7 +273,7 @@ const execute = async (logger, rawData) => {
     o => o.side.toLowerCase() === 'sell'
   );
   // Refresh account info
-  data.accountInfo = await getAccountInfo(logger);
+  data.accountInfo = await getAccountInfoFromAPI(logger);
 
   slackMessageOrderResult(logger, symbol, order.side, order, orderResult);
 

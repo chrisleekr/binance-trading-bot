@@ -1,66 +1,13 @@
 /* eslint-disable no-await-in-loop */
 const moment = require('moment');
 
-const _ = require('lodash');
 const {
   cancelOrder,
-  updateAccountInfo,
   saveOverrideAction,
   isExceedingMaxOpenTrades,
-  refreshOpenOrdersAndAccountInfo
+  refreshOpenOrdersAndAccountInfo,
+  getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
-
-const processSuccessfulBuyOrderCancel = async (logger, data, order) => {
-  const {
-    symbolInfo: { quoteAsset }
-  } = data;
-
-  const orderAmount = order.origQty * order.price;
-
-  // Immediately update the balance of "quote" asset when the order is canceled so that
-  // we don't have to wait for the websocket because the next action is buy
-  const balances = [
-    {
-      asset: quoteAsset,
-      free: _.toNumber(data.quoteAssetBalance.free) + _.toNumber(orderAmount),
-      locked:
-        _.toNumber(data.quoteAssetBalance.locked) - _.toNumber(orderAmount)
-    }
-  ];
-
-  // Refresh account info
-  const accountInfo = await updateAccountInfo(
-    logger,
-    balances,
-    moment().toISOString()
-  );
-
-  return { accountInfo };
-};
-
-const processSuccessfulSellOrderCancel = async (logger, data, order) => {
-  const {
-    symbolInfo: { baseAsset }
-  } = data;
-
-  const balances = [
-    {
-      asset: baseAsset,
-      free: _.toNumber(data.baseAssetBalance.free) + _.toNumber(order.origQty),
-      locked:
-        _.toNumber(data.baseAssetBalance.locked) - _.toNumber(order.origQty)
-    }
-  ];
-
-  // Refresh account info
-  const accountInfo = await updateAccountInfo(
-    logger,
-    balances,
-    moment().toISOString()
-  );
-
-  return { accountInfo };
-};
 
 /**
  *
@@ -134,12 +81,7 @@ const execute = async (logger, rawData) => {
         } else {
           data.buy.openOrders = [];
 
-          const { accountInfo } = await processSuccessfulBuyOrderCancel(
-            logger,
-            data,
-            order
-          );
-          data.accountInfo = accountInfo;
+          data.accountInfo = await getAccountInfoFromAPI(logger);
         }
       } else if (parseFloat(order.stopPrice) >= buyLimitPrice) {
         // Is the stop price is higher than current limit price?
@@ -185,12 +127,7 @@ const execute = async (logger, rawData) => {
           // Set action as buy
           data.action = 'buy';
 
-          const { accountInfo } = await processSuccessfulBuyOrderCancel(
-            logger,
-            data,
-            order
-          );
-          data.accountInfo = accountInfo;
+          data.accountInfo = await getAccountInfoFromAPI(logger);
         }
       } else {
         logger.info(
@@ -235,16 +172,8 @@ const execute = async (logger, rawData) => {
           // Set action as sell
           data.action = 'sell';
 
-          // Immediately update the balance of "base" asset when the order is canceled so that
-          // we don't have to wait for the websocket because the next action is sell
-          const { accountInfo } = await processSuccessfulSellOrderCancel(
-            logger,
-            data,
-            order
-          );
-
           // Refresh account info
-          data.accountInfo = accountInfo;
+          data.accountInfo = await getAccountInfoFromAPI(logger);
         }
       } else {
         logger.info(
