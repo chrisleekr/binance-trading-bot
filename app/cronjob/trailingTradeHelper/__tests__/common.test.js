@@ -3347,12 +3347,18 @@ describe('common.js', () => {
         }
       ]);
 
+      binanceMock.client.accountInfo = jest.fn().mockResolvedValue({
+        account: 'updated',
+        balances: [
+          {
+            asset: 'USDT',
+            free: 50.0179958,
+            locked: 0
+          }
+        ]
+      });
+
       cacheMock.hset = jest.fn().mockResolvedValue(true);
-      cacheMock.hgetWithoutLock = jest.fn().mockResolvedValue(
-        JSON.stringify({
-          accountInfo: 'updated'
-        })
-      );
 
       commonHelper = require('../common');
       result = await commonHelper.refreshOpenOrdersAndAccountInfo(
@@ -3365,14 +3371,21 @@ describe('common.js', () => {
       expect(binanceMock.client.openOrders).toHaveBeenCalled();
     });
 
-    it('triggers cache.hgetWithoutLock', () => {
-      expect(cacheMock.hgetWithoutLock).toHaveBeenCalled();
+    it('triggers cache.hset', () => {
+      expect(cacheMock.hset).toHaveBeenCalled();
     });
 
     it('returns expected results', () => {
       expect(result).toStrictEqual({
         accountInfo: {
-          accountInfo: 'updated'
+          account: 'updated',
+          balances: [
+            {
+              asset: 'USDT',
+              free: 50.0179958,
+              locked: 0
+            }
+          ]
         },
         openOrders: [
           {

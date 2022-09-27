@@ -2,8 +2,8 @@ const moment = require('moment');
 const { binance, slack, PubSub } = require('../../../helpers');
 const {
   getAPILimit,
-  getAccountInfo,
-  getAndCacheOpenOrdersForSymbol
+  getAndCacheOpenOrdersForSymbol,
+  getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
 const { deleteManualOrder } = require('../../trailingTradeHelper/order');
 
@@ -67,7 +67,7 @@ const execute = async (logger, rawData) => {
   );
 
   // Refresh account info
-  data.accountInfo = await getAccountInfo(logger);
+  data.accountInfo = await getAccountInfoFromAPI(logger);
 
   PubSub.publish('frontend-notification', {
     type: 'success',

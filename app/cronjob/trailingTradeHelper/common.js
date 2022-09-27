@@ -175,7 +175,7 @@ const getAccountInfoFromAPI = async logger => {
 };
 
 /**
- * Retreive account info from cache
+ * Retrieve account info from cache
  *  If empty, retrieve from API
  *
  * @param {*} logger
@@ -1137,7 +1137,7 @@ const refreshOpenOrdersAndAccountInfo = async (logger, symbol) => {
   const openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
 
   // Refresh account info
-  const accountInfo = await getAccountInfo(logger);
+  const accountInfo = await getAccountInfoFromAPI(logger);
 
   const buyOpenOrders = openOrders.filter(o => o.side.toLowerCase() === 'buy');
 

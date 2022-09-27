@@ -8,7 +8,7 @@ describe('place-manual-trade.js', () => {
   let slackMock;
   let loggerMock;
 
-  let mockGetAccountInfo;
+  let mockGetAccountInfoFromAPI;
   let mockGetAPILimit;
   let mockGetAndCacheOpenOrdersForSymbol;
 
@@ -32,7 +32,7 @@ describe('place-manual-trade.js', () => {
     slackMock.sendMessage = jest.fn().mockResolvedValue(true);
     binanceMock.client.order = jest.fn().mockResolvedValue(true);
 
-    mockGetAccountInfo = jest.fn().mockResolvedValue({
+    mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
       account: 'info'
     });
 
@@ -45,7 +45,7 @@ describe('place-manual-trade.js', () => {
   describe('when symbol is locked', () => {
     beforeEach(async () => {
       jest.mock('../../../trailingTradeHelper/common', () => ({
-        getAccountInfo: mockGetAccountInfo,
+        getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
         getAPILimit: mockGetAPILimit,
         getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
       }));
@@ -97,7 +97,7 @@ describe('place-manual-trade.js', () => {
   describe('when action is not manual-trade', () => {
     beforeEach(async () => {
       jest.mock('../../../trailingTradeHelper/common', () => ({
-        getAccountInfo: mockGetAccountInfo,
+        getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
         getAPILimit: mockGetAPILimit,
         getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
       }));
@@ -770,7 +770,7 @@ describe('place-manual-trade.js', () => {
           );
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfo: mockGetAccountInfo,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           getAPILimit: mockGetAPILimit,
           getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
         }));
@@ -832,7 +832,7 @@ describe('place-manual-trade.js', () => {
   describe('when unknown order side/type is provided', () => {
     beforeEach(async () => {
       jest.mock('../../../trailingTradeHelper/common', () => ({
-        getAccountInfo: mockGetAccountInfo,
+        getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
         getAPILimit: mockGetAPILimit,
         getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
       }));
