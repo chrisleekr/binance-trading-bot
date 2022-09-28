@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.0.91] - 2022-08-28
 
 - Fixed sorting symbols by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#496](https://github.com/chrisleekr/binance-trading-bot/pull/496)
 - Added backup/restore functions - [#501](https://github.com/chrisleekr/binance-trading-bot/pull/501)
