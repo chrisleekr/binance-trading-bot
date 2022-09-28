@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 - Fixed sorting symbols by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#496](https://github.com/chrisleekr/binance-trading-bot/pull/496)
 - Added backup/restore functions - [#501](https://github.com/chrisleekr/binance-trading-bot/pull/501)
 - Added demo mode - [#509](https://github.com/chrisleekr/binance-trading-bot/pull/509)
+- Fixed account balance calculation by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#514]([https://github.com/chrisleekr/binance-trading-bot/pull/496](https://github.com/chrisleekr/binance-trading-bot/pull/514))
 
 Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) for your great contributions. 💯 :heart:
 
