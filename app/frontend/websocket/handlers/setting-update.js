@@ -1,5 +1,6 @@
 const _ = require('lodash');
-const { cache } = require('../../../helpers');
+const config = require('config');
+const { cache, PubSub } = require('../../../helpers');
 const {
   getGlobalConfiguration,
   saveGlobalConfiguration,
@@ -30,6 +31,14 @@ const deleteAllCachedSymbolInfo = async logger => {
 
 const handleSettingUpdate = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start setting update');
+
+  if (config.get('demoMode')) {
+    PubSub.publish('frontend-notification', {
+      type: 'warning',
+      title: `You cannot update settings in the demo mode.`
+    });
+    return;
+  }
 
   const { data: newConfiguration } = payload;
 

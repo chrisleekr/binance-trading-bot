@@ -107,7 +107,10 @@ describe('get-closed-trades.js', () => {
                 stopLossQuoteQty: 70,
                 profit: 80,
                 profitPercentage: 90,
-                trades: 100
+                trades: 100,
+                lastProfit: 110,
+                lastSymbol: 'BTCUSDT',
+                lastArchivedAt: '2022-08-17T21:04:47.017Z'
               }
             ]);
 
@@ -149,7 +152,10 @@ describe('get-closed-trades.js', () => {
                     sellManualQuoteQty: { $sum: '$sellManualQuoteQty' },
                     stopLossQuoteQty: { $sum: '$stopLossQuoteQty' },
                     profit: { $sum: '$profit' },
-                    trades: { $sum: 1 }
+                    trades: { $sum: 1 },
+                    lastProfit: { $last: '$profit' },
+                    lastSymbol: { $last: '$symbol' },
+                    lastArchivedAt: { $last: '$archivedAt' }
                   }
                 },
                 {
@@ -179,7 +185,10 @@ describe('get-closed-trades.js', () => {
                         else: 0
                       }
                     },
-                    trades: 1
+                    trades: 1,
+                    lastProfit: 1,
+                    lastSymbol: 1,
+                    lastArchivedAt: 1
                   }
                 }
               ]
@@ -217,7 +226,10 @@ describe('get-closed-trades.js', () => {
                 stopLossQuoteQty: 70,
                 profit: 80,
                 profitPercentage: 90,
-                trades: 100
+                trades: 100,
+                lastProfit: 110,
+                lastSymbol: 'BTCUSDT',
+                lastArchivedAt: '2022-08-17T21:04:47.017Z'
               }
             });
           });
@@ -276,7 +288,10 @@ describe('get-closed-trades.js', () => {
                 sellManualQuoteQty: { $sum: '$sellManualQuoteQty' },
                 stopLossQuoteQty: { $sum: '$stopLossQuoteQty' },
                 profit: { $sum: '$profit' },
-                trades: { $sum: 1 }
+                trades: { $sum: 1 },
+                lastProfit: { $last: '$profit' },
+                lastSymbol: { $last: '$symbol' },
+                lastArchivedAt: { $last: '$archivedAt' }
               }
             },
             {
@@ -306,7 +321,10 @@ describe('get-closed-trades.js', () => {
                     else: 0
                   }
                 },
-                trades: 1
+                trades: 1,
+                lastProfit: 1,
+                lastSymbol: 1,
+                lastArchivedAt: 1
               }
             }
           ]
@@ -341,7 +359,10 @@ describe('get-closed-trades.js', () => {
             stopLossQuoteQty: 0,
             profit: 0,
             profitPercentage: 0,
-            trades: 0
+            trades: 0,
+            lastProfit: 0,
+            lastSymbol: '',
+            lastArchivedAt: ''
           }
         });
       });

@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.91] - 2022-08-28
+
+- Fixed sorting symbols by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#496](https://github.com/chrisleekr/binance-trading-bot/pull/496)
+- Added backup/restore functions - [#501](https://github.com/chrisleekr/binance-trading-bot/pull/501)
+- Added demo mode - [#509](https://github.com/chrisleekr/binance-trading-bot/pull/509)
+- Fixed account balance calculation by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#514]([https://github.com/chrisleekr/binance-trading-bot/pull/496](https://github.com/chrisleekr/binance-trading-bot/pull/514))
+
+Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) for your great contributions. 💯 :heart:
+
+## [0.0.90] - 2022-08-27
+
+- Fixed handling execution report - [#495](https://github.com/chrisleekr/binance-trading-bot/pull/495)
+- Fixed archiving grid order if all sell orders are executed - [#490](https://github.com/chrisleekr/binance-trading-bot/pull/490)
+- Update symbol delete action to remove override data - [#489](https://github.com/chrisleekr/binance-trading-bot/pull/489)
+- Improved performance with bulk write candles to DB by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#481](https://github.com/chrisleekr/binance-trading-bot/pull/481)
+- Fixed non-active exchange symbols by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#478](https://github.com/chrisleekr/binance-trading-bot/pull/478)
+- Fixed incorrect symbol in reset-symbol-websockets by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#477](https://github.com/chrisleekr/binance-trading-bot/pull/477)
+- Improved UI by [@uhliksk](https://github.com/uhliksk) - [#479](https://github.com/chrisleekr/binance-trading-bot/pull/479)
+
+Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) and [@uhliksk](https://github.com/uhliksk) for your great contributions. 💯 :heart:
+
 ## [0.0.89] - 2022-08-16
 
 - Fixed incorrect behaviour of exceeding max open orders by [@uhliksk](https://github.com/uhliksk) - [#462](https://github.com/chrisleekr/binance-trading-bot/pull/462)

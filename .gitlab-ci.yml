@@ -35,11 +35,12 @@ production:
     - master
     - development
   before_script:
-    - apk add curl git
+    - apk add curl git jq
     - mkdir -p ~/.docker/cli-plugins/
     - BUILDX_LATEST_BIN_URI=$(curl -s -L
-      https://github.com/docker/buildx/releases/latest | grep 'linux-amd64' |
-      grep 'href' | sed 's/.*href="/https:\/\/github.com/g; s/amd64".*/amd64/g')
+      https://api.github.com/repos/docker/buildx/releases/latest | jq
+      --raw-output '.assets[] | select(.name | contains ("linux-amd64")) |
+      .browser_download_url')
     - curl -s -L ${BUILDX_LATEST_BIN_URI} -o ~/.docker/cli-plugins/docker-buildx
     - chmod a+x ~/.docker/cli-plugins/docker-buildx
     - docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
@@ -74,11 +75,12 @@ production-tradingview:
     - master
     - development
   before_script:
-    - apk add curl git
+    - apk add curl git jq
     - mkdir -p ~/.docker/cli-plugins/
     - BUILDX_LATEST_BIN_URI=$(curl -s -L
-      https://github.com/docker/buildx/releases/latest | grep 'linux-amd64' |
-      grep 'href' | sed 's/.*href="/https:\/\/github.com/g; s/amd64".*/amd64/g')
+      https://api.github.com/repos/docker/buildx/releases/latest | jq
+      --raw-output '.assets[] | select(.name | contains ("linux-amd64")) |
+      .browser_download_url')
     - curl -s -L ${BUILDX_LATEST_BIN_URI} -o ~/.docker/cli-plugins/docker-buildx
     - chmod a+x ~/.docker/cli-plugins/docker-buildx
     - docker run --rm --privileged multiarch/qemu-user-static --reset -p yes

@@ -6,7 +6,6 @@ describe('index', () => {
       handleLatest: expect.any(Function),
       handleSettingUpdate: expect.any(Function),
       handleSymbolUpdateLastBuyPrice: expect.any(Function),
-      handleSymbolDelete: expect.any(Function),
       handleSymbolSettingUpdate: expect.any(Function),
       handleSymbolSettingDelete: expect.any(Function),
       handleSymbolGridTradeDelete: expect.any(Function),

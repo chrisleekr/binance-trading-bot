@@ -4,8 +4,11 @@ const { handleGridTradeArchiveDelete } = require('./grid-trade-archive-delete');
 const { handleClosedTradesSetPeriod } = require('./closed-trades-set-period');
 const { handleGridTradeLogsGet } = require('./grid-trade-logs-get');
 const { handleGridTradeLogsExport } = require('./grid-trade-logs-export');
-const { handle404 } = require('./404');
 const { handleStatus } = require('./status');
+const { handleSymbolDelete } = require('./symbol-delete');
+const { handleBackupGet } = require('./backup-get');
+const { handleRestorePost } = require('./restore-post');
+const { handle404 } = require('./404');
 
 const setHandlers = async (logger, app, { loginLimiter }) => {
   await handleAuth(logger, app, { loginLimiter });
@@ -15,6 +18,9 @@ const setHandlers = async (logger, app, { loginLimiter }) => {
   await handleGridTradeLogsGet(logger, app);
   await handleGridTradeLogsExport(logger, app);
   await handleStatus(logger, app);
+  await handleSymbolDelete(logger, app);
+  await handleBackupGet(logger, app);
+  await handleRestorePost(logger, app);
   await handle404(logger, app);
 };
 

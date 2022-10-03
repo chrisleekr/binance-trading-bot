@@ -11,7 +11,7 @@ describe('place-buy-order.js', () => {
   let slackMock;
   let loggerMock;
 
-  let mockUpdateAccountInfo;
+  let mockGetAccountInfoFromAPI;
   let mockIsExceedAPILimit;
   let mockGetAPILimit;
   let mockSaveOrderStats;
@@ -42,14 +42,14 @@ describe('place-buy-order.js', () => {
       mockSaveOrderStats = jest.fn().mockResolvedValue(true);
       mockSaveOverrideAction = jest.fn().mockResolvedValue(true);
 
-      mockUpdateAccountInfo = jest.fn().mockResolvedValue({
+      mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
         account: 'info'
       });
 
       mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
 
       jest.mock('../../../trailingTradeHelper/common', () => ({
-        updateAccountInfo: mockUpdateAccountInfo,
+        getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
         isExceedAPILimit: mockIsExceedAPILimit,
         getAPILimit: mockGetAPILimit,
         saveOrderStats: mockSaveOrderStats,
@@ -120,8 +120,8 @@ describe('place-buy-order.js', () => {
         expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
       });
 
-      it('does not trigger updateAccountInfo', () => {
-        expect(mockUpdateAccountInfo).not.toHaveBeenCalled();
+      it('does not trigger getAccountInfoFromAPI', () => {
+        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveGridTradeOrder', () => {
@@ -791,7 +791,7 @@ describe('place-buy-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              updateAccountInfo: mockUpdateAccountInfo,
+              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit,
               saveOrderStats: mockSaveOrderStats,
@@ -842,11 +842,9 @@ describe('place-buy-order.js', () => {
               );
             });
 
-            it('triggers updateAccountInfo', () => {
-              expect(mockUpdateAccountInfo).toHaveBeenCalledWith(
-                loggerMock,
-                [{ asset: 'USDT', free: 52.472, locked: 48.528 }],
-                expect.any(String)
+            it('triggers getAccountInfoFromAPI', () => {
+              expect(mockGetAccountInfoFromAPI).toHaveBeenCalledWith(
+                loggerMock
               );
             });
 
@@ -1574,7 +1572,7 @@ describe('place-buy-order.js', () => {
         mockIsExceedAPILimit = jest.fn().mockReturnValue(true);
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          updateAccountInfo: mockUpdateAccountInfo,
+          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           getAPILimit: mockGetAPILimit,
           saveOrderStats: mockSaveOrderStats,
@@ -1631,7 +1629,7 @@ describe('place-buy-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              updateAccountInfo: mockUpdateAccountInfo,
+              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit,
               saveOrderStats: mockSaveOrderStats,
@@ -2377,7 +2375,7 @@ describe('place-buy-order.js', () => {
                 .mockResolvedValue(t.binanceMockClientOrderResult);
 
               jest.mock('../../../trailingTradeHelper/common', () => ({
-                updateAccountInfo: mockUpdateAccountInfo,
+                getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
                 isExceedAPILimit: mockIsExceedAPILimit,
                 getAPILimit: mockGetAPILimit,
                 saveOrderStats: mockSaveOrderStats,
@@ -2414,11 +2412,9 @@ describe('place-buy-order.js', () => {
               );
             });
 
-            it('triggers updateAccountInfo', () => {
-              expect(mockUpdateAccountInfo).toHaveBeenCalledWith(
-                loggerMock,
-                t.expectedBalances,
-                expect.any(String)
+            it('triggers getAccountInfoFromAPI', () => {
+              expect(mockGetAccountInfoFromAPI).toHaveBeenCalledWith(
+                loggerMock
               );
             });
 
@@ -2982,7 +2978,7 @@ describe('place-buy-order.js', () => {
                 .mockResolvedValue(t.binanceMockClientOrderResult);
 
               jest.mock('../../../trailingTradeHelper/common', () => ({
-                updateAccountInfo: mockUpdateAccountInfo,
+                getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
                 isExceedAPILimit: mockIsExceedAPILimit,
                 getAPILimit: mockGetAPILimit,
                 saveOrderStats: mockSaveOrderStats,
@@ -3019,11 +3015,9 @@ describe('place-buy-order.js', () => {
               );
             });
 
-            it('triggers updateAccountInfo', () => {
-              expect(mockUpdateAccountInfo).toHaveBeenCalledWith(
-                loggerMock,
-                t.expectedBalances,
-                expect.any(String)
+            it('triggers getAccountInfoFromAPI', () => {
+              expect(mockGetAccountInfoFromAPI).toHaveBeenCalledWith(
+                loggerMock
               );
             });
 
@@ -3034,7 +3028,7 @@ describe('place-buy-order.js', () => {
               );
             });
 
-            it('retruns expected value', () => {
+            it('returns the expected value', () => {
               expect(result).toMatchObject(t.expected);
             });
           });
@@ -3054,7 +3048,7 @@ describe('place-buy-order.js', () => {
           });
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            updateAccountInfo: mockUpdateAccountInfo,
+            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             getAPILimit: mockGetAPILimit,
             saveOrderStats: mockSaveOrderStats,
@@ -3151,18 +3145,8 @@ describe('place-buy-order.js', () => {
           );
         });
 
-        it('triggers updateAccountInfo', () => {
-          expect(mockUpdateAccountInfo).toHaveBeenCalledWith(
-            loggerMock,
-            [
-              {
-                asset: 'USDT',
-                free: 52.472,
-                locked: 48.528
-              }
-            ],
-            expect.any(String)
-          );
+        it('triggers getAccountInfoFromAPI', () => {
+          expect(mockGetAccountInfoFromAPI).toHaveBeenCalledWith(loggerMock);
         });
 
         it('triggers saveOrderStats', () => {

@@ -43,10 +43,22 @@ class SymbolDeleteIcon extends React.Component {
 
   handleDelete(e) {
     e.preventDefault();
-    const { symbolInfo } = this.props;
-    this.props.sendWebSocket('symbol-delete', {
-      symbolInfo
-    });
+
+    const {
+      symbolInfo: { symbol }
+    } = this.props;
+
+    const authToken = localStorage.getItem('authToken') || '';
+
+    axios
+      .delete(`/symbol/${symbol}`, {
+        data: {
+          authToken
+        }
+      })
+      .catch(e => {
+        console.log(e);
+      });
 
     this.handleModalClose();
   }

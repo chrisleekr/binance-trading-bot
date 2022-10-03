@@ -67,6 +67,7 @@ const cacheExchangeSymbols = async logger => {
     });
     acc[symbol.symbol] = {
       symbol: symbol.symbol,
+      status: symbol.status,
       quoteAsset: symbol.quoteAsset,
       minNotional: parseFloat(minNotionalFilter.minNotional)
     };
@@ -174,7 +175,7 @@ const getAccountInfoFromAPI = async logger => {
 };
 
 /**
- * Retreive account info from cache
+ * Retrieve account info from cache
  *  If empty, retrieve from API
  *
  * @param {*} logger
@@ -965,7 +966,7 @@ const getCacheTrailingTradeSymbols = async (
         if: {
           $eq: ['$buy.difference', null]
         },
-        then: sortByDesc ? -999 : 999,
+        then: '$symbol',
         else: '$buy.difference'
       }
     };
@@ -977,7 +978,7 @@ const getCacheTrailingTradeSymbols = async (
         if: {
           $eq: ['$sell.currentProfitPercentage', null]
         },
-        then: sortByDesc ? -999 : 999,
+        then: '$symbol',
         else: '$sell.currentProfitPercentage'
       }
     };
@@ -1029,7 +1030,9 @@ const getCacheTrailingTradeTotalProfitAndLoss = logger =>
           }
         },
         profit: { $sum: '$sell.currentProfit' },
-        estimatedBalance: { $sum: '$baseAssetBalance.estimatedValue' }
+        estimatedBalance: { $sum: '$baseAssetBalance.estimatedValue' },
+        free: { $first: '$quoteAssetBalance.free' },
+        locked: { $first: '$quoteAssetBalance.locked' }
       }
     },
     {
@@ -1037,7 +1040,9 @@ const getCacheTrailingTradeTotalProfitAndLoss = logger =>
         asset: '$_id',
         amount: '$amount',
         profit: '$profit',
-        estimatedBalance: '$estimatedBalance'
+        estimatedBalance: '$estimatedBalance',
+        free: '$free',
+        locked: '$locked'
       }
     }
   ]);
@@ -1132,7 +1137,7 @@ const refreshOpenOrdersAndAccountInfo = async (logger, symbol) => {
   const openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
 
   // Refresh account info
-  const accountInfo = await getAccountInfo(logger);
+  const accountInfo = await getAccountInfoFromAPI(logger);
 
   const buyOpenOrders = openOrders.filter(o => o.side.toLowerCase() === 'buy');
 

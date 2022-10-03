@@ -74,7 +74,37 @@ class App extends React.Component {
       types: [
         {
           type: 'info',
-          background: '#2f96b4',
+          background: '#bf9106',
+          icon: {
+            className: 'fas fa-info-circle fa-lg',
+            tagName: 'i',
+            text: '',
+            color: 'white'
+          }
+        },
+        {
+          type: 'buy',
+          background: '#02c076',
+          icon: {
+            className: 'fas fa-info-circle fa-lg',
+            tagName: 'i',
+            text: '',
+            color: 'white'
+          }
+        },
+        {
+          type: 'sell',
+          background: '#bf374a',
+          icon: {
+            className: 'fas fa-info-circle fa-lg',
+            tagName: 'i',
+            text: '',
+            color: 'white'
+          }
+        },
+        {
+          type: 'success',
+          background: '#17a9bf',
           icon: {
             className: 'fas fa-info-circle fa-lg',
             tagName: 'i',
@@ -84,7 +114,7 @@ class App extends React.Component {
         },
         {
           type: 'warning',
-          background: '#fd7e14',
+          background: '#bf5e0f',
           icon: {
             className: 'fas fa-exclamation-circle fa-lg',
             tagName: 'i',
@@ -93,7 +123,7 @@ class App extends React.Component {
           }
         }
       ],
-      duration: 3000,
+      duration: 8000,
       ripple: true,
       position: { x: 'right', y: 'bottom' },
       dismissible: true
@@ -111,6 +141,14 @@ class App extends React.Component {
 
   toast({ type, title }) {
     // this.notyf.dismissAll();
+    if (type !== 'warning' && type !== 'error') {
+      if (title.toLowerCase().includes('buy ')) {
+        type = 'buy';
+      }
+      if (title.toLowerCase().includes('sell ')) {
+        type = 'sell';
+      }
+    }
     this.notyf.open({
       type,
       message: title
@@ -350,9 +388,12 @@ class App extends React.Component {
       />
     );
     const maxButtons = 8;
-    const buttons = Math.min( maxButtons , ~~totalPages );
+    const buttons = Math.min(maxButtons, ~~totalPages);
     [...Array(buttons).keys()].forEach(x => {
-      const pageNum = Math.min( Math.max( x + 1 , page + x + 1 - Math.ceil( buttons / 2 ) ) , totalPages + x + 1 - buttons );
+      const pageNum = Math.min(
+        Math.max(x + 1, page + x + 1 - Math.ceil(buttons / 2)),
+        totalPages + x + 1 - buttons
+      );
       paginationItems.push(
         <Pagination.Item
           active={pageNum === page}
@@ -401,6 +442,7 @@ class App extends React.Component {
                 accountInfo={accountInfo}
                 dustTransfer={dustTransfer}
                 sendWebSocket={this.sendWebSocket}
+                totalProfitAndLoss={totalProfitAndLoss}
               />
               <ProfitLossWrapper
                 isAuthenticated={isAuthenticated}

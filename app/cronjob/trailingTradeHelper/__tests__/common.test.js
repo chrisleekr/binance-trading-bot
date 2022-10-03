@@ -49,7 +49,7 @@ describe('common.js', () => {
           );
 
         commonHelper = require('../common');
-        await commonHelper.cacheExchangeSymbols(logger, {});
+        await commonHelper.cacheExchangeSymbols(logger);
       });
 
       it('triggers cache.hget for exchange symbols', () => {
@@ -123,9 +123,7 @@ describe('common.js', () => {
           binanceMock.client.exchangeInfo = jest.fn().mockResolvedValue(null);
 
           commonHelper = require('../common');
-          await commonHelper.cacheExchangeSymbols(logger, {
-            supportFIATs: ['USDT', 'BUSD']
-          });
+          await commonHelper.cacheExchangeSymbols(logger);
         });
 
         it('triggers cache.hget for exchange symbols', () => {
@@ -198,9 +196,7 @@ describe('common.js', () => {
           binanceMock.client.exchangeInfo = jest.fn().mockResolvedValue(null);
 
           commonHelper = require('../common');
-          await commonHelper.cacheExchangeSymbols(logger, {
-            supportFIATs: ['USDT', 'BUSD']
-          });
+          await commonHelper.cacheExchangeSymbols(logger);
         });
 
         it('triggers cache.hget for exchange symbols', () => {
@@ -271,9 +267,7 @@ describe('common.js', () => {
           );
 
         commonHelper = require('../common');
-        await commonHelper.cacheExchangeSymbols(logger, {
-          supportFIATs: ['USDT', 'BUSD']
-        });
+        await commonHelper.cacheExchangeSymbols(logger);
       });
 
       it('triggers cache.hget for exchange symbols', () => {
@@ -2861,7 +2855,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$buy.difference', null]
             },
-            then: -999,
+            then: '$symbol',
             else: '$buy.difference'
           }
         }
@@ -2877,7 +2871,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$buy.difference', null]
             },
-            then: 999,
+            then: '$symbol',
             else: '$buy.difference'
           }
         }
@@ -2893,7 +2887,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$sell.currentProfitPercentage', null]
             },
-            then: 999,
+            then: '$symbol',
             else: '$sell.currentProfitPercentage'
           }
         }
@@ -2909,7 +2903,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$sell.currentProfitPercentage', null]
             },
-            then: -999,
+            then: '$symbol',
             else: '$sell.currentProfitPercentage'
           }
         }
@@ -3024,7 +3018,9 @@ describe('common.js', () => {
                 }
               },
               profit: { $sum: '$sell.currentProfit' },
-              estimatedBalance: { $sum: '$baseAssetBalance.estimatedValue' }
+              estimatedBalance: { $sum: '$baseAssetBalance.estimatedValue' },
+              free: { $first: '$quoteAssetBalance.free' },
+              locked: { $first: '$quoteAssetBalance.locked' }
             }
           },
           {
@@ -3032,7 +3028,9 @@ describe('common.js', () => {
               asset: '$_id',
               amount: '$amount',
               profit: '$profit',
-              estimatedBalance: '$estimatedBalance'
+              estimatedBalance: '$estimatedBalance',
+              free: '$free',
+              locked: '$locked'
             }
           }
         ]
@@ -3349,12 +3347,18 @@ describe('common.js', () => {
         }
       ]);
 
+      binanceMock.client.accountInfo = jest.fn().mockResolvedValue({
+        account: 'updated',
+        balances: [
+          {
+            asset: 'USDT',
+            free: 50.0179958,
+            locked: 0
+          }
+        ]
+      });
+
       cacheMock.hset = jest.fn().mockResolvedValue(true);
-      cacheMock.hgetWithoutLock = jest.fn().mockResolvedValue(
-        JSON.stringify({
-          accountInfo: 'updated'
-        })
-      );
 
       commonHelper = require('../common');
       result = await commonHelper.refreshOpenOrdersAndAccountInfo(
@@ -3367,14 +3371,21 @@ describe('common.js', () => {
       expect(binanceMock.client.openOrders).toHaveBeenCalled();
     });
 
-    it('triggers cache.hgetWithoutLock', () => {
-      expect(cacheMock.hgetWithoutLock).toHaveBeenCalled();
+    it('triggers cache.hset', () => {
+      expect(cacheMock.hset).toHaveBeenCalled();
     });
 
     it('returns expected results', () => {
       expect(result).toStrictEqual({
         accountInfo: {
-          accountInfo: 'updated'
+          account: 'updated',
+          balances: [
+            {
+              asset: 'USDT',
+              free: 50.0179958,
+              locked: 0
+            }
+          ]
         },
         openOrders: [
           {

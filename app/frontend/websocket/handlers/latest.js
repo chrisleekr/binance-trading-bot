@@ -138,7 +138,7 @@ const handleLatest = async (logger, ws, payload) => {
       accountInfo,
       apiInfo: binance.client.getInfo(),
       closedTradesSetting: JSON.parse(
-        cacheTrailingTradeCommon['closed-trades']
+        cacheTrailingTradeCommon['closed-trades'] || '{}'
       ),
       orderStats: {
         numberOfOpenTrades: parseInt(

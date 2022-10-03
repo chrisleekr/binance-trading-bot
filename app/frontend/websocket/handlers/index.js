@@ -3,7 +3,6 @@ const { handleSettingUpdate } = require('./setting-update');
 const {
   handleSymbolUpdateLastBuyPrice
 } = require('./symbol-update-last-buy-price');
-const { handleSymbolDelete } = require('./symbol-delete');
 const { handleSymbolSettingUpdate } = require('./symbol-setting-update');
 const { handleSymbolSettingDelete } = require('./symbol-setting-delete');
 const { handleSymbolGridTradeDelete } = require('./symbol-grid-trade-delete');
@@ -21,7 +20,6 @@ module.exports = {
   handleLatest,
   handleSettingUpdate,
   handleSymbolUpdateLastBuyPrice,
-  handleSymbolDelete,
   handleSymbolSettingUpdate,
   handleSymbolSettingDelete,
   handleSymbolGridTradeDelete,

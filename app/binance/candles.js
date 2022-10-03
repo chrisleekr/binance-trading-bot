@@ -1,4 +1,5 @@
 const _ = require('lodash');
+const queue = require('../cronjob/trailingTradeHelper/queue');
 const { binance, mongo } = require('../helpers');
 const {
   getConfiguration
@@ -88,20 +89,30 @@ const syncCandles = async (logger, symbols) => {
           interval,
           limit
         });
-        await Promise.all(
-          candles.map(async candle =>
-            saveCandle(logger, 'trailing-trade-candles', {
+
+        const operations = candles.map(candle => ({
+          updateOne: {
+            filter: {
               key: symbol,
-              interval,
               time: +candle.openTime,
-              open: +candle.open,
-              high: +candle.high,
-              low: +candle.low,
-              close: +candle.close,
-              volume: +candle.volume
-            })
-          )
-        );
+              interval
+            },
+            update: {
+              $set: {
+                open: +candle.open,
+                high: +candle.high,
+                low: +candle.low,
+                close: +candle.close,
+                volume: +candle.volume
+              }
+            },
+            upsert: true
+          }
+        }));
+
+        await mongo.bulkWrite(logger, 'trailing-trade-candles', operations);
+
+        queue.executeFor(logger, symbol);
       };
 
       return getCandles();

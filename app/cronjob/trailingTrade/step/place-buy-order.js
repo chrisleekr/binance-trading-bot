@@ -2,12 +2,12 @@ const _ = require('lodash');
 const moment = require('moment');
 const { binance, slack } = require('../../../helpers');
 const {
-  updateAccountInfo,
   isExceedAPILimit,
   getAPILimit,
   saveOrderStats,
   saveOverrideAction,
-  getAndCacheOpenOrdersForSymbol
+  getAndCacheOpenOrdersForSymbol,
+  getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
 const { saveGridTradeOrder } = require('../../trailingTradeHelper/order');
 
@@ -444,25 +444,8 @@ const execute = async (logger, rawData) => {
     o => o.side.toLowerCase() === 'buy'
   );
 
-  // Immediately update the balance of quote asset when the order is canceled so that
-  // we don't have to wait for the websocket and to avoid the race condition
-  const balances = [
-    {
-      asset: quoteAsset,
-      free: _.toNumber(data.quoteAssetBalance.free) - _.toNumber(orderAmount),
-      locked:
-        _.toNumber(data.quoteAssetBalance.locked) + _.toNumber(orderAmount)
-    }
-  ];
-
-  logger.info({ balances }, 'Received new user activity');
-
   // Refresh account info
-  data.accountInfo = await updateAccountInfo(
-    logger,
-    balances,
-    moment().toISOString()
-  );
+  data.accountInfo = await getAccountInfoFromAPI(logger);
 
   slack.sendMessage(
     `*${symbol}* Buy Action Grid Trade #${humanisedGridTradeIndex} Result: *STOP_LOSS_LIMIT*\n` +

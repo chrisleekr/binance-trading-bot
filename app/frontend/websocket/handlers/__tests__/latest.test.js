@@ -446,9 +446,10 @@ describe('latest.test.js', () => {
       });
     });
 
-    describe('authenticated and no git hash provided', () => {
+    describe('authenticated and no git hash provided and no closed trades', () => {
       beforeEach(async () => {
         delete process.env.GIT_HASH;
+        delete trailingTradeCommonJson['closed-trades'];
 
         mockGetConfiguration = jest.fn().mockResolvedValue({
           enabled: true,
@@ -519,6 +520,7 @@ describe('latest.test.js', () => {
         trailingTradeStatsAuthenticated.common.version =
           require('../../../../../package.json').version;
         trailingTradeStatsAuthenticated.common.gitHash = 'unspecified';
+        trailingTradeStatsAuthenticated.common.closedTradesSetting = {};
 
         expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
           JSON.stringify(trailingTradeStatsAuthenticated)

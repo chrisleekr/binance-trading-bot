@@ -234,7 +234,8 @@ input[type='number'] {
   grid-gap: 0.5rem;
 }
 
-.account-wrapper-assets {}
+.account-wrapper-assets {
+}
 
 .account-wrapper-body {
   -webkit-border-radius: 10px;
@@ -480,7 +481,7 @@ input[type='number'] {
 }
 
 .coin-info-column-title .coin-info-value {
-  font-style: italic;
+  font-style: bold;
   font-size: 0.8rem;
 }
 
@@ -735,7 +736,7 @@ input[type='number'] {
   width: 50%;
 }
 
-@media (max-width: 550px) {
+@media (max-width: 825px) {
   .profit-loss-container {
     flex-direction: column;
   }
@@ -761,7 +762,8 @@ input[type='number'] {
 }
 
 .profit-loss-wrapper {
-  width: 25%;
+  width: 16.6%;
+  min-width: 12rem;
 }
 
 .profit-loss-wrapper-body {
@@ -776,22 +778,23 @@ input[type='number'] {
 }
 
 .profit-loss-asset {
-  flex: 1 40%;
+  flex: 1 auto;
   font-weight: bold;
 }
 
 .profit-loss-value {
-  flex: 1 60%;
+  flex: 1 auto;
   text-align: right;
+  font-weight: bold;
 }
 
-@media (max-width: 1500px) {
+@media (max-width: 3300px) {
   .profit-loss-wrapper {
     width: 33.3333%;
   }
 }
 
-@media (max-width: 800px) {
+@media (max-width: 1650px) {
   .profit-loss-wrapper {
     width: 50%;
   }
@@ -996,3 +999,46 @@ input[type='number'] {
 /**
   End: Pagination
 */
+
+/**
+  Start: Animation
+*/
+
+.blink {
+  animation: blinker 1s linear infinite;
+}
+
+@keyframes blinker {
+  50% {
+    opacity: 0;
+  }
+}
+
+/**
+  End: Animation
+*/
+
+/**
+  Start: Dropzone
+**/
+.dropzone {
+  text-align: center;
+  padding: 30px;
+  border: 3px dashed #eeeeee;
+  background-color: #fafafa;
+  color: #bdbdbd;
+  cursor: pointer;
+  margin-bottom: 20px;
+}
+
+.selected-file-wrapper {
+  text-align: center;
+}
+
+.selected-file {
+  color: #000;
+  font-weight: bold;
+}
+/**
+  End: Dropzone
+**/
