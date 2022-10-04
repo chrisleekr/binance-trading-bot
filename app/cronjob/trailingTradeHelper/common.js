@@ -523,6 +523,9 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
 
   const newLastBuyPrice = newTotalAmount / newQuantity;
 
+  const notifyDebug = config.get('featureToggle.notifyDebug');
+  const notifyOrderConfirm = config.get('featureToggle.notifyOrderConfirm');
+
   logger.info(
     { newLastBuyPrice, newTotalAmount, newQuantity, saveLog: true },
     `The last buy price will be saved. New last buy price: ${newLastBuyPrice}`
@@ -537,22 +540,23 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
     title: `New last buy price for ${symbol} has been updated.`
   });
 
-  slack.sendMessage(
-    `*${symbol}* Last buy price Updated: *${type}*\n` +
-      `- Order Result: \`\`\`${JSON.stringify(
-        {
-          orgLastBuyPrice,
-          orgQuantity,
-          orgTotalAmount,
-          newLastBuyPrice,
-          newQuantity,
-          newTotalAmount
-        },
-        undefined,
-        2
-      )}\`\`\``,
-    { symbol, apiLimit: getAPILimit(logger) }
-  );
+  if (notifyDebug || notifyOrderConfirm)
+    slack.sendMessage(
+      `*${symbol}* Last buy price Updated: *${type}*\n` +
+        `- Order Result: \`\`\`${JSON.stringify(
+          {
+            orgLastBuyPrice,
+            orgQuantity,
+            orgTotalAmount,
+            newLastBuyPrice,
+            newQuantity,
+            newTotalAmount
+          },
+          undefined,
+          2
+        )}\`\`\``,
+      { symbol, apiLimit: getAPILimit(logger) }
+    );
 };
 
 /**
