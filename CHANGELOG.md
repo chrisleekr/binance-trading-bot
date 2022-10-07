@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.92] - 2022-10-07
+
+- Fixed Axios version issue by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#512](https://github.com/chrisleekr/binance-trading-bot/pull/512)
+
 ## [0.0.91] - 2022-08-28
 
 - Fixed sorting symbols by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#496](https://github.com/chrisleekr/binance-trading-bot/pull/496)
