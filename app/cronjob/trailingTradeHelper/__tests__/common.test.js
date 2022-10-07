@@ -1447,6 +1447,20 @@ describe('common.js', () => {
   describe('calculateLastBuyPrice', () => {
     describe('when last buy price is not recorded', () => {
       beforeEach(async () => {
+        mockConfigGet = jest.fn(key => {
+          if (key === 'featureToggle.notifyDebug') {
+            return true;
+          }
+          if (key === 'featureToggle.notifyOrderConfirm') {
+            return false;
+          }
+          return null;
+        });
+
+        jest.mock('config', () => ({
+          get: mockConfigGet
+        }));
+
         const {
           cache,
           logger,
@@ -1525,6 +1539,20 @@ describe('common.js', () => {
 
     describe('when last buy price is recorded', () => {
       beforeEach(async () => {
+        mockConfigGet = jest.fn(key => {
+          if (key === 'featureToggle.notifyDebug') {
+            return true;
+          }
+          if (key === 'featureToggle.notifyOrderConfirm') {
+            return false;
+          }
+          return null;
+        });
+
+        jest.mock('config', () => ({
+          get: mockConfigGet
+        }));
+
         const {
           logger,
           mongo,
@@ -1604,6 +1632,58 @@ describe('common.js', () => {
             symbol: 'BTCUSDT'
           }
         );
+      });
+    });
+
+    describe('notifyDebug and notifyOrderConfirm are false', () => {
+      beforeEach(async () => {
+        mockConfigGet = jest.fn(key => {
+          if (key === 'featureToggle.notifyDebug') {
+            return false;
+          }
+          if (key === 'featureToggle.notifyOrderConfirm') {
+            return false;
+          }
+          return null;
+        });
+
+        jest.mock('config', () => ({
+          get: mockConfigGet
+        }));
+
+        const {
+          logger,
+          mongo,
+          PubSub,
+          slack,
+          cache
+        } = require('../../../helpers');
+
+        loggerMock = logger;
+        mongoMock = mongo;
+        PubSubMock = PubSub;
+        slackMock = slack;
+        cacheMock = cache;
+
+        mongoMock.findOne = jest.fn().mockResolvedValue({
+          lastBuyPrice: 254.37,
+          quantity: 0.0784
+        });
+        mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
+        PubSubMock.publish = jest.fn().mockResolvedValue(true);
+        slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+        cacheMock.hdel = jest.fn().mockResolvedValue(true);
+
+        commonHelper = require('../common');
+        await commonHelper.calculateLastBuyPrice(loggerMock, 'BTCUSDT', {
+          type: 'buy',
+          executedQty: '0.05',
+          cummulativeQuoteQty: '30'
+        });
+      });
+
+      it('does not trigger slack.sendMessage', () => {
+        expect(slackMock.sendMessage).not.toHaveBeenCalled();
       });
     });
   });
