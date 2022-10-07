@@ -43,7 +43,7 @@ const keys = async pattern => redis.keys(pattern);
  * @param {*} ttl seconds
  */
 const set = async (key, value, ttl = undefined) => {
-  const lock = await redlock.lock(`redlock:${key}`, 500);
+  const lock = await redlock.lock(`redlock:${key}`, 1000);
 
   let result;
   if (ttl) {
@@ -63,7 +63,7 @@ const set = async (key, value, ttl = undefined) => {
  * @param {*} key
  */
 const get = async key => {
-  const lock = await redlock.lock(`redlock:${key}`, 500);
+  const lock = await redlock.lock(`redlock:${key}`, 1000);
   const result = await redis.get(key);
   await lock.unlock();
 
@@ -93,7 +93,7 @@ const getWithTTL = async key => redis.multi().ttl(key).get(key).exec();
  * @param {*} key
  */
 const del = async key => {
-  const lock = await redlock.lock(`redlock:${key}`, 500);
+  const lock = await redlock.lock(`redlock:${key}`, 1000);
   const result = await redis.del(key);
   await lock.unlock();
   return result;
