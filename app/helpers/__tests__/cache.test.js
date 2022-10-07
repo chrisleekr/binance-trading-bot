@@ -74,7 +74,7 @@ describe('cache', () => {
       });
 
       it('triggers lock', () => {
-        expect(mockLock).toHaveBeenCalledWith('redlock:my-key', 500);
+        expect(mockLock).toHaveBeenCalledWith('redlock:my-key', 1000);
       });
 
       it('does not trigger setex', () => {
@@ -100,7 +100,7 @@ describe('cache', () => {
       });
 
       it('triggers lock', () => {
-        expect(mockLock).toHaveBeenCalledWith('redlock:my-key', 500);
+        expect(mockLock).toHaveBeenCalledWith('redlock:my-key', 1000);
       });
 
       it('triggers setex', () => {
@@ -147,7 +147,7 @@ describe('cache', () => {
     });
 
     it('triggers lock', () => {
-      expect(mockLock).toHaveBeenCalledWith('redlock:my-key', 500);
+      expect(mockLock).toHaveBeenCalledWith('redlock:my-key', 1000);
     });
 
     it('triggers get', () => {
@@ -228,7 +228,7 @@ describe('cache', () => {
     });
 
     it('triggers lock', () => {
-      expect(mockLock).toHaveBeenCalledWith('redlock:my-key', 500);
+      expect(mockLock).toHaveBeenCalledWith('redlock:my-key', 1000);
     });
 
     it('triggers del', () => {
@@ -270,7 +270,7 @@ describe('cache', () => {
       });
 
       it('triggers lock', () => {
-        expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 500);
+        expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 1000);
       });
 
       it('triggers set', () => {
@@ -311,7 +311,7 @@ describe('cache', () => {
       });
 
       it('triggers lock', () => {
-        expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 500);
+        expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 1000);
       });
 
       it('triggers setex', () => {
@@ -357,7 +357,7 @@ describe('cache', () => {
     });
 
     it('triggers lock', () => {
-      expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 500);
+      expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 1000);
     });
 
     it('triggers get', () => {
@@ -566,7 +566,7 @@ describe('cache', () => {
     });
 
     it('triggers lock', () => {
-      expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 500);
+      expect(mockLock).toHaveBeenCalledWith('redlock:my-key:my-field', 1000);
     });
 
     it('triggers del', () => {
