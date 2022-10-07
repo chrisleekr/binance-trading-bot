@@ -2,9 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.93] - 2022-10-07
+
+- Updated redlock locking period by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#522](https://github.com/chrisleekr/binance-trading-bot/pull/522)
+- Updated Slack notification for last buy updated and buy confirmation by [@rando128](https://github.com/rando128) - [#518](https://github.com/chrisleekr/binance-trading-bot/pull/518)
+
 ## [0.0.92] - 2022-10-07
 
-- Fixed Axios version issue by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#512](https://github.com/chrisleekr/binance-trading-bot/pull/512)
+- Fixed Axios version issue by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#521](https://github.com/chrisleekr/binance-trading-bot/pull/521)
 
 ## [0.0.91] - 2022-08-28
 
