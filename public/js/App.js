@@ -57,7 +57,8 @@ class App extends React.Component {
       authToken: localStorage.getItem('authToken') || '',
       totalProfitAndLoss: {},
       streamsCount: 0,
-      symbolsCount: 0,
+      monitoringSymbolsCount: 0,
+      cachedMonitoringSymbolsCount: 0,
       page: 1,
       totalPages: 1
     };
@@ -213,7 +214,16 @@ class App extends React.Component {
             ''
           ),
           streamsCount: _.get(response, ['common', 'streamsCount'], 0),
-          symbolsCount: _.get(response, ['common', 'symbolsCount'], 0),
+          monitoringSymbolsCount: _.get(
+            response,
+            ['common', 'monitoringSymbolsCount'],
+            0
+          ),
+          cachedMonitoringSymbolsCount: _.get(
+            response,
+            ['common', 'cachedMonitoringSymbolsCount'],
+            0
+          ),
           totalPages: _.get(response, ['common', 'totalPages'], 1)
         });
       }
@@ -330,7 +340,8 @@ class App extends React.Component {
       publicURL,
       apiInfo,
       streamsCount,
-      symbolsCount,
+      monitoringSymbolsCount,
+      cachedMonitoringSymbolsCount,
       dustTransfer,
       availableSortOptions,
       selectedSortOption,
@@ -461,7 +472,8 @@ class App extends React.Component {
               <Status
                 apiInfo={apiInfo}
                 streamsCount={streamsCount}
-                symbolsCount={symbolsCount}
+                monitoringSymbolsCount={monitoringSymbolsCount}
+                cachedMonitoringSymbolsCount={cachedMonitoringSymbolsCount}
               />
             </div>
           </div>

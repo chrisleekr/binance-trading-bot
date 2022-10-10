@@ -10,6 +10,7 @@ describe('latest.test.js', () => {
 
   const trailingTradeStatsAuthenticated = require('./fixtures/latest-stats-authenticated.json');
 
+  let mockCountCacheTrailingTradeSymbols;
   let mockGetCacheTrailingTradeSymbols;
   let mockGetCacheTrailingTradeTotalProfitAndLoss;
   let mockGetCacheTrailingTradeQuoteEstimates;
@@ -40,6 +41,10 @@ describe('latest.test.js', () => {
     mockGetCacheTrailingTradeSymbols = jest
       .fn()
       .mockResolvedValue(trailingTradeSymbols);
+
+    mockCountCacheTrailingTradeSymbols = jest
+      .fn()
+      .mockResolvedValue(trailingTradeSymbols.length);
 
     mockGetCacheTrailingTradeTotalProfitAndLoss = jest
       .fn()
@@ -106,6 +111,7 @@ describe('latest.test.js', () => {
 
     jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
       isActionDisabled: mockIsActionDisabled,
+      countCacheTrailingTradeSymbols: mockCountCacheTrailingTradeSymbols,
       getCacheTrailingTradeSymbols: mockGetCacheTrailingTradeSymbols,
       getCacheTrailingTradeTotalProfitAndLoss:
         mockGetCacheTrailingTradeTotalProfitAndLoss,

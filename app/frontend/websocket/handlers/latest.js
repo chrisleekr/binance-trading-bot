@@ -8,6 +8,7 @@ const {
 
 const {
   isActionDisabled,
+  countCacheTrailingTradeSymbols,
   getCacheTrailingTradeSymbols,
   getCacheTrailingTradeTotalProfitAndLoss,
   getCacheTrailingTradeQuoteEstimates
@@ -15,7 +16,6 @@ const {
 
 const handleLatest = async (logger, ws, payload) => {
   const globalConfiguration = await getConfiguration(logger);
-  // logger.info({ globalConfiguration }, 'Configuration from MongoDB');
 
   const { sortByDesc, sortBy, searchKeyword, page } = payload.data;
 
@@ -52,8 +52,13 @@ const handleLatest = async (logger, ws, payload) => {
 
   const symbolsPerPage = 12;
 
-  const symbolsCount = globalConfiguration.symbols.length;
-  const totalPages = _.ceil(symbolsCount / symbolsPerPage);
+  const monitoringSymbolsCount = globalConfiguration.symbols.length;
+
+  const cachedMonitoringSymbolsCount = await countCacheTrailingTradeSymbols(
+    logger
+  );
+
+  const totalPages = _.ceil(cachedMonitoringSymbolsCount / symbolsPerPage);
 
   const cacheTrailingTradeSymbols = await getCacheTrailingTradeSymbols(
     logger,
@@ -153,7 +158,8 @@ const handleLatest = async (logger, ws, payload) => {
       closedTrades: cacheTrailingTradeClosedTrades,
       totalProfitAndLoss: cacheTrailingTradeTotalProfitAndLoss,
       streamsCount,
-      symbolsCount,
+      monitoringSymbolsCount,
+      cachedMonitoringSymbolsCount,
       totalPages
     };
   } catch (err) {
