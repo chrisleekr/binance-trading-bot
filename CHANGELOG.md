@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+- Added advanced chart link to Tradingview section by [@rando128](https://github.com/rando128) - [#525](https://github.com/chrisleekr/binance-trading-bot/pull/525)
+
 ## [0.0.93] - 2022-10-07
 
 - Updated redlock locking period by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#522](https://github.com/chrisleekr/binance-trading-bot/pull/522)
