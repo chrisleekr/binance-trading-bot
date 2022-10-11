@@ -3492,4 +3492,63 @@ describe('common.js', () => {
       });
     });
   });
+
+  describe('countCacheTrailingTradeSymbols', () => {
+    describe('when nothing is returned', () => {
+      beforeEach(async () => {
+        const { mongo, logger } = require('../../../helpers');
+
+        mongoMock = mongo;
+        loggerMock = logger;
+
+        mongoMock.aggregate = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.countCacheTrailingTradeSymbols(loggerMock);
+      });
+
+      it('triggers mongo.aggregate', () => {
+        expect(mongoMock.aggregate).toHaveBeenCalledWith(
+          loggerMock,
+          'trailing-trade-cache',
+          [{ $match: {} }, { $group: { _id: null, count: { $sum: 1 } } }]
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual(0);
+      });
+    });
+
+    describe('when returned cached symbols count', () => {
+      beforeEach(async () => {
+        const { mongo, logger } = require('../../../helpers');
+
+        mongoMock = mongo;
+        loggerMock = logger;
+
+        mongoMock.aggregate = jest.fn().mockResolvedValue([
+          {
+            _id: null,
+            count: 10
+          }
+        ]);
+
+        commonHelper = require('../common');
+        result = await commonHelper.countCacheTrailingTradeSymbols(loggerMock);
+      });
+
+      it('triggers mongo.aggregate', () => {
+        expect(mongoMock.aggregate).toHaveBeenCalledWith(
+          loggerMock,
+          'trailing-trade-cache',
+          [{ $match: {} }, { $group: { _id: null, count: { $sum: 1 } } }]
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual(10);
+      });
+    });
+  });
 });

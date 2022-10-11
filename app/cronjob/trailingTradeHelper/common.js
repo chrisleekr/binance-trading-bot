@@ -879,6 +879,15 @@ const updateAccountInfo = async (logger, balances, lastAccountUpdate) => {
   return accountInfo;
 };
 
+const countCacheTrailingTradeSymbols = async logger => {
+  const result = await mongo.aggregate(logger, 'trailing-trade-cache', [
+    { $match: {} },
+    { $group: { _id: null, count: { $sum: 1 } } }
+  ]);
+
+  return _.get(result, ['0', 'count'], 0);
+};
+
 const getCacheTrailingTradeSymbols = async (
   logger,
   sortByDesc,
@@ -1194,6 +1203,7 @@ module.exports = {
   saveOverrideIndicatorAction,
   saveCandle,
   updateAccountInfo,
+  countCacheTrailingTradeSymbols,
   getCacheTrailingTradeSymbols,
   getCacheTrailingTradeTotalProfitAndLoss,
   getCacheTrailingTradeQuoteEstimates,

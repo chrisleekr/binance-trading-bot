@@ -176,7 +176,8 @@
     ],
     "totalProfitAndLoss": [],
     "streamsCount": 6,
-    "symbolsCount": 5,
+    "monitoringSymbolsCount": 5,
+    "cachedMonitoringSymbolsCount": 5,
     "totalPages": 1
   },
   "stats": {
