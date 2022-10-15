@@ -249,6 +249,48 @@ class CoinWrapperBuySignal extends React.Component {
               ''
             )}
 
+            {grid.executed && grid.executedOrder.currentGridTradeIndex === i ? (
+                <div
+                    className={`coin-info-content-setting ${
+                        collapsed ? 'd-none' : ''
+                    }`}>
+                  <div className='coin-info-column coin-info-column-order'>
+                    <span className='coin-info-label'>
+                      - Purchased date:
+                    </span>
+                    <div className='coin-info-value'>
+                      {moment(grid.executedOrder.transactTime).format('YYYY-MM-DD HH:mm')}
+                    </div>
+                  </div>
+                  <div className='coin-info-column coin-info-column-order'>
+                    <span className='coin-info-label'>
+                      - Purchased price:
+                    </span>
+                    <div className='coin-info-value'>
+                      {parseFloat(grid.executedOrder.price).toFixed(precision)}
+                    </div>
+                  </div>
+                  <div className='coin-info-column coin-info-column-order'>
+                    <span className='coin-info-label'>
+                      - Purchased qty:
+                    </span>
+                    <div className='coin-info-value'>
+                      {parseFloat(grid.executedOrder.executedQty)}
+                    </div>
+                  </div>
+                  <div className='coin-info-column coin-info-column-order'>
+                    <span className='coin-info-label'>
+                      - Purchased amount:
+                    </span>
+                    <div className='coin-info-value'>
+                      {parseFloat(grid.executedOrder.cummulativeQuoteQty).toFixed(precision)}
+                    </div>
+                  </div>
+                </div>
+            ) : (
+                ''
+            )}
+
             <div
               className={`coin-info-content-setting ${
                 collapsed ? 'd-none' : ''
