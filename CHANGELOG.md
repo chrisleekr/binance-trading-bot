@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 - Added advanced chart link to Tradingview section by [@rando128](https://github.com/rando128) - [#525](https://github.com/chrisleekr/binance-trading-bot/pull/525)
 - Fixed Frontend pagination by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#526](https://github.com/chrisleekr/binance-trading-bot/pull/526)
+- Added buy/sell order details in the grid trade sections by [@rando128](https://github.com/rando128) - [#527](https://github.com/chrisleekr/binance-trading-bot/pull/527)
 
 Thanks [@habibalkhabbaz](https://github.com/habibalkhabbaz) and [@rando128](https://github.com/rando128) for your great contributions. 💯 :heart:
 
