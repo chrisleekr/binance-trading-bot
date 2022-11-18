@@ -11,14 +11,21 @@ describe('place-buy-order.js', () => {
   let slackMock;
   let loggerMock;
 
-  let mockGetAccountInfoFromAPI;
   let mockIsExceedAPILimit;
   let mockGetAPILimit;
   let mockSaveOrderStats;
   let mockSaveOverrideAction;
-  let mockGetAndCacheOpenOrdersForSymbol;
+
+  let mockRefreshOpenOrdersAndAccountInfo;
 
   let mockSaveGridTradeOrder;
+
+  let mockIsBuyAllowedByTradingView;
+
+  const tradingViewValidTime = moment()
+    .utc()
+    .subtract('1', 'minute')
+    .format('YYYY-MM-DDTHH:mm:ss.SSSSSS');
 
   describe('execute', () => {
     beforeEach(() => {
@@ -41,24 +48,34 @@ describe('place-buy-order.js', () => {
       mockSaveGridTradeOrder = jest.fn().mockResolvedValue(true);
       mockSaveOrderStats = jest.fn().mockResolvedValue(true);
       mockSaveOverrideAction = jest.fn().mockResolvedValue(true);
-
-      mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
-        account: 'info'
+      mockRefreshOpenOrdersAndAccountInfo = jest.fn().mockResolvedValue({
+        accountInfo: {
+          accountInfo: 'updated'
+        },
+        openOrders: [{ openOrders: 'retrieved' }],
+        buyOpenOrders: [{ buyOpenOrders: 'retrived' }],
+        sellOpenOrders: [{ sellOpenOrders: 'retrived' }]
       });
 
-      mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
+      mockIsBuyAllowedByTradingView = jest.fn().mockReturnValue({
+        isTradingViewAllowed: true,
+        tradingViewRejectedReason: ''
+      });
 
       jest.mock('../../../trailingTradeHelper/common', () => ({
-        getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
         isExceedAPILimit: mockIsExceedAPILimit,
         getAPILimit: mockGetAPILimit,
         saveOrderStats: mockSaveOrderStats,
         saveOverrideAction: mockSaveOverrideAction,
-        getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
+        refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
       }));
 
       jest.mock('../../../trailingTradeHelper/order', () => ({
         saveGridTradeOrder: mockSaveGridTradeOrder
+      }));
+
+      jest.mock('../../../trailingTradeHelper/tradingview', () => ({
+        isBuyAllowedByTradingView: mockIsBuyAllowedByTradingView
       }));
 
       orgRawData = {
@@ -94,7 +111,23 @@ describe('place-buy-order.js', () => {
             }
           },
           botOptions: {
-            tradingView: {
+            tradingViews: [
+              {
+                interval: '5m',
+                buy: {
+                  whenStrongBuy: false,
+                  whenBuy: false
+                }
+              },
+              {
+                interval: '15m',
+                buy: {
+                  whenStrongBuy: false,
+                  whenBuy: false
+                }
+              }
+            ],
+            tradingViewOptions: {
               useOnlyWithin: 5,
               ifExpires: 'ignore'
             }
@@ -106,7 +139,26 @@ describe('place-buy-order.js', () => {
         action: 'buy',
         quoteAssetBalance: { free: 0, locked: 0 },
         buy: { currentPrice: 200, openOrders: [] },
-        tradingView: {},
+        tradingViews: [
+          {
+            request: {
+              interval: '15m'
+            },
+            result: {
+              summary: { RECOMMENDATION: 'SELL' },
+              time: tradingViewValidTime
+            }
+          },
+          {
+            request: {
+              interval: '5m'
+            },
+            result: {
+              summary: { RECOMMENDATION: 'BUY' },
+              time: tradingViewValidTime
+            }
+          }
+        ],
         overrideData: {}
       };
     });
@@ -116,12 +168,8 @@ describe('place-buy-order.js', () => {
         expect(binanceMock.client.order).not.toHaveBeenCalled();
       });
 
-      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger getAccountInfoFromAPI', () => {
-        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
+      it('does not trigger refreshOpenOrdersAndAccountInfo', () => {
+        expect(mockRefreshOpenOrdersAndAccountInfo).not.toHaveBeenCalled();
       });
 
       it('does not trigger saveGridTradeOrder', () => {
@@ -241,694 +289,6 @@ describe('place-buy-order.js', () => {
     });
 
     describe('when tradingView recommendation is not allowed', () => {
-      [
-        {
-          name: 'when tradingView is not enabled, then place an order',
-          rawData: {
-            symbol: 'BTCUPUSDT',
-            featureToggle: { notifyDebug: true, notifyOrderConfirm: true },
-            symbolConfiguration: {
-              buy: {
-                enabled: true,
-                currentGridTradeIndex: 0,
-                currentGridTrade: {
-                  triggerPercentage: 1,
-                  minPurchaseAmount: 10,
-                  maxPurchaseAmount: 50,
-                  stopPercentage: 1.01,
-                  limitPercentage: 1.011,
-                  executed: false,
-                  executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: false,
-                  whenBuy: false
-                }
-              },
-              botOptions: {
-                tradingView: {
-                  useOnlyWithin: 5,
-                  ifExpires: 'ignore'
-                }
-              }
-            },
-            action: 'buy',
-            quoteAssetBalance: { free: 101, locked: 0 },
-            buy: {
-              currentPrice: 200,
-              openOrders: []
-            },
-            tradingView: {
-              result: {
-                time: moment()
-                  .utc()
-                  .subtract('1', 'minute')
-                  .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
-                summary: {
-                  RECOMMENDATION: 'NEUTRAL'
-                }
-              }
-            },
-            overrideData: {}
-          },
-          expectedToPlaceOrder: true
-        },
-        {
-          name:
-            `when tradingView are enabled but tradingView time is not recorded, ` +
-            `then place an order`,
-          rawData: {
-            symbol: 'BTCUPUSDT',
-            featureToggle: { notifyDebug: true, notifyOrderConfirm: false },
-            symbolConfiguration: {
-              buy: {
-                enabled: true,
-                currentGridTradeIndex: 0,
-                currentGridTrade: {
-                  triggerPercentage: 1,
-                  minPurchaseAmount: 10,
-                  maxPurchaseAmount: 50,
-                  stopPercentage: 1.01,
-                  limitPercentage: 1.011,
-                  executed: false,
-                  executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: true,
-                  whenBuy: true
-                }
-              },
-              botOptions: {
-                tradingView: {
-                  useOnlyWithin: 5,
-                  ifExpires: 'ignore'
-                }
-              }
-            },
-            action: 'buy',
-            quoteAssetBalance: { free: 101, locked: 0 },
-            buy: {
-              currentPrice: 200,
-              openOrders: []
-            },
-            tradingView: {
-              result: {}
-            },
-            overrideData: {}
-          },
-          expectedToPlaceOrder: true
-        },
-        {
-          name:
-            `when tradingView are enabled but tradingView recommendation is not recorded, ` +
-            `then place an order`,
-          rawData: {
-            symbol: 'BTCUPUSDT',
-            featureToggle: { notifyDebug: true, notifyOrderConfirm: true },
-            symbolConfiguration: {
-              buy: {
-                enabled: true,
-                currentGridTradeIndex: 0,
-                currentGridTrade: {
-                  triggerPercentage: 1,
-                  minPurchaseAmount: 10,
-                  maxPurchaseAmount: 50,
-                  stopPercentage: 1.01,
-                  limitPercentage: 1.011,
-                  executed: false,
-                  executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: true,
-                  whenBuy: true
-                }
-              },
-              botOptions: {
-                tradingView: {
-                  useOnlyWithin: 5,
-                  ifExpires: 'ignore'
-                }
-              }
-            },
-            action: 'buy',
-            quoteAssetBalance: { free: 101, locked: 0 },
-            buy: {
-              currentPrice: 200,
-              openOrders: []
-            },
-            tradingView: {
-              result: {
-                time: moment()
-                  .utc()
-                  .subtract('1', 'minute')
-                  .format('YYYY-MM-DDTHH:mm:ss.SSSSSS')
-              }
-            },
-            overrideData: {}
-          },
-          expectedToPlaceOrder: true
-        },
-        {
-          name:
-            `when tradingView was updated older than configured minutes and set as ignore ` +
-            `if expires, then place an order`,
-          rawData: {
-            symbol: 'BTCUPUSDT',
-            featureToggle: { notifyDebug: false, notifyOrderConfirm: false },
-            symbolConfiguration: {
-              buy: {
-                enabled: true,
-                currentGridTradeIndex: 0,
-                currentGridTrade: {
-                  triggerPercentage: 1,
-                  minPurchaseAmount: 10,
-                  maxPurchaseAmount: 50,
-                  stopPercentage: 1.01,
-                  limitPercentage: 1.011,
-                  executed: false,
-                  executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: true,
-                  whenBuy: true
-                }
-              },
-              botOptions: {
-                tradingView: {
-                  useOnlyWithin: 5,
-                  ifExpires: 'ignore'
-                }
-              }
-            },
-            action: 'buy',
-            quoteAssetBalance: { free: 101, locked: 0 },
-            buy: {
-              currentPrice: 200,
-              openOrders: []
-            },
-            tradingView: {
-              result: {
-                time: moment()
-                  .utc()
-                  .subtract('6', 'minute')
-                  .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
-                summary: {
-                  RECOMMENDATION: 'NEUTRAL'
-                }
-              }
-            },
-            overrideData: {}
-          },
-          expectedToPlaceOrder: true
-        },
-        {
-          name:
-            `when tradingView was updated older than configured minutes and set as do-not-buy ` +
-            `if expires, then do not place an order`,
-          rawData: {
-            symbol: 'BTCUPUSDT',
-            featureToggle: { notifyDebug: false, notifyOrderConfirm: true },
-            symbolConfiguration: {
-              buy: {
-                enabled: true,
-                currentGridTradeIndex: 0,
-                currentGridTrade: {
-                  triggerPercentage: 1,
-                  minPurchaseAmount: 10,
-                  maxPurchaseAmount: 50,
-                  stopPercentage: 1.01,
-                  limitPercentage: 1.011,
-                  executed: false,
-                  executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: true,
-                  whenBuy: true
-                }
-              },
-              botOptions: {
-                tradingView: {
-                  useOnlyWithin: 5,
-                  ifExpires: 'do-not-buy'
-                }
-              }
-            },
-            action: 'buy',
-            quoteAssetBalance: { free: 101, locked: 0 },
-            buy: {
-              currentPrice: 200,
-              openOrders: []
-            },
-            tradingView: {
-              result: {
-                time: moment()
-                  .utc()
-                  .subtract('6', 'minute')
-                  .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
-                summary: {
-                  RECOMMENDATION: 'NEUTRAL'
-                }
-              }
-            },
-            overrideData: {}
-          },
-          expectedToPlaceOrder: false,
-          expectedProcessedMessage:
-            'Do not place an order because TradingView data is older than 5 minutes.'
-        },
-        {
-          name: 'when tradingView are enabled and recommendation is strong buy, then place an order',
-          rawData: {
-            symbol: 'BTCUPUSDT',
-            featureToggle: { notifyDebug: true, notifyOrderConfirm: false },
-            symbolConfiguration: {
-              buy: {
-                enabled: true,
-                currentGridTradeIndex: 0,
-                currentGridTrade: {
-                  triggerPercentage: 1,
-                  minPurchaseAmount: 10,
-                  maxPurchaseAmount: 50,
-                  stopPercentage: 1.01,
-                  limitPercentage: 1.011,
-                  executed: false,
-                  executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: true,
-                  whenBuy: true
-                }
-              },
-              botOptions: {
-                tradingView: {
-                  useOnlyWithin: 5,
-                  ifExpires: 'ignore'
-                }
-              }
-            },
-            action: 'buy',
-            quoteAssetBalance: { free: 101, locked: 0 },
-            buy: {
-              currentPrice: 200,
-              openOrders: []
-            },
-            tradingView: {
-              result: {
-                time: moment()
-                  .utc()
-                  .subtract('1', 'minute')
-                  .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
-                summary: {
-                  RECOMMENDATION: 'STRONG_BUY'
-                }
-              }
-            },
-            overrideData: {}
-          },
-          expectedToPlaceOrder: true
-        },
-        {
-          name: 'when tradingView are enabled and recommendation is buy, then place an order',
-          rawData: {
-            symbol: 'BTCUPUSDT',
-            featureToggle: { notifyDebug: false, notifyOrderConfirm: true },
-            symbolConfiguration: {
-              buy: {
-                enabled: true,
-                currentGridTradeIndex: 0,
-                currentGridTrade: {
-                  triggerPercentage: 1,
-                  minPurchaseAmount: 10,
-                  maxPurchaseAmount: 50,
-                  stopPercentage: 1.01,
-                  limitPercentage: 1.011,
-                  executed: false,
-                  executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: true,
-                  whenBuy: true
-                }
-              },
-              botOptions: {
-                tradingView: {
-                  useOnlyWithin: 5,
-                  ifExpires: 'ignore'
-                }
-              }
-            },
-            action: 'buy',
-            quoteAssetBalance: { free: 101, locked: 0 },
-            buy: {
-              currentPrice: 200,
-              openOrders: []
-            },
-            tradingView: {
-              result: {
-                time: moment()
-                  .utc()
-                  .subtract('1', 'minute')
-                  .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
-                summary: {
-                  RECOMMENDATION: 'BUY'
-                }
-              }
-            },
-            overrideData: {}
-          },
-          expectedToPlaceOrder: true
-        },
-        {
-          name: 'when tradingView are enabled and recommendation is not strong buy or buy, do not place an order',
-          rawData: {
-            symbol: 'BTCUPUSDT',
-            featureToggle: { notifyDebug: false, notifyOrderConfirm: false },
-            symbolConfiguration: {
-              buy: {
-                enabled: true,
-                currentGridTradeIndex: 0,
-                currentGridTrade: {
-                  triggerPercentage: 1,
-                  minPurchaseAmount: 10,
-                  maxPurchaseAmount: 50,
-                  stopPercentage: 1.01,
-                  limitPercentage: 1.011,
-                  executed: false,
-                  executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: true,
-                  whenBuy: true
-                }
-              },
-              botOptions: {
-                tradingView: {
-                  useOnlyWithin: 5,
-                  ifExpires: 'ignore'
-                }
-              }
-            },
-            action: 'buy',
-            quoteAssetBalance: { free: 101, locked: 0 },
-            buy: {
-              currentPrice: 200,
-              openOrders: []
-            },
-            tradingView: {
-              result: {
-                time: moment()
-                  .utc()
-                  .subtract('1', 'minute')
-                  .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
-                summary: {
-                  RECOMMENDATION: 'NEUTRAL'
-                }
-              }
-            },
-            overrideData: {}
-          },
-          expectedToPlaceOrder: false,
-          expectedProcessedMessage:
-            'Do not place an order because TradingView recommendation is NEUTRAL.'
-        },
-        {
-          name:
-            `when tradingView are enabled and recommendation is neutral, ` +
-            `but the action is overriden and checking tradingView is true, then do not place an order`,
-          rawData: {
-            symbol: 'BTCUPUSDT',
-            featureToggle: { notifyDebug: true },
-            symbolConfiguration: {
-              buy: {
-                enabled: true,
-                currentGridTradeIndex: 0,
-                currentGridTrade: {
-                  triggerPercentage: 1,
-                  minPurchaseAmount: 10,
-                  maxPurchaseAmount: 50,
-                  stopPercentage: 1.01,
-                  limitPercentage: 1.011,
-                  executed: false,
-                  executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: true,
-                  whenBuy: true
-                }
-              },
-              botOptions: {
-                tradingView: {
-                  useOnlyWithin: 5,
-                  ifExpires: 'ignore'
-                }
-              }
-            },
-            action: 'buy',
-            quoteAssetBalance: { free: 101, locked: 0 },
-            buy: {
-              currentPrice: 200,
-              openOrders: []
-            },
-            tradingView: {
-              result: {
-                time: moment()
-                  .utc()
-                  .subtract('1', 'minute')
-                  .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
-                summary: {
-                  RECOMMENDATION: 'NEUTRAL'
-                }
-              }
-            },
-            overrideData: {
-              action: 'buy',
-              checkTradingView: true
-            }
-          },
-          expectedToPlaceOrder: false,
-          expectedProcessedMessage:
-            'Do not place an order because TradingView recommendation is NEUTRAL.'
-        },
-        {
-          name:
-            `when tradingView are enabled and recommendation is neutral, ` +
-            `but the action is overriden and checking tradingView is false, then place an order`,
-          rawData: {
-            symbol: 'BTCUPUSDT',
-            featureToggle: { notifyDebug: false, notifyOrderConfirm: true },
-            symbolConfiguration: {
-              buy: {
-                enabled: true,
-                currentGridTradeIndex: 0,
-                currentGridTrade: {
-                  triggerPercentage: 1,
-                  minPurchaseAmount: 10,
-                  maxPurchaseAmount: 50,
-                  stopPercentage: 1.01,
-                  limitPercentage: 1.011,
-                  executed: false,
-                  executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: true,
-                  whenBuy: true
-                }
-              },
-              botOptions: {
-                tradingView: {
-                  useOnlyWithin: 5,
-                  ifExpires: 'ignore'
-                }
-              }
-            },
-            action: 'buy',
-            quoteAssetBalance: { free: 101, locked: 0 },
-            buy: {
-              currentPrice: 200,
-              openOrders: []
-            },
-            tradingView: {
-              result: {
-                time: moment()
-                  .utc()
-                  .subtract('1', 'minute')
-                  .format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
-                summary: {
-                  RECOMMENDATION: 'NEUTRAL'
-                }
-              }
-            },
-            overrideData: {
-              action: 'buy',
-              checkTradingView: false
-            }
-          },
-          expectedToPlaceOrder: true,
-          expectedProcessedMessage: ''
-        }
-      ].forEach(t => {
-        describe(`${t.name}`, () => {
-          beforeEach(async () => {
-            mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
-              {
-                orderId: 123,
-                price: 202.2,
-                quantity: 0.24,
-                side: 'buy',
-                stopPrice: 202,
-                symbol: 'BTCUPUSDT',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              }
-            ]);
-
-            binanceMock.client.order = jest.fn().mockResolvedValue({
-              symbol: 'BTCUPUSDT',
-              orderId: 2701762317,
-              orderListId: -1,
-              clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
-              transactTime: 1626946722520
-            });
-
-            jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              isExceedAPILimit: mockIsExceedAPILimit,
-              getAPILimit: mockGetAPILimit,
-              saveOrderStats: mockSaveOrderStats,
-              saveOverrideAction: mockSaveOverrideAction,
-              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
-            }));
-
-            rawData = _.cloneDeep(orgRawData);
-            rawData = _.merge(rawData, t.rawData);
-
-            const step = require('../place-buy-order');
-            result = await step.execute(loggerMock, rawData);
-          });
-
-          if (t.expectedToPlaceOrder === true) {
-            if (
-              t.rawData.featureToggle.notifyDebug === true ||
-              t.rawData.featureToggle.notifyOrderConfirm === true
-            ) {
-              it('triggers slack.sendMessage for buy action', () => {
-                expect(slackMock.sendMessage.mock.calls[0][0]).toContain(
-                  'Action - Buy Trade #1: *STOP_LOSS_LIMIT'
-                );
-              });
-
-              it('triggers slack.sendMessage for buy result', () => {
-                expect(slackMock.sendMessage.mock.calls[1][0]).toContain(
-                  'Buy Action Grid Trade #1 Result: *STOP_LOSS_LIMIT*'
-                );
-              });
-            }
-
-            it('triggers binance.client.order', () => {
-              expect(binanceMock.client.order).toHaveBeenCalledWith({
-                price: 202.2,
-                quantity: 0.24,
-                side: 'buy',
-                stopPrice: 202,
-                symbol: 'BTCUPUSDT',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              });
-            });
-
-            it('triggers saveGridTradeOrder for grid trade last buy order', () => {
-              expect(mockSaveGridTradeOrder).toHaveBeenCalledWith(
-                loggerMock,
-                `${t.rawData.symbol}-grid-trade-last-buy-order`,
-                {
-                  symbol: 'BTCUPUSDT',
-                  orderId: 2701762317,
-                  orderListId: -1,
-                  clientOrderId: '6eGYHaJbmJrIS40eoq8ziM',
-                  transactTime: 1626946722520,
-                  currentGridTradeIndex:
-                    t.rawData.symbolConfiguration.buy.currentGridTradeIndex
-                }
-              );
-            });
-
-            it('triggers getAndCacheOpenOrdersForSymbol', () => {
-              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
-                loggerMock,
-                t.rawData.symbol
-              );
-            });
-
-            it('triggers getAccountInfoFromAPI', () => {
-              expect(mockGetAccountInfoFromAPI).toHaveBeenCalledWith(
-                loggerMock
-              );
-            });
-
-            it('triggers saveOrderStats', () => {
-              expect(mockSaveOrderStats).toHaveBeenCalledWith(loggerMock, [
-                'BTCUPUSDT',
-                'ETHBTC',
-                'ALPHABTC',
-                'BTCBRL',
-                'BNBUSDT'
-              ]);
-            });
-
-            it('retruns expected value', () => {
-              expect(result).toMatchObject({
-                openOrders: [
-                  {
-                    orderId: 123,
-                    price: 202.2,
-                    quantity: 0.24,
-                    side: 'buy',
-                    stopPrice: 202,
-                    symbol: 'BTCUPUSDT',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ],
-                buy: {
-                  currentPrice: 200,
-                  openOrders: [
-                    {
-                      orderId: 123,
-                      price: 202.2,
-                      quantity: 0.24,
-                      side: 'buy',
-                      stopPrice: 202,
-                      symbol: 'BTCUPUSDT',
-                      timeInForce: 'GTC',
-                      type: 'STOP_LOSS_LIMIT'
-                    }
-                  ],
-                  processMessage: `Placed new stop loss limit order for buying of grid trade #${
-                    t.rawData.symbolConfiguration.buy.currentGridTradeIndex + 1
-                  }.`,
-                  updatedAt: expect.any(Object)
-                }
-              });
-            });
-          } else {
-            doNotProcessTests();
-
-            it('returns expected value', () => {
-              expect(result).toMatchObject({
-                buy: {
-                  currentPrice: 200,
-                  openOrders: [],
-                  processMessage: t.expectedProcessedMessage,
-                  updatedAt: expect.any(Object)
-                }
-              });
-            });
-          }
-        });
-      });
-    });
-
-    describe('when min purchase amount is not configured for some reason', () => {
       beforeEach(async () => {
         const step = require('../place-buy-order');
 
@@ -944,12 +304,13 @@ describe('place-buy-order.js', () => {
             limitPercentage: 1.011,
             executed: false,
             executedOrder: null
-          },
-          tradingView: {
-            whenStrongBuy: false,
-            whenBuy: false
           }
         };
+
+        mockIsBuyAllowedByTradingView = jest.fn().mockReturnValue({
+          isTradingViewAllowed: false,
+          tradingViewRejectedReason: ''
+        });
 
         result = await step.execute(loggerMock, rawData);
       });
@@ -963,6 +324,73 @@ describe('place-buy-order.js', () => {
             openOrders: [],
             processMessage:
               'Min purchase amount must be configured. Please configure symbol settings.',
+            updatedAt: expect.any(Object)
+          }
+        });
+      });
+    });
+
+    describe('when min purchase amount is not configured for some reason', () => {
+      beforeEach(async () => {
+        mockIsBuyAllowedByTradingView = jest.fn().mockReturnValue({
+          isTradingViewAllowed: false,
+          tradingViewRejectedReason: 'rejected reason'
+        });
+        jest.mock('../../../trailingTradeHelper/tradingview', () => ({
+          isBuyAllowedByTradingView: mockIsBuyAllowedByTradingView
+        }));
+
+        const step = require('../place-buy-order');
+
+        rawData = _.cloneDeep(orgRawData);
+        rawData.symbolConfiguration.buy = {
+          enabled: true,
+          currentGridTradeIndex: 0,
+          currentGridTrade: {
+            triggerPercentage: 1,
+            minPurchaseAmount: -1,
+            maxPurchaseAmount: -1,
+            stopPercentage: 1.01,
+            limitPercentage: 1.011,
+            executed: false,
+            executedOrder: null
+          }
+        };
+        rawData.symbolConfiguration.botOptions.tradingViews = [
+          {
+            interval: '5m',
+            buy: {
+              whenStrongBuy: false,
+              whenBuy: false
+            }
+          }
+        ];
+
+        result = await step.execute(loggerMock, rawData);
+      });
+
+      doNotProcessTests();
+
+      it('saves override action', () => {
+        expect(mockSaveOverrideAction).toHaveBeenCalledWith(
+          loggerMock,
+          'BTCUPUSDT',
+          {
+            action: 'buy',
+            actionAt: expect.any(String),
+            checkTradingView: true,
+            notify: false,
+            triggeredBy: 'buy-order-trading-view'
+          },
+          'The bot queued the action to trigger the grid trade #1 for buying. rejected reason'
+        );
+      });
+      it('retruns expected value', () => {
+        expect(result).toMatchObject({
+          buy: {
+            currentPrice: 200,
+            openOrders: [],
+            processMessage: 'rejected reason',
             updatedAt: expect.any(Object)
           }
         });
@@ -985,12 +413,18 @@ describe('place-buy-order.js', () => {
             limitPercentage: 1.011,
             executed: false,
             executedOrder: null
-          },
-          tradingView: {
-            whenStrongBuy: false,
-            whenBuy: false
           }
         };
+
+        rawData.symbolConfiguration.botOptions.tradingViews = [
+          {
+            interval: '5m',
+            buy: {
+              whenStrongBuy: false,
+              whenBuy: false
+            }
+          }
+        ];
 
         result = await step.execute(loggerMock, rawData);
       });
@@ -1039,14 +473,19 @@ describe('place-buy-order.js', () => {
                   limitPercentage: 1.011,
                   executed: false,
                   executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: false,
-                  whenBuy: false
                 }
               },
               botOptions: {
-                tradingView: {
+                tradingViews: [
+                  {
+                    interval: '5m',
+                    buy: {
+                      whenStrongBuy: false,
+                      whenBuy: false
+                    }
+                  }
+                ],
+                tradingViewOptions: {
                   useOnlyWithin: 5,
                   ifExpires: 'ignore'
                 }
@@ -1060,7 +499,18 @@ describe('place-buy-order.js', () => {
             buy: {
               currentPrice: 200,
               openOrders: []
-            }
+            },
+            tradingViews: [
+              {
+                request: {
+                  interval: '5m'
+                },
+                result: {
+                  summary: { RECOMMENDATION: 'NEUTRAL' },
+                  time: tradingViewValidTime
+                }
+              }
+            ]
           },
           expected: {
             buy: {
@@ -1099,14 +549,19 @@ describe('place-buy-order.js', () => {
                   limitPercentage: 1.011,
                   executed: false,
                   executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: false,
-                  whenBuy: false
                 }
               },
               botOptions: {
-                tradingView: {
+                tradingViews: [
+                  {
+                    interval: '5m',
+                    buy: {
+                      whenStrongBuy: false,
+                      whenBuy: false
+                    }
+                  }
+                ],
+                tradingViewOptions: {
                   useOnlyWithin: 5,
                   ifExpires: 'ignore'
                 }
@@ -1120,7 +575,18 @@ describe('place-buy-order.js', () => {
             buy: {
               currentPrice: 0.044866,
               openOrders: []
-            }
+            },
+            tradingViews: [
+              {
+                request: {
+                  interval: '5m'
+                },
+                result: {
+                  summary: { RECOMMENDATION: 'NEUTRAL' },
+                  time: tradingViewValidTime
+                }
+              }
+            ]
           },
           expected: {
             buy: {
@@ -1159,14 +625,19 @@ describe('place-buy-order.js', () => {
                   limitPercentage: 1.011,
                   executed: false,
                   executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: false,
-                  whenBuy: false
                 }
               },
               botOptions: {
-                tradingView: {
+                tradingViews: [
+                  {
+                    interval: '5m',
+                    buy: {
+                      whenStrongBuy: false,
+                      whenBuy: false
+                    }
+                  }
+                ],
+                tradingViewOptions: {
                   useOnlyWithin: 5,
                   ifExpires: 'ignore'
                 }
@@ -1180,7 +651,18 @@ describe('place-buy-order.js', () => {
             buy: {
               currentPrice: 0.00003771,
               openOrders: []
-            }
+            },
+            tradingViews: [
+              {
+                request: {
+                  interval: '5m'
+                },
+                result: {
+                  summary: { RECOMMENDATION: 'NEUTRAL' },
+                  time: tradingViewValidTime
+                }
+              }
+            ]
           },
           expected: {
             buy: {
@@ -1219,14 +701,19 @@ describe('place-buy-order.js', () => {
                   limitPercentage: 1.011,
                   executed: false,
                   executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: false,
-                  whenBuy: false
                 }
               },
               botOptions: {
-                tradingView: {
+                tradingViews: [
+                  {
+                    interval: '5m',
+                    buy: {
+                      whenStrongBuy: false,
+                      whenBuy: false
+                    }
+                  }
+                ],
+                tradingViewOptions: {
                   useOnlyWithin: 5,
                   ifExpires: 'ignore'
                 }
@@ -1240,7 +727,18 @@ describe('place-buy-order.js', () => {
             buy: {
               currentPrice: 268748,
               openOrders: []
-            }
+            },
+            tradingViews: [
+              {
+                request: {
+                  interval: '5m'
+                },
+                result: {
+                  summary: { RECOMMENDATION: 'NEUTRAL' },
+                  time: tradingViewValidTime
+                }
+              }
+            ]
           },
           expected: {
             buy: {
@@ -1307,7 +805,16 @@ describe('place-buy-order.js', () => {
                 }
               },
               botOptions: {
-                tradingView: {
+                tradingViews: [
+                  {
+                    interval: '5m',
+                    buy: {
+                      whenStrongBuy: false,
+                      whenBuy: false
+                    }
+                  }
+                ],
+                tradingViewOptions: {
                   useOnlyWithin: 5,
                   ifExpires: 'ignore'
                 }
@@ -1321,7 +828,18 @@ describe('place-buy-order.js', () => {
             buy: {
               currentPrice: 200,
               openOrders: []
-            }
+            },
+            tradingViews: [
+              {
+                request: {
+                  interval: '5m'
+                },
+                result: {
+                  summary: { RECOMMENDATION: 'NEUTRAL' },
+                  time: tradingViewValidTime
+                }
+              }
+            ]
           },
           expected: {
             buy: {
@@ -1362,14 +880,19 @@ describe('place-buy-order.js', () => {
                   limitPercentage: 1.011,
                   executed: false,
                   executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: false,
-                  whenBuy: false
                 }
               },
               botOptions: {
-                tradingView: {
+                tradingViews: [
+                  {
+                    interval: '5m',
+                    buy: {
+                      whenStrongBuy: false,
+                      whenBuy: false
+                    }
+                  }
+                ],
+                tradingViewOptions: {
                   useOnlyWithin: 5,
                   ifExpires: 'ignore'
                 }
@@ -1383,7 +906,18 @@ describe('place-buy-order.js', () => {
             buy: {
               currentPrice: 0.044866,
               openOrders: []
-            }
+            },
+            tradingViews: [
+              {
+                request: {
+                  interval: '5m'
+                },
+                result: {
+                  summary: { RECOMMENDATION: 'NEUTRAL' },
+                  time: tradingViewValidTime
+                }
+              }
+            ]
           },
           expected: {
             buy: {
@@ -1424,14 +958,19 @@ describe('place-buy-order.js', () => {
                   limitPercentage: 1.011,
                   executed: false,
                   executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: false,
-                  whenBuy: false
                 }
               },
               botOptions: {
-                tradingView: {
+                tradingViews: [
+                  {
+                    interval: '5m',
+                    buy: {
+                      whenStrongBuy: false,
+                      whenBuy: false
+                    }
+                  }
+                ],
+                tradingViewOptions: {
                   useOnlyWithin: 5,
                   ifExpires: 'ignore'
                 }
@@ -1445,7 +984,18 @@ describe('place-buy-order.js', () => {
             buy: {
               currentPrice: 0.00003771,
               openOrders: []
-            }
+            },
+            tradingViews: [
+              {
+                request: {
+                  interval: '5m'
+                },
+                result: {
+                  summary: { RECOMMENDATION: 'NEUTRAL' },
+                  time: tradingViewValidTime
+                }
+              }
+            ]
           },
           expected: {
             buy: {
@@ -1486,14 +1036,19 @@ describe('place-buy-order.js', () => {
                   limitPercentage: 1.011,
                   executed: false,
                   executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: false,
-                  whenBuy: false
                 }
               },
               botOptions: {
-                tradingView: {
+                tradingViews: [
+                  {
+                    interval: '5m',
+                    buy: {
+                      whenStrongBuy: false,
+                      whenBuy: false
+                    }
+                  }
+                ],
+                tradingViewOptions: {
                   useOnlyWithin: 5,
                   ifExpires: 'ignore'
                 }
@@ -1507,7 +1062,18 @@ describe('place-buy-order.js', () => {
             buy: {
               currentPrice: 268748,
               openOrders: []
-            }
+            },
+            tradingViews: [
+              {
+                request: {
+                  interval: '5m'
+                },
+                result: {
+                  summary: { RECOMMENDATION: 'NEUTRAL' },
+                  time: tradingViewValidTime
+                }
+              }
+            ]
           },
           expected: {
             buy: {
@@ -1559,10 +1125,6 @@ describe('place-buy-order.js', () => {
             limitPercentage: 1.011,
             executed: false,
             executedOrder: null
-          },
-          tradingView: {
-            whenStrongBuy: false,
-            whenBuy: false
           }
         };
 
@@ -1589,12 +1151,11 @@ describe('place-buy-order.js', () => {
         mockIsExceedAPILimit = jest.fn().mockReturnValue(true);
 
         jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
           isExceedAPILimit: mockIsExceedAPILimit,
           getAPILimit: mockGetAPILimit,
           saveOrderStats: mockSaveOrderStats,
           saveOverrideAction: mockSaveOverrideAction,
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
+          refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
         }));
 
         const step = require('../place-buy-order');
@@ -1624,19 +1185,6 @@ describe('place-buy-order.js', () => {
       describe('when free balance is less than minimum purchase amount', () => {
         describe('BTCUPUSDT', () => {
           beforeEach(async () => {
-            mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([
-              {
-                orderId: 123,
-                price: 202.2,
-                quantity: 0.05,
-                side: 'buy',
-                stopPrice: 202,
-                symbol: 'BTCUPUSDT',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              }
-            ]);
-
             binanceMock.client.order = jest.fn().mockResolvedValue({
               symbol: 'BTCUPUSDT',
               orderId: 2701762317,
@@ -1646,12 +1194,12 @@ describe('place-buy-order.js', () => {
             });
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
-              getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
               isExceedAPILimit: mockIsExceedAPILimit,
               getAPILimit: mockGetAPILimit,
               saveOrderStats: mockSaveOrderStats,
               saveOverrideAction: mockSaveOverrideAction,
-              getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
+              refreshOpenOrdersAndAccountInfo:
+                mockRefreshOpenOrdersAndAccountInfo
             }));
 
             const step = require('../place-buy-order');
@@ -1688,14 +1236,19 @@ describe('place-buy-order.js', () => {
                     limitPercentage: 1.011,
                     executed: false,
                     executedOrder: null
-                  },
-                  tradingView: {
-                    whenStrongBuy: false,
-                    whenBuy: false
                   }
                 },
                 botOptions: {
-                  tradingView: {
+                  tradingViews: [
+                    {
+                      interval: '5m',
+                      buy: {
+                        whenStrongBuy: false,
+                        whenBuy: false
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
                     useOnlyWithin: 5,
                     ifExpires: 'ignore'
                   }
@@ -1709,7 +1262,18 @@ describe('place-buy-order.js', () => {
               buy: {
                 currentPrice: 200,
                 openOrders: []
-              }
+              },
+              tradingViews: [
+                {
+                  request: {
+                    interval: '5m'
+                  },
+                  result: {
+                    summary: { RECOMMENDATION: 'BUY' },
+                    time: tradingViewValidTime
+                  }
+                }
+              ]
             };
 
             result = await step.execute(loggerMock, rawData);
@@ -1736,18 +1300,6 @@ describe('place-buy-order.js', () => {
         [
           {
             symbol: 'BTCUPUSDT',
-            mockGetAndCacheOpenOrdersForSymbol: [
-              {
-                orderId: 123,
-                price: 202.2,
-                quantity: 0.05,
-                side: 'buy',
-                stopPrice: 202,
-                symbol: 'BTCUPUSDT',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              }
-            ],
             binanceMockClientOrderResult: {
               symbol: 'BTCUPUSDT',
               orderId: 2701762317,
@@ -1787,14 +1339,19 @@ describe('place-buy-order.js', () => {
                     limitPercentage: 1.011,
                     executed: false,
                     executedOrder: null
-                  },
-                  tradingView: {
-                    whenStrongBuy: false,
-                    whenBuy: false
                   }
                 },
                 botOptions: {
-                  tradingView: {
+                  tradingViews: [
+                    {
+                      interval: '5m',
+                      buy: {
+                        whenStrongBuy: false,
+                        whenBuy: false
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
                     useOnlyWithin: 5,
                     ifExpires: 'ignore'
                   }
@@ -1808,7 +1365,18 @@ describe('place-buy-order.js', () => {
               buy: {
                 currentPrice: 200,
                 openOrders: []
-              }
+              },
+              tradingViews: [
+                {
+                  request: {
+                    interval: '5m'
+                  },
+                  result: {
+                    summary: { RECOMMENDATION: 'BUY' },
+                    time: tradingViewValidTime
+                  }
+                }
+              ]
             },
             binanceMockClientOrderCalledWith: {
               price: 202.2,
@@ -1829,32 +1397,10 @@ describe('place-buy-order.js', () => {
             },
             expectedBalances: [{ asset: 'USDT', free: 39.89, locked: 20.11 }],
             expected: {
-              openOrders: [
-                {
-                  orderId: 123,
-                  price: 202.2,
-                  quantity: 0.05,
-                  side: 'buy',
-                  stopPrice: 202,
-                  symbol: 'BTCUPUSDT',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ],
+              openOrders: [{ openOrders: 'retrieved' }],
               buy: {
                 currentPrice: 200,
-                openOrders: [
-                  {
-                    orderId: 123,
-                    price: 202.2,
-                    quantity: 0.05,
-                    side: 'buy',
-                    stopPrice: 202,
-                    symbol: 'BTCUPUSDT',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ],
+                openOrders: [{ buyOpenOrders: 'retrived' }],
                 processMessage:
                   'Placed new stop loss limit order for buying of grid trade #1.',
                 updatedAt: expect.any(Object)
@@ -1863,18 +1409,6 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'ETHBTC',
-            mockGetAndCacheOpenOrdersForSymbol: [
-              {
-                orderId: 456,
-                price: 0.045359,
-                quantity: 0.003,
-                side: 'buy',
-                stopPrice: 0.045314,
-                symbol: 'ETHBTC',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              }
-            ],
             binanceMockClientOrderResult: {
               symbol: 'ETHBTC',
               orderId: 2701762317,
@@ -1914,14 +1448,19 @@ describe('place-buy-order.js', () => {
                     limitPercentage: 1.011,
                     executed: false,
                     executedOrder: null
-                  },
-                  tradingView: {
-                    whenStrongBuy: false,
-                    whenBuy: false
                   }
                 },
                 botOptions: {
-                  tradingView: {
+                  tradingViews: [
+                    {
+                      interval: '5m',
+                      buy: {
+                        whenStrongBuy: false,
+                        whenBuy: false
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
                     useOnlyWithin: 5,
                     ifExpires: 'ignore'
                   }
@@ -1935,7 +1474,18 @@ describe('place-buy-order.js', () => {
               buy: {
                 currentPrice: 0.044866,
                 openOrders: []
-              }
+              },
+              tradingViews: [
+                {
+                  request: {
+                    interval: '5m'
+                  },
+                  result: {
+                    summary: { RECOMMENDATION: 'BUY' },
+                    time: tradingViewValidTime
+                  }
+                }
+              ]
             },
             binanceMockClientOrderCalledWith: {
               price: 0.045359,
@@ -1958,32 +1508,10 @@ describe('place-buy-order.js', () => {
               { asset: 'BTC', free: 0.001863923, locked: 0.001136077 }
             ],
             expected: {
-              openOrders: [
-                {
-                  orderId: 456,
-                  price: 0.045359,
-                  quantity: 0.003,
-                  side: 'buy',
-                  stopPrice: 0.045314,
-                  symbol: 'ETHBTC',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ],
+              openOrders: [{ openOrders: 'retrieved' }],
               buy: {
                 currentPrice: 0.044866,
-                openOrders: [
-                  {
-                    orderId: 456,
-                    price: 0.045359,
-                    quantity: 0.003,
-                    side: 'buy',
-                    stopPrice: 0.045314,
-                    symbol: 'ETHBTC',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ],
+                openOrders: [{ buyOpenOrders: 'retrived' }],
                 processMessage:
                   'Placed new stop loss limit order for buying of grid trade #1.',
                 updatedAt: expect.any(Object)
@@ -1992,18 +1520,6 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'ALPHABTC',
-            mockGetAndCacheOpenOrdersForSymbol: [
-              {
-                orderId: 456,
-                price: 0.00003812,
-                quantity: 3,
-                side: 'buy',
-                stopPrice: 0.00003808,
-                symbol: 'ALPHABTC',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              }
-            ],
             binanceMockClientOrderResult: {
               symbol: 'ALPHABTC',
               orderId: 2701762317,
@@ -2043,14 +1559,19 @@ describe('place-buy-order.js', () => {
                     limitPercentage: 1.011,
                     executed: false,
                     executedOrder: null
-                  },
-                  tradingView: {
-                    whenStrongBuy: false,
-                    whenBuy: false
                   }
                 },
                 botOptions: {
-                  tradingView: {
+                  tradingViews: [
+                    {
+                      interval: '5m',
+                      buy: {
+                        whenStrongBuy: false,
+                        whenBuy: false
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
                     useOnlyWithin: 5,
                     ifExpires: 'ignore'
                   }
@@ -2064,7 +1585,18 @@ describe('place-buy-order.js', () => {
               buy: {
                 currentPrice: 0.00003771,
                 openOrders: []
-              }
+              },
+              tradingViews: [
+                {
+                  request: {
+                    interval: '5m'
+                  },
+                  result: {
+                    summary: { RECOMMENDATION: 'BUY' },
+                    time: tradingViewValidTime
+                  }
+                }
+              ]
             },
             binanceMockClientOrderCalledWith: {
               price: 0.00003812,
@@ -2087,32 +1619,10 @@ describe('place-buy-order.js', () => {
               { asset: 'BTC', free: 0.00188564, locked: 0.00011436000000000001 }
             ],
             expected: {
-              openOrders: [
-                {
-                  orderId: 456,
-                  price: 0.00003812,
-                  quantity: 3,
-                  side: 'buy',
-                  stopPrice: 0.00003808,
-                  symbol: 'ALPHABTC',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ],
+              openOrders: [{ openOrders: 'retrieved' }],
               buy: {
                 currentPrice: 0.00003771,
-                openOrders: [
-                  {
-                    orderId: 456,
-                    price: 0.00003812,
-                    quantity: 3,
-                    side: 'buy',
-                    stopPrice: 0.00003808,
-                    symbol: 'ALPHABTC',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ],
+                openOrders: [{ buyOpenOrders: 'retrived' }],
                 processMessage:
                   'Placed new stop loss limit order for buying of grid trade #1.',
                 updatedAt: expect.any(Object)
@@ -2121,18 +1631,6 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'BTCBRL',
-            mockGetAndCacheOpenOrdersForSymbol: [
-              {
-                orderId: 456,
-                price: 271704,
-                quantity: 0.000037,
-                side: 'buy',
-                stopPrice: 271435,
-                symbol: 'BTCBRL',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              }
-            ],
             binanceMockClientOrderResult: {
               symbol: 'BTCBRL',
               orderId: 2701762317,
@@ -2172,14 +1670,19 @@ describe('place-buy-order.js', () => {
                     limitPercentage: 1.011,
                     executed: false,
                     executedOrder: null
-                  },
-                  tradingView: {
-                    whenStrongBuy: false,
-                    whenBuy: false
                   }
                 },
                 botOptions: {
-                  tradingView: {
+                  tradingViews: [
+                    {
+                      interval: '5m',
+                      buy: {
+                        whenStrongBuy: false,
+                        whenBuy: false
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
                     useOnlyWithin: 5,
                     ifExpires: 'ignore'
                   }
@@ -2193,7 +1696,18 @@ describe('place-buy-order.js', () => {
               buy: {
                 currentPrice: 268748,
                 openOrders: []
-              }
+              },
+              tradingViews: [
+                {
+                  request: {
+                    interval: '5m'
+                  },
+                  result: {
+                    summary: { RECOMMENDATION: 'BUY' },
+                    time: tradingViewValidTime
+                  }
+                }
+              ]
             },
             binanceMockClientOrderCalledWith: {
               price: 271704,
@@ -2220,32 +1734,10 @@ describe('place-buy-order.js', () => {
               }
             ],
             expected: {
-              openOrders: [
-                {
-                  orderId: 456,
-                  price: 271704,
-                  quantity: 0.000037,
-                  side: 'buy',
-                  stopPrice: 271435,
-                  symbol: 'BTCBRL',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ],
+              openOrders: [{ openOrders: 'retrieved' }],
               buy: {
                 currentPrice: 268748,
-                openOrders: [
-                  {
-                    orderId: 456,
-                    price: 271704,
-                    quantity: 0.000037,
-                    side: 'buy',
-                    stopPrice: 271435,
-                    symbol: 'BTCBRL',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ],
+                openOrders: [{ buyOpenOrders: 'retrived' }],
                 processMessage:
                   'Placed new stop loss limit order for buying of grid trade #1.',
                 updatedAt: expect.any(Object)
@@ -2254,18 +1746,6 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'BNBUSDT',
-            mockGetAndCacheOpenOrdersForSymbol: [
-              {
-                orderId: 456,
-                price: 271704,
-                quantity: 0.000037,
-                side: 'buy',
-                stopPrice: 271435,
-                symbol: 'BNBUSDT',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              }
-            ],
             binanceMockClientOrderResult: {
               symbol: 'BNBUSDT',
               orderId: 2701762317,
@@ -2305,14 +1785,19 @@ describe('place-buy-order.js', () => {
                     maxPurchaseAmount: 10,
                     executed: false,
                     executedOrder: null
-                  },
-                  tradingView: {
-                    whenStrongBuy: false,
-                    whenBuy: false
                   }
                 },
                 botOptions: {
-                  tradingView: {
+                  tradingViews: [
+                    {
+                      interval: '5m',
+                      buy: {
+                        whenStrongBuy: false,
+                        whenBuy: false
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
                     useOnlyWithin: 5,
                     ifExpires: 'ignore'
                   }
@@ -2326,7 +1811,18 @@ describe('place-buy-order.js', () => {
               buy: {
                 currentPrice: 289.48,
                 openOrders: []
-              }
+              },
+              tradingViews: [
+                {
+                  request: {
+                    interval: '5m'
+                  },
+                  result: {
+                    summary: { RECOMMENDATION: 'BUY' },
+                    time: tradingViewValidTime
+                  }
+                }
+              ]
             },
             binanceMockClientOrderCalledWith: {
               price: 297,
@@ -2349,32 +1845,10 @@ describe('place-buy-order.js', () => {
               { asset: 'USDT', free: 89.9614, locked: 20.0386 }
             ],
             expected: {
-              openOrders: [
-                {
-                  orderId: 456,
-                  price: 271704,
-                  quantity: 0.000037,
-                  side: 'buy',
-                  stopPrice: 271435,
-                  symbol: 'BNBUSDT',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ],
+              openOrders: [{ openOrders: 'retrieved' }],
               buy: {
                 currentPrice: 289.48,
-                openOrders: [
-                  {
-                    orderId: 456,
-                    price: 271704,
-                    quantity: 0.000037,
-                    side: 'buy',
-                    stopPrice: 271435,
-                    symbol: 'BNBUSDT',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ],
+                openOrders: [{ buyOpenOrders: 'retrived' }],
                 processMessage:
                   'Placed new stop loss limit order for buying of grid trade #2.',
                 updatedAt: expect.any(Object)
@@ -2384,21 +1858,17 @@ describe('place-buy-order.js', () => {
         ].forEach(t => {
           describe(`${t.symbol}`, () => {
             beforeEach(async () => {
-              mockGetAndCacheOpenOrdersForSymbol = jest
-                .fn()
-                .mockResolvedValue(t.mockGetAndCacheOpenOrdersForSymbol);
               binanceMock.client.order = jest
                 .fn()
                 .mockResolvedValue(t.binanceMockClientOrderResult);
 
               jest.mock('../../../trailingTradeHelper/common', () => ({
-                getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
                 isExceedAPILimit: mockIsExceedAPILimit,
                 getAPILimit: mockGetAPILimit,
                 saveOrderStats: mockSaveOrderStats,
                 saveOverrideAction: mockSaveOverrideAction,
-                getAndCacheOpenOrdersForSymbol:
-                  mockGetAndCacheOpenOrdersForSymbol
+                refreshOpenOrdersAndAccountInfo:
+                  mockRefreshOpenOrdersAndAccountInfo
               }));
 
               const step = require('../place-buy-order');
@@ -2422,16 +1892,10 @@ describe('place-buy-order.js', () => {
               );
             });
 
-            it('triggers getAndCacheOpenOrdersForSymbol', () => {
-              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+            it('triggers refreshOpenOrdersAndAccountInfo', () => {
+              expect(mockRefreshOpenOrdersAndAccountInfo).toHaveBeenCalledWith(
                 loggerMock,
                 t.symbol
-              );
-            });
-
-            it('triggers getAccountInfoFromAPI', () => {
-              expect(mockGetAccountInfoFromAPI).toHaveBeenCalledWith(
-                loggerMock
               );
             });
 
@@ -2453,18 +1917,6 @@ describe('place-buy-order.js', () => {
         [
           {
             symbol: 'BTCUPUSDT',
-            openOrders: [
-              {
-                orderId: 123,
-                price: 202.2,
-                quantity: 0.24,
-                side: 'buy',
-                stopPrice: 202,
-                symbol: 'BTCUPUSDT',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              }
-            ],
             binanceMockClientOrderResult: {
               symbol: 'BTCUPUSDT',
               orderId: 2701762317,
@@ -2504,14 +1956,19 @@ describe('place-buy-order.js', () => {
                     limitPercentage: 1.011,
                     executed: false,
                     executedOrder: null
-                  },
-                  tradingView: {
-                    whenStrongBuy: false,
-                    whenBuy: false
                   }
                 },
                 botOptions: {
-                  tradingView: {
+                  tradingViews: [
+                    {
+                      interval: '5m',
+                      buy: {
+                        whenStrongBuy: false,
+                        whenBuy: false
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
                     useOnlyWithin: 5,
                     ifExpires: 'ignore'
                   }
@@ -2525,7 +1982,18 @@ describe('place-buy-order.js', () => {
               buy: {
                 currentPrice: 200,
                 openOrders: []
-              }
+              },
+              tradingViews: [
+                {
+                  request: {
+                    interval: '5m'
+                  },
+                  result: {
+                    summary: { RECOMMENDATION: 'BUY' },
+                    time: tradingViewValidTime
+                  }
+                }
+              ]
             },
             binanceMockClientOrderCalledWith: {
               price: 202.2,
@@ -2552,32 +2020,10 @@ describe('place-buy-order.js', () => {
               }
             ],
             expected: {
-              openOrders: [
-                {
-                  orderId: 123,
-                  price: 202.2,
-                  quantity: 0.24,
-                  side: 'buy',
-                  stopPrice: 202,
-                  symbol: 'BTCUPUSDT',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ],
+              openOrders: [{ openOrders: 'retrieved' }],
               buy: {
                 currentPrice: 200,
-                openOrders: [
-                  {
-                    orderId: 123,
-                    price: 202.2,
-                    quantity: 0.24,
-                    side: 'buy',
-                    stopPrice: 202,
-                    symbol: 'BTCUPUSDT',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ],
+                openOrders: [{ buyOpenOrders: 'retrived' }],
                 processMessage:
                   'Placed new stop loss limit order for buying of grid trade #1.',
                 updatedAt: expect.any(Object)
@@ -2586,18 +2032,6 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'ETHBTC',
-            openOrders: [
-              {
-                orderId: 456,
-                price: 0.045359,
-                quantity: 0.022,
-                side: 'buy',
-                stopPrice: 0.045314,
-                symbol: 'ETHBTC',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              }
-            ],
             binanceMockClientOrderResult: {
               symbol: 'ETHBTC',
               orderId: 2701762317,
@@ -2637,14 +2071,19 @@ describe('place-buy-order.js', () => {
                     limitPercentage: 1.011,
                     executed: false,
                     executedOrder: null
-                  },
-                  tradingView: {
-                    whenStrongBuy: false,
-                    whenBuy: false
                   }
                 },
                 botOptions: {
-                  tradingView: {
+                  tradingViews: [
+                    {
+                      interval: '5m',
+                      buy: {
+                        whenStrongBuy: false,
+                        whenBuy: false
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
                     useOnlyWithin: 5,
                     ifExpires: 'ignore'
                   }
@@ -2658,7 +2097,18 @@ describe('place-buy-order.js', () => {
               buy: {
                 currentPrice: 0.044866,
                 openOrders: []
-              }
+              },
+              tradingViews: [
+                {
+                  request: {
+                    interval: '5m'
+                  },
+                  result: {
+                    summary: { RECOMMENDATION: 'BUY' },
+                    time: tradingViewValidTime
+                  }
+                }
+              ]
             },
             binanceMockClientOrderCalledWith: {
               price: 0.045359,
@@ -2685,32 +2135,10 @@ describe('place-buy-order.js', () => {
               }
             ],
             expected: {
-              openOrders: [
-                {
-                  orderId: 456,
-                  price: 0.045359,
-                  quantity: 0.022,
-                  side: 'buy',
-                  stopPrice: 0.045314,
-                  symbol: 'ETHBTC',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ],
+              openOrders: [{ openOrders: 'retrieved' }],
               buy: {
                 currentPrice: 0.044866,
-                openOrders: [
-                  {
-                    orderId: 456,
-                    price: 0.045359,
-                    quantity: 0.022,
-                    side: 'buy',
-                    stopPrice: 0.045314,
-                    symbol: 'ETHBTC',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ],
+                openOrders: [{ buyOpenOrders: 'retrived' }],
                 processMessage:
                   'Placed new stop loss limit order for buying of grid trade #1.',
                 updatedAt: expect.any(Object)
@@ -2719,18 +2147,6 @@ describe('place-buy-order.js', () => {
           },
           {
             symbol: 'ALPHABTC',
-            openOrders: [
-              {
-                orderId: 456,
-                price: 0.00003812,
-                quantity: 26,
-                side: 'buy',
-                stopPrice: 0.00003808,
-                symbol: 'ALPHABTC',
-                timeInForce: 'GTC',
-                type: 'STOP_LOSS_LIMIT'
-              }
-            ],
             binanceMockClientOrderResult: {
               symbol: 'ALPHABTC',
               orderId: 2701762317,
@@ -2770,14 +2186,19 @@ describe('place-buy-order.js', () => {
                     limitPercentage: 1.011,
                     executed: false,
                     executedOrder: null
-                  },
-                  tradingView: {
-                    whenStrongBuy: false,
-                    whenBuy: false
                   }
                 },
                 botOptions: {
-                  tradingView: {
+                  tradingViews: [
+                    {
+                      interval: '5m',
+                      buy: {
+                        whenStrongBuy: false,
+                        whenBuy: false
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
                     useOnlyWithin: 5,
                     ifExpires: 'ignore'
                   }
@@ -2791,7 +2212,18 @@ describe('place-buy-order.js', () => {
               buy: {
                 currentPrice: 0.00003771,
                 openOrders: []
-              }
+              },
+              tradingViews: [
+                {
+                  request: {
+                    interval: '5m'
+                  },
+                  result: {
+                    summary: { RECOMMENDATION: 'BUY' },
+                    time: tradingViewValidTime
+                  }
+                }
+              ]
             },
             binanceMockClientOrderCalledWith: {
               price: 0.00003812,
@@ -2818,32 +2250,10 @@ describe('place-buy-order.js', () => {
               }
             ],
             expected: {
-              openOrders: [
-                {
-                  orderId: 456,
-                  price: 0.00003812,
-                  quantity: 26,
-                  side: 'buy',
-                  stopPrice: 0.00003808,
-                  symbol: 'ALPHABTC',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ],
+              openOrders: [{ openOrders: 'retrieved' }],
               buy: {
                 currentPrice: 0.00003771,
-                openOrders: [
-                  {
-                    orderId: 456,
-                    price: 0.00003812,
-                    quantity: 26,
-                    side: 'buy',
-                    stopPrice: 0.00003808,
-                    symbol: 'ALPHABTC',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ],
+                openOrders: [{ buyOpenOrders: 'retrived' }],
                 processMessage:
                   'Placed new stop loss limit order for buying of grid trade #1.',
                 updatedAt: expect.any(Object)
@@ -2903,14 +2313,19 @@ describe('place-buy-order.js', () => {
                     limitPercentage: 1.011,
                     executed: false,
                     executedOrder: null
-                  },
-                  tradingView: {
-                    whenStrongBuy: false,
-                    whenBuy: false
                   }
                 },
                 botOptions: {
-                  tradingView: {
+                  tradingViews: [
+                    {
+                      interval: '5m',
+                      buy: {
+                        whenStrongBuy: false,
+                        whenBuy: false
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
                     useOnlyWithin: 5,
                     ifExpires: 'ignore'
                   }
@@ -2924,7 +2339,18 @@ describe('place-buy-order.js', () => {
               buy: {
                 currentPrice: 268748,
                 openOrders: []
-              }
+              },
+              tradingViews: [
+                {
+                  request: {
+                    interval: '5m'
+                  },
+                  result: {
+                    summary: { RECOMMENDATION: 'BUY' },
+                    time: tradingViewValidTime
+                  }
+                }
+              ]
             },
             binanceMockClientOrderCalledWith: {
               price: 271704,
@@ -2951,32 +2377,10 @@ describe('place-buy-order.js', () => {
               }
             ],
             expected: {
-              openOrders: [
-                {
-                  orderId: 456,
-                  price: 271704,
-                  quantity: 0.00004,
-                  side: 'buy',
-                  stopPrice: 271435,
-                  symbol: 'BTCBRL',
-                  timeInForce: 'GTC',
-                  type: 'STOP_LOSS_LIMIT'
-                }
-              ],
+              openOrders: [{ openOrders: 'retrieved' }],
               buy: {
                 currentPrice: 268748,
-                openOrders: [
-                  {
-                    orderId: 456,
-                    price: 271704,
-                    quantity: 0.00004,
-                    side: 'buy',
-                    stopPrice: 271435,
-                    symbol: 'BTCBRL',
-                    timeInForce: 'GTC',
-                    type: 'STOP_LOSS_LIMIT'
-                  }
-                ],
+                openOrders: [{ buyOpenOrders: 'retrived' }],
                 processMessage:
                   'Placed new stop loss limit order for buying of grid trade #1.',
                 updatedAt: expect.any(Object)
@@ -2986,22 +2390,17 @@ describe('place-buy-order.js', () => {
         ].forEach(t => {
           describe(`${t.symbol}`, () => {
             beforeEach(async () => {
-              mockGetAndCacheOpenOrdersForSymbol = jest
-                .fn()
-                .mockResolvedValue(t.openOrders);
-
               binanceMock.client.order = jest
                 .fn()
                 .mockResolvedValue(t.binanceMockClientOrderResult);
 
               jest.mock('../../../trailingTradeHelper/common', () => ({
-                getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
                 isExceedAPILimit: mockIsExceedAPILimit,
                 getAPILimit: mockGetAPILimit,
                 saveOrderStats: mockSaveOrderStats,
                 saveOverrideAction: mockSaveOverrideAction,
-                getAndCacheOpenOrdersForSymbol:
-                  mockGetAndCacheOpenOrdersForSymbol
+                refreshOpenOrdersAndAccountInfo:
+                  mockRefreshOpenOrdersAndAccountInfo
               }));
 
               const step = require('../place-buy-order');
@@ -3025,16 +2424,10 @@ describe('place-buy-order.js', () => {
               );
             });
 
-            it('triggers getAndCacheOpenOrdersForSymbol', () => {
-              expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+            it('triggers refreshOpenOrdersAndAccountInfo', () => {
+              expect(mockRefreshOpenOrdersAndAccountInfo).toHaveBeenCalledWith(
                 loggerMock,
                 t.symbol
-              );
-            });
-
-            it('triggers getAccountInfoFromAPI', () => {
-              expect(mockGetAccountInfoFromAPI).toHaveBeenCalledWith(
-                loggerMock
               );
             });
 
@@ -3054,8 +2447,6 @@ describe('place-buy-order.js', () => {
 
       describe('when order is placed, but cache is not returning open orders due to a cache error', () => {
         beforeEach(async () => {
-          mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
-
           binanceMock.client.order = jest.fn().mockResolvedValue({
             symbol: 'BTCUPUSDT',
             orderId: 2701762317,
@@ -3065,12 +2456,11 @@ describe('place-buy-order.js', () => {
           });
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
             isExceedAPILimit: mockIsExceedAPILimit,
             getAPILimit: mockGetAPILimit,
             saveOrderStats: mockSaveOrderStats,
             saveOverrideAction: mockSaveOverrideAction,
-            getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
+            refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
           }));
 
           const step = require('../place-buy-order');
@@ -3102,14 +2492,19 @@ describe('place-buy-order.js', () => {
                   limitPercentage: 1.011,
                   executed: false,
                   executedOrder: null
-                },
-                tradingView: {
-                  whenStrongBuy: false,
-                  whenBuy: false
                 }
               },
               botOptions: {
-                tradingView: {
+                tradingViews: [
+                  {
+                    interval: '5m',
+                    buy: {
+                      whenStrongBuy: false,
+                      whenBuy: false
+                    }
+                  }
+                ],
+                tradingViewOptions: {
                   useOnlyWithin: 5,
                   ifExpires: 'ignore'
                 }
@@ -3123,7 +2518,18 @@ describe('place-buy-order.js', () => {
             buy: {
               currentPrice: 200,
               openOrders: []
-            }
+            },
+            tradingViews: [
+              {
+                request: {
+                  interval: '5m'
+                },
+                result: {
+                  summary: { RECOMMENDATION: 'BUY' },
+                  time: tradingViewValidTime
+                }
+              }
+            ]
           });
 
           result = await step.execute(loggerMock, rawData);
@@ -3156,15 +2562,11 @@ describe('place-buy-order.js', () => {
           );
         });
 
-        it('triggers getAndCacheOpenOrdersForSymbol', () => {
-          expect(mockGetAndCacheOpenOrdersForSymbol).toHaveBeenCalledWith(
+        it('triggers refreshOpenOrdersAndAccountInfo', () => {
+          expect(mockRefreshOpenOrdersAndAccountInfo).toHaveBeenCalledWith(
             loggerMock,
             'BTCUPUSDT'
           );
-        });
-
-        it('triggers getAccountInfoFromAPI', () => {
-          expect(mockGetAccountInfoFromAPI).toHaveBeenCalledWith(loggerMock);
         });
 
         it('triggers saveOrderStats', () => {
@@ -3191,10 +2593,10 @@ describe('place-buy-order.js', () => {
 
         it('retruns expected value', () => {
           expect(result).toMatchObject({
-            openOrders: [],
+            openOrders: [{ openOrders: 'retrieved' }],
             buy: {
               currentPrice: 200,
-              openOrders: [],
+              openOrders: [{ buyOpenOrders: 'retrived' }],
               processMessage:
                 'Placed new stop loss limit order for buying of grid trade #1.',
               updatedAt: expect.any(Object)

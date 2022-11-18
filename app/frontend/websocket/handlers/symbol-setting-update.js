@@ -18,6 +18,7 @@ const handleSymbolSettingUpdate = async (logger, ws, payload) => {
 
   // Get only editable params
   const { candles, buy, sell, botOptions } = newSymbolConfiguration;
+
   symbolConfiguration.candles = candles;
 
   // We do not want to save executed/executedOrder as it will be processed in the configuration.

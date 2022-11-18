@@ -9,6 +9,7 @@ describe('configuration.js', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
+    cache.hdelall = jest.fn().mockResolvedValue(true);
   });
 
   describe('saveGlobalConfiguration', () => {
@@ -3167,6 +3168,26 @@ describe('configuration.js', () => {
             botOptions: {
               logs: {
                 deleteAfter: 30
+              },
+              tradingViews: [
+                {
+                  interval: '1h',
+                  buy: {
+                    whenStrongBuy: true,
+                    whenBuy: true
+                  },
+                  sell: {
+                    forceSellOverZeroBelowTriggerPrice: {
+                      whenNeutral: false,
+                      whenSell: false,
+                      whenStrongSell: false
+                    }
+                  }
+                }
+              ],
+              tradingViewOptions: {
+                useOnlyWithin: 5,
+                ifExpires: 'ignore'
               }
             },
             buy: {
@@ -3344,6 +3365,26 @@ describe('configuration.js', () => {
                 botOptions: {
                   logs: {
                     deleteAfter: 30
+                  },
+                  tradingViews: [
+                    {
+                      interval: '1h',
+                      buy: {
+                        whenStrongBuy: true,
+                        whenBuy: true
+                      },
+                      sell: {
+                        forceSellOverZeroBelowTriggerPrice: {
+                          whenNeutral: false,
+                          whenSell: false,
+                          whenStrongSell: false
+                        }
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 },
                 system: {
@@ -3410,6 +3451,42 @@ describe('configuration.js', () => {
                     maxLossPercentage: 0.81,
                     disableBuyMinutes: 65,
                     orderType: 'market'
+                  }
+                },
+                botOptions: {
+                  tradingViews: [
+                    {
+                      interval: '15m',
+                      buy: {
+                        whenStrongBuy: true,
+                        whenBuy: false
+                      },
+                      sell: {
+                        forceSellOverZeroBelowTriggerPrice: {
+                          whenNeutral: true,
+                          whenSell: true,
+                          whenStrongSell: true
+                        }
+                      }
+                    },
+                    {
+                      interval: '30m',
+                      buy: {
+                        whenStrongBuy: true,
+                        whenBuy: false
+                      },
+                      sell: {
+                        forceSellOverZeroBelowTriggerPrice: {
+                          whenNeutral: true,
+                          whenSell: true,
+                          whenStrongSell: true
+                        }
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 }
               };
@@ -3492,6 +3569,26 @@ describe('configuration.js', () => {
               botOptions: {
                 logs: {
                   deleteAfter: 30
+                },
+                tradingViews: [
+                  {
+                    interval: '1h',
+                    buy: {
+                      whenStrongBuy: true,
+                      whenBuy: true
+                    },
+                    sell: {
+                      forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: false,
+                        whenSell: false,
+                        whenStrongSell: false
+                      }
+                    }
+                  }
+                ],
+                tradingViewOptions: {
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -3562,6 +3659,26 @@ describe('configuration.js', () => {
             botOptions: {
               logs: {
                 deleteAfter: 30
+              },
+              tradingViews: [
+                {
+                  interval: '1h',
+                  buy: {
+                    whenStrongBuy: true,
+                    whenBuy: true
+                  },
+                  sell: {
+                    forceSellOverZeroBelowTriggerPrice: {
+                      whenNeutral: false,
+                      whenSell: false,
+                      whenStrongSell: false
+                    }
+                  }
+                }
+              ],
+              tradingViewOptions: {
+                useOnlyWithin: 5,
+                ifExpires: 'ignore'
               }
             },
             system: {
@@ -3689,6 +3806,26 @@ describe('configuration.js', () => {
               botOptions: {
                 logs: {
                   deleteAfter: 30
+                },
+                tradingViews: [
+                  {
+                    interval: '1h',
+                    buy: {
+                      whenStrongBuy: true,
+                      whenBuy: true
+                    },
+                    sell: {
+                      forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: false,
+                        whenSell: false,
+                        whenStrongSell: false
+                      }
+                    }
+                  }
+                ],
+                tradingViewOptions: {
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -3769,6 +3906,26 @@ describe('configuration.js', () => {
             botOptions: {
               logs: {
                 deleteAfter: 30
+              },
+              tradingViews: [
+                {
+                  interval: '1h',
+                  buy: {
+                    whenStrongBuy: true,
+                    whenBuy: true
+                  },
+                  sell: {
+                    forceSellOverZeroBelowTriggerPrice: {
+                      whenNeutral: false,
+                      whenSell: false,
+                      whenStrongSell: false
+                    }
+                  }
+                }
+              ],
+              tradingViewOptions: {
+                useOnlyWithin: 5,
+                ifExpires: 'ignore'
               }
             },
             system: {
@@ -3887,6 +4044,26 @@ describe('configuration.js', () => {
                   botOptions: {
                     logs: {
                       deleteAfter: 30
+                    },
+                    tradingViews: [
+                      {
+                        interval: '1h',
+                        buy: {
+                          whenStrongBuy: true,
+                          whenBuy: true
+                        },
+                        sell: {
+                          forceSellOverZeroBelowTriggerPrice: {
+                            whenNeutral: false,
+                            whenSell: false,
+                            whenStrongSell: false
+                          }
+                        }
+                      }
+                    ],
+                    tradingViewOptions: {
+                      useOnlyWithin: 5,
+                      ifExpires: 'ignore'
                     }
                   },
                   system: {
@@ -3996,6 +4173,26 @@ describe('configuration.js', () => {
               botOptions: {
                 logs: {
                   deleteAfter: 30
+                },
+                tradingViews: [
+                  {
+                    interval: '1h',
+                    buy: {
+                      whenStrongBuy: true,
+                      whenBuy: true
+                    },
+                    sell: {
+                      forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: false,
+                        whenSell: false,
+                        whenStrongSell: false
+                      }
+                    }
+                  }
+                ],
+                tradingViewOptions: {
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -4126,6 +4323,26 @@ describe('configuration.js', () => {
                   botOptions: {
                     logs: {
                       deleteAfter: 30
+                    },
+                    tradingViews: [
+                      {
+                        interval: '1h',
+                        buy: {
+                          whenStrongBuy: true,
+                          whenBuy: true
+                        },
+                        sell: {
+                          forceSellOverZeroBelowTriggerPrice: {
+                            whenNeutral: false,
+                            whenSell: false,
+                            whenStrongSell: false
+                          }
+                        }
+                      }
+                    ],
+                    tradingViewOptions: {
+                      useOnlyWithin: 5,
+                      ifExpires: 'ignore'
                     }
                   },
                   system: {
@@ -4252,6 +4469,26 @@ describe('configuration.js', () => {
               botOptions: {
                 logs: {
                   deleteAfter: 30
+                },
+                tradingViews: [
+                  {
+                    interval: '1h',
+                    buy: {
+                      whenStrongBuy: true,
+                      whenBuy: true
+                    },
+                    sell: {
+                      forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: false,
+                        whenSell: false,
+                        whenStrongSell: false
+                      }
+                    }
+                  }
+                ],
+                tradingViewOptions: {
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -4369,6 +4606,26 @@ describe('configuration.js', () => {
               botOptions: {
                 logs: {
                   deleteAfter: 30
+                },
+                tradingViews: [
+                  {
+                    interval: '1h',
+                    buy: {
+                      whenStrongBuy: true,
+                      whenBuy: true
+                    },
+                    sell: {
+                      forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: false,
+                        whenSell: false,
+                        whenStrongSell: false
+                      }
+                    }
+                  }
+                ],
+                tradingViewOptions: {
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -4486,6 +4743,26 @@ describe('configuration.js', () => {
               botOptions: {
                 logs: {
                   deleteAfter: 30
+                },
+                tradingViews: [
+                  {
+                    interval: '1h',
+                    buy: {
+                      whenStrongBuy: true,
+                      whenBuy: true
+                    },
+                    sell: {
+                      forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: false,
+                        whenSell: false,
+                        whenStrongSell: false
+                      }
+                    }
+                  }
+                ],
+                tradingViewOptions: {
+                  useOnlyWithin: 5,
+                  ifExpires: 'ignore'
                 }
               },
               system: {
@@ -4647,6 +4924,42 @@ describe('configuration.js', () => {
                           orderType: 'market'
                         }
                       },
+                      botOptions: {
+                        tradingViews: [
+                          {
+                            interval: '5m',
+                            buy: {
+                              whenStrongBuy: true,
+                              whenBuy: true
+                            },
+                            sell: {
+                              forceSellOverZeroBelowTriggerPrice: {
+                                whenNeutral: false,
+                                whenSell: false,
+                                whenStrongSell: false
+                              }
+                            }
+                          },
+                          {
+                            interval: '15m',
+                            buy: {
+                              whenStrongBuy: true,
+                              whenBuy: true
+                            },
+                            sell: {
+                              forceSellOverZeroBelowTriggerPrice: {
+                                whenNeutral: false,
+                                whenSell: false,
+                                whenStrongSell: false
+                              }
+                            }
+                          }
+                        ],
+                        tradingViewOptions: {
+                          useOnlyWithin: 5,
+                          ifExpires: 'ignore'
+                        }
+                      },
                       system: {
                         temporaryDisableActionAfterConfirmingOrder: 10,
                         checkManualBuyOrderPeriod: 10,
@@ -4705,6 +5018,42 @@ describe('configuration.js', () => {
                           maxLossPercentage: 0.81,
                           disableBuyMinutes: 65,
                           orderType: 'market'
+                        }
+                      },
+                      botOptions: {
+                        tradingViews: [
+                          {
+                            interval: '30m',
+                            buy: {
+                              whenStrongBuy: true,
+                              whenBuy: false
+                            },
+                            sell: {
+                              forceSellOverZeroBelowTriggerPrice: {
+                                whenNeutral: true,
+                                whenSell: true,
+                                whenStrongSell: true
+                              }
+                            }
+                          },
+                          {
+                            interval: '1h',
+                            buy: {
+                              whenStrongBuy: true,
+                              whenBuy: true
+                            },
+                            sell: {
+                              forceSellOverZeroBelowTriggerPrice: {
+                                whenNeutral: false,
+                                whenSell: false,
+                                whenStrongSell: false
+                              }
+                            }
+                          }
+                        ],
+                        tradingViewOptions: {
+                          useOnlyWithin: 5,
+                          ifExpires: 'ignore'
                         }
                       }
                     };
@@ -4795,6 +5144,40 @@ describe('configuration.js', () => {
                   botOptions: {
                     logs: {
                       deleteAfter: 30
+                    },
+                    tradingViews: [
+                      {
+                        interval: '30m',
+                        buy: {
+                          whenStrongBuy: true,
+                          whenBuy: false
+                        },
+                        sell: {
+                          forceSellOverZeroBelowTriggerPrice: {
+                            whenNeutral: true,
+                            whenSell: true,
+                            whenStrongSell: true
+                          }
+                        }
+                      },
+                      {
+                        interval: '1h',
+                        buy: {
+                          whenStrongBuy: true,
+                          whenBuy: true
+                        },
+                        sell: {
+                          forceSellOverZeroBelowTriggerPrice: {
+                            whenNeutral: false,
+                            whenSell: false,
+                            whenStrongSell: false
+                          }
+                        }
+                      }
+                    ],
+                    tradingViewOptions: {
+                      useOnlyWithin: 5,
+                      ifExpires: 'ignore'
                     }
                   },
                   system: {
@@ -4881,6 +5264,28 @@ describe('configuration.js', () => {
                           orderType: 'market'
                         }
                       },
+                      botOptions: {
+                        tradingViews: [
+                          {
+                            interval: '1h',
+                            buy: {
+                              whenStrongBuy: true,
+                              whenBuy: true
+                            },
+                            sell: {
+                              forceSellOverZeroBelowTriggerPrice: {
+                                whenNeutral: false,
+                                whenSell: false,
+                                whenStrongSell: false
+                              }
+                            }
+                          }
+                        ],
+                        tradingViewOptions: {
+                          useOnlyWithin: 5,
+                          ifExpires: 'ignore'
+                        }
+                      },
                       system: {
                         temporaryDisableActionAfterConfirmingOrder: 10,
                         checkManualBuyOrderPeriod: 10,
@@ -4962,6 +5367,28 @@ describe('configuration.js', () => {
                           maxLossPercentage: 0.81,
                           disableBuyMinutes: 65,
                           orderType: 'market'
+                        }
+                      },
+                      botOptions: {
+                        tradingViews: [
+                          {
+                            interval: '30m',
+                            buy: {
+                              whenStrongBuy: true,
+                              whenBuy: true
+                            },
+                            sell: {
+                              forceSellOverZeroBelowTriggerPrice: {
+                                whenNeutral: true,
+                                whenSell: true,
+                                whenStrongSell: true
+                              }
+                            }
+                          }
+                        ],
+                        tradingViewOptions: {
+                          useOnlyWithin: 5,
+                          ifExpires: 'ignore'
                         }
                       }
                     };
@@ -5086,6 +5513,26 @@ describe('configuration.js', () => {
                   botOptions: {
                     logs: {
                       deleteAfter: 30
+                    },
+                    tradingViews: [
+                      {
+                        interval: '30m',
+                        buy: {
+                          whenStrongBuy: true,
+                          whenBuy: true
+                        },
+                        sell: {
+                          forceSellOverZeroBelowTriggerPrice: {
+                            whenNeutral: true,
+                            whenSell: true,
+                            whenStrongSell: true
+                          }
+                        }
+                      }
+                    ],
+                    tradingViewOptions: {
+                      useOnlyWithin: 5,
+                      ifExpires: 'ignore'
                     }
                   },
                   system: {
@@ -5190,6 +5637,28 @@ describe('configuration.js', () => {
                         orderType: 'market'
                       }
                     },
+                    botOptions: {
+                      tradingViews: [
+                        {
+                          interval: '1h',
+                          buy: {
+                            whenStrongBuy: true,
+                            whenBuy: false
+                          },
+                          sell: {
+                            forceSellOverZeroBelowTriggerPrice: {
+                              whenNeutral: true,
+                              whenSell: true,
+                              whenStrongSell: true
+                            }
+                          }
+                        }
+                      ],
+                      tradingViewOptions: {
+                        useOnlyWithin: 5,
+                        ifExpires: 'ignore'
+                      }
+                    },
                     system: {
                       temporaryDisableActionAfterConfirmingOrder: 10,
                       checkManualBuyOrderPeriod: 10,
@@ -5255,6 +5724,28 @@ describe('configuration.js', () => {
                         maxLossPercentage: 0.81,
                         disableBuyMinutes: 65,
                         orderType: 'market'
+                      }
+                    },
+                    botOptions: {
+                      tradingViews: [
+                        {
+                          interval: '1h',
+                          buy: {
+                            whenStrongBuy: true,
+                            whenBuy: true
+                          },
+                          sell: {
+                            forceSellOverZeroBelowTriggerPrice: {
+                              whenNeutral: true,
+                              whenSell: true,
+                              whenStrongSell: true
+                            }
+                          }
+                        }
+                      ],
+                      tradingViewOptions: {
+                        useOnlyWithin: 5,
+                        ifExpires: 'ignore'
                       }
                     }
                   };
@@ -5351,6 +5842,26 @@ describe('configuration.js', () => {
                 botOptions: {
                   logs: {
                     deleteAfter: 30
+                  },
+                  tradingViews: [
+                    {
+                      interval: '1h',
+                      buy: {
+                        whenStrongBuy: true,
+                        whenBuy: true
+                      },
+                      sell: {
+                        forceSellOverZeroBelowTriggerPrice: {
+                          whenNeutral: true,
+                          whenSell: true,
+                          whenStrongSell: true
+                        }
+                      }
+                    }
+                  ],
+                  tradingViewOptions: {
+                    useOnlyWithin: 5,
+                    ifExpires: 'ignore'
                   }
                 },
                 system: {

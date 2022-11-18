@@ -6,9 +6,11 @@ class CoinWrapper extends React.Component {
     const {
       connected,
       symbolInfo,
+      symbolTradingViews,
       sendWebSocket,
       configuration,
-      isAuthenticated
+      isAuthenticated,
+      tradingViewIntervals
     } = this.props;
 
     const {
@@ -57,6 +59,7 @@ class CoinWrapper extends React.Component {
             configuration={configuration}
             sendWebSocket={sendWebSocket}
             isAuthenticated={isAuthenticated}
+            tradingViewIntervals={tradingViewIntervals}
           />
           <CoinWrapperBalance symbolInfo={symbolInfo} />
           <CoinWrapperSetting
@@ -70,9 +73,11 @@ class CoinWrapper extends React.Component {
             sendWebSocket={sendWebSocket}
             isAuthenticated={isAuthenticated}
           />
-          <CoinWrapperTradingView
+          <CoinWrapperTradingViews
             symbolInfo={symbolInfo}
-            connected={connected}></CoinWrapperTradingView>
+            symbolTradingViews={symbolTradingViews}
+            connected={connected}
+          />
 
           <CoinWrapperBuySignal
             symbolInfo={symbolInfo}

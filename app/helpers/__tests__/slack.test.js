@@ -75,6 +75,25 @@ describe('slack', () => {
           expect(axios.post).not.toHaveBeenCalled();
         });
       });
+
+      describe('when post throws an error', () => {
+        beforeEach(async () => {
+          axios.post.mockReset();
+
+          axios.post = jest
+            .fn()
+            .mockRejectedValue(new Error('something happened'));
+
+          result = await slack.sendMessage('my message - something happened', {
+            symbol: 'BTCUSDT',
+            apiLimit: 10
+          });
+        });
+
+        it('returns expected value', () => {
+          expect(result).toStrictEqual({});
+        });
+      });
     });
   });
 });

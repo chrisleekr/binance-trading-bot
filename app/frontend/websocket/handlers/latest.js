@@ -45,9 +45,13 @@ const handleLatest = async (logger, ws, payload) => {
     'trailing-trade-common:',
     'trailing-trade-common:*'
   );
-  const cacheTradingView = await cache.hgetall(
-    'trailing-trade-tradingview:',
-    'trailing-trade-tradingview:*'
+
+  const cacheTradingViews = _.map(
+    await cache.hgetall(
+      'trailing-trade-tradingview:',
+      'trailing-trade-tradingview:*'
+    ),
+    tradingView => JSON.parse(tradingView)
   );
 
   const symbolsPerPage = 12;
@@ -89,20 +93,15 @@ const handleLatest = async (logger, ws, payload) => {
   const stats = {
     symbols: await Promise.all(
       _.map(cacheTrailingTradeSymbols, async symbol => {
-        const newSymbol = { ...symbol };
-        try {
-          newSymbol.tradingView = JSON.parse(
-            cacheTradingView[newSymbol.symbol]
-          );
-        } catch (e) {
-          _.unset(newSymbol, 'tradingView');
-        }
+        const newSymbol = {
+          ...symbol,
+          isActionDisabled: await isActionDisabled(symbol.symbol)
+        };
 
-        // Retrieve action disabled
-        newSymbol.isActionDisabled = await isActionDisabled(newSymbol.symbol);
         return newSymbol;
       })
-    )
+    ),
+    tradingViews: cacheTradingViews
   };
 
   const cacheTrailingTradeQuoteEstimates =

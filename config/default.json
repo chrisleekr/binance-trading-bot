@@ -67,12 +67,7 @@
           "triggerAfter": 20,
           "conditions": {
             "whenLessThanATHRestriction": true,
-            "afterDisabledPeriod": true,
-            "tradingView": {
-              "overrideInterval": "",
-              "whenStrongBuy": true,
-              "whenBuy": true
-            }
+            "afterDisabledPeriod": true
           }
         },
         "orderLimit": {
@@ -80,8 +75,23 @@
           "maxBuyOpenOrders": 3,
           "maxOpenTrades": 5
         },
-        "tradingView": {
-          "interval": "",
+        "tradingViews": [
+          {
+            "interval": "1h",
+            "buy": {
+              "whenStrongBuy": true,
+              "whenBuy": true
+            },
+            "sell": {
+              "forceSellOverZeroBelowTriggerPrice": {
+                "whenNeutral": false,
+                "whenSell": false,
+                "whenStrongSell": false
+              }
+            }
+          }
+        ],
+        "tradingViewOptions": {
           "useOnlyWithin": 5,
           "ifExpires": "ignore"
         },
@@ -115,10 +125,6 @@
             "limit": 30
           },
           "restrictionPercentage": 0.9
-        },
-        "tradingView": {
-          "whenStrongBuy": true,
-          "whenBuy": true
         }
       },
       "sell": {
@@ -137,13 +143,6 @@
           "maxLossPercentage": 0.8,
           "disableBuyMinutes": 360,
           "orderType": "market"
-        },
-        "tradingView": {
-          "forceSellOverZeroBelowTriggerPrice": {
-            "whenNeutral": false,
-            "whenSell": false,
-            "whenStrongSell": false
-          }
         }
       },
       "system": {

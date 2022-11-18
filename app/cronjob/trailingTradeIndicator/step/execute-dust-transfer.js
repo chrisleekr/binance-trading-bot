@@ -30,7 +30,7 @@ const execute = async (logger, rawData) => {
   slack.sendMessage(
     `Dust Transfer Action:\n` +
       `- Assets: \`\`\`${JSON.stringify(assets, undefined, 2)}\`\`\``,
-    { apiLimit: getAPILimit(logger) }
+    { symbol: 'global', apiLimit: getAPILimit(logger) }
   );
 
   try {
@@ -50,7 +50,7 @@ const execute = async (logger, rawData) => {
           undefined,
           2
         )}\`\`\``,
-      { apiLimit: getAPILimit(logger) }
+      { symbol: 'global', apiLimit: getAPILimit(logger) }
     );
   } catch (e) {
     logger.error(e, 'Execution failed.');
@@ -60,6 +60,7 @@ const execute = async (logger, rawData) => {
     });
 
     slack.sendMessage(`Dust Transfer Error:\n- Message: ${e.message}`, {
+      symbol: 'global',
       apiLimit: getAPILimit(logger)
     });
   }

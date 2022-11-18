@@ -859,6 +859,23 @@ const postProcessConfiguration = async (
   return newConfiguration;
 };
 
+const getBotOptionTradingViews = (
+  _logger,
+  _cachedSymbolInfo,
+  globalConfiguration,
+  symbolConfiguration
+) => {
+  const {
+    botOptions: { tradingViews: globalTradingViews }
+  } = globalConfiguration;
+
+  const {
+    botOptions: { tradingViews: symbolTradingViews }
+  } = symbolConfiguration;
+
+  return symbolTradingViews ?? globalTradingViews;
+};
+
 /**
  * Get global/symbol configuration
  *
@@ -885,7 +902,12 @@ const getConfiguration = async (logger, symbol = null) => {
   let mergedConfigValue = _.defaultsDeep(
     symbolConfigValue,
     symbol !== null
-      ? _.omit(globalConfigValue, 'buy.gridTrade', 'sell.gridTrade')
+      ? _.omit(
+          globalConfigValue,
+          'buy.gridTrade',
+          'sell.gridTrade',
+          'botOptions.tradingViews'
+        )
       : globalConfigValue
   );
   let cachedSymbolInfo;
@@ -909,6 +931,10 @@ const getConfiguration = async (logger, symbol = null) => {
       {
         key: 'sell.gridTrade',
         keyFunc: getGridTradeSell
+      },
+      {
+        key: 'botOptions.tradingViews',
+        keyFunc: getBotOptionTradingViews
       }
     ].forEach(d => {
       const { key, keyFunc } = d;

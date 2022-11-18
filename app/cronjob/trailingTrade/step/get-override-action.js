@@ -24,19 +24,11 @@ const shouldRescheduleBuyAction = async (logger, data) => {
       },
       botOptions: {
         autoTriggerBuy: {
-          conditions: {
-            whenLessThanATHRestriction,
-            afterDisabledPeriod,
-            tradingView: {
-              whenStrongBuy: tradingViewWhenStrongBuy,
-              whenBuy: tradingViewWhenBuy
-            }
-          }
+          conditions: { whenLessThanATHRestriction, afterDisabledPeriod }
         }
       }
     },
-    buy: { currentPrice, athRestrictionPrice },
-    tradingView
+    buy: { currentPrice, athRestrictionPrice }
   } = data;
 
   // If the current price is higher than the restriction price, reschedule it
@@ -67,42 +59,6 @@ const shouldRescheduleBuyAction = async (logger, data) => {
     const rescheduleReason =
       `The auto-trigger buy action needs to be re-scheduled ` +
       `because the action is disabled at the moment.`;
-    logger.info(
-      {
-        afterDisabledPeriod,
-        checkDisable
-      },
-      rescheduleReason
-    );
-
-    return { shouldReschedule: true, rescheduleReason };
-  }
-
-  // If the tradingview recommendation is not allowed, then re-schedule
-  const allowedRecommendations = [];
-  if (tradingViewWhenStrongBuy) {
-    allowedRecommendations.push('strong_buy');
-  }
-  if (tradingViewWhenBuy) {
-    allowedRecommendations.push('buy');
-  }
-
-  const tradingViewSummaryRecommendation = _.get(
-    tradingView,
-    'result.summary.RECOMMENDATION',
-    ''
-  );
-
-  if (
-    allowedRecommendations.length > 0 &&
-    tradingViewSummaryRecommendation !== '' &&
-    allowedRecommendations.includes(
-      tradingViewSummaryRecommendation.toLowerCase()
-    ) === false
-  ) {
-    const rescheduleReason =
-      `The auto-trigger buy action needs to be re-scheduled ` +
-      `because the TradingView recommendation is ${tradingViewSummaryRecommendation}.`;
     logger.info(
       {
         afterDisabledPeriod,

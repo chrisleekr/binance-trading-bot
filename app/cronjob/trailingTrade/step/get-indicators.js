@@ -61,7 +61,8 @@ const execute = async (logger, rawData) => {
       sell: {
         currentGridTrade: currentSellGridTrade,
         stopLoss: { maxLossPercentage: sellMaxLossPercentage }
-      }
+      },
+      botOptions: { tradingViews: tradingViewsConfig }
     },
     baseAssetBalance: { total: baseAssetTotalBalance },
     openOrders
@@ -168,12 +169,20 @@ const execute = async (logger, rawData) => {
     };
   }
 
-  const cachedTradingView =
-    JSON.parse(await cache.hget('trailing-trade-tradingview', `${symbol}`)) ||
-    {};
-
   // Set trading view
-  data.tradingView = cachedTradingView;
+  data.tradingViews = _.map(
+    await cache.hgetall(
+      `trailing-trade-tradingview:${symbol}:`,
+      `trailing-trade-tradingview:${symbol}:*`
+    ),
+    tradingView => JSON.parse(tradingView)
+  );
+
+  const tradingViewIntervals = (tradingViewsConfig || []).map(c => c.interval);
+  // Filter out only configured interval
+  data.tradingViews = data.tradingViews.filter(tv =>
+    tradingViewIntervals.includes(tv.request.interval)
+  );
 
   // Set last candle
   data.lastCandle = cachedLatestCandle;

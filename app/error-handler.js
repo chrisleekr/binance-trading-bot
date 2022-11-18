@@ -27,7 +27,7 @@ const runErrorHandler = logger => {
             ? `Stack:\`\`\`${err.stack}\`\`\`\n`
             : ''
         }`,
-      { apiLimit: getAPILimit(logger) }
+      { symbol: 'global', apiLimit: getAPILimit(logger) }
     );
   });
 };
@@ -61,7 +61,7 @@ const handleError = (logger, job, err) => {
             ? `Stack:\`\`\`${err.stack}\`\`\`\n`
             : ''
         }`,
-      { apiLimit: getAPILimit(logger) }
+      { symbol: 'global', apiLimit: getAPILimit(logger) }
     );
   }
 };

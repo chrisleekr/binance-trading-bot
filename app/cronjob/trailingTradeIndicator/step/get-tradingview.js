@@ -4,48 +4,6 @@ const axios = require('axios');
 const { cache } = require('../../../helpers');
 const { handleError } = require('../../../error-handler');
 
-const isTriggeredByAutoTrigger = symbolOverrideData =>
-  _.get(symbolOverrideData, 'action', '') === 'buy' &&
-  _.get(symbolOverrideData, 'triggeredBy', '') === 'auto-trigger';
-
-const getInterval = (logger, symbolConfiguration, symbolOverrideData) => {
-  const {
-    candles: { interval: candleInterval },
-    botOptions: {
-      tradingView: { interval: tradingViewInterval },
-      autoTriggerBuy: {
-        conditions: {
-          tradingView: { overrideInterval: tradingViewOverrideInterval }
-        }
-      }
-    }
-  } = symbolConfiguration;
-
-  // By default, use candle interval
-  let interval = candleInterval;
-  // If overriden data is triggered by auto-trigger and TradingView override interval is configured, then use it.
-  if (
-    isTriggeredByAutoTrigger(symbolOverrideData) &&
-    tradingViewOverrideInterval !== ''
-  ) {
-    interval = tradingViewOverrideInterval;
-    logger.info(
-      { tradingViewOverrideInterval },
-      'Use override interval because of auto-buy trigger'
-    );
-  } else if (tradingViewInterval !== '') {
-    // If TradingView interval is not empty, then use it.
-    interval = tradingViewInterval;
-  }
-
-  switch (interval) {
-    case '3m':
-      return '5m';
-    default:
-      return interval;
-  }
-};
-
 // This variable will store last TradingView response per symbol to avoid saving the duplicated log.
 const lastTradingView = {};
 
@@ -93,8 +51,11 @@ const retrieveTradingView = async (logger, symbols, interval) => {
 
       // If new recommendation is different than previous recommendation,
       if (
-        _.get(lastTradingView, `${symbol}.summary.RECOMMENDATION`, '') !==
-        newRecommendation
+        _.get(
+          lastTradingView,
+          `${symbol}:${interval}.summary.RECOMMENDATION`,
+          ''
+        ) !== newRecommendation
       ) {
         // Then saveLog as true
         saveLog = true;
@@ -103,18 +64,19 @@ const retrieveTradingView = async (logger, symbols, interval) => {
       // If recommendation is retrieved,
       if (newRecommendation !== '') {
         logger.info(
-          { symbol, data: result, saveLog },
-          `The TradingView technical analysis recommendation for ${symbol} is "${_.get(
+          { symbol, interval, data: result, saveLog },
+          `The TradingView technical analysis recommendation for ${symbol}:${interval} is "${_.get(
             result,
             'summary.RECOMMENDATION'
           )}".`
         );
 
-        lastTradingView[symbol] = result;
+        lastTradingView[`${symbol}:${interval}`] = result;
+
         cache
           .hset(
             'trailing-trade-tradingview',
-            symbol,
+            `${symbol}:${interval}`,
             JSON.stringify({
               request: {
                 symbol,
@@ -158,10 +120,10 @@ const execute = async (funcLogger, rawData) => {
 
   const logger = funcLogger.child({ symbols });
 
-  logger.info('get-trading-view started');
+  logger.info('get-tradingview started');
 
   if (_.isEmpty(symbols)) {
-    logger.info('No symbols configured. Do not process get-trading-view');
+    logger.info('No symbols configured. Do not process get-tradingview');
     return data;
   }
 
@@ -171,9 +133,12 @@ const execute = async (funcLogger, rawData) => {
     'trailing-trade-configurations:*'
   );
 
-  const cachedOverrideData = await cache.hgetall(
-    'trailing-trade-override:',
-    'trailing-trade-override:*'
+  const cacheTradingViews = _.map(
+    await cache.hgetall(
+      'trailing-trade-tradingview:',
+      'trailing-trade-tradingview:*'
+    ),
+    tradingView => JSON.parse(tradingView)
   );
 
   const tradingViewRequests = {};
@@ -188,38 +153,46 @@ const execute = async (funcLogger, rawData) => {
 
     const symbolConfiguration = JSON.parse(value);
 
-    let symbolOverrideData = {};
-    try {
-      symbolOverrideData = JSON.parse(cachedOverrideData[symbol]);
-      // eslint-disable-next-line no-empty
-    } catch (e) {}
+    const {
+      botOptions: { tradingViews }
+    } = symbolConfiguration;
 
-    logger.info({ symbol, symbolOverrideData }, 'Symbol override data');
+    const tradingViewIntervals = [];
+    (tradingViews || []).forEach(tradingView => {
+      const { interval } = tradingView;
 
-    const finalInterval = getInterval(
-      logger,
-      symbolConfiguration,
-      symbolOverrideData
-    );
-    logger.info(
-      { symbol, symbolOverrideData, finalInterval },
-      'Determined final interval'
-    );
+      tradingViewIntervals.push(interval);
+      if (tradingViewRequests[interval] === undefined) {
+        tradingViewRequests[interval] = {
+          symbols: [],
+          interval
+        };
+      }
+      tradingViewRequests[interval].symbols.push(symbol);
+    });
 
-    if (tradingViewRequests[finalInterval] === undefined) {
-      tradingViewRequests[finalInterval] = {
-        symbols: [],
-        interval: finalInterval
-      };
-    }
-    tradingViewRequests[finalInterval].symbols.push(symbol);
+    // Delete if tradingView interval is removed from symbol configuration
+    cacheTradingViews
+      .filter(tv => tv.request.symbol === symbol)
+      .filter(
+        tv => tradingViewIntervals.includes(tv.request.interval) === false
+      )
+      .forEach(tv =>
+        cache.hdel(
+          'trailing-trade-tradingview',
+          `${tv.request.symbol}:${tv.request.interval}`
+        )
+      );
   }
 
-  logger.info({ tradingViewRequests }, 'TradingView requests');
+  logger.info({ tradingViewRequests }, 'Requesting TradingView intervals');
+  const promises = [];
 
-  const promises = _.map(tradingViewRequests, request =>
-    retrieveTradingView(logger, request.symbols, request.interval)
-  );
+  _.forIn(tradingViewRequests, async (request, _requestInterval) => {
+    promises.push(
+      retrieveTradingView(logger, _.uniq(request.symbols), request.interval)
+    );
+  });
 
   Promise.all(promises);
 

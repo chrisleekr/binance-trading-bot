@@ -19,6 +19,31 @@ describe('get-indicators.js', () => {
       cacheMock = cache;
       loggerMock = logger;
       mongoMock = mongo;
+
+      cacheMock.hgetall = jest.fn().mockImplementation((prefix, _key) => {
+        if (prefix === 'trailing-trade-tradingview:BTCUSDT:') {
+          return {
+            '1h': JSON.stringify({
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
+            })
+          };
+        }
+
+        return {};
+      });
     });
 
     describe('with no open orders and no last buy price', () => {
@@ -36,25 +61,6 @@ describe('get-indicators.js', () => {
             return JSON.stringify({
               symbol: 'BTCUSDT',
               close: '15555.09000000'
-            });
-          }
-
-          if (hash === 'trailing-trade-tradingview' && key === 'BTCUSDT') {
-            return JSON.stringify({
-              request: {
-                symbol: 'BTCUSDT',
-                screener: 'CRYPTO',
-                exchange: 'BINANCE',
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL',
-                  BUY: 4,
-                  SELL: 14,
-                  NEUTRAL: 8
-                }
-              }
             });
           }
 
@@ -134,6 +140,16 @@ describe('get-indicators.js', () => {
                 limitPercentage: 0.979
               },
               stopLoss: { maxLossPercentage: 0.8 }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: { total: 0.1 },
@@ -178,6 +194,16 @@ describe('get-indicators.js', () => {
               stopLoss: {
                 maxLossPercentage: 0.8
               }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: {
@@ -222,22 +248,24 @@ describe('get-indicators.js', () => {
             processMessage: '',
             updatedAt: expect.any(Object)
           },
-          tradingView: {
-            request: {
-              symbol: 'BTCUSDT',
-              screener: 'CRYPTO',
-              exchange: 'BINANCE',
-              interval: '15m'
-            },
-            result: {
-              summary: {
-                RECOMMENDATION: 'SELL',
-                BUY: 4,
-                SELL: 14,
-                NEUTRAL: 8
+          tradingViews: [
+            {
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
               }
             }
-          }
+          ]
         });
       });
     });
@@ -257,25 +285,6 @@ describe('get-indicators.js', () => {
             return JSON.stringify({
               symbol: 'BTCUSDT',
               close: '15555.09000000'
-            });
-          }
-
-          if (hash === 'trailing-trade-tradingview' && key === 'BTCUSDT') {
-            return JSON.stringify({
-              request: {
-                symbol: 'BTCUSDT',
-                screener: 'CRYPTO',
-                exchange: 'BINANCE',
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL',
-                  BUY: 4,
-                  SELL: 14,
-                  NEUTRAL: 8
-                }
-              }
             });
           }
 
@@ -355,6 +364,16 @@ describe('get-indicators.js', () => {
                 limitPercentage: 0.979
               },
               stopLoss: { maxLossPercentage: 0.8 }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: { total: 0.1 },
@@ -399,6 +418,16 @@ describe('get-indicators.js', () => {
               stopLoss: {
                 maxLossPercentage: 0.8
               }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: {
@@ -443,22 +472,24 @@ describe('get-indicators.js', () => {
             processMessage: '',
             updatedAt: expect.any(Object)
           },
-          tradingView: {
-            request: {
-              symbol: 'BTCUSDT',
-              screener: 'CRYPTO',
-              exchange: 'BINANCE',
-              interval: '15m'
-            },
-            result: {
-              summary: {
-                RECOMMENDATION: 'SELL',
-                BUY: 4,
-                SELL: 14,
-                NEUTRAL: 8
+          tradingViews: [
+            {
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
               }
             }
-          }
+          ]
         });
       });
     });
@@ -479,25 +510,6 @@ describe('get-indicators.js', () => {
             return JSON.stringify({
               symbol: 'BTCUSDT',
               close: '15555.09000000'
-            });
-          }
-
-          if (hash === 'trailing-trade-tradingview' && key === 'BTCUSDT') {
-            return JSON.stringify({
-              request: {
-                symbol: 'BTCUSDT',
-                screener: 'CRYPTO',
-                exchange: 'BINANCE',
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL',
-                  BUY: 4,
-                  SELL: 14,
-                  NEUTRAL: 8
-                }
-              }
             });
           }
 
@@ -574,6 +586,10 @@ describe('get-indicators.js', () => {
               sell: {
                 currentGridTrade: null,
                 stopLoss: { maxLossPercentage: 0.8 }
+              },
+              botOptions: {
+                // For some reason, not defined.
+                tradingViews: undefined
               }
             },
             baseAssetBalance: { total: 0.1 },
@@ -615,6 +631,9 @@ describe('get-indicators.js', () => {
                 stopLoss: {
                   maxLossPercentage: 0.8
                 }
+              },
+              botOptions: {
+                tradingViews: undefined
               }
             },
             baseAssetBalance: {
@@ -659,22 +678,7 @@ describe('get-indicators.js', () => {
               processMessage: '',
               updatedAt: expect.any(Object)
             },
-            tradingView: {
-              request: {
-                symbol: 'BTCUSDT',
-                screener: 'CRYPTO',
-                exchange: 'BINANCE',
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL',
-                  BUY: 4,
-                  SELL: 14,
-                  NEUTRAL: 8
-                }
-              }
-            }
+            tradingViews: []
           });
         });
       });
@@ -711,6 +715,16 @@ describe('get-indicators.js', () => {
                   limitPercentage: 0.979
                 },
                 stopLoss: { maxLossPercentage: 0.8 }
+              },
+              botOptions: {
+                tradingViews: [
+                  {
+                    interval: '5m'
+                  },
+                  {
+                    interval: '15m'
+                  }
+                ]
               }
             },
             baseAssetBalance: { total: 0.1 },
@@ -758,6 +772,16 @@ describe('get-indicators.js', () => {
                 stopLoss: {
                   maxLossPercentage: 0.8
                 }
+              },
+              botOptions: {
+                tradingViews: [
+                  {
+                    interval: '5m'
+                  },
+                  {
+                    interval: '15m'
+                  }
+                ]
               }
             },
             baseAssetBalance: {
@@ -802,22 +826,24 @@ describe('get-indicators.js', () => {
               processMessage: '',
               updatedAt: expect.any(Object)
             },
-            tradingView: {
-              request: {
-                symbol: 'BTCUSDT',
-                screener: 'CRYPTO',
-                exchange: 'BINANCE',
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL',
-                  BUY: 4,
-                  SELL: 14,
-                  NEUTRAL: 8
+            tradingViews: [
+              {
+                request: {
+                  symbol: 'BTCUSDT',
+                  screener: 'CRYPTO',
+                  exchange: 'BINANCE',
+                  interval: '15m'
+                },
+                result: {
+                  summary: {
+                    RECOMMENDATION: 'SELL',
+                    BUY: 4,
+                    SELL: 14,
+                    NEUTRAL: 8
+                  }
                 }
               }
-            }
+            ]
           });
         });
       });
@@ -854,6 +880,16 @@ describe('get-indicators.js', () => {
                   limitPercentage: 0.979
                 },
                 stopLoss: { maxLossPercentage: 0.8 }
+              },
+              botOptions: {
+                tradingViews: [
+                  {
+                    interval: '5m'
+                  },
+                  {
+                    interval: '15m'
+                  }
+                ]
               }
             },
             baseAssetBalance: { total: 0.1 },
@@ -901,6 +937,16 @@ describe('get-indicators.js', () => {
                 stopLoss: {
                   maxLossPercentage: 0.8
                 }
+              },
+              botOptions: {
+                tradingViews: [
+                  {
+                    interval: '5m'
+                  },
+                  {
+                    interval: '15m'
+                  }
+                ]
               }
             },
             baseAssetBalance: {
@@ -945,22 +991,24 @@ describe('get-indicators.js', () => {
               processMessage: '',
               updatedAt: expect.any(Object)
             },
-            tradingView: {
-              request: {
-                symbol: 'BTCUSDT',
-                screener: 'CRYPTO',
-                exchange: 'BINANCE',
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL',
-                  BUY: 4,
-                  SELL: 14,
-                  NEUTRAL: 8
+            tradingViews: [
+              {
+                request: {
+                  symbol: 'BTCUSDT',
+                  screener: 'CRYPTO',
+                  exchange: 'BINANCE',
+                  interval: '15m'
+                },
+                result: {
+                  summary: {
+                    RECOMMENDATION: 'SELL',
+                    BUY: 4,
+                    SELL: 14,
+                    NEUTRAL: 8
+                  }
                 }
               }
-            }
+            ]
           });
         });
       });
@@ -983,25 +1031,6 @@ describe('get-indicators.js', () => {
             return JSON.stringify({
               symbol: 'BTCUSDT',
               close: '15555.09000000'
-            });
-          }
-
-          if (hash === 'trailing-trade-tradingview' && key === 'BTCUSDT') {
-            return JSON.stringify({
-              request: {
-                symbol: 'BTCUSDT',
-                screener: 'CRYPTO',
-                exchange: 'BINANCE',
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL',
-                  BUY: 4,
-                  SELL: 14,
-                  NEUTRAL: 8
-                }
-              }
             });
           }
 
@@ -1078,6 +1107,16 @@ describe('get-indicators.js', () => {
               sell: {
                 currentGridTrade: null,
                 stopLoss: { maxLossPercentage: 0.8 }
+              },
+              botOptions: {
+                tradingViews: [
+                  {
+                    interval: '5m'
+                  },
+                  {
+                    interval: '15m'
+                  }
+                ]
               }
             },
             baseAssetBalance: { total: 0.1 },
@@ -1149,6 +1188,16 @@ describe('get-indicators.js', () => {
                 stopLoss: {
                   maxLossPercentage: 0.8
                 }
+              },
+              botOptions: {
+                tradingViews: [
+                  {
+                    interval: '5m'
+                  },
+                  {
+                    interval: '15m'
+                  }
+                ]
               }
             },
             baseAssetBalance: {
@@ -1278,22 +1327,24 @@ describe('get-indicators.js', () => {
               processMessage: '',
               updatedAt: expect.any(Object)
             },
-            tradingView: {
-              request: {
-                symbol: 'BTCUSDT',
-                screener: 'CRYPTO',
-                exchange: 'BINANCE',
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL',
-                  BUY: 4,
-                  SELL: 14,
-                  NEUTRAL: 8
+            tradingViews: [
+              {
+                request: {
+                  symbol: 'BTCUSDT',
+                  screener: 'CRYPTO',
+                  exchange: 'BINANCE',
+                  interval: '15m'
+                },
+                result: {
+                  summary: {
+                    RECOMMENDATION: 'SELL',
+                    BUY: 4,
+                    SELL: 14,
+                    NEUTRAL: 8
+                  }
                 }
               }
-            }
+            ]
           });
         });
       });
@@ -1330,6 +1381,16 @@ describe('get-indicators.js', () => {
                   limitPercentage: 0.979
                 },
                 stopLoss: { maxLossPercentage: 0.8 }
+              },
+              botOptions: {
+                tradingViews: [
+                  {
+                    interval: '5m'
+                  },
+                  {
+                    interval: '15m'
+                  }
+                ]
               }
             },
             baseAssetBalance: { total: 0.1 },
@@ -1407,6 +1468,16 @@ describe('get-indicators.js', () => {
                 stopLoss: {
                   maxLossPercentage: 0.8
                 }
+              },
+              botOptions: {
+                tradingViews: [
+                  {
+                    interval: '5m'
+                  },
+                  {
+                    interval: '15m'
+                  }
+                ]
               }
             },
             baseAssetBalance: {
@@ -1536,22 +1607,24 @@ describe('get-indicators.js', () => {
               processMessage: '',
               updatedAt: expect.any(Object)
             },
-            tradingView: {
-              request: {
-                symbol: 'BTCUSDT',
-                screener: 'CRYPTO',
-                exchange: 'BINANCE',
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL',
-                  BUY: 4,
-                  SELL: 14,
-                  NEUTRAL: 8
+            tradingViews: [
+              {
+                request: {
+                  symbol: 'BTCUSDT',
+                  screener: 'CRYPTO',
+                  exchange: 'BINANCE',
+                  interval: '15m'
+                },
+                result: {
+                  summary: {
+                    RECOMMENDATION: 'SELL',
+                    BUY: 4,
+                    SELL: 14,
+                    NEUTRAL: 8
+                  }
                 }
               }
-            }
+            ]
           });
         });
       });
@@ -1588,6 +1661,16 @@ describe('get-indicators.js', () => {
                   limitPercentage: 0.979
                 },
                 stopLoss: { maxLossPercentage: 0.8 }
+              },
+              botOptions: {
+                tradingViews: [
+                  {
+                    interval: '5m'
+                  },
+                  {
+                    interval: '15m'
+                  }
+                ]
               }
             },
             baseAssetBalance: { total: 0.1 },
@@ -1665,6 +1748,16 @@ describe('get-indicators.js', () => {
                 stopLoss: {
                   maxLossPercentage: 0.8
                 }
+              },
+              botOptions: {
+                tradingViews: [
+                  {
+                    interval: '5m'
+                  },
+                  {
+                    interval: '15m'
+                  }
+                ]
               }
             },
             baseAssetBalance: {
@@ -1794,22 +1887,24 @@ describe('get-indicators.js', () => {
               processMessage: '',
               updatedAt: expect.any(Object)
             },
-            tradingView: {
-              request: {
-                symbol: 'BTCUSDT',
-                screener: 'CRYPTO',
-                exchange: 'BINANCE',
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL',
-                  BUY: 4,
-                  SELL: 14,
-                  NEUTRAL: 8
+            tradingViews: [
+              {
+                request: {
+                  symbol: 'BTCUSDT',
+                  screener: 'CRYPTO',
+                  exchange: 'BINANCE',
+                  interval: '15m'
+                },
+                result: {
+                  summary: {
+                    RECOMMENDATION: 'SELL',
+                    BUY: 4,
+                    SELL: 14,
+                    NEUTRAL: 8
+                  }
                 }
               }
-            }
+            ]
           });
         });
       });
@@ -1830,25 +1925,6 @@ describe('get-indicators.js', () => {
             return JSON.stringify({
               symbol: 'BTCUSDT',
               close: '15555.09000000'
-            });
-          }
-
-          if (hash === 'trailing-trade-tradingview' && key === 'BTCUSDT') {
-            return JSON.stringify({
-              request: {
-                symbol: 'BTCUSDT',
-                screener: 'CRYPTO',
-                exchange: 'BINANCE',
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL',
-                  BUY: 4,
-                  SELL: 14,
-                  NEUTRAL: 8
-                }
-              }
             });
           }
 
@@ -1927,6 +2003,16 @@ describe('get-indicators.js', () => {
                 limitPercentage: 0.979
               },
               stopLoss: { maxLossPercentage: 0.8 }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: {
@@ -1999,6 +2085,16 @@ describe('get-indicators.js', () => {
               stopLoss: {
                 maxLossPercentage: 0.8
               }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: {
@@ -2128,22 +2224,24 @@ describe('get-indicators.js', () => {
             processMessage: '',
             updatedAt: expect.any(Object)
           },
-          tradingView: {
-            request: {
-              symbol: 'BTCUSDT',
-              screener: 'CRYPTO',
-              exchange: 'BINANCE',
-              interval: '15m'
-            },
-            result: {
-              summary: {
-                RECOMMENDATION: 'SELL',
-                BUY: 4,
-                SELL: 14,
-                NEUTRAL: 8
+          tradingViews: [
+            {
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
               }
             }
-          }
+          ]
         });
       });
     });
@@ -2163,25 +2261,6 @@ describe('get-indicators.js', () => {
             return JSON.stringify({
               symbol: 'BTCUSDT',
               close: '15555.09000000'
-            });
-          }
-
-          if (hash === 'trailing-trade-tradingview' && key === 'BTCUSDT') {
-            return JSON.stringify({
-              request: {
-                symbol: 'BTCUSDT',
-                screener: 'CRYPTO',
-                exchange: 'BINANCE',
-                interval: '15m'
-              },
-              result: {
-                summary: {
-                  RECOMMENDATION: 'SELL',
-                  BUY: 4,
-                  SELL: 14,
-                  NEUTRAL: 8
-                }
-              }
             });
           }
 
@@ -2261,6 +2340,16 @@ describe('get-indicators.js', () => {
                 limitPercentage: 0.98
               },
               stopLoss: { maxLossPercentage: 0.8 }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: {
@@ -2309,6 +2398,16 @@ describe('get-indicators.js', () => {
               stopLoss: {
                 maxLossPercentage: 0.8
               }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: {
@@ -2353,22 +2452,24 @@ describe('get-indicators.js', () => {
             processMessage: 'World',
             updatedAt: expect.any(Object)
           },
-          tradingView: {
-            request: {
-              symbol: 'BTCUSDT',
-              screener: 'CRYPTO',
-              exchange: 'BINANCE',
-              interval: '15m'
-            },
-            result: {
-              summary: {
-                RECOMMENDATION: 'SELL',
-                BUY: 4,
-                SELL: 14,
-                NEUTRAL: 8
+          tradingViews: [
+            {
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
               }
             }
-          }
+          ]
         });
       });
     });
@@ -2426,6 +2527,16 @@ describe('get-indicators.js', () => {
                 limitPercentage: 0.979
               },
               stopLoss: { maxLossPercentage: 0.8 }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: { total: 0.1 },
@@ -2464,6 +2575,16 @@ describe('get-indicators.js', () => {
                 limitPercentage: 0.979
               },
               stopLoss: { maxLossPercentage: 0.8 }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: { total: 0.1 },
@@ -2559,6 +2680,16 @@ describe('get-indicators.js', () => {
                 limitPercentage: 0.979
               },
               stopLoss: { maxLossPercentage: 0.8 }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: { total: 0.1 },
@@ -2599,6 +2730,16 @@ describe('get-indicators.js', () => {
               stopLoss: {
                 maxLossPercentage: 0.8
               }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: {
@@ -2645,7 +2786,24 @@ describe('get-indicators.js', () => {
             processMessage: '',
             updatedAt: expect.any(Object)
           },
-          tradingView: {}
+          tradingViews: [
+            {
+              request: {
+                symbol: 'BTCUSDT',
+                screener: 'CRYPTO',
+                exchange: 'BINANCE',
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL',
+                  BUY: 4,
+                  SELL: 14,
+                  NEUTRAL: 8
+                }
+              }
+            }
+          ]
         });
       });
     });
@@ -2714,6 +2872,10 @@ describe('get-indicators.js', () => {
             ];
           });
 
+        cacheMock.hgetall = jest
+          .fn()
+          .mockImplementation((_prefix, _key) => ({}));
+
         step = require('../get-indicators');
         rawData = {
           symbol: 'BTCUSDT',
@@ -2743,6 +2905,16 @@ describe('get-indicators.js', () => {
                 limitPercentage: 0.979
               },
               stopLoss: { maxLossPercentage: 0.8 }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: {
@@ -2785,6 +2957,16 @@ describe('get-indicators.js', () => {
               stopLoss: {
                 maxLossPercentage: 0.8
               }
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '5m'
+                },
+                {
+                  interval: '15m'
+                }
+              ]
             }
           },
           baseAssetBalance: {
@@ -2829,7 +3011,7 @@ describe('get-indicators.js', () => {
             processMessage: '',
             updatedAt: expect.any(Object)
           },
-          tradingView: {}
+          tradingViews: []
         });
       });
     });

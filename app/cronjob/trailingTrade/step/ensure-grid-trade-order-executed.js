@@ -170,8 +170,8 @@ const saveGridTrade = async (logger, rawData, order) => {
   if (notifyDebug) {
     slack.sendMessage(
       `*${symbol}* ${side.toUpperCase()} Grid Trade Updated: *${type}*\n` +
-        `- New Gird Trade: \`\`\`${JSON.stringify(
-          newGridTrade,
+        `- Updated Gird Trade: \`\`\`${JSON.stringify(
+          currentGridTrade,
           undefined,
           2
         )}\`\`\``,

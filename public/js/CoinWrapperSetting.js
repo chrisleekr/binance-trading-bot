@@ -33,7 +33,8 @@ class CoinWrapperSetting extends React.Component {
     const {
       key: configurationKeyName,
       buy: { gridTrade: buyGridTrade },
-      sell: { gridTrade: sellGridTrade }
+      sell: { gridTrade: sellGridTrade },
+      botOptions: { tradingViews }
     } = symbolConfiguration;
 
     const buyGridRows = buyGridTrade.map((grid, i) => {
@@ -116,6 +117,83 @@ class CoinWrapperSetting extends React.Component {
               <div className='coin-info-value'>
                 {(parseFloat(grid.quantityPercentage) * 100).toFixed(2)}%
               </div>
+            </div>
+          </div>
+        </React.Fragment>
+      );
+    });
+
+    const tradingViewRows = (tradingViews || []).map((tv, i) => {
+      return (
+        <React.Fragment
+          key={'coin-wrapper-setting-tradingview-grid-row' + symbol + '-' + i}>
+          <div className='coin-info-column-grid'>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>TradingView #{i + 1}</span>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>Interval:</span>
+              <div className='coin-info-value'>{tv.interval}</div>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Buy trigger when <code>Strong Buy</code>:
+              </span>
+              <span className='coin-info-value'>
+                {tv.buy.whenStrongBuy ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </span>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Buy trigger when <code>Buy</code>:
+              </span>
+              <span className='coin-info-value'>
+                {tv.buy.whenBuy ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </span>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Force sell when <code>Neutral</code>:
+              </span>
+              <span className='coin-info-value'>
+                {tv.sell.forceSellOverZeroBelowTriggerPrice.whenNeutral ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </span>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Force sell when <code>Sell</code>:
+              </span>
+              <span className='coin-info-value'>
+                {tv.sell.forceSellOverZeroBelowTriggerPrice.whenSell ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </span>
+            </div>
+            <div className='coin-info-column coin-info-column-order'>
+              <span className='coin-info-label'>
+                Force sell when <code>StrongSell</code>:
+              </span>
+              <span className='coin-info-value'>
+                {tv.sell.forceSellOverZeroBelowTriggerPrice.whenStrongSell ? (
+                  <i className='fas fa-toggle-on'></i>
+                ) : (
+                  <i className='fas fa-toggle-off'></i>
+                )}
+              </span>
             </div>
           </div>
         </React.Fragment>
@@ -235,33 +313,6 @@ class CoinWrapperSetting extends React.Component {
               </div>
             </div>
           </div>
-          <div className='coin-info-sub-wrapper'>
-            <div className='coin-info-sub-label'>Buy - TradingView</div>
-            <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>
-                Allow when recommendation is <code>Strong buy</code>:
-              </span>
-              <span className='coin-info-value'>
-                {symbolConfiguration.buy.tradingView.whenStrongBuy ? (
-                  <i className='fas fa-toggle-on'></i>
-                ) : (
-                  <i className='fas fa-toggle-off'></i>
-                )}
-              </span>
-            </div>
-            <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>
-                Allow when recommendation is <code>Buy</code>:
-              </span>
-              <span className='coin-info-value'>
-                {symbolConfiguration.buy.tradingView.whenBuy ? (
-                  <i className='fas fa-toggle-on'></i>
-                ) : (
-                  <i className='fas fa-toggle-off'></i>
-                )}
-              </span>
-            </div>
-          </div>
 
           <div className='coin-info-sub-wrapper'>
             <div className='coin-info-sub-label'>Sell</div>
@@ -320,46 +371,37 @@ class CoinWrapperSetting extends React.Component {
           </div>
 
           <div className='coin-info-sub-wrapper'>
-            <div className='coin-info-sub-label'>Sell - TradingView</div>
-            <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>
-                Force sell when recommendation is <code>Neutral</code>:
-              </span>
-              <span className='coin-info-value'>
-                {symbolConfiguration.sell.tradingView
-                  .forceSellOverZeroBelowTriggerPrice.whenNeutral ? (
-                  <i className='fas fa-toggle-on'></i>
-                ) : (
-                  <i className='fas fa-toggle-off'></i>
-                )}
-              </span>
-            </div>
-            <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>
-                Force sell when recommendation is <code>Sell</code>:
-              </span>
-              <span className='coin-info-value'>
-                {symbolConfiguration.sell.tradingView
-                  .forceSellOverZeroBelowTriggerPrice.whenSell ? (
-                  <i className='fas fa-toggle-on'></i>
-                ) : (
-                  <i className='fas fa-toggle-off'></i>
-                )}
-              </span>
-            </div>
-            <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>
-                Force sell when recommendation is <code>Strong sell</code>:
-              </span>
-              <span className='coin-info-value'>
-                {symbolConfiguration.sell.tradingView
-                  .forceSellOverZeroBelowTriggerPrice.whenStrongSell ? (
-                  <i className='fas fa-toggle-on'></i>
-                ) : (
-                  <i className='fas fa-toggle-off'></i>
-                )}
-              </span>
-            </div>
+            <div className='coin-info-sub-label'>TradingViews</div>
+            {tradingViewRows}
+
+            {symbolConfiguration.botOptions.tradingViewOptions ? (
+              <React.Fragment>
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>
+                    Use data only updated within:
+                  </span>
+                  <span className='coin-info-value'>
+                    {
+                      symbolConfiguration.botOptions.tradingViewOptions
+                        .useOnlyWithin
+                    }
+                  </span>
+                </div>
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>
+                    If data passed "Use data only updated within":
+                  </span>
+                  <span className='coin-info-value'>
+                    {symbolConfiguration.botOptions.tradingViewOptions
+                      .ifExpires === 'ignore'
+                      ? 'Ignore data'
+                      : 'Do not buy'}
+                  </span>
+                </div>
+              </React.Fragment>
+            ) : (
+              ''
+            )}
           </div>
 
           <div className='coin-info-sub-wrapper'>
@@ -412,76 +454,6 @@ class CoinWrapperSetting extends React.Component {
                   <i className='fas fa-toggle-off'></i>
                 )}
               </div>
-            </div>
-            <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>
-                TradingView Overriden Interval:
-              </span>
-              <span className='coin-info-value'>
-                {symbolConfiguration.botOptions.autoTriggerBuy.conditions
-                  .tradingView.overrideInterval !== ''
-                  ? symbolConfiguration.botOptions.autoTriggerBuy.conditions
-                      .tradingView.overrideInterval
-                  : 'Use TradingView'}
-              </span>
-            </div>
-            <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>
-                Allow when TradingView recommendation is <code>Strong buy</code>
-                :
-              </span>
-              <div className='coin-info-value'>
-                {symbolConfiguration.botOptions.autoTriggerBuy.conditions
-                  .tradingView.whenStrongBuy ? (
-                  <i className='fas fa-toggle-on'></i>
-                ) : (
-                  <i className='fas fa-toggle-off'></i>
-                )}
-              </div>
-            </div>
-            <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>
-                Allow when TradingView recommendation is <code>Buy</code>:
-              </span>
-              <div className='coin-info-value'>
-                {symbolConfiguration.botOptions.autoTriggerBuy.conditions
-                  .tradingView.whenBuy ? (
-                  <i className='fas fa-toggle-on'></i>
-                ) : (
-                  <i className='fas fa-toggle-off'></i>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className='coin-info-sub-wrapper'>
-            <div className='coin-info-sub-label'>Bot Options - TradingView</div>
-            <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>Interval:</span>
-              <span className='coin-info-value'>
-                {symbolConfiguration.botOptions.tradingView.interval !== ''
-                  ? symbolConfiguration.botOptions.tradingView.interval
-                  : symbolConfiguration.candles.interval}
-              </span>
-            </div>
-            <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>
-                Use data only updated within:
-              </span>
-              <span className='coin-info-value'>
-                {symbolConfiguration.botOptions.tradingView.useOnlyWithin}
-              </span>
-            </div>
-            <div className='coin-info-column coin-info-column-order'>
-              <span className='coin-info-label'>
-                If data passed "Use data only updated within":
-              </span>
-              <span className='coin-info-value'>
-                {symbolConfiguration.botOptions.tradingView.ifExpires ===
-                'ignore'
-                  ? 'Ignore data'
-                  : 'Do not buy'}
-              </span>
             </div>
           </div>
         </div>

@@ -60,7 +60,9 @@ class App extends React.Component {
       monitoringSymbolsCount: 0,
       cachedMonitoringSymbolsCount: 0,
       page: 1,
-      totalPages: 1
+      totalPages: 1,
+      tradingViewIntervals: ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'],
+      tradingViews: []
     };
     this.requestLatest = this.requestLatest.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
@@ -224,7 +226,8 @@ class App extends React.Component {
             ['common', 'cachedMonitoringSymbolsCount'],
             0
           ),
-          totalPages: _.get(response, ['common', 'totalPages'], 1)
+          totalPages: _.get(response, ['common', 'totalPages'], 1),
+          tradingViews: _.get(response, ['stats', 'tradingViews'], [])
         });
       }
 
@@ -351,7 +354,9 @@ class App extends React.Component {
       isLoaded,
       totalProfitAndLoss,
       page,
-      totalPages
+      totalPages,
+      tradingViewIntervals,
+      tradingViews
     } = this.state;
 
     if (isLoaded === false) {
@@ -367,6 +372,22 @@ class App extends React.Component {
     }
 
     const coinWrappers = symbols.map((symbol, index) => {
+      const symbolTradingViewIntervals = (
+        symbol.symbolConfiguration.botOptions.tradingViews || []
+      ).map(c => c.interval);
+
+      const symbolTradingViews = tradingViews
+        .filter(
+          tradingView =>
+            tradingView.request.symbol === symbol.symbol &&
+            symbolTradingViewIntervals.includes(tradingView.request.interval)
+        )
+        .sort((a, b) => {
+          const aIdx = tradingViewIntervals.indexOf(a.request.interval);
+          const bIdx = tradingViewIntervals.indexOf(b.request.interval);
+          return aIdx - bIdx;
+        });
+
       return (
         <CoinWrapper
           extraClassName={
@@ -376,8 +397,10 @@ class App extends React.Component {
           connected={connected}
           isAuthenticated={isAuthenticated}
           symbolInfo={symbol}
+          symbolTradingViews={symbolTradingViews}
           configuration={configuration}
           sendWebSocket={this.sendWebSocket}
+          tradingViewIntervals={tradingViewIntervals}
         />
       );
     });
@@ -444,6 +467,7 @@ class App extends React.Component {
           searchKeyword={searchKeyword}
           setSortOption={this.setSortOption}
           setSearchKeyword={this.setSearchKeyword}
+          tradingViewIntervals={tradingViewIntervals}
         />
         {_.isEmpty(configuration) === false ? (
           <div className='app-body'>

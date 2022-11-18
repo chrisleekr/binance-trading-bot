@@ -156,20 +156,21 @@ module.exports.up = async next => {
       key: 'configuration'
     }
   );
+  if (globalConfiguration) {
+    // Migrate global configuration
+    const newGlobalConfiguration = migrateGlobalConfiguration(
+      logger,
+      globalConfiguration
+    );
 
-  // Migrate global configuration
-  const newGlobalConfiguration = migrateGlobalConfiguration(
-    logger,
-    globalConfiguration
-  );
-
-  // Update global configuration
-  await mongo.upsertOne(
-    logger,
-    'trailing-trade-common',
-    { key: 'configuration' },
-    { key: 'configuration', ...newGlobalConfiguration }
-  );
+    // Update global configuration
+    await mongo.upsertOne(
+      logger,
+      'trailing-trade-common',
+      { key: 'configuration' },
+      { key: 'configuration', ...newGlobalConfiguration }
+    );
+  }
 
   logger.info('Finish migration');
 
