@@ -328,7 +328,7 @@ class CoinWrapperBuySignal extends React.Component {
             key={'coin-wrapper-buy-next-grid-row-' + symbol}>
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>
-              &#62; Suggested next grid amount:
+              &#62; Suggested break-even amount:
               <OverlayTrigger
                 trigger='click'
                 key='buy-grid-exit-overlay'
@@ -337,8 +337,8 @@ class CoinWrapperBuySignal extends React.Component {
                   <Popover id='buy-next-grid-overlay-right'>
                     <Popover.Content>
                       This is the amount you would need to purchase (at the current price) to
-                      close the grid trade assuming the price reaches your sell trigger
-                      point ({((triggerSellPercentage - 1) * 100).toFixed(2)}%).
+                      close the grid trade at break-even if the price reaches your sell trigger
+                      point ({((triggerSellPercentage - 1) * 100).toFixed(2)}%) after the purchase.
                     </Popover.Content>
                   </Popover>
                 }>
