@@ -328,7 +328,7 @@ class CoinWrapperBuySignal extends React.Component {
             key={'coin-wrapper-buy-next-grid-row-' + symbol}>
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>
-              &#62; Next grid amount:
+              &#62; Suggested next grid amount:
               <OverlayTrigger
                 trigger='click'
                 key='buy-grid-exit-overlay'
