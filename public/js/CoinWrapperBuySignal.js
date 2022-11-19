@@ -343,6 +343,64 @@ class CoinWrapperBuySignal extends React.Component {
       );
     });
 
+    const buyNextGrid = () => {
+      const sellGridTrade = symbolConfiguration.sell.gridTrade;
+
+      const currentPrice = parseFloat(buy.currentPrice)
+      const lastBuyPrice = parseFloat(sell.lastBuyPrice)
+
+      if (isNaN(lastBuyPrice) || sellGridTrade.length != 1 || currentPrice >= lastBuyPrice)
+        return ('')
+
+      const totalBoughtQty = gridTrade
+          .filter(trade => trade.executed)
+          .map(order => parseFloat(order.executedOrder.executedQty))
+          .reduce((acc, qty) => acc + qty, 0);
+
+      const triggerSellPercentage = sellGridTrade[0].triggerPercentage;
+
+      const gain = triggerSellPercentage - 1;
+
+      const nextGridQty = -totalBoughtQty * (1 + ((currentPrice - lastBuyPrice) / (gain * currentPrice)));
+
+      const nextGridAmount = nextGridQty * currentPrice;
+
+      return nextGridAmount > 0 ? (
+        <React.Fragment
+            key={'coin-wrapper-buy-next-grid-row-' + symbol}>
+          <div className='coin-info-column coin-info-column-price'>
+            <span className='coin-info-label'>
+              &#62; Suggested break-even amount:
+              <OverlayTrigger
+                trigger='click'
+                key='buy-grid-exit-overlay'
+                placement='bottom'
+                overlay={
+                  <Popover id='buy-next-grid-overlay-right'>
+                    <Popover.Content>
+                      This is the amount you would need to purchase (at the current price) to
+                      close the grid trade at break-even if the price reaches your sell trigger
+                      point ({((triggerSellPercentage - 1) * 100).toFixed(2)}%) after the purchase.
+                    </Popover.Content>
+                  </Popover>
+                }>
+                <Button
+                    variant='link'
+                    className='p-0 m-0 ml-1 text-info d-inline-block'
+                    style={{lineHeight: '10px'}}>
+                  <i className='fas fa-question-circle fa-sm'></i>
+                </Button>
+              </OverlayTrigger>
+            </span>
+            <span className='coin-info-value'>
+              {nextGridAmount.toFixed(precision)}{' '}{quoteAsset}
+            </span>
+          </div>
+        </React.Fragment>
+      ) : ( ''
+      );
+    }
+
     return (
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title'>
@@ -473,6 +531,7 @@ class CoinWrapperBuySignal extends React.Component {
         )}
         <div className='coin-info-column coin-info-column-price divider mb-1'></div>
         {buyGridRows}
+        {buyNextGrid()}
         {buy.processMessage ? (
           <div className='d-flex flex-column w-100'>
             <div className='coin-info-column coin-info-column-price divider'></div>
