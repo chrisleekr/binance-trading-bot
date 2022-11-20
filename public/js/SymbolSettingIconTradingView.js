@@ -177,10 +177,10 @@ class SymbolSettingIconTradingView extends React.Component {
           <tr>
             <td colSpan='2'>
               <div className='row'>
-                <div className='col-xs-12 col-sm-6'>
+                <div className='col-12 mb-2'>
                   <Form.Group
                     controlId={'field-tradingview-' + i + '-interval'}
-                    className='mb-2'>
+                    className='mb-0'>
                     <Form.Label className='mb-0'>
                       Interval
                       <OverlayTrigger
@@ -225,21 +225,24 @@ class SymbolSettingIconTradingView extends React.Component {
                     </Form.Control>
                   </Form.Group>
                 </div>
-                {isBuyTriggerActive === false ? (
-                  <div className='col-12'>
-                    <span className='text-warning'>
-                      This interval won't trigger the buy action.
-                    </span>
-                  </div>
-                ) : (
-                  ''
-                )}
+                <div className='col-12'>
+                  <p className='mb-0'>
+                    Buy action
+                    {isBuyTriggerActive === false ? (
+                      <span className='text-warning font-weight-bold ml-3'>
+                        This interval won't trigger the buy action.
+                      </span>
+                    ) : (
+                      ''
+                    )}
+                  </p>
+                </div>
                 <div className='col-12'>
                   <Form.Group
                     controlId={
                       'field-tradingview-' + i + '-buy-when-strong-buy'
                     }
-                    className='mb-2'>
+                    className='mb-0'>
                     <Form.Check size='sm'>
                       <Form.Check.Input
                         type='checkbox'
@@ -288,7 +291,7 @@ class SymbolSettingIconTradingView extends React.Component {
                 <div className='col-12'>
                   <Form.Group
                     controlId={'field-tradingview-' + i + '-buy-when-buy'}
-                    className='mb-2'>
+                    className='mb-0'>
                     <Form.Check size='sm'>
                       <Form.Check.Input
                         type='checkbox'
@@ -331,15 +334,20 @@ class SymbolSettingIconTradingView extends React.Component {
                     </Form.Check>
                   </Form.Group>
                 </div>
-                {isForceSellTriggerActive === false ? (
-                  <div className='col-12'>
-                    <span className='text-warning'>
-                      This interval won't trigger the force sell action.
-                    </span>
-                  </div>
-                ) : (
-                  ''
-                )}
+
+                <div className='col-12'>
+                  <p className='mb-0'>
+                    Sell action
+                    {isForceSellTriggerActive === false ? (
+                      <span className='text-warning font-weight-bold ml-3'>
+                        This interval won't trigger the force sell action.
+                      </span>
+                    ) : (
+                      ''
+                    )}
+                  </p>
+                </div>
+
                 <div className='col-12'>
                   <Form.Group
                     controlId={
@@ -347,7 +355,7 @@ class SymbolSettingIconTradingView extends React.Component {
                       i +
                       '-sell-force-sell-over-zero-below-trigger-price-when-neutral'
                     }
-                    className='mb-2'>
+                    className='mb-0'>
                     <Form.Check size='sm'>
                       <Form.Check.Input
                         type='checkbox'
@@ -408,7 +416,7 @@ class SymbolSettingIconTradingView extends React.Component {
                       i +
                       '-sell-force-sell-over-zero-below-trigger-price-when-sell'
                     }
-                    className='mb-2'>
+                    className='mb-0'>
                     <Form.Check size='sm'>
                       <Form.Check.Input
                         type='checkbox'
@@ -469,7 +477,7 @@ class SymbolSettingIconTradingView extends React.Component {
                       i +
                       '-sell-force-sell-over-zero-below-trigger-price-when-strong-sell'
                     }
-                    className='mb-2'>
+                    className='mb-0'>
                     <Form.Check size='sm'>
                       <Form.Check.Input
                         type='checkbox'
@@ -565,7 +573,7 @@ class SymbolSettingIconTradingView extends React.Component {
                           analysis based on various indicators such as
                           oscillators and moving averages. The bot is integrated
                           with TradingView summary recommendation to control the
-                          buy action.
+                          buy/sell actions.
                         </Popover.Content>
                       </Popover>
                     }>
@@ -573,7 +581,6 @@ class SymbolSettingIconTradingView extends React.Component {
                       <i className='fas fa-question-circle fa-sm'></i>
                     </Button>
                   </OverlayTrigger>
-                  <br />
                   <br />
                   - At least one condition must be checked to activate the
                   TradingView interval. If the interval's conditions are not
@@ -590,7 +597,7 @@ class SymbolSettingIconTradingView extends React.Component {
                   <br />
                   For more detailed information,{' '}
                   <a
-                    href='https://github.com/chrisleekr/binance-trading-bot/wiki/Bot-Options#tradingview'
+                    href='https://github.com/chrisleekr/binance-trading-bot/wiki/TradingView'
                     target='_blank'
                     rel='noreferrer'>
                     please check out the Wiki page
