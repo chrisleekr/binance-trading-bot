@@ -3139,7 +3139,7 @@ describe('configuration.js', () => {
 
       cache.del = jest.fn().mockResolvedValue(true);
       cache.hdelall = jest.fn().mockResolvedValue(true);
-      cache.hget = jest.fn().mockImplementation((hash, _key) => {
+      cache.hgetWithoutLock = jest.fn().mockImplementation((hash, _key) => {
         if (hash === 'trailing-trade-symbols') {
           return Promise.resolve(
             JSON.stringify({
@@ -3250,7 +3250,7 @@ describe('configuration.js', () => {
     describe('without symbol', () => {
       describe('when cache is available', () => {
         beforeEach(async () => {
-          cache.hget = jest.fn().mockImplementation((hash, key) => {
+          cache.hgetWithoutLock = jest.fn().mockImplementation((hash, key) => {
             if (hash === 'trailing-trade-configurations' && key === 'global') {
               return Promise.resolve(
                 JSON.stringify({
@@ -3696,7 +3696,7 @@ describe('configuration.js', () => {
     describe('with symbol', () => {
       describe('when cache is available', () => {
         beforeEach(async () => {
-          cache.hget = jest.fn().mockImplementation((hash, key) => {
+          cache.hgetWithoutLock = jest.fn().mockImplementation((hash, key) => {
             if (hash === 'trailing-trade-configurations' && key === 'BTCUSDT') {
               return Promise.resolve(
                 JSON.stringify({
@@ -4641,7 +4641,7 @@ describe('configuration.js', () => {
 
         describe('when cached symbol info is not valid', () => {
           beforeEach(async () => {
-            cache.hget = jest.fn().mockResolvedValue(null);
+            cache.hgetWithoutLock = jest.fn().mockResolvedValue(null);
 
             mongo.findOne = jest.fn((_logger, collection, filter) => {
               if (

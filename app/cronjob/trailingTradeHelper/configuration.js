@@ -886,7 +886,10 @@ const getConfiguration = async (logger, symbol = null) => {
   // To reduce MongoDB query, try to get cached configuration first.
   const cachedConfiguration =
     JSON.parse(
-      await cache.hget('trailing-trade-configurations', `${symbol || 'global'}`)
+      await cache.hgetWithoutLock(
+        'trailing-trade-configurations',
+        `${symbol || 'global'}`
+      )
     ) || {};
 
   if (_.isEmpty(cachedConfiguration) === false) {
@@ -915,7 +918,10 @@ const getConfiguration = async (logger, symbol = null) => {
   if (symbol !== null) {
     cachedSymbolInfo =
       JSON.parse(
-        await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
+        await cache.hgetWithoutLock(
+          'trailing-trade-symbols',
+          `${symbol}-symbol-info`
+        )
       ) || {};
 
     // Post process configuration value to prefill some default values
