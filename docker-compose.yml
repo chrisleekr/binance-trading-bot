@@ -24,6 +24,7 @@ services:
       - BINANCE_REDIS_HOST=binance-redis
       - BINANCE_REDIS_PORT=6379
       - BINANCE_REDIS_PASSWORD=secretp422
+      - BINANCE_LOG_LEVEL=DEBUG
     ports:
       - 8080:80
     logging:
