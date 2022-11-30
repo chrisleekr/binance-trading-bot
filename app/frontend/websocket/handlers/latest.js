@@ -113,59 +113,56 @@ const handleLatest = async (logger, ws, payload) => {
   );
 
   let common = {};
-  try {
-    const accountInfo = JSON.parse(cacheTrailingTradeCommon['account-info']);
-    accountInfo.balances = accountInfo.balances.map(balance => {
-      const quoteEstimate = {
-        quote: null,
-        estimate: null,
-        tickSize: null
-      };
-
-      if (quoteEstimatesGroupedByBaseAsset[balance.asset]) {
-        quoteEstimate.quote =
-          quoteEstimatesGroupedByBaseAsset[balance.asset][0].quoteAsset;
-        quoteEstimate.estimate =
-          quoteEstimatesGroupedByBaseAsset[balance.asset][0].estimatedValue;
-        quoteEstimate.tickSize =
-          quoteEstimatesGroupedByBaseAsset[balance.asset][0].tickSize;
-      }
-
-      return {
-        ...balance,
-        ...quoteEstimate
-      };
-    });
-
-    common = {
-      version,
-      gitHash: process.env.GIT_HASH || 'unspecified',
-      accountInfo,
-      apiInfo: binance.client.getInfo(),
-      closedTradesSetting: JSON.parse(
-        cacheTrailingTradeCommon['closed-trades'] || '{}'
-      ),
-      orderStats: {
-        numberOfOpenTrades: parseInt(
-          cacheTrailingTradeCommon['number-of-open-trades'],
-          10
-        ),
-        numberOfBuyOpenOrders: parseInt(
-          cacheTrailingTradeCommon['number-of-buy-open-orders'],
-          10
-        )
-      },
-      closedTrades: cacheTrailingTradeClosedTrades,
-      totalProfitAndLoss: cacheTrailingTradeTotalProfitAndLoss,
-      streamsCount,
-      monitoringSymbolsCount,
-      cachedMonitoringSymbolsCount,
-      totalPages
+  const accountInfo = JSON.parse(
+    cacheTrailingTradeCommon['account-info'] || '{}'
+  );
+  accountInfo.balances = (accountInfo.balances || []).map(balance => {
+    const quoteEstimate = {
+      quote: null,
+      estimate: null,
+      tickSize: null
     };
-  } catch (err) {
-    logger.error({ err }, 'Something wrong with trailing-trade-common cache');
-    return;
-  }
+
+    if (quoteEstimatesGroupedByBaseAsset[balance.asset]) {
+      quoteEstimate.quote =
+        quoteEstimatesGroupedByBaseAsset[balance.asset][0].quoteAsset;
+      quoteEstimate.estimate =
+        quoteEstimatesGroupedByBaseAsset[balance.asset][0].estimatedValue;
+      quoteEstimate.tickSize =
+        quoteEstimatesGroupedByBaseAsset[balance.asset][0].tickSize;
+    }
+
+    return {
+      ...balance,
+      ...quoteEstimate
+    };
+  });
+
+  common = {
+    version,
+    gitHash: process.env.GIT_HASH || 'unspecified',
+    accountInfo,
+    apiInfo: binance.client.getInfo(),
+    closedTradesSetting: JSON.parse(
+      cacheTrailingTradeCommon['closed-trades'] || '{}'
+    ),
+    orderStats: {
+      numberOfOpenTrades: parseInt(
+        cacheTrailingTradeCommon['number-of-open-trades'],
+        10
+      ),
+      numberOfBuyOpenOrders: parseInt(
+        cacheTrailingTradeCommon['number-of-buy-open-orders'],
+        10
+      )
+    },
+    closedTrades: cacheTrailingTradeClosedTrades,
+    totalProfitAndLoss: cacheTrailingTradeTotalProfitAndLoss,
+    streamsCount,
+    monitoringSymbolsCount,
+    cachedMonitoringSymbolsCount,
+    totalPages
+  };
 
   logger.info(
     {

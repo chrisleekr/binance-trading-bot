@@ -81,6 +81,7 @@ module.exports = grunt => {
           './public/dist/js/LockIcon.min.js',
           './public/dist/js/UnlockIcon.min.js',
           './public/dist/js/Header.min.js',
+          './public/dist/js/APIError.min.js',
           './public/dist/js/LockScreen.min.js',
           './public/dist/js/AppSorting.min.js',
           './public/dist/js/AppLoading.min.js',
