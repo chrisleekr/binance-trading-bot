@@ -268,6 +268,22 @@ class App extends React.Component {
     };
   }
 
+  isAccountLoaded() {
+    const { isLoaded, accountInfo } = this.state;
+
+    return isLoaded === true && _.get(accountInfo, 'accountType') === 'SPOT';
+  }
+
+  isLocked() {
+    const { isAuthenticated, botOptions, isLoaded } = this.state;
+
+    return (
+      isLoaded === true &&
+      isAuthenticated === false &&
+      _.get(botOptions, ['authentication', 'lockList'], true) === true
+    );
+  }
+
   sendWebSocket(command, data = {}) {
     const { instance, connected } = this.state.webSocket;
 
@@ -347,7 +363,6 @@ class App extends React.Component {
       selectedSortOption,
       searchKeyword,
       isAuthenticated,
-      botOptions,
       isLoaded,
       totalProfitAndLoss,
       page,
@@ -358,11 +373,11 @@ class App extends React.Component {
       return <AppLoading />;
     }
 
-    if (
-      isLoaded === true &&
-      isAuthenticated === false &&
-      _.get(botOptions, ['authentication', 'lockList'], true) === true
-    ) {
+    if (this.isAccountLoaded() === false) {
+      return <APIError />;
+    }
+
+    if (this.isLocked()) {
       return <LockScreen />;
     }
 
