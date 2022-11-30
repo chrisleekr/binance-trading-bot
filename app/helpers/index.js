@@ -4,7 +4,6 @@ const slack = require('./slack');
 const binance = require('./binance');
 const mongo = require('./mongo');
 const { PubSub } = require('./pubsub');
-const queue = require('./queue');
 
 module.exports = {
   cache,
@@ -12,6 +11,5 @@ module.exports = {
   slack,
   binance,
   mongo,
-  PubSub,
-  queue
+  PubSub
 };

@@ -4,9 +4,10 @@ describe('symbol-grid-trade-delete.test.js', () => {
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
-  let loggerMock;
-  let slackMock;
-  let queueMock;
+  let mockLogger;
+  let mockSlack;
+
+  let mockQueue;
 
   let mockArchiveSymbolGridTrade;
   let mockDeleteSymbolGridTrade;
@@ -33,19 +34,22 @@ describe('symbol-grid-trade-delete.test.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockQueue = {
+      executeFor: jest.fn().mockResolvedValue(true)
+    };
+
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   describe('when symbol is provided', () => {
     describe('action is archive - symbol grid trade exists and it is profit', () => {
       beforeEach(async () => {
-        const { logger, slack, queue } = require('../../../../helpers');
-        loggerMock = logger;
-        slackMock = slack;
-        queueMock = queue;
+        const { logger, slack } = require('../../../../helpers');
+        mockLogger = logger;
+        mockSlack = slack;
 
-        queueMock.executeFor = jest.fn().mockResolvedValue(true);
-
-        slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+        mockSlack.sendMessage = jest.fn().mockResolvedValue(true);
 
         mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({
           profit: 10,
@@ -66,7 +70,7 @@ describe('symbol-grid-trade-delete.test.js', () => {
         const {
           handleSymbolGridTradeDelete
         } = require('../symbol-grid-trade-delete');
-        await handleSymbolGridTradeDelete(loggerMock, mockWebSocketServer, {
+        await handleSymbolGridTradeDelete(mockLogger, mockWebSocketServer, {
           data: {
             symbol: 'BTCUSDT',
             action: 'archive'
@@ -76,13 +80,13 @@ describe('symbol-grid-trade-delete.test.js', () => {
 
       it('triggers archiveSymbolGridTrade', () => {
         expect(mockArchiveSymbolGridTrade).toHaveBeenCalledWith(
-          loggerMock,
+          mockLogger,
           'BTCUSDT'
         );
       });
 
       it('triggers slack.sendMessage', () => {
-        expect(slackMock.sendMessage).toHaveBeenCalledWith(
+        expect(mockSlack.sendMessage).toHaveBeenCalledWith(
           expect.stringContaining('*BTCUSDT* Profit'),
           {
             apiLimit: 0,
@@ -93,14 +97,14 @@ describe('symbol-grid-trade-delete.test.js', () => {
 
       it('triggers deleteSymbolGridTrade', () => {
         expect(mockDeleteSymbolGridTrade).toHaveBeenCalledWith(
-          loggerMock,
+          mockLogger,
           'BTCUSDT'
         );
       });
 
       it('triggers queue.executeFor', () => {
-        expect(queueMock.executeFor).toHaveBeenCalledWith(
-          loggerMock,
+        expect(mockQueue.executeFor).toHaveBeenCalledWith(
+          mockLogger,
           'BTCUSDT'
         );
       });
@@ -117,14 +121,11 @@ describe('symbol-grid-trade-delete.test.js', () => {
 
     describe('action is archive - symbol grid trade exists and it is loss', () => {
       beforeEach(async () => {
-        const { logger, slack, queue } = require('../../../../helpers');
-        loggerMock = logger;
-        slackMock = slack;
-        queueMock = queue;
+        const { logger, slack } = require('../../../../helpers');
+        mockLogger = logger;
+        mockSlack = slack;
 
-        queueMock.executeFor = jest.fn().mockResolvedValue(true);
-
-        slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+        mockSlack.sendMessage = jest.fn().mockResolvedValue(true);
 
         mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({
           profit: -10,
@@ -145,7 +146,7 @@ describe('symbol-grid-trade-delete.test.js', () => {
         const {
           handleSymbolGridTradeDelete
         } = require('../symbol-grid-trade-delete');
-        await handleSymbolGridTradeDelete(loggerMock, mockWebSocketServer, {
+        await handleSymbolGridTradeDelete(mockLogger, mockWebSocketServer, {
           data: {
             symbol: 'BTCUSDT',
             action: 'archive'
@@ -155,13 +156,13 @@ describe('symbol-grid-trade-delete.test.js', () => {
 
       it('triggers archiveSymbolGridTrade', () => {
         expect(mockArchiveSymbolGridTrade).toHaveBeenCalledWith(
-          loggerMock,
+          mockLogger,
           'BTCUSDT'
         );
       });
 
       it('triggers slack.sendMessage', () => {
-        expect(slackMock.sendMessage).toHaveBeenCalledWith(
+        expect(mockSlack.sendMessage).toHaveBeenCalledWith(
           expect.stringContaining('*BTCUSDT* Loss'),
           {
             apiLimit: 0,
@@ -172,14 +173,14 @@ describe('symbol-grid-trade-delete.test.js', () => {
 
       it('triggers deleteSymbolGridTrade', () => {
         expect(mockDeleteSymbolGridTrade).toHaveBeenCalledWith(
-          loggerMock,
+          mockLogger,
           'BTCUSDT'
         );
       });
 
       it('triggers queue.executeFor', () => {
-        expect(queueMock.executeFor).toHaveBeenCalledWith(
-          loggerMock,
+        expect(mockQueue.executeFor).toHaveBeenCalledWith(
+          mockLogger,
           'BTCUSDT'
         );
       });
@@ -196,14 +197,11 @@ describe('symbol-grid-trade-delete.test.js', () => {
 
     describe('action is archive - symbol grid trade does not exist', () => {
       beforeEach(async () => {
-        const { logger, slack, queue } = require('../../../../helpers');
-        loggerMock = logger;
-        slackMock = slack;
-        queueMock = queue;
+        const { logger, slack } = require('../../../../helpers');
+        mockLogger = logger;
+        mockSlack = slack;
 
-        queueMock.executeFor = jest.fn().mockResolvedValue(true);
-
-        slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+        mockSlack.sendMessage = jest.fn().mockResolvedValue(true);
 
         mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({});
         mockDeleteSymbolGridTrade = jest.fn().mockResolvedValue(true);
@@ -219,7 +217,7 @@ describe('symbol-grid-trade-delete.test.js', () => {
         const {
           handleSymbolGridTradeDelete
         } = require('../symbol-grid-trade-delete');
-        await handleSymbolGridTradeDelete(loggerMock, mockWebSocketServer, {
+        await handleSymbolGridTradeDelete(mockLogger, mockWebSocketServer, {
           data: {
             symbol: 'BTCUSDT',
             action: 'archive'
@@ -229,25 +227,25 @@ describe('symbol-grid-trade-delete.test.js', () => {
 
       it('triggers archiveSymbolGridTrade', () => {
         expect(mockArchiveSymbolGridTrade).toHaveBeenCalledWith(
-          loggerMock,
+          mockLogger,
           'BTCUSDT'
         );
       });
 
       it('does not trigger slack.sendMessage', () => {
-        expect(slackMock.sendMessage).not.toHaveBeenCalled();
+        expect(mockSlack.sendMessage).not.toHaveBeenCalled();
       });
 
       it('triggers deleteSymbolGridTrade', () => {
         expect(mockDeleteSymbolGridTrade).toHaveBeenCalledWith(
-          loggerMock,
+          mockLogger,
           'BTCUSDT'
         );
       });
 
       it('triggers queue.executeFor', () => {
-        expect(queueMock.executeFor).toHaveBeenCalledWith(
-          loggerMock,
+        expect(mockQueue.executeFor).toHaveBeenCalledWith(
+          mockLogger,
           'BTCUSDT'
         );
       });
@@ -264,14 +262,11 @@ describe('symbol-grid-trade-delete.test.js', () => {
 
     describe('action is delete', () => {
       beforeEach(async () => {
-        const { logger, slack, queue } = require('../../../../helpers');
-        loggerMock = logger;
-        slackMock = slack;
-        queueMock = queue;
+        const { logger, slack } = require('../../../../helpers');
+        mockLogger = logger;
+        mockSlack = slack;
 
-        queueMock.executeFor = jest.fn().mockResolvedValue(true);
-
-        slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+        mockSlack.sendMessage = jest.fn().mockResolvedValue(true);
 
         mockArchiveSymbolGridTrade = jest.fn().mockResolvedValue({});
         mockDeleteSymbolGridTrade = jest.fn().mockResolvedValue(true);
@@ -287,7 +282,7 @@ describe('symbol-grid-trade-delete.test.js', () => {
         const {
           handleSymbolGridTradeDelete
         } = require('../symbol-grid-trade-delete');
-        await handleSymbolGridTradeDelete(loggerMock, mockWebSocketServer, {
+        await handleSymbolGridTradeDelete(mockLogger, mockWebSocketServer, {
           data: {
             symbol: 'BTCUSDT',
             action: 'delete'
@@ -300,19 +295,19 @@ describe('symbol-grid-trade-delete.test.js', () => {
       });
 
       it('does not trigger slack.sendMessage', () => {
-        expect(slackMock.sendMessage).not.toHaveBeenCalled();
+        expect(mockSlack.sendMessage).not.toHaveBeenCalled();
       });
 
       it('triggers deleteSymbolGridTrade', () => {
         expect(mockDeleteSymbolGridTrade).toHaveBeenCalledWith(
-          loggerMock,
+          mockLogger,
           'BTCUSDT'
         );
       });
 
       it('triggers queue.executeFor', () => {
-        expect(queueMock.executeFor).toHaveBeenCalledWith(
-          loggerMock,
+        expect(mockQueue.executeFor).toHaveBeenCalledWith(
+          mockLogger,
           'BTCUSDT'
         );
       });

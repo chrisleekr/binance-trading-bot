@@ -4,10 +4,11 @@ describe('symbol-setting-delete.test.js', () => {
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
-  let loggerMock;
-  let queueMock;
+  let mockLogger;
 
   let mockDeleteSymbolConfiguration;
+
+  let mockQueue;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -17,15 +18,18 @@ describe('symbol-setting-delete.test.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockQueue = {
+      executeFor: jest.fn().mockResolvedValue(true)
+    };
+
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   describe('when symbol is provided', () => {
     beforeEach(async () => {
-      const { logger, queue } = require('../../../../helpers');
-      loggerMock = logger;
-      queueMock = queue;
-
-      queueMock.executeFor = jest.fn().mockResolvedValue(true);
+      const { logger } = require('../../../../helpers');
+      mockLogger = logger;
 
       mockDeleteSymbolConfiguration = jest.fn().mockResolvedValue(true);
 
@@ -46,13 +50,13 @@ describe('symbol-setting-delete.test.js', () => {
 
     it('triggers deleteSymbolConfiguration', () => {
       expect(mockDeleteSymbolConfiguration).toHaveBeenCalledWith(
-        loggerMock,
+        mockLogger,
         'BTCUSDT'
       );
     });
 
     it('triggers queue.executeFor', () => {
-      expect(queueMock.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
+      expect(mockQueue.executeFor).toHaveBeenCalledWith(mockLogger, 'BTCUSDT');
     });
 
     it('triggers ws.send', () => {

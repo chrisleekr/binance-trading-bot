@@ -1,5 +1,6 @@
 const _ = require('lodash');
-const { binance, cache, queue } = require('../helpers');
+const { binance, cache } = require('../helpers');
+const queue = require('../cronjob/trailingTradeHelper/queue');
 
 const {
   getAccountInfo,

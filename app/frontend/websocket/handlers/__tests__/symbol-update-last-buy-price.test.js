@@ -11,7 +11,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
   let mongoMock;
   let cacheMock;
   let PubSubMock;
-  let queueMock;
+  let mockQueue;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -21,18 +21,21 @@ describe('symbol-update-last-buy-price.test.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
+
+    mockQueue = {
+      executeFor: jest.fn().mockResolvedValue(true)
+    };
+
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   describe('update symbol last buy price', () => {
     describe('when last buy price is less or equal than 0', () => {
       beforeEach(async () => {
-        const { mongo, logger, PubSub, queue } = require('../../../../helpers');
+        const { mongo, logger, PubSub } = require('../../../../helpers');
         mongoMock = mongo;
         loggerMock = logger;
         PubSubMock = PubSub;
-        queueMock = queue;
-
-        queueMock.executeFor = jest.fn().mockResolvedValue(true);
 
         mongoMock.deleteOne = jest.fn().mockResolvedValue(true);
         PubSubMock.publish = jest.fn().mockResolvedValue(true);
@@ -59,7 +62,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
       });
 
       it('triggers queue.executeFor', () => {
-        expect(queueMock.executeFor).toHaveBeenCalledWith(
+        expect(mockQueue.executeFor).toHaveBeenCalledWith(
           loggerMock,
           'BTCUSDT'
         );
@@ -95,16 +98,12 @@ describe('symbol-update-last-buy-price.test.js', () => {
             cache,
             mongo,
             logger,
-            PubSub,
-            queue
+            PubSub
           } = require('../../../../helpers');
           mongoMock = mongo;
           loggerMock = logger;
           PubSubMock = PubSub;
           cacheMock = cache;
-          queueMock = queue;
-
-          queueMock.executeFor = jest.fn().mockResolvedValue(true);
 
           cacheMock.hget = jest.fn().mockResolvedValue(null);
           PubSubMock.publish = jest.fn().mockResolvedValue(true);
@@ -150,18 +149,10 @@ describe('symbol-update-last-buy-price.test.js', () => {
       describe('when there is cached symbol info', () => {
         describe('when asset is in balance', () => {
           beforeEach(async () => {
-            const {
-              cache,
-              logger,
-              PubSub,
-              queue
-            } = require('../../../../helpers');
+            const { cache, logger, PubSub } = require('../../../../helpers');
             loggerMock = logger;
             PubSubMock = PubSub;
             cacheMock = cache;
-            queueMock = queue;
-
-            queueMock.executeFor = jest.fn().mockResolvedValue(true);
 
             cacheMock.hget = jest.fn().mockImplementation((key, field) => {
               if (
@@ -223,7 +214,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
           });
 
           it('triggers queue.executeFor', () => {
-            expect(queueMock.executeFor).toHaveBeenCalledWith(
+            expect(mockQueue.executeFor).toHaveBeenCalledWith(
               loggerMock,
               'BTCUSDT'
             );
@@ -252,18 +243,10 @@ describe('symbol-update-last-buy-price.test.js', () => {
 
         describe('when asset is not in balance', () => {
           beforeEach(async () => {
-            const {
-              cache,
-              logger,
-              PubSub,
-              queue
-            } = require('../../../../helpers');
+            const { cache, logger, PubSub } = require('../../../../helpers');
             loggerMock = logger;
             PubSubMock = PubSub;
             cacheMock = cache;
-            queueMock = queue;
-
-            queueMock.executeFor = jest.fn().mockResolvedValue(true);
 
             cacheMock.hget = jest.fn().mockImplementation((key, field) => {
               if (
@@ -325,7 +308,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
           });
 
           it('triggers queue.executeFor', () => {
-            expect(queueMock.executeFor).toHaveBeenCalledWith(
+            expect(mockQueue.executeFor).toHaveBeenCalledWith(
               loggerMock,
               'BTCUSDT'
             );

@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const _ = require('lodash');
-const { binance, queue } = require('../helpers');
+const { binance } = require('../helpers');
+const queue = require('../cronjob/trailingTradeHelper/queue');
 
 const {
   updateAccountInfo,

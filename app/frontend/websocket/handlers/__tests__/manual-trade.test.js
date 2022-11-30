@@ -4,7 +4,7 @@ describe('manual-trade.js', () => {
   let mockWebSocketServerWebSocketSend;
 
   let loggerMock;
-  let queueMock;
+  let mockQueue;
 
   let mockSaveOverrideAction;
 
@@ -22,15 +22,18 @@ describe('manual-trade.js', () => {
     jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
       saveOverrideAction: mockSaveOverrideAction
     }));
+
+    mockQueue = {
+      executeFor: jest.fn().mockResolvedValue(true)
+    };
+
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   beforeEach(async () => {
-    const { logger, queue } = require('../../../../helpers');
+    const { logger } = require('../../../../helpers');
 
     loggerMock = logger;
-    queueMock = queue;
-
-    queueMock.executeFor = jest.fn().mockResolvedValue(true);
 
     const { handleManualTrade } = require('../manual-trade');
     await handleManualTrade(loggerMock, mockWebSocketServer, {

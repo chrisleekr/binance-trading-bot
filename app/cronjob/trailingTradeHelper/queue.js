@@ -1,8 +1,8 @@
 const config = require('config');
 const Queue = require('bull');
 const _ = require('lodash');
-const { executeTrailingTrade } = require('../cronjob');
-const { setBullBoardQueues } = require('../frontend/bull-board/configure');
+const { executeTrailingTrade } = require('../index');
+const { setBullBoardQueues } = require('../../frontend/bull-board/configure');
 
 let queues = {};
 
@@ -10,32 +10,29 @@ const REDIS_URL = `redis://:${config.get('redis.password')}@${config.get(
   'redis.host'
 )}:${config.get('redis.port')}/${config.get('redis.db')}`;
 
-const createQueue = (_funcLogger, queueName, concurrency, jobFunc) => {
-  const queue = new Queue(queueName, REDIS_URL, {
+const create = (funcLogger, symbol) => {
+  const logger = funcLogger.child({ helper: 'queue' });
+
+  const queue = new Queue(symbol, REDIS_URL, {
     prefix: `bull`,
     settings: {
       guardInterval: 1000 // Poll interval for delayed jobs and added jobs.
     }
   });
-  // Define job function with concurrency
-  queue.process(concurrency, jobFunc);
+  // Set concurrent for the job
+  queue.process(1, async _job => executeTrailingTrade(logger, symbol));
 
   return queue;
 };
 
-const resetQueues = async () => {
+const init = async (funcLogger, symbols) => {
   // Completely remove all queues with their data
   await Promise.all(_.map(queues, queue => queue.obliterate({ force: true })));
   queues = {};
-};
 
-const init = async (funcLogger, symbols) => {
-  // Create queues for symbols
   await Promise.all(
     _.map(symbols, async symbol => {
-      queues[symbol] = createQueue(funcLogger, symbol, 1, async _job =>
-        executeTrailingTrade(funcLogger, symbol)
-      );
+      queues[symbol] = create(funcLogger, symbol);
     })
   );
 
@@ -44,20 +41,20 @@ const init = async (funcLogger, symbols) => {
 };
 
 /**
- * Add a queue job to the queue
+ * Add executeTrailingTrade job to the queue of a symbol
  *
  * @param {*} funcLogger
- * @param {*} queueName
+ * @param {*} symbol
  */
-const executeFor = async (funcLogger, queueName) => {
+const executeFor = async (funcLogger, symbol) => {
   const logger = funcLogger.child({ helper: 'queue' });
 
-  if (!(queueName in queues)) {
-    logger.error({ queueName }, `No queue created for ${queueName}`);
+  if (!(symbol in queues)) {
+    logger.error({ symbol }, `No queue created for ${symbol}`);
     return;
   }
 
-  await queues[queueName].add(
+  await queues[symbol].add(
     {},
     {
       removeOnComplete: 100 // number specified the amount of jobs to keep.
@@ -66,7 +63,6 @@ const executeFor = async (funcLogger, queueName) => {
 };
 
 module.exports = {
-  resetQueues,
   init,
   executeFor
 };

@@ -4,7 +4,8 @@ describe('cancel-order.js', () => {
   let mockWebSocketServerWebSocketSend;
 
   let loggerMock;
-  let queueMock;
+
+  let mockQueue;
 
   let mockSaveOverrideAction;
 
@@ -22,15 +23,18 @@ describe('cancel-order.js', () => {
     jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
       saveOverrideAction: mockSaveOverrideAction
     }));
+
+    mockQueue = {
+      executeFor: jest.fn().mockResolvedValue(true)
+    };
+
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   beforeEach(async () => {
-    const { logger, queue } = require('../../../../helpers');
+    const { logger } = require('../../../../helpers');
 
     loggerMock = logger;
-    queueMock = queue;
-
-    queueMock.executeFor = jest.fn().mockResolvedValue(true);
 
     const { handleCancelOrder } = require('../cancel-order');
     await handleCancelOrder(loggerMock, mockWebSocketServer, {
@@ -59,7 +63,7 @@ describe('cancel-order.js', () => {
   });
 
   it('triggers queue.executeFor', () => {
-    expect(queueMock.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
+    expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
   });
 
   it('triggers ws.send', () => {

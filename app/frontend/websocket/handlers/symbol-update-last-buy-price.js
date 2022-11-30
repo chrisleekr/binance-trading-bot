@@ -1,9 +1,10 @@
 const _ = require('lodash');
-const { cache, mongo, PubSub, queue } = require('../../../helpers');
+const { cache, mongo, PubSub } = require('../../../helpers');
 const {
   getAccountInfo,
   saveLastBuyPrice
 } = require('../../../cronjob/trailingTradeHelper/common');
+const queue = require('../../../cronjob/trailingTradeHelper/queue');
 
 /**
  * Delete last buy price

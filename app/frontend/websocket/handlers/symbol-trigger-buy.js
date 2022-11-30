@@ -2,7 +2,7 @@ const moment = require('moment');
 const {
   saveOverrideAction
 } = require('../../../cronjob/trailingTradeHelper/common');
-const { queue } = require('../../../helpers');
+const queue = require('../../../cronjob/trailingTradeHelper/queue');
 
 const handleSymbolTriggerBuy = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol trigger buy');

@@ -79,9 +79,10 @@ describe('server-binance', () => {
       slack: mockSlack,
       mongo: mockMongo,
       PubSub: mockPubSub,
-      cache: mockCache,
-      queue: mockQueue
+      cache: mockCache
     }));
+
+    jest.mock('../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   describe('when the bot is running live mode', () => {
