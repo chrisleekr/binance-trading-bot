@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Added API error message when using the wrong API key/secret - [#544](https://github.com/chrisleekr/binance-trading-bot/pull/544)
+
 ## [0.0.94] - 2022-11-24
 
 - Added advanced chart link to Tradingview section by [@rando128](https://github.com/rando128) - [#525](https://github.com/chrisleekr/binance-trading-bot/pull/525)
