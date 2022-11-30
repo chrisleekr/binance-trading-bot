@@ -4,9 +4,8 @@ describe('symbol-trigger-buy.test.js', () => {
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
-  let mockLogger;
-
-  let mockQueue;
+  let loggerMock;
+  let queueMock;
 
   let mockSaveOverrideAction;
 
@@ -24,21 +23,18 @@ describe('symbol-trigger-buy.test.js', () => {
     jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
       saveOverrideAction: mockSaveOverrideAction
     }));
-
-    mockQueue = {
-      executeFor: jest.fn().mockResolvedValue(true)
-    };
-
-    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   describe('when symbol is provided', () => {
     beforeEach(async () => {
-      const { logger } = require('../../../../helpers');
-      mockLogger = logger;
+      const { logger, queue } = require('../../../../helpers');
+      loggerMock = logger;
+      queueMock = queue;
+
+      queueMock.executeFor = jest.fn().mockResolvedValue(true);
 
       const { handleSymbolTriggerBuy } = require('../symbol-trigger-buy');
-      await handleSymbolTriggerBuy(mockLogger, mockWebSocketServer, {
+      await handleSymbolTriggerBuy(loggerMock, mockWebSocketServer, {
         data: {
           symbol: 'BTCUSDT'
         }
@@ -47,7 +43,7 @@ describe('symbol-trigger-buy.test.js', () => {
 
     it('triggers saveOverrideAction', () => {
       expect(mockSaveOverrideAction).toHaveBeenCalledWith(
-        mockLogger,
+        loggerMock,
         'BTCUSDT',
         {
           action: 'buy',
@@ -61,7 +57,7 @@ describe('symbol-trigger-buy.test.js', () => {
     });
 
     it('triggers queue.executeFor', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(mockLogger, 'BTCUSDT');
+      expect(queueMock.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
     });
 
     it('triggers ws.send', () => {

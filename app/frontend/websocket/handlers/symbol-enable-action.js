@@ -1,7 +1,7 @@
 const {
   deleteDisableAction
 } = require('../../../cronjob/trailingTradeHelper/common');
-const queue = require('../../../cronjob/trailingTradeHelper/queue');
+const { queue } = require('../../../helpers');
 
 const handleSymbolEnableAction = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol enable action');

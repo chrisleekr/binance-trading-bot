@@ -1,5 +1,5 @@
 const _ = require('lodash');
-const { slack } = require('../../../helpers');
+const { slack, queue } = require('../../../helpers');
 
 const { getAPILimit } = require('../../../cronjob/trailingTradeHelper/common');
 
@@ -7,8 +7,6 @@ const {
   archiveSymbolGridTrade,
   deleteSymbolGridTrade
 } = require('../../../cronjob/trailingTradeHelper/configuration');
-
-const queue = require('../../../cronjob/trailingTradeHelper/queue');
 
 const handleSymbolGridTradeDelete = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start grid trade delete');

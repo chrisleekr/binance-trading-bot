@@ -1,7 +1,7 @@
 const {
   deleteSymbolConfiguration
 } = require('../../../cronjob/trailingTradeHelper/configuration');
-const queue = require('../../../cronjob/trailingTradeHelper/queue');
+const { queue } = require('../../../helpers');
 
 const handleSymbolSettingDelete = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol setting delete');

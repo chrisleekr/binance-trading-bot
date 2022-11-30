@@ -4,9 +4,8 @@ describe('symbol-enable-action.test.js', () => {
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
-  let mockLogger;
-
-  let mockQueue;
+  let loggerMock;
+  let queueMock;
 
   let mockDeleteDisableAction;
 
@@ -18,18 +17,15 @@ describe('symbol-enable-action.test.js', () => {
     mockWebSocketServer = {
       send: mockWebSocketServerWebSocketSend
     };
-
-    mockQueue = {
-      executeFor: jest.fn().mockResolvedValue(true)
-    };
-
-    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   describe('when symbol is provided', () => {
     beforeEach(async () => {
-      const { logger } = require('../../../../helpers');
-      mockLogger = logger;
+      const { logger, queue } = require('../../../../helpers');
+      loggerMock = logger;
+      queueMock = queue;
+
+      queueMock.executeFor = jest.fn().mockResolvedValue(true);
 
       mockDeleteDisableAction = jest.fn().mockResolvedValue(true);
 
@@ -47,13 +43,13 @@ describe('symbol-enable-action.test.js', () => {
 
     it('triggers deleteDisableAction', () => {
       expect(mockDeleteDisableAction).toHaveBeenCalledWith(
-        mockLogger,
+        loggerMock,
         'BTCUSDT'
       );
     });
 
     it('triggers queue.executeFor', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(mockLogger, 'BTCUSDT');
+      expect(queueMock.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
     });
 
     it('triggers ws.send', () => {

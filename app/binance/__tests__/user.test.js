@@ -3,7 +3,7 @@
 describe('user.js', () => {
   let binanceMock;
   let loggerMock;
-  let mockQueue;
+  let queueMock;
 
   let mockGetAccountInfoFromAPI;
   let mockUpdateAccountInfo;
@@ -20,15 +20,12 @@ describe('user.js', () => {
 
       jest.mock('../../cronjob');
 
-      const { binance, logger } = require('../../helpers');
+      const { binance, logger, queue } = require('../../helpers');
       binanceMock = binance;
       loggerMock = logger;
+      queueMock = queue;
 
-      mockQueue = {
-        executeFor: jest.fn().mockResolvedValue(true)
-      };
-
-      jest.mock('../../cronjob/trailingTradeHelper/queue', () => mockQueue);
+      queueMock.executeFor = jest.fn().mockResolvedValue(true);
     });
 
     describe('when balanceUpdate event received', () => {
@@ -235,7 +232,7 @@ describe('user.js', () => {
         });
 
         it('does not trigger queue.executeFor', () => {
-          expect(mockQueue.executeFor).not.toHaveBeenCalled();
+          expect(queueMock.executeFor).not.toHaveBeenCalled();
         });
 
         it('does not trigger userClean', () => {
@@ -357,7 +354,7 @@ describe('user.js', () => {
           });
 
           it('triggers queue.executeFor', () => {
-            expect(mockQueue.executeFor).toHaveBeenCalledWith(
+            expect(queueMock.executeFor).toHaveBeenCalledWith(
               loggerMock,
               'ETHUSDT'
             );
@@ -462,7 +459,7 @@ describe('user.js', () => {
           });
 
           it('does not trigger queue.executeFor', () => {
-            expect(mockQueue.executeFor).not.toHaveBeenCalled();
+            expect(queueMock.executeFor).not.toHaveBeenCalled();
           });
 
           it('does not trigger userClean', () => {
@@ -560,7 +557,7 @@ describe('user.js', () => {
         });
 
         it('does not trigger queue.executeFor', () => {
-          expect(mockQueue.executeFor).not.toHaveBeenCalled();
+          expect(queueMock.executeFor).not.toHaveBeenCalled();
         });
 
         it('does not trigger userClean', () => {
@@ -675,7 +672,7 @@ describe('user.js', () => {
         });
 
         it('triggers queue.executeFor', () => {
-          expect(mockQueue.executeFor).toHaveBeenCalledWith(
+          expect(queueMock.executeFor).toHaveBeenCalledWith(
             loggerMock,
             'ETHUSDT'
           );

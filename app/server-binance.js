@@ -1,7 +1,6 @@
 const _ = require('lodash');
 const config = require('config');
-const { PubSub, cache, mongo } = require('./helpers');
-const queue = require('./cronjob/trailingTradeHelper/queue');
+const { PubSub, cache, mongo, queue } = require('./helpers');
 
 const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
 const {

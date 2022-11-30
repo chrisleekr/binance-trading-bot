@@ -4,8 +4,7 @@ describe('candles.js', () => {
   let binanceMock;
   let loggerMock;
   let mongoMock;
-
-  let mockQueue;
+  let queueMock;
 
   let mockGetConfiguration;
   let mockSaveCandle;
@@ -18,9 +17,10 @@ describe('candles.js', () => {
 
   describe('setupCandlesWebsocket', () => {
     beforeEach(async () => {
-      const { binance, logger } = require('../../helpers');
+      const { binance, logger, queue } = require('../../helpers');
       binanceMock = binance;
       loggerMock = logger;
+      queueMock = queue;
 
       mockGetConfiguration = jest
         .fn()
@@ -55,11 +55,7 @@ describe('candles.js', () => {
         return mockWebsocketCandlesClean;
       });
 
-      mockQueue = {
-        executeFor: jest.fn().mockResolvedValue(true)
-      };
-
-      jest.mock('../../cronjob/trailingTradeHelper/queue', () => mockQueue);
+      queueMock.executeFor = jest.fn().mockResolvedValue(true);
 
       jest.mock('../../cronjob/trailingTradeHelper/common', () => ({
         saveCandle: mockSaveCandle
@@ -236,7 +232,7 @@ describe('candles.js', () => {
     });
 
     it('triggers queue.executeFor for ETHBTC', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'ETHBTC');
+      expect(queueMock.executeFor).toHaveBeenCalledWith(loggerMock, 'ETHBTC');
     });
   });
 });

@@ -1,13 +1,12 @@
 const _ = require('lodash');
 const moment = require('moment');
-const { PubSub } = require('../../../helpers');
+const { PubSub, queue } = require('../../../helpers');
 const {
   getGlobalConfiguration
 } = require('../../../cronjob/trailingTradeHelper/configuration');
 const {
   saveOverrideAction
 } = require('../../../cronjob/trailingTradeHelper/common');
-const queue = require('../../../cronjob/trailingTradeHelper/queue');
 
 const handleManualTradeAllSymbols = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start manual trade all symbols');

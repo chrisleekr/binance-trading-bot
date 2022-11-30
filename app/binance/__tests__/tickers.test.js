@@ -4,7 +4,7 @@ describe('tickers.js', () => {
   let binanceMock;
   let loggerMock;
   let cacheMock;
-  let mockQueue;
+  let queueMock;
 
   let mockGetAccountInfo;
   let mockGetCachedExchangeSymbols;
@@ -28,16 +28,13 @@ describe('tickers.js', () => {
 
   describe('setupTickersWebsocket', () => {
     beforeEach(async () => {
-      const { binance, logger, cache } = require('../../helpers');
+      const { binance, logger, cache, queue } = require('../../helpers');
       binanceMock = binance;
       loggerMock = logger;
       cacheMock = cache;
+      queueMock = queue;
 
-      mockQueue = {
-        executeFor: jest.fn().mockResolvedValue(true)
-      };
-
-      jest.mock('../../cronjob/trailingTradeHelper/queue', () => mockQueue);
+      queueMock.executeFor = jest.fn().mockResolvedValue(true);
 
       mockGetAccountInfo = jest.fn().mockResolvedValue({
         balances: [
@@ -106,15 +103,15 @@ describe('tickers.js', () => {
     });
 
     it('triggers queue.executeFor twice', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledTimes(2);
+      expect(queueMock.executeFor).toHaveBeenCalledTimes(2);
     });
 
     it('triggers queue.executeFor for BTCUSDT', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
+      expect(queueMock.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
     });
 
     it('triggers queue.executeFor for BNBUSDT', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BNBUSDT');
+      expect(queueMock.executeFor).toHaveBeenCalledWith(loggerMock, 'BNBUSDT');
     });
 
     it('checks websocketTickersClean', () => {
@@ -132,16 +129,16 @@ describe('tickers.js', () => {
     describe('when called again', () => {
       beforeEach(async () => {
         // Reset mock counter
-        mockQueue.executeFor.mockClear();
+        queueMock.executeFor.mockClear();
         await tickers.setupTickersWebsocket(loggerMock, ['BTCUSDT']);
       });
 
       it('triggers queue.executeFor twice', () => {
-        expect(mockQueue.executeFor).toHaveBeenCalledTimes(1);
+        expect(queueMock.executeFor).toHaveBeenCalledTimes(1);
       });
 
       it('triggers queue.executeFor for BTCUSDT', () => {
-        expect(mockQueue.executeFor).toHaveBeenCalledWith(
+        expect(queueMock.executeFor).toHaveBeenCalledWith(
           loggerMock,
           'BTCUSDT'
         );
