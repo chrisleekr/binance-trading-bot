@@ -56,6 +56,10 @@ class APIError extends React.Component {
                 rel='noreferrer'>
                 https://github.com/chrisleekr/binance-trading-bot/wiki/Install#how-to-install
               </a>
+              <br />
+              <br />
+              If the issue persists after confirming the API key/secret, please
+              open a new issue in Github.
             </p>
           </div>
         </div>
