@@ -54,9 +54,9 @@ const setupUserWebsocket = async logger => {
         orderTime: transactTime // Transaction time
       } = evt;
 
+      const correlationId = uuidv4();
       const symbolLogger = logger.child({
-        jobName: 'trailingTrade',
-        correlationId: uuidv4(),
+        correlationId,
         symbol
       });
 
@@ -67,7 +67,7 @@ const setupUserWebsocket = async logger => {
 
       const checkLastOrder = async () => {
         const lastOrder = await getGridTradeLastOrder(
-          logger,
+          symbolLogger,
           symbol,
           side.toLowerCase()
         );
@@ -103,7 +103,7 @@ const setupUserWebsocket = async logger => {
           };
 
           await updateGridTradeLastOrder(
-            logger,
+            symbolLogger,
             symbol,
             side.toLowerCase(),
             updatedOrder
@@ -113,17 +113,17 @@ const setupUserWebsocket = async logger => {
             `The last order has been updated. ${orderId} - ${side} - ${orderStatus}`
           );
 
-          queue.executeFor(symbolLogger, symbol);
+          queue.executeFor(symbolLogger, symbol, { correlationId });
         }
       };
 
       checkLastOrder();
 
       const checkManualOrder = async () => {
-        const manualOrder = await getManualOrder(logger, symbol, orderId);
+        const manualOrder = await getManualOrder(symbolLogger, symbol, orderId);
 
         if (_.isEmpty(manualOrder) === false) {
-          await saveManualOrder(logger, symbol, orderId, {
+          await saveManualOrder(symbolLogger, symbol, orderId, {
             ...manualOrder,
             status: orderStatus,
             type: orderType,
@@ -137,12 +137,12 @@ const setupUserWebsocket = async logger => {
             updateTime: eventTime
           });
 
-          logger.info(
+          symbolLogger.info(
             { symbol, manualOrder, saveLog: true },
             'The manual order has been updated.'
           );
 
-          queue.executeFor(logger, symbol);
+          queue.executeFor(symbolLogger, symbol, { correlationId });
         }
       };
 

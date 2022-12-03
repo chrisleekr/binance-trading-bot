@@ -297,7 +297,7 @@ const execute = async (logger, rawData) => {
     }
   }
 
-  // Ensure buy order executed
+  // Ensure sell order executed
   const lastSellOrder = await getGridTradeLastOrder(logger, symbol, 'sell');
   if (_.isEmpty(lastSellOrder) === false) {
     logger.info({ lastSellOrder }, 'Last grid trade sell order found');

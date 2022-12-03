@@ -20,8 +20,11 @@ const create = (funcLogger, symbol) => {
     }
   });
   // Set concurrent for the job
-  queue.process(1, async _job => executeTrailingTrade(logger, symbol));
+  // queue.process(1, async job =>
+  //   executeTrailingTrade(logger, symbol, _.get(job.data, 'correlationId'))
+  // );
 
+  queue.process(1, async _job => executeTrailingTrade(logger, symbol));
   return queue;
 };
 
@@ -46,7 +49,7 @@ const init = async (funcLogger, symbols) => {
  * @param {*} funcLogger
  * @param {*} symbol
  */
-const executeFor = async (funcLogger, symbol) => {
+const executeFor = async (funcLogger, symbol, jobData = {}) => {
   const logger = funcLogger.child({ helper: 'queue' });
 
   if (!(symbol in queues)) {
@@ -54,12 +57,9 @@ const executeFor = async (funcLogger, symbol) => {
     return;
   }
 
-  await queues[symbol].add(
-    {},
-    {
-      removeOnComplete: 100 // number specified the amount of jobs to keep.
-    }
-  );
+  await queues[symbol].add(jobData, {
+    removeOnComplete: 100 // number specified the amount of jobs to keep.
+  });
 };
 
 module.exports = {

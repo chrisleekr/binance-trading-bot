@@ -62,7 +62,9 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
             `Order for ${symbol} has been queued.`
           );
 
-          queue.executeFor(logger, symbol);
+          queue.executeFor(logger, symbol, {
+            correlationId: _.get(logger, 'fields.correlationId', '')
+          });
 
           currentTime = moment(currentTime).add(
             placeManualOrderInterval,
@@ -103,7 +105,9 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
             `Order for ${symbol} has been queued.`
           );
 
-          queue.executeFor(logger, symbol);
+          queue.executeFor(logger, symbol, {
+            correlationId: _.get(logger, 'fields.correlationId', '')
+          });
 
           currentTime = moment(currentTime).add(
             placeManualOrderInterval,

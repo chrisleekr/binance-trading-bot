@@ -33,3 +33,4 @@ docker-compose.server.yml
 .git
 
 tradingview
+result.csv

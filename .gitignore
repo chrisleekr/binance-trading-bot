@@ -33,3 +33,5 @@ log
 /public/dist/*
 !/public/dist/.gitkeep
 
+result.csv
+.~lock.result.csv#
