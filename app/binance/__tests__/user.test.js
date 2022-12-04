@@ -359,7 +359,8 @@ describe('user.js', () => {
           it('triggers queue.executeFor', () => {
             expect(mockQueue.executeFor).toHaveBeenCalledWith(
               loggerMock,
-              'ETHUSDT'
+              'ETHUSDT',
+              { correlationId: expect.any(String) }
             );
           });
 
@@ -677,7 +678,8 @@ describe('user.js', () => {
         it('triggers queue.executeFor', () => {
           expect(mockQueue.executeFor).toHaveBeenCalledWith(
             loggerMock,
-            'ETHUSDT'
+            'ETHUSDT',
+            { correlationId: expect.any(String) }
           );
         });
 

@@ -30,6 +30,7 @@ describe('symbol-setting-delete.test.js', () => {
     beforeEach(async () => {
       const { logger } = require('../../../../helpers');
       mockLogger = logger;
+      mockLogger.fields = { correlationId: 'correlationId' };
 
       mockDeleteSymbolConfiguration = jest.fn().mockResolvedValue(true);
 
@@ -56,7 +57,9 @@ describe('symbol-setting-delete.test.js', () => {
     });
 
     it('triggers queue.executeFor', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(mockLogger, 'BTCUSDT');
+      expect(mockQueue.executeFor).toHaveBeenCalledWith(mockLogger, 'BTCUSDT', {
+        correlationId: 'correlationId'
+      });
     });
 
     it('triggers ws.send', () => {

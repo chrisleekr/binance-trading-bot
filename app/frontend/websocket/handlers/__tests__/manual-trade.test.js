@@ -34,6 +34,7 @@ describe('manual-trade.js', () => {
     const { logger } = require('../../../../helpers');
 
     loggerMock = logger;
+    loggerMock.fields = { correlationId: 'correlationId' };
 
     const { handleManualTrade } = require('../manual-trade');
     await handleManualTrade(loggerMock, mockWebSocketServer, {
@@ -63,7 +64,9 @@ describe('manual-trade.js', () => {
   });
 
   it('triggers queue.executeFor', () => {
-    expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
+    expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+      correlationId: 'correlationId'
+    });
   });
 
   it('triggers ws.send', () => {

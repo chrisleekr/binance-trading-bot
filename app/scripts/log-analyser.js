@@ -1,3 +1,4 @@
+/* istanbul ignore file */
 /* eslint-disable no-console */
 const _ = require('lodash');
 const fs = require('fs');

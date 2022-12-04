@@ -47,6 +47,7 @@ describe('symbol-grid-trade-delete.test.js', () => {
       beforeEach(async () => {
         const { logger, slack } = require('../../../../helpers');
         mockLogger = logger;
+        mockLogger.fields = { correlationId: 'correlationId' };
         mockSlack = slack;
 
         mockSlack.sendMessage = jest.fn().mockResolvedValue(true);
@@ -105,7 +106,8 @@ describe('symbol-grid-trade-delete.test.js', () => {
       it('triggers queue.executeFor', () => {
         expect(mockQueue.executeFor).toHaveBeenCalledWith(
           mockLogger,
-          'BTCUSDT'
+          'BTCUSDT',
+          { correlationId: 'correlationId' }
         );
       });
 
@@ -123,6 +125,7 @@ describe('symbol-grid-trade-delete.test.js', () => {
       beforeEach(async () => {
         const { logger, slack } = require('../../../../helpers');
         mockLogger = logger;
+        mockLogger.fields = { correlationId: 'correlationId' };
         mockSlack = slack;
 
         mockSlack.sendMessage = jest.fn().mockResolvedValue(true);
@@ -181,7 +184,8 @@ describe('symbol-grid-trade-delete.test.js', () => {
       it('triggers queue.executeFor', () => {
         expect(mockQueue.executeFor).toHaveBeenCalledWith(
           mockLogger,
-          'BTCUSDT'
+          'BTCUSDT',
+          { correlationId: 'correlationId' }
         );
       });
 
@@ -199,6 +203,7 @@ describe('symbol-grid-trade-delete.test.js', () => {
       beforeEach(async () => {
         const { logger, slack } = require('../../../../helpers');
         mockLogger = logger;
+        mockLogger.fields = { correlationId: 'correlationId' };
         mockSlack = slack;
 
         mockSlack.sendMessage = jest.fn().mockResolvedValue(true);
@@ -246,7 +251,8 @@ describe('symbol-grid-trade-delete.test.js', () => {
       it('triggers queue.executeFor', () => {
         expect(mockQueue.executeFor).toHaveBeenCalledWith(
           mockLogger,
-          'BTCUSDT'
+          'BTCUSDT',
+          { correlationId: 'correlationId' }
         );
       });
 
@@ -264,6 +270,7 @@ describe('symbol-grid-trade-delete.test.js', () => {
       beforeEach(async () => {
         const { logger, slack } = require('../../../../helpers');
         mockLogger = logger;
+        mockLogger.fields = { correlationId: 'correlationId' };
         mockSlack = slack;
 
         mockSlack.sendMessage = jest.fn().mockResolvedValue(true);
@@ -308,7 +315,8 @@ describe('symbol-grid-trade-delete.test.js', () => {
       it('triggers queue.executeFor', () => {
         expect(mockQueue.executeFor).toHaveBeenCalledWith(
           mockLogger,
-          'BTCUSDT'
+          'BTCUSDT',
+          { correlationId: 'correlationId' }
         );
       });
 
