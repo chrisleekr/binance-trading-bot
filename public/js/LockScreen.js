@@ -12,6 +12,7 @@ class LockScreen extends React.Component {
 
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
     this.handlePasswordChange = this.handlePasswordChange.bind(this);
+    this.handlePasswordAutofill = this.handlePasswordAutofill.bind(this);
   }
 
   componentDidMount() {
@@ -67,6 +68,10 @@ class LockScreen extends React.Component {
     });
   }
 
+  handlePasswordAutofill(e) {
+    this.handleFormSubmit(e)
+  }
+
   render() {
     const { loading } = this.state;
 
@@ -101,6 +106,7 @@ class LockScreen extends React.Component {
                   placeholder='Enter your password'
                   required
                   onChange={this.handlePasswordChange}
+                  onBlur={this.handlePasswordAutofill}
                 />
 
                 <InputGroup.Append>
