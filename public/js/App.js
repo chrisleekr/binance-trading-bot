@@ -486,7 +486,10 @@ class App extends React.Component {
                 sendWebSocket={this.sendWebSocket}
                 totalProfitAndLoss={totalProfitAndLoss}
               />
-              <OrderStats orderStats={orderStats} />
+              <OrderStats
+                  orderStats={orderStats}
+                  selectedSortOption={selectedSortOption}
+              />
             </div>
             <Pagination>{paginationItems}</Pagination>
             <div className='coin-wrappers'>{coinWrappers}</div>
