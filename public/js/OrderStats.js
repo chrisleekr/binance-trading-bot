@@ -3,7 +3,8 @@
 /* eslint-disable no-undef */
 class OrderStats extends React.Component {
   render() {
-    const { orderStats } = this.props;
+
+    const { orderStats, selectedSortOption } = this.props;
 
     if (_.isEmpty(orderStats)) {
       return '';
@@ -23,6 +24,13 @@ class OrderStats extends React.Component {
             {orderStats.numberOfOpenTrades}
           </span>
         </div>
+        {(selectedSortOption.hideInactive) ? (
+          <div className='order-stat-wrapper'>
+            <span className='order-stat-label'>Some coins are hidden</span>
+          </div>
+        ) : (
+         ''
+        )}
       </div>
     );
   }

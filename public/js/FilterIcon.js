@@ -13,14 +13,16 @@ class FilterIcon extends React.Component {
       showFilterModal: false,
       selectedSortOption: {
         sortBy: 'default',
-        sortByDesc: false
+        sortByDesc: false,
+        hideInactive: false
       },
-      searchKeyword: ''
+      searchKeyword: '',
     };
 
     this.handleModalShow = this.handleModalShow.bind(this);
     this.handleModalClose = this.handleModalClose.bind(this);
     this.setSortOption = this.setSortOption.bind(this);
+    this.setHideOption = this.setHideOption.bind(this);
     this.setSearchKeyword = this.setSearchKeyword.bind(this);
     this.handleApply = this.handleApply.bind(this);
   }
@@ -67,13 +69,28 @@ class FilterIcon extends React.Component {
     });
   }
 
-  setSortOption(newSortOption) {
+  setHideOption(newHideOption) {
+    const newSortOption = {
+      ...this.state.selectedSortOption,  hideInactive: newHideOption.target.checked
+    }
+
     this.setState({
       selectedSortOption: newSortOption
     });
     this.props.setSortOption(newSortOption);
     // Save to local storage
     localStorage.setItem('selectedSortOption', JSON.stringify(newSortOption));
+  }
+
+  setSortOption(newSortOption) {
+    const mergedSortOption = {...newSortOption, hideInactive:this.state.selectedSortOption.hideInactive}
+
+    this.setState({
+      selectedSortOption: mergedSortOption
+    });
+    this.props.setSortOption(mergedSortOption);
+    // Save to local storage
+    localStorage.setItem('selectedSortOption', JSON.stringify(mergedSortOption));
   }
 
   setSearchKeyword(event) {
@@ -98,6 +115,8 @@ class FilterIcon extends React.Component {
     }
 
     const { selectedSortOption, searchKeyword } = this.state;
+
+    const { hideInactive } = selectedSortOption;
 
     const sortingOptionWrappers = availableSortOptions.map((option, index) => {
       return (
@@ -176,6 +195,41 @@ class FilterIcon extends React.Component {
                 <Accordion.Collapse eventKey='0'>
                   <Card.Body className='px-2 py-1'>
                     <div className='row'>{sortingOptionWrappers} </div>
+                    <Form.Group
+                        controlId='field-hide-inactive-enabled'
+                        className='mb-2'>
+                      <Form.Check size='sm'>
+                        <Form.Check.Input
+                            type='checkbox'
+                            data-state-key='hide-inactive.enabled'
+                            checked={hideInactive ? 1 : 0}
+                            onChange={this.setHideOption}
+                        />
+                        <Form.Check.Label>
+                          Hide temporarily disabled symbols{' '}
+                          <OverlayTrigger
+                              trigger='click'
+                              key='hide-inactive.enabled'
+                              placement='bottom'
+                              overlay={
+                                <Popover id='hide-inactive.enabled-right'>
+                                  <Popover.Content>
+                                    If enabled, the dashboard won't show coins
+                                    for which buy and sell tradings are both
+                                    temporarily disabled, but are still
+                                    been monitored.
+                                  </Popover.Content>
+                                </Popover>
+                              }>
+                            <Button
+                                variant='link'
+                                className='p-0 m-0 ml-1 text-info'>
+                              <i className='fas fa-question-circle fa-sm'></i>
+                            </Button>
+                          </OverlayTrigger>
+                        </Form.Check.Label>
+                      </Form.Check>
+                    </Form.Group>
                   </Card.Body>
                 </Accordion.Collapse>
               </Card>

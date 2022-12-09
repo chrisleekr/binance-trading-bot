@@ -48,7 +48,8 @@ class App extends React.Component {
       ],
       selectedSortOption: {
         sortBy: 'default',
-        sortByDesc: false
+        sortByDesc: false,
+        hideInactive: false,
       },
       searchKeyword: '',
       isLoaded: false,
@@ -136,7 +137,8 @@ class App extends React.Component {
       page: this.state.page,
       searchKeyword: this.state.searchKeyword,
       sortBy: this.state.selectedSortOption.sortBy,
-      sortByDesc: this.state.selectedSortOption.sortByDesc
+      sortByDesc: this.state.selectedSortOption.sortByDesc,
+      hideInactive: this.state.selectedSortOption.hideInactive,
     });
   }
 
@@ -316,7 +318,8 @@ class App extends React.Component {
   componentDidMount() {
     let selectedSortOption = {
       sortBy: 'default',
-      sortByDesc: false
+      sortByDesc: false,
+      hideInactive: false,
     };
 
     try {
@@ -324,7 +327,8 @@ class App extends React.Component {
         localStorage.getItem('selectedSortOption')
       ) || {
         sortBy: 'default',
-        sortByDesc: false
+        sortByDesc: false,
+        hideInactive: false,
       };
     } catch (e) {}
 
@@ -381,7 +385,11 @@ class App extends React.Component {
       return <LockScreen />;
     }
 
-    const coinWrappers = symbols.map((symbol, index) => {
+    const activeSymbols = (selectedSortOption.hideInactive) ?
+        symbols.filter( s => s.symbolConfiguration.buy.enabled || s.symbolConfiguration.sell.enabled )
+        : symbols
+
+    const coinWrappers = activeSymbols.map((symbol, index) => {
       return (
         <CoinWrapper
           extraClassName={
@@ -478,7 +486,10 @@ class App extends React.Component {
                 sendWebSocket={this.sendWebSocket}
                 totalProfitAndLoss={totalProfitAndLoss}
               />
-              <OrderStats orderStats={orderStats} />
+              <OrderStats
+                  orderStats={orderStats}
+                  selectedSortOption={selectedSortOption}
+              />
             </div>
             <Pagination>{paginationItems}</Pagination>
             <div className='coin-wrappers'>{coinWrappers}</div>
