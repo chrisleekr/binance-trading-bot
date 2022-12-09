@@ -1,3 +1,4 @@
+const _ = require('lodash');
 const {
   deleteDisableAction
 } = require('../../../cronjob/trailingTradeHelper/common');
@@ -12,7 +13,9 @@ const handleSymbolEnableAction = async (logger, ws, payload) => {
 
   await deleteDisableAction(logger, symbol);
 
-  queue.executeFor(logger, symbol);
+  queue.executeFor(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', '')
+  });
 
   ws.send(
     JSON.stringify({ result: true, type: 'symbol-enable-action-result' })

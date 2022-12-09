@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 - Added API error message when using the wrong API key/secret - [#544](https://github.com/chrisleekr/binance-trading-bot/pull/544)
 - Automatic login when password is autofilled by the browser by [@rando128](https://github.com/rando128) - [#550](https://github.com/chrisleekr/binance-trading-bot/pull/550)
+- Fixed the queue concurrency issue - [#551](https://github.com/chrisleekr/binance-trading-bot/pull/551)
 
 Thanks [@rando128](https://github.com/rando128) for your great contributions. 💯 :heart:
 

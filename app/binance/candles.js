@@ -1,3 +1,4 @@
+const { v4: uuidv4 } = require('uuid');
 const _ = require('lodash');
 const queue = require('../cronjob/trailingTradeHelper/queue');
 const { binance, mongo } = require('../helpers');
@@ -112,7 +113,7 @@ const syncCandles = async (logger, symbols) => {
 
         await mongo.bulkWrite(logger, 'trailing-trade-candles', operations);
 
-        queue.executeFor(logger, symbol);
+        queue.executeFor(logger, symbol, { correlationId: uuidv4() });
       };
 
       return getCandles();

@@ -1,3 +1,4 @@
+const _ = require('lodash');
 const moment = require('moment');
 const {
   saveOverrideAction
@@ -24,7 +25,9 @@ const handleCancelOrder = async (logger, ws, payload) => {
     `Cancelling the ${side.toLowerCase()} order action has been received. Wait for cancelling the order.`
   );
 
-  queue.executeFor(logger, symbol);
+  queue.executeFor(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', '')
+  });
 
   ws.send(
     JSON.stringify({

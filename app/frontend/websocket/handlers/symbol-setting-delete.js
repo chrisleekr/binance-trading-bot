@@ -1,3 +1,4 @@
+const _ = require('lodash');
 const {
   deleteSymbolConfiguration
 } = require('../../../cronjob/trailingTradeHelper/configuration');
@@ -12,7 +13,9 @@ const handleSymbolSettingDelete = async (logger, ws, payload) => {
 
   await deleteSymbolConfiguration(logger, symbol);
 
-  queue.executeFor(logger, symbol);
+  queue.executeFor(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', '')
+  });
 
   ws.send(
     JSON.stringify({ result: true, type: 'symbol-setting-delete-result' })
