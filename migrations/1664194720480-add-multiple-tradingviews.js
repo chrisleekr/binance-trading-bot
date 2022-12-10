@@ -102,8 +102,8 @@ module.exports.up = async () => {
   // Delete all cache.
   await mongo.deleteAll(logger, 'trailing-trade-cache', {});
 
-  cache.hdelall('trailing-trade-configurations:*');
-  cache.hdelall('trailing-trade-tradingview:*');
+  await cache.hdelall('trailing-trade-configurations:*');
+  await cache.hdelall('trailing-trade-tradingview:*');
 
   logger.info('Finish migration');
 };
