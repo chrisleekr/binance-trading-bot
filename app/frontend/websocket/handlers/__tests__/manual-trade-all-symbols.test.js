@@ -249,6 +249,7 @@ describe('manual-trade-all-symbols.js', () => {
     const { logger, PubSub } = require('../../../../helpers');
 
     loggerMock = logger;
+    loggerMock.fields = { correlationId: 'correlationId' };
     PubSubMock = PubSub;
 
     PubSubMock.publish = jest.fn().mockResolvedValue(true);
@@ -313,7 +314,8 @@ describe('manual-trade-all-symbols.js', () => {
               it('triggers queue.executeFor', () => {
                 expect(mockQueue.executeFor).toHaveBeenCalledWith(
                   loggerMock,
-                  symbol
+                  symbol,
+                  { correlationId: 'correlationId' }
                 );
               });
             } else {
@@ -413,7 +415,8 @@ describe('manual-trade-all-symbols.js', () => {
               it('triggers queue.executeFor', () => {
                 expect(mockQueue.executeFor).toHaveBeenCalledWith(
                   loggerMock,
-                  'BTCUSDT'
+                  'BTCUSDT',
+                  { correlationId: 'correlationId' }
                 );
               });
             } else {

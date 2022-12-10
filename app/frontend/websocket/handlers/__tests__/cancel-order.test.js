@@ -35,6 +35,7 @@ describe('cancel-order.js', () => {
     const { logger } = require('../../../../helpers');
 
     loggerMock = logger;
+    loggerMock.fields = { correlationId: 'correlationId' };
 
     const { handleCancelOrder } = require('../cancel-order');
     await handleCancelOrder(loggerMock, mockWebSocketServer, {
@@ -63,7 +64,9 @@ describe('cancel-order.js', () => {
   });
 
   it('triggers queue.executeFor', () => {
-    expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
+    expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+      correlationId: 'correlationId'
+    });
   });
 
   it('triggers ws.send', () => {

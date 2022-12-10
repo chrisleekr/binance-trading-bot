@@ -1,3 +1,4 @@
+const { v4: uuidv4 } = require('uuid');
 const WebSocket = require('ws');
 const config = require('config');
 
@@ -76,7 +77,7 @@ const configureWebSocket = async (server, funcLogger, { loginLimiter }) => {
         return;
       }
 
-      const commandLogger = logger.child({ payload });
+      const commandLogger = logger.child({ payload, correlationId: uuidv4() });
 
       const commandMaps = {
         latest: handleLatest,

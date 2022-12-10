@@ -39,7 +39,9 @@ const handleSymbolGridTradeDelete = async (logger, ws, payload) => {
 
   await deleteSymbolGridTrade(logger, symbol);
 
-  queue.executeFor(logger, symbol);
+  queue.executeFor(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', '')
+  });
 
   ws.send(
     JSON.stringify({ result: true, type: 'symbol-grid-trade-delete-result' })

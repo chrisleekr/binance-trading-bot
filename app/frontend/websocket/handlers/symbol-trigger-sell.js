@@ -1,3 +1,4 @@
+const _ = require('lodash');
 const moment = require('moment');
 const {
   saveOverrideAction
@@ -22,7 +23,9 @@ const handleSymbolTriggerSell = async (logger, ws, payload) => {
     'The sell order received by the bot. Wait for placing the order.'
   );
 
-  queue.executeFor(logger, symbol);
+  queue.executeFor(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', '')
+  });
 
   ws.send(JSON.stringify({ result: true, type: 'symbol-trigger-sell-result' }));
 };
