@@ -19,19 +19,26 @@ class CoinWrapperBuySignal extends React.Component {
 
   render() {
     const {
-      symbolInfo: {
-        symbolInfo: {
-          symbol,
-          filterPrice: { tickSize }
-        },
-        quoteAssetBalance: { asset: quoteAsset },
-        symbolConfiguration,
-        buy,
-        sell
-      },
+      symbolInfo,
       sendWebSocket,
       isAuthenticated
     } = this.props;
+
+    const {
+      symbolInfo: {
+        symbol,
+        filterPrice: {
+          tickSize
+        }
+      },
+      quoteAssetBalance: {
+        asset: quoteAsset
+      },
+      symbolConfiguration,
+      buy,
+      sell
+    } = symbolInfo
+
     const { collapsed } = this.state;
 
     const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
@@ -370,27 +377,12 @@ class CoinWrapperBuySignal extends React.Component {
             key={'coin-wrapper-buy-next-grid-row-' + symbol}>
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>
-              &#62; Suggested break-even amount:
-              <OverlayTrigger
-                trigger='click'
-                key='buy-grid-exit-overlay'
-                placement='bottom'
-                overlay={
-                  <Popover id='buy-next-grid-overlay-right'>
-                    <Popover.Content>
-                      This is the amount you would need to purchase (at the current price) to
-                      close the grid trade at break-even if the price reaches your sell trigger
-                      point ({((triggerSellPercentage - 1) * 100).toFixed(2)}%) after the purchase.
-                    </Popover.Content>
-                  </Popover>
-                }>
-                <Button
-                    variant='link'
-                    className='p-0 m-0 ml-1 text-info d-inline-block'
-                    style={{lineHeight: '10px'}}>
-                  <i className='fas fa-question-circle fa-sm'></i>
-                </Button>
-              </OverlayTrigger>
+              &#62; Suggested breakeven amount:
+              <SymbolGridCalculator
+                symbol={symbol}
+                symbolInfo={symbolInfo}
+                isAuthenticated={isAuthenticated}
+              />
             </span>
             <span className='coin-info-value'>
               {nextGridAmount.toFixed(precision)}{' '}{quoteAsset}
