@@ -176,7 +176,7 @@ class SymbolGridCalculator extends React.Component {
                 <b>Result: </b>executing a new grid at
                 <code> {((buyTrigger - 1)*100).toFixed(2)}% </code>
                 from your current last buy price with a purchase amount of
-                <code> {breakevenAmount.toFixed(quotePrecision)}{' '}{quoteAsset}</code>,
+                <code> {(sellTrigger == 1) ? ' - ' : breakevenAmount.toFixed(2)}{' '}{quoteAsset}</code>,
                 would allow you to break-even if the market price rebounds
                 <code> {((sellTrigger-1)*100).toFixed(2)}%</code>.
               </span>
