@@ -377,7 +377,7 @@ class CoinWrapperBuySignal extends React.Component {
             key={'coin-wrapper-buy-next-grid-row-' + symbol}>
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>
-              &#62; Suggested breakeven amount:
+              &#62; Suggested breakeven amount
               <SymbolGridCalculator
                 symbol={symbol}
                 symbolInfo={symbolInfo}

@@ -149,9 +149,8 @@ class SymbolGridCalculator extends React.Component {
                     onChange={this.handleInputChange}
                   />
                 <Form.Text className='ml-2 text-muted'>
-                  Difference from current price:
-                  {differenceFromCurrentPrice.toFixed(3)}%
-                  - Buy trigger with current price: {currentBuyPercentage.toFixed(3)}
+                  Difference from current price: {differenceFromCurrentPrice.toFixed(3)}%
+                   — Buy trigger with current price: {currentBuyPercentage.toFixed(3)}
                 </Form.Text>
               </Form.Group>
               <Form.Group className='mb-2'>
