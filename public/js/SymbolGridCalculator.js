@@ -112,6 +112,8 @@ class SymbolGridCalculator extends React.Component {
 
     const priceEquivalent = currentPrice * parseFloat(sellTrigger)
 
+    const differenceFromCurrentPrice = 100 * (buyTrigger * lastBuyPrice - currentPrice) / currentPrice
+
     const breakevenAmount = (totalBoughtAmount - totalBoughtQty * buyTrigger * lastBuyPrice * sellTrigger) / (sellTrigger -1)
 
     return (
@@ -139,6 +141,7 @@ class SymbolGridCalculator extends React.Component {
                 <FormControl
                     size='sm'
                     type='number'
+                    step='0.0001'
                     placeholder='Enter buy trigger %'
                     required
                     defaultValue={currentBuyPercentage.toFixed(3)}
@@ -146,7 +149,9 @@ class SymbolGridCalculator extends React.Component {
                     onChange={this.handleInputChange}
                   />
                 <Form.Text className='ml-2 text-muted'>
-                  Percentage for current price: {currentBuyPercentage.toFixed(3)}%
+                  Difference from current price:
+                  {differenceFromCurrentPrice.toFixed(3)}%
+                  - Buy trigger with current price: {currentBuyPercentage.toFixed(3)}
                 </Form.Text>
               </Form.Group>
               <Form.Group className='mb-2'>
@@ -156,6 +161,7 @@ class SymbolGridCalculator extends React.Component {
                 <FormControl
                   size='sm'
                   type='number'
+                  step='0.0001'
                   placeholder='Enter price increase percentage'
                   required
                   defaultValue={currentSellPercentage.toFixed(4)}
