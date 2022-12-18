@@ -181,18 +181,27 @@ class SymbolGridCalculator extends React.Component {
               </Form.Group>
             </div>
             <div>
-              <span>
-                <b>Result: </b>executing a new grid at
-                <code> {((buyTrigger - 1) * 100).toFixed(2)}% </code>
-                from your current last buy price with a purchase amount of
-                <code>
-                  {' '}
-                  {sellTrigger === 1 ? ' - ' : breakevenAmount.toFixed(2)}{' '}
-                  {quoteAsset}
-                </code>
-                , would allow you to break-even if the market price rebounds
-                <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>.
-              </span>
+              {breakevenAmount > 0 ? (
+                <span>
+                  <b>Result: </b>executing a new grid at
+                  <code> {((buyTrigger - 1) * 100).toFixed(2)}% </code>
+                  from your current last buy price with a purchase amount of
+                  <code>
+                    {' '}
+                    {sellTrigger === 1 ? ' - ' : breakevenAmount.toFixed(2)}{' '}
+                    {quoteAsset}
+                  </code>
+                  , would allow you to break-even if the market price rebounds
+                  <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>.
+                </span>
+              ) : (
+                <span>
+                  <b>Result: </b>it is pointless to execute a new grid at
+                  <code> {((buyTrigger - 1) * 100).toFixed(2)}% </code> from
+                  your current last buy price if you expect the market price to
+                  rebound <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>.
+                </span>
+              )}
               <img
                 src='./img/calculator-diagram.png'
                 className='px-4 pt-2'
