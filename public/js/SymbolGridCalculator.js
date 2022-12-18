@@ -182,36 +182,42 @@ class SymbolGridCalculator extends React.Component {
               </Form.Group>
             </div>
             <div>
-              {breakevenAmount > 0 ? (
+              {buyTrigger >= 1 ? (
                 <span>
-                  <b>Result: </b>executing a new grid at
-                  <code> {((buyTrigger - 1) * 100).toFixed(2)}% </code>
-                  from your current last buy price with a purchase amount of
-                  <code>
-                    {' '}
-                    {sellTrigger === 1 ? ' - ' : breakevenAmount.toFixed(2)}{' '}
-                    {quoteAsset}
-                  </code>
-                  , would allow you to break-even if the market price rebounds
-                  <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>.
+                  <b>Result: </b>the bot will make a new purchase only if the
+                  price goes down. Set a trigger percentage inferior to 1.
                 </span>
               ) :
-                sellTrigger > 1 ? (
+                breakevenAmount > 0 ? (
                   <span>
-                    <b>Result: </b>it is pointless to execute a new grid at
-                    <code> {((buyTrigger - 1) * 100).toFixed(2)}% </code> from
-                    your current last buy price if you expect the market price to
-                    rebound <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>,
-                    as you would breakeven by reaching your current last buy price
-                    of <code> {lastBuyPrice.toFixed(precision)}</code>.
+                    <b>Result: </b>executing a new grid at
+                    <code> {((buyTrigger - 1) * 100).toFixed(2)}% </code>
+                    from your current last buy price with a purchase amount of
+                    <code>
+                      {' '}
+                      {sellTrigger === 1 ? ' - ' : breakevenAmount.toFixed(2)}{' '}
+                      {quoteAsset}
+                    </code>
+                    , would allow you to break-even if the market price rebounds
+                    <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>.
                   </span>
-                ) : (
-                  <span>
-                    <b>Result: </b>it is pointless to execute a new grid if you
-                    don't expect a price rebound. You should set a price rebound
-                    percentage superior to 1.
-                  </span>
-                )
+                ) :
+                  sellTrigger > 1 ? (
+                    <span>
+                      <b>Result: </b>it is pointless to execute a new grid at
+                      <code> {((buyTrigger - 1) * 100).toFixed(2)}% </code> from
+                      your current last buy price if you expect the market price to
+                      rebound <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>,
+                      as you would breakeven by reaching your current last buy price
+                      of <code> {lastBuyPrice.toFixed(precision)}</code>.
+                    </span>
+                  ) : (
+                    <span>
+                      <b>Result: </b>it is pointless to execute a new grid if you
+                      don't expect a price rebound. You should set a price rebound
+                      percentage superior to 1.
+                    </span>
+                  )
               }
               <img
                 src='./img/calculator-diagram.png'
