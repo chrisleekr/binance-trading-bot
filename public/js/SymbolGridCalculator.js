@@ -167,6 +167,7 @@ class SymbolGridCalculator extends React.Component {
                   step='0.0001'
                   placeholder='Enter price increase percentage'
                   required
+                  min='1'
                   defaultValue={currentSellPercentage.toFixed(4)}
                   data-state-key='sellTrigger'
                   onChange={this.handleInputChange}
@@ -194,14 +195,24 @@ class SymbolGridCalculator extends React.Component {
                   , would allow you to break-even if the market price rebounds
                   <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>.
                 </span>
-              ) : (
-                <span>
-                  <b>Result: </b>it is pointless to execute a new grid at
-                  <code> {((buyTrigger - 1) * 100).toFixed(2)}% </code> from
-                  your current last buy price if you expect the market price to
-                  rebound <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>.
-                </span>
-              )}
+              ) :
+                sellTrigger > 1 ? (
+                  <span>
+                    <b>Result: </b>it is pointless to execute a new grid at
+                    <code> {((buyTrigger - 1) * 100).toFixed(2)}% </code> from
+                    your current last buy price if you expect the market price to
+                    rebound <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>,
+                    as you would breakeven by reaching your current last buy price
+                    of <code> {lastBuyPrice.toFixed(precision)}</code>.
+                  </span>
+                ) : (
+                  <span>
+                    <b>Result: </b>it is pointless to execute a new grid if you
+                    don't expect a price rebound. You should set a price rebound
+                    percentage superior to 1.
+                  </span>
+                )
+              }
               <img
                 src='./img/calculator-diagram.png'
                 className='px-4 pt-2'
