@@ -2,12 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.0.95] - 2022-12-19
 
 - Added API error message when using the wrong API key/secret - [#544](https://github.com/chrisleekr/binance-trading-bot/pull/544)
 - Automatic login when password is autofilled by the browser by [@rando128](https://github.com/rando128) - [#550](https://github.com/chrisleekr/binance-trading-bot/pull/550)
 - Fixed the queue concurrency issue - [#551](https://github.com/chrisleekr/binance-trading-bot/pull/551)
 - Added the feature to hide temporary disabled trading coins from dashboard by [@rando128](https://github.com/rando128) - [#552](https://github.com/chrisleekr/binance-trading-bot/pull/552)
+- Enhanced the suggested break-even amount with a grid calculator by [@rando128](https://github.com/rando128) - [#554](https://github.com/chrisleekr/binance-trading-bot/pull/554)
 
 Thanks [@rando128](https://github.com/rando128) for your great contributions. 💯 :heart:
 
