@@ -18,20 +18,19 @@ class CoinWrapperBuySignal extends React.Component {
   }
 
   render() {
+    const { symbolInfo, sendWebSocket, isAuthenticated } = this.props;
+
     const {
       symbolInfo: {
-        symbolInfo: {
-          symbol,
-          filterPrice: { tickSize }
-        },
-        quoteAssetBalance: { asset: quoteAsset },
-        symbolConfiguration,
-        buy,
-        sell
+        symbol,
+        filterPrice: { tickSize }
       },
-      sendWebSocket,
-      isAuthenticated
-    } = this.props;
+      quoteAssetBalance: { asset: quoteAsset },
+      symbolConfiguration,
+      buy,
+      sell
+    } = symbolInfo;
+
     const { collapsed } = this.state;
 
     const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
@@ -250,45 +249,41 @@ class CoinWrapperBuySignal extends React.Component {
             )}
 
             {grid.executed && grid.executedOrder.currentGridTradeIndex === i ? (
-                <div
-                    className={`coin-info-content-setting ${
-                        collapsed ? 'd-none' : ''
-                    }`}>
-                  <div className='coin-info-column coin-info-column-order'>
-                    <span className='coin-info-label'>
-                      - Purchased date:
-                    </span>
-                    <div className='coin-info-value'>
-                      {moment(grid.executedOrder.transactTime).format('YYYY-MM-DD HH:mm')}
-                    </div>
-                  </div>
-                  <div className='coin-info-column coin-info-column-order'>
-                    <span className='coin-info-label'>
-                      - Purchased price:
-                    </span>
-                    <div className='coin-info-value'>
-                      {parseFloat(grid.executedOrder.price).toFixed(precision)}
-                    </div>
-                  </div>
-                  <div className='coin-info-column coin-info-column-order'>
-                    <span className='coin-info-label'>
-                      - Purchased qty:
-                    </span>
-                    <div className='coin-info-value'>
-                      {parseFloat(grid.executedOrder.executedQty)}
-                    </div>
-                  </div>
-                  <div className='coin-info-column coin-info-column-order'>
-                    <span className='coin-info-label'>
-                      - Purchased amount:
-                    </span>
-                    <div className='coin-info-value'>
-                      {parseFloat(grid.executedOrder.cummulativeQuoteQty).toFixed(precision)}
-                    </div>
+              <div
+                className={`coin-info-content-setting ${
+                  collapsed ? 'd-none' : ''
+                }`}>
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>- Purchased date:</span>
+                  <div className='coin-info-value'>
+                    {moment(grid.executedOrder.transactTime).format(
+                      'YYYY-MM-DD HH:mm'
+                    )}
                   </div>
                 </div>
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>- Purchased price:</span>
+                  <div className='coin-info-value'>
+                    {parseFloat(grid.executedOrder.price).toFixed(precision)}
+                  </div>
+                </div>
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>- Purchased qty:</span>
+                  <div className='coin-info-value'>
+                    {parseFloat(grid.executedOrder.executedQty)}
+                  </div>
+                </div>
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>- Purchased amount:</span>
+                  <div className='coin-info-value'>
+                    {parseFloat(grid.executedOrder.cummulativeQuoteQty).toFixed(
+                      precision
+                    )}
+                  </div>
+                </div>
+              </div>
             ) : (
-                ''
+              ''
             )}
 
             <div
@@ -346,60 +341,55 @@ class CoinWrapperBuySignal extends React.Component {
     const buyNextGrid = () => {
       const sellGridTrade = symbolConfiguration.sell.gridTrade;
 
-      const currentPrice = parseFloat(buy.currentPrice)
-      const lastBuyPrice = parseFloat(sell.lastBuyPrice)
+      const currentPrice = parseFloat(buy.currentPrice);
+      const lastBuyPrice = parseFloat(sell.lastBuyPrice);
 
-      if (isNaN(lastBuyPrice) || sellGridTrade.length != 1 || currentPrice >= lastBuyPrice)
-        return ('')
+      if (
+        isNaN(lastBuyPrice) ||
+        sellGridTrade.length !== 1 ||
+        currentPrice >= lastBuyPrice
+      )
+        return '';
 
       const totalBoughtQty = gridTrade
-          .filter(trade => trade.executed)
-          .map(order => parseFloat(order.executedOrder.executedQty))
-          .reduce((acc, qty) => acc + qty, 0);
+        .filter(trade => trade.executed)
+        .map(order => parseFloat(order.executedOrder.executedQty))
+        .reduce((acc, qty) => acc + qty, 0);
 
       const triggerSellPercentage = sellGridTrade[0].triggerPercentage;
 
       const gain = triggerSellPercentage - 1;
 
-      const nextGridQty = -totalBoughtQty * (1 + ((currentPrice - lastBuyPrice) / (gain * currentPrice)));
+      const nextGridQty =
+        -totalBoughtQty *
+        (1 + (currentPrice - lastBuyPrice) / (gain * currentPrice));
 
       const nextGridAmount = nextGridQty * currentPrice;
 
-      return nextGridAmount > 0 ? (
-        <React.Fragment
-            key={'coin-wrapper-buy-next-grid-row-' + symbol}>
+      const executedGrids = gridTrade.filter(trade => trade.executed).length;
+
+      const hasManualTrade = currentGridTradeIndex !== executedGrids;
+
+      return (nextGridAmount > 0) & !hasManualTrade ? (
+        <React.Fragment key={'coin-wrapper-buy-next-grid-row-' + symbol}>
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>
-              &#62; Suggested break-even amount:
-              <OverlayTrigger
-                trigger='click'
-                key='buy-grid-exit-overlay'
-                placement='bottom'
-                overlay={
-                  <Popover id='buy-next-grid-overlay-right'>
-                    <Popover.Content>
-                      This is the amount you would need to purchase (at the current price) to
-                      close the grid trade at break-even if the price reaches your sell trigger
-                      point ({((triggerSellPercentage - 1) * 100).toFixed(2)}%) after the purchase.
-                    </Popover.Content>
-                  </Popover>
-                }>
-                <Button
-                    variant='link'
-                    className='p-0 m-0 ml-1 text-info d-inline-block'
-                    style={{lineHeight: '10px'}}>
-                  <i className='fas fa-question-circle fa-sm'></i>
-                </Button>
-              </OverlayTrigger>
+              &#62; Suggested breakeven amount
+              <SymbolGridCalculator
+                symbol={symbol}
+                symbolInfo={symbolInfo}
+                isAuthenticated={isAuthenticated}
+              />
             </span>
             <span className='coin-info-value'>
-              {nextGridAmount.toFixed(precision)}{' '}{quoteAsset}
+              {nextGridAmount.toFixed(precision)} {quoteAsset}
             </span>
           </div>
         </React.Fragment>
-      ) : ( ''
+      ) : (
+        ''
       );
-    }
+    };
 
     return (
       <div className='coin-info-sub-wrapper'>
