@@ -377,12 +377,12 @@ class App extends React.Component {
       return <AppLoading />;
     }
 
-    if (this.isAccountLoaded() === false) {
-      return <APIError />;
-    }
-
     if (this.isLocked()) {
       return <LockScreen />;
+    }
+
+    if (this.isAccountLoaded() === false) {
+      return <APIError />;
     }
 
     const activeSymbols = selectedSortOption.hideInactive
