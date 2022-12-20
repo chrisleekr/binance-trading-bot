@@ -49,7 +49,7 @@ class App extends React.Component {
       selectedSortOption: {
         sortBy: 'default',
         sortByDesc: false,
-        hideInactive: false,
+        hideInactive: false
       },
       searchKeyword: '',
       isLoaded: false,
@@ -138,7 +138,7 @@ class App extends React.Component {
       searchKeyword: this.state.searchKeyword,
       sortBy: this.state.selectedSortOption.sortBy,
       sortByDesc: this.state.selectedSortOption.sortByDesc,
-      hideInactive: this.state.selectedSortOption.hideInactive,
+      hideInactive: this.state.selectedSortOption.hideInactive
     });
   }
 
@@ -319,7 +319,7 @@ class App extends React.Component {
     let selectedSortOption = {
       sortBy: 'default',
       sortByDesc: false,
-      hideInactive: false,
+      hideInactive: false
     };
 
     try {
@@ -328,7 +328,7 @@ class App extends React.Component {
       ) || {
         sortBy: 'default',
         sortByDesc: false,
-        hideInactive: false,
+        hideInactive: false
       };
     } catch (e) {}
 
@@ -385,9 +385,13 @@ class App extends React.Component {
       return <LockScreen />;
     }
 
-    const activeSymbols = (selectedSortOption.hideInactive) ?
-        symbols.filter( s => s.symbolConfiguration.buy.enabled || s.symbolConfiguration.sell.enabled )
-        : symbols
+    const activeSymbols = selectedSortOption.hideInactive
+      ? symbols.filter(
+          s =>
+            s.symbolConfiguration.buy.enabled ||
+            s.symbolConfiguration.sell.enabled
+        )
+      : symbols;
 
     const coinWrappers = activeSymbols.map((symbol, index) => {
       return (
@@ -487,8 +491,8 @@ class App extends React.Component {
                 totalProfitAndLoss={totalProfitAndLoss}
               />
               <OrderStats
-                  orderStats={orderStats}
-                  selectedSortOption={selectedSortOption}
+                orderStats={orderStats}
+                selectedSortOption={selectedSortOption}
               />
             </div>
             <Pagination>{paginationItems}</Pagination>
