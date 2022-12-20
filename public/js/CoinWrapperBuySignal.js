@@ -366,11 +366,13 @@ class CoinWrapperBuySignal extends React.Component {
 
       const nextGridAmount = nextGridQty * currentPrice;
 
-      const executedGrids = gridTrade.filter(trade => trade.executed).length;
+      const executedBuyGrids = gridTrade.filter(trade => trade.executed).length;
 
-      const hasManualTrade = currentGridTradeIndex !== executedGrids;
+      const hasManualTrade = currentGridTradeIndex !== executedBuyGrids;
 
-      return (nextGridAmount > 0) & !hasManualTrade ? (
+      const isSingleSellGrid = symbolConfiguration.sell.currentGridTradeIndex >=0 & sellGridTrade.length == 1;
+
+      return (nextGridAmount > 0) & !hasManualTrade & isSingleSellGrid ? (
         <React.Fragment key={'coin-wrapper-buy-next-grid-row-' + symbol}>
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>
