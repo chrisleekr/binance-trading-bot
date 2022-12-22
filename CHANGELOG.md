@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Enhanced the suggested break-even amount a grid calculator by [@rando128](https://github.com/rando128) - [#555](https://github.com/chrisleekr/binance-trading-bot/pull/555), [#557](https://github.com/chrisleekr/binance-trading-bot/pull/557)
+- Fixed API error page priority by [@habibalkhabbaz](https://github.com/habibalkhabbaz) - [#556](https://github.com/chrisleekr/binance-trading-bot/pull/556)
+
+Thanks[@rando128](https://github.com/rando128) and [@habibalkhabbaz](https://github.com/habibalkhabbaz) for your great contributions. 💯 :heart:
 ## [0.0.95] - 2022-12-19
 
 - Added API error message when using the wrong API key/secret - [#544](https://github.com/chrisleekr/binance-trading-bot/pull/544)
