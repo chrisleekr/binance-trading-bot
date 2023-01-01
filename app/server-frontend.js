@@ -46,6 +46,11 @@ const runFrontend = async serverLogger => {
       tempFileDir: '/tmp/'
     })
   );
+  // Make data folder to be downloadable
+  app.use((req, res, next) => {
+    if (req.path.split('/')[1] === 'data') res.attachment(); // short for res.set('Content-Disposition', 'attachment')
+    next();
+  });
   app.use(express.static(path.join(__dirname, '/../public')));
 
   // Must configure bull board before listen.
