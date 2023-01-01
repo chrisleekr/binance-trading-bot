@@ -39,9 +39,9 @@ const resume = async (funcLogger, symbol) => {
   if (paused[symbol] === resumed[symbol]) {
     // eslint-disable-next-line no-multi-assign
     paused[symbol] = resumed[symbol] = 0;
-  }
 
-  await queues[symbol].resume();
+    await queues[symbol].resume();
+  }
 
   logger.info({ symbol }, `Queue ${symbol} resumed #${pos}`);
 
