@@ -11,6 +11,8 @@ const handleSymbolEnableAction = async (logger, ws, payload) => {
 
   const { symbol } = symbolInfo;
 
+  await queue.hold(logger, symbol);
+
   await deleteDisableAction(logger, symbol);
 
   queue.executeFor(logger, symbol, {

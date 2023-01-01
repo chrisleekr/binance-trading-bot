@@ -55,6 +55,8 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
 
           logger.info({ symbolOrder }, `Queueing order for ${symbol}.`);
 
+          await queue.hold(logger, symbol);
+
           await saveOverrideAction(
             logger,
             symbol,
@@ -97,6 +99,8 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
           };
 
           logger.info({ symbolOrder }, `Queueing order for ${symbol}.`);
+
+          await queue.hold(logger, symbol);
 
           await saveOverrideAction(
             logger,

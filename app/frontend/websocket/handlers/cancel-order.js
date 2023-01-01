@@ -12,6 +12,8 @@ const handleCancelOrder = async (logger, ws, payload) => {
     data: { symbol, order }
   } = payload;
 
+  await queue.hold(logger, symbol);
+
   const { side } = order;
   await saveOverrideAction(
     logger,

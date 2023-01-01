@@ -58,7 +58,8 @@ describe('server-binance', () => {
     };
     mockQueue = {
       init: jest.fn().mockResolvedValue(true),
-      executeFor: jest.fn().mockResolvedValue(true)
+      executeFor: jest.fn().mockResolvedValue(true),
+      hold: jest.fn().mockResolvedValue(true)
     };
     mockSlack = {
       sendMessage: jest.fn().mockResolvedValue(true)

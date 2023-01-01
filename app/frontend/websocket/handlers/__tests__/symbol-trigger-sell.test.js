@@ -26,7 +26,8 @@ describe('symbol-trigger-sell.test.js', () => {
     }));
 
     mockQueue = {
-      executeFor: jest.fn().mockResolvedValue(true)
+      executeFor: jest.fn().mockResolvedValue(true),
+      hold: jest.fn().mockResolvedValue(true)
     };
 
     jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);

@@ -11,6 +11,8 @@ const handleSymbolSettingDelete = async (logger, ws, payload) => {
 
   const { symbol } = symbolInfo;
 
+  await queue.hold(logger, symbol);
+
   await deleteSymbolConfiguration(logger, symbol);
 
   queue.executeFor(logger, symbol, {

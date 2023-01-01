@@ -25,7 +25,8 @@ describe('user.js', () => {
       loggerMock = logger;
 
       mockQueue = {
-        executeFor: jest.fn().mockResolvedValue(true)
+        executeFor: jest.fn().mockResolvedValue(true),
+        hold: jest.fn().mockResolvedValue(true)
       };
 
       jest.mock('../../cronjob/trailingTradeHelper/queue', () => mockQueue);

@@ -102,6 +102,8 @@ const setupUserWebsocket = async logger => {
             transactTime
           };
 
+          await queue.hold(symbolLogger, symbol);
+
           await updateGridTradeLastOrder(
             symbolLogger,
             symbol,
@@ -123,6 +125,8 @@ const setupUserWebsocket = async logger => {
         const manualOrder = await getManualOrder(symbolLogger, symbol, orderId);
 
         if (_.isEmpty(manualOrder) === false) {
+          await queue.hold(symbolLogger, symbol);
+
           await saveManualOrder(symbolLogger, symbol, orderId, {
             ...manualOrder,
             status: orderStatus,

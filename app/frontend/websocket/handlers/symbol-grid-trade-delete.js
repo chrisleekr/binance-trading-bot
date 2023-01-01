@@ -17,6 +17,8 @@ const handleSymbolGridTradeDelete = async (logger, ws, payload) => {
 
   const { action, symbol } = symbolInfo;
 
+  await queue.hold(logger, symbol);
+
   if (action === 'archive') {
     // Archive symbol grid trade
     const archivedGridTrade = await archiveSymbolGridTrade(logger, symbol);

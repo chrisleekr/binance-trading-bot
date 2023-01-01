@@ -111,6 +111,8 @@ const syncCandles = async (logger, symbols) => {
           }
         }));
 
+        await queue.hold(logger, symbol);
+
         await mongo.bulkWrite(logger, 'trailing-trade-candles', operations);
 
         queue.executeFor(logger, symbol, { correlationId: uuidv4() });

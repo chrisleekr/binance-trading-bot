@@ -12,6 +12,8 @@ const handleSymbolSettingUpdate = async (logger, ws, payload) => {
 
   const { symbol, configuration: newSymbolConfiguration } = symbolInfo;
 
+  await queue.hold(logger, symbol);
+
   // Get current symbol configuration
   const symbolConfiguration = await getSymbolConfiguration(logger, symbol);
   logger.info({ symbolConfiguration }, 'Current symbol configuration');

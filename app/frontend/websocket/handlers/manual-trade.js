@@ -12,6 +12,8 @@ const handleManualTrade = async (logger, ws, payload) => {
     data: { symbol, order }
   } = payload;
 
+  await queue.hold(logger, symbol);
+
   await saveOverrideAction(
     logger,
     symbol,

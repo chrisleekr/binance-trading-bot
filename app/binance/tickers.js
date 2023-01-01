@@ -74,6 +74,8 @@ const setupTickersWebsocket = async (logger, symbols) => {
           );
 
           if (canExecuteTrailingTrade) {
+            await queue.hold(symbolLogger, monitoringSymbol);
+
             queue.executeFor(symbolLogger, monitoringSymbol, { correlationId });
           }
         });

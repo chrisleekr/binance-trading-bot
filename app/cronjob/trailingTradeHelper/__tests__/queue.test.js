@@ -6,6 +6,11 @@ describe('queue', () => {
   let mockQueueProcess;
   let mockQueueObliterate;
   let mockQueueAdd;
+  let mockQueuePause;
+  let mockQueueResume;
+  let mockQueueGetActiveCount;
+  let mockQueueGetWaitingCount;
+  let mockQueueIsPaused;
   let mockQueue;
 
   let mockExecuteTrailingTrade;
@@ -25,12 +30,22 @@ describe('queue', () => {
 
     mockQueueObliterate = jest.fn().mockResolvedValue(true);
     mockQueueAdd = jest.fn().mockResolvedValue(true);
+    mockQueuePause = jest.fn().mockResolvedValue(true);
+    mockQueueResume = jest.fn().mockResolvedValue(true);
+    mockQueueGetActiveCount = jest.fn().mockResolvedValue(0);
+    mockQueueGetWaitingCount = jest.fn().mockResolvedValue(0);
+    mockQueueIsPaused = jest.fn().mockResolvedValue(false);
     mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
     mockSetBullBoardQueues = jest.fn().mockResolvedValue(true);
 
     mockQueue = jest.fn().mockImplementation((_queueName, _redisUrl) => ({
       process: mockQueueProcess,
       add: mockQueueAdd,
+      pause: mockQueuePause,
+      resume: mockQueueResume,
+      getActiveCount: mockQueueGetActiveCount,
+      getWaitingCount: mockQueueGetWaitingCount,
+      isPaused: mockQueueIsPaused,
       obliterate: mockQueueObliterate
     }));
 
@@ -45,6 +60,73 @@ describe('queue', () => {
     }));
   });
 
+  describe('hold', () => {
+    describe('when symbol does not exist in the queue', () => {
+      beforeEach(async () => {
+        queue = require('../queue');
+
+        await queue.init(logger, ['BTCUSDT']);
+        await queue.hold(logger, 'ETHUSDT');
+      });
+
+      it('does not trigger queue.pause for ETHUSDT', () => {
+        expect(mockQueuePause).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when symbol does exist in the queue', () => {
+      describe('paused one time', () => {
+        beforeEach(async () => {
+          queue = require('../queue');
+
+          await queue.init(logger, ['BTCUSDT']);
+          await queue.hold(logger, 'BTCUSDT');
+          mockQueueIsPaused.mockReturnValueOnce(true);
+          await queue.executeFor(logger, 'BTCUSDT');
+        });
+
+        it('does trigger queue.pause once for BTCUSDT', () => {
+          expect(mockQueuePause).toHaveBeenCalledTimes(1);
+        });
+      });
+
+      describe('paused two times with active job', () => {
+        beforeEach(async () => {
+          mockQueueGetActiveCount.mockReturnValueOnce(1);
+
+          queue = require('../queue');
+
+          await queue.init(logger, ['BTCUSDT']);
+          await queue.hold(logger, 'BTCUSDT');
+          mockQueueIsPaused.mockReturnValueOnce(true);
+          queue.hold(logger, 'BTCUSDT');
+          await queue.executeFor(logger, 'BTCUSDT');
+        });
+
+        it('does trigger queue.pause once for BTCUSDT', () => {
+          expect(mockQueuePause).toHaveBeenCalledTimes(1);
+        });
+      });
+
+      describe('paused two times with waiting job', () => {
+        beforeEach(async () => {
+          mockQueueGetWaitingCount.mockReturnValueOnce(1);
+          queue = require('../queue');
+
+          await queue.init(logger, ['BTCUSDT']);
+          await queue.hold(logger, 'BTCUSDT');
+          mockQueueIsPaused.mockReturnValueOnce(true);
+          queue.hold(logger, 'BTCUSDT');
+          await queue.executeFor(logger, 'BTCUSDT');
+        });
+
+        it('does trigger queue.pause once for BTCUSDT', () => {
+          expect(mockQueuePause).toHaveBeenCalledTimes(1);
+        });
+      });
+    });
+  });
+
   describe('init', () => {
     describe('called one time', () => {
       beforeEach(async () => {
@@ -57,7 +139,7 @@ describe('queue', () => {
         expect(mockQueue).toHaveBeenCalledWith('BTCUSDT', expect.any(String), {
           prefix: `bull`,
           limiter: {
-            max: 1,
+            max: 100,
             duration: 10000,
             bounceBack: true
           }

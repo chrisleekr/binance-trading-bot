@@ -15,6 +15,8 @@ const queue = require('../../../cronjob/trailingTradeHelper/queue');
  * @returns
  */
 const deleteLastBuyPrice = async (logger, ws, symbol) => {
+  await queue.hold(logger, symbol);
+
   await mongo.deleteOne(logger, 'trailing-trade-symbols', {
     key: `${symbol}-last-buy-price`
   });
@@ -93,6 +95,8 @@ const updateLastBuyPrice = async (logger, ws, symbol, lastBuyPrice) => {
   // Calculate total quantity
   const baseAssetTotalBalance =
     parseFloat(baseAssetBalance.free) + parseFloat(baseAssetBalance.locked);
+
+  await queue.hold(logger, symbol);
 
   await saveLastBuyPrice(logger, symbol, {
     lastBuyPrice,

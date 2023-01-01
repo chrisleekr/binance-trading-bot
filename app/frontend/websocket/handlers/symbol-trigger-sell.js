@@ -12,6 +12,8 @@ const handleSymbolTriggerSell = async (logger, ws, payload) => {
 
   const { symbol } = symbolInfo;
 
+  await queue.hold(logger, symbol);
+
   await saveOverrideAction(
     logger,
     symbol,
