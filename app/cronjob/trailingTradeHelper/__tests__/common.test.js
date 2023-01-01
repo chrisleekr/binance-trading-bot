@@ -2935,7 +2935,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$buy.difference', null]
             },
-            then: '$symbol',
+            then: -Infinity,
             else: '$buy.difference'
           }
         }
@@ -2951,7 +2951,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$buy.difference', null]
             },
-            then: '$symbol',
+            then: Infinity,
             else: '$buy.difference'
           }
         }
@@ -2967,7 +2967,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$sell.currentProfitPercentage', null]
             },
-            then: '$symbol',
+            then: Infinity,
             else: '$sell.currentProfitPercentage'
           }
         }
@@ -2983,7 +2983,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$sell.currentProfitPercentage', null]
             },
-            then: '$symbol',
+            then: -Infinity,
             else: '$sell.currentProfitPercentage'
           }
         }
@@ -3059,7 +3059,7 @@ describe('common.js', () => {
                   sortField: t.sortField
                 }
               },
-              { $sort: { sortField: t.sortByDesc ? -1 : 1 } },
+              { $sort: { sortField: t.sortByDesc ? -1 : 1, symbol: 1 } },
               { $skip: (pageNum - 1) * 10 },
               { $limit: 10 }
             ]
