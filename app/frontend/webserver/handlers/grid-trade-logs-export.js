@@ -52,6 +52,14 @@ const handleGridTradeLogsExport = async (funcLogger, app) => {
       });
     }
 
+    const fileName = `${symbol}-${moment().format('YYYY-MM-DD-HH-MM-ss')}.json`;
+    const fileFolder = path.join(global.appRoot, '/../public/data/logs');
+
+    if (!fs.existsSync(fileFolder)) {
+      fs.mkdirSync(fileFolder);
+    }
+    keepLastLogs(fileFolder, 10);
+
     const match = {};
     const group = {};
 
@@ -63,14 +71,6 @@ const handleGridTradeLogsExport = async (funcLogger, app) => {
     const rows = await mongo.findAll(logger, 'trailing-trade-logs', match, {
       sort: { loggedAt: -1 }
     });
-    const fileName = `${symbol}-${moment().format('YYYY-MM-DD-HH-MM-ss')}.json`;
-    const fileFolder = path.join(__dirname, '/../../../../public/data/logs');
-
-    if (!fs.existsSync(fileFolder)) {
-      fs.mkdirSync(fileFolder);
-    }
-
-    keepLastLogs(fileFolder, 10);
 
     const filePath = `${fileFolder}${directorySeparator}${fileName}`;
     fs.writeFileSync(filePath, JSON.stringify(rows));
