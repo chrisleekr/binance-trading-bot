@@ -1,4 +1,5 @@
 /* eslint-disable global-require */
+const path = require('path');
 
 describe('server-frontend', () => {
   let mockExpressStatic;
@@ -35,6 +36,8 @@ describe('server-frontend', () => {
   let loggerMock;
 
   let reqPath;
+
+  global.appRoot = path.join(__dirname, '/../');
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();

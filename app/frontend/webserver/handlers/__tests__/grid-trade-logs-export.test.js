@@ -18,6 +18,7 @@ describe('webserver/handlers/grid-trade-logs-export', () => {
   let postReq;
 
   let mockVerifyAuthenticated;
+  global.appRoot = path.join(__dirname, '/../../../../');
 
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();

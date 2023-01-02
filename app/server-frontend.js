@@ -52,7 +52,7 @@ const runFrontend = async serverLogger => {
     next();
   };
   app.use(attachmentMiddleware);
-  app.use(express.static(path.join(__dirname, '/../public')));
+  app.use(express.static(path.join(global.appRoot, '/../public')));
 
   // Must configure bull board before listen.
   configureBullBoard(app, logger);
