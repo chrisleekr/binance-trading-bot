@@ -18,10 +18,10 @@ const keepLastLogs = (fileFolder, numberOfFilesToKeep) => {
     }))
     .sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
 
-  if (recentFiles.length < numberOfFilesToKeep + 1) {
+  if (recentFiles.length < numberOfFilesToKeep) {
     return;
   }
-  const deleteFiles = recentFiles.slice(numberOfFilesToKeep);
+  const deleteFiles = recentFiles.slice(numberOfFilesToKeep - 1);
 
   deleteFiles.forEach(f =>
     fs.unlinkSync(`${fileFolder}${directorySeparator}${f.file}`)
