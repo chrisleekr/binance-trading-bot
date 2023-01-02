@@ -23,7 +23,6 @@ yarn-error.log*
 
 coverage
 build
-data
 log
 
 .env
@@ -32,6 +31,8 @@ log
 
 /public/dist/*
 !/public/dist/.gitkeep
+/public/data/*
+!/public/data/.gitkeep
 
 result.csv
 .~lock.result.csv#
