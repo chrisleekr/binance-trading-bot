@@ -979,7 +979,7 @@ const getCacheTrailingTradeSymbols = async (
         if: {
           $eq: ['$buy.difference', null]
         },
-        then: '$symbol',
+        then: sortByDesc ? -Infinity : Infinity,
         else: '$buy.difference'
       }
     };
@@ -991,7 +991,7 @@ const getCacheTrailingTradeSymbols = async (
         if: {
           $eq: ['$sell.currentProfitPercentage', null]
         },
-        then: '$symbol',
+        then: sortByDesc ? -Infinity : Infinity,
         else: '$sell.currentProfitPercentage'
       }
     };
@@ -1020,7 +1020,7 @@ const getCacheTrailingTradeSymbols = async (
         sortField
       }
     },
-    { $sort: { sortField: sortDirection } },
+    { $sort: { sortField: sortDirection, symbol: 1 } },
     { $skip: (pageNum - 1) * symbolsPerPage },
     { $limit: symbolsPerPage }
   ];

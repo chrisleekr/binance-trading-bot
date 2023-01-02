@@ -103,37 +103,17 @@ class SymbolLogsIcon extends React.Component {
     return axios
       .post('/grid-trade-logs-export', {
         authToken,
-        symbol,
-        responseType: 'blob'
+        symbol
       })
       .then(response => {
-        const filename = `${symbol}-${moment().format(
-          'YYYY-MM-DD-HH-MM-SS'
-        )}.json`;
-        const contentType = 'application/json;charset=utf-8;';
-        if (window.navigator && window.navigator.msSaveOrOpenBlob) {
-          const blob = new Blob(
-            [
-              decodeURIComponent(
-                encodeURI(JSON.stringify(response.data, null, 2))
-              )
-            ],
-            { type: contentType }
-          );
-          navigator.msSaveOrOpenBlob(blob, filename);
-        } else {
-          const a = document.createElement('a');
-          a.download = filename;
-          a.href =
-            'data:' +
-            contentType +
-            ',' +
-            encodeURIComponent(JSON.stringify(response.data, null, 2));
-          a.target = '_blank';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        }
+        const {
+          data: {
+            data: { fileName }
+          }
+        } = response;
+
+        const filePath = `data/logs/${fileName}`;
+        window.open(filePath, '_blank');
 
         this.setState({
           loading: false
