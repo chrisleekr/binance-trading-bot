@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 const config = require('config');
 const Queue = require('bull');
 const _ = require('lodash');
@@ -12,16 +13,20 @@ const REDIS_URL = `redis://:${config.get('redis.password')}@${config.get(
   'redis.host'
 )}:${config.get('redis.port')}/${config.get('redis.db')}`;
 
+const waitForJobSeconds = 10;
+// eslint-disable-next-line no-promise-executor-return
+const asyncWait = async seconds => new Promise(r => setTimeout(r, seconds));
+
 const pause = async (funcLogger, symbol) => {
   const logger = funcLogger.child({ helper: 'queue' });
 
-  // eslint-disable-next-line no-plusplus
-  const pos = paused[symbol]++;
+  const pos = paused[symbol];
+  paused[symbol] += 1;
+
   if (pos > resumed[symbol]) {
     logger.info({ symbol }, `Queue ${symbol} pause #${pos} queued`);
     while (pos > resumed[symbol]) {
-      // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
-      await new Promise(r => setTimeout(r, 10));
+      await asyncWait(waitForJobSeconds);
     }
   }
 
@@ -33,12 +38,12 @@ const pause = async (funcLogger, symbol) => {
 const resume = async (funcLogger, symbol) => {
   const logger = funcLogger.child({ helper: 'queue' });
 
-  // eslint-disable-next-line no-plusplus
-  const pos = resumed[symbol]++;
+  const pos = resumed[symbol];
+  resumed[symbol] += 1;
 
   if (paused[symbol] === resumed[symbol]) {
-    // eslint-disable-next-line no-multi-assign
-    paused[symbol] = resumed[symbol] = 0;
+    resumed[symbol] = 0;
+    paused[symbol] = 0;
 
     await queues[symbol].resume();
   }
@@ -58,9 +63,8 @@ const waitForJob = async (funcLogger, symbol) => {
     logger.info({ symbol }, `Queue ${symbol} wait for ${active} job(s)`);
 
     while (active > 0) {
-      // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
-      await new Promise(r => setTimeout(r, 10));
-      // eslint-disable-next-line no-await-in-loop
+      await asyncWait(waitForJobSeconds);
+
       active = await queues[symbol].getActiveCount();
     }
   }
