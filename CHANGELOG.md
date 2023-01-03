@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 - Fixed sorting symbols open trades first by [@uhliksk](https://github.com/uhliksk) - [#564](https://github.com/chrisleekr/binance-trading-bot/pull/564)
 - Fixed the issue that cannot export huge logs - [#561](https://github.com/chrisleekr/binance-trading-bot/pull/561), [#567](https://github.com/chrisleekr/binance-trading-bot/pull/567)
+- Fixed the balance calculation to include dust balances by [@uhliksk](https://github.com/uhliksk) - [#571](https://github.com/chrisleekr/binance-trading-bot/pull/571)
 
 Thanks [@uhliksk](https://github.com/uhliksk) for your great contributions. 💯 :heart:
 
