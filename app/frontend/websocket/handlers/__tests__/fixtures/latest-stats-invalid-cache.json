@@ -2,133 +2,15 @@
   "result": true,
   "type": "latest",
   "isAuthenticated": true,
-  "botOptions": {
-    "authentication": {
-      "lockList": true,
-      "lockAfter": 120
-    },
-    "autoTriggerBuy": {
-      "enabled": false,
-      "triggerAfter": 20
-    },
-    "orderLimit": {
-      "enabled": true,
-      "maxBuyOpenOrders": 3,
-      "maxOpenTrades": 5
-    }
-  },
   "configuration": {
     "enabled": true,
-    "type": "i-am-global",
-    "candles": {
-      "interval": "15m"
-    },
-    "symbols": [
-      "BTCUSDT",
-      "BNBUSDT",
-      "ETHBUSD",
-      "BTCBUSD",
-      "LTCBUSD"
-    ],
-    "botOptions": {
-      "authentication": {
-        "lockList": true,
-        "lockAfter": 120
-      },
-      "autoTriggerBuy": {
-        "enabled": false,
-        "triggerAfter": 20
-      },
-      "orderLimit": {
-        "enabled": true,
-        "maxBuyOpenOrders": 3,
-        "maxOpenTrades": 5
-      }
-    },
-    "sell": {}
+    "symbols": ["BTCUSDT", "BNBUSDT"]
   },
   "common": {
-    "version": "0.0.85",
-    "gitHash": "some-hash",
+    "version": "0.0.94",
+    "gitHash": "unspecified",
     "accountInfo": {
-      "makerCommission": 0,
-      "takerCommission": 0,
-      "buyerCommission": 0,
-      "sellerCommission": 0,
-      "canTrade": true,
-      "canWithdraw": false,
-      "canDeposit": false,
-      "updateTime": 1630151787045,
-      "accountType": "SPOT",
-      "balances": [
-        {
-          "asset": "BNB",
-          "free": "0.01000000",
-          "locked": "0.04000000",
-          "quote": null,
-          "estimate": null,
-          "tickSize": null
-        },
-        {
-          "asset": "BTC",
-          "free": "0.00000100",
-          "locked": "0.00000000",
-          "quote": null,
-          "estimate": null,
-          "tickSize": null
-        },
-        {
-          "asset": "BUSD",
-          "free": "9904.79690824",
-          "locked": "41.96541778",
-          "quote": null,
-          "estimate": null,
-          "tickSize": null
-        },
-        {
-          "asset": "ETH",
-          "free": "0.10001000",
-          "locked": "99.90687000",
-          "quote": "USDT",
-          "estimate": "1574.50",
-          "tickSize": "0.01000000"
-        },
-        {
-          "asset": "LTC",
-          "free": "499.75398000",
-          "locked": "0.00000000",
-          "quote": null,
-          "estimate": null,
-          "tickSize": null
-        },
-        {
-          "asset": "TRX",
-          "free": "500000.00000000",
-          "locked": "0.00000000",
-          "quote": null,
-          "estimate": null,
-          "tickSize": null
-        },
-        {
-          "asset": "USDT",
-          "free": "379068.42127337",
-          "locked": "0.00000000",
-          "quote": null,
-          "estimate": null,
-          "tickSize": null
-        },
-        {
-          "asset": "XRP",
-          "free": "50000.00000000",
-          "locked": "0.00000000",
-          "quote": null,
-          "estimate": null,
-          "tickSize": null
-        }
-      ],
-      "permissions": [
-        "SPOT"
-      ]
+      "balances": []
     },
     "apiInfo": {
       "spot": {
@@ -136,47 +18,15 @@
       },
       "futures": {}
     },
-    "closedTradesSetting": {
-      "loadedPeriod": "a",
-      "selectedPeriod": "a"
-    },
+    "closedTradesSetting": {},
     "orderStats": {
-      "numberOfOpenTrades": 6,
-      "numberOfBuyOpenOrders": 3
+      "numberOfOpenTrades": null,
+      "numberOfBuyOpenOrders": null
     },
-    "closedTrades": [
-      {
-        "_id": "USDT",
-        "quoteAsset": "USDT",
-        "totalBuyQuoteQty": 2154.3501118200006,
-        "totalSellQuoteQty": 2446.3799600800007,
-        "buyGridTradeQuoteQty": 2154.3501118200006,
-        "buyManualQuoteQty": 0,
-        "sellGridTradeQuoteQty": 2276.5895458000005,
-        "sellManualQuoteQty": 0,
-        "stopLossQuoteQty": 169.79041428,
-        "profit": 292.02984826000005,
-        "trades": 113,
-        "profitPercentage": 13.555356980174984
-      },
-      {
-        "_id": "BUSD",
-        "quoteAsset": "BUSD",
-        "totalBuyQuoteQty": 83.92565970000001,
-        "totalSellQuoteQty": 1428.4105350000002,
-        "buyGridTradeQuoteQty": 83.92565970000001,
-        "buyManualQuoteQty": 0,
-        "sellGridTradeQuoteQty": 1411.6425350000002,
-        "sellManualQuoteQty": 0,
-        "stopLossQuoteQty": 16.768,
-        "profit": 1344.4848752999999,
-        "trades": 5,
-        "profitPercentage": 1601.995003799773
-      }
-    ],
+    "closedTrades": [],
     "totalProfitAndLoss": [],
     "streamsCount": 6,
-    "monitoringSymbolsCount": 5,
+    "monitoringSymbolsCount": 2,
     "cachedMonitoringSymbolsCount": 5,
     "totalPages": 1
   },
@@ -662,25 +512,6 @@
         },
         "order": {},
         "saveToCache": true,
-        "tradingView": {
-          "request": {
-            "symbol": "BTCUSDT",
-            "screener": "CRYPTO",
-            "exchange": "BINANCE",
-            "interval": "1h"
-          },
-          "result": {
-            "indicators": {
-              "summary": {
-                "BUY": 14,
-                "NEUTRAL": 10,
-                "RECOMMENDATION": "BUY",
-                "SELL": 2
-              },
-              "time": "2022-07-18T11:45:39.308508"
-            }
-          }
-        },
         "isActionDisabled": {
           "isDisabled": false,
           "ttl": -2

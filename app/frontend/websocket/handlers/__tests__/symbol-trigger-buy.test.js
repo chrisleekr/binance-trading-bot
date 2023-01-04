@@ -36,6 +36,7 @@ describe('symbol-trigger-buy.test.js', () => {
     beforeEach(async () => {
       const { logger } = require('../../../../helpers');
       mockLogger = logger;
+      mockLogger.fields = { correlationId: 'correlationId' };
 
       const { handleSymbolTriggerBuy } = require('../symbol-trigger-buy');
       await handleSymbolTriggerBuy(mockLogger, mockWebSocketServer, {
@@ -61,7 +62,9 @@ describe('symbol-trigger-buy.test.js', () => {
     });
 
     it('triggers queue.executeFor', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(mockLogger, 'BTCUSDT');
+      expect(mockQueue.executeFor).toHaveBeenCalledWith(mockLogger, 'BTCUSDT', {
+        correlationId: 'correlationId'
+      });
     });
 
     it('triggers ws.send', () => {

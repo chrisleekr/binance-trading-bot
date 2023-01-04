@@ -523,6 +523,9 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
 
   const newLastBuyPrice = newTotalAmount / newQuantity;
 
+  const notifyDebug = config.get('featureToggle.notifyDebug');
+  const notifyOrderConfirm = config.get('featureToggle.notifyOrderConfirm');
+
   logger.info(
     { newLastBuyPrice, newTotalAmount, newQuantity, saveLog: true },
     `The last buy price will be saved. New last buy price: ${newLastBuyPrice}`
@@ -537,22 +540,23 @@ const calculateLastBuyPrice = async (logger, symbol, order) => {
     title: `New last buy price for ${symbol} has been updated.`
   });
 
-  slack.sendMessage(
-    `*${symbol}* Last buy price Updated: *${type}*\n` +
-      `- Order Result: \`\`\`${JSON.stringify(
-        {
-          orgLastBuyPrice,
-          orgQuantity,
-          orgTotalAmount,
-          newLastBuyPrice,
-          newQuantity,
-          newTotalAmount
-        },
-        undefined,
-        2
-      )}\`\`\``,
-    { symbol, apiLimit: getAPILimit(logger) }
-  );
+  if (notifyDebug || notifyOrderConfirm)
+    slack.sendMessage(
+      `*${symbol}* Last buy price Updated: *${type}*\n` +
+        `- Order Result: \`\`\`${JSON.stringify(
+          {
+            orgLastBuyPrice,
+            orgQuantity,
+            orgTotalAmount,
+            newLastBuyPrice,
+            newQuantity,
+            newTotalAmount
+          },
+          undefined,
+          2
+        )}\`\`\``,
+      { symbol, apiLimit: getAPILimit(logger) }
+    );
 };
 
 /**
@@ -875,6 +879,15 @@ const updateAccountInfo = async (logger, balances, lastAccountUpdate) => {
   return accountInfo;
 };
 
+const countCacheTrailingTradeSymbols = async logger => {
+  const result = await mongo.aggregate(logger, 'trailing-trade-cache', [
+    { $match: {} },
+    { $group: { _id: null, count: { $sum: 1 } } }
+  ]);
+
+  return _.get(result, ['0', 'count'], 0);
+};
+
 const getCacheTrailingTradeSymbols = async (
   logger,
   sortByDesc,
@@ -966,7 +979,7 @@ const getCacheTrailingTradeSymbols = async (
         if: {
           $eq: ['$buy.difference', null]
         },
-        then: '$symbol',
+        then: sortByDesc ? -Infinity : Infinity,
         else: '$buy.difference'
       }
     };
@@ -978,7 +991,7 @@ const getCacheTrailingTradeSymbols = async (
         if: {
           $eq: ['$sell.currentProfitPercentage', null]
         },
-        then: '$symbol',
+        then: sortByDesc ? -Infinity : Infinity,
         else: '$sell.currentProfitPercentage'
       }
     };
@@ -1007,7 +1020,7 @@ const getCacheTrailingTradeSymbols = async (
         sortField
       }
     },
-    { $sort: { sortField: sortDirection } },
+    { $sort: { sortField: sortDirection, symbol: 1 } },
     { $skip: (pageNum - 1) * symbolsPerPage },
     { $limit: symbolsPerPage }
   ];
@@ -1190,6 +1203,7 @@ module.exports = {
   saveOverrideIndicatorAction,
   saveCandle,
   updateAccountInfo,
+  countCacheTrailingTradeSymbols,
   getCacheTrailingTradeSymbols,
   getCacheTrailingTradeTotalProfitAndLoss,
   getCacheTrailingTradeQuoteEstimates,

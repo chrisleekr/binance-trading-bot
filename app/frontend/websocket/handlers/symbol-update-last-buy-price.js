@@ -19,7 +19,9 @@ const deleteLastBuyPrice = async (logger, ws, symbol) => {
     key: `${symbol}-last-buy-price`
   });
 
-  queue.executeFor(logger, symbol);
+  queue.executeFor(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', '')
+  });
 
   PubSub.publish('frontend-notification', {
     type: 'success',
@@ -97,7 +99,9 @@ const updateLastBuyPrice = async (logger, ws, symbol, lastBuyPrice) => {
     quantity: baseAssetTotalBalance
   });
 
-  queue.executeFor(logger, symbol);
+  queue.executeFor(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', '')
+  });
 
   PubSub.publish('frontend-notification', {
     type: 'success',

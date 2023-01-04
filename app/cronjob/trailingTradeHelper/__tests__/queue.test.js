@@ -16,7 +16,10 @@ describe('queue', () => {
     jest.mock('config');
 
     mockQueueProcess = jest.fn().mockImplementation((_concurrent, cb) => {
-      const job = jest.fn();
+      const job = {
+        data: { correlationId: 'correlationId' },
+        progress: jest.fn()
+      };
       cb(job);
     });
 
@@ -53,8 +56,10 @@ describe('queue', () => {
       it('triggers new Queue for BTCUSDT', () => {
         expect(mockQueue).toHaveBeenCalledWith('BTCUSDT', expect.any(String), {
           prefix: `bull`,
-          settings: {
-            guardInterval: 1000
+          limiter: {
+            max: 1,
+            duration: 10000,
+            bounceBack: true
           }
         });
       });
@@ -62,21 +67,24 @@ describe('queue', () => {
       it('triggers executeTrailingTrade for BTCUSDT', () => {
         expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
           logger,
-          'BTCUSDT'
+          'BTCUSDT',
+          'correlationId'
         );
       });
 
       it('triggers executeTrailingTrade for ETHUSDT', () => {
         expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
           logger,
-          'ETHUSDT'
+          'ETHUSDT',
+          'correlationId'
         );
       });
 
       it('triggers executeTrailingTrade for BNBUSDT', () => {
         expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
           logger,
-          'BNBUSDT'
+          'BNBUSDT',
+          'correlationId'
         );
       });
 

@@ -9,7 +9,9 @@ describe('latest.test.js', () => {
   const trailingTradeStateNotAuthenticatedUnlockList = require('./fixtures/latest-stats-not-authenticated-unlock-list.json');
 
   const trailingTradeStatsAuthenticated = require('./fixtures/latest-stats-authenticated.json');
+  const trailingTradeStateInvalidCache = require('./fixtures/latest-stats-invalid-cache.json');
 
+  let mockCountCacheTrailingTradeSymbols;
   let mockGetCacheTrailingTradeSymbols;
   let mockGetCacheTrailingTradeTotalProfitAndLoss;
   let mockGetCacheTrailingTradeQuoteEstimates;
@@ -29,6 +31,8 @@ describe('latest.test.js', () => {
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
 
+    process.env.GIT_HASH = 'some-hash';
+
     mockBinanceClientGetInfo = jest.fn().mockReturnValue({
       spot: {
         usedWeight1m: '60'
@@ -40,6 +44,10 @@ describe('latest.test.js', () => {
     mockGetCacheTrailingTradeSymbols = jest
       .fn()
       .mockResolvedValue(trailingTradeSymbols);
+
+    mockCountCacheTrailingTradeSymbols = jest
+      .fn()
+      .mockResolvedValue(trailingTradeSymbols.length);
 
     mockGetCacheTrailingTradeTotalProfitAndLoss = jest
       .fn()
@@ -106,6 +114,7 @@ describe('latest.test.js', () => {
 
     jest.mock('../../../../cronjob/trailingTradeHelper/common', () => ({
       isActionDisabled: mockIsActionDisabled,
+      countCacheTrailingTradeSymbols: mockCountCacheTrailingTradeSymbols,
       getCacheTrailingTradeSymbols: mockGetCacheTrailingTradeSymbols,
       getCacheTrailingTradeTotalProfitAndLoss:
         mockGetCacheTrailingTradeTotalProfitAndLoss,
@@ -154,6 +163,7 @@ describe('latest.test.js', () => {
 
       const { handleLatest } = require('../latest');
       await handleLatest(logger, mockWebSocketServer, {
+        isAuthenticated: true,
         data: {
           sortBy: 'default',
           sortByDesc: false,
@@ -163,15 +173,19 @@ describe('latest.test.js', () => {
       });
     });
 
-    it('does not trigger ws.send', () => {
-      expect(mockWebSocketServerWebSocketSend).not.toHaveBeenCalled();
+    it('triggers ws.send with latest', () => {
+      trailingTradeStateInvalidCache.common.version =
+        require('../../../../../package.json').version;
+      trailingTradeStateInvalidCache.common.gitHash = 'some-hash';
+
+      expect(mockWebSocketServerWebSocketSend).toHaveBeenCalledWith(
+        JSON.stringify(trailingTradeStateInvalidCache)
+      );
     });
   });
 
   describe('with valid cache', () => {
     beforeEach(async () => {
-      process.env.GIT_HASH = 'some-hash';
-
       mockCacheHGetAll = jest.fn().mockImplementation((_key, pattern) => {
         if (pattern === 'trailing-trade-common:*') {
           return trailingTradeCommonJson;

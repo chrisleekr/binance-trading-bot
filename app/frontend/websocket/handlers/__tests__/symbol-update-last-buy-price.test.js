@@ -35,6 +35,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
         const { mongo, logger, PubSub } = require('../../../../helpers');
         mongoMock = mongo;
         loggerMock = logger;
+        loggerMock.fields = { correlationId: 'correlationId' };
         PubSubMock = PubSub;
 
         mongoMock.deleteOne = jest.fn().mockResolvedValue(true);
@@ -64,7 +65,8 @@ describe('symbol-update-last-buy-price.test.js', () => {
       it('triggers queue.executeFor', () => {
         expect(mockQueue.executeFor).toHaveBeenCalledWith(
           loggerMock,
-          'BTCUSDT'
+          'BTCUSDT',
+          { correlationId: 'correlationId' }
         );
       });
 
@@ -102,6 +104,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
           } = require('../../../../helpers');
           mongoMock = mongo;
           loggerMock = logger;
+          loggerMock.fields = { correlationId: 'correlationId' };
           PubSubMock = PubSub;
           cacheMock = cache;
 
@@ -151,6 +154,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
           beforeEach(async () => {
             const { cache, logger, PubSub } = require('../../../../helpers');
             loggerMock = logger;
+            loggerMock.fields = { correlationId: 'correlationId' };
             PubSubMock = PubSub;
             cacheMock = cache;
 
@@ -216,7 +220,8 @@ describe('symbol-update-last-buy-price.test.js', () => {
           it('triggers queue.executeFor', () => {
             expect(mockQueue.executeFor).toHaveBeenCalledWith(
               loggerMock,
-              'BTCUSDT'
+              'BTCUSDT',
+              { correlationId: 'correlationId' }
             );
           });
 
@@ -245,6 +250,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
           beforeEach(async () => {
             const { cache, logger, PubSub } = require('../../../../helpers');
             loggerMock = logger;
+            loggerMock.fields = { correlationId: 'correlationId' };
             PubSubMock = PubSub;
             cacheMock = cache;
 
@@ -310,7 +316,8 @@ describe('symbol-update-last-buy-price.test.js', () => {
           it('triggers queue.executeFor', () => {
             expect(mockQueue.executeFor).toHaveBeenCalledWith(
               loggerMock,
-              'BTCUSDT'
+              'BTCUSDT',
+              { correlationId: 'correlationId' }
             );
           });
 

@@ -1447,6 +1447,20 @@ describe('common.js', () => {
   describe('calculateLastBuyPrice', () => {
     describe('when last buy price is not recorded', () => {
       beforeEach(async () => {
+        mockConfigGet = jest.fn(key => {
+          if (key === 'featureToggle.notifyDebug') {
+            return true;
+          }
+          if (key === 'featureToggle.notifyOrderConfirm') {
+            return false;
+          }
+          return null;
+        });
+
+        jest.mock('config', () => ({
+          get: mockConfigGet
+        }));
+
         const {
           cache,
           logger,
@@ -1525,6 +1539,20 @@ describe('common.js', () => {
 
     describe('when last buy price is recorded', () => {
       beforeEach(async () => {
+        mockConfigGet = jest.fn(key => {
+          if (key === 'featureToggle.notifyDebug') {
+            return true;
+          }
+          if (key === 'featureToggle.notifyOrderConfirm') {
+            return false;
+          }
+          return null;
+        });
+
+        jest.mock('config', () => ({
+          get: mockConfigGet
+        }));
+
         const {
           logger,
           mongo,
@@ -1604,6 +1632,58 @@ describe('common.js', () => {
             symbol: 'BTCUSDT'
           }
         );
+      });
+    });
+
+    describe('notifyDebug and notifyOrderConfirm are false', () => {
+      beforeEach(async () => {
+        mockConfigGet = jest.fn(key => {
+          if (key === 'featureToggle.notifyDebug') {
+            return false;
+          }
+          if (key === 'featureToggle.notifyOrderConfirm') {
+            return false;
+          }
+          return null;
+        });
+
+        jest.mock('config', () => ({
+          get: mockConfigGet
+        }));
+
+        const {
+          logger,
+          mongo,
+          PubSub,
+          slack,
+          cache
+        } = require('../../../helpers');
+
+        loggerMock = logger;
+        mongoMock = mongo;
+        PubSubMock = PubSub;
+        slackMock = slack;
+        cacheMock = cache;
+
+        mongoMock.findOne = jest.fn().mockResolvedValue({
+          lastBuyPrice: 254.37,
+          quantity: 0.0784
+        });
+        mongoMock.upsertOne = jest.fn().mockResolvedValue(true);
+        PubSubMock.publish = jest.fn().mockResolvedValue(true);
+        slackMock.sendMessage = jest.fn().mockResolvedValue(true);
+        cacheMock.hdel = jest.fn().mockResolvedValue(true);
+
+        commonHelper = require('../common');
+        await commonHelper.calculateLastBuyPrice(loggerMock, 'BTCUSDT', {
+          type: 'buy',
+          executedQty: '0.05',
+          cummulativeQuoteQty: '30'
+        });
+      });
+
+      it('does not trigger slack.sendMessage', () => {
+        expect(slackMock.sendMessage).not.toHaveBeenCalled();
       });
     });
   });
@@ -2855,7 +2935,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$buy.difference', null]
             },
-            then: '$symbol',
+            then: -Infinity,
             else: '$buy.difference'
           }
         }
@@ -2871,7 +2951,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$buy.difference', null]
             },
-            then: '$symbol',
+            then: Infinity,
             else: '$buy.difference'
           }
         }
@@ -2887,7 +2967,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$sell.currentProfitPercentage', null]
             },
-            then: '$symbol',
+            then: Infinity,
             else: '$sell.currentProfitPercentage'
           }
         }
@@ -2903,7 +2983,7 @@ describe('common.js', () => {
             if: {
               $eq: ['$sell.currentProfitPercentage', null]
             },
-            then: '$symbol',
+            then: -Infinity,
             else: '$sell.currentProfitPercentage'
           }
         }
@@ -2979,7 +3059,7 @@ describe('common.js', () => {
                   sortField: t.sortField
                 }
               },
-              { $sort: { sortField: t.sortByDesc ? -1 : 1 } },
+              { $sort: { sortField: t.sortByDesc ? -1 : 1, symbol: 1 } },
               { $skip: (pageNum - 1) * 10 },
               { $limit: 10 }
             ]
@@ -3409,6 +3489,65 @@ describe('common.js', () => {
             side: 'SELL'
           }
         ]
+      });
+    });
+  });
+
+  describe('countCacheTrailingTradeSymbols', () => {
+    describe('when nothing is returned', () => {
+      beforeEach(async () => {
+        const { mongo, logger } = require('../../../helpers');
+
+        mongoMock = mongo;
+        loggerMock = logger;
+
+        mongoMock.aggregate = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.countCacheTrailingTradeSymbols(loggerMock);
+      });
+
+      it('triggers mongo.aggregate', () => {
+        expect(mongoMock.aggregate).toHaveBeenCalledWith(
+          loggerMock,
+          'trailing-trade-cache',
+          [{ $match: {} }, { $group: { _id: null, count: { $sum: 1 } } }]
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual(0);
+      });
+    });
+
+    describe('when returned cached symbols count', () => {
+      beforeEach(async () => {
+        const { mongo, logger } = require('../../../helpers');
+
+        mongoMock = mongo;
+        loggerMock = logger;
+
+        mongoMock.aggregate = jest.fn().mockResolvedValue([
+          {
+            _id: null,
+            count: 10
+          }
+        ]);
+
+        commonHelper = require('../common');
+        result = await commonHelper.countCacheTrailingTradeSymbols(loggerMock);
+      });
+
+      it('triggers mongo.aggregate', () => {
+        expect(mongoMock.aggregate).toHaveBeenCalledWith(
+          loggerMock,
+          'trailing-trade-cache',
+          [{ $match: {} }, { $group: { _id: null, count: { $sum: 1 } } }]
+        );
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual(10);
       });
     });
   });

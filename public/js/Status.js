@@ -3,10 +3,46 @@
 /* eslint-disable no-undef */
 class Status extends React.Component {
   render() {
-    const { apiInfo, streamsCount, symbolsCount } = this.props;
+    const {
+      apiInfo,
+      monitoringSymbolsCount,
+      cachedMonitoringSymbolsCount,
+      streamsCount
+    } = this.props;
 
     if (!apiInfo) {
       return '';
+    }
+
+    let monitoringSymbolsStatus = '';
+
+    if (monitoringSymbolsCount < cachedMonitoringSymbolsCount) {
+      monitoringSymbolsStatus = (
+        <OverlayTrigger
+          trigger='click'
+          key='monitoring-symbols-status-alert-overlay'
+          placement='top'
+          overlay={
+            <Popover id='monitoring-symbols-status-alert-overlay-bottom'>
+              <Popover.Content>
+                You are currently monitoring <b>{monitoringSymbolsCount}</b>{' '}
+                symbols. However, the symbols you have in your frontend is equal
+                to <b>{cachedMonitoringSymbolsCount}</b>. That means you added
+                some symbols in your <b>Global Settings</b> and after that you
+                removed them. These symbols will remain exists in your frontend
+                and you can see them but they are not monitored. You can remove
+                them by clicking on the cross icon.
+              </Popover.Content>
+            </Popover>
+          }>
+          <Button
+            variant='link'
+            className='p-0 m-0 ml-1 d-inline-block'
+            style={{ lineHeight: '14px' }}>
+            <i className='fas fa-exclamation-circle mx-1 text-warning'></i>
+          </Button>
+        </OverlayTrigger>
+      );
     }
 
     return (
@@ -40,10 +76,11 @@ class Status extends React.Component {
                     </HightlightChange>
                   </li>
                   <li>
-                    Symbols:{' '}
+                    Monitoring Symbols:{' '}
                     <HightlightChange className='coin-info-value'>
-                      {symbolsCount}
+                      {monitoringSymbolsCount}
                     </HightlightChange>
+                    {monitoringSymbolsStatus}
                   </li>
                 </ul>
               </Card.Body>

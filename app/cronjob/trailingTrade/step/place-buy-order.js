@@ -159,7 +159,7 @@ const execute = async (logger, rawData) => {
   const {
     symbol,
     isLocked,
-    featureToggle: { notifyDebug },
+    featureToggle: { notifyDebug, notifyOrderConfirm },
     symbolInfo: {
       baseAsset,
       quoteAsset,
@@ -405,12 +405,13 @@ const execute = async (logger, rawData) => {
     notifyMessage.calculationParams = calculationParams;
   }
 
-  slack.sendMessage(
-    `*${symbol}* Action - Buy Trade #${humanisedGridTradeIndex}: *STOP_LOSS_LIMIT*\n` +
-      `- Order Params: \n` +
-      `\`\`\`${JSON.stringify(notifyMessage, undefined, 2)}\`\`\``,
-    { symbol, apiLimit: getAPILimit(logger) }
-  );
+  if (notifyDebug || notifyOrderConfirm)
+    slack.sendMessage(
+      `*${symbol}* Action - Buy Trade #${humanisedGridTradeIndex}: *STOP_LOSS_LIMIT*\n` +
+        `- Order Params: \n` +
+        `\`\`\`${JSON.stringify(notifyMessage, undefined, 2)}\`\`\``,
+      { symbol, apiLimit: getAPILimit(logger) }
+    );
 
   logger.info(
     {
@@ -447,15 +448,16 @@ const execute = async (logger, rawData) => {
   // Refresh account info
   data.accountInfo = await getAccountInfoFromAPI(logger);
 
-  slack.sendMessage(
-    `*${symbol}* Buy Action Grid Trade #${humanisedGridTradeIndex} Result: *STOP_LOSS_LIMIT*\n` +
-      `- Order Result: \`\`\`${JSON.stringify(
-        orderResult,
-        undefined,
-        2
-      )}\`\`\``,
-    { symbol, apiLimit: getAPILimit(logger) }
-  );
+  if (notifyDebug || notifyOrderConfirm)
+    slack.sendMessage(
+      `*${symbol}* Buy Action Grid Trade #${humanisedGridTradeIndex} Result: *STOP_LOSS_LIMIT*\n` +
+        `- Order Result: \`\`\`${JSON.stringify(
+          orderResult,
+          undefined,
+          2
+        )}\`\`\``,
+      { symbol, apiLimit: getAPILimit(logger) }
+    );
 
   return setMessage(
     logger,

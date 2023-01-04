@@ -110,11 +110,15 @@ describe('tickers.js', () => {
     });
 
     it('triggers queue.executeFor for BTCUSDT', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT');
+      expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+        correlationId: expect.any(String)
+      });
     });
 
     it('triggers queue.executeFor for BNBUSDT', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BNBUSDT');
+      expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BNBUSDT', {
+        correlationId: expect.any(String)
+      });
     });
 
     it('checks websocketTickersClean', () => {
@@ -143,7 +147,10 @@ describe('tickers.js', () => {
       it('triggers queue.executeFor for BTCUSDT', () => {
         expect(mockQueue.executeFor).toHaveBeenCalledWith(
           loggerMock,
-          'BTCUSDT'
+          'BTCUSDT',
+          {
+            correlationId: expect.any(String)
+          }
         );
       });
 

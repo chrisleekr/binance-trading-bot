@@ -27,10 +27,10 @@ const {
 } = require('./trailingTrade/steps');
 const { errorHandlerWrapper } = require('../error-handler');
 
-const execute = async (rawLogger, symbol) => {
+const execute = async (rawLogger, symbol, correlationId = uuidv4()) => {
   const logger = rawLogger.child({
     jobName: 'trailingTrade',
-    correlationId: uuidv4(),
+    correlationId,
     symbol
   });
 
