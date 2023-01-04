@@ -49,6 +49,7 @@ const execute = async (logger, rawData) => {
       buy: {
         currentGridTradeIndex: currentBuyGridTradeIndex,
         currentGridTrade: currentBuyGridTrade,
+        gridTrade: buyGridTrade,
         athRestriction: {
           enabled: buyATHRestrictionEnabled,
           candles: {
@@ -60,7 +61,11 @@ const execute = async (logger, rawData) => {
       },
       sell: {
         currentGridTrade: currentSellGridTrade,
-        stopLoss: { maxLossPercentage: sellMaxLossPercentage }
+        stopLoss: { maxLossPercentage: sellMaxLossPercentage },
+        conservativeMode: {
+          enabled: conservativeModeEnabled,
+          factor: conservativeFactor
+        }
       }
     },
     baseAssetBalance: { total: baseAssetTotalBalance },
@@ -231,7 +236,16 @@ const execute = async (logger, rawData) => {
       limitPercentage: sellLimitPercentage
     } = currentSellGridTrade;
 
-    sellTriggerPrice = lastBuyPrice * sellTriggerPercentage;
+    const conservativeModeApplicable =
+      conservativeModeEnabled &&
+      buyGridTrade.length >= 2 &&
+      buyGridTrade[1].executed;
+
+    const triggerPercentage = conservativeModeApplicable
+      ? sellTriggerPercentage * conservativeFactor * (buyGridTrade.length - 1)
+      : sellTriggerPercentage;
+
+    sellTriggerPrice = lastBuyPrice * triggerPercentage;
     sellDifference = (1 - sellTriggerPrice / currentPrice) * 100;
     sellLimitPrice = currentPrice * sellLimitPercentage;
   }
