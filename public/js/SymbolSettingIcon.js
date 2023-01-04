@@ -1269,17 +1269,17 @@ class SymbolSettingIcon extends React.Component {
                                                   be applied on sell trades with
                                                   at least 2 executed buy grids.
                                                   i.e. if set to{' '}
-                                                  <code>0.50</code>, your
+                                                  <code>0.90</code>, your
                                                   current grid sell percentage
                                                   will be reduced by{' '}
-                                                  <code>50%</code> for each
+                                                  <code>10%</code> for each
                                                   executed buy grid (except the
                                                   first one). For example, if
                                                   your sell trigger percentage
-                                                  is <code>1.04</code>, and you
+                                                  is <code>1.10</code>, and you
                                                   have 3 executed buy grids, the
                                                   sell order trigger will be{' '}
-                                                  <code>1.01</code>. Remember
+                                                  <code>1.081</code>. Remember
                                                   the sell trigger is not
                                                   modified if you have only 1
                                                   executed buy grid.
@@ -1303,8 +1303,8 @@ class SymbolSettingIcon extends React.Component {
                                           step='0.01'
                                           data-state-key='sell.conservativeMode.factor'
                                           value={
-                                            symbolConfiguration.sell.conservativeMode
-                                              .factor
+                                            symbolConfiguration.sell
+                                              .conservativeMode.factor
                                           }
                                           onChange={this.handleInputChange}
                                         />

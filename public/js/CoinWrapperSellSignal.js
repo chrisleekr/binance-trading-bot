@@ -42,12 +42,17 @@ class CoinWrapperSellSignal extends React.Component {
       sell: { currentGridTradeIndex, gridTrade, conservativeMode }
     } = symbolConfiguration;
 
-    const conservativeModeApplicable =
-      conservativeMode.enabled &&
-      symbolConfiguration.buy.gridTrade.length >= 2 &&
-      symbolConfiguration.buy.gridTrade[1].executed;
-
     let hiddenCount = 0;
+
+    const buyGridTrade = symbolConfiguration.buy.gridTrade;
+
+    const lastExecutedBuyTradeIndex = _.findLastIndex(
+      buyGridTrade,
+      trade => trade.executed === true
+    );
+
+    const conservativeModeApplicable =
+      conservativeMode.enabled && lastExecutedBuyTradeIndex >= 1;
 
     const sellGridRows = gridTrade.map((grid, i) => {
       const modifiedGridTradeIndex = Math.min(
@@ -56,9 +61,9 @@ class CoinWrapperSellSignal extends React.Component {
       );
 
       const triggerPercentage = conservativeModeApplicable
-        ? grid.triggerPercentage *
-          conservativeMode.factor *
-          (symbolConfiguration.buy.gridTrade.length - 1)
+        ? 1 +
+          (grid.triggerPercentage - 1) *
+            conservativeMode.factor ** lastExecutedBuyTradeIndex
         : grid.triggerPercentage;
 
       function hiddenRow(i) {

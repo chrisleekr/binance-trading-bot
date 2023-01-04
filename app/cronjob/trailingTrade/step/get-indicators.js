@@ -236,13 +236,18 @@ const execute = async (logger, rawData) => {
       limitPercentage: sellLimitPercentage
     } = currentSellGridTrade;
 
+    const lastExecutedBuyTradeIndex = _.findLastIndex(
+      buyGridTrade,
+      trade => trade.executed === true
+    );
+
     const conservativeModeApplicable =
-      conservativeModeEnabled &&
-      buyGridTrade.length >= 2 &&
-      buyGridTrade[1].executed;
+      conservativeModeEnabled && lastExecutedBuyTradeIndex >= 1;
 
     const triggerPercentage = conservativeModeApplicable
-      ? sellTriggerPercentage * conservativeFactor * (buyGridTrade.length - 1)
+      ? 1 +
+        (sellTriggerPercentage - 1) *
+          conservativeFactor ** lastExecutedBuyTradeIndex
       : sellTriggerPercentage;
 
     sellTriggerPrice = lastBuyPrice * triggerPercentage;
