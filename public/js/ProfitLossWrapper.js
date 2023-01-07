@@ -125,9 +125,14 @@ class ProfitLossWrapper extends React.Component {
             : 0;
 
         const quoteAssetTotal =
-          profitAndLoss.amount + +profitAndLoss.free + +profitAndLoss.locked;
+          profitAndLoss.estimatedBalance -
+          +profitAndLoss.profit +
+          +profitAndLoss.free +
+          +profitAndLoss.locked;
         const openTradesRatio = quoteAssetTotal
-          ? (profitAndLoss.amount / quoteAssetTotal) * 100
+          ? ((profitAndLoss.estimatedBalance - +profitAndLoss.profit) /
+              quoteAssetTotal) *
+            100
           : 0;
 
         return (

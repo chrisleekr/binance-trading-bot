@@ -46,7 +46,13 @@ const runFrontend = async serverLogger => {
       tempFileDir: '/tmp/'
     })
   );
-  app.use(express.static(path.join(__dirname, '/../public')));
+  // Make data folder to be downloadable
+  const attachmentMiddleware = async (req, res, next) => {
+    if (req.path.split('/')[1] === 'data') res.attachment(); // short for res.set('Content-Disposition', 'attachment')
+    next();
+  };
+  app.use(attachmentMiddleware);
+  app.use(express.static(path.join(global.appRoot, '/../public')));
 
   // Must configure bull board before listen.
   configureBullBoard(app, logger);
