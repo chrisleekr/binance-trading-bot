@@ -22,7 +22,8 @@
     "MACD",
     "mrkdwn",
     "tradingview",
-    "tulind"
+    "tulind",
+    "uuidv"
   ],
   "eslint.format.enable": true,
   "eslint.codeActionsOnSave.mode": "all"
