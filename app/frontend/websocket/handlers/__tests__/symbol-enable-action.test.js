@@ -1,8 +1,6 @@
 /* eslint-disable global-require */
 
 describe('symbol-enable-action.test.js', () => {
-  const queue = require('../../../../cronjob/trailingTradeHelper/queue');
-
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 

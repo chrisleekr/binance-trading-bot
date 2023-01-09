@@ -8,7 +8,7 @@ describe('symbol-setting-delete.test.js', () => {
 
   let mockDeleteSymbolConfiguration;
 
-  let mockQueue;
+  let mockExecute;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
