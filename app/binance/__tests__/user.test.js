@@ -3,7 +3,7 @@
 describe('user.js', () => {
   let binanceMock;
   let loggerMock;
-  let mockQueue;
+  let mockExecute;
 
   let mockGetAccountInfoFromAPI;
   let mockUpdateAccountInfo;
@@ -24,11 +24,14 @@ describe('user.js', () => {
       binanceMock = binance;
       loggerMock = logger;
 
-      mockQueue = {
-        execute: jest.fn().mockResolvedValue(true)
-      };
+      mockExecute = jest.fn((funcLogger, symbol, modifiers, jobData) => {
+        if (!funcLogger || !symbol || !modifiers || !jobData) return false;
+        return modifiers.preprocessFn();
+      });
 
-      jest.mock('../../cronjob/trailingTradeHelper/queue', () => mockQueue);
+      jest.mock('../../cronjob/trailingTradeHelper/queue', () => ({
+        execute: mockExecute
+      }));
     });
 
     describe('when balanceUpdate event received', () => {
@@ -234,8 +237,8 @@ describe('user.js', () => {
           expect(mockUpdateGridTradeLastOrder).not.toHaveBeenCalled();
         });
 
-        it('does not trigger queue.execute', () => {
-          expect(mockQueue.execute).not.toHaveBeenCalled();
+        it('triggers execute twice', () => {
+          expect(mockExecute).toHaveBeenCalledTimes(2);
         });
 
         it('does not trigger userClean', () => {
@@ -356,11 +359,14 @@ describe('user.js', () => {
             );
           });
 
-          it('triggers queue.execute', () => {
-            expect(mockQueue.execute).toHaveBeenCalledWith(
+          it('triggers execute', () => {
+            expect(mockExecute).toHaveBeenCalledWith(
               loggerMock,
               'ETHUSDT',
-              { correlationId: expect.any(String) }
+              { preprocessFn: expect.any(Function) },
+              {
+                correlationId: expect.any(String)
+              }
             );
           });
 
@@ -462,8 +468,8 @@ describe('user.js', () => {
             expect(mockUpdateGridTradeLastOrder).not.toHaveBeenCalled();
           });
 
-          it('does not trigger queue.execute', () => {
-            expect(mockQueue.execute).not.toHaveBeenCalled();
+          it('triggers execute twice', () => {
+            expect(mockExecute).toHaveBeenCalledTimes(2);
           });
 
           it('does not trigger userClean', () => {
@@ -560,8 +566,8 @@ describe('user.js', () => {
           expect(mockSaveManualOrder).not.toHaveBeenCalled();
         });
 
-        it('does not trigger queue.execute', () => {
-          expect(mockQueue.execute).not.toHaveBeenCalled();
+        it('triggers execute twice', () => {
+          expect(mockExecute).toHaveBeenCalledTimes(2);
         });
 
         it('does not trigger userClean', () => {
@@ -675,11 +681,14 @@ describe('user.js', () => {
           );
         });
 
-        it('triggers queue.execute', () => {
-          expect(mockQueue.execute).toHaveBeenCalledWith(
+        it('triggers execute', () => {
+          expect(mockExecute).toHaveBeenCalledWith(
             loggerMock,
             'ETHUSDT',
-            { correlationId: expect.any(String) }
+            { preprocessFn: expect.any(Function) },
+            {
+              correlationId: expect.any(String)
+            }
           );
         });
 

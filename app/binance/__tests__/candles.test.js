@@ -5,7 +5,7 @@ describe('candles.js', () => {
   let loggerMock;
   let mongoMock;
 
-  let mockQueue;
+  let mockExecute;
 
   let mockGetConfiguration;
   let mockSaveCandle;
@@ -55,11 +55,14 @@ describe('candles.js', () => {
         return mockWebsocketCandlesClean;
       });
 
-      mockQueue = {
-        execute: jest.fn().mockResolvedValue(true)
-      };
+      mockExecute = jest.fn((funcLogger, symbol, modifiers, jobData) => {
+        if (!funcLogger || !symbol || !modifiers || !jobData) return false;
+        return modifiers.preprocessFn();
+      });
 
-      jest.mock('../../cronjob/trailingTradeHelper/queue', () => mockQueue);
+      jest.mock('../../cronjob/trailingTradeHelper/queue', () => ({
+        execute: mockExecute
+      }));
 
       jest.mock('../../cronjob/trailingTradeHelper/common', () => ({
         saveCandle: mockSaveCandle
@@ -235,10 +238,15 @@ describe('candles.js', () => {
       );
     });
 
-    it('triggers queue.execute for ETHBTC', () => {
-      expect(mockQueue.execute).toHaveBeenCalledWith(loggerMock, 'ETHBTC', {
-        correlationId: expect.any(String)
-      });
+    it('triggers execute for ETHBTC', () => {
+      expect(mockExecute).toHaveBeenCalledWith(
+        loggerMock,
+        'ETHBTC',
+        { preprocessFn: expect.any(Function) },
+        {
+          correlationId: expect.any(String)
+        }
+      );
     });
   });
 });
