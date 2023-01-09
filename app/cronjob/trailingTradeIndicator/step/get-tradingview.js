@@ -194,8 +194,8 @@ const execute = async (funcLogger, rawData) => {
     );
   });
 
-  Promise.all(promises);
-
+  await Promise.all(promises);
+  logger.info('get-tradingview completed');
   return data;
 };
 

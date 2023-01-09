@@ -16,7 +16,7 @@ const {
   executeDustTransfer,
   getClosedTrades,
   getOrderStats,
-  getTradingView,
+  // getTradingView,
   saveDataToCache
 } = require('./trailingTradeIndicator/steps');
 const { errorHandlerWrapper } = require('../error-handler');
@@ -86,10 +86,10 @@ const execute = async logger => {
         stepName: 'get-order-stats',
         stepFunc: getOrderStats
       },
-      {
-        stepName: 'get-tradingview',
-        stepFunc: getTradingView
-      },
+      // {
+      //   stepName: 'get-tradingview',
+      //   stepFunc: getTradingView
+      // },
       {
         stepName: 'save-data-to-cache',
         stepFunc: saveDataToCache

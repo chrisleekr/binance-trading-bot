@@ -106,7 +106,7 @@ const syncAll = async logger => {
 
   logger.info({ symbols }, 'Retrieved symbols');
 
-  await queue.init(logger, symbols);
+  await queue.init(logger, { symbols, globalConfiguration });
 
   // Lock all symbols for 5 minutes to ensure nothing will be executed unless all data retrieved
   await Promise.all(symbols.map(symbol => lockSymbol(logger, symbol, 300)));
