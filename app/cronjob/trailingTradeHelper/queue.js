@@ -67,7 +67,7 @@ const execute = async (funcLogger, symbol, modifiers = {}, jobData = {}) => {
 
   // Execute (if preprocessed)
   if (modifiers.queue !== undefined) {
-    canExecuteTrailingTrade = modifiers.execute;
+    canExecuteTrailingTrade = modifiers.queue;
   }
   if (canExecuteTrailingTrade !== false) {
     await executeTrailingTrade(
