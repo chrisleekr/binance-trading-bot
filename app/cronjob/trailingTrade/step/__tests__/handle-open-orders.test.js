@@ -11,7 +11,6 @@ describe('handle-open-orders.js', () => {
   let mockCancelOrder;
   let mockRefreshOpenOrdersAndAccountInfo;
   let mockGetAccountInfoFromAPI;
-  let mockSaveOverrideAction;
 
   let mockIsExceedingMaxOpenTrades;
 
@@ -33,7 +32,6 @@ describe('handle-open-orders.js', () => {
       });
       mockCancelOrder = jest.fn().mockResolvedValue(true);
 
-      mockSaveOverrideAction = jest.fn().mockResolvedValue(true);
       mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
         account: 'updated'
       });
@@ -45,7 +43,6 @@ describe('handle-open-orders.js', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          saveOverrideAction: mockSaveOverrideAction,
           isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
           cancelOrder: mockCancelOrder,
           refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
@@ -136,7 +133,6 @@ describe('handle-open-orders.js', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          saveOverrideAction: mockSaveOverrideAction,
           isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
           cancelOrder: mockCancelOrder,
           refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
@@ -227,7 +223,6 @@ describe('handle-open-orders.js', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          saveOverrideAction: mockSaveOverrideAction,
           isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
           cancelOrder: mockCancelOrder,
           refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
@@ -323,7 +318,6 @@ describe('handle-open-orders.js', () => {
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -416,7 +410,6 @@ describe('handle-open-orders.js', () => {
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -527,7 +520,6 @@ describe('handle-open-orders.js', () => {
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -604,21 +596,6 @@ describe('handle-open-orders.js', () => {
             expect(slackMock.sendMessage).not.toHaveBeenCalled();
           });
 
-          it('triggers saveOverrideAction', () => {
-            expect(mockSaveOverrideAction).toHaveBeenCalledWith(
-              loggerMock,
-              'BTCUSDT',
-              {
-                action: 'buy',
-                actionAt: expect.any(String),
-                triggeredBy: 'buy-cancelled',
-                notify: false,
-                checkTradingView: true
-              },
-              'The bot will place a buy order in the next tick because could not retrieve the cancelled order result.'
-            );
-          });
-
           it('does not trigger getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
           });
@@ -659,7 +636,6 @@ describe('handle-open-orders.js', () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -779,7 +755,6 @@ describe('handle-open-orders.js', () => {
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -856,21 +831,6 @@ describe('handle-open-orders.js', () => {
             expect(slackMock.sendMessage).not.toHaveBeenCalled();
           });
 
-          it('triggers saveOverrideAction', () => {
-            expect(mockSaveOverrideAction).toHaveBeenCalledWith(
-              loggerMock,
-              'BTCUSDT',
-              {
-                action: 'buy',
-                actionAt: expect.any(String),
-                triggeredBy: 'buy-cancelled',
-                notify: false,
-                checkTradingView: true
-              },
-              'The bot will place a buy order in the next tick because could not retrieve the cancelled order result.'
-            );
-          });
-
           it('does not trigger getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
           });
@@ -911,7 +871,6 @@ describe('handle-open-orders.js', () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -1028,7 +987,6 @@ describe('handle-open-orders.js', () => {
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-            saveOverrideAction: mockSaveOverrideAction,
             isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
             cancelOrder: mockCancelOrder,
             refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
@@ -1130,7 +1088,6 @@ describe('handle-open-orders.js', () => {
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -1242,7 +1199,6 @@ describe('handle-open-orders.js', () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -1364,7 +1320,6 @@ describe('handle-open-orders.js', () => {
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -1476,7 +1431,6 @@ describe('handle-open-orders.js', () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -1592,7 +1546,6 @@ describe('handle-open-orders.js', () => {
       describe('when stop price is more than current limit price', () => {
         beforeEach(async () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            saveOverrideAction: mockSaveOverrideAction,
             isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
             cancelOrder: mockCancelOrder,
             refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
