@@ -5,7 +5,7 @@ describe('cancel-order.js', () => {
 
   let loggerMock;
 
-  let mockQueue;
+  let mockExecute;
 
   let mockSaveOverrideAction;
 
@@ -24,11 +24,14 @@ describe('cancel-order.js', () => {
       saveOverrideAction: mockSaveOverrideAction
     }));
 
-    mockQueue = {
-      execute: jest.fn().mockResolvedValue(true)
-    };
+    mockExecute = jest.fn((funcLogger, symbol, modifiers, jobData) => {
+      if (!funcLogger || !symbol || !modifiers || !jobData) return false;
+      return modifiers.preprocessFn();
+    });
 
-    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => ({
+      execute: mockExecute
+    }));
   });
 
   beforeEach(async () => {
@@ -63,10 +66,15 @@ describe('cancel-order.js', () => {
     );
   });
 
-  it('triggers queue.execute', () => {
-    expect(mockQueue.execute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
-      correlationId: 'correlationId'
-    });
+  it('triggers execute', () => {
+    expect(mockExecute).toHaveBeenCalledWith(
+      loggerMock,
+      'BTCUSDT',
+      { preprocessFn: expect.any(Function) },
+      {
+        correlationId: 'correlationId'
+      }
+    );
   });
 
   it('triggers ws.send', () => {
