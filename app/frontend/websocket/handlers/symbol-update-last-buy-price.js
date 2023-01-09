@@ -24,7 +24,7 @@ const deleteLastBuyPrice = async (logger, ws, symbol) => {
   queue.execute(
     logger,
     symbol,
-    { start: true, preprocessFn: deleteOneFn, execute: true, finish: true },
+    { preprocessFn: deleteOneFn },
     {
       correlationId: _.get(logger, 'fields.correlationId', '')
     }
@@ -110,14 +110,11 @@ const updateLastBuyPrice = async (logger, ws, symbol, lastBuyPrice) => {
     return true;
   };
 
-  queue.execute(
+  await queue.execute(
     logger,
     symbol,
     {
-      start: true,
-      preprocessFn: updateLastBuyPriceFn,
-      execute: undefined,
-      finish: true
+      preprocessFn: updateLastBuyPriceFn
     },
     {
       correlationId: _.get(logger, 'fields.correlationId', '')

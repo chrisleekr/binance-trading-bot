@@ -41,14 +41,11 @@ const handleSymbolGridTradeDelete = async (logger, ws, payload) => {
     await deleteSymbolGridTrade(logger, symbol);
   };
 
-  queue.execute(
+  await queue.execute(
     logger,
     symbol,
     {
-      start: true,
-      preprocessFn: deleteSymbolGridTradeFn,
-      execute: true,
-      finish: true
+      preprocessFn: deleteSymbolGridTradeFn
     },
     {
       correlationId: _.get(logger, 'fields.correlationId', '')

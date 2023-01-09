@@ -2,6 +2,8 @@
 const _ = require('lodash');
 
 describe('manual-trade-all-symbols.js', () => {
+  const queue = require('../../../../cronjob/trailingTradeHelper/queue');
+
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
@@ -12,6 +14,7 @@ describe('manual-trade-all-symbols.js', () => {
   let mockGetGlobalConfiguration;
 
   let mockSaveOverrideAction;
+  let mockExecute;
 
   const orders = {
     side: 'buy',
@@ -238,11 +241,14 @@ describe('manual-trade-all-symbols.js', () => {
       saveOverrideAction: mockSaveOverrideAction
     }));
 
-    mockQueue = {
-      execute: jest.fn().mockResolvedValue(true)
-    };
+    mockExecute = jest.fn((funcLogger, symbol, modifiers, jobData) => {
+      if (!funcLogger || !symbol || !modifiers || !jobData) return false;
+      return modifiers.preprocessFn();
+    });
 
-    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => ({
+      execute: mockExecute
+    }));
   });
 
   beforeEach(async () => {
@@ -311,10 +317,11 @@ describe('manual-trade-all-symbols.js', () => {
                 );
               });
 
-              it('triggers queue.execute', () => {
-                expect(mockQueue.execute).toHaveBeenCalledWith(
+              it('triggers execute', () => {
+                expect(mockExecute).toHaveBeenCalledWith(
                   loggerMock,
                   symbol,
+                  { preprocessFn: expect.any(Function) },
                   { correlationId: 'correlationId' }
                 );
               });
@@ -412,10 +419,11 @@ describe('manual-trade-all-symbols.js', () => {
                 );
               });
 
-              it('triggers queue.execute', () => {
-                expect(mockQueue.execute).toHaveBeenCalledWith(
+              it('triggers execute', () => {
+                expect(mockExecute).toHaveBeenCalledWith(
                   loggerMock,
                   'BTCUSDT',
+                  { preprocessFn: expect.any(Function) },
                   { correlationId: 'correlationId' }
                 );
               });

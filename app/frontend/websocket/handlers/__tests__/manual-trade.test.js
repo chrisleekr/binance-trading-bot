@@ -6,10 +6,9 @@ describe('manual-trade.js', () => {
   let mockWebSocketServerWebSocketSend;
 
   let loggerMock;
-  let mockQueue;
 
   let mockSaveOverrideAction;
-  let mockExecuteTrailingTrade;
+  let mockExecute;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -26,15 +25,14 @@ describe('manual-trade.js', () => {
       saveOverrideAction: mockSaveOverrideAction
     }));
 
-    mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
+    mockExecute = jest.fn((funcLogger, symbol, modifiers, jobData) => {
+      if (!funcLogger || !symbol || !modifiers || !jobData) return false;
+      return modifiers.preprocessFn();
+    });
 
-    jest.mock('../../../../cronjob', async () => ({
-      executeTrailingTrade: mockExecuteTrailingTrade
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => ({
+      execute: mockExecute
     }));
-
-    mockQueue = queue;
-
-    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
 
   beforeEach(async () => {
@@ -72,10 +70,11 @@ describe('manual-trade.js', () => {
     );
   });
 
-  it('triggers executeTrailingTrade', () => {
-    expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+  it('triggers execute', () => {
+    expect(mockExecute).toHaveBeenCalledWith(
       loggerMock,
       'BTCUSDT',
+      { preprocessFn: expect.any(Function) },
       {
         correlationId: 'correlationId'
       }

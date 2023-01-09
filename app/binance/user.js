@@ -123,10 +123,7 @@ const setupUserWebsocket = async logger => {
         symbolLogger,
         symbol,
         {
-          start: true,
-          preprocessFn: checkLastOrder,
-          execute: undefined,
-          finish: true
+          preprocessFn: checkLastOrder
         },
         { correlationId }
       );
@@ -164,10 +161,7 @@ const setupUserWebsocket = async logger => {
         symbolLogger,
         symbol,
         {
-          start: true,
-          preprocessFn: checkManualOrder,
-          execute: undefined,
-          finish: true
+          preprocessFn: checkManualOrder
         },
         { correlationId }
       );

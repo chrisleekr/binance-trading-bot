@@ -31,24 +31,19 @@ const init = async (funcLogger, symbols) => {
  *
  * @param {*} funcLogger
  * @param {*} symbol
- * @param {*} parameters
+ * @param {*} modifiers
  * @param {*} jobData
  */
-const execute = async (
-  funcLogger,
-  symbol,
-  parameters = { start: true, execute: true, finish: true },
-  jobData = {}
-) => {
+const execute = async (funcLogger, symbol, modifiers = {}, jobData = {}) => {
   const logger = funcLogger.child({ helper: 'queue' });
 
-  if ((parameters.start || parameters.finish) && !(symbol in startedJobs)) {
+  if (modifiers.queue !== false && !(symbol in startedJobs)) {
     logger.error({ symbol }, `No queue created for ${symbol}`);
     return;
   }
 
   // Start
-  if (parameters.start) {
+  if (modifiers.queue !== false) {
     const pos = (startedJobs[symbol] += 1) - 1;
 
     if (pos > finishedJobs[symbol]) {
@@ -64,17 +59,17 @@ const execute = async (
 
   // Preprocess
   let canExecuteTrailingTrade;
-  if (parameters.preprocessFn) {
-    canExecuteTrailingTrade = await parameters.preprocessFn();
+  if (modifiers.preprocessFn) {
+    canExecuteTrailingTrade = await modifiers.preprocessFn();
 
     logger.info({ symbol }, `Queue ${symbol} job preprocessed`);
   }
 
   // Execute (if preprocessed)
-  if (parameters.execute !== undefined) {
-    canExecuteTrailingTrade = parameters.execute;
+  if (modifiers.queue !== undefined) {
+    canExecuteTrailingTrade = modifiers.execute;
   }
-  if (canExecuteTrailingTrade) {
+  if (canExecuteTrailingTrade !== false) {
     await executeTrailingTrade(
       funcLogger,
       symbol,
@@ -83,14 +78,14 @@ const execute = async (
   }
 
   // Postprocess
-  if (parameters.postprocessFn) {
-    await parameters.postprocessFn();
+  if (modifiers.postprocessFn) {
+    await modifiers.postprocessFn();
 
     logger.info({ symbol }, `Queue ${symbol} job postprocessed`);
   }
 
   // Finish
-  if (parameters.finish) {
+  if (modifiers.queue !== false) {
     const pos = (finishedJobs[symbol] += 1) - 1;
 
     if (startedJobs[symbol] === finishedJobs[symbol]) {

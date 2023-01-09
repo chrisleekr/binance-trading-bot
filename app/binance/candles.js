@@ -117,7 +117,7 @@ const syncCandles = async (logger, symbols) => {
       queue.execute(
         logger,
         symbol,
-        { start: true, preprocessFn: getCandles, execute: true, finish: true },
+        { preprocessFn: getCandles },
         { correlationId: uuidv4() }
       );
     })

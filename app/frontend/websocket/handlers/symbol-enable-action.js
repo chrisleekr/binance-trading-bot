@@ -15,14 +15,11 @@ const handleSymbolEnableAction = async (logger, ws, payload) => {
     await deleteDisableAction(logger, symbol);
   };
 
-  queue.execute(
+  await queue.execute(
     logger,
     symbol,
     {
-      start: true,
-      preprocessFn: deleteDisableActionFn,
-      execute: true,
-      finish: true
+      preprocessFn: deleteDisableActionFn
     },
     {
       correlationId: _.get(logger, 'fields.correlationId', '')

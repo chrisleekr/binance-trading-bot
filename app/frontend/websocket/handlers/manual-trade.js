@@ -26,14 +26,11 @@ const handleManualTrade = async (logger, ws, payload) => {
     );
   };
 
-  queue.execute(
+  await queue.execute(
     logger,
     symbol,
     {
-      start: true,
-      preprocessFn: saveOverrideActionFn,
-      execute: true,
-      finish: true
+      preprocessFn: saveOverrideActionFn
     },
     {
       correlationId: _.get(logger, 'fields.correlationId', '')
