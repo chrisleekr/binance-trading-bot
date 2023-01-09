@@ -58,8 +58,7 @@ describe('server-binance', () => {
     };
     mockQueue = {
       init: jest.fn().mockResolvedValue(true),
-      executeFor: jest.fn().mockResolvedValue(true),
-      hold: jest.fn().mockResolvedValue(true)
+      execute: jest.fn().mockResolvedValue(true)
     };
     mockSlack = {
       sendMessage: jest.fn().mockResolvedValue(true)
@@ -462,8 +461,8 @@ describe('server-binance', () => {
           await runBinance(logger);
         });
 
-        it('does not trigger queue.executeFor', () => {
-          expect(mockQueue.executeFor).not.toHaveBeenCalled();
+        it('does not trigger queue.execute', () => {
+          expect(mockQueue.execute).not.toHaveBeenCalled();
         });
       });
 
@@ -477,8 +476,8 @@ describe('server-binance', () => {
           await runBinance(logger);
         });
 
-        it('triggers queue.executeFor', () => {
-          expect(mockQueue.executeFor).toHaveBeenCalledWith(logger, 'BTCUSDT');
+        it('triggers queue.execute', () => {
+          expect(mockQueue.execute).toHaveBeenCalledWith(logger, 'BTCUSDT');
         });
       });
     });

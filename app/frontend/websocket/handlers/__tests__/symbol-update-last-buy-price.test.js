@@ -23,8 +23,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
     };
 
     mockQueue = {
-      executeFor: jest.fn().mockResolvedValue(true),
-      hold: jest.fn().mockResolvedValue(true)
+      execute: jest.fn().mockResolvedValue(true)
     };
 
     jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
@@ -63,12 +62,10 @@ describe('symbol-update-last-buy-price.test.js', () => {
         );
       });
 
-      it('triggers queue.executeFor', () => {
-        expect(mockQueue.executeFor).toHaveBeenCalledWith(
-          loggerMock,
-          'BTCUSDT',
-          { correlationId: 'correlationId' }
-        );
+      it('triggers queue.execute', () => {
+        expect(mockQueue.execute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+          correlationId: 'correlationId'
+        });
       });
 
       it('triggers PubSub.publish', () => {
@@ -218,8 +215,8 @@ describe('symbol-update-last-buy-price.test.js', () => {
             );
           });
 
-          it('triggers queue.executeFor', () => {
-            expect(mockQueue.executeFor).toHaveBeenCalledWith(
+          it('triggers queue.execute', () => {
+            expect(mockQueue.execute).toHaveBeenCalledWith(
               loggerMock,
               'BTCUSDT',
               { correlationId: 'correlationId' }
@@ -314,8 +311,8 @@ describe('symbol-update-last-buy-price.test.js', () => {
             );
           });
 
-          it('triggers queue.executeFor', () => {
-            expect(mockQueue.executeFor).toHaveBeenCalledWith(
+          it('triggers queue.execute', () => {
+            expect(mockQueue.execute).toHaveBeenCalledWith(
               loggerMock,
               'BTCUSDT',
               { correlationId: 'correlationId' }

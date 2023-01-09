@@ -1,5 +1,7 @@
 /* eslint-disable global-require */
 describe('manual-trade.js', () => {
+  const queue = require('../../../../cronjob/trailingTradeHelper/queue');
+
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
@@ -7,6 +9,7 @@ describe('manual-trade.js', () => {
   let mockQueue;
 
   let mockSaveOverrideAction;
+  let mockExecuteTrailingTrade;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -23,10 +26,13 @@ describe('manual-trade.js', () => {
       saveOverrideAction: mockSaveOverrideAction
     }));
 
-    mockQueue = {
-      executeFor: jest.fn().mockResolvedValue(true),
-      hold: jest.fn().mockResolvedValue(true)
-    };
+    mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
+
+    jest.mock('../../../../cronjob', async () => ({
+      executeTrailingTrade: mockExecuteTrailingTrade
+    }));
+
+    mockQueue = queue;
 
     jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
   });
@@ -36,6 +42,8 @@ describe('manual-trade.js', () => {
 
     loggerMock = logger;
     loggerMock.fields = { correlationId: 'correlationId' };
+
+    await queue.init(loggerMock, ['BTCUSDT']);
 
     const { handleManualTrade } = require('../manual-trade');
     await handleManualTrade(loggerMock, mockWebSocketServer, {
@@ -64,10 +72,14 @@ describe('manual-trade.js', () => {
     );
   });
 
-  it('triggers queue.executeFor', () => {
-    expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
-      correlationId: 'correlationId'
-    });
+  it('triggers executeTrailingTrade', () => {
+    expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
+      loggerMock,
+      'BTCUSDT',
+      {
+        correlationId: 'correlationId'
+      }
+    );
   });
 
   it('triggers ws.send', () => {

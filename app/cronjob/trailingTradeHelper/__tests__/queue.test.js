@@ -3,60 +3,16 @@ const logger = require('../../../helpers/logger');
 
 describe('queue', () => {
   let queue;
-  let mockQueueProcess;
-  let mockQueueObliterate;
-  let mockQueueAdd;
-  let mockQueuePause;
-  let mockQueueResume;
-  let mockQueueGetActiveCount;
-  let mockQueueGetWaitingCount;
-  let mockQueueIsPaused;
-  let mockQueue;
 
   let mockExecuteTrailingTrade;
-  let mockSetBullBoardQueues;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
-    jest.mock('config');
 
-    mockQueueProcess = jest.fn().mockImplementation((_concurrent, cb) => {
-      const job = {
-        data: { correlationId: 'correlationId' },
-        progress: jest.fn()
-      };
-      cb(job);
-    });
-
-    mockQueueObliterate = jest.fn().mockResolvedValue(true);
-    mockQueueAdd = jest.fn().mockResolvedValue(true);
-    mockQueuePause = jest.fn().mockResolvedValue(true);
-    mockQueueResume = jest.fn().mockResolvedValue(true);
-    mockQueueGetActiveCount = jest.fn().mockResolvedValue(0);
-    mockQueueGetWaitingCount = jest.fn().mockResolvedValue(0);
-    mockQueueIsPaused = jest.fn().mockResolvedValue(false);
     mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
-    mockSetBullBoardQueues = jest.fn().mockResolvedValue(true);
-
-    mockQueue = jest.fn().mockImplementation((_queueName, _redisUrl) => ({
-      process: mockQueueProcess,
-      add: mockQueueAdd,
-      pause: mockQueuePause,
-      resume: mockQueueResume,
-      getActiveCount: mockQueueGetActiveCount,
-      getWaitingCount: mockQueueGetWaitingCount,
-      isPaused: mockQueueIsPaused,
-      obliterate: mockQueueObliterate
-    }));
-
-    jest.mock('bull', () => mockQueue);
 
     jest.mock('../../../cronjob', () => ({
       executeTrailingTrade: mockExecuteTrailingTrade
-    }));
-
-    jest.mock('../../../frontend/bull-board/configure', () => ({
-      setBullBoardQueues: mockSetBullBoardQueues
     }));
   });
 
@@ -82,7 +38,7 @@ describe('queue', () => {
           await queue.init(logger, ['BTCUSDT']);
           await queue.hold(logger, 'BTCUSDT');
           mockQueueIsPaused.mockReturnValueOnce(true);
-          await queue.executeFor(logger, 'BTCUSDT');
+          await queue.execute(logger, 'BTCUSDT');
         });
 
         it('does trigger queue.pause once for BTCUSDT', () => {
@@ -100,7 +56,7 @@ describe('queue', () => {
           await queue.hold(logger, 'BTCUSDT');
           mockQueueIsPaused.mockReturnValueOnce(true);
           queue.hold(logger, 'BTCUSDT');
-          await queue.executeFor(logger, 'BTCUSDT');
+          await queue.execute(logger, 'BTCUSDT');
         });
 
         it('does trigger queue.pause once for BTCUSDT', () => {
@@ -117,7 +73,7 @@ describe('queue', () => {
           await queue.hold(logger, 'BTCUSDT');
           mockQueueIsPaused.mockReturnValueOnce(true);
           queue.hold(logger, 'BTCUSDT');
-          await queue.executeFor(logger, 'BTCUSDT');
+          await queue.execute(logger, 'BTCUSDT');
         });
 
         it('does trigger queue.pause once for BTCUSDT', () => {
@@ -194,10 +150,6 @@ describe('queue', () => {
       it('triggers queue.process 6 times', () => {
         expect(mockQueueProcess).toHaveBeenCalledTimes(6);
       });
-
-      it('triggers setBullBoardQueues 2 times', () => {
-        expect(mockSetBullBoardQueues).toHaveBeenCalledTimes(2);
-      });
     });
   });
 
@@ -207,7 +159,7 @@ describe('queue', () => {
         queue = require('../queue');
 
         await queue.init(logger, ['BTCUSDT']);
-        await queue.executeFor(logger, 'BTCUSDT');
+        await queue.execute(logger, 'BTCUSDT');
       });
 
       it('triggers queue.add for BTCUSDT', () => {
@@ -222,7 +174,7 @@ describe('queue', () => {
         queue = require('../queue');
 
         await queue.init(logger, ['BTCUSDT']);
-        await queue.executeFor(logger, 'ETHUSDT');
+        await queue.execute(logger, 'ETHUSDT');
       });
 
       it('does not trigger queue.add for ETHUSDT', () => {

@@ -239,8 +239,7 @@ describe('manual-trade-all-symbols.js', () => {
     }));
 
     mockQueue = {
-      executeFor: jest.fn().mockResolvedValue(true),
-      hold: jest.fn().mockResolvedValue(true)
+      execute: jest.fn().mockResolvedValue(true)
     };
 
     jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
@@ -312,8 +311,8 @@ describe('manual-trade-all-symbols.js', () => {
                 );
               });
 
-              it('triggers queue.executeFor', () => {
-                expect(mockQueue.executeFor).toHaveBeenCalledWith(
+              it('triggers queue.execute', () => {
+                expect(mockQueue.execute).toHaveBeenCalledWith(
                   loggerMock,
                   symbol,
                   { correlationId: 'correlationId' }
@@ -413,8 +412,8 @@ describe('manual-trade-all-symbols.js', () => {
                 );
               });
 
-              it('triggers queue.executeFor', () => {
-                expect(mockQueue.executeFor).toHaveBeenCalledWith(
+              it('triggers queue.execute', () => {
+                expect(mockQueue.execute).toHaveBeenCalledWith(
                   loggerMock,
                   'BTCUSDT',
                   { correlationId: 'correlationId' }

@@ -1,165 +1,109 @@
-/* eslint-disable no-await-in-loop */
-const config = require('config');
-const Queue = require('bull');
 const _ = require('lodash');
 const { executeTrailingTrade } = require('../index');
-const { setBullBoardQueues } = require('../../frontend/bull-board/configure');
 
-let queues = {};
-let paused = {};
-let resumed = {};
-
-const REDIS_URL = `redis://:${config.get('redis.password')}@${config.get(
-  'redis.host'
-)}:${config.get('redis.port')}/${config.get('redis.db')}`;
-
-const waitForJobSeconds = 10;
-// eslint-disable-next-line no-promise-executor-return
-const asyncWait = async seconds => new Promise(r => setTimeout(r, seconds));
-
-const pause = async (funcLogger, symbol) => {
-  const logger = funcLogger.child({ helper: 'queue' });
-
-  const pos = paused[symbol];
-  paused[symbol] += 1;
-
-  if (pos > resumed[symbol]) {
-    logger.info({ symbol }, `Queue ${symbol} pause #${pos} queued`);
-    while (pos > resumed[symbol]) {
-      await asyncWait(waitForJobSeconds);
-    }
-  }
-
-  await queues[symbol].pause();
-
-  logger.info({ symbol }, `Queue ${symbol} paused #${pos}`);
-};
-
-const resume = async (funcLogger, symbol) => {
-  const logger = funcLogger.child({ helper: 'queue' });
-
-  const pos = resumed[symbol];
-  resumed[symbol] += 1;
-
-  if (paused[symbol] === resumed[symbol]) {
-    resumed[symbol] = 0;
-    paused[symbol] = 0;
-
-    await queues[symbol].resume();
-  }
-
-  logger.info({ symbol }, `Queue ${symbol} resumed #${pos}`);
-
-  if (paused[symbol] === 0) {
-    logger.info({ symbol }, `Queue ${symbol} resumed last`);
-  }
-};
-
-const waitForJob = async (funcLogger, symbol) => {
-  const logger = funcLogger.child({ helper: 'queue' });
-
-  let active = await queues[symbol].getActiveCount();
-  if (active > 0) {
-    logger.info({ symbol }, `Queue ${symbol} wait for ${active} job(s)`);
-
-    while (active > 0) {
-      await asyncWait(waitForJobSeconds);
-
-      active = await queues[symbol].getActiveCount();
-    }
-  }
-
-  logger.info({ symbol }, `Queue ${symbol} inactive`);
-};
-
-const hold = async (funcLogger, symbol) => {
-  const logger = funcLogger.child({ helper: 'queue' });
-
-  if (!(symbol in queues)) {
-    logger.error({ symbol }, `No queue created for ${symbol} pause`);
-    return;
-  }
-
-  await pause(funcLogger, symbol);
-  await waitForJob(funcLogger, symbol);
-};
-
-const create = (funcLogger, symbol) => {
-  const logger = funcLogger.child({ helper: 'queue' });
-
-  const queue = new Queue(symbol, REDIS_URL, {
-    prefix: `bull`,
-    limiter: {
-      max: 100,
-      duration: 10000, // 10 seconds
-      // bounceBack: When jobs get rate limited, they stay in the waiting queue and are not moved to the delayed queue
-      bounceBack: true
-    }
-  });
-  // Set concurrent for the job
-  queue.process(1, async job => {
-    await executeTrailingTrade(
-      logger,
-      symbol,
-      _.get(job.data, 'correlationId')
-    );
-
-    job.progress(100);
-  });
-
-  return queue;
-};
-
-const init = async (funcLogger, symbols) => {
-  // Completely remove all queues with their data
-  await Promise.all(_.map(queues, queue => queue.obliterate({ force: true })));
-  queues = {};
-  paused = {};
-  resumed = {};
-
-  await Promise.all(
-    _.map(symbols, async symbol => {
-      queues[symbol] = create(funcLogger, symbol);
-      paused[symbol] = 0;
-      resumed[symbol] = 0;
-    })
-  );
-
-  // Set bull board queues
-  setBullBoardQueues(queues, funcLogger);
-};
+let startedJobs = {};
+let finishedJobs = {};
 
 /**
- * Add executeTrailingTrade job to the queue of a symbol
+ * Initialize queue counters for symbols
  *
  * @param {*} funcLogger
  * @param {*} symbol
  */
-const executeFor = async (funcLogger, symbol, jobData = {}) => {
+const init = async (funcLogger, symbols) => {
   const logger = funcLogger.child({ helper: 'queue' });
 
-  if (!(symbol in queues)) {
+  startedJobs = {};
+  finishedJobs = {};
+
+  await Promise.all(
+    _.map(symbols, async symbol => {
+      startedJobs[symbol] = 0;
+      finishedJobs[symbol] = 0;
+    })
+  );
+
+  logger.info({ symbols }, `Queue initialized`);
+};
+
+/**
+ * Start, preprocess, execute, postprocess and finish the job in queue
+ *
+ * @param {*} funcLogger
+ * @param {*} symbol
+ * @param {*} parameters
+ * @param {*} jobData
+ */
+const execute = async (
+  funcLogger,
+  symbol,
+  parameters = { start: true, execute: true, finish: true },
+  jobData = {}
+) => {
+  const logger = funcLogger.child({ helper: 'queue' });
+
+  if ((parameters.start || parameters.finish) && !(symbol in startedJobs)) {
     logger.error({ symbol }, `No queue created for ${symbol}`);
     return;
   }
 
-  const waiting = await queues[symbol].getWaitingCount();
-  if (waiting > 0) {
-    logger.info({ symbol }, `Already waiting ${waiting} job(s) in ${symbol}`);
-  } else {
-    logger.info({ symbol }, `Added job for ${symbol}`);
-    await queues[symbol].add(jobData, {
-      removeOnComplete: 100 // number specified the amount of jobs to keep.
-    });
+  // Start
+  if (parameters.start) {
+    const pos = (startedJobs[symbol] += 1) - 1;
+
+    if (pos > finishedJobs[symbol]) {
+      logger.info({ symbol }, `Queue ${symbol} job #${pos} waiting`);
+      while (pos > finishedJobs[symbol]) {
+        // eslint-disable-next-line no-await-in-loop, no-promise-executor-return
+        await new Promise(r => setTimeout(r, 10));
+      }
+    }
+
+    logger.info({ symbol }, `Queue ${symbol} job #${pos} started`);
   }
 
-  if (await queues[symbol].isPaused()) {
-    await resume(funcLogger, symbol);
+  // Preprocess
+  let canExecuteTrailingTrade;
+  if (parameters.preprocessFn) {
+    canExecuteTrailingTrade = await parameters.preprocessFn();
+
+    logger.info({ symbol }, `Queue ${symbol} job preprocessed`);
+  }
+
+  // Execute (if preprocessed)
+  if (parameters.execute !== undefined) {
+    canExecuteTrailingTrade = parameters.execute;
+  }
+  if (canExecuteTrailingTrade) {
+    await executeTrailingTrade(
+      funcLogger,
+      symbol,
+      _.get(jobData, 'correlationId')
+    );
+  }
+
+  // Postprocess
+  if (parameters.postprocessFn) {
+    await parameters.postprocessFn();
+
+    logger.info({ symbol }, `Queue ${symbol} job postprocessed`);
+  }
+
+  // Finish
+  if (parameters.finish) {
+    const pos = (finishedJobs[symbol] += 1) - 1;
+
+    if (startedJobs[symbol] === finishedJobs[symbol]) {
+      // Last job in the queue finished
+      // Reset the counters
+      startedJobs[symbol] = (finishedJobs[symbol] -= startedJobs[symbol]) + 0;
+    }
+
+    logger.info({ symbol }, `Queue ${symbol} job #${pos} finished`);
   }
 };
 
 module.exports = {
   init,
-  hold,
-  executeFor
+  execute
 };

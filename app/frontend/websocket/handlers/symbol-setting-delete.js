@@ -11,13 +11,23 @@ const handleSymbolSettingDelete = async (logger, ws, payload) => {
 
   const { symbol } = symbolInfo;
 
-  await queue.hold(logger, symbol);
+  const deleteSymbolConfigurationFn = async () => {
+    await deleteSymbolConfiguration(logger, symbol);
+  };
 
-  await deleteSymbolConfiguration(logger, symbol);
-
-  queue.executeFor(logger, symbol, {
-    correlationId: _.get(logger, 'fields.correlationId', '')
-  });
+  queue.execute(
+    logger,
+    symbol,
+    {
+      start: true,
+      preprocessFn: deleteSymbolConfigurationFn,
+      execute: true,
+      finish: true
+    },
+    {
+      correlationId: _.get(logger, 'fields.correlationId', '')
+    }
+  );
 
   ws.send(
     JSON.stringify({ result: true, type: 'symbol-setting-delete-result' })

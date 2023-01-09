@@ -56,8 +56,7 @@ describe('candles.js', () => {
       });
 
       mockQueue = {
-        executeFor: jest.fn().mockResolvedValue(true),
-        hold: jest.fn().mockResolvedValue(true)
+        execute: jest.fn().mockResolvedValue(true)
       };
 
       jest.mock('../../cronjob/trailingTradeHelper/queue', () => mockQueue);
@@ -236,8 +235,8 @@ describe('candles.js', () => {
       );
     });
 
-    it('triggers queue.executeFor for ETHBTC', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'ETHBTC', {
+    it('triggers queue.execute for ETHBTC', () => {
+      expect(mockQueue.execute).toHaveBeenCalledWith(loggerMock, 'ETHBTC', {
         correlationId: expect.any(String)
       });
     });

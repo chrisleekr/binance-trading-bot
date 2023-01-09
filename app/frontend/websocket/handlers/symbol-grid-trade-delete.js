@@ -17,33 +17,43 @@ const handleSymbolGridTradeDelete = async (logger, ws, payload) => {
 
   const { action, symbol } = symbolInfo;
 
-  await queue.hold(logger, symbol);
+  const deleteSymbolGridTradeFn = async () => {
+    if (action === 'archive') {
+      // Archive symbol grid trade
+      const archivedGridTrade = await archiveSymbolGridTrade(logger, symbol);
+      logger.info({ archivedGridTrade }, 'Archived grid trade');
 
-  if (action === 'archive') {
-    // Archive symbol grid trade
-    const archivedGridTrade = await archiveSymbolGridTrade(logger, symbol);
-    logger.info({ archivedGridTrade }, 'Archived grid trade');
-
-    // Notify slack
-    if (_.isEmpty(archivedGridTrade) === false) {
-      slack.sendMessage(
-        `*${symbol}* ${archivedGridTrade.profit > 0 ? 'Profit' : 'Loss'}:\n` +
-          `\`\`\`` +
-          ` - Profit: ${archivedGridTrade.profit}\n` +
-          ` - Profit Percentage: ${archivedGridTrade.profitPercentage}\n` +
-          ` - Total Buy Amount: ${archivedGridTrade.totalBuyQuoteQty}\n` +
-          ` - Total Sell Amount: ${archivedGridTrade.totalSellQuoteQty}\n` +
-          `\`\`\``,
-        { symbol, apiLimit: getAPILimit(logger) }
-      );
+      // Notify slack
+      if (_.isEmpty(archivedGridTrade) === false) {
+        slack.sendMessage(
+          `*${symbol}* ${archivedGridTrade.profit > 0 ? 'Profit' : 'Loss'}:\n` +
+            `\`\`\`` +
+            ` - Profit: ${archivedGridTrade.profit}\n` +
+            ` - Profit Percentage: ${archivedGridTrade.profitPercentage}\n` +
+            ` - Total Buy Amount: ${archivedGridTrade.totalBuyQuoteQty}\n` +
+            ` - Total Sell Amount: ${archivedGridTrade.totalSellQuoteQty}\n` +
+            `\`\`\``,
+          { symbol, apiLimit: getAPILimit(logger) }
+        );
+      }
     }
-  }
 
-  await deleteSymbolGridTrade(logger, symbol);
+    await deleteSymbolGridTrade(logger, symbol);
+  };
 
-  queue.executeFor(logger, symbol, {
-    correlationId: _.get(logger, 'fields.correlationId', '')
-  });
+  queue.execute(
+    logger,
+    symbol,
+    {
+      start: true,
+      preprocessFn: deleteSymbolGridTradeFn,
+      execute: true,
+      finish: true
+    },
+    {
+      correlationId: _.get(logger, 'fields.correlationId', '')
+    }
+  );
 
   ws.send(
     JSON.stringify({ result: true, type: 'symbol-grid-trade-delete-result' })

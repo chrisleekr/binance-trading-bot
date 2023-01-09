@@ -25,8 +25,7 @@ describe('user.js', () => {
       loggerMock = logger;
 
       mockQueue = {
-        executeFor: jest.fn().mockResolvedValue(true),
-        hold: jest.fn().mockResolvedValue(true)
+        execute: jest.fn().mockResolvedValue(true)
       };
 
       jest.mock('../../cronjob/trailingTradeHelper/queue', () => mockQueue);
@@ -235,8 +234,8 @@ describe('user.js', () => {
           expect(mockUpdateGridTradeLastOrder).not.toHaveBeenCalled();
         });
 
-        it('does not trigger queue.executeFor', () => {
-          expect(mockQueue.executeFor).not.toHaveBeenCalled();
+        it('does not trigger queue.execute', () => {
+          expect(mockQueue.execute).not.toHaveBeenCalled();
         });
 
         it('does not trigger userClean', () => {
@@ -357,8 +356,8 @@ describe('user.js', () => {
             );
           });
 
-          it('triggers queue.executeFor', () => {
-            expect(mockQueue.executeFor).toHaveBeenCalledWith(
+          it('triggers queue.execute', () => {
+            expect(mockQueue.execute).toHaveBeenCalledWith(
               loggerMock,
               'ETHUSDT',
               { correlationId: expect.any(String) }
@@ -463,8 +462,8 @@ describe('user.js', () => {
             expect(mockUpdateGridTradeLastOrder).not.toHaveBeenCalled();
           });
 
-          it('does not trigger queue.executeFor', () => {
-            expect(mockQueue.executeFor).not.toHaveBeenCalled();
+          it('does not trigger queue.execute', () => {
+            expect(mockQueue.execute).not.toHaveBeenCalled();
           });
 
           it('does not trigger userClean', () => {
@@ -561,8 +560,8 @@ describe('user.js', () => {
           expect(mockSaveManualOrder).not.toHaveBeenCalled();
         });
 
-        it('does not trigger queue.executeFor', () => {
-          expect(mockQueue.executeFor).not.toHaveBeenCalled();
+        it('does not trigger queue.execute', () => {
+          expect(mockQueue.execute).not.toHaveBeenCalled();
         });
 
         it('does not trigger userClean', () => {
@@ -676,8 +675,8 @@ describe('user.js', () => {
           );
         });
 
-        it('triggers queue.executeFor', () => {
-          expect(mockQueue.executeFor).toHaveBeenCalledWith(
+        it('triggers queue.execute', () => {
+          expect(mockQueue.execute).toHaveBeenCalledWith(
             loggerMock,
             'ETHUSDT',
             { correlationId: expect.any(String) }

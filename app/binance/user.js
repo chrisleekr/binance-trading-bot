@@ -84,7 +84,7 @@ const setupUserWebsocket = async logger => {
               { lastOrder, evt, saveLog: true },
               'This order update is an old order. Do not update last grid trade order.'
             );
-            return;
+            return false;
           }
 
           const updatedOrder = {
@@ -102,8 +102,6 @@ const setupUserWebsocket = async logger => {
             transactTime
           };
 
-          await queue.hold(symbolLogger, symbol);
-
           await updateGridTradeLastOrder(
             symbolLogger,
             symbol,
@@ -115,18 +113,28 @@ const setupUserWebsocket = async logger => {
             `The last order has been updated. ${orderId} - ${side} - ${orderStatus}`
           );
 
-          queue.executeFor(symbolLogger, symbol, { correlationId });
+          return true;
         }
+
+        return false;
       };
 
-      checkLastOrder();
+      queue.execute(
+        symbolLogger,
+        symbol,
+        {
+          start: true,
+          preprocessFn: checkLastOrder,
+          execute: undefined,
+          finish: true
+        },
+        { correlationId }
+      );
 
       const checkManualOrder = async () => {
         const manualOrder = await getManualOrder(symbolLogger, symbol, orderId);
 
         if (_.isEmpty(manualOrder) === false) {
-          await queue.hold(symbolLogger, symbol);
-
           await saveManualOrder(symbolLogger, symbol, orderId, {
             ...manualOrder,
             status: orderStatus,
@@ -146,11 +154,23 @@ const setupUserWebsocket = async logger => {
             'The manual order has been updated.'
           );
 
-          queue.executeFor(symbolLogger, symbol, { correlationId });
+          return true;
         }
+
+        return false;
       };
 
-      checkManualOrder();
+      queue.execute(
+        symbolLogger,
+        symbol,
+        {
+          start: true,
+          preprocessFn: checkManualOrder,
+          execute: undefined,
+          finish: true
+        },
+        { correlationId }
+      );
     }
   });
 };

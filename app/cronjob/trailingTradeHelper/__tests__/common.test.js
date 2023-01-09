@@ -25,7 +25,7 @@ describe('common.js', () => {
     jest.clearAllMocks().resetModules();
 
     mockQueue = {
-      executeFor: jest.fn().mockResolvedValue(true)
+      execute: jest.fn().mockResolvedValue(true)
     };
 
     jest.mock('../queue', () => mockQueue);

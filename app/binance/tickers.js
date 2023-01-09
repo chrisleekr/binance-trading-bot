@@ -54,17 +54,19 @@ const setupTickersWebsocket = async (logger, symbols) => {
             symbol
           });
 
-          // Save latest candle for the symbol
-          await cache.hset(
-            'trailing-trade-symbols',
-            `${symbol}-latest-candle`,
-            JSON.stringify({
-              eventType,
-              eventTime,
-              symbol,
-              close
-            })
-          );
+          const saveCandle = async () => {
+            // Save latest candle for the symbol
+            await cache.hset(
+              'trailing-trade-symbols',
+              `${symbol}-latest-candle`,
+              JSON.stringify({
+                eventType,
+                eventTime,
+                symbol,
+                close
+              })
+            );
+          };
 
           const canExecuteTrailingTrade = symbols.includes(monitoringSymbol);
 
@@ -73,11 +75,19 @@ const setupTickersWebsocket = async (logger, symbols) => {
             'Received new ticker'
           );
 
-          if (canExecuteTrailingTrade) {
-            await queue.hold(symbolLogger, monitoringSymbol);
-
-            queue.executeFor(symbolLogger, monitoringSymbol, { correlationId });
-          }
+          queue.execute(
+            symbolLogger,
+            monitoringSymbol,
+            {
+              start: canExecuteTrailingTrade,
+              preprocessFn: saveCandle,
+              execute: canExecuteTrailingTrade,
+              finish: canExecuteTrailingTrade
+            },
+            {
+              correlationId
+            }
+          );
         });
       }
     );

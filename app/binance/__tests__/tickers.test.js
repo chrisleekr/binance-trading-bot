@@ -34,8 +34,7 @@ describe('tickers.js', () => {
       cacheMock = cache;
 
       mockQueue = {
-        executeFor: jest.fn().mockResolvedValue(true),
-        hold: jest.fn().mockResolvedValue(true)
+        execute: jest.fn().mockResolvedValue(true)
       };
 
       jest.mock('../../cronjob/trailingTradeHelper/queue', () => mockQueue);
@@ -106,18 +105,18 @@ describe('tickers.js', () => {
       );
     });
 
-    it('triggers queue.executeFor twice', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledTimes(2);
+    it('triggers queue.execute twice', () => {
+      expect(mockQueue.execute).toHaveBeenCalledTimes(2);
     });
 
-    it('triggers queue.executeFor for BTCUSDT', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+    it('triggers queue.execute for BTCUSDT', () => {
+      expect(mockQueue.execute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
         correlationId: expect.any(String)
       });
     });
 
-    it('triggers queue.executeFor for BNBUSDT', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BNBUSDT', {
+    it('triggers queue.execute for BNBUSDT', () => {
+      expect(mockQueue.execute).toHaveBeenCalledWith(loggerMock, 'BNBUSDT', {
         correlationId: expect.any(String)
       });
     });
@@ -137,22 +136,18 @@ describe('tickers.js', () => {
     describe('when called again', () => {
       beforeEach(async () => {
         // Reset mock counter
-        mockQueue.executeFor.mockClear();
+        mockQueue.execute.mockClear();
         await tickers.setupTickersWebsocket(loggerMock, ['BTCUSDT']);
       });
 
-      it('triggers queue.executeFor twice', () => {
-        expect(mockQueue.executeFor).toHaveBeenCalledTimes(1);
+      it('triggers queue.execute twice', () => {
+        expect(mockQueue.execute).toHaveBeenCalledTimes(1);
       });
 
-      it('triggers queue.executeFor for BTCUSDT', () => {
-        expect(mockQueue.executeFor).toHaveBeenCalledWith(
-          loggerMock,
-          'BTCUSDT',
-          {
-            correlationId: expect.any(String)
-          }
-        );
+      it('triggers queue.execute for BTCUSDT', () => {
+        expect(mockQueue.execute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+          correlationId: expect.any(String)
+        });
       });
 
       it('triggers websocketTickersClean', () => {

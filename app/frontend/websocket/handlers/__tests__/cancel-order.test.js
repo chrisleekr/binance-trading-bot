@@ -25,8 +25,7 @@ describe('cancel-order.js', () => {
     }));
 
     mockQueue = {
-      executeFor: jest.fn().mockResolvedValue(true),
-      hold: jest.fn().mockResolvedValue(true)
+      execute: jest.fn().mockResolvedValue(true)
     };
 
     jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
@@ -64,8 +63,8 @@ describe('cancel-order.js', () => {
     );
   });
 
-  it('triggers queue.executeFor', () => {
-    expect(mockQueue.executeFor).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+  it('triggers queue.execute', () => {
+    expect(mockQueue.execute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
       correlationId: 'correlationId'
     });
   });

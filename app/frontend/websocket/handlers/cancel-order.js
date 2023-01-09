@@ -12,24 +12,35 @@ const handleCancelOrder = async (logger, ws, payload) => {
     data: { symbol, order }
   } = payload;
 
-  await queue.hold(logger, symbol);
-
   const { side } = order;
-  await saveOverrideAction(
+
+  const saveOverrideActionFn = async () => {
+    await saveOverrideAction(
+      logger,
+      symbol,
+      {
+        action: 'cancel-order',
+        order,
+        actionAt: moment().toISOString(),
+        triggeredBy: 'user'
+      },
+      `Cancelling the ${side.toLowerCase()} order action has been received. Wait for cancelling the order.`
+    );
+  };
+
+  queue.execute(
     logger,
     symbol,
     {
-      action: 'cancel-order',
-      order,
-      actionAt: moment().toISOString(),
-      triggeredBy: 'user'
+      start: true,
+      preprocessFn: saveOverrideActionFn,
+      execute: true,
+      finish: true
     },
-    `Cancelling the ${side.toLowerCase()} order action has been received. Wait for cancelling the order.`
+    {
+      correlationId: _.get(logger, 'fields.correlationId', '')
+    }
   );
-
-  queue.executeFor(logger, symbol, {
-    correlationId: _.get(logger, 'fields.correlationId', '')
-  });
 
   ws.send(
     JSON.stringify({

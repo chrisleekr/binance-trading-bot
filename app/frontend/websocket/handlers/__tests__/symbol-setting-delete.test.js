@@ -20,8 +20,7 @@ describe('symbol-setting-delete.test.js', () => {
     };
 
     mockQueue = {
-      executeFor: jest.fn().mockResolvedValue(true),
-      hold: jest.fn().mockResolvedValue(true)
+      execute: jest.fn().mockResolvedValue(true)
     };
 
     jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
@@ -57,8 +56,8 @@ describe('symbol-setting-delete.test.js', () => {
       );
     });
 
-    it('triggers queue.executeFor', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(mockLogger, 'BTCUSDT', {
+    it('triggers queue.execute', () => {
+      expect(mockQueue.execute).toHaveBeenCalledWith(mockLogger, 'BTCUSDT', {
         correlationId: 'correlationId'
       });
     });
