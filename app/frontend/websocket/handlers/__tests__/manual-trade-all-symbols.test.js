@@ -2,14 +2,11 @@
 const _ = require('lodash');
 
 describe('manual-trade-all-symbols.js', () => {
-  const queue = require('../../../../cronjob/trailingTradeHelper/queue');
-
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
   let loggerMock;
   let PubSubMock;
-  let mockQueue;
 
   let mockGetGlobalConfiguration;
 

@@ -1,7 +1,5 @@
 /* eslint-disable global-require */
 describe('manual-trade.js', () => {
-  const queue = require('../../../../cronjob/trailingTradeHelper/queue');
-
   let mockWebSocketServer;
   let mockWebSocketServerWebSocketSend;
 
@@ -40,8 +38,6 @@ describe('manual-trade.js', () => {
 
     loggerMock = logger;
     loggerMock.fields = { correlationId: 'correlationId' };
-
-    await queue.init(loggerMock, ['BTCUSDT']);
 
     const { handleManualTrade } = require('../manual-trade');
     await handleManualTrade(loggerMock, mockWebSocketServer, {
