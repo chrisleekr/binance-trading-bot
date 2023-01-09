@@ -134,6 +134,17 @@ describe('tickers.js', () => {
       );
     });
 
+    it('triggers execute for BNBBTC', () => {
+      expect(mockExecute).toHaveBeenCalledWith(
+        loggerMock,
+        'BNBBTC',
+        { preprocessFn: expect.any(Function), queue: false },
+        {
+          correlationId: expect.any(String)
+        }
+      );
+    });
+
     it('checks websocketTickersClean', () => {
       expect(tickers.getWebsocketTickersClean()).toStrictEqual({
         BNBBTC: expect.any(Function),
@@ -162,6 +173,17 @@ describe('tickers.js', () => {
           loggerMock,
           'BTCUSDT',
           { preprocessFn: expect.any(Function), queue: true },
+          {
+            correlationId: expect.any(String)
+          }
+        );
+      });
+
+      it('triggers execute for BNBBTC', () => {
+        expect(mockExecute).toHaveBeenCalledWith(
+          loggerMock,
+          'BNBBTC',
+          { preprocessFn: expect.any(Function), queue: false },
           {
             correlationId: expect.any(String)
           }
