@@ -130,13 +130,19 @@ describe('queue', () => {
       });
 
       describe('when executed with preprocessing', () => {
+        let mockPreprocessFn;
         beforeEach(async () => {
           queue = require('../queue');
 
+          mockPreprocessFn = jest.fn();
           await queue.init(logger, ['BTCUSDT']);
           await queue.execute(logger, 'BTCUSDT', {
-            preprocessFn: () => true
+            preprocessFn: mockPreprocessFn
           });
+        });
+
+        it('triggers preprocessFn', () => {
+          expect(mockPreprocessFn).toHaveBeenCalledTimes(1);
         });
 
         it('triggers executeTrailingTrade for BTCUSDT', () => {
