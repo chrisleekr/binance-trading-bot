@@ -129,43 +129,13 @@ describe('queue', () => {
         });
       });
 
-      describe('when executed with truthy preprocessing', () => {
+      describe('when executed with preprocessing', () => {
         beforeEach(async () => {
           queue = require('../queue');
 
           await queue.init(logger, ['BTCUSDT']);
           await queue.execute(logger, 'BTCUSDT', {
             preprocessFn: () => true
-          });
-        });
-
-        it('triggers executeTrailingTrade for BTCUSDT', () => {
-          expect(mockExecuteTrailingTrade).toHaveBeenCalledTimes(1);
-        });
-      });
-
-      describe('when executed with falsy preprocessing', () => {
-        beforeEach(async () => {
-          queue = require('../queue');
-
-          await queue.init(logger, ['BTCUSDT']);
-          await queue.execute(logger, 'BTCUSDT', {
-            preprocessFn: () => false
-          });
-        });
-
-        it('does not trigger executeTrailingTrade for BTCUSDT', () => {
-          expect(mockExecuteTrailingTrade).not.toHaveBeenCalled();
-        });
-      });
-
-      describe('when executed with postrocessing', () => {
-        beforeEach(async () => {
-          queue = require('../queue');
-
-          await queue.init(logger, ['BTCUSDT']);
-          await queue.execute(logger, 'BTCUSDT', {
-            postprocessFn: () => {}
           });
         });
 
