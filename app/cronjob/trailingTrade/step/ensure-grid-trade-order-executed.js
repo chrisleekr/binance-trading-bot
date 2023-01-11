@@ -207,6 +207,7 @@ const execute = async (logger, rawData) => {
   }
 
   const removeStatuses = ['CANCELED', 'REJECTED', 'EXPIRED', 'PENDING_CANCEL'];
+  const fillStatuses = ['FILLED', 'PARTIALLY_FILLED'];
 
   // Ensure buy order executed
   const lastBuyOrder = await getGridTradeLastOrder(logger, symbol, 'buy');
@@ -214,7 +215,7 @@ const execute = async (logger, rawData) => {
     logger.info({ lastBuyOrder }, 'Last grid trade buy order found');
 
     // If filled already, then calculate average price and save
-    if (lastBuyOrder.status === 'FILLED') {
+    if (fillStatuses.includes(lastBuyOrder.status)) {
       logger.info(
         { lastBuyOrder, saveLog: true },
         'The grid trade order has filled. Calculating last buy price...'
@@ -226,9 +227,6 @@ const execute = async (logger, rawData) => {
       // Save grid trade to the database
       await saveGridTrade(logger, data, lastBuyOrder);
 
-      // Remove grid trade last order
-      await removeGridTradeLastOrder(logger, symbols, symbol, 'buy');
-
       const {
         accountInfo,
         openOrders: updatedOpenOrders,
@@ -239,28 +237,34 @@ const execute = async (logger, rawData) => {
       data.openOrders = updatedOpenOrders;
       data.buy.openOrders = buyOpenOrders;
 
-      slackMessageOrderFilled(
-        logger,
-        symbol,
-        'buy',
-        lastBuyOrder,
-        notifyOrderExecute
-      );
+      // Remove grid trade last order
+      if (lastBuyOrder.status === 'FILLED') {
+        await removeGridTradeLastOrder(logger, symbols, symbol, 'buy');
 
-      // Lock symbol action configured seconds to avoid immediate action
-      await disableAction(
-        logger,
-        symbol,
-        {
-          disabledBy: 'buy filled order',
-          message: 'Disabled action after confirming filled grid trade order.',
-          canResume: false,
-          canRemoveLastBuyPrice: false
-        },
-        temporaryDisableActionAfterConfirmingOrder
-      );
+        slackMessageOrderFilled(
+          logger,
+          symbol,
+          'buy',
+          lastBuyOrder,
+          notifyOrderExecute
+        );
 
-      PubSub.publish('check-open-orders', {});
+        // Lock symbol action configured seconds to avoid immediate action
+        await disableAction(
+          logger,
+          symbol,
+          {
+            disabledBy: 'buy filled order',
+            message:
+              'Disabled action after confirming filled grid trade order.',
+            canResume: false,
+            canRemoveLastBuyPrice: false
+          },
+          temporaryDisableActionAfterConfirmingOrder
+        );
+
+        PubSub.publish('check-open-orders', {});
+      }
     } else if (removeStatuses.includes(lastBuyOrder.status)) {
       logger.info(
         {
@@ -303,14 +307,11 @@ const execute = async (logger, rawData) => {
     logger.info({ lastSellOrder }, 'Last grid trade sell order found');
 
     // If filled already, then calculate average price and save
-    if (lastSellOrder.status === 'FILLED') {
+    if (fillStatuses.includes(lastSellOrder.status)) {
       logger.info({ lastSellOrder }, 'Order has already filled.');
 
       // Save grid trade to the database
       await saveGridTrade(logger, data, lastSellOrder);
-
-      // Remove grid trade last order
-      await removeGridTradeLastOrder(logger, symbols, symbol, 'sell');
 
       const {
         accountInfo,
@@ -322,26 +323,32 @@ const execute = async (logger, rawData) => {
       data.openOrders = updatedOpenOrders;
       data.sell.openOrders = sellOpenOrders;
 
-      slackMessageOrderFilled(
-        logger,
-        symbol,
-        'sell',
-        lastSellOrder,
-        notifyOrderExecute
-      );
+      // Remove grid trade last order
+      if (lastSellOrder.status === 'FILLED') {
+        await removeGridTradeLastOrder(logger, symbols, symbol, 'sell');
 
-      // Lock symbol action configured seconds to avoid immediate action
-      await disableAction(
-        logger,
-        symbol,
-        {
-          disabledBy: 'sell filled order',
-          message: 'Disabled action after confirming filled grid trade order.',
-          canResume: false,
-          canRemoveLastBuyPrice: true
-        },
-        temporaryDisableActionAfterConfirmingOrder
-      );
+        slackMessageOrderFilled(
+          logger,
+          symbol,
+          'sell',
+          lastSellOrder,
+          notifyOrderExecute
+        );
+
+        // Lock symbol action configured seconds to avoid immediate action
+        await disableAction(
+          logger,
+          symbol,
+          {
+            disabledBy: 'sell filled order',
+            message:
+              'Disabled action after confirming filled grid trade order.',
+            canResume: false,
+            canRemoveLastBuyPrice: true
+          },
+          temporaryDisableActionAfterConfirmingOrder
+        );
+      }
     } else if (removeStatuses.includes(lastSellOrder.status)) {
       // If order is no longer available, then delete from cache
       await removeGridTradeLastOrder(logger, symbols, symbol, 'sell');

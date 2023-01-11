@@ -58,7 +58,7 @@ describe('server-binance', () => {
     };
     mockQueue = {
       init: jest.fn().mockResolvedValue(true),
-      executeFor: jest.fn().mockResolvedValue(true)
+      execute: jest.fn().mockResolvedValue(true)
     };
     mockSlack = {
       sendMessage: jest.fn().mockResolvedValue(true)
@@ -461,23 +461,32 @@ describe('server-binance', () => {
           await runBinance(logger);
         });
 
-        it('does not trigger queue.executeFor', () => {
-          expect(mockQueue.executeFor).not.toHaveBeenCalled();
+        it('does not trigger queue.execute', () => {
+          expect(mockQueue.execute).not.toHaveBeenCalled();
         });
       });
 
       describe('when open orders not empty', () => {
         beforeEach(async () => {
           mockCache.hgetall = jest.fn().mockResolvedValue({
-            BTCUSDT: [{ orderId: 1, symbol: 'BTCUSDT' }]
+            BTCUSDT: [{ orderId: 1, symbol: 'BTCUSDT' }],
+            LTCUSDT: [{ orderId: 1, symbol: 'LTCUSDT' }]
           });
 
           const { runBinance } = require('../server-binance');
           await runBinance(logger);
         });
 
-        it('triggers queue.executeFor', () => {
-          expect(mockQueue.executeFor).toHaveBeenCalledWith(logger, 'BTCUSDT');
+        it('triggers queue.execute twice', () => {
+          expect(mockQueue.execute).toHaveBeenCalledTimes(2);
+        });
+
+        it('triggers queue.execute for BTCUSDT', () => {
+          expect(mockQueue.execute).toHaveBeenCalledWith(logger, 'BTCUSDT');
+        });
+
+        it('triggers queue.execute for LTCUSDT', () => {
+          expect(mockQueue.execute).toHaveBeenCalledWith(logger, 'LTCUSDT');
         });
       });
     });

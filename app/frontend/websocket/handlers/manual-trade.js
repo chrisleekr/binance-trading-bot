@@ -12,20 +12,23 @@ const handleManualTrade = async (logger, ws, payload) => {
     data: { symbol, order }
   } = payload;
 
-  await saveOverrideAction(
-    logger,
-    symbol,
-    {
-      action: 'manual-trade',
-      order,
-      actionAt: moment().toISOString(),
-      triggeredBy: 'user'
-    },
-    'The manual order received by the bot. Wait for placing the order.'
-  );
+  const saveOverrideActionFn = async () => {
+    await saveOverrideAction(
+      logger,
+      symbol,
+      {
+        action: 'manual-trade',
+        order,
+        actionAt: moment().toISOString(),
+        triggeredBy: 'user'
+      },
+      'The manual order received by the bot. Wait for placing the order.'
+    );
+  };
 
-  queue.executeFor(logger, symbol, {
-    correlationId: _.get(logger, 'fields.correlationId', '')
+  queue.execute(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', ''),
+    preprocessFn: saveOverrideActionFn
   });
 
   ws.send(

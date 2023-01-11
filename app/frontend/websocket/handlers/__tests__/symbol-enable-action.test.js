@@ -6,7 +6,7 @@ describe('symbol-enable-action.test.js', () => {
 
   let mockLogger;
 
-  let mockQueue;
+  let mockExecute;
 
   let mockDeleteDisableAction;
 
@@ -19,11 +19,14 @@ describe('symbol-enable-action.test.js', () => {
       send: mockWebSocketServerWebSocketSend
     };
 
-    mockQueue = {
-      executeFor: jest.fn().mockResolvedValue(true)
-    };
+    mockExecute = jest.fn((funcLogger, symbol, jobPayload) => {
+      if (!funcLogger || !symbol || !jobPayload) return false;
+      return jobPayload.preprocessFn();
+    });
 
-    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => ({
+      execute: mockExecute
+    }));
   });
 
   describe('when symbol is provided', () => {
@@ -53,9 +56,10 @@ describe('symbol-enable-action.test.js', () => {
       );
     });
 
-    it('triggers queue.executeFor', () => {
-      expect(mockQueue.executeFor).toHaveBeenCalledWith(mockLogger, 'BTCUSDT', {
-        correlationId: 'correlationId'
+    it('triggers queue.execute', () => {
+      expect(mockExecute).toHaveBeenCalledWith(mockLogger, 'BTCUSDT', {
+        correlationId: 'correlationId',
+        preprocessFn: expect.any(Function)
       });
     });
 

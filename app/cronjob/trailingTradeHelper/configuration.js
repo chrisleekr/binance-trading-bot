@@ -104,7 +104,7 @@ const saveGlobalConfiguration = async (logger, configuration) => {
  * @param {*} logger
  */
 const getGlobalConfiguration = async logger => {
-  const orgConfigValue = config.get('jobs.trailingTrade');
+  const orgConfigValue = _.cloneDeep(config.get('jobs.trailingTrade'));
 
   orgConfigValue.symbols = Object.values(orgConfigValue.symbols);
 
