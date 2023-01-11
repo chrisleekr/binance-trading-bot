@@ -25,16 +25,10 @@ const handleSymbolTriggerSell = async (logger, ws, payload) => {
     );
   };
 
-  await queue.execute(
-    logger,
-    symbol,
-    {
-      preprocessFn: saveOverrideActionFn
-    },
-    {
-      correlationId: _.get(logger, 'fields.correlationId', '')
-    }
-  );
+  queue.execute(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', ''),
+    preprocessFn: saveOverrideActionFn
+  });
 
   ws.send(JSON.stringify({ result: true, type: 'symbol-trigger-sell-result' }));
 };

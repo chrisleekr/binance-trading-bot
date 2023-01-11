@@ -64,16 +64,10 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
             );
           };
 
-          await queue.execute(
-            logger,
-            symbol,
-            {
-              preprocessFn: saveOverrideActionFn
-            },
-            {
-              correlationId: _.get(logger, 'fields.correlationId', '')
-            }
-          );
+          queue.execute(logger, symbol, {
+            correlationId: _.get(logger, 'fields.correlationId', ''),
+            preprocessFn: saveOverrideActionFn
+          });
 
           currentTime = moment(currentTime).add(
             placeManualOrderInterval,
@@ -116,16 +110,10 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
             );
           };
 
-          await queue.execute(
-            logger,
-            symbol,
-            {
-              preprocessFn: saveOverrideActionFn
-            },
-            {
-              correlationId: _.get(logger, 'fields.correlationId', '')
-            }
-          );
+          queue.execute(logger, symbol, {
+            correlationId: _.get(logger, 'fields.correlationId', ''),
+            preprocessFn: saveOverrideActionFn
+          });
 
           currentTime = moment(currentTime).add(
             placeManualOrderInterval,

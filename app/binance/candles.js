@@ -114,12 +114,10 @@ const syncCandles = async (logger, symbols) => {
         await mongo.bulkWrite(logger, 'trailing-trade-candles', operations);
       };
 
-      queue.execute(
-        logger,
-        symbol,
-        { preprocessFn: getCandles },
-        { correlationId: uuidv4() }
-      );
+      queue.execute(logger, symbol, {
+        correlationId: uuidv4(),
+        preprocessFn: getCandles
+      });
     })
   );
 };

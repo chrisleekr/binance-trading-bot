@@ -21,18 +21,17 @@ const deleteLastBuyPrice = async (logger, ws, symbol) => {
     });
   };
 
-  queue.execute(
-    logger,
-    symbol,
-    { preprocessFn: deleteOneFn },
-    {
-      correlationId: _.get(logger, 'fields.correlationId', '')
-    }
-  );
+  const PubSubFn = async () => {
+    PubSub.publish('frontend-notification', {
+      type: 'success',
+      title: `The last buy price for ${symbol} has been removed successfully.`
+    });
+  };
 
-  PubSub.publish('frontend-notification', {
-    type: 'success',
-    title: `The last buy price for ${symbol} has been removed successfully.`
+  queue.execute(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', ''),
+    preprocessFn: deleteOneFn,
+    postprocessFn: PubSubFn
   });
 
   ws.send(
@@ -110,20 +109,17 @@ const updateLastBuyPrice = async (logger, ws, symbol, lastBuyPrice) => {
     return true;
   };
 
-  await queue.execute(
-    logger,
-    symbol,
-    {
-      preprocessFn: updateLastBuyPriceFn
-    },
-    {
-      correlationId: _.get(logger, 'fields.correlationId', '')
-    }
-  );
+  const PubSubFn = async () => {
+    PubSub.publish('frontend-notification', {
+      type: 'success',
+      title: `The last buy price for ${symbol} has been configured successfully.`
+    });
+  };
 
-  PubSub.publish('frontend-notification', {
-    type: 'success',
-    title: `The last buy price for ${symbol} has been configured successfully.`
+  queue.execute(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', ''),
+    preprocessFn: updateLastBuyPriceFn,
+    postprocessFn: PubSubFn
   });
 
   ws.send(

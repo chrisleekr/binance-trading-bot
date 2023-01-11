@@ -46,16 +46,10 @@ const handleSymbolSettingUpdate = async (logger, ws, payload) => {
     await saveSymbolConfiguration(logger, symbol, symbolConfiguration);
   };
 
-  await queue.execute(
-    logger,
-    symbol,
-    {
-      preprocessFn: symbolConfigurationFn
-    },
-    {
-      correlationId: _.get(logger, 'fields.correlationId', '')
-    }
-  );
+  queue.execute(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', ''),
+    preprocessFn: symbolConfigurationFn
+  });
 
   ws.send(
     JSON.stringify({

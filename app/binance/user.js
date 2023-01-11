@@ -119,14 +119,10 @@ const setupUserWebsocket = async logger => {
         return false;
       };
 
-      queue.execute(
-        symbolLogger,
-        symbol,
-        {
-          preprocessFn: checkLastOrder
-        },
-        { correlationId }
-      );
+      queue.execute(symbolLogger, symbol, {
+        correlationId,
+        preprocessFn: checkLastOrder
+      });
 
       const checkManualOrder = async () => {
         const manualOrder = await getManualOrder(symbolLogger, symbol, orderId);
@@ -157,14 +153,10 @@ const setupUserWebsocket = async logger => {
         return false;
       };
 
-      queue.execute(
-        symbolLogger,
-        symbol,
-        {
-          preprocessFn: checkManualOrder
-        },
-        { correlationId }
-      );
+      queue.execute(symbolLogger, symbol, {
+        correlationId,
+        preprocessFn: checkManualOrder
+      });
     }
   });
 };

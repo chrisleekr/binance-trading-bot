@@ -178,7 +178,7 @@ const setupBinance = async logger => {
 
     await Promise.all(
       symbols.map(async symbol => {
-        await queue.execute(logger, symbol);
+        queue.execute(logger, symbol);
       })
     );
   });

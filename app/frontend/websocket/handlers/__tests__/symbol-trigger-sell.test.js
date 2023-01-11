@@ -25,9 +25,9 @@ describe('symbol-trigger-sell.test.js', () => {
       saveOverrideAction: mockSaveOverrideAction
     }));
 
-    mockExecute = jest.fn((funcLogger, symbol, modifiers, jobData) => {
-      if (!funcLogger || !symbol || !modifiers || !jobData) return false;
-      return modifiers.preprocessFn();
+    mockExecute = jest.fn((funcLogger, symbol, jobPayload) => {
+      if (!funcLogger || !symbol || !jobPayload) return false;
+      return jobPayload.preprocessFn();
     });
 
     jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => ({
@@ -62,15 +62,11 @@ describe('symbol-trigger-sell.test.js', () => {
       );
     });
 
-    it('triggers execute', () => {
-      expect(mockExecute).toHaveBeenCalledWith(
-        mockLogger,
-        'BTCUSDT',
-        { preprocessFn: expect.any(Function) },
-        {
-          correlationId: 'correlationId'
-        }
-      );
+    it('triggers queue.execute', () => {
+      expect(mockExecute).toHaveBeenCalledWith(mockLogger, 'BTCUSDT', {
+        correlationId: 'correlationId',
+        preprocessFn: expect.any(Function)
+      });
     });
 
     it('triggers ws.send', () => {

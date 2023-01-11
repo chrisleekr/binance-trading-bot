@@ -22,9 +22,9 @@ describe('symbol-update-last-buy-price.test.js', () => {
       send: mockWebSocketServerWebSocketSend
     };
 
-    mockExecute = jest.fn((funcLogger, symbol, modifiers, jobData) => {
-      if (!funcLogger || !symbol || !modifiers || !jobData) return false;
-      return modifiers.preprocessFn();
+    mockExecute = jest.fn((funcLogger, symbol, jobPayload) => {
+      if (!funcLogger || !symbol || !jobPayload) return false;
+      return jobPayload.preprocessFn() && jobPayload.postprocessFn();
     });
 
     jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => ({
@@ -65,15 +65,12 @@ describe('symbol-update-last-buy-price.test.js', () => {
         );
       });
 
-      it('triggers execute', () => {
-        expect(mockExecute).toHaveBeenCalledWith(
-          loggerMock,
-          'BTCUSDT',
-          { preprocessFn: expect.any(Function) },
-          {
-            correlationId: 'correlationId'
-          }
-        );
+      it('triggers queue.execute', () => {
+        expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+          correlationId: 'correlationId',
+          preprocessFn: expect.any(Function),
+          postprocessFn: expect.any(Function)
+        });
       });
 
       it('triggers PubSub.publish', () => {
@@ -223,13 +220,12 @@ describe('symbol-update-last-buy-price.test.js', () => {
             );
           });
 
-          it('triggers execute', () => {
-            expect(mockExecute).toHaveBeenCalledWith(
-              loggerMock,
-              'BTCUSDT',
-              { preprocessFn: expect.any(Function) },
-              { correlationId: 'correlationId' }
-            );
+          it('triggers queue.execute', () => {
+            expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+              correlationId: 'correlationId',
+              preprocessFn: expect.any(Function),
+              postprocessFn: expect.any(Function)
+            });
           });
 
           it('triggers PubSub.publish', () => {
@@ -320,15 +316,12 @@ describe('symbol-update-last-buy-price.test.js', () => {
             );
           });
 
-          it('triggers execute', () => {
-            expect(mockExecute).toHaveBeenCalledWith(
-              loggerMock,
-              'BTCUSDT',
-              { preprocessFn: expect.any(Function) },
-              {
-                correlationId: 'correlationId'
-              }
-            );
+          it('triggers queue.execute', () => {
+            expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+              correlationId: 'correlationId',
+              preprocessFn: expect.any(Function),
+              postprocessFn: expect.any(Function)
+            });
           });
 
           it('triggers PubSub.publish', () => {

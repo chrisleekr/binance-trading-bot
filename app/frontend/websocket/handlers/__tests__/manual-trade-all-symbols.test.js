@@ -238,9 +238,9 @@ describe('manual-trade-all-symbols.js', () => {
       saveOverrideAction: mockSaveOverrideAction
     }));
 
-    mockExecute = jest.fn((funcLogger, symbol, modifiers, jobData) => {
-      if (!funcLogger || !symbol || !modifiers || !jobData) return false;
-      return modifiers.preprocessFn();
+    mockExecute = jest.fn((funcLogger, symbol, jobPayload) => {
+      if (!funcLogger || !symbol || !jobPayload) return false;
+      return jobPayload.preprocessFn();
     });
 
     jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => ({
@@ -314,13 +314,11 @@ describe('manual-trade-all-symbols.js', () => {
                 );
               });
 
-              it('triggers execute', () => {
-                expect(mockExecute).toHaveBeenCalledWith(
-                  loggerMock,
-                  symbol,
-                  { preprocessFn: expect.any(Function) },
-                  { correlationId: 'correlationId' }
-                );
+              it('triggers queue.execute', () => {
+                expect(mockExecute).toHaveBeenCalledWith(loggerMock, symbol, {
+                  correlationId: 'correlationId',
+                  preprocessFn: expect.any(Function)
+                });
               });
             } else {
               it('does not trigger saveOverrideAction', () => {
@@ -416,12 +414,14 @@ describe('manual-trade-all-symbols.js', () => {
                 );
               });
 
-              it('triggers execute', () => {
+              it('triggers queue.execute', () => {
                 expect(mockExecute).toHaveBeenCalledWith(
                   loggerMock,
                   'BTCUSDT',
-                  { preprocessFn: expect.any(Function) },
-                  { correlationId: 'correlationId' }
+                  {
+                    correlationId: 'correlationId',
+                    preprocessFn: expect.any(Function)
+                  }
                 );
               });
             } else {

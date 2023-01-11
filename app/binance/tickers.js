@@ -75,17 +75,14 @@ const setupTickersWebsocket = async (logger, symbols) => {
             'Received new ticker'
           );
 
-          queue.execute(
-            symbolLogger,
-            monitoringSymbol,
-            {
-              queue: canExecuteTrailingTrade,
+          if (canExecuteTrailingTrade) {
+            queue.execute(symbolLogger, monitoringSymbol, {
+              correlationId,
               preprocessFn: saveCandle
-            },
-            {
-              correlationId
-            }
-          );
+            });
+          } else {
+            saveCandle();
+          }
         });
       }
     );

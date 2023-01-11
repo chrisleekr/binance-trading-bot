@@ -15,16 +15,10 @@ const handleSymbolEnableAction = async (logger, ws, payload) => {
     await deleteDisableAction(logger, symbol);
   };
 
-  await queue.execute(
-    logger,
-    symbol,
-    {
-      preprocessFn: deleteDisableActionFn
-    },
-    {
-      correlationId: _.get(logger, 'fields.correlationId', '')
-    }
-  );
+  queue.execute(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', ''),
+    preprocessFn: deleteDisableActionFn
+  });
 
   ws.send(
     JSON.stringify({ result: true, type: 'symbol-enable-action-result' })
