@@ -34,7 +34,6 @@ const execute = async logger => {
     symbolInfo: {},
     overrideParams: {},
     quoteAssetStats: {},
-    tradingView: {},
     apiLimit: { start: getAPILimit(logger), end: null }
   };
 
