@@ -15,17 +15,23 @@ const queue = require('../../../cronjob/trailingTradeHelper/queue');
  * @returns
  */
 const deleteLastBuyPrice = async (logger, ws, symbol) => {
-  await mongo.deleteOne(logger, 'trailing-trade-symbols', {
-    key: `${symbol}-last-buy-price`
-  });
+  const deleteOneFn = async () => {
+    await mongo.deleteOne(logger, 'trailing-trade-symbols', {
+      key: `${symbol}-last-buy-price`
+    });
+  };
 
-  queue.executeFor(logger, symbol, {
-    correlationId: _.get(logger, 'fields.correlationId', '')
-  });
+  const PubSubFn = async () => {
+    PubSub.publish('frontend-notification', {
+      type: 'success',
+      title: `The last buy price for ${symbol} has been removed successfully.`
+    });
+  };
 
-  PubSub.publish('frontend-notification', {
-    type: 'success',
-    title: `The last buy price for ${symbol} has been removed successfully.`
+  queue.execute(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', ''),
+    preprocessFn: deleteOneFn,
+    postprocessFn: PubSubFn
   });
 
   ws.send(
@@ -49,63 +55,71 @@ const deleteLastBuyPrice = async (logger, ws, symbol) => {
  * @returns
  */
 const updateLastBuyPrice = async (logger, ws, symbol, lastBuyPrice) => {
-  // Retrieve symbol info
-  const cachedSymbolInfo =
-    JSON.parse(
-      await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
-    ) || {};
+  const updateLastBuyPriceFn = async () => {
+    // Retrieve symbol info
+    const cachedSymbolInfo =
+      JSON.parse(
+        await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
+      ) || {};
 
-  if (_.isEmpty(cachedSymbolInfo) === true) {
-    PubSub.publish('frontend-notification', {
-      type: 'error',
-      title:
-        `The bot could not retrieve the cached symbol information for ${symbol}.` +
-        ` Wait for the symbol information to be cached and try again.`
-    });
-
-    ws.send(
-      JSON.stringify({
-        result: false,
-        type: 'symbol-update-last-buy-price-result',
-        message:
+    if (_.isEmpty(cachedSymbolInfo) === true) {
+      PubSub.publish('frontend-notification', {
+        type: 'error',
+        title:
           `The bot could not retrieve the cached symbol information for ${symbol}.` +
           ` Wait for the symbol information to be cached and try again.`
-      })
-    );
-    return false;
-  }
+      });
 
-  const { baseAsset } = cachedSymbolInfo;
-  // Retrieve account info from cache
-  const accountInfo = await getAccountInfo(logger);
+      ws.send(
+        JSON.stringify({
+          result: false,
+          type: 'symbol-update-last-buy-price-result',
+          message:
+            `The bot could not retrieve the cached symbol information for ${symbol}.` +
+            ` Wait for the symbol information to be cached and try again.`
+        })
+      );
+      return false;
+    }
 
-  // Get asset balances
-  const baseAssetBalance = accountInfo.balances.filter(
-    b => b.asset === baseAsset
-  )[0] || {
-    asset: baseAsset,
-    free: 0,
-    locked: 0,
-    total: 0,
-    estimatedValue: 0
+    const { baseAsset } = cachedSymbolInfo;
+    // Retrieve account info from cache
+    const accountInfo = await getAccountInfo(logger);
+
+    // Get asset balances
+    const baseAssetBalance = accountInfo.balances.filter(
+      b => b.asset === baseAsset
+    )[0] || {
+      asset: baseAsset,
+      free: 0,
+      locked: 0,
+      total: 0,
+      estimatedValue: 0
+    };
+
+    // Calculate total quantity
+    const baseAssetTotalBalance =
+      parseFloat(baseAssetBalance.free) + parseFloat(baseAssetBalance.locked);
+
+    await saveLastBuyPrice(logger, symbol, {
+      lastBuyPrice,
+      quantity: baseAssetTotalBalance
+    });
+
+    return true;
   };
 
-  // Calculate total quantity
-  const baseAssetTotalBalance =
-    parseFloat(baseAssetBalance.free) + parseFloat(baseAssetBalance.locked);
+  const PubSubFn = async () => {
+    PubSub.publish('frontend-notification', {
+      type: 'success',
+      title: `The last buy price for ${symbol} has been configured successfully.`
+    });
+  };
 
-  await saveLastBuyPrice(logger, symbol, {
-    lastBuyPrice,
-    quantity: baseAssetTotalBalance
-  });
-
-  queue.executeFor(logger, symbol, {
-    correlationId: _.get(logger, 'fields.correlationId', '')
-  });
-
-  PubSub.publish('frontend-notification', {
-    type: 'success',
-    title: `The last buy price for ${symbol} has been configured successfully.`
+  queue.execute(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', ''),
+    preprocessFn: updateLastBuyPriceFn,
+    postprocessFn: PubSubFn
   });
 
   ws.send(

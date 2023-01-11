@@ -1,9 +1,6 @@
 /* eslint-disable no-await-in-loop */
-const moment = require('moment');
-
 const {
   cancelOrder,
-  saveOverrideAction,
   isExceedingMaxOpenTrades,
   refreshOpenOrdersAndAccountInfo,
   getAccountInfoFromAPI
@@ -120,19 +117,6 @@ const execute = async (logger, rawData) => {
           data.buy.openOrders = buyOpenOrders;
 
           data.action = 'buy-order-checking';
-
-          await saveOverrideAction(
-            logger,
-            symbol,
-            {
-              action: 'buy',
-              actionAt: moment().toISOString(),
-              triggeredBy: 'buy-cancelled',
-              notify: false,
-              checkTradingView: true
-            },
-            `The bot will place a buy order in the next tick because could not retrieve the cancelled order result.`
-          );
         } else {
           // Reset buy open orders
           data.buy.openOrders = [];

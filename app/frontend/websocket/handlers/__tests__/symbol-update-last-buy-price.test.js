@@ -11,7 +11,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
   let mongoMock;
   let cacheMock;
   let PubSubMock;
-  let mockQueue;
+  let mockExecute;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -22,11 +22,14 @@ describe('symbol-update-last-buy-price.test.js', () => {
       send: mockWebSocketServerWebSocketSend
     };
 
-    mockQueue = {
-      executeFor: jest.fn().mockResolvedValue(true)
-    };
+    mockExecute = jest.fn((funcLogger, symbol, jobPayload) => {
+      if (!funcLogger || !symbol || !jobPayload) return false;
+      return jobPayload.preprocessFn() && jobPayload.postprocessFn();
+    });
 
-    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => mockQueue);
+    jest.mock('../../../../cronjob/trailingTradeHelper/queue', () => ({
+      execute: mockExecute
+    }));
   });
 
   describe('update symbol last buy price', () => {
@@ -62,12 +65,12 @@ describe('symbol-update-last-buy-price.test.js', () => {
         );
       });
 
-      it('triggers queue.executeFor', () => {
-        expect(mockQueue.executeFor).toHaveBeenCalledWith(
-          loggerMock,
-          'BTCUSDT',
-          { correlationId: 'correlationId' }
-        );
+      it('triggers queue.execute', () => {
+        expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+          correlationId: 'correlationId',
+          preprocessFn: expect.any(Function),
+          postprocessFn: expect.any(Function)
+        });
       });
 
       it('triggers PubSub.publish', () => {
@@ -217,12 +220,12 @@ describe('symbol-update-last-buy-price.test.js', () => {
             );
           });
 
-          it('triggers queue.executeFor', () => {
-            expect(mockQueue.executeFor).toHaveBeenCalledWith(
-              loggerMock,
-              'BTCUSDT',
-              { correlationId: 'correlationId' }
-            );
+          it('triggers queue.execute', () => {
+            expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+              correlationId: 'correlationId',
+              preprocessFn: expect.any(Function),
+              postprocessFn: expect.any(Function)
+            });
           });
 
           it('triggers PubSub.publish', () => {
@@ -313,12 +316,12 @@ describe('symbol-update-last-buy-price.test.js', () => {
             );
           });
 
-          it('triggers queue.executeFor', () => {
-            expect(mockQueue.executeFor).toHaveBeenCalledWith(
-              loggerMock,
-              'BTCUSDT',
-              { correlationId: 'correlationId' }
-            );
+          it('triggers queue.execute', () => {
+            expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
+              correlationId: 'correlationId',
+              preprocessFn: expect.any(Function),
+              postprocessFn: expect.any(Function)
+            });
           });
 
           it('triggers PubSub.publish', () => {
