@@ -177,9 +177,7 @@ const setupBinance = async logger => {
     const symbols = _.keys(cachedOpenOrders);
 
     await Promise.all(
-      symbols.map(async symbol => {
-        queue.execute(logger, symbol);
-      })
+      symbols.map(async symbol => queue.execute(logger, symbol))
     );
   });
 

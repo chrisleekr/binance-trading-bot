@@ -469,15 +469,24 @@ describe('server-binance', () => {
       describe('when open orders not empty', () => {
         beforeEach(async () => {
           mockCache.hgetall = jest.fn().mockResolvedValue({
-            BTCUSDT: [{ orderId: 1, symbol: 'BTCUSDT' }]
+            BTCUSDT: [{ orderId: 1, symbol: 'BTCUSDT' }],
+            LTCUSDT: [{ orderId: 1, symbol: 'LTCUSDT' }]
           });
 
           const { runBinance } = require('../server-binance');
           await runBinance(logger);
         });
 
-        it('triggers queue.execute', () => {
+        it('triggers queue.execute twice', () => {
+          expect(mockQueue.execute).toHaveBeenCalledTimes(2);
+        });
+
+        it('triggers queue.execute for BTCUSDT', () => {
           expect(mockQueue.execute).toHaveBeenCalledWith(logger, 'BTCUSDT');
+        });
+
+        it('triggers queue.execute for LTCUSDT', () => {
+          expect(mockQueue.execute).toHaveBeenCalledWith(logger, 'LTCUSDT');
         });
       });
     });
