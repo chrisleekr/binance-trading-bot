@@ -156,6 +156,10 @@
     "trailingTradeIndicator": {
       "enabled": true,
       "cronTime": "* * * * * *"
+    },
+    "tradingView": {
+      "enabled": true,
+      "cronTime": "* * * * * *"
     }
   }
 }
