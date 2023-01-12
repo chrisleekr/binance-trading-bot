@@ -12,19 +12,22 @@ const handleSymbolTriggerSell = async (logger, ws, payload) => {
 
   const { symbol } = symbolInfo;
 
-  await saveOverrideAction(
-    logger,
-    symbol,
-    {
-      action: 'sell',
-      actionAt: moment().toISOString(),
-      triggeredBy: 'user'
-    },
-    'The sell order received by the bot. Wait for placing the order.'
-  );
+  const saveOverrideActionFn = async () => {
+    await saveOverrideAction(
+      logger,
+      symbol,
+      {
+        action: 'sell',
+        actionAt: moment().toISOString(),
+        triggeredBy: 'user'
+      },
+      'The sell order received by the bot. Wait for placing the order.'
+    );
+  };
 
-  queue.executeFor(logger, symbol, {
-    correlationId: _.get(logger, 'fields.correlationId', '')
+  queue.execute(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', ''),
+    preprocessFn: saveOverrideActionFn
   });
 
   ws.send(JSON.stringify({ result: true, type: 'symbol-trigger-sell-result' }));

@@ -12,22 +12,25 @@ const handleSymbolTriggerBuy = async (logger, ws, payload) => {
 
   const { symbol } = symbolInfo;
 
-  await saveOverrideAction(
-    logger,
-    symbol,
-    {
-      action: 'buy',
-      actionAt: moment().toISOString(),
-      triggeredBy: 'user',
-      notify: true,
-      // For triggering buy action must execute. So don't check TradingView recommendation.
-      checkTradingView: false
-    },
-    'The buy order received by the bot. Wait for placing the order.'
-  );
+  const saveOverrideActionFn = async () => {
+    await saveOverrideAction(
+      logger,
+      symbol,
+      {
+        action: 'buy',
+        actionAt: moment().toISOString(),
+        triggeredBy: 'user',
+        notify: true,
+        // For triggering buy action must execute. So don't check TradingView recommendation.
+        checkTradingView: false
+      },
+      'The buy order received by the bot. Wait for placing the order.'
+    );
+  };
 
-  queue.executeFor(logger, symbol, {
-    correlationId: _.get(logger, 'fields.correlationId', '')
+  queue.execute(logger, symbol, {
+    correlationId: _.get(logger, 'fields.correlationId', ''),
+    preprocessFn: saveOverrideActionFn
   });
 
   ws.send(JSON.stringify({ result: true, type: 'symbol-trigger-buy-result' }));

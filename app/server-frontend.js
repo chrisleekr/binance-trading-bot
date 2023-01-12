@@ -25,7 +25,6 @@ const loginLimiter = new RateLimiterRedis({
 const { configureWebServer } = require('./frontend/webserver/configure');
 const { configureWebSocket } = require('./frontend/websocket/configure');
 const { configureLocalTunnel } = require('./frontend/local-tunnel/configure');
-const { configureBullBoard } = require('./frontend/bull-board/configure');
 
 const runFrontend = async serverLogger => {
   const logger = serverLogger.child({ server: 'frontend' });
@@ -46,10 +45,13 @@ const runFrontend = async serverLogger => {
       tempFileDir: '/tmp/'
     })
   );
-  app.use(express.static(path.join(__dirname, '/../public')));
-
-  // Must configure bull board before listen.
-  configureBullBoard(app, logger);
+  // Make data folder to be downloadable
+  const attachmentMiddleware = async (req, res, next) => {
+    if (req.path.split('/')[1] === 'data') res.attachment(); // short for res.set('Content-Disposition', 'attachment')
+    next();
+  };
+  app.use(attachmentMiddleware);
+  app.use(express.static(path.join(global.appRoot, '/../public')));
 
   const server = app.listen(80);
 
