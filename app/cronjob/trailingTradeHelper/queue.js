@@ -1,8 +1,8 @@
 const _ = require('lodash');
 const { executeTrailingTrade } = require('../index');
 
-let startedJobs = {};
-let finishedJobs = {};
+const startedJobs = {};
+const finishedJobs = {};
 
 /**
  * Initialize queue counters for symbols
@@ -13,13 +13,12 @@ let finishedJobs = {};
 const init = async (funcLogger, symbols) => {
   const logger = funcLogger.child({ helper: 'queue' });
 
-  startedJobs = {};
-  finishedJobs = {};
-
   await Promise.all(
     _.map(symbols, async symbol => {
-      startedJobs[symbol] = 0;
-      finishedJobs[symbol] = 0;
+      if (startedJobs[symbol] === undefined) {
+        startedJobs[symbol] = 0;
+        finishedJobs[symbol] = 0;
+      }
     })
   );
 
