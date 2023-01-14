@@ -229,6 +229,8 @@ const execute = async (logger, rawData) => {
   let sellTriggerPrice = null;
   let sellDifference = null;
   let sellLimitPrice = null;
+  let conservativeModeApplicable = false;
+  let triggerPercentage = null;
 
   if (lastBuyPrice > 0 && currentSellGridTrade !== null) {
     const {
@@ -241,10 +243,10 @@ const execute = async (logger, rawData) => {
       trade => trade.executed === true
     );
 
-    const conservativeModeApplicable =
+    conservativeModeApplicable =
       conservativeModeEnabled && lastExecutedBuyTradeIndex >= 1;
 
-    const triggerPercentage = conservativeModeApplicable
+    triggerPercentage = conservativeModeApplicable
       ? 1 +
         (sellTriggerPercentage - 1) *
           conservativeFactor ** lastExecutedBuyTradeIndex
@@ -345,6 +347,8 @@ const execute = async (logger, rawData) => {
     stopLossDifference: sellStopLossDifference,
     currentProfit: sellCurrentProfit,
     currentProfitPercentage: sellCurrentProfitPercentage,
+    conservativeModeApplicable,
+    triggerPercentage,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'sell'),
     processMessage: _.get(data, 'sell.processMessage', ''),
     updatedAt: moment().utc().toDate()

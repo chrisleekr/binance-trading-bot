@@ -39,32 +39,16 @@ class CoinWrapperSellSignal extends React.Component {
     const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
     const {
-      sell: { currentGridTradeIndex, gridTrade, conservativeMode }
+      sell: { currentGridTradeIndex, gridTrade }
     } = symbolConfiguration;
 
     let hiddenCount = 0;
-
-    const buyGridTrade = symbolConfiguration.buy.gridTrade;
-
-    const lastExecutedBuyTradeIndex = _.findLastIndex(
-      buyGridTrade,
-      trade => trade.executed === true
-    );
-
-    const conservativeModeApplicable =
-      conservativeMode.enabled && lastExecutedBuyTradeIndex >= 1;
 
     const sellGridRows = gridTrade.map((grid, i) => {
       const modifiedGridTradeIndex = Math.min(
         Math.max(currentGridTradeIndex, 5),
         gridTrade.length - 5
       );
-
-      const triggerPercentage = conservativeModeApplicable
-        ? 1 +
-          (grid.triggerPercentage - 1) *
-            conservativeMode.factor ** lastExecutedBuyTradeIndex
-        : grid.triggerPercentage;
 
       function hiddenRow(i) {
         return (
@@ -178,11 +162,11 @@ class CoinWrapperSellSignal extends React.Component {
                   style={{ flex: '0 100%' }}>
                   <span
                     className={
-                      conservativeModeApplicable ? 'text-warning' : ''
+                      sell.conservativeModeApplicable ? 'text-warning' : ''
                     }>
-                    &#62; {conservativeModeApplicable ? 'Reduced' : ''} Trigger
-                    price (
-                    {(parseFloat(triggerPercentage - 1) * 100).toFixed(2)}
+                    &#62; {sell.conservativeModeApplicable ? 'Reduced' : ''}{' '}
+                    Trigger price (
+                    {(parseFloat(sell.triggerPercentage - 1) * 100).toFixed(2)}
                     %):
                   </span>
                 </div>
@@ -253,7 +237,7 @@ class CoinWrapperSellSignal extends React.Component {
                   - Trigger price percentage:
                 </span>
                 <div className='coin-info-value'>
-                  {((triggerPercentage - 1) * 100).toFixed(2)}%
+                  {((sell.triggerPercentage - 1) * 100).toFixed(2)}%
                 </div>
               </div>
               <div className='coin-info-column coin-info-column-order'>
