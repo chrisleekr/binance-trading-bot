@@ -11,8 +11,6 @@ describe('server-binance', () => {
   let mockGetGlobalConfiguration;
 
   let mockGetAccountInfoFromAPI;
-  let mockLockSymbol;
-  let mockUnlockSymbol;
   let mockCacheExchangeSymbols;
 
   let mockSetupUserWebsocket;
@@ -57,8 +55,9 @@ describe('server-binance', () => {
       deleteAll: jest.fn().mockResolvedValue(true)
     };
     mockQueue = {
-      init: jest.fn().mockResolvedValue(true),
-      execute: jest.fn().mockResolvedValue(true)
+      prepareJob: jest.fn().mockResolvedValue(true),
+      execute: jest.fn().mockResolvedValue(true),
+      completeJob: jest.fn().mockResolvedValue(true)
     };
     mockSlack = {
       sendMessage: jest.fn().mockResolvedValue(true)
@@ -97,9 +96,6 @@ describe('server-binance', () => {
           }
         });
 
-        mockLockSymbol = jest.fn().mockResolvedValue(true);
-        mockUnlockSymbol = jest.fn().mockResolvedValue(true);
-
         mockSetupUserWebsocket = jest.fn().mockResolvedValue(true);
 
         mockSyncCandles = jest.fn().mockResolvedValue(true);
@@ -133,8 +129,6 @@ describe('server-binance', () => {
 
         jest.mock('../cronjob/trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          lockSymbol: mockLockSymbol,
-          unlockSymbol: mockUnlockSymbol,
           cacheExchangeSymbols: mockCacheExchangeSymbols
         }));
 
@@ -237,8 +231,12 @@ describe('server-binance', () => {
         );
       });
 
-      it('triggers queue.init', () => {
-        expect(mockQueue.init).toHaveBeenCalled();
+      it('triggers queue.prepareJob', () => {
+        expect(mockQueue.prepareJob).toHaveBeenCalled();
+      });
+
+      it('triggers queue.completeJob', () => {
+        expect(mockQueue.completeJob).toHaveBeenCalled();
       });
     });
 
@@ -252,9 +250,6 @@ describe('server-binance', () => {
               return `value-${key}`;
           }
         });
-
-        mockLockSymbol = jest.fn().mockResolvedValue(true);
-        mockUnlockSymbol = jest.fn().mockResolvedValue(true);
 
         mockSetupUserWebsocket = jest.fn().mockResolvedValue(true);
 
@@ -297,8 +292,6 @@ describe('server-binance', () => {
 
         jest.mock('../cronjob/trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          lockSymbol: mockLockSymbol,
-          unlockSymbol: mockUnlockSymbol,
           cacheExchangeSymbols: mockCacheExchangeSymbols
         }));
 
@@ -370,9 +363,6 @@ describe('server-binance', () => {
           }
         });
 
-        mockLockSymbol = jest.fn().mockResolvedValue(true);
-        mockUnlockSymbol = jest.fn().mockResolvedValue(true);
-
         mockSetupUserWebsocket = jest.fn().mockResolvedValue(true);
 
         mockSyncCandles = jest.fn().mockResolvedValue(true);
@@ -414,8 +404,6 @@ describe('server-binance', () => {
 
         jest.mock('../cronjob/trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          lockSymbol: mockLockSymbol,
-          unlockSymbol: mockUnlockSymbol,
           cacheExchangeSymbols: mockCacheExchangeSymbols
         }));
 
@@ -482,11 +470,15 @@ describe('server-binance', () => {
         });
 
         it('triggers queue.execute for BTCUSDT', () => {
-          expect(mockQueue.execute).toHaveBeenCalledWith(logger, 'BTCUSDT');
+          expect(mockQueue.execute).toHaveBeenCalledWith(logger, 'BTCUSDT', {
+            processFn: expect.any(Function)
+          });
         });
 
         it('triggers queue.execute for LTCUSDT', () => {
-          expect(mockQueue.execute).toHaveBeenCalledWith(logger, 'LTCUSDT');
+          expect(mockQueue.execute).toHaveBeenCalledWith(logger, 'LTCUSDT', {
+            processFn: expect.any(Function)
+          });
         });
       });
     });
@@ -501,9 +493,6 @@ describe('server-binance', () => {
               return `value-${key}`;
           }
         });
-
-        mockLockSymbol = jest.fn().mockResolvedValue(true);
-        mockUnlockSymbol = jest.fn().mockResolvedValue(true);
 
         mockSetupUserWebsocket = jest.fn().mockResolvedValue(true);
 
@@ -546,8 +535,6 @@ describe('server-binance', () => {
 
         jest.mock('../cronjob/trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          lockSymbol: mockLockSymbol,
-          unlockSymbol: mockUnlockSymbol,
           cacheExchangeSymbols: mockCacheExchangeSymbols
         }));
 
@@ -607,9 +594,6 @@ describe('server-binance', () => {
         }
       });
 
-      mockLockSymbol = jest.fn().mockResolvedValue(true);
-      mockUnlockSymbol = jest.fn().mockResolvedValue(true);
-
       mockSetupUserWebsocket = jest.fn().mockResolvedValue(true);
 
       mockSyncCandles = jest.fn().mockResolvedValue(true);
@@ -643,8 +627,6 @@ describe('server-binance', () => {
 
       jest.mock('../cronjob/trailingTradeHelper/common', () => ({
         getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-        lockSymbol: mockLockSymbol,
-        unlockSymbol: mockUnlockSymbol,
         cacheExchangeSymbols: mockCacheExchangeSymbols
       }));
 
@@ -770,9 +752,6 @@ describe('server-binance', () => {
         }
       });
 
-      mockLockSymbol = jest.fn().mockResolvedValue(true);
-      mockUnlockSymbol = jest.fn().mockResolvedValue(true);
-
       mockSetupUserWebsocket = jest.fn().mockResolvedValue(true);
 
       mockSyncCandles = jest.fn().mockResolvedValue(true);
@@ -806,8 +785,6 @@ describe('server-binance', () => {
 
       jest.mock('../cronjob/trailingTradeHelper/common', () => ({
         getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-        lockSymbol: mockLockSymbol,
-        unlockSymbol: mockUnlockSymbol,
         cacheExchangeSymbols: mockCacheExchangeSymbols
       }));
 

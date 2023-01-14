@@ -69,7 +69,8 @@ describe('cancel-order.js', () => {
   it('triggers queue.execute', () => {
     expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
       correlationId: 'correlationId',
-      preprocessFn: expect.any(Function)
+      preprocessFn: expect.any(Function),
+      processFn: expect.any(Function)
     });
   });
 

@@ -42,58 +42,6 @@ describe('place-manual-trade.js', () => {
     mockSaveManualOrder = jest.fn().mockResolvedValue(true);
   });
 
-  describe('when symbol is locked', () => {
-    beforeEach(async () => {
-      jest.mock('../../../trailingTradeHelper/common', () => ({
-        getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-        getAPILimit: mockGetAPILimit,
-        getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
-      }));
-
-      jest.mock('../../../trailingTradeHelper/order', () => ({
-        saveManualOrder: mockSaveManualOrder
-      }));
-
-      const step = require('../place-manual-trade');
-
-      rawData = {
-        symbol: 'BTCUSDT',
-        action: 'manual-trade',
-        isLocked: true,
-        symbolConfiguration: {
-          system: {
-            checkManualOrderPeriod: 10
-          }
-        },
-        order: {}
-      };
-
-      result = await step.execute(loggerMock, rawData);
-    });
-
-    it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-      expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
-    });
-
-    it('does not trigger saveManualOrder', () => {
-      expect(mockSaveManualOrder).not.toHaveBeenCalled();
-    });
-
-    it('returns expected result', () => {
-      expect(result).toStrictEqual({
-        symbol: 'BTCUSDT',
-        action: 'manual-trade',
-        isLocked: true,
-        symbolConfiguration: {
-          system: {
-            checkManualOrderPeriod: 10
-          }
-        },
-        order: {}
-      });
-    });
-  });
-
   describe('when action is not manual-trade', () => {
     beforeEach(async () => {
       jest.mock('../../../trailingTradeHelper/common', () => ({
@@ -111,7 +59,6 @@ describe('place-manual-trade.js', () => {
       rawData = {
         symbol: 'BTCUSDT',
         action: 'buy-order-wait',
-        isLocked: false,
         symbolConfiguration: {
           system: {
             checkManualOrderPeriod: 10
@@ -135,7 +82,6 @@ describe('place-manual-trade.js', () => {
       expect(result).toStrictEqual({
         symbol: 'BTCUSDT',
         action: 'buy-order-wait',
-        isLocked: false,
         symbolConfiguration: {
           system: {
             checkManualOrderPeriod: 10
@@ -220,7 +166,6 @@ describe('place-manual-trade.js', () => {
       expectedData: {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
-        isLocked: false,
         symbolConfiguration: { system: { checkManualOrderPeriod: 10 } },
         buy: {
           openOrders: [
@@ -356,7 +301,6 @@ describe('place-manual-trade.js', () => {
       expectedData: {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
-        isLocked: false,
         symbolConfiguration: { system: { checkManualOrderPeriod: 10 } },
         buy: {
           openOrders: [],
@@ -450,7 +394,6 @@ describe('place-manual-trade.js', () => {
       expectedData: {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
-        isLocked: false,
         symbolConfiguration: { system: { checkManualOrderPeriod: 10 } },
         buy: {
           openOrders: [],
@@ -537,7 +480,6 @@ describe('place-manual-trade.js', () => {
       expectedData: {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
-        isLocked: false,
         symbolConfiguration: { system: { checkManualOrderPeriod: 10 } },
         buy: {
           openOrders: [],
@@ -631,7 +573,6 @@ describe('place-manual-trade.js', () => {
       expectedData: {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
-        isLocked: false,
         symbolConfiguration: { system: { checkManualOrderPeriod: 10 } },
         buy: {
           openOrders: [],
@@ -725,7 +666,6 @@ describe('place-manual-trade.js', () => {
       expectedData: {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
-        isLocked: false,
         symbolConfiguration: { system: { checkManualOrderPeriod: 10 } },
         buy: {
           openOrders: [],
@@ -788,7 +728,6 @@ describe('place-manual-trade.js', () => {
         rawData = {
           symbol: 'BTCUSDT',
           action: 'manual-trade',
-          isLocked: false,
           symbolConfiguration: {
             system: {
               checkManualOrderPeriod: 10
@@ -848,7 +787,6 @@ describe('place-manual-trade.js', () => {
       rawData = {
         symbol: 'BTCUSDT',
         action: 'manual-trade',
-        isLocked: false,
         symbolConfiguration: {
           system: {
             checkManualOrderPeriod: 10

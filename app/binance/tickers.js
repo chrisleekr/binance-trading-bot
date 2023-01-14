@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const _ = require('lodash');
 const { binance, cache } = require('../helpers');
 const queue = require('../cronjob/trailingTradeHelper/queue');
+const { executeTrailingTrade } = require('../cronjob/index');
 
 const {
   getAccountInfo,
@@ -78,7 +79,8 @@ const setupTickersWebsocket = async (logger, symbols) => {
           if (canExecuteTrailingTrade) {
             queue.execute(symbolLogger, monitoringSymbol, {
               correlationId,
-              preprocessFn: saveCandle
+              preprocessFn: saveCandle,
+              processFn: executeTrailingTrade
             });
           } else {
             saveCandle();

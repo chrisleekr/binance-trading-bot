@@ -18,9 +18,7 @@ describe('trailingTradeIndicator', () => {
   let mockGetTradingView;
   let mockSaveDataToCache;
 
-  let mockLockSymbol;
-  let mockIsSymbolLocked;
-  let mockUnlockSymbol;
+  let mockExecute;
   let mockGetAPILimit;
   let mockErrorHandlerWrapper;
 
@@ -55,6 +53,11 @@ describe('trailingTradeIndicator', () => {
     jest.mock('../../error-handler', () => ({
       errorHandlerWrapper: mockErrorHandlerWrapper
     }));
+
+    mockExecute = jest.fn((funcLogger, symbol, jobPayload) => {
+      if (!funcLogger || !symbol || !jobPayload) return false;
+      return jobPayload.processFn();
+    });
   });
 
   const mockSteps = () => {
@@ -157,120 +160,58 @@ describe('trailingTradeIndicator', () => {
     }));
   };
 
-  describe('without any error', () => {
-    beforeEach(async () => {
-      config.get = jest.fn(key => {
-        switch (key) {
-          case 'featureToggle':
-            return {
-              notifyOrderConfirm: true,
-              notifyDebug: false
-            };
-          default:
-            return `value-${key}`;
-        }
-      });
-
-      mockLockSymbol = jest.fn().mockResolvedValue(true);
-      mockIsSymbolLocked = jest.fn().mockResolvedValue(false);
-      mockUnlockSymbol = jest.fn().mockResolvedValue(true);
-
-      jest.mock('../trailingTradeHelper/common', () => ({
-        lockSymbol: mockLockSymbol,
-        isSymbolLocked: mockIsSymbolLocked,
-        unlockSymbol: mockUnlockSymbol,
-        getAPILimit: mockGetAPILimit
-      }));
-
-      mockSteps();
-
-      const {
-        execute: trailingTradeIndicatorExecute
-      } = require('../trailingTradeIndicator');
-
-      await trailingTradeIndicatorExecute(logger);
+  beforeEach(async () => {
+    config.get = jest.fn(key => {
+      switch (key) {
+        case 'featureToggle':
+          return {
+            notifyOrderConfirm: true,
+            notifyDebug: false
+          };
+        default:
+          return `value-${key}`;
+      }
     });
 
-    it('triggers isSymbolLocked', () => {
-      expect(mockIsSymbolLocked).toHaveBeenCalledWith(logger, 'BTCUSDT');
-    });
+    jest.mock('../trailingTradeHelper/common', () => ({
+      getAPILimit: mockGetAPILimit
+    }));
 
-    it('triggers lockSymbol', () => {
-      expect(mockLockSymbol).toHaveBeenCalledWith(logger, 'BTCUSDT');
-    });
+    jest.mock('../trailingTradeHelper/queue', () => ({
+      execute: mockExecute,
+      getAPILimit: mockGetAPILimit
+    }));
+    mockSteps();
 
-    it('triggers unlockSymbol', () => {
-      expect(mockUnlockSymbol).toHaveBeenCalledWith(logger, 'BTCUSDT');
-    });
+    const {
+      execute: trailingTradeIndicatorExecute
+    } = require('../trailingTradeIndicator');
 
-    it('returns expected result', () => {
-      expect(mockLoggerInfo).toHaveBeenCalledWith(
-        {
-          symbol: 'BTCUSDT',
-          data: {
-            action: 'override-action',
-            featureToggle: { notifyOrderConfirm: true, notifyDebug: false },
-            globalConfiguration: { global: 'configuration data' },
-            symbol: 'BTCUSDT',
-            symbolConfiguration: { symbol: 'configuration data' },
-            symbolInfo: { some: 'info' },
-            overrideParams: { param: 'overrided' },
-            quoteAssetStats: {},
-            apiLimit: { start: 10, end: 10 },
-            dustTransfer: 'dust-transfer',
-            getClosedTrades: 'executed',
-            getOrderStats: 'retrieved',
-            tradingView: 'retrieved',
-            saved: 'data-to-cache'
-          }
-        },
-        'TrailingTradeIndicator: Finish process...'
-      );
-    });
+    await trailingTradeIndicatorExecute(logger);
   });
 
-  describe('when symbol is locked', () => {
-    beforeEach(async () => {
-      mockLockSymbol = jest.fn().mockResolvedValue(true);
-      mockIsSymbolLocked = jest.fn().mockResolvedValue(true);
-      mockUnlockSymbol = jest.fn().mockResolvedValue(true);
-
-      jest.mock('../trailingTradeHelper/common', () => ({
-        lockSymbol: mockLockSymbol,
-        isSymbolLocked: mockIsSymbolLocked,
-        unlockSymbol: mockUnlockSymbol,
-        getAPILimit: mockGetAPILimit
-      }));
-
-      mockSteps();
-
-      const {
-        execute: trailingTradeIndicatorExecute
-      } = require('../trailingTradeIndicator');
-
-      await trailingTradeIndicatorExecute(logger);
-    });
-
-    it('triggers isSymbolLocked', () => {
-      expect(mockIsSymbolLocked).toHaveBeenCalledWith(logger, 'BTCUSDT');
-    });
-
-    it('does not trigger lockSymbol', () => {
-      expect(mockLockSymbol).not.toHaveBeenCalled();
-    });
-
-    it('does not trigger unlockSymbol', () => {
-      expect(mockUnlockSymbol).not.toHaveBeenCalled();
-    });
-
-    it('returns expected result', () => {
-      expect(mockLoggerInfo).toHaveBeenCalledWith(
-        {
-          debug: true,
-          symbol: 'BTCUSDT'
-        },
-        '⏯ TrailingTradeIndicator: Skip process as the symbol is currently locked.'
-      );
-    });
+  it('returns expected result', () => {
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      {
+        symbol: 'BTCUSDT',
+        data: {
+          action: 'override-action',
+          featureToggle: { notifyOrderConfirm: true, notifyDebug: false },
+          globalConfiguration: { global: 'configuration data' },
+          symbol: 'BTCUSDT',
+          symbolConfiguration: { symbol: 'configuration data' },
+          symbolInfo: { some: 'info' },
+          overrideParams: { param: 'overrided' },
+          quoteAssetStats: {},
+          apiLimit: { start: 10, end: 10 },
+          dustTransfer: 'dust-transfer',
+          getClosedTrades: 'executed',
+          getOrderStats: 'retrieved',
+          tradingView: 'retrieved',
+          saved: 'data-to-cache'
+        }
+      },
+      'TrailingTradeIndicator: Finish process...'
+    );
   });
 });

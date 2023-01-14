@@ -40,7 +40,6 @@ const execute = async (logger, rawData) => {
 
   const {
     symbol,
-    isLocked,
     symbolInfo: {
       filterLotSize: { stepSize, minQty, maxQty },
       filterMinNotional: { minNotional }
@@ -61,14 +60,6 @@ const execute = async (logger, rawData) => {
     sell: { currentPrice, openOrders },
     canDisable
   } = data;
-
-  if (isLocked) {
-    logger.info(
-      { isLocked },
-      'Symbol is locked, do not process place-sell-stop-loss-order'
-    );
-    return data;
-  }
 
   if (action !== 'sell-stop-loss') {
     logger.info(

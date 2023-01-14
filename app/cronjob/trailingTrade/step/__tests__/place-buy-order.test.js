@@ -63,7 +63,6 @@ describe('place-buy-order.js', () => {
 
       orgRawData = {
         symbol: 'BTCUPUSDT',
-        isLocked: false,
         featureToggle: {
           notifyDebug: true
         },
@@ -132,24 +131,6 @@ describe('place-buy-order.js', () => {
         expect(mockSaveOrderStats).not.toHaveBeenCalled();
       });
     };
-
-    describe('when symbol is locked', () => {
-      beforeEach(async () => {
-        const step = require('../place-buy-order');
-
-        // Set isLocked true
-        rawData = _.cloneDeep(orgRawData);
-        rawData.isLocked = true;
-
-        result = await step.execute(loggerMock, rawData);
-      });
-
-      doNotProcessTests();
-
-      it('retruns expected value', () => {
-        expect(result).toStrictEqual(rawData);
-      });
-    });
 
     describe('when action is not buy', () => {
       beforeEach(async () => {
@@ -1016,7 +997,6 @@ describe('place-buy-order.js', () => {
           symbol: 'BTCUPUSDT',
           rawData: {
             symbol: 'BTCUPUSDT',
-            isLocked: false,
             featureToggle: {
               notifyDebug: true
             },
@@ -1076,7 +1056,6 @@ describe('place-buy-order.js', () => {
           symbol: 'ETHBTC',
           rawData: {
             symbol: 'ETHBTC',
-            isLocked: false,
             featureToggle: {
               notifyDebug: true
             },
@@ -1136,7 +1115,6 @@ describe('place-buy-order.js', () => {
           symbol: 'ALPHABTC',
           rawData: {
             symbol: 'ALPHABTC',
-            isLocked: false,
             featureToggle: {
               notifyDebug: true
             },
@@ -1196,7 +1174,6 @@ describe('place-buy-order.js', () => {
           symbol: 'BTCBRL',
           rawData: {
             symbol: 'BTCBRL',
-            isLocked: false,
             featureToggle: {
               notifyDebug: true
             },
@@ -1277,7 +1254,6 @@ describe('place-buy-order.js', () => {
           symbol: '',
           rawData: {
             symbol: 'BTCUPUSDT',
-            isLocked: false,
             featureToggle: {
               notifyDebug: true
             },
@@ -1339,7 +1315,6 @@ describe('place-buy-order.js', () => {
           symbol: 'ETHBTC',
           rawData: {
             symbol: 'ETHBTC',
-            isLocked: false,
             featureToggle: {
               notifyDebug: true
             },
@@ -1401,7 +1376,6 @@ describe('place-buy-order.js', () => {
           symbol: 'ALPHABTC',
           rawData: {
             symbol: 'ALPHABTC',
-            isLocked: false,
             featureToggle: {
               notifyDebug: true
             },
@@ -1463,7 +1437,6 @@ describe('place-buy-order.js', () => {
           symbol: 'BTCBRL',
           rawData: {
             symbol: 'BTCBRL',
-            isLocked: false,
             featureToggle: {
               notifyDebug: true
             },
@@ -1658,7 +1631,6 @@ describe('place-buy-order.js', () => {
 
             rawData = {
               symbol: 'BTCUPUSDT',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: true
               },
@@ -1757,7 +1729,6 @@ describe('place-buy-order.js', () => {
             },
             rawData: {
               symbol: 'BTCUPUSDT',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: true
               },
@@ -1884,7 +1855,6 @@ describe('place-buy-order.js', () => {
             },
             rawData: {
               symbol: 'ETHBTC',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: true
               },
@@ -2013,7 +1983,6 @@ describe('place-buy-order.js', () => {
             },
             rawData: {
               symbol: 'ALPHABTC',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: true
               },
@@ -2142,7 +2111,6 @@ describe('place-buy-order.js', () => {
             },
             rawData: {
               symbol: 'BTCBRL',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: true
               },
@@ -2275,7 +2243,6 @@ describe('place-buy-order.js', () => {
             },
             rawData: {
               symbol: 'BNBUSDT',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: true
               },
@@ -2474,7 +2441,6 @@ describe('place-buy-order.js', () => {
             },
             rawData: {
               symbol: 'BTCUPUSDT',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: true
               },
@@ -2607,7 +2573,6 @@ describe('place-buy-order.js', () => {
             },
             rawData: {
               symbol: 'ETHBTC',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: true
               },
@@ -2740,7 +2705,6 @@ describe('place-buy-order.js', () => {
             },
             rawData: {
               symbol: 'ALPHABTC',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: false
               },
@@ -2873,7 +2837,6 @@ describe('place-buy-order.js', () => {
             },
             rawData: {
               symbol: 'BTCBRL',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: false
               },
@@ -3077,7 +3040,6 @@ describe('place-buy-order.js', () => {
 
           rawData = _.cloneDeep({
             symbol: 'BTCUPUSDT',
-            isLocked: false,
             featureToggle: {
               notifyDebug: true,
               notifyOrderConfirm: false
