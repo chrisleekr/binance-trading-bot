@@ -39,7 +39,6 @@ describe('determine-action.js', () => {
       orgRawData = {
         action: 'not-determined',
         symbol: 'BTCUSDT',
-        isLocked: false,
         symbolInfo: {
           baseAsset: 'BTC',
           filterLotSize: { stepSize: '0.00000100' },
@@ -108,21 +107,6 @@ describe('determine-action.js', () => {
         },
         tradingView: {}
       };
-    });
-
-    describe('when symbol is locked', () => {
-      beforeEach(async () => {
-        rawData = _.cloneDeep(orgRawData);
-        rawData.isLocked = true;
-
-        step = require('../determine-action');
-
-        result = await step.execute(loggerMock, rawData);
-      });
-
-      it('returns same data', () => {
-        expect(result).toStrictEqual(rawData);
-      });
     });
 
     describe('when action is buy-order-wait', () => {

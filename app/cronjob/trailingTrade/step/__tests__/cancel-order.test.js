@@ -41,34 +41,6 @@ describe('cancel-order.js', () => {
       }));
     });
 
-    describe('when symbol is locked', () => {
-      beforeEach(async () => {
-        jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAPILimit: mockGetAPILimit,
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol,
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI
-        }));
-
-        const step = require('../cancel-order');
-        rawData = {
-          symbol: 'BTCUSDT',
-          isLocked: true,
-          action: 'cancel-order',
-          order: {}
-        };
-
-        result = await step.execute(loggerMock, rawData);
-      });
-
-      it('does not trigger binance.client.cancelOrder', () => {
-        expect(binanceMock.client.cancelOrder).not.toHaveBeenCalled();
-      });
-
-      it('returns expected value', () => {
-        expect(result).toStrictEqual(rawData);
-      });
-    });
-
     describe('when action is not cancel-order', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
@@ -80,7 +52,6 @@ describe('cancel-order.js', () => {
         const step = require('../cancel-order');
         rawData = {
           symbol: 'BTCUSDT',
-          isLocked: false,
           action: 'buy-order-wait',
           order: {}
         };
@@ -120,7 +91,6 @@ describe('cancel-order.js', () => {
           const step = require('../cancel-order');
           rawData = {
             symbol: 'BTCUSDT',
-            isLocked: false,
             action: 'cancel-order',
             accountInfo: {
               existing: 'data'
@@ -178,7 +148,6 @@ describe('cancel-order.js', () => {
         it('returns expected value', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
-            isLocked: false,
             action: 'cancel-order',
             accountInfo: {
               account: 'info'
@@ -232,7 +201,6 @@ describe('cancel-order.js', () => {
           const step = require('../cancel-order');
           rawData = {
             symbol: 'BTCUSDT',
-            isLocked: false,
             action: 'cancel-order',
             accountInfo: {
               existing: 'data'
@@ -290,7 +258,6 @@ describe('cancel-order.js', () => {
         it('returns expected value', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
-            isLocked: false,
             action: 'cancel-order',
             accountInfo: {
               account: 'info'

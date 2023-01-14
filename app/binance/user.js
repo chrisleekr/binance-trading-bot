@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const _ = require('lodash');
 const { binance } = require('../helpers');
 const queue = require('../cronjob/trailingTradeHelper/queue');
+const { executeTrailingTrade } = require('../cronjob/index');
 
 const {
   updateAccountInfo,
@@ -121,7 +122,8 @@ const setupUserWebsocket = async logger => {
 
       queue.execute(symbolLogger, symbol, {
         correlationId,
-        preprocessFn: checkLastOrder
+        preprocessFn: checkLastOrder,
+        processFn: executeTrailingTrade
       });
 
       const checkManualOrder = async () => {
@@ -155,7 +157,8 @@ const setupUserWebsocket = async logger => {
 
       queue.execute(symbolLogger, symbol, {
         correlationId,
-        preprocessFn: checkManualOrder
+        preprocessFn: checkManualOrder,
+        processFn: executeTrailingTrade
       });
     }
   });

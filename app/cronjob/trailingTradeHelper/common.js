@@ -321,50 +321,6 @@ const removeLastBuyPrice = async (logger, symbol) => {
 };
 
 /**
- * Lock symbol
- *
- * @param {*} logger
- * @param {*} symbol
- * @param {*} ttl
- *
- * @returns
- */
-const lockSymbol = async (logger, symbol, ttl = 5) => {
-  logger.info({ symbol }, `Lock ${symbol} for ${ttl} seconds`);
-  return cache.hset('bot-lock', symbol, true, ttl);
-};
-
-/**
- * Check if symbol is locked
- *
- * @param {*} logger
- * @param {*} symbol
- * @returns
- */
-const isSymbolLocked = async (logger, symbol) => {
-  const isLocked = (await cache.hget('bot-lock', symbol)) === 'true';
-
-  if (isLocked === true) {
-    logger.info({ symbol, isLocked }, `🔒 Symbol is locked - ${symbol}`);
-  } else {
-    logger.info({ symbol, isLocked }, `🔓 Symbol is not locked - ${symbol} `);
-  }
-  return isLocked;
-};
-
-/**
- * Unlock symbol
- *
- * @param {*} logger
- * @param {*} symbol
- * @returns
- */
-const unlockSymbol = async (logger, symbol) => {
-  logger.info({ symbol }, `Unlock ${symbol}`);
-  return cache.hdel('bot-lock', symbol);
-};
-
-/**
  * Disable action
  *
  * @param {*} logger
@@ -1179,9 +1135,6 @@ module.exports = {
   getLastBuyPrice,
   saveLastBuyPrice,
   removeLastBuyPrice,
-  lockSymbol,
-  isSymbolLocked,
-  unlockSymbol,
   disableAction,
   isActionDisabled,
   deleteDisableAction,

@@ -41,7 +41,6 @@ const execute = async (logger, rawData) => {
 
   const {
     symbol,
-    isLocked,
     featureToggle: { notifyDebug, notifyOrderConfirm },
     symbolInfo: {
       baseAsset,
@@ -61,14 +60,6 @@ const execute = async (logger, rawData) => {
     overrideData
   } = data;
   const humanisedGridTradeIndex = currentGridTradeIndex + 1;
-
-  if (isLocked) {
-    logger.info(
-      { isLocked },
-      'Symbol is locked, do not process place-buy-order'
-    );
-    return data;
-  }
 
   if (action !== 'buy') {
     logger.info(`Do not process a buy order because action is not 'buy'.`);

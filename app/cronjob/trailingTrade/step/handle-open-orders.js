@@ -19,19 +19,10 @@ const execute = async (logger, rawData) => {
   const {
     symbol,
     action,
-    isLocked,
     openOrders,
     buy: { limitPrice: buyLimitPrice, currentPrice: buyCurrentPrice },
     sell: { limitPrice: sellLimitPrice, currentPrice: sellCurrentPrice }
   } = data;
-
-  if (isLocked) {
-    logger.info(
-      { isLocked },
-      'Symbol is locked, do not process handle-open-orders'
-    );
-    return data;
-  }
 
   if (action !== 'not-determined') {
     logger.info(

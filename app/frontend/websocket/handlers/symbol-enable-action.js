@@ -3,6 +3,7 @@ const {
   deleteDisableAction
 } = require('../../../cronjob/trailingTradeHelper/common');
 const queue = require('../../../cronjob/trailingTradeHelper/queue');
+const { executeTrailingTrade } = require('../../../cronjob/index');
 
 const handleSymbolEnableAction = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol enable action');
@@ -17,7 +18,8 @@ const handleSymbolEnableAction = async (logger, ws, payload) => {
 
   queue.execute(logger, symbol, {
     correlationId: _.get(logger, 'fields.correlationId', ''),
-    preprocessFn: deleteDisableActionFn
+    preprocessFn: deleteDisableActionFn,
+    processFn: executeTrailingTrade
   });
 
   ws.send(

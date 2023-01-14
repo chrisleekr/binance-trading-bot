@@ -143,6 +143,10 @@
           "maxLossPercentage": 0.8,
           "disableBuyMinutes": 360,
           "orderType": "market"
+        },
+        "conservativeMode": {
+          "enabled": false,
+          "factor": 0.5
         }
       },
       "system": {

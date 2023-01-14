@@ -160,9 +160,13 @@ class CoinWrapperSellSignal extends React.Component {
                 <div
                   className='coin-info-label d-flex flex-row justify-content-start'
                   style={{ flex: '0 100%' }}>
-                  <span>
-                    &#62; Trigger price (
-                    {(parseFloat(grid.triggerPercentage - 1) * 100).toFixed(2)}
+                  <span
+                    className={
+                      sell.conservativeModeApplicable ? 'text-warning' : ''
+                    }>
+                    &#62; {sell.conservativeModeApplicable ? 'Reduced' : ''}{' '}
+                    Trigger price (
+                    {(parseFloat(sell.triggerPercentage - 1) * 100).toFixed(2)}
                     %):
                   </span>
                 </div>
@@ -187,45 +191,41 @@ class CoinWrapperSellSignal extends React.Component {
             )}
 
             {grid.executed && grid.executedOrder.currentGridTradeIndex === i ? (
-                <div
-                    className={`coin-info-content-setting ${
-                        collapsed ? 'd-none' : ''
-                    }`}>
-                  <div className='coin-info-column coin-info-column-order'>
-                    <span className='coin-info-label'>
-                      - Sold date:
-                    </span>
-                    <div className='coin-info-value'>
-                      {moment(grid.executedOrder.transactTime).format('YYYY-MM-DD HH:mm')}
-                    </div>
-                  </div>
-                  <div className='coin-info-column coin-info-column-order'>
-                    <span className='coin-info-label'>
-                      - Sold price:
-                    </span>
-                    <div className='coin-info-value'>
-                      {parseFloat(grid.executedOrder.price).toFixed(precision)}
-                    </div>
-                  </div>
-                  <div className='coin-info-column coin-info-column-order'>
-                    <span className='coin-info-label'>
-                      - Sold qty:
-                    </span>
-                    <div className='coin-info-value'>
-                      {parseFloat(grid.executedOrder.executedQty)}
-                    </div>
-                  </div>
-                  <div className='coin-info-column coin-info-column-order'>
-                    <span className='coin-info-label'>
-                      - Sold amount:
-                    </span>
-                    <div className='coin-info-value'>
-                      {parseFloat(grid.executedOrder.cummulativeQuoteQty).toFixed(precision)}
-                    </div>
+              <div
+                className={`coin-info-content-setting ${
+                  collapsed ? 'd-none' : ''
+                }`}>
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>- Sold date:</span>
+                  <div className='coin-info-value'>
+                    {moment(grid.executedOrder.transactTime).format(
+                      'YYYY-MM-DD HH:mm'
+                    )}
                   </div>
                 </div>
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>- Sold price:</span>
+                  <div className='coin-info-value'>
+                    {parseFloat(grid.executedOrder.price).toFixed(precision)}
+                  </div>
+                </div>
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>- Sold qty:</span>
+                  <div className='coin-info-value'>
+                    {parseFloat(grid.executedOrder.executedQty)}
+                  </div>
+                </div>
+                <div className='coin-info-column coin-info-column-order'>
+                  <span className='coin-info-label'>- Sold amount:</span>
+                  <div className='coin-info-value'>
+                    {parseFloat(grid.executedOrder.cummulativeQuoteQty).toFixed(
+                      precision
+                    )}
+                  </div>
+                </div>
+              </div>
             ) : (
-                ''
+              ''
             )}
 
             <div
@@ -237,7 +237,7 @@ class CoinWrapperSellSignal extends React.Component {
                   - Trigger price percentage:
                 </span>
                 <div className='coin-info-value'>
-                  {((grid.triggerPercentage - 1) * 100).toFixed(2)}%
+                  {((sell.triggerPercentage - 1) * 100).toFixed(2)}%
                 </div>
               </div>
               <div className='coin-info-column coin-info-column-order'>
@@ -275,7 +275,19 @@ class CoinWrapperSellSignal extends React.Component {
         <div className='coin-info-sub-wrapper'>
           <div className='coin-info-column coin-info-column-title'>
             <div className='coin-info-label'>
-              Sell Signal{' '}
+              {symbolConfiguration.sell.conservativeMode.enabled &&
+              symbolConfiguration.sell.enabled ? (
+                <span>
+                  Conservative Sell (
+                  {(
+                    (1 - symbolConfiguration.sell.conservativeMode.factor) *
+                    100
+                  ).toFixed(0)}
+                  %){' '}
+                </span>
+              ) : (
+                <span>Sell Signal </span>
+              )}
               <span className='coin-info-value'>
                 {symbolConfiguration.sell.enabled ? (
                   <i className='fas fa-toggle-on'></i>
@@ -380,7 +392,19 @@ class CoinWrapperSellSignal extends React.Component {
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title'>
           <div className='coin-info-label'>
-            Sell Signal{' '}
+            {symbolConfiguration.sell.conservativeMode.enabled &&
+            symbolConfiguration.sell.enabled ? (
+              <span>
+                Conservative Sell (
+                {(
+                  (1 - symbolConfiguration.sell.conservativeMode.factor) *
+                  100
+                ).toFixed(0)}
+                %){' '}
+              </span>
+            ) : (
+              <span>Sell Signal </span>
+            )}
             <span className='coin-info-value'>
               {symbolConfiguration.sell.enabled ? (
                 <i className='fas fa-toggle-on'></i>

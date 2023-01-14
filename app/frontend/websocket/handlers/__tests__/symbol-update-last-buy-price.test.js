@@ -69,6 +69,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
         expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
           correlationId: 'correlationId',
           preprocessFn: expect.any(Function),
+          processFn: expect.any(Function),
           postprocessFn: expect.any(Function)
         });
       });
@@ -224,6 +225,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
             expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
               correlationId: 'correlationId',
               preprocessFn: expect.any(Function),
+              processFn: expect.any(Function),
               postprocessFn: expect.any(Function)
             });
           });
@@ -320,6 +322,7 @@ describe('symbol-update-last-buy-price.test.js', () => {
             expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'BTCUSDT', {
               correlationId: 'correlationId',
               preprocessFn: expect.any(Function),
+              processFn: expect.any(Function),
               postprocessFn: expect.any(Function)
             });
           });

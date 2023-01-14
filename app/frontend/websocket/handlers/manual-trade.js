@@ -4,6 +4,7 @@ const {
   saveOverrideAction
 } = require('../../../cronjob/trailingTradeHelper/common');
 const queue = require('../../../cronjob/trailingTradeHelper/queue');
+const { executeTrailingTrade } = require('../../../cronjob/index');
 
 const handleManualTrade = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start manual trade');
@@ -28,7 +29,8 @@ const handleManualTrade = async (logger, ws, payload) => {
 
   queue.execute(logger, symbol, {
     correlationId: _.get(logger, 'fields.correlationId', ''),
-    preprocessFn: saveOverrideActionFn
+    preprocessFn: saveOverrideActionFn,
+    processFn: executeTrailingTrade
   });
 
   ws.send(

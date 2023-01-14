@@ -9,6 +9,7 @@ const {
 } = require('../../../cronjob/trailingTradeHelper/configuration');
 
 const queue = require('../../../cronjob/trailingTradeHelper/queue');
+const { executeTrailingTrade } = require('../../../cronjob/index');
 
 const handleSymbolGridTradeDelete = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start grid trade delete');
@@ -43,7 +44,8 @@ const handleSymbolGridTradeDelete = async (logger, ws, payload) => {
 
   queue.execute(logger, symbol, {
     correlationId: _.get(logger, 'fields.correlationId', ''),
-    preprocessFn: deleteSymbolGridTradeFn
+    preprocessFn: deleteSymbolGridTradeFn,
+    processFn: executeTrailingTrade
   });
 
   ws.send(

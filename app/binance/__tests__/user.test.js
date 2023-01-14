@@ -362,7 +362,8 @@ describe('user.js', () => {
           it('triggers queue.execute', () => {
             expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'ETHUSDT', {
               correlationId: expect.any(String),
-              preprocessFn: expect.any(Function)
+              preprocessFn: expect.any(Function),
+              processFn: expect.any(Function)
             });
           });
 
@@ -680,7 +681,8 @@ describe('user.js', () => {
         it('triggers queue.execute', () => {
           expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'ETHUSDT', {
             correlationId: expect.any(String),
-            preprocessFn: expect.any(Function)
+            preprocessFn: expect.any(Function),
+            processFn: expect.any(Function)
           });
         });
 
