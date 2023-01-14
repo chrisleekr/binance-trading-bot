@@ -1184,6 +1184,138 @@ class SymbolSettingIcon extends React.Component {
                             </Card>
                           </Accordion>
                         </div>
+
+                        <div className='col-12'>
+                          <Accordion defaultActiveKey='0'>
+                            <Card className='mt-1'>
+                              <Card.Header className='px-2 py-1'>
+                                <Accordion.Toggle
+                                  as={Button}
+                                  variant='link'
+                                  eventKey='0'
+                                  className='p-0 fs-7 text-uppercase'>
+                                  Conservative mode
+                                </Accordion.Toggle>
+                              </Card.Header>
+                              <Accordion.Collapse eventKey='0'>
+                                <Card.Body className='px-2 py-1'>
+                                  <div className='row'>
+                                    <div className='col-12'>
+                                      <Form.Group
+                                        controlId='field-sell-conservative-enabled'
+                                        className='mb-2'>
+                                        <Form.Check size='sm'>
+                                          <Form.Check.Input
+                                            type='checkbox'
+                                            data-state-key='sell.conservativeMode.enabled'
+                                            checked={
+                                              symbolConfiguration.sell
+                                                .conservativeMode.enabled
+                                            }
+                                            onChange={this.handleInputChange}
+                                          />
+                                          <Form.Check.Label>
+                                            Reduce the sell trigger price
+                                            proportionally to the number of
+                                            executed buy grids - applies only to
+                                            grids with at least 2 executed buy
+                                            trades{' '}
+                                            <OverlayTrigger
+                                              trigger='click'
+                                              key='sell-conservative-enabled-overlay'
+                                              placement='bottom'
+                                              overlay={
+                                                <Popover id='sell-conservative-enabled-overlay-right'>
+                                                  <Popover.Content>
+                                                    If enabled, the bot will
+                                                    sell at a trigger price
+                                                    reduced by the conservative
+                                                    ratio for each executed buy
+                                                    grid. You can use this
+                                                    feature in bear market
+                                                    conditions to secure smaller
+                                                    benefits over unreached
+                                                    higher gains. At least 2 buy
+                                                    trades must have been
+                                                    executed for the ratio to be
+                                                    applied.
+                                                  </Popover.Content>
+                                                </Popover>
+                                              }>
+                                              <Button
+                                                variant='link'
+                                                className='p-0 m-0 ml-1 text-info'>
+                                                <i className='fas fa-question-circle fa-sm'></i>
+                                              </Button>
+                                            </OverlayTrigger>
+                                          </Form.Check.Label>
+                                        </Form.Check>
+                                      </Form.Group>
+                                    </div>
+                                    <div className='col-xs-12 col-sm-6'>
+                                      <Form.Group
+                                        controlId='field-sell-conservative-factor'
+                                        className='mb-2'>
+                                        <Form.Label className='mb-0'>
+                                          Conservative ratio{' '}
+                                          <OverlayTrigger
+                                            trigger='click'
+                                            key='sell-conservative-factor-overlay'
+                                            placement='bottom'
+                                            overlay={
+                                              <Popover id='sell-conservative-factor-overlay-right'>
+                                                <Popover.Content>
+                                                  Set the conservative factor to
+                                                  be applied on sell trades with
+                                                  at least 2 executed buy grids.
+                                                  i.e. if set to{' '}
+                                                  <code>0.90</code>, your
+                                                  current grid sell percentage
+                                                  will be reduced by{' '}
+                                                  <code>10%</code> for each
+                                                  executed buy grid (except the
+                                                  first one). For example, if
+                                                  your sell trigger percentage
+                                                  is <code>1.10</code>, and you
+                                                  have 3 executed buy grids, the
+                                                  sell order trigger will be{' '}
+                                                  <code>1.081</code>. Remember
+                                                  the sell trigger is not
+                                                  modified if you have only 1
+                                                  executed buy grid.
+                                                </Popover.Content>
+                                              </Popover>
+                                            }>
+                                            <Button
+                                              variant='link'
+                                              className='p-0 m-0 ml-1 text-info'>
+                                              <i className='fas fa-question-circle fa-sm'></i>
+                                            </Button>
+                                          </OverlayTrigger>
+                                        </Form.Label>
+                                        <Form.Control
+                                          size='sm'
+                                          type='number'
+                                          placeholder='Enter conservative factor'
+                                          required
+                                          max='1'
+                                          min='0'
+                                          step='0.01'
+                                          data-state-key='sell.conservativeMode.factor'
+                                          value={
+                                            symbolConfiguration.sell
+                                              .conservativeMode.factor
+                                          }
+                                          onChange={this.handleInputChange}
+                                        />
+                                      </Form.Group>
+                                    </div>
+                                  </div>
+                                </Card.Body>
+                              </Accordion.Collapse>
+                            </Card>
+                          </Accordion>
+                        </div>
                       </div>
                     </Card.Body>
                   </Accordion.Collapse>
