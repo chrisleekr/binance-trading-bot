@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const _ = require('lodash');
 const queue = require('../cronjob/trailingTradeHelper/queue');
+const { executeTrailingTrade } = require('../cronjob/index');
 const { binance, mongo } = require('../helpers');
 const {
   getConfiguration
@@ -116,7 +117,8 @@ const syncCandles = async (logger, symbols) => {
 
       queue.execute(logger, symbol, {
         correlationId: uuidv4(),
-        preprocessFn: getCandles
+        preprocessFn: getCandles,
+        processFn: executeTrailingTrade
       });
     })
   );

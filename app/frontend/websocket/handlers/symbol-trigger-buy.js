@@ -4,6 +4,7 @@ const {
   saveOverrideAction
 } = require('../../../cronjob/trailingTradeHelper/common');
 const queue = require('../../../cronjob/trailingTradeHelper/queue');
+const { executeTrailingTrade } = require('../../../cronjob/index');
 
 const handleSymbolTriggerBuy = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start symbol trigger buy');
@@ -30,7 +31,8 @@ const handleSymbolTriggerBuy = async (logger, ws, payload) => {
 
   queue.execute(logger, symbol, {
     correlationId: _.get(logger, 'fields.correlationId', ''),
-    preprocessFn: saveOverrideActionFn
+    preprocessFn: saveOverrideActionFn,
+    processFn: executeTrailingTrade
   });
 
   ws.send(JSON.stringify({ result: true, type: 'symbol-trigger-buy-result' }));

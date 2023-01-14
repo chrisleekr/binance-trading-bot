@@ -236,12 +236,7 @@ const recordOrder = async (logger, orderResult) => {
  */
 const execute = async (logger, rawData) => {
   const data = rawData;
-  const { symbol, isLocked, action, baseAssetBalance, order } = data;
-
-  if (isLocked) {
-    logger.info({ isLocked }, 'Symbol is locked, do not process manual-trade');
-    return data;
-  }
+  const { symbol, action, baseAssetBalance, order } = data;
 
   if (action !== 'manual-trade') {
     logger.info(

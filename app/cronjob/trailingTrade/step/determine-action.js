@@ -416,7 +416,6 @@ const execute = async (logger, rawData) => {
   const {
     action,
     symbol,
-    isLocked,
     symbolInfo: { baseAsset },
     symbolConfiguration: {
       buy: { currentGridTradeIndex: currentBuyGridTradeIndex },
@@ -426,14 +425,6 @@ const execute = async (logger, rawData) => {
 
   const humanisedBuyGridTradeIndex = currentBuyGridTradeIndex + 1;
   const humanisedSellGridTradeIndex = currentSellGridTradeIndex + 1;
-
-  if (isLocked) {
-    logger.info(
-      { isLocked },
-      'Symbol is locked, do not process determine-action'
-    );
-    return data;
-  }
 
   if (action !== 'not-determined') {
     logger.info(

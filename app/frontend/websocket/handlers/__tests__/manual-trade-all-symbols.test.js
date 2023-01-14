@@ -317,7 +317,8 @@ describe('manual-trade-all-symbols.js', () => {
               it('triggers queue.execute', () => {
                 expect(mockExecute).toHaveBeenCalledWith(loggerMock, symbol, {
                   correlationId: 'correlationId',
-                  preprocessFn: expect.any(Function)
+                  preprocessFn: expect.any(Function),
+                  processFn: expect.any(Function)
                 });
               });
             } else {
@@ -420,7 +421,8 @@ describe('manual-trade-all-symbols.js', () => {
                   'BTCUSDT',
                   {
                     correlationId: 'correlationId',
-                    preprocessFn: expect.any(Function)
+                    preprocessFn: expect.any(Function),
+                    processFn: expect.any(Function)
                   }
                 );
               });

@@ -1,11 +1,7 @@
 const config = require('config');
+const queue = require('./trailingTradeHelper/queue');
 
-const {
-  lockSymbol,
-  isSymbolLocked,
-  unlockSymbol,
-  getAPILimit
-} = require('./trailingTradeHelper/common');
+const { getAPILimit } = require('./trailingTradeHelper/common');
 
 const {
   getGlobalConfiguration,
@@ -49,63 +45,56 @@ const execute = async logger => {
       '▶ TrailingTradeIndicator: Start process...'
     );
 
-    // Check if the symbol is locked, if it is locked, it means the symbol is still trading.
-    if ((await isSymbolLocked(logger, symbol)) === true) {
-      logger.info(
-        { debug: true, symbol },
-        '⏯ TrailingTradeIndicator: Skip process as the symbol is currently locked.'
-      );
-      return;
-    }
-    // Lock symbol for processing
-    await lockSymbol(logger, symbol);
+    const executeTrailingTradeIndicatorFn = async () => {
+      // eslint-disable-next-line no-restricted-syntax
+      for (const { stepName, stepFunc } of [
+        {
+          stepName: 'get-symbol-configuration',
+          stepFunc: getSymbolConfiguration
+        },
+        {
+          stepName: 'get-override-action',
+          stepFunc: getOverrideAction
+        },
+        {
+          stepName: 'execute-dust-transfer',
+          stepFunc: executeDustTransfer
+        },
+        {
+          stepName: 'get-symbol-info',
+          stepFunc: getSymbolInfo
+        },
+        {
+          stepName: 'get-closed-trades',
+          stepFunc: getClosedTrades
+        },
+        {
+          stepName: 'get-order-stats',
+          stepFunc: getOrderStats
+        },
+        {
+          stepName: 'get-tradingview',
+          stepFunc: getTradingView
+        },
+        {
+          stepName: 'save-data-to-cache',
+          stepFunc: saveDataToCache
+        }
+      ]) {
+        const stepLogger = logger.child({ stepName, symbol: data.symbol });
 
-    // eslint-disable-next-line no-restricted-syntax
-    for (const { stepName, stepFunc } of [
-      {
-        stepName: 'get-symbol-configuration',
-        stepFunc: getSymbolConfiguration
-      },
-      {
-        stepName: 'get-override-action',
-        stepFunc: getOverrideAction
-      },
-      {
-        stepName: 'execute-dust-transfer',
-        stepFunc: executeDustTransfer
-      },
-      {
-        stepName: 'get-symbol-info',
-        stepFunc: getSymbolInfo
-      },
-      {
-        stepName: 'get-closed-trades',
-        stepFunc: getClosedTrades
-      },
-      {
-        stepName: 'get-order-stats',
-        stepFunc: getOrderStats
-      },
-      {
-        stepName: 'get-tradingview',
-        stepFunc: getTradingView
-      },
-      {
-        stepName: 'save-data-to-cache',
-        stepFunc: saveDataToCache
+        stepLogger.info({ data }, `Start step - ${stepName}`);
+
+        // eslint-disable-next-line no-await-in-loop
+        data = await stepFunc(stepLogger, data);
+        stepLogger.info({ data }, `Finish step - ${stepName}`);
       }
-    ]) {
-      const stepLogger = logger.child({ stepName, symbol: data.symbol });
+    };
 
-      stepLogger.info({ data }, `Start step - ${stepName}`);
-
-      // eslint-disable-next-line no-await-in-loop
-      data = await stepFunc(stepLogger, data);
-      stepLogger.info({ data }, `Finish step - ${stepName}`);
-    }
-
-    // Unlock symbol for processing
-    await unlockSymbol(logger, symbol);
+    // Prepare job for processing
+    await queue.execute(logger, symbol, {
+      processFn: executeTrailingTradeIndicatorFn
+    });
 
     data.apiLimit.end = getAPILimit(logger);
 

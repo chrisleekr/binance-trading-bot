@@ -1,29 +1,7 @@
 const _ = require('lodash');
-const { executeTrailingTrade } = require('../index');
 
 const startedJobs = {};
 const finishedJobs = {};
-
-/**
- * Initialize queue counters for symbols
- *
- * @param {*} funcLogger
- * @param {*} symbol
- */
-const init = async (funcLogger, symbols) => {
-  const logger = funcLogger.child({ helper: 'queue' });
-
-  await Promise.all(
-    _.map(symbols, async symbol => {
-      if (startedJobs[symbol] === undefined) {
-        startedJobs[symbol] = 0;
-        finishedJobs[symbol] = 0;
-      }
-    })
-  );
-
-  logger.info({ symbols }, `Queue initialized`);
-};
 
 /**
  * Prepare the job in queue
@@ -35,11 +13,12 @@ const init = async (funcLogger, symbols) => {
 const prepareJob = async (funcLogger, symbol, _jobPayload) => {
   const logger = funcLogger.child({ helper: 'queue', func: 'prepareJob' });
 
-  // Queue structures existence check
-  if (!(symbol in startedJobs)) {
-    // Can't queue a job without queue initialized
-    logger.error({ symbol }, `No queue created for ${symbol}`);
-    return true; // completed
+  // Initialize queue for symbol if not yet initialized
+  if (startedJobs[symbol] === undefined) {
+    startedJobs[symbol] = 0;
+    finishedJobs[symbol] = 0;
+
+    logger.info({ symbol }, `Queue ${symbol} initialized`);
   }
 
   // Start a new job - wait if previous job is still running
@@ -75,7 +54,7 @@ const executeJob = async (funcLogger, symbol, jobPayload) => {
     const result = await jobPayload.preprocessFn();
 
     if (result === false) {
-      logger.info({ symbol }, `Queue ${symbol} job not preprocessed`);
+      logger.info({ symbol }, `Queue ${symbol} job done`);
       return false; // continue
     }
 
@@ -83,11 +62,14 @@ const executeJob = async (funcLogger, symbol, jobPayload) => {
   }
 
   // Execute the job
-  await executeTrailingTrade(
-    funcLogger,
-    symbol,
-    _.get(jobPayload, 'correlationId')
-  );
+  if (jobPayload.processFn) {
+    // processFn
+    await jobPayload.processFn(
+      funcLogger,
+      symbol,
+      _.get(jobPayload, 'correlationId')
+    );
+  }
 
   // Postprocess after executeTrailingTrade
   if (jobPayload.postprocessFn) {
@@ -147,6 +129,7 @@ const execute = async (funcLogger, symbol, jobPayload = {}) => {
 };
 
 module.exports = {
-  init,
+  prepareJob,
+  completeJob,
   execute
 };
