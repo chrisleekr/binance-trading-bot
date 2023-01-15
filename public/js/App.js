@@ -303,6 +303,19 @@ class App extends React.Component {
   }
 
   setSearchKeyword(searchKeyword) {
+    if (searchKeyword)
+      this.toast({
+        type: 'success',
+        title: `Filtering assets with ${searchKeyword}`
+      });
+    else
+      this.toast({
+        type: 'success',
+        title: this.state.selectedSortOption.hideInactive
+          ? 'Showing active symbols'
+          : 'Showing all symbols'
+      });
+
     this.setState({
       searchKeyword,
       page: 1
@@ -481,6 +494,7 @@ class App extends React.Component {
                 dustTransfer={dustTransfer}
                 sendWebSocket={this.sendWebSocket}
                 totalProfitAndLoss={totalProfitAndLoss}
+                setSearchKeyword={this.setSearchKeyword}
               />
               <ProfitLossWrapper
                 isAuthenticated={isAuthenticated}
@@ -493,6 +507,8 @@ class App extends React.Component {
               <OrderStats
                 orderStats={orderStats}
                 selectedSortOption={selectedSortOption}
+                searchKeyword={searchKeyword}
+                setSearchKeyword={this.setSearchKeyword}
               />
             </div>
             <Pagination>{paginationItems}</Pagination>

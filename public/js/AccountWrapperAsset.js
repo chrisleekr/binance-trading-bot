@@ -22,6 +22,16 @@ class AccountWrapperAsset extends React.Component {
                 5
               )}{' '}
               {balance.asset}
+              {isQuoteAsset === false && balance.quote === null ? (
+                ''
+              ) : (
+                <button
+                  type='button'
+                  className='btn btn-sm ml-1 mb-1 text-white'
+                  onClick={() => this.props.setFilter(balance.asset)}>
+                  <i className={'fas fa-search fa-sm'}></i>
+                </button>
+              )}
             </span>
             {balance.quote !== null ? (
               <span className='text-right text-success font-weight-bold'>
