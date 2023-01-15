@@ -18,7 +18,7 @@ class OrderStats extends React.Component {
               orderStats.numberOfBuyOpenOrders ? '' : 'btn-span-disabled'
             }`}
             onClick={() => this.props.setSearchKeyword('open orders')}>
-            <span className='order-stat-label'>Open Orders - Buy</span>
+            <span className='order-stat-label'>Open Buy Orders</span>
             <span className='order-stat-value text-info'>
               {orderStats.numberOfBuyOpenOrders}
             </span>
@@ -42,13 +42,14 @@ class OrderStats extends React.Component {
             <span className='order-stat-label'>Filtering</span>
             <span className='order-stat-value text-info text-capitalize'>
               {searchKeyword}
+
+              <button
+                type='button'
+                className={'btn btn-span p-0 pl-1 text-white'}
+                onClick={() => this.props.setSearchKeyword()}>
+                <i className='fas fa-times-circle'></i>
+              </button>
             </span>
-            <button
-              type='button'
-              className={'btn btn-span p-0 pl-1 text-white'}
-              onClick={() => this.props.setSearchKeyword()}>
-              <i className='fas fa-times-circle'></i>
-            </button>
           </div>
         ) : (
           ''
