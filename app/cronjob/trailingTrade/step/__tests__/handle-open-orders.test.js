@@ -615,7 +615,7 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
-              action: 'buy',
+              action: 'buy-order-cancelled',
               openOrders: [
                 {
                   symbol: 'BTCUSDT',
@@ -846,7 +846,7 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
-              action: 'buy',
+              action: 'buy-order-cancelled',
               openOrders: [
                 {
                   symbol: 'BTCUSDT',
