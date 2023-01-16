@@ -109,7 +109,6 @@ class FilterIcon extends React.Component {
 
   handleApply(e) {
     e.preventDefault();
-    console.log(this.state);
     this.props.setSearchKeyword(this.state.searchKeyword);
 
     this.handleModalClose('filter');

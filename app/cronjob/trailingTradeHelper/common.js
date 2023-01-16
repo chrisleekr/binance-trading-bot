@@ -664,7 +664,7 @@ const saveNumberOfBuyOpenOrders = async (logger, symbols) => {
 const getOpenOrdersSymbols = async _logger =>
   JSON.parse(
     await cache.hget('trailing-trade-common', 'open-orders-symbols')
-  ) || {};
+  ) || [];
 
 /**
  * Get number of buy open orders
@@ -744,7 +744,7 @@ const getNumberOfOpenTrades = async _logger =>
 const getOpenTradesSymbols = async _logger =>
   JSON.parse(
     await cache.hget('trailing-trade-common', 'open-trades-symbols')
-  ) || {};
+  ) || [];
 
 /**
  * Save order statistics
