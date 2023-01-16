@@ -1996,7 +1996,24 @@ describe('common.js', () => {
       loggerMock = logger;
       cacheMock = cache;
 
-      mongoMock.count = jest.fn().mockResolvedValue(3);
+      mongoMock.aggregate = jest.fn().mockResolvedValue([
+        {
+          _id: 1,
+          key: 'BTCUSDT-grid-trade-last-buy-order',
+          order: {
+            symbol: 'BTCUSDT',
+            orderId: 123
+          }
+        },
+        {
+          _id: 2,
+          key: 'BNBUSDT-grid-trade-last-buy-order',
+          order: {
+            symbol: 'BNBUSDT',
+            orderId: 234
+          }
+        }
+      ]);
 
       cacheMock.hset = jest.fn().mockResolvedValue(true);
 
@@ -2007,24 +2024,82 @@ describe('common.js', () => {
       ]);
     });
 
-    it('triggers mongo.count', () => {
-      expect(mongoMock.count).toHaveBeenCalledWith(
+    it('triggers mongo.aggregate', () => {
+      expect(mongoMock.aggregate).toHaveBeenCalledWith(
         loggerMock,
         'trailing-trade-grid-trade-orders',
-        {
-          key: {
-            $regex: `(BTCUSDT|BNBUSDT)-grid-trade-last-buy-order`
+        [
+          {
+            $match: {
+              key: {
+                $regex: `(BTCUSDT|BNBUSDT)-grid-trade-last-buy-order`
+              }
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              key: 1
+            }
           }
-        }
+        ]
       );
     });
 
-    it('triggers cache.hset', () => {
+    it('triggers cache.hset for open-orders-symbols', () => {
+      expect(cacheMock.hset).toHaveBeenCalledWith(
+        'trailing-trade-common',
+        'open-orders-symbols',
+        JSON.stringify(['BTCUSDT', 'BNBUSDT'])
+      );
+    });
+
+    it('triggers cache.hset for number-of-buy-open-orders', () => {
       expect(cacheMock.hset).toHaveBeenCalledWith(
         'trailing-trade-common',
         'number-of-buy-open-orders',
-        3
+        2
       );
+    });
+  });
+
+  describe('getOpenOrdersSymbols', () => {
+    describe('when return value', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hget = jest
+          .fn()
+          .mockResolvedValue(JSON.stringify(['BTCUSDT']));
+
+        commonHelper = require('../common');
+        result = await commonHelper.getOpenOrdersSymbols(loggerMock);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual(['BTCUSDT']);
+      });
+    });
+
+    describe('when return does not exist', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hget = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.getOpenOrdersSymbols(loggerMock);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual([]);
+      });
     });
   });
 
@@ -2088,7 +2163,20 @@ describe('common.js', () => {
       loggerMock = logger;
       cacheMock = cache;
 
-      mongoMock.count = jest.fn().mockResolvedValue(3);
+      mongoMock.aggregate = jest.fn().mockResolvedValue([
+        {
+          _id: 1,
+          key: 'BTCUSDT-last-buy-price',
+          lastBuyPrice: 29999,
+          quantity: 0.06
+        },
+        {
+          _id: 2,
+          key: 'BNBUSDT-last-buy-price',
+          lastBuyPrice: 2,
+          quantity: 0.06
+        }
+      ]);
 
       cacheMock.hset = jest.fn().mockResolvedValue(true);
 
@@ -2099,23 +2187,41 @@ describe('common.js', () => {
       ]);
     });
 
-    it('triggers mongo.count', () => {
-      expect(mongoMock.count).toHaveBeenCalledWith(
+    it('triggers mongo.aggregate', () => {
+      expect(mongoMock.aggregate).toHaveBeenCalledWith(
         loggerMock,
         'trailing-trade-symbols',
-        {
-          key: {
-            $regex: `(BTCUSDT|BNBUSDT)-last-buy-price`
+        [
+          {
+            $match: {
+              key: {
+                $regex: `(BTCUSDT|BNBUSDT)-last-buy-price`
+              }
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              key: 1
+            }
           }
-        }
+        ]
       );
     });
 
-    it('triggers cache.hset', () => {
+    it('triggers cache.hset for open-trades-symbols', () => {
+      expect(cacheMock.hset).toHaveBeenCalledWith(
+        'trailing-trade-common',
+        'open-trades-symbols',
+        JSON.stringify(['BTCUSDT', 'BNBUSDT'])
+      );
+    });
+
+    it('triggers cache.hset for number-of-open-trades', () => {
       expect(cacheMock.hset).toHaveBeenCalledWith(
         'trailing-trade-common',
         'number-of-open-trades',
-        3
+        2
       );
     });
   });
@@ -2172,6 +2278,46 @@ describe('common.js', () => {
     });
   });
 
+  describe('getOpenTradesSymbols', () => {
+    describe('when return value', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hget = jest
+          .fn()
+          .mockResolvedValue(JSON.stringify(['BTCUSDT']));
+
+        commonHelper = require('../common');
+        result = await commonHelper.getOpenTradesSymbols(loggerMock);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual(['BTCUSDT']);
+      });
+    });
+
+    describe('when return does not exist', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hget = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.getOpenTradesSymbols(loggerMock);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual([]);
+      });
+    });
+  });
+
   describe('saveOrderStats', () => {
     beforeEach(async () => {
       const { mongo, cache, logger } = require('../../../helpers');
@@ -2180,7 +2326,40 @@ describe('common.js', () => {
       loggerMock = logger;
       cacheMock = cache;
 
-      mongoMock.count = jest.fn().mockResolvedValue(3);
+      mongoMock.aggregate = jest
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            _id: 1,
+            key: 'BTCUSDT-grid-trade-last-buy-order',
+            order: {
+              symbol: 'BTCUSDT',
+              orderId: 123
+            }
+          },
+          {
+            _id: 2,
+            key: 'BNBUSDT-grid-trade-last-buy-order',
+            order: {
+              symbol: 'BNBUSDT',
+              orderId: 234
+            }
+          }
+        ])
+        .mockResolvedValueOnce([
+          {
+            _id: 1,
+            key: 'BTCUSDT-last-buy-price',
+            lastBuyPrice: 29999,
+            quantity: 0.06
+          },
+          {
+            _id: 2,
+            key: 'BNBUSDT-last-buy-price',
+            lastBuyPrice: 2,
+            quantity: 0.06
+          }
+        ]);
 
       cacheMock.hset = jest.fn().mockResolvedValue(true);
 
@@ -2191,12 +2370,12 @@ describe('common.js', () => {
       ]);
     });
 
-    it('triggers mongo.count twice', () => {
-      expect(mongoMock.count).toHaveBeenCalledTimes(2);
+    it('triggers mongo.aggregate twice', () => {
+      expect(mongoMock.aggregate).toHaveBeenCalledTimes(2);
     });
 
     it('triggers cache.hset', () => {
-      expect(cacheMock.hset).toHaveBeenCalledTimes(2);
+      expect(cacheMock.hset).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -2886,16 +3065,68 @@ describe('common.js', () => {
         sortByParam: 'alpha',
         searchKeyword: 'ETH',
         sortField: '$symbol'
+      },
+      {
+        desc: 'open trades',
+        sortByDesc: true,
+        sortByParam: 'alpha',
+        searchKeyword: 'open trades',
+        page: 2,
+        sortField: '$symbol',
+        getOpenTradesSymbols: ['BTCUSDT', 'BNBUSDT'],
+        getOpenOrdersSymbols: undefined,
+        overrideMatch: {
+          symbol: {
+            $regex: `(BTCUSDT|BNBUSDT)`,
+            $options: 'i'
+          }
+        }
+      },
+      {
+        desc: 'open orders',
+        sortByDesc: true,
+        sortByParam: 'alpha',
+        searchKeyword: 'open orders',
+        page: 2,
+        sortField: '$symbol',
+        getOpenTradesSymbols: undefined,
+        getOpenOrdersSymbols: ['BTCUSDT', 'LTCUSDT'],
+        overrideMatch: {
+          symbol: {
+            $regex: `(BTCUSDT|LTCUSDT)`,
+            $options: 'i'
+          }
+        }
       }
     ].forEach(t => {
       describe(`sortBy - ${t.desc}`, () => {
         beforeEach(async () => {
-          const { mongo, logger } = require('../../../helpers');
+          const { mongo, logger, cache } = require('../../../helpers');
 
           mongoMock = mongo;
           loggerMock = logger;
+          cacheMock = cache;
 
           mongoMock.aggregate = jest.fn().mockResolvedValue({ some: 'data' });
+
+          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+            if (
+              hash === 'trailing-trade-common' &&
+              key === 'open-trades-symbols'
+            ) {
+              return JSON.stringify(t.getOpenTradesSymbols);
+            }
+
+            if (
+              hash === 'trailing-trade-common' &&
+              key === 'open-orders-symbols'
+            ) {
+              return JSON.stringify(t.getOpenOrdersSymbols);
+            }
+
+            return undefined;
+          });
+
           commonHelper = require('../common');
 
           result = await commonHelper.getCacheTrailingTradeSymbols(
@@ -2911,14 +3142,19 @@ describe('common.js', () => {
         it('triggers mongo.aggregate', () => {
           const pageNum = _.toNumber(t.page) >= 1 ? _.toNumber(t.page) : 1;
 
+          // eslint-disable-next-line no-nested-ternary
+          const match = t.overrideMatch
+            ? t.overrideMatch
+            : t.searchKeyword
+            ? { symbol: { $regex: t.searchKeyword, $options: 'i' } }
+            : {};
+
           expect(mongoMock.aggregate).toHaveBeenCalledWith(
             loggerMock,
             'trailing-trade-cache',
             [
               {
-                $match: t.searchKeyword
-                  ? { symbol: { $regex: t.searchKeyword, $options: 'i' } }
-                  : {}
+                $match: match
               },
               {
                 $project: {

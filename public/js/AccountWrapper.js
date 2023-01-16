@@ -2,6 +2,28 @@
 /* eslint-disable react/jsx-no-undef */
 /* eslint-disable no-undef */
 class AccountWrapper extends React.Component {
+  constructor(props) {
+    super(props);
+
+    this.accordion = null;
+
+    this.setFilter = this.setFilter.bind(this);
+  }
+
+  setFilter(asset) {
+    this.props.setSearchKeyword(asset);
+
+    this.accordion.click();
+
+    const orderStatsEl = document.querySelector('.order-stats-wrapper');
+    if (orderStatsEl)
+      setTimeout(function () {
+        orderStatsEl.scrollIntoView({
+          behavior: 'smooth'
+        });
+      }, 750);
+  }
+
   render() {
     const {
       accountInfo,
@@ -20,7 +42,8 @@ class AccountWrapper extends React.Component {
             totalProfitAndLoss.find(
               profitAndLoss => profitAndLoss.asset === balance.asset
             ) !== undefined
-          }></AccountWrapperAsset>
+          }
+          setFilter={this.setFilter}></AccountWrapperAsset>
       );
     });
 
@@ -29,6 +52,7 @@ class AccountWrapper extends React.Component {
         <Accordion>
           <Card bg='dark'>
             <Accordion.Toggle
+              ref={element => (this.accordion = element)}
               as={Card.Header}
               eventKey='0'
               className='px-2 py-1'>
