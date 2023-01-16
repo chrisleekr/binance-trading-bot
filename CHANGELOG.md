@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Fixed the open orders to be cancelled when the current price is higher/lower than the order price by [@uhliksk](https://github.com/uhliksk) - [#569](https://github.com/chrisleekr/binance-trading-bot/pull/569)
 - Improved queue processing by replacing Bull queue to customised queue system by [@uhliksk](https://github.com/uhliksk) - [#562](https://github.com/chrisleekr/binance-trading-bot/pull/562), [#581](https://github.com/chrisleekr/binance-trading-bot/pull/581), [#588](https://github.com/chrisleekr/binance-trading-bot/pull/588)
 - Added conservative sell strategy, which can reduce the sell trigger price as the grid gets deeper by [@rando128](https://github.com/rando128) - [#585](https://github.com/chrisleekr/binance-trading-bot/pull/585)
+- Fixed the stop-loss to be a higher priority than the new buy order by [@uhliksk](https://github.com/uhliksk) - [#589](https://github.com/chrisleekr/binance-trading-bot/pull/589)
 
 Thanks [@uhliksk](https://github.com/uhliksk) and [@rando128](https://github.com/rando128) for your great contributions. 💯 :heart:
 
