@@ -241,7 +241,8 @@ describe('candles.js', () => {
     it('triggers queue.execute for ETHBTC', () => {
       expect(mockExecute).toHaveBeenCalledWith(loggerMock, 'ETHBTC', {
         correlationId: expect.any(String),
-        preprocessFn: expect.any(Function)
+        preprocessFn: expect.any(Function),
+        processFn: expect.any(Function)
       });
     });
   });

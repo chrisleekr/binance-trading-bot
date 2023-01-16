@@ -5,6 +5,7 @@ const {
   saveLastBuyPrice
 } = require('../../../cronjob/trailingTradeHelper/common');
 const queue = require('../../../cronjob/trailingTradeHelper/queue');
+const { executeTrailingTrade } = require('../../../cronjob/index');
 
 /**
  * Delete last buy price
@@ -31,6 +32,7 @@ const deleteLastBuyPrice = async (logger, ws, symbol) => {
   queue.execute(logger, symbol, {
     correlationId: _.get(logger, 'fields.correlationId', ''),
     preprocessFn: deleteOneFn,
+    processFn: executeTrailingTrade,
     postprocessFn: PubSubFn
   });
 
@@ -119,6 +121,7 @@ const updateLastBuyPrice = async (logger, ws, symbol, lastBuyPrice) => {
   queue.execute(logger, symbol, {
     correlationId: _.get(logger, 'fields.correlationId', ''),
     preprocessFn: updateLastBuyPriceFn,
+    processFn: executeTrailingTrade,
     postprocessFn: PubSubFn
   });
 

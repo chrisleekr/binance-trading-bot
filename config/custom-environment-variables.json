@@ -311,6 +311,18 @@
               "__format": "boolean"
             }
           }
+        },
+        "conservativeMode": {
+          "enabled": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_CONSERVATIVE_MODE_ENABLED",
+            "__description": "Set a boolean for selling at a trigger price reduced by the conservative ratio for each executed buy grid. You can use this feature in bear market conditions to secure smaller benefits over unreached higher gains. At least 2 buy trades must have been executed for the ratio to be applied.",
+            "__format": "boolean"
+          },
+          "factor": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_CONSERVATIVE_MODE_FACTOR",
+            "__description": "Set the conservative factor to be applied on sell trades with at least 2 executed buy grids.",
+            "__format": "number"
+          }
         }
       },
       "system": {

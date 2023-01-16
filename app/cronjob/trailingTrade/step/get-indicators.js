@@ -49,6 +49,7 @@ const execute = async (logger, rawData) => {
       buy: {
         currentGridTradeIndex: currentBuyGridTradeIndex,
         currentGridTrade: currentBuyGridTrade,
+        gridTrade: buyGridTrade,
         athRestriction: {
           enabled: buyATHRestrictionEnabled,
           candles: {
@@ -60,7 +61,11 @@ const execute = async (logger, rawData) => {
       },
       sell: {
         currentGridTrade: currentSellGridTrade,
-        stopLoss: { maxLossPercentage: sellMaxLossPercentage }
+        stopLoss: { maxLossPercentage: sellMaxLossPercentage },
+        conservativeMode: {
+          enabled: conservativeModeEnabled,
+          factor: conservativeFactor
+        }
       }
     },
     baseAssetBalance: { total: baseAssetTotalBalance },
@@ -224,6 +229,8 @@ const execute = async (logger, rawData) => {
   let sellTriggerPrice = null;
   let sellDifference = null;
   let sellLimitPrice = null;
+  let conservativeModeApplicable = false;
+  let triggerPercentage = null;
 
   if (lastBuyPrice > 0 && currentSellGridTrade !== null) {
     const {
@@ -231,7 +238,21 @@ const execute = async (logger, rawData) => {
       limitPercentage: sellLimitPercentage
     } = currentSellGridTrade;
 
-    sellTriggerPrice = lastBuyPrice * sellTriggerPercentage;
+    const lastExecutedBuyTradeIndex = _.findLastIndex(
+      buyGridTrade,
+      trade => trade.executed === true
+    );
+
+    conservativeModeApplicable =
+      conservativeModeEnabled && lastExecutedBuyTradeIndex >= 1;
+
+    triggerPercentage = conservativeModeApplicable
+      ? 1 +
+        (sellTriggerPercentage - 1) *
+          conservativeFactor ** lastExecutedBuyTradeIndex
+      : sellTriggerPercentage;
+
+    sellTriggerPrice = lastBuyPrice * triggerPercentage;
     sellDifference = (1 - sellTriggerPrice / currentPrice) * 100;
     sellLimitPrice = currentPrice * sellLimitPercentage;
   }
@@ -326,6 +347,8 @@ const execute = async (logger, rawData) => {
     stopLossDifference: sellStopLossDifference,
     currentProfit: sellCurrentProfit,
     currentProfitPercentage: sellCurrentProfitPercentage,
+    conservativeModeApplicable,
+    triggerPercentage,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'sell'),
     processMessage: _.get(data, 'sell.processMessage', ''),
     updatedAt: moment().utc().toDate()

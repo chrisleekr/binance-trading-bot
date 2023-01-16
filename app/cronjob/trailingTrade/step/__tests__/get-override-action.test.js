@@ -33,43 +33,11 @@ describe('get-override-action.js', () => {
       }));
     });
 
-    describe('when symbol is locked', () => {
-      beforeEach(async () => {
-        rawData = {
-          action: 'not-determined',
-          symbol: 'BTCUSDT',
-          isLocked: true,
-          symbolConfiguration: {
-            botOptions: {
-              autoTriggerBuy: { triggerAfter: 20 }
-            }
-          }
-        };
-
-        const step = require('../get-override-action');
-        result = await step.execute(loggerMock, rawData);
-      });
-
-      it('retruns expected result', () => {
-        expect(result).toStrictEqual({
-          action: 'not-determined',
-          symbol: 'BTCUSDT',
-          isLocked: true,
-          symbolConfiguration: {
-            botOptions: {
-              autoTriggerBuy: { triggerAfter: 20 }
-            }
-          }
-        });
-      });
-    });
-
     describe('when action is not "not-determined"', () => {
       beforeEach(async () => {
         rawData = {
           action: 'buy-order-wait',
           symbol: 'BTCUSDT',
-          isLocked: false,
           symbolConfiguration: {
             botOptions: {
               autoTriggerBuy: { triggerAfter: 20 }
@@ -85,7 +53,6 @@ describe('get-override-action.js', () => {
         expect(result).toStrictEqual({
           action: 'buy-order-wait',
           symbol: 'BTCUSDT',
-          isLocked: false,
           symbolConfiguration: {
             botOptions: {
               autoTriggerBuy: { triggerAfter: 20 }
@@ -109,7 +76,6 @@ describe('get-override-action.js', () => {
           rawData = {
             action: 'not-determined',
             symbol: 'BTCUSDT',
-            isLocked: false,
             symbolConfiguration: {
               botOptions: {
                 autoTriggerBuy: { triggerAfter: 20 }
@@ -136,7 +102,6 @@ describe('get-override-action.js', () => {
           expect(result).toStrictEqual({
             action: 'not-determined',
             symbol: 'BTCUSDT',
-            isLocked: false,
             symbolConfiguration: {
               botOptions: {
                 autoTriggerBuy: { triggerAfter: 20 }
@@ -165,7 +130,6 @@ describe('get-override-action.js', () => {
           rawData = {
             action: 'not-determined',
             symbol: 'BTCUSDT',
-            isLocked: false,
             symbolConfiguration: {
               botOptions: {
                 autoTriggerBuy: { triggerAfter: 20 }
@@ -195,7 +159,6 @@ describe('get-override-action.js', () => {
           expect(result).toStrictEqual({
             action: 'manual-trade',
             symbol: 'BTCUSDT',
-            isLocked: false,
             symbolConfiguration: {
               botOptions: {
                 autoTriggerBuy: { triggerAfter: 20 }
@@ -232,7 +195,6 @@ describe('get-override-action.js', () => {
           rawData = {
             action: 'not-determined',
             symbol: 'BTCUSDT',
-            isLocked: false,
             symbolConfiguration: {
               botOptions: {
                 autoTriggerBuy: { triggerAfter: 20 }
@@ -262,7 +224,6 @@ describe('get-override-action.js', () => {
           expect(result).toStrictEqual({
             action: 'cancel-order',
             symbol: 'BTCUSDT',
-            isLocked: false,
             symbolConfiguration: {
               botOptions: {
                 autoTriggerBuy: { triggerAfter: 20 }
@@ -297,7 +258,6 @@ describe('get-override-action.js', () => {
             rawData = {
               action: 'not-determined',
               symbol: 'BTCUSDT',
-              isLocked: false,
               symbolConfiguration: {
                 botOptions: {
                   autoTriggerBuy: { triggerAfter: 20 }
@@ -327,7 +287,6 @@ describe('get-override-action.js', () => {
             expect(result).toStrictEqual({
               action: 'buy',
               symbol: 'BTCUSDT',
-              isLocked: false,
               symbolConfiguration: {
                 botOptions: {
                   autoTriggerBuy: { triggerAfter: 20 }
@@ -366,7 +325,6 @@ describe('get-override-action.js', () => {
                   rawData = {
                     action: 'not-determined',
                     symbol: 'BTCUSDT',
-                    isLocked: false,
                     symbolConfiguration: {
                       buy: {
                         athRestriction: {
@@ -432,7 +390,6 @@ describe('get-override-action.js', () => {
                   expect(result).toStrictEqual({
                     action: 'not-determined',
                     symbol: 'BTCUSDT',
-                    isLocked: false,
                     symbolConfiguration: {
                       buy: {
                         athRestriction: {
@@ -473,7 +430,6 @@ describe('get-override-action.js', () => {
                   rawData = {
                     action: 'not-determined',
                     symbol: 'BTCUSDT',
-                    isLocked: false,
                     symbolConfiguration: {
                       buy: {
                         athRestriction: {
@@ -526,7 +482,6 @@ describe('get-override-action.js', () => {
                   expect(result).toStrictEqual({
                     action: 'buy',
                     symbol: 'BTCUSDT',
-                    isLocked: false,
                     symbolConfiguration: {
                       buy: {
                         athRestriction: {
@@ -571,7 +526,6 @@ describe('get-override-action.js', () => {
                 rawData = {
                   action: 'not-determined',
                   symbol: 'BTCUSDT',
-                  isLocked: false,
                   symbolConfiguration: {
                     buy: {
                       athRestriction: {
@@ -624,7 +578,6 @@ describe('get-override-action.js', () => {
                 expect(result).toStrictEqual({
                   action: 'buy',
                   symbol: 'BTCUSDT',
-                  isLocked: false,
                   symbolConfiguration: {
                     buy: {
                       athRestriction: {
@@ -688,7 +641,6 @@ describe('get-override-action.js', () => {
                 rawData = {
                   action: 'not-determined',
                   symbol: 'BTCUSDT',
-                  isLocked: false,
                   symbolConfiguration: {
                     buy: {
                       athRestriction: {
@@ -752,7 +704,6 @@ describe('get-override-action.js', () => {
                 expect(result).toStrictEqual({
                   action: 'not-determined',
                   symbol: 'BTCUSDT',
-                  isLocked: false,
                   symbolConfiguration: {
                     buy: {
                       athRestriction: {
@@ -793,7 +744,6 @@ describe('get-override-action.js', () => {
                 rawData = {
                   action: 'not-determined',
                   symbol: 'BTCUSDT',
-                  isLocked: false,
                   symbolConfiguration: {
                     buy: {
                       athRestriction: {
@@ -846,7 +796,6 @@ describe('get-override-action.js', () => {
                 expect(result).toStrictEqual({
                   action: 'buy',
                   symbol: 'BTCUSDT',
-                  isLocked: false,
                   symbolConfiguration: {
                     buy: {
                       athRestriction: {
@@ -891,7 +840,6 @@ describe('get-override-action.js', () => {
               rawData = {
                 action: 'not-determined',
                 symbol: 'BTCUSDT',
-                isLocked: false,
                 symbolConfiguration: {
                   buy: {
                     athRestriction: {
@@ -1198,7 +1146,6 @@ describe('get-override-action.js', () => {
           rawData = {
             action: 'not-determined',
             symbol: 'BTCUSDT',
-            isLocked: false,
             symbolConfiguration: {
               botOptions: {
                 autoTriggerBuy: { triggerAfter: 20 }
@@ -1225,7 +1172,6 @@ describe('get-override-action.js', () => {
           expect(result).toStrictEqual({
             action: 'not-determined',
             symbol: 'BTCUSDT',
-            isLocked: false,
             symbolConfiguration: {
               botOptions: {
                 autoTriggerBuy: { triggerAfter: 20 }

@@ -11,6 +11,30 @@ const {
 const { getGridTradeOrder } = require('../../trailingTradeHelper/order');
 
 /**
+ * Check whether current price is lower or equal than stop loss trigger price
+ *
+ * @param {*} data
+ * @returns
+ */
+const isLowerThanStopLossTriggerPrice = data => {
+  const {
+    symbolConfiguration: {
+      sell: {
+        stopLoss: { enabled: sellStopLossEnabled }
+      }
+    },
+    sell: {
+      currentPrice: sellCurrentPrice,
+      stopLossTriggerPrice: sellStopLossTriggerPrice
+    }
+  } = data;
+
+  return (
+    sellStopLossEnabled === true && sellCurrentPrice <= sellStopLossTriggerPrice
+  );
+};
+
+/**
  * Check whether can buy or not
  *
  *  - current price must be less than trigger price.
@@ -27,7 +51,11 @@ const canBuy = data => {
     buy: { currentPrice: buyCurrentPrice, triggerPrice: buyTriggerPrice }
   } = data;
 
-  return buyCurrentPrice <= buyTriggerPrice && currentGridTrade !== null;
+  return (
+    buyCurrentPrice <= buyTriggerPrice &&
+    currentGridTrade !== null &&
+    !isLowerThanStopLossTriggerPrice(data)
+  );
 };
 
 /**
@@ -183,30 +211,6 @@ const isHigherThanSellTriggerPrice = data => {
   } = data;
 
   return sellCurrentPrice >= sellTriggerPrice;
-};
-
-/**
- * Check whether current price is lower or equal than stop loss trigger price
- *
- * @param {*} data
- * @returns
- */
-const isLowerThanStopLossTriggerPrice = data => {
-  const {
-    symbolConfiguration: {
-      sell: {
-        stopLoss: { enabled: sellStopLossEnabled }
-      }
-    },
-    sell: {
-      currentPrice: sellCurrentPrice,
-      stopLossTriggerPrice: sellStopLossTriggerPrice
-    }
-  } = data;
-
-  return (
-    sellStopLossEnabled === true && sellCurrentPrice <= sellStopLossTriggerPrice
-  );
 };
 
 /**
@@ -416,7 +420,6 @@ const execute = async (logger, rawData) => {
   const {
     action,
     symbol,
-    isLocked,
     symbolInfo: { baseAsset },
     symbolConfiguration: {
       buy: { currentGridTradeIndex: currentBuyGridTradeIndex },
@@ -426,14 +429,6 @@ const execute = async (logger, rawData) => {
 
   const humanisedBuyGridTradeIndex = currentBuyGridTradeIndex + 1;
   const humanisedSellGridTradeIndex = currentSellGridTradeIndex + 1;
-
-  if (isLocked) {
-    logger.info(
-      { isLocked },
-      'Symbol is locked, do not process determine-action'
-    );
-    return data;
-  }
 
   if (action !== 'not-determined') {
     logger.info(
