@@ -180,6 +180,71 @@ describe('ensure-grid-trade-order-executed.js', () => {
           saveSymbolGridTrade: null
         },
         {
+          desc: 'last buy order is PARTIALLY_FILLED - currentGridTradeIndex: 0',
+          symbol: 'BNBUSDT',
+          notifyDebug: true,
+          notifyOrderExecute: true,
+          lastBuyOrder: {
+            symbol: 'BNBUSDT',
+            side: 'BUY',
+            status: 'PARTIALLY_FILLED',
+            type: 'STOP_LOSS_LIMIT',
+            orderId: 2705449295,
+            price: '302.09000000',
+            origQty: '0.03320000',
+            stopPrice: '301.80000000',
+            currentGridTradeIndex: 0
+          },
+          saveSymbolGridTrade: {
+            buy: [
+              {
+                executed: true,
+                executedOrder: {
+                  currentGridTradeIndex: 0,
+                  orderId: 2705449295,
+                  origQty: '0.03320000',
+                  price: '302.09000000',
+                  side: 'BUY',
+                  status: 'PARTIALLY_FILLED',
+                  stopPrice: '301.80000000',
+                  symbol: 'BNBUSDT',
+                  type: 'STOP_LOSS_LIMIT'
+                },
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 1
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 0.8
+              }
+            ],
+            sell: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                stopPercentage: 0.985,
+                triggerPercentage: 1.03
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.974,
+                quantityPercentage: 1,
+                stopPercentage: 0.975,
+                triggerPercentage: 1.05
+              }
+            ]
+          }
+        },
+        {
           desc: 'last buy order is FILLED - currentGridTradeIndex: 0',
           symbol: 'BNBUSDT',
           notifyDebug: true,
@@ -477,6 +542,56 @@ describe('ensure-grid-trade-order-executed.js', () => {
                 mockRefreshOpenOrdersAndAccountInfo
               ).not.toHaveBeenCalled();
             });
+          } else if (t.lastBuyOrder.status.includes('PARTIALLY_FILLED')) {
+            // do filled thing
+            it('triggers calculated last buy price as order partially filled', () => {
+              expect(mockCalculateLastBuyPrice).toHaveBeenCalledWith(
+                loggerMock,
+                t.symbol,
+                t.lastBuyOrder
+              );
+            });
+
+            it('triggers save symbol grid trade as order partially filled', () => {
+              expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
+                loggerMock,
+                t.symbol,
+                t.saveSymbolGridTrade
+              );
+            });
+
+            it('dows not trigger deleteGridTradeOrder as order partially filled', () => {
+              expect(mockDeleteGridTradeOrder).not.toHaveBeenCalled();
+            });
+
+            it('dows not trigger disableAction as order partially filled', () => {
+              expect(mockDisableAction).not.toHaveBeenCalled();
+            });
+
+            it('triggers refreshOpenOrdersAndAccountInfo as order partially filled', () => {
+              expect(mockRefreshOpenOrdersAndAccountInfo).toHaveBeenCalledWith(
+                loggerMock,
+                t.symbol
+              );
+            });
+
+            it('does not trigger PubSub.publish for check-open-orders channel', () => {
+              expect(PubSubMock.publish).not.toHaveBeenCalled();
+            });
+
+            it('does not trigger saveOrderStats as order partially filled', () => {
+              expect(mockSaveOrderStats).not.toHaveBeenCalled();
+            });
+
+            it('triggers slack.sendMessage due to partially filled order', () => {
+              expect(slackMock.sendMessage).toHaveBeenCalledWith(
+                expect.not.stringContaining('Order Updated'),
+                {
+                  apiLimit: 10,
+                  symbol: t.symbol
+                }
+              );
+            });
           } else if (t.lastBuyOrder.status.includes('FILLED')) {
             // do filled thing
             it('triggers calculated last buy price as order filled', () => {
@@ -632,6 +747,70 @@ describe('ensure-grid-trade-order-executed.js', () => {
           lastSellOrder: null,
           getOrder: null,
           saveSymbolGridTrade: null
+        },
+        {
+          desc: 'last sell order is PARTIALLY_FILLED - currentGridTradeIndex: 0',
+          symbol: 'BNBUSDT',
+          notifyDebug: true,
+          lastSellOrder: {
+            symbol: 'BNBUSDT',
+            side: 'SELL',
+            status: 'PARTIALLY_FILLED',
+            type: 'STOP_LOSS_LIMIT',
+            orderId: 2705449295,
+            price: '302.09000000',
+            origQty: '0.03320000',
+            stopPrice: '301.80000000',
+            currentGridTradeIndex: 0
+          },
+          saveSymbolGridTrade: {
+            buy: [
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 1
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 1.026,
+                maxPurchaseAmount: 10,
+                stopPercentage: 1.025,
+                triggerPercentage: 0.8
+              }
+            ],
+            sell: [
+              {
+                executed: true,
+                executedOrder: {
+                  currentGridTradeIndex: 0,
+                  orderId: 2705449295,
+                  origQty: '0.03320000',
+                  price: '302.09000000',
+                  side: 'SELL',
+                  status: 'PARTIALLY_FILLED',
+                  stopPrice: '301.80000000',
+                  symbol: 'BNBUSDT',
+                  type: 'STOP_LOSS_LIMIT'
+                },
+                limitPercentage: 0.984,
+                quantityPercentage: 0.8,
+                stopPercentage: 0.985,
+                triggerPercentage: 1.03
+              },
+              {
+                executed: false,
+                executedOrder: null,
+                limitPercentage: 0.974,
+                quantityPercentage: 1,
+                stopPercentage: 0.975,
+                triggerPercentage: 1.05
+              }
+            ]
+          }
         },
         {
           desc: 'last sell order is FILLED - currentGridTradeIndex: 0',
@@ -918,6 +1097,45 @@ describe('ensure-grid-trade-order-executed.js', () => {
 
             it('does not trigger saveOrderStats', () => {
               expect(mockSaveOrderStats).not.toHaveBeenCalled();
+            });
+          } else if (t.lastSellOrder.status.includes('PARTIALLY_FILLED')) {
+            // do filled thing
+
+            it('triggers save symbol grid trade as order partially filled', () => {
+              expect(mockSaveSymbolGridTrade).toHaveBeenCalledWith(
+                loggerMock,
+                t.symbol,
+                t.saveSymbolGridTrade
+              );
+            });
+
+            it('does not trigger deleteGridTradeOrder as order partially filled', () => {
+              expect(mockDeleteGridTradeOrder).not.toHaveBeenCalled();
+            });
+
+            it('triggers refreshOpenOrdersAndAccountInfo as order partially filled', () => {
+              expect(mockRefreshOpenOrdersAndAccountInfo).toHaveBeenCalledWith(
+                loggerMock,
+                t.symbol
+              );
+            });
+
+            it('does not trigger disableAction as order partially filled', () => {
+              expect(mockDisableAction).not.toHaveBeenCalled();
+            });
+
+            it('does not trigger saveOrderStats as order partially filled', () => {
+              expect(mockSaveOrderStats).not.toHaveBeenCalled();
+            });
+
+            it('triggers slack.sendMessage due to partially filled order', () => {
+              expect(slackMock.sendMessage).toHaveBeenCalledWith(
+                expect.not.stringContaining('Order Updated'),
+                {
+                  apiLimit: 10,
+                  symbol: t.symbol
+                }
+              );
             });
           } else if (t.lastSellOrder.status.includes('FILLED')) {
             // do filled thing

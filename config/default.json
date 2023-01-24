@@ -144,6 +144,10 @@
             "whenSell": false,
             "whenStrongSell": false
           }
+        },
+        "conservativeMode": {
+          "enabled": false,
+          "factor": 0.5
         }
       },
       "system": {

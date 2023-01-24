@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('327535450');
 const _ = require('lodash');
 const { binance } = require('../helpers');
 const queue = require('../cronjob/trailingTradeHelper/queue');
+const { executeTrailingTrade } = require('../cronjob/index');
 
 const {
   updateAccountInfo,
@@ -84,7 +85,7 @@ const setupUserWebsocket = async logger => {
               { lastOrder, evt, saveLog: true },
               'This order update is an old order. Do not update last grid trade order.'
             );
-            return;
+            return false;
           }
 
           const updatedOrder = {
@@ -113,11 +114,17 @@ const setupUserWebsocket = async logger => {
             `The last order has been updated. ${orderId} - ${side} - ${orderStatus}`
           );
 
-          queue.executeFor(symbolLogger, symbol, { correlationId });
+          return true;
         }
+
+        return false;
       };
 
-      checkLastOrder();
+      queue.execute(symbolLogger, symbol, {
+        correlationId,
+        preprocessFn: checkLastOrder,
+        processFn: executeTrailingTrade
+      });
 
       const checkManualOrder = async () => {
         const manualOrder = await getManualOrder(symbolLogger, symbol, orderId);
@@ -142,11 +149,17 @@ const setupUserWebsocket = async logger => {
             'The manual order has been updated.'
           );
 
-          queue.executeFor(symbolLogger, symbol, { correlationId });
+          return true;
         }
+
+        return false;
       };
 
-      checkManualOrder();
+      queue.execute(symbolLogger, symbol, {
+        correlationId,
+        preprocessFn: checkManualOrder,
+        processFn: executeTrailingTrade
+      });
     }
   });
 };

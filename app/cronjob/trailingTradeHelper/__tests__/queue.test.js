@@ -3,148 +3,179 @@ const logger = require('../../../helpers/logger');
 
 describe('queue', () => {
   let queue;
-  let mockQueueProcess;
-  let mockQueueObliterate;
-  let mockQueueAdd;
-  let mockQueue;
 
-  let mockExecuteTrailingTrade;
-  let mockSetBullBoardQueues;
+  let loggerMock;
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
-    jest.mock('config');
 
-    mockQueueProcess = jest.fn().mockImplementation((_concurrent, cb) => {
-      const job = {
-        data: { correlationId: 'correlationId' },
-        progress: jest.fn()
-      };
-      cb(job);
-    });
-
-    mockQueueObliterate = jest.fn().mockResolvedValue(true);
-    mockQueueAdd = jest.fn().mockResolvedValue(true);
-    mockExecuteTrailingTrade = jest.fn().mockResolvedValue(true);
-    mockSetBullBoardQueues = jest.fn().mockResolvedValue(true);
-
-    mockQueue = jest.fn().mockImplementation((_queueName, _redisUrl) => ({
-      process: mockQueueProcess,
-      add: mockQueueAdd,
-      obliterate: mockQueueObliterate
-    }));
-
-    jest.mock('bull', () => mockQueue);
-
-    jest.mock('../../../cronjob', () => ({
-      executeTrailingTrade: mockExecuteTrailingTrade
-    }));
-
-    jest.mock('../../../frontend/bull-board/configure', () => ({
-      setBullBoardQueues: mockSetBullBoardQueues
-    }));
+    loggerMock = logger;
   });
 
-  describe('init', () => {
-    describe('called one time', () => {
-      beforeEach(async () => {
-        queue = require('../queue');
-
-        await queue.init(logger, ['BTCUSDT', 'ETHUSDT', 'BNBUSDT']);
-      });
-
-      it('triggers new Queue for BTCUSDT', () => {
-        expect(mockQueue).toHaveBeenCalledWith('BTCUSDT', expect.any(String), {
-          prefix: `bull`,
-          limiter: {
-            max: 1,
-            duration: 10000,
-            bounceBack: true
-          }
-        });
-      });
-
-      it('triggers executeTrailingTrade for BTCUSDT', () => {
-        expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
-          logger,
-          'BTCUSDT',
-          'correlationId'
-        );
-      });
-
-      it('triggers executeTrailingTrade for ETHUSDT', () => {
-        expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
-          logger,
-          'ETHUSDT',
-          'correlationId'
-        );
-      });
-
-      it('triggers executeTrailingTrade for BNBUSDT', () => {
-        expect(mockExecuteTrailingTrade).toHaveBeenCalledWith(
-          logger,
-          'BNBUSDT',
-          'correlationId'
-        );
-      });
-
-      it('triggers queue.process 3 times', () => {
-        expect(mockQueueProcess).toHaveBeenCalledTimes(3);
-      });
-
-      it('does not trigger queue.obliterate', () => {
-        expect(mockQueueObliterate).not.toHaveBeenCalled();
-      });
-    });
-
-    describe('called two times', () => {
-      beforeEach(async () => {
-        queue = require('../queue');
-
-        await queue.init(logger, ['BTCUSDT', 'ETHUSDT', 'BNBUSDT']);
-        await queue.init(logger, ['BTCUSDT', 'ETHUSDT', 'BNBUSDT']);
-      });
-
-      it('triggers queue.obliterate 3 times', () => {
-        expect(mockQueueObliterate).toHaveBeenCalledTimes(3);
-      });
-
-      it('triggers queue.process 6 times', () => {
-        expect(mockQueueProcess).toHaveBeenCalledTimes(6);
-      });
-
-      it('triggers setBullBoardQueues 2 times', () => {
-        expect(mockSetBullBoardQueues).toHaveBeenCalledTimes(2);
-      });
-    });
-  });
-
-  describe('executeFor', () => {
-    describe('when the symbol exists in the queue', () => {
-      beforeEach(async () => {
-        queue = require('../queue');
-
-        await queue.init(logger, ['BTCUSDT']);
-        await queue.executeFor(logger, 'BTCUSDT');
-      });
-
-      it('triggers queue.add for BTCUSDT', () => {
-        expect(mockQueueAdd).toHaveBeenCalledWith(
-          {},
-          { removeOnComplete: 100 }
-        );
-      });
-    });
+  describe('execute', () => {
     describe('when symbol does not exist in the queue', () => {
       beforeEach(async () => {
         queue = require('../queue');
 
-        await queue.init(logger, ['BTCUSDT']);
-        await queue.executeFor(logger, 'ETHUSDT');
+        await queue.execute(logger, 'ETHUSDT');
       });
 
-      it('does not trigger queue.add for ETHUSDT', () => {
-        expect(mockQueueAdd).not.toHaveBeenCalled();
+      it('triggers logger.info', () => {
+        expect(loggerMock.info).toHaveBeenCalledWith(
+          { symbol: 'ETHUSDT' },
+          'Queue ETHUSDT initialized'
+        );
+      });
+    });
+
+    describe('when the symbol exists in the queue', () => {
+      let mockPreprocessFn;
+      let mockProcessFn;
+      let mockPostprocessFn;
+      describe('when executed once', () => {
+        beforeEach(async () => {
+          queue = require('../queue');
+
+          mockProcessFn = jest.fn().mockResolvedValue(true);
+
+          await queue.prepareJob(logger, 'BTCUSDT');
+          await queue.completeJob(logger, 'BTCUSDT');
+          await queue.execute(logger, 'BTCUSDT', { processFn: mockProcessFn });
+        });
+
+        it('triggers process', () => {
+          expect(mockProcessFn).toHaveBeenCalledTimes(1);
+        });
+
+        it('triggers process for BTCUSDT', () => {
+          expect(mockProcessFn).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT',
+            undefined
+          );
+        });
+      });
+
+      describe('when executed twice', () => {
+        beforeEach(async () => {
+          queue = require('../queue');
+
+          await queue.prepareJob(logger, 'BTCUSDT');
+          await queue.completeJob(logger, 'BTCUSDT');
+          queue.execute(logger, 'BTCUSDT', { processFn: mockProcessFn });
+          await queue.execute(logger, 'BTCUSDT', { processFn: mockProcessFn });
+        });
+
+        it('triggers process 2 times', () => {
+          expect(mockProcessFn).toHaveBeenCalledTimes(2);
+        });
+
+        it('triggers process for BTCUSDT', () => {
+          expect(mockProcessFn).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT',
+            undefined
+          );
+        });
+      });
+
+      describe('when executed with truthy preprocessing', () => {
+        beforeEach(async () => {
+          queue = require('../queue');
+
+          mockPreprocessFn = jest.fn().mockResolvedValue(true);
+          mockProcessFn = jest.fn().mockResolvedValue(true);
+          mockPostprocessFn = jest.fn().mockResolvedValue(true);
+          await queue.execute(logger, 'BTCUSDT', {
+            preprocessFn: mockPreprocessFn,
+            processFn: mockProcessFn,
+            postprocessFn: mockPostprocessFn
+          });
+        });
+
+        it('triggers preprocessFn for BTCUSDT', () => {
+          expect(mockPreprocessFn).toHaveBeenCalledTimes(1);
+        });
+
+        it('triggers process', () => {
+          expect(mockProcessFn).toHaveBeenCalledTimes(1);
+        });
+
+        it('triggers process for BTCUSDT', () => {
+          expect(mockProcessFn).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT',
+            undefined
+          );
+        });
+        it('triggers postprocessFn for BTCUSDT', () => {
+          expect(mockPostprocessFn).toHaveBeenCalledTimes(1);
+        });
+      });
+
+      describe('when executed with falsy preprocessing', () => {
+        beforeEach(async () => {
+          queue = require('../queue');
+
+          mockPreprocessFn = jest.fn().mockResolvedValue(false);
+          mockProcessFn = jest.fn().mockResolvedValue(true);
+          mockPostprocessFn = jest.fn().mockResolvedValue(true);
+          await queue.execute(logger, 'BTCUSDT', {
+            preprocessFn: mockPreprocessFn,
+            processFn: mockProcessFn,
+            postprocessFn: mockPostprocessFn
+          });
+        });
+
+        it('triggers preprocessFn for BTCUSDT', () => {
+          expect(mockPreprocessFn).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not trigger process for BTCUSDT', () => {
+          expect(mockProcessFn).not.toHaveBeenCalled();
+        });
+
+        it('does not trigger postprocessFn for BTCUSDT', () => {
+          expect(mockPostprocessFn).not.toHaveBeenCalled();
+        });
+      });
+
+      describe('when executed with processing only', () => {
+        beforeEach(async () => {
+          queue = require('../queue');
+
+          mockProcessFn = jest.fn().mockResolvedValue(true);
+          await queue.execute(logger, 'BTCUSDT', {
+            processFn: mockProcessFn
+          });
+        });
+
+        it('triggers process', () => {
+          expect(mockProcessFn).toHaveBeenCalledTimes(1);
+        });
+
+        it('triggers process for BTCUSDT', () => {
+          expect(mockProcessFn).toHaveBeenCalledWith(
+            loggerMock,
+            'BTCUSDT',
+            undefined
+          );
+        });
+      });
+
+      describe('when executed with postprocessing only', () => {
+        beforeEach(async () => {
+          queue = require('../queue');
+
+          mockPostprocessFn = jest.fn().mockResolvedValue(true);
+          await queue.execute(logger, 'BTCUSDT', {
+            postprocessFn: mockPostprocessFn
+          });
+        });
+
+        it('triggers postprocessFn for BTCUSDT', () => {
+          expect(mockPostprocessFn).toHaveBeenCalledTimes(1);
+        });
       });
     });
   });

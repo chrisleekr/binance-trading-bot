@@ -2,14 +2,13 @@ const _ = require('lodash');
 const config = require('config');
 const { PubSub, cache, mongo } = require('./helpers');
 const queue = require('./cronjob/trailingTradeHelper/queue');
+const { executeTrailingTrade } = require('./cronjob/index');
 
 const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
 const {
   getGlobalConfiguration
 } = require('./cronjob/trailingTradeHelper/configuration');
 const {
-  lockSymbol,
-  unlockSymbol,
   getAccountInfoFromAPI,
   cacheExchangeSymbols
 } = require('./cronjob/trailingTradeHelper/common');
@@ -106,10 +105,8 @@ const syncAll = async logger => {
 
   logger.info({ symbols }, 'Retrieved symbols');
 
-  await queue.init(logger, symbols);
-
-  // Lock all symbols for 5 minutes to ensure nothing will be executed unless all data retrieved
-  await Promise.all(symbols.map(symbol => lockSymbol(logger, symbol, 300)));
+  // Start job for all symbols to ensure nothing will be executed unless all data retrieved
+  await Promise.all(symbols.map(symbol => queue.prepareJob(logger, symbol)));
 
   await setupExchangeSymbols(logger);
   await setupWebsockets(logger, symbols);
@@ -119,8 +116,8 @@ const syncAll = async logger => {
   await syncOpenOrders(logger, symbols);
   await syncDatabaseOrders(logger);
 
-  // Unlock all symbols when all data has been retrieved
-  await Promise.all(symbols.map(symbol => unlockSymbol(logger, symbol)));
+  // Complete job for all symbols when all data has been retrieved
+  await Promise.all(symbols.map(symbol => queue.completeJob(logger, symbol)));
 };
 
 /**
@@ -176,7 +173,11 @@ const setupBinance = async logger => {
 
     const symbols = _.keys(cachedOpenOrders);
 
-    symbols.forEach(symbol => queue.executeFor(logger, symbol));
+    await Promise.all(
+      symbols.map(async symbol =>
+        queue.execute(logger, symbol, { processFn: executeTrailingTrade })
+      )
+    );
   });
 
   await syncAll(logger);
