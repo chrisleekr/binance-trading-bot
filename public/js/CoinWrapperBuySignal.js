@@ -342,14 +342,10 @@ class CoinWrapperBuySignal extends React.Component {
       const sellGridTrade = symbolConfiguration.sell.gridTrade;
 
       const currentPrice = parseFloat(buy.currentPrice);
+
       const lastBuyPrice = parseFloat(sell.lastBuyPrice);
 
-      if (
-        isNaN(lastBuyPrice) ||
-        sellGridTrade.length !== 1 ||
-        currentPrice >= lastBuyPrice
-      )
-        return '';
+      if (isNaN(lastBuyPrice) || sellGridTrade.length !== 1) return '';
 
       const totalBoughtQty = gridTrade
         .filter(trade => trade.executed)
@@ -376,7 +372,7 @@ class CoinWrapperBuySignal extends React.Component {
         (symbolConfiguration.sell.currentGridTradeIndex >= 0) &
         (sellGridTrade.length === 1);
 
-      return (nextGridAmount > 0) & !hasManualTrade & isSingleSellGrid ? (
+      return !hasManualTrade && isSingleSellGrid ? (
         <React.Fragment key={'coin-wrapper-buy-next-grid-row-' + symbol}>
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>
@@ -388,7 +384,9 @@ class CoinWrapperBuySignal extends React.Component {
               />
             </span>
             <span className='coin-info-value'>
-              {nextGridAmount.toFixed(precision)} {quoteAsset}
+              {nextGridAmount > 0
+                ? `${nextGridAmount.toFixed(precision)} ${quoteAsset}`
+                : 'N/A'}
             </span>
           </div>
         </React.Fragment>
