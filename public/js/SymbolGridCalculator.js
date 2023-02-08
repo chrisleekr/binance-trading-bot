@@ -106,10 +106,12 @@ class SymbolGridCalculator extends React.Component {
     const buyTrigger =
       parseFloat(this.state.scenario.buyTrigger) || currentBuyPercentage;
 
+    const buyPriceEquivalent = lastBuyPrice * parseFloat(buyTrigger);
+
     const sellTrigger =
       parseFloat(this.state.scenario.sellTrigger) || currentSellPercentage;
 
-    const priceEquivalent = currentPrice * parseFloat(sellTrigger);
+    const sellPriceEquivalent = currentPrice * parseFloat(sellTrigger);
 
     const differenceFromCurrentPrice =
       (100 * (buyTrigger * lastBuyPrice - currentPrice)) / currentPrice;
@@ -152,9 +154,12 @@ class SymbolGridCalculator extends React.Component {
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='ml-2 text-muted'>
+                  Equivalent market price:{' '}
+                  {buyPriceEquivalent.toFixed(precision)} <br />
                   Difference from current price:{' '}
-                  {differenceFromCurrentPrice.toFixed(3)}% — Buy trigger with
-                  current price: {currentBuyPercentage.toFixed(3)}
+                  {differenceFromCurrentPrice.toFixed(3)}%<br />
+                  Buy trigger with current price:{' '}
+                  {currentBuyPercentage.toFixed(3)}
                 </Form.Text>
               </Form.Group>
               <Form.Group className='mb-2'>
@@ -174,7 +179,7 @@ class SymbolGridCalculator extends React.Component {
                 />
                 <Form.Text className='ml-2 text-muted'>
                   {currentSellPercentage
-                    ? `Equivalent market price: ${priceEquivalent.toFixed(
+                    ? `Equivalent market price: ${sellPriceEquivalent.toFixed(
                         precision
                       )}`
                     : '\u00A0'}
@@ -196,7 +201,7 @@ class SymbolGridCalculator extends React.Component {
                     {' '}
                     {sellTrigger === 1
                       ? ' - '
-                      : breakevenAmount.toFixed(2)}{' '}
+                      : breakevenAmount.toFixed(precision)}{' '}
                     {quoteAsset}
                   </code>
                   , would allow you to break-even if the market price rebounds
