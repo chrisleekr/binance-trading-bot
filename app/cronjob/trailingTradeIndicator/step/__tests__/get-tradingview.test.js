@@ -1268,10 +1268,7 @@ describe('get-tradingview.js', () => {
             .fn()
             .mockResolvedValueOnce({
               BTCUSDT: JSON.stringify({
-                candles: { interval: '1h', limit: 100 },
-                botOptions: {
-                  tradingViews: undefined
-                }
+                candles: { interval: '1h', limit: 100 }
               })
             })
             .mockResolvedValueOnce({

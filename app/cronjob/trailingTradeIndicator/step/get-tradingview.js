@@ -8,7 +8,7 @@ const { handleError } = require('../../../error-handler');
 const lastTradingView = {};
 
 /**
- * Retreive trading view for symbols per interval
+ * Retrieve trading view for symbols per interval
  *
  * @param {*} logger
  * @param {*} symbols
@@ -145,20 +145,22 @@ const execute = async (funcLogger, rawData) => {
 
   // eslint-disable-next-line no-restricted-syntax
   for (const symbol of Object.keys(cachedSymbolConfigurations)) {
+    // Do not handle if it's a global configuration
     if (symbol === 'global') {
       // eslint-disable-next-line no-continue
       continue;
     }
-    const value = cachedSymbolConfigurations[symbol];
 
-    const symbolConfiguration = JSON.parse(value);
+    const symbolConfiguration = JSON.parse(cachedSymbolConfigurations[symbol]);
 
-    const {
-      botOptions: { tradingViews }
-    } = symbolConfiguration;
+    const tradingViews = _.get(
+      symbolConfiguration,
+      'botOptions.tradingViews',
+      []
+    );
 
     const tradingViewIntervals = [];
-    (tradingViews || []).forEach(tradingView => {
+    tradingViews.forEach(tradingView => {
       const { interval } = tradingView;
 
       tradingViewIntervals.push(interval);
