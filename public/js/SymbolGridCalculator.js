@@ -73,7 +73,8 @@ class SymbolGridCalculator extends React.Component {
         filterPrice: { tickSize },
         quoteAsset
       },
-      symbolConfiguration
+      symbolConfiguration,
+      sell
     } = symbolInfo;
 
     const {
@@ -82,13 +83,11 @@ class SymbolGridCalculator extends React.Component {
 
     const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
-    const currentPrice = parseFloat(symbolInfo.sell.currentPrice);
+    const currentPrice = parseFloat(sell.currentPrice);
 
-    const lastBuyPrice = parseFloat(symbolInfo.sell.lastBuyPrice);
+    const lastBuyPrice = parseFloat(sell.lastBuyPrice);
 
-    const currentSellPercentage = parseFloat(
-      symbolConfiguration.sell.currentGridTrade.triggerPercentage
-    );
+    const currentSellPercentage = parseFloat(sell.triggerPercentage);
 
     const currentBuyPercentage =
       1 - (lastBuyPrice - currentPrice) / lastBuyPrice;

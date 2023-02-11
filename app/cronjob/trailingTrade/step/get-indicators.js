@@ -60,10 +60,12 @@ const execute = async (logger, rawData) => {
         }
       },
       sell: {
+        currentGridTradeIndex: currentSellGridTradeIndex,
         currentGridTrade: currentSellGridTrade,
+        gridTrade: sellGridTrade,
         stopLoss: { maxLossPercentage: sellMaxLossPercentage },
         conservativeMode: {
-          enabled: conservativeModeEnabled,
+          enabled: sellConservativeModeEnabled,
           factor: conservativeFactor
         }
       }
@@ -229,8 +231,9 @@ const execute = async (logger, rawData) => {
   let sellTriggerPrice = null;
   let sellDifference = null;
   let sellLimitPrice = null;
-  let conservativeModeApplicable = false;
+  let sellConservativeModeApplicable = false;
   let triggerPercentage = null;
+  let nextBestBuyAmount = null;
 
   if (lastBuyPrice > 0 && currentSellGridTrade !== null) {
     const {
@@ -243,10 +246,10 @@ const execute = async (logger, rawData) => {
       trade => trade.executed === true
     );
 
-    conservativeModeApplicable =
-      conservativeModeEnabled && lastExecutedBuyTradeIndex >= 1;
+    sellConservativeModeApplicable =
+      sellConservativeModeEnabled && lastExecutedBuyTradeIndex >= 1;
 
-    triggerPercentage = conservativeModeApplicable
+    triggerPercentage = sellConservativeModeApplicable
       ? 1 +
         (sellTriggerPercentage - 1) *
           conservativeFactor ** lastExecutedBuyTradeIndex
@@ -255,6 +258,35 @@ const execute = async (logger, rawData) => {
     sellTriggerPrice = lastBuyPrice * triggerPercentage;
     sellDifference = (1 - sellTriggerPrice / currentPrice) * 100;
     sellLimitPrice = currentPrice * sellLimitPercentage;
+
+    // Next best grid amount - only for single sell grids without manual buys
+    const firstNonExecutedBuyTradeIndex = _.findIndex(
+      buyGridTrade,
+      trade => trade.executed === false
+    );
+    const hasManualTrade =
+      firstNonExecutedBuyTradeIndex < currentBuyGridTradeIndex;
+    const isSingleSellGrid =
+      currentSellGridTradeIndex >= 0 && sellGridTrade.length === 1;
+
+    if (!hasManualTrade && isSingleSellGrid) {
+      const totalBoughtAmount = buyGridTrade
+        .filter(trade => trade.executed)
+        .map(order => parseFloat(order.executedOrder.cummulativeQuoteQty))
+        .reduce((acc, qty) => acc + qty, 0);
+
+      const totalBoughtQty = buyGridTrade
+        .filter(trade => trade.executed)
+        .map(order => parseFloat(order.executedOrder.executedQty))
+        .reduce((acc, qty) => acc + qty, 0);
+
+      const buyTrigger = 1 + (currentPrice - lastBuyPrice) / lastBuyPrice;
+
+      nextBestBuyAmount =
+        (totalBoughtAmount -
+          totalBoughtQty * buyTrigger * lastBuyPrice * triggerPercentage) /
+        (triggerPercentage - 1);
+    }
   }
   // ##############################
 
@@ -332,6 +364,7 @@ const execute = async (logger, rawData) => {
     athRestrictionPrice: buyATHRestrictionPrice,
     triggerPrice: buyTriggerPrice,
     difference: buyDifference,
+    nextBestBuyAmount,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'buy'),
     processMessage: _.get(data, 'buy.processMessage', ''),
     updatedAt: moment().utc().toDate()
@@ -347,7 +380,7 @@ const execute = async (logger, rawData) => {
     stopLossDifference: sellStopLossDifference,
     currentProfit: sellCurrentProfit,
     currentProfitPercentage: sellCurrentProfitPercentage,
-    conservativeModeApplicable,
+    conservativeModeApplicable: sellConservativeModeApplicable,
     triggerPercentage,
     openOrders: newOpenOrders?.filter(o => o.side.toLowerCase() === 'sell'),
     processMessage: _.get(data, 'sell.processMessage', ''),
