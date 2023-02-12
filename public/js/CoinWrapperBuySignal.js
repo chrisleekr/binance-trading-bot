@@ -341,7 +341,7 @@ class CoinWrapperBuySignal extends React.Component {
     const buyNextGrid = () => {
       const nextGridAmount = buy.nextBestBuyAmount;
 
-      return nextGridAmount !== null ? (
+      return (
         <React.Fragment key={'coin-wrapper-buy-next-grid-row-' + symbol}>
           <div className='coin-info-column coin-info-column-price'>
             <span className='coin-info-label'>
@@ -353,14 +353,12 @@ class CoinWrapperBuySignal extends React.Component {
               />
             </span>
             <span className='coin-info-value'>
-              {nextGridAmount > 0
+              {nextGridAmount !== null && nextGridAmount > 0
                 ? `${nextGridAmount.toFixed(precision)} ${quoteAsset}`
                 : 'N/A'}
             </span>
           </div>
         </React.Fragment>
-      ) : (
-        ''
       );
     };
 

@@ -77,10 +77,67 @@ class SymbolGridCalculator extends React.Component {
       sell
     } = symbolInfo;
 
+    if (!sell.lastBuyPrice) {
+      return (
+        <span className='header-column-icon-wrapper grid-calculator-wrapper'>
+          <button
+            type='button'
+            className='btn btn-sm btn-link mx-1 p-0 text-white'
+            onClick={this.handleModalShow}>
+            <i className='fas fa-calculator fa-sm'></i>
+          </button>
+
+          <Modal show={this.state.showModal} onHide={this.handleModalClose}>
+            <Modal.Header className='pt-1 pb-1'>
+              <Modal.Title>Grid calculator - {symbol}</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              To use the calculator, you need to have an active buy grid.
+              Trigger a buy order or set the last buy price.
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                variant='secondary'
+                size='sm'
+                onClick={this.handleModalClose}>
+                Close
+              </Button>
+            </Modal.Footer>
+          </Modal>
+        </span>
+      );
+    }
+
     const {
-      buy: { gridTrade }
+      buy: {
+        currentGridTradeIndex: buyCurrentGridTradeIndex,
+        gridTrade: buyGridTrade
+      },
+      sell: { gridTrade: sellGridTrade }
     } = symbolConfiguration;
 
+    // Detect obvious manual buys
+    // Manual buys during an active grid or outside the bot are not currently
+    // detected
+    const firstNonExecutedTradeIndex = buyGridTrade.findIndex(
+      trade => trade.executed === false
+    );
+    const firstExecutedTradeIndex = buyGridTrade.findIndex(
+      trade => trade.executed === true
+    );
+    const hasObviousManualTrade =
+      (firstNonExecutedTradeIndex !== -1 && firstExecutedTradeIndex === -1) ||
+      (firstNonExecutedTradeIndex !== -1 &&
+        firstNonExecutedTradeIndex < firstExecutedTradeIndex) ||
+      (firstNonExecutedTradeIndex !== -1 &&
+        firstNonExecutedTradeIndex < buyCurrentGridTradeIndex);
+
+    //Detect multi-trade sell grids
+    const isSingleSellGrid =
+      symbolConfiguration.sell.currentGridTradeIndex >= 0 &&
+      sellGridTrade.length === 1;
+
+    //Calculate next buy grid
     const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
     const currentPrice = parseFloat(sell.currentPrice);
@@ -92,15 +149,23 @@ class SymbolGridCalculator extends React.Component {
     const currentBuyPercentage =
       1 - (lastBuyPrice - currentPrice) / lastBuyPrice;
 
-    const totalBoughtQty = gridTrade
-      .filter(trade => trade.executed)
-      .map(order => parseFloat(order.executedOrder.executedQty))
-      .reduce((acc, qty) => acc + qty, 0);
+    const totalBoughtQty = this.state.scenario.totalBoughtQty
+      ? parseFloat(this.state.scenario.totalBoughtQty)
+      : buyGridTrade
+          .filter(trade => trade.executed)
+          .map(order => parseFloat(order.executedOrder.executedQty))
+          .reduce((acc, qty) => acc + qty, 0);
 
-    const totalBoughtAmount = gridTrade
-      .filter(trade => trade.executed)
-      .map(order => parseFloat(order.executedOrder.cummulativeQuoteQty))
-      .reduce((acc, qty) => acc + qty, 0);
+    const totalBoughtAmount = this.state.scenario.totalBoughtAmount
+      ? parseFloat(this.state.scenario.totalBoughtAmount)
+      : buyGridTrade
+          .filter(trade => trade.executed)
+          .map(order => parseFloat(order.executedOrder.cummulativeQuoteQty))
+          .reduce((acc, qty) => acc + qty, 0);
+
+    const equivalentLastBuyPrice = totalBoughtQty
+      ? totalBoughtAmount / totalBoughtQty
+      : null;
 
     const buyTrigger =
       parseFloat(this.state.scenario.buyTrigger) || currentBuyPercentage;
@@ -137,6 +202,63 @@ class SymbolGridCalculator extends React.Component {
             Determine the amount you would need to purchase at a specific buy
             trigger point and achieve break-even if the market price rebounds to
             your targeted percentage.
+            {!isSingleSellGrid ? (
+              <span className='text-danger'>
+                {' '}
+                The suggestion assumes a single sell grid.
+              </span>
+            ) : (
+              ''
+            )}
+            <div className='manual-trade-wrappers grid-calculator-row grid-calculator-wrapper mt-2'>
+              <Form.Group className='manual-trade-wrapper mb-0'>
+                <Form.Label className='mb-0 font-weight-bold'>
+                  Total spent amount ({quoteAsset})
+                </Form.Label>
+                <FormControl
+                  size='sm'
+                  type='number'
+                  step='0.0001'
+                  placeholder='Total spent amount'
+                  required
+                  defaultValue={totalBoughtAmount.toFixed(precision)}
+                  data-state-key='totalBoughtAmount'
+                  onChange={this.handleInputChange}
+                />
+              </Form.Group>
+              <Form.Group className='manual-trade-wrapper mb-0'>
+                <Form.Label className='mb-0 font-weight-bold'>
+                  Total quantity acquired
+                </Form.Label>
+                <FormControl
+                  size='sm'
+                  type='number'
+                  step='0.0001'
+                  placeholder='Total bought quantity'
+                  required
+                  defaultValue={totalBoughtQty}
+                  data-state-key='totalBoughtQty'
+                  onChange={this.handleInputChange}
+                />
+              </Form.Group>
+            </div>
+            <div className='grid-calculator-row grid-calculator-wrapper mt-0'>
+              <Form.Text className='mt-1 ml-2 text-muted'>
+                Equivalent last buy price:{' '}
+                {equivalentLastBuyPrice
+                  ? equivalentLastBuyPrice.toFixed(precision)
+                  : '-'}
+              </Form.Text>
+              {hasObviousManualTrade ? (
+                <Form.Text className='mt-0 ml-2 text-danger'>
+                  Update the previous 2 values based on your manual trades.
+                </Form.Text>
+              ) : (
+                <Form.Text className='mt-0 ml-2 text-muted'>
+                  Update the previous 2 values only if you made manual trades.
+                </Form.Text>
+              )}
+            </div>
             <div className='grid-calculator-row grid-calculator-wrapper mt-2'>
               <Form.Group className='mb-2'>
                 <Form.Label className='mb-0 font-weight-bold'>
@@ -186,7 +308,12 @@ class SymbolGridCalculator extends React.Component {
               </Form.Group>
             </div>
             <div>
-              {buyTrigger >= 1 ? (
+              {!totalBoughtQty || !totalBoughtAmount ? (
+                <span>
+                  <b>Result: </b>you first need to set the amount and quantity
+                  you manually purchased.
+                </span>
+              ) : buyTrigger >= 1 ? (
                 <span>
                   <b>Result: </b>the bot will make a new purchase only if the
                   price goes down. Set a trigger percentage inferior to 1.
@@ -204,7 +331,8 @@ class SymbolGridCalculator extends React.Component {
                     {quoteAsset}
                   </code>
                   , would allow you to break-even if the market price rebounds
-                  <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>.
+                  <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code> from the
+                  next buy price.
                 </span>
               ) : sellTrigger > 1 ? (
                 <span>

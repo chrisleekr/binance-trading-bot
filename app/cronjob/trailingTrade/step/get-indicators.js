@@ -259,17 +259,24 @@ const execute = async (logger, rawData) => {
     sellDifference = (1 - sellTriggerPrice / currentPrice) * 100;
     sellLimitPrice = currentPrice * sellLimitPercentage;
 
-    // Next best grid amount - only for single sell grids without manual buys
-    const firstNonExecutedBuyTradeIndex = _.findIndex(
-      buyGridTrade,
+    // Next best grid amount - only for single sell grids without obvious manual buys
+    const firstNonExecutedTradeIndex = buyGridTrade.findIndex(
       trade => trade.executed === false
     );
-    const hasManualTrade =
-      firstNonExecutedBuyTradeIndex < currentBuyGridTradeIndex;
+    const firstExecutedTradeIndex = buyGridTrade.findIndex(
+      trade => trade.executed === true
+    );
+    const hasObviousManualTrade =
+      (firstNonExecutedTradeIndex !== -1 && firstExecutedTradeIndex === -1) ||
+      (firstNonExecutedTradeIndex !== -1 &&
+        firstNonExecutedTradeIndex < firstExecutedTradeIndex) ||
+      (firstNonExecutedTradeIndex !== -1 &&
+        firstNonExecutedTradeIndex < currentBuyGridTradeIndex);
+
     const isSingleSellGrid =
       currentSellGridTradeIndex >= 0 && sellGridTrade.length === 1;
 
-    if (!hasManualTrade && isSingleSellGrid) {
+    if (!hasObviousManualTrade && isSingleSellGrid) {
       const totalBoughtAmount = buyGridTrade
         .filter(trade => trade.executed)
         .map(order => parseFloat(order.executedOrder.cummulativeQuoteQty))
