@@ -129,10 +129,23 @@ describe('get-indicators.js', () => {
               }
             },
             sell: {
+              currentSellGridTradeIndex: 1,
               currentGridTrade: {
                 triggerPercentage: 1.06,
                 limitPercentage: 0.979
               },
+              gridTrade: [
+                {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979,
+                  executed: true
+                },
+                {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979,
+                  executed: false
+                }
+              ],
               stopLoss: { maxLossPercentage: 0.8 },
               conservativeMode: {
                 enabled: false,
@@ -175,10 +188,23 @@ describe('get-indicators.js', () => {
               }
             },
             sell: {
+              currentSellGridTradeIndex: 1,
               currentGridTrade: {
                 triggerPercentage: 1.06,
                 limitPercentage: 0.979
               },
+              gridTrade: [
+                {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979,
+                  executed: true
+                },
+                {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979,
+                  executed: false
+                }
+              ],
               stopLoss: {
                 maxLossPercentage: 0.8
               },
@@ -212,6 +238,7 @@ describe('get-indicators.js', () => {
             athRestrictionPrice: 8100,
             triggerPrice: 8981.9603,
             difference: 73.18146017634923,
+            nextBestBuyAmount: null,
             openOrders: [],
             processMessage: '',
             updatedAt: expect.any(Object)
@@ -252,7 +279,7 @@ describe('get-indicators.js', () => {
       });
     });
 
-    describe('with disabled ATH restriction', () => {
+    describe.only('with disabled ATH restriction', () => {
       beforeEach(async () => {
         mockGetLastBuyPrice = jest.fn().mockResolvedValue(null);
         jest.mock('../../../trailingTradeHelper/common', () => ({
@@ -360,10 +387,23 @@ describe('get-indicators.js', () => {
               }
             },
             sell: {
+              currentSellGridTradeIndex: 0,
               currentGridTrade: {
                 triggerPercentage: 1.06,
                 limitPercentage: 0.979
               },
+              gridTrade: [
+                {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979,
+                  executed: true
+                },
+                {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979,
+                  executed: false
+                }
+              ],
               stopLoss: { maxLossPercentage: 0.8 },
               conservativeMode: {
                 enabled: false,
@@ -406,10 +446,23 @@ describe('get-indicators.js', () => {
               }
             },
             sell: {
+              currentSellGridTradeIndex: 0,
               currentGridTrade: {
                 triggerPercentage: 1.06,
                 limitPercentage: 0.979
               },
+              gridTrade: [
+                {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979,
+                  executed: true
+                },
+                {
+                  triggerPercentage: 1.06,
+                  limitPercentage: 0.979,
+                  executed: false
+                }
+              ],
               stopLoss: {
                 maxLossPercentage: 0.8
               },
@@ -442,6 +495,7 @@ describe('get-indicators.js', () => {
             athPrice: null,
             athRestrictionPrice: null,
             triggerPrice: 8981.9603,
+            nextBestBuyAmount: null,
             difference: 73.18146017634923,
             openOrders: [],
             processMessage: '',
