@@ -30,6 +30,104 @@ const flattenCandlesData = candles => {
   };
 };
 
+const shouldCalculateNextBestBuyAmount = data => {
+  const {
+    symbolConfiguration: {
+      buy: {
+        currentGridTradeIndex: currentBuyGridTradeIndex,
+        gridTrade: buyGridTrade
+      },
+      sell: {
+        currentGridTradeIndex: currentSellGridTradeIndex,
+        gridTrade: sellGridTrade
+      }
+    }
+  } = data;
+
+  // Find the first non-executed trade.
+  //    -1 means all buy trades are executed.
+  //    0 or more means the index of trades for first non-executed trade.
+  const firstNonExecutedTradeIndex = buyGridTrade.findIndex(
+    trade => trade.executed === false
+  );
+  // Find the first executed trade.
+  //    -1 means no buy trade is executed.
+  //    0 or more means the index of trades for first executed trade.
+  const firstExecutedTradeIndex = buyGridTrade.findIndex(
+    trade => trade.executed === true
+  );
+  const hasObviousManualTrade =
+    // If there is non-executed trade and does not have executed trade
+    (firstNonExecutedTradeIndex !== -1 && firstExecutedTradeIndex === -1) ||
+    // Or there is non-executed trade and the non-executed trade index is lower than the executed trade index
+    // or the index of current buy grid trade.
+    // It usually happens when the last buy price is set manually.
+    (firstNonExecutedTradeIndex !== -1 &&
+      firstNonExecutedTradeIndex < firstExecutedTradeIndex) ||
+    (firstNonExecutedTradeIndex !== -1 &&
+      firstNonExecutedTradeIndex < currentBuyGridTradeIndex);
+
+  // Check whether it's a single sell grid trade and whether it's executed.
+  const isSingleSellGrid =
+    currentSellGridTradeIndex >= 0 && sellGridTrade.length === 1;
+
+  // Return true if there is no manual trade and it has executed single sell grid trade.
+  return !hasObviousManualTrade && isSingleSellGrid;
+};
+
+const calculateNextBestBuyAmount = (
+  data,
+  { currentPrice, lastBuyPrice, triggerPercentage }
+) => {
+  const {
+    symbolConfiguration: {
+      buy: { gridTrade: buyGridTrade }
+    }
+  } = data;
+
+  let nextBestBuyAmount = null;
+  if (shouldCalculateNextBestBuyAmount(data)) {
+    const totalBought = buyGridTrade
+      .filter(trade => trade.executed)
+      .map(order => ({
+        cummulativeQuoteQty: parseFloat(
+          order.executedOrder.cummulativeQuoteQty
+        ),
+        executedQty: parseFloat(order.executedOrder.executedQty)
+      }))
+      .reduce(
+        (acc, o) => {
+          acc.amount += o.cummulativeQuoteQty;
+          acc.qty += o.executedQty;
+          return acc;
+        },
+        {
+          amount: 0,
+          qty: 0
+        }
+      );
+
+    // const totalBoughtAmount = buyGridTrade
+    //   .filter(trade => trade.executed)
+    //   .map(order => parseFloat(order.executedOrder.cummulativeQuoteQty))
+    //   .reduce((acc, qty) => acc + qty, 0);
+
+    // const totalBoughtQty = buyGridTrade
+    //   .filter(trade => trade.executed)
+    //   .map(order => parseFloat(order.executedOrder.executedQty))
+    //   .reduce((acc, qty) => acc + qty, 0);
+
+    const buyTrigger = 1 + (currentPrice - lastBuyPrice) / lastBuyPrice;
+
+    nextBestBuyAmount =
+      (totalBought.amount -
+        totalBought.qty * buyTrigger * lastBuyPrice * triggerPercentage) /
+      (triggerPercentage - 1);
+  }
+
+  return nextBestBuyAmount;
+};
+
 /**
  * Get symbol information, buy/sell indicators
  *
@@ -60,9 +158,7 @@ const execute = async (logger, rawData) => {
         }
       },
       sell: {
-        currentGridTradeIndex: currentSellGridTradeIndex,
         currentGridTrade: currentSellGridTrade,
-        gridTrade: sellGridTrade,
         stopLoss: { maxLossPercentage: sellMaxLossPercentage },
         conservativeMode: {
           enabled: sellConservativeModeEnabled,
@@ -260,40 +356,11 @@ const execute = async (logger, rawData) => {
     sellLimitPrice = currentPrice * sellLimitPercentage;
 
     // Next best grid amount - only for single sell grids without obvious manual buys
-    const firstNonExecutedTradeIndex = buyGridTrade.findIndex(
-      trade => trade.executed === false
-    );
-    const firstExecutedTradeIndex = buyGridTrade.findIndex(
-      trade => trade.executed === true
-    );
-    const hasObviousManualTrade =
-      (firstNonExecutedTradeIndex !== -1 && firstExecutedTradeIndex === -1) ||
-      (firstNonExecutedTradeIndex !== -1 &&
-        firstNonExecutedTradeIndex < firstExecutedTradeIndex) ||
-      (firstNonExecutedTradeIndex !== -1 &&
-        firstNonExecutedTradeIndex < currentBuyGridTradeIndex);
-
-    const isSingleSellGrid =
-      currentSellGridTradeIndex >= 0 && sellGridTrade.length === 1;
-
-    if (!hasObviousManualTrade && isSingleSellGrid) {
-      const totalBoughtAmount = buyGridTrade
-        .filter(trade => trade.executed)
-        .map(order => parseFloat(order.executedOrder.cummulativeQuoteQty))
-        .reduce((acc, qty) => acc + qty, 0);
-
-      const totalBoughtQty = buyGridTrade
-        .filter(trade => trade.executed)
-        .map(order => parseFloat(order.executedOrder.executedQty))
-        .reduce((acc, qty) => acc + qty, 0);
-
-      const buyTrigger = 1 + (currentPrice - lastBuyPrice) / lastBuyPrice;
-
-      nextBestBuyAmount =
-        (totalBoughtAmount -
-          totalBoughtQty * buyTrigger * lastBuyPrice * triggerPercentage) /
-        (triggerPercentage - 1);
-    }
+    nextBestBuyAmount = calculateNextBestBuyAmount(data, {
+      currentPrice,
+      lastBuyPrice,
+      triggerPercentage
+    });
   }
   // ##############################
 
