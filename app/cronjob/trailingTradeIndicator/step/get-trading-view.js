@@ -1,6 +1,7 @@
 const qs = require('qs');
 const _ = require('lodash');
 const axios = require('axios');
+const config = require('config');
 const { cache } = require('../../../helpers');
 const { handleError } = require('../../../error-handler');
 
@@ -68,7 +69,11 @@ const retrieveTradingView = async (logger, symbols, interval) => {
   };
 
   try {
-    const response = await axios.get('http://tradingview:8080', {
+    const tradingviewUrl = `http://${config.get(
+      'tradingview.host'
+    )}:${config.get('tradingview.port')}`;
+
+    const response = await axios.get(tradingviewUrl, {
       params,
       paramsSerializer:
         /* istanbul ignore next */
