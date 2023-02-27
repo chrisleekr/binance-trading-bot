@@ -356,7 +356,6 @@ describe('get-indicators.js', () => {
             athRestrictionPrice: null,
             triggerPrice: 8981.9603,
             nextBestBuyAmount: null,
-
             nextBestBuyCalculation: {
               buyTrigger: 1.01,
               currentPrice: 15555.09,
@@ -669,7 +668,7 @@ describe('get-indicators.js', () => {
         });
       });
 
-      describe('when buy grid trade index is 1 after executing the 1st gride trade', () => {
+      describe('when buy grid trade index is 1 after executing the 1st grid trade', () => {
         beforeEach(async () => {
           rawData = {
             ...baseRawData,
@@ -1374,9 +1373,9 @@ describe('get-indicators.js', () => {
               limitPrice: null,
               highestPrice: 10000,
               lowestPrice: 8893.03,
-              nextBestBuyAmount: null,
               athPrice: 9887.9,
               athRestrictionPrice: 8899.11,
+              nextBestBuyAmount: null,
               nextBestBuyCalculation: {
                 buyTrigger: 0.9888888888888889,
                 currentPrice: 8900,
