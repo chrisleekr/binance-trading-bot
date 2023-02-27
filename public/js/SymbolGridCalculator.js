@@ -267,7 +267,8 @@ class SymbolGridCalculator extends React.Component {
               </Form.Group>
               <Form.Group className='mb-2'>
                 <Form.Label className='mb-0 font-weight-bold'>
-                  Expected price rebound percentage
+                  Expected price rebound percentage{' '}
+                  {sell.conservativeModeApplicable ? '(conservative sell)' : ''}
                 </Form.Label>
                 <FormControl
                   size='sm'
