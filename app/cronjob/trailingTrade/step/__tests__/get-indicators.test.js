@@ -11,6 +11,15 @@ describe('get-indicators.js', () => {
 
   let mockGetLastBuyPrice;
 
+  const clearMocks = () => {
+    jest.clearAllMocks().resetModules();
+
+    const { cache, logger, mongo } = require('../../../../helpers');
+    cacheMock = cache;
+    loggerMock = logger;
+    mongoMock = mongo;
+  };
+
   const mockLatestCandle = close => {
     cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
       if (
@@ -109,12 +118,7 @@ describe('get-indicators.js', () => {
   };
   describe('execute', () => {
     beforeEach(() => {
-      jest.clearAllMocks().resetModules();
-
-      const { cache, logger, mongo } = require('../../../../helpers');
-      cacheMock = cache;
-      loggerMock = logger;
-      mongoMock = mongo;
+      clearMocks();
     });
 
     describe('with no open orders and no last buy price', () => {
@@ -1622,8 +1626,6 @@ describe('get-indicators.js', () => {
 
       describe('when buy grid trade index is 1', () => {
         beforeEach(async () => {
-          step = require('../get-indicators');
-
           rawData = {
             ...baseRawData,
             symbolConfiguration: {
@@ -1869,8 +1871,6 @@ describe('get-indicators.js', () => {
 
       describe('when buy grid trade index is 1 with conservative mode enabled', () => {
         beforeEach(async () => {
-          step = require('../get-indicators');
-
           rawData = {
             ...baseRawData,
             symbolConfiguration: {
@@ -2115,6 +2115,12 @@ describe('get-indicators.js', () => {
 
       describe('when buy grid trade index is 2 with conservative mode enabled', () => {
         beforeEach(async () => {
+          clearMocks();
+
+          mockLastBuyPrice({ lastBuyPrice: 9966.66666666667, quantity: 1.5 });
+
+          mockLatestCandle(8900);
+
           step = require('../get-indicators');
 
           rawData = {
@@ -2264,8 +2270,8 @@ describe('get-indicators.js', () => {
                 currentPrice: 8900,
                 differenceToCancel: -82.4838461626746,
                 differenceToExecute: -78.65168539325842,
-                minimumProfit: 35,
-                minimumProfitPercentage: 77.77777777777777,
+                minimumProfit: 30.166666666666654,
+                minimumProfitPercentage: 60.535117056856144,
                 updatedAt: expect.any(Object)
               }
             ],
@@ -2286,8 +2292,8 @@ describe('get-indicators.js', () => {
               nextBestBuyAmount: 204983.33333333314,
               athPrice: 9887.9,
               athRestrictionPrice: 8899.11,
-              triggerPrice: 9090,
-              difference: -2.0902090209020896,
+              triggerPrice: 10066.333333333336,
+              difference: -11.586476373389864,
               openOrders: [
                 {
                   orderId: 1,
@@ -2321,13 +2327,13 @@ describe('get-indicators.js', () => {
             sell: {
               currentPrice: 8900,
               limitPrice: 8713.1,
-              lastBuyPrice: 9000,
-              triggerPrice: 9270,
-              difference: -4.157303370786525,
-              currentProfit: -150,
-              currentProfitPercentage: -1.1111111111111072,
-              stopLossDifference: -51.685393258426956,
-              stopLossTriggerPrice: 13500,
+              lastBuyPrice: 9966.66666666667,
+              triggerPrice: 10265.66666666667,
+              difference: -15.344569288389543,
+              currentProfit: -1600.0000000000045,
+              currentProfitPercentage: -10.702341137123772,
+              stopLossDifference: -67.97752808988768,
+              stopLossTriggerPrice: 14950.000000000004,
               openOrders: [
                 {
                   orderId: 3,
@@ -2341,8 +2347,8 @@ describe('get-indicators.js', () => {
                   currentPrice: 8900,
                   differenceToCancel: -82.4838461626746,
                   differenceToExecute: -78.65168539325842,
-                  minimumProfit: 35,
-                  minimumProfitPercentage: 77.77777777777777,
+                  minimumProfit: 30.166666666666654,
+                  minimumProfitPercentage: 60.535117056856144,
                   updatedAt: expect.any(Object)
                 }
               ],

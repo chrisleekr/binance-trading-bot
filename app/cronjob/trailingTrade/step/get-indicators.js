@@ -107,16 +107,6 @@ const calculateNextBestBuyAmount = (
         }
       );
 
-    // const totalBoughtAmount = buyGridTrade
-    //   .filter(trade => trade.executed)
-    //   .map(order => parseFloat(order.executedOrder.cummulativeQuoteQty))
-    //   .reduce((acc, qty) => acc + qty, 0);
-
-    // const totalBoughtQty = buyGridTrade
-    //   .filter(trade => trade.executed)
-    //   .map(order => parseFloat(order.executedOrder.executedQty))
-    //   .reduce((acc, qty) => acc + qty, 0);
-
     const buyTrigger = 1 + (currentPrice - lastBuyPrice) / lastBuyPrice;
 
     nextBestBuyAmount =
