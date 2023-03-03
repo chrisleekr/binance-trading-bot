@@ -388,12 +388,8 @@ const execute = async (logger, rawData) => {
   let nextBestBuyAmount = null;
   let nextBestBuyCalculation = null;
 
-  // Use buy trigger of the current grid, if any.
-  // Otherwise compute with a grid at currentPrice
-  const nextBestBuyTrigger =
-    currentBuyGridTrade !== null
-      ? currentBuyGridTrade.triggerPercentage
-      : 1 + (currentPrice - lastBuyPrice) / lastBuyPrice;
+  // Compute with a grid at currentPrice
+  const nextBestBuyTrigger = 1 + (currentPrice - lastBuyPrice) / lastBuyPrice;
 
   // If conservative mode is enabled, update the sell trigger for the next grid
   // We won't compute nextBestBuy for multi-grid sells

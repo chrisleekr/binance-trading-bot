@@ -139,6 +139,9 @@ class SymbolGridCalculator extends React.Component {
 
     const buyPriceEquivalent = lastBuyPrice * currentBuyTrigger;
 
+    const buyTriggerWithCurrentPrice =
+      1 - (lastBuyPrice - currentPrice) / lastBuyPrice
+
     const currentTotalBoughtQty = this.state.scenario.totalBoughtQty
       ? parseFloat(this.state.scenario.totalBoughtQty)
       : totalBoughtQty;
@@ -262,7 +265,8 @@ class SymbolGridCalculator extends React.Component {
                   {buyPriceEquivalent.toFixed(precision)} <br />
                   Difference from current price:{' '}
                   {differenceFromCurrentPrice.toFixed(3)}%<br />
-                  Buy trigger with current price: {currentBuyTrigger.toFixed(3)}
+                  Buy trigger with current price:{' '}
+                  {buyTriggerWithCurrentPrice.toFixed(3)}
                 </Form.Text>
               </Form.Group>
               <Form.Group className='mb-2'>
