@@ -91,11 +91,10 @@ const nextBestBuyAmountCalculationConditions = data => {
  * @param {*} currentPrice
  * @param {*} lastBuyPrice
  * @param {*} sellTrigger
- * @param {*} buyTrigger
  */
 const calculateNextBestBuyAmount = (
   data,
-  { currentPrice, lastBuyPrice, sellTrigger, buyTrigger }
+  { currentPrice, lastBuyPrice, sellTrigger }
 ) => {
   const {
     symbolConfiguration: {
@@ -123,6 +122,8 @@ const calculateNextBestBuyAmount = (
         qty: 0
       }
     );
+
+  const buyTrigger = 1 + (currentPrice - lastBuyPrice) / lastBuyPrice;
 
   let amount = null;
 
@@ -388,9 +389,6 @@ const execute = async (logger, rawData) => {
   let nextBestBuyAmount = null;
   let nextBestBuyCalculation = null;
 
-  // Compute with a grid at currentPrice
-  const nextBestBuyTrigger = 1 + (currentPrice - lastBuyPrice) / lastBuyPrice;
-
   // If conservative mode is enabled, update the sell trigger for the next grid
   // We won't compute nextBestBuy for multi-grid sells
   const nextBestBuySellTriggerPercentage =
@@ -409,8 +407,7 @@ const execute = async (logger, rawData) => {
   nextBestBuy = calculateNextBestBuyAmount(data, {
     currentPrice,
     lastBuyPrice,
-    sellTrigger: nextBestBuySellTrigger,
-    buyTrigger: nextBestBuyTrigger
+    sellTrigger: nextBestBuySellTrigger
   });
 
   nextBestBuyAmount = nextBestBuy.amount;
