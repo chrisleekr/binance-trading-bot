@@ -51,10 +51,12 @@ def index():
 
 if __name__ == "__main__":
     from waitress import serve
+    port = os.environ.get("TRADINGVIEW_PORT", 8080)
+
     serve(
         app,
         host="0.0.0.0",
-        port=8080,
+        port=port,
         # Stop creating new channels if too many are already active (integer).
         connection_limit=5000,
         # Minimum seconds between cleaning up inactive channels (integer). See also channel_timeout.
