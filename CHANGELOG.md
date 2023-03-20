@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - Fixed the stop-loss to be a higher priority than the new buy order by [@uhliksk](https://github.com/uhliksk) - [#589](https://github.com/chrisleekr/binance-trading-bot/pull/589)
 - Improved search and filtering UX by [@rando128](https://github.com/rando128) - [#591](https://github.com/chrisleekr/binance-trading-bot/pull/591)
 - Enhanced the break-even calculator by [@rando128](https://github.com/rando128) - [#597](https://github.com/chrisleekr/binance-trading-bot/pull/597), [#601](https://github.com/chrisleekr/binance-trading-bot/pull/601)
+- Updated TradingView host/port configurable  by [@rando128](https://github.com/rando128) - [#608](https://github.com/chrisleekr/binance-trading-bot/pull/608)
 
 Thanks [@uhliksk](https://github.com/uhliksk) and [@rando128](https://github.com/rando128) for your great contributions. 💯 :heart:
 
