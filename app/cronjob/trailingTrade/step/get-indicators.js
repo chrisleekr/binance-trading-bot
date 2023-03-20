@@ -389,29 +389,31 @@ const execute = async (logger, rawData) => {
   let nextBestBuyAmount = null;
   let nextBestBuyCalculation = null;
 
-  // If conservative mode is enabled, update the sell trigger for the next grid
-  // We won't compute nextBestBuy for multi-grid sells
-  const nextBestBuySellTriggerPercentage =
-    currentSellGridTrade !== null
-      ? currentSellGridTrade.triggerPercentage
-      : null;
+  if (lastBuyPrice > 0) {
+    // If conservative mode is enabled, update the sell trigger for the next grid
+    // We won't compute nextBestBuy for multi-grid sells
+    const nextBestBuySellTriggerPercentage =
+      currentSellGridTrade !== null
+        ? currentSellGridTrade.triggerPercentage
+        : null;
 
-  const nextBestBuySellTrigger = sellConservativeModeEnabled
-    ? applyConservativeSell(data, {
+    const nextBestBuySellTrigger = sellConservativeModeEnabled
+      ? applyConservativeSell(data, {
         conservativeFactor,
         sellTriggerPercentage: nextBestBuySellTriggerPercentage,
         buyGridTradeDepth: lastExecutedBuyTradeIndex + 1
       })
-    : nextBestBuySellTriggerPercentage;
+      : nextBestBuySellTriggerPercentage;
 
-  nextBestBuy = calculateNextBestBuyAmount(data, {
-    currentPrice,
-    lastBuyPrice,
-    sellTrigger: nextBestBuySellTrigger
-  });
+    nextBestBuy = calculateNextBestBuyAmount(data, {
+      currentPrice,
+      lastBuyPrice,
+      sellTrigger: nextBestBuySellTrigger
+    });
 
-  nextBestBuyAmount = nextBestBuy.amount;
-  nextBestBuyCalculation = nextBestBuy.calculation;
+    nextBestBuyAmount = nextBestBuy.amount;
+    nextBestBuyCalculation = nextBestBuy.calculation;
+  }
   // ##############################
 
   // Get stop loss trigger price
