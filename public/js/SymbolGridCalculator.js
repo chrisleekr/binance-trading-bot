@@ -73,53 +73,103 @@ class SymbolGridCalculator extends React.Component {
         filterPrice: { tickSize },
         quoteAsset
       },
-      symbolConfiguration
+      buy: { nextBestBuyCalculation },
+      sell
     } = symbolInfo;
-
-    const {
-      buy: { gridTrade }
-    } = symbolConfiguration;
 
     const precision = parseFloat(tickSize) === 1 ? 0 : tickSize.indexOf(1) - 1;
 
-    const currentPrice = parseFloat(symbolInfo.sell.currentPrice);
+    if (!sell.lastBuyPrice) {
+      return (
+        <span className='header-column-icon-wrapper grid-calculator-wrapper'>
+          <button
+            type='button'
+            className='btn btn-sm btn-link mx-1 p-0 text-white'
+            onClick={this.handleModalShow}>
+            <i className='fas fa-calculator fa-sm'></i>
+          </button>
 
-    const lastBuyPrice = parseFloat(symbolInfo.sell.lastBuyPrice);
+          <Modal show={this.state.showModal} onHide={this.handleModalClose}>
+            <Modal.Header className='pt-1 pb-1'>
+              <Modal.Title>Grid calculator - {symbol}</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              To use the calculator, you need to have an active buy grid.
+              Trigger a buy order or set the last buy price.
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                variant='secondary'
+                size='sm'
+                onClick={this.handleModalClose}>
+                Close
+              </Button>
+            </Modal.Footer>
+          </Modal>
+        </span>
+      );
+    }
 
-    const currentSellPercentage = parseFloat(
-      symbolConfiguration.sell.currentGridTrade.triggerPercentage
-    );
+    //Prepare calculation
+    const {
+      currentPrice,
+      lastBuyPrice,
+      totalBoughtAmount,
+      totalBoughtQty,
+      buyTrigger,
+      sellTrigger,
+      hasObviousManualTrade,
+      isSingleSellGrid
+    } = nextBestBuyCalculation || {
+      currentPrice: parseFloat(sell.currentPrice),
+      lastBuyPrice: parseFloat(sell.lastBuyPrice),
+      totalBoughtAmount: 0,
+      totalBoughtQty: 0,
+      buyTrigger:
+        1 +
+        (parseFloat(sell.currentPrice) - parseFloat(sell.lastBuyPrice)) /
+          parseFloat(sell.lastBuyPrice),
+      sellTrigger: parseFloat(sell.triggerPercentage),
+      hasObviousManualTrade: true,
+      isSingleSellGrid: false
+    };
 
-    const currentBuyPercentage =
-      1 - (lastBuyPrice - currentPrice) / lastBuyPrice;
+    const currentBuyTrigger =
+      parseFloat(this.state.scenario.buyTrigger) || buyTrigger;
 
-    const totalBoughtQty = gridTrade
-      .filter(trade => trade.executed)
-      .map(order => parseFloat(order.executedOrder.executedQty))
-      .reduce((acc, qty) => acc + qty, 0);
+    const buyPriceEquivalent = lastBuyPrice * currentBuyTrigger;
 
-    const totalBoughtAmount = gridTrade
-      .filter(trade => trade.executed)
-      .map(order => parseFloat(order.executedOrder.cummulativeQuoteQty))
-      .reduce((acc, qty) => acc + qty, 0);
+    const buyTriggerWithCurrentPrice =
+      1 - (lastBuyPrice - currentPrice) / lastBuyPrice
 
-    const buyTrigger =
-      parseFloat(this.state.scenario.buyTrigger) || currentBuyPercentage;
+    const currentTotalBoughtQty = this.state.scenario.totalBoughtQty
+      ? parseFloat(this.state.scenario.totalBoughtQty)
+      : totalBoughtQty;
 
-    const buyPriceEquivalent = lastBuyPrice * parseFloat(buyTrigger);
+    const currentTotalBoughtAmount = this.state.scenario.totalBoughtAmount
+      ? parseFloat(this.state.scenario.totalBoughtAmount)
+      : totalBoughtAmount;
 
-    const sellTrigger =
-      parseFloat(this.state.scenario.sellTrigger) || currentSellPercentage;
+    const equivalentLastBuyPrice = currentTotalBoughtQty
+      ? currentTotalBoughtAmount / currentTotalBoughtQty
+      : null;
 
-    const sellPriceEquivalent = currentPrice * parseFloat(sellTrigger);
+    const currentSellTrigger =
+      parseFloat(this.state.scenario.sellTrigger) || sellTrigger;
+
+    const sellPriceEquivalent = currentPrice * parseFloat(currentSellTrigger);
 
     const differenceFromCurrentPrice =
-      (100 * (buyTrigger * lastBuyPrice - currentPrice)) / currentPrice;
+      (100 * (currentBuyTrigger * lastBuyPrice - currentPrice)) / currentPrice;
 
+    //Calculate next buy grid with current data
     const breakevenAmount =
-      (totalBoughtAmount -
-        totalBoughtQty * buyTrigger * lastBuyPrice * sellTrigger) /
-      (sellTrigger - 1);
+      (currentTotalBoughtAmount -
+        currentTotalBoughtQty *
+          currentBuyTrigger *
+          lastBuyPrice *
+          currentSellTrigger) /
+      (currentSellTrigger - 1);
 
     return (
       <span className='header-column-icon-wrapper grid-calculator-wrapper'>
@@ -138,6 +188,63 @@ class SymbolGridCalculator extends React.Component {
             Determine the amount you would need to purchase at a specific buy
             trigger point and achieve break-even if the market price rebounds to
             your targeted percentage.
+            {!isSingleSellGrid ? (
+              <span className='text-danger'>
+                {' '}
+                The suggestion assumes a single sell grid.
+              </span>
+            ) : (
+              ''
+            )}
+            <div className='manual-trade-wrappers grid-calculator-row grid-calculator-wrapper mt-2'>
+              <Form.Group className='manual-trade-wrapper mb-0'>
+                <Form.Label className='mb-0 font-weight-bold'>
+                  Total spent amount ({quoteAsset})
+                </Form.Label>
+                <FormControl
+                  size='sm'
+                  type='number'
+                  step='0.0001'
+                  placeholder='Total spent amount'
+                  required
+                  defaultValue={currentTotalBoughtAmount.toFixed(precision)}
+                  data-state-key='totalBoughtAmount'
+                  onChange={this.handleInputChange}
+                />
+              </Form.Group>
+              <Form.Group className='manual-trade-wrapper mb-0'>
+                <Form.Label className='mb-0 font-weight-bold'>
+                  Total quantity acquired
+                </Form.Label>
+                <FormControl
+                  size='sm'
+                  type='number'
+                  step='0.0001'
+                  placeholder='Total bought quantity'
+                  required
+                  defaultValue={currentTotalBoughtQty}
+                  data-state-key='totalBoughtQty'
+                  onChange={this.handleInputChange}
+                />
+              </Form.Group>
+            </div>
+            <div className='grid-calculator-row grid-calculator-wrapper mt-0'>
+              <Form.Text className='mt-1 ml-2 text-muted'>
+                Equivalent last buy price:{' '}
+                {equivalentLastBuyPrice
+                  ? equivalentLastBuyPrice.toFixed(precision)
+                  : '-'}
+              </Form.Text>
+              {hasObviousManualTrade ? (
+                <Form.Text className='mt-0 ml-2 text-danger'>
+                  Update the previous 2 values based on your manual trades.
+                </Form.Text>
+              ) : (
+                <Form.Text className='mt-0 ml-2 text-muted'>
+                  Update the previous 2 values only if you made manual trades.
+                </Form.Text>
+              )}
+            </div>
             <div className='grid-calculator-row grid-calculator-wrapper mt-2'>
               <Form.Group className='mb-2'>
                 <Form.Label className='mb-0 font-weight-bold'>
@@ -149,7 +256,7 @@ class SymbolGridCalculator extends React.Component {
                   step='0.0001'
                   placeholder='Enter buy trigger %'
                   required
-                  defaultValue={currentBuyPercentage.toFixed(3)}
+                  defaultValue={currentBuyTrigger.toFixed(3)}
                   data-state-key='buyTrigger'
                   onChange={this.handleInputChange}
                 />
@@ -159,12 +266,13 @@ class SymbolGridCalculator extends React.Component {
                   Difference from current price:{' '}
                   {differenceFromCurrentPrice.toFixed(3)}%<br />
                   Buy trigger with current price:{' '}
-                  {currentBuyPercentage.toFixed(3)}
+                  {buyTriggerWithCurrentPrice.toFixed(3)}
                 </Form.Text>
               </Form.Group>
               <Form.Group className='mb-2'>
                 <Form.Label className='mb-0 font-weight-bold'>
-                  Expected price rebound percentage
+                  Expected price rebound percentage{' '}
+                  {sell.conservativeModeApplicable ? '(conservative sell)' : ''}
                 </Form.Label>
                 <FormControl
                   size='sm'
@@ -173,12 +281,12 @@ class SymbolGridCalculator extends React.Component {
                   placeholder='Enter price increase percentage'
                   required
                   min='1'
-                  defaultValue={currentSellPercentage.toFixed(4)}
+                  defaultValue={currentSellTrigger.toFixed(4)}
                   data-state-key='sellTrigger'
                   onChange={this.handleInputChange}
                 />
                 <Form.Text className='ml-2 text-muted'>
-                  {currentSellPercentage
+                  {currentSellTrigger
                     ? `Equivalent market price: ${sellPriceEquivalent.toFixed(
                         precision
                       )}`
@@ -187,7 +295,12 @@ class SymbolGridCalculator extends React.Component {
               </Form.Group>
             </div>
             <div>
-              {buyTrigger >= 1 ? (
+              {!currentTotalBoughtQty || !currentTotalBoughtAmount ? (
+                <span>
+                  <b>Result: </b>you first need to set the amount and quantity
+                  you manually purchased.
+                </span>
+              ) : currentBuyTrigger >= 1 ? (
                 <span>
                   <b>Result: </b>the bot will make a new purchase only if the
                   price goes down. Set a trigger percentage inferior to 1.
@@ -195,24 +308,32 @@ class SymbolGridCalculator extends React.Component {
               ) : breakevenAmount > 0 ? (
                 <span>
                   <b>Result: </b>executing a new grid at
-                  <code> {((buyTrigger - 1) * 100).toFixed(2)}% </code>
+                  <code> {((currentBuyTrigger - 1) * 100).toFixed(2)}% </code>
                   from your current last buy price with a purchase amount of
                   <code>
                     {' '}
-                    {sellTrigger === 1
+                    {currentSellTrigger === 1
                       ? ' - '
                       : breakevenAmount.toFixed(precision)}{' '}
                     {quoteAsset}
                   </code>
                   , would allow you to break-even if the market price rebounds
-                  <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>.
+                  <code>
+                    {' '}
+                    {((currentSellTrigger - 1) * 100).toFixed(2)}%
+                  </code>{' '}
+                  from the next buy price.
                 </span>
-              ) : sellTrigger > 1 ? (
+              ) : currentSellTrigger > 1 ? (
                 <span>
                   <b>Result: </b>it is pointless to execute a new grid at
-                  <code> {((buyTrigger - 1) * 100).toFixed(2)}% </code> from
-                  your current last buy price if you expect the market price to
-                  rebound <code> {((sellTrigger - 1) * 100).toFixed(2)}%</code>,
+                  <code>
+                    {' '}
+                    {((currentBuyTrigger - 1) * 100).toFixed(2)}%{' '}
+                  </code>{' '}
+                  from your current last buy price if you expect the market
+                  price to rebound{' '}
+                  <code> {((currentSellTrigger - 1) * 100).toFixed(2)}%</code>,
                   as you would breakeven by reaching your current last buy price
                   of <code> {lastBuyPrice.toFixed(precision)}</code>.
                 </span>
