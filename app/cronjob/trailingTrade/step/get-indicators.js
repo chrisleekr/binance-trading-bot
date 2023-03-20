@@ -399,10 +399,10 @@ const execute = async (logger, rawData) => {
 
     const nextBestBuySellTrigger = sellConservativeModeEnabled
       ? applyConservativeSell(data, {
-        conservativeFactor,
-        sellTriggerPercentage: nextBestBuySellTriggerPercentage,
-        buyGridTradeDepth: lastExecutedBuyTradeIndex + 1
-      })
+          conservativeFactor,
+          sellTriggerPercentage: nextBestBuySellTriggerPercentage,
+          buyGridTradeDepth: lastExecutedBuyTradeIndex + 1
+        })
       : nextBestBuySellTriggerPercentage;
 
     nextBestBuy = calculateNextBestBuyAmount(data, {
