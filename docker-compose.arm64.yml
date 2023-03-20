@@ -1,0 +1,24 @@
+# This yaml file is to run on ARM-based computer like the M2 Macbook.
+# For the development environment: `docker-compose -f docker-compose.yml -f docker-compose.arm64.yml up -d --build`
+# For the production environment: `docker-compose -f docker-compose.server.yml -f docker-compose.arm64.yml up -d`
+
+services:
+  binance-mongo:
+    container_name: binance-mongo
+    image: arm64v8/mongo:3.4 # The minimum version I can find was 3.4. Note that the app is using Mongo 3.2.20.
+    restart: unless-stopped
+    networks:
+      - internal
+    volumes:
+      - mongo_data:/data/db
+
+  binance-mongo-express:
+    container_name: binance-mongo-express
+    image: arm64v8/mongo-express:0.54
+    restart: unless-stopped
+    networks:
+      - internal
+    ports:
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_SERVER: binance-mongo
