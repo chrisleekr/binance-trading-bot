@@ -1,6 +1,6 @@
 {
   "name": "binance-trading-bot",
-  "version": "0.0.96",
+  "version": "0.0.97",
   "description": "Binance Auto Trading Bot",
   "scripts": {
     "prepare": "husky install",
