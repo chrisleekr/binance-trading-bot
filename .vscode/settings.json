@@ -18,10 +18,11 @@
     "bbands",
     "Bollinger",
     "chrisleekr",
-    "hgetall",
     "cummulative",
+    "hgetall",
     "MACD",
     "mrkdwn",
+    "redlock",
     "tradingview",
     "tulind",
     "uuidv"
