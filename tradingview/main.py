@@ -52,7 +52,7 @@ def index():
 if __name__ == "__main__":
     from waitress import serve
 
-    port_str = os.environ.get("TRADINGVIEW_PORT", "8080")
+    port_str = os.environ.get("BINANCE_TRADINGVIEW_PORT", "8080")
     try:
         port = int(port_str)
     except ValueError:
