@@ -43,7 +43,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       # https://docs.python.org/3/howto/logging.html#logging-levels
-      - TRADINGVIEW_LOG_LEVEL=INFO
+      - BINANCE_TRADINGVIEW_LOG_LEVEL=INFO
       - BINANCE_TRADINGVIEW_PORT=8082
     ports:
       - 8082:8082
