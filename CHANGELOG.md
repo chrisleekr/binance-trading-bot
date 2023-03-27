@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-- Added the prefix to environment parameter for `TRADINGVIEW_HOST` and `TRADINGVIEW_PORT` - [#616](https://github.com/chrisleekr/binance-trading-bot/pull/616)
+- Added the prefix to environment parameter for `TRADINGVIEW` related - [#616](https://github.com/chrisleekr/binance-trading-bot/pull/616)
 
 ## [0.0.97] - 2023-03-21
 
