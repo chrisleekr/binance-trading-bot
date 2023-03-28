@@ -25,8 +25,8 @@ services:
       - BINANCE_REDIS_PORT=6379
       - BINANCE_REDIS_PASSWORD=secretp422
       - BINANCE_LOG_LEVEL=DEBUG
-      - TRADINGVIEW_HOST=tradingview
-      - TRADINGVIEW_PORT=8082
+      - BINANCE_TRADINGVIEW_HOST=tradingview
+      - BINANCE_TRADINGVIEW_PORT=8082
     ports:
       - 8080:80
     logging:
@@ -44,8 +44,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       # https://docs.python.org/3/howto/logging.html#logging-levels
-      - TRADINGVIEW_LOG_LEVEL=INFO
-      - TRADINGVIEW_PORT=8082
+      - BINANCE_TRADINGVIEW_LOG_LEVEL=INFO
+      - BINANCE_TRADINGVIEW_PORT=8082
     ports:
       - 8082:8082
     logging:

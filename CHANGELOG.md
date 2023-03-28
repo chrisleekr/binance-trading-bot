@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Added the prefix to environment parameter for `TRADINGVIEW` related - [#616](https://github.com/chrisleekr/binance-trading-bot/pull/616)
+
 ## [0.0.97] - 2023-03-21
 
 - Fixed sorting symbols open trades first by [@uhliksk](https://github.com/uhliksk) - [#564](https://github.com/chrisleekr/binance-trading-bot/pull/564)
