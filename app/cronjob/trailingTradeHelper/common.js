@@ -564,6 +564,16 @@ const getSymbolInfo = async (logger, symbol) => {
     symbolInfo.filters,
     f => f.filterType === 'MIN_NOTIONAL'
   )[0];
+  // eslint-disable-next-line prefer-destructuring
+  symbolInfo.filterNotional = _.filter(
+    symbolInfo.filters,
+    f => f.filterType === 'NOTIONAL'
+  )[0];
+
+  // This is for a backward compatibility that filterMinNotional is not available.
+  if (symbolInfo.filterNotional) {
+    symbolInfo.filterMinNotional = symbolInfo.filterNotional;
+  }
 
   logger.info({ symbolInfo }, 'Retrieved symbol info from Binance.');
 
