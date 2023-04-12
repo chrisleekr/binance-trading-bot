@@ -2,9 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.0.98] - 2023-04-13
 
 - Added the prefix to environment parameter for `TRADINGVIEW` related - [#616](https://github.com/chrisleekr/binance-trading-bot/pull/616)
+- Fixed the issue with minNotional - [#623](https://github.com/chrisleekr/binance-trading-bot/pull/623)
 
 ## [0.0.97] - 2023-03-21
 
