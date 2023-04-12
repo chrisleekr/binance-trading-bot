@@ -1599,7 +1599,7 @@ describe('common.js', () => {
     });
 
     describe('when cached exchange info does not exist', () => {
-      beforeEach(async () => {
+      beforeEach(() => {
         const { cache, binance, logger } = require('../../../helpers');
 
         cacheMock = cache;
@@ -1618,93 +1618,137 @@ describe('common.js', () => {
           );
 
         commonHelper = require('../common');
-        result = await commonHelper.getSymbolInfo(loggerMock, 'BTCUSDT');
       });
 
-      it('triggers cache.hget', () => {
-        expect(cacheMock.hget).toHaveBeenCalledWith(
-          'trailing-trade-symbols',
-          'BTCUSDT-symbol-info'
-        );
-      });
+      describe('BTCUSDT - with MIN_NOTIONAL', () => {
+        beforeEach(async () => {
+          result = await commonHelper.getSymbolInfo(loggerMock, 'BTCUSDT');
+        });
 
-      it('triggers cache.hset for exchange-info', () => {
-        expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
-          'trailing-trade-common'
-        );
-        expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual('exchange-info');
-        const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
-        expect(args).toStrictEqual(
-          _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
-        );
-      });
+        it('triggers cache.hget', () => {
+          expect(cacheMock.hget).toHaveBeenCalledWith(
+            'trailing-trade-symbols',
+            'BTCUSDT-symbol-info'
+          );
+        });
 
-      it('triggers binance.client.exchangeInfo', () => {
-        expect(binanceMock.client.exchangeInfo).toHaveBeenCalled();
-      });
+        it('triggers cache.hset for exchange-info', () => {
+          expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
+            'trailing-trade-common'
+          );
+          expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual(
+            'exchange-info'
+          );
+          const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
+          expect(args).toStrictEqual(
+            _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
+          );
+        });
 
-      it('triggers cache.hset for final symbol info', () => {
-        expect(cacheMock.hset.mock.calls[1][0]).toStrictEqual(
-          'trailing-trade-symbols'
-        );
-        expect(cacheMock.hset.mock.calls[1][1]).toStrictEqual(
-          'BTCUSDT-symbol-info'
-        );
-        const args = JSON.parse(cacheMock.hset.mock.calls[1][2]);
-        expect(args).toStrictEqual({
-          baseAsset: 'BTC',
-          baseAssetPrecision: 8,
-          filterLotSize: {
-            filterType: 'LOT_SIZE',
-            maxQty: '900.00000000',
-            minQty: '0.00000100',
-            stepSize: '0.00000100'
-          },
-          filterMinNotional: {
-            applyToMarket: true,
-            avgPriceMins: 5,
-            filterType: 'MIN_NOTIONAL',
-            minNotional: '10.00000000'
-          },
-          filterPrice: {
-            filterType: 'PRICE_FILTER',
-            maxPrice: '1000000.00000000',
-            minPrice: '0.01000000',
-            tickSize: '0.01000000'
-          },
-          quoteAsset: 'USDT',
-          quotePrecision: 8,
-          status: 'TRADING',
-          symbol: 'BTCUSDT'
+        it('triggers binance.client.exchangeInfo', () => {
+          expect(binanceMock.client.exchangeInfo).toHaveBeenCalled();
+        });
+
+        it('triggers cache.hset for final symbol info', () => {
+          expect(cacheMock.hset.mock.calls[1][0]).toStrictEqual(
+            'trailing-trade-symbols'
+          );
+          expect(cacheMock.hset.mock.calls[1][1]).toStrictEqual(
+            'BTCUSDT-symbol-info'
+          );
+          const args = JSON.parse(cacheMock.hset.mock.calls[1][2]);
+          expect(args).toStrictEqual({
+            baseAsset: 'BTC',
+            baseAssetPrecision: 8,
+            filterLotSize: {
+              filterType: 'LOT_SIZE',
+              maxQty: '900.00000000',
+              minQty: '0.00000100',
+              stepSize: '0.00000100'
+            },
+            filterMinNotional: {
+              applyToMarket: true,
+              avgPriceMins: 5,
+              filterType: 'MIN_NOTIONAL',
+              minNotional: '10.00000000'
+            },
+            filterPrice: {
+              filterType: 'PRICE_FILTER',
+              maxPrice: '1000000.00000000',
+              minPrice: '0.01000000',
+              tickSize: '0.01000000'
+            },
+            quoteAsset: 'USDT',
+            quotePrecision: 8,
+            status: 'TRADING',
+            symbol: 'BTCUSDT'
+          });
+        });
+
+        it('returns expected result', () => {
+          expect(result).toStrictEqual({
+            baseAsset: 'BTC',
+            baseAssetPrecision: 8,
+            filterLotSize: {
+              filterType: 'LOT_SIZE',
+              maxQty: '900.00000000',
+              minQty: '0.00000100',
+              stepSize: '0.00000100'
+            },
+            filterMinNotional: {
+              applyToMarket: true,
+              avgPriceMins: 5,
+              filterType: 'MIN_NOTIONAL',
+              minNotional: '10.00000000'
+            },
+            filterPrice: {
+              filterType: 'PRICE_FILTER',
+              maxPrice: '1000000.00000000',
+              minPrice: '0.01000000',
+              tickSize: '0.01000000'
+            },
+            quoteAsset: 'USDT',
+            quotePrecision: 8,
+            status: 'TRADING',
+            symbol: 'BTCUSDT'
+          });
         });
       });
 
-      it('returns expected result', () => {
-        expect(result).toStrictEqual({
-          baseAsset: 'BTC',
-          baseAssetPrecision: 8,
-          filterLotSize: {
-            filterType: 'LOT_SIZE',
-            maxQty: '900.00000000',
-            minQty: '0.00000100',
-            stepSize: '0.00000100'
-          },
-          filterMinNotional: {
-            applyToMarket: true,
-            avgPriceMins: 5,
-            filterType: 'MIN_NOTIONAL',
-            minNotional: '10.00000000'
-          },
-          filterPrice: {
-            filterType: 'PRICE_FILTER',
-            maxPrice: '1000000.00000000',
-            minPrice: '0.01000000',
-            tickSize: '0.01000000'
-          },
-          quoteAsset: 'USDT',
-          quotePrecision: 8,
-          status: 'TRADING',
-          symbol: 'BTCUSDT'
+      describe('BNBBUSD - without MIN_NOTIONAL', () => {
+        beforeEach(async () => {
+          result = await commonHelper.getSymbolInfo(loggerMock, 'BNBBUSD');
+        });
+
+        it('returns expected result', () => {
+          expect(result).toStrictEqual({
+            baseAsset: 'BNB',
+            baseAssetPrecision: 8,
+            filterLotSize: {
+              filterType: 'LOT_SIZE',
+              maxQty: '9000.00000000',
+              minQty: '0.01000000',
+              stepSize: '0.01000000'
+            },
+            filterMinNotional: {
+              applyMaxToMarket: false,
+              applyMinToMarket: true,
+              avgPriceMins: 1,
+              filterType: 'NOTIONAL',
+              maxNotional: '10000.00000000',
+              minNotional: '10.00000000'
+            },
+            filterPrice: {
+              filterType: 'PRICE_FILTER',
+              maxPrice: '10000.00000000',
+              minPrice: '0.00010000',
+              tickSize: '0.00010000'
+            },
+            quoteAsset: 'BUSD',
+            quotePrecision: 8,
+            status: 'TRADING',
+            symbol: 'BNBBUSD'
+          });
         });
       });
     });
