@@ -62,14 +62,23 @@ const cacheExchangeSymbols = async logger => {
   const { symbols } = exchangeInfo;
 
   const exchangeSymbols = symbols.reduce((acc, symbol) => {
+    // For backward compatibility, MIN_NOTIONAL is deprecated.
     const minNotionalFilter = _.find(symbol.filters, {
       filterType: 'MIN_NOTIONAL'
     });
+
+    // New filter type is NOTIONAL.
+    const notionalFilter = _.find(symbol.filters, {
+      filterType: 'NOTIONAL'
+    });
+
     acc[symbol.symbol] = {
       symbol: symbol.symbol,
       status: symbol.status,
       quoteAsset: symbol.quoteAsset,
-      minNotional: parseFloat(minNotionalFilter.minNotional)
+      minNotional: minNotionalFilter
+        ? parseFloat(minNotionalFilter.minNotional)
+        : parseFloat(notionalFilter.minNotional)
     };
 
     return acc;

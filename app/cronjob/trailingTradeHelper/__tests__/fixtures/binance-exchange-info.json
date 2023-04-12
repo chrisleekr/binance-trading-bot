@@ -65,10 +65,12 @@
           "stepSize": "0.01000000"
         },
         {
-          "filterType": "MIN_NOTIONAL",
+          "filterType": "NOTIONAL",
           "minNotional": "10.00000000",
-          "applyToMarket": true,
-          "avgPriceMins": 5
+          "applyMinToMarket": true,
+          "maxNotional": "10000.00000000",
+          "applyMaxToMarket": false,
+          "avgPriceMins": 1
         },
         {
           "filterType": "ICEBERG_PARTS",
