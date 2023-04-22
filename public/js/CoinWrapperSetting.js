@@ -251,7 +251,10 @@ class CoinWrapperSetting extends React.Component {
             <div className='coin-info-sub-label'>
               Buy - Last buy price removal threshold
             </div>
-            <div className='coin-info-column coin-info-column-order'>
+            <div
+              className={`coin-info-column coin-info-column-order ${this.warnIfAttributeCustomised(
+                'buy.lastBuyPriceRemoveThreshold'
+              )}`}>
               <span className='coin-info-label'>
                 Remove last buy price under:
               </span>
@@ -316,7 +319,7 @@ class CoinWrapperSetting extends React.Component {
             <div className='coin-info-sub-label'>Buy - TradingView</div>
             <div
               className={`coin-info-column coin-info-column-order ${this.warnIfAttributeCustomised(
-                'buy.tradingview.whenStrongBuy'
+                'buy.tradingView.whenStrongBuy'
               )}`}>
               <span className='coin-info-label'>
                 Allow when recommendation is <code>Strong buy</code>:
@@ -331,7 +334,7 @@ class CoinWrapperSetting extends React.Component {
             </div>
             <div
               className={`coin-info-column coin-info-column-order ${this.warnIfAttributeCustomised(
-                'buy.tradingview.whenBuy'
+                'buy.tradingView.whenBuy'
               )}`}>
               <span className='coin-info-label'>
                 Allow when recommendation is <code>Buy</code>:
