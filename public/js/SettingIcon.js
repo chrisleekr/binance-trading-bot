@@ -32,6 +32,7 @@ class SettingIcon extends React.Component {
     this.handleBotOptionsChange = this.handleBotOptionsChange.bind(this);
 
     this.handleSetValidation = this.handleSetValidation.bind(this);
+    this.symbolsTypeaheadRef = React.createRef();
   }
 
   getQuoteAssets(
@@ -278,6 +279,7 @@ class SettingIcon extends React.Component {
                                   minNotionals
                                 });
                               }}
+                              ref={this.symbolsTypeaheadRef}
                               size='sm'
                               options={_.keys(exchangeSymbols)}
                               renderMenuItemChildren={(
@@ -317,6 +319,21 @@ class SettingIcon extends React.Component {
                               placeholder='Choose symbols to monitor...'
                             />
                           </Form.Group>
+                        </div>
+                      </div>
+                      <div className='row'>
+                        <div className='col-12 text-right'>
+                          <button
+                            type='button'
+                            className='btn btn-sm btn-clear-symbols'
+                            onClick={e => {
+                              e.preventDefault();
+                              this.symbolsTypeaheadRef.current.clear();
+                              const { configuration } = this.state;
+                              configuration.symbols = [];
+                            }}>
+                            Clear selection
+                          </button>
                         </div>
                       </div>
                     </Card.Body>
