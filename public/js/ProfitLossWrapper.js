@@ -9,6 +9,8 @@ class ProfitLossWrapper extends React.Component {
       symbols: {},
       closedTradesLoading: false,
       closedTradesSetting: {},
+      closedTradesOpened: window.innerWidth >= 826,
+      openedTradesOpened: window.innerWidth >= 826,
       selectedPeriod: null,
       selectedPeriodTZ: null,
       selectedPeriodLC: null
@@ -17,6 +19,8 @@ class ProfitLossWrapper extends React.Component {
     this.setUpdate = this.setUpdate.bind(this);
     this.requestClosedTradesSetPeriod =
       this.requestClosedTradesSetPeriod.bind(this);
+    this.handleClosedTradesClick = this.handleClosedTradesClick.bind(this);
+    this.handleOpenedTradesClick = this.handleOpenedTradesClick.bind(this);
   }
 
   componentDidUpdate(nextProps) {
@@ -79,6 +83,24 @@ class ProfitLossWrapper extends React.Component {
     }
   }
 
+  handleClosedTradesClick(event) {
+    const target = event.target.tagName.toLowerCase();
+    if (target !== 'i' && target !== 'button') {
+      this.setState({
+        closedTradesOpened: !this.state.closedTradesOpened
+      });
+    }
+  }
+
+  handleOpenedTradesClick(event) {
+    const target = event.target.tagName.toLowerCase();
+    if (target !== 'i' && target !== 'button') {
+      this.setState({
+        openedTradesOpened: !this.state.openedTradesOpened
+      });
+    }
+  }
+
   setUpdate(newStatus) {
     this.setState({
       canUpdate: newStatus
@@ -111,7 +133,13 @@ class ProfitLossWrapper extends React.Component {
   render() {
     const { sendWebSocket, isAuthenticated, closedTrades, totalProfitAndLoss } =
       this.props;
-    const { symbols, selectedPeriod, closedTradesLoading } = this.state;
+    const {
+      symbols,
+      selectedPeriod,
+      closedTradesLoading,
+      closedTradesOpened,
+      openedTradesOpened
+    } = this.state;
 
     if (_.isEmpty(totalProfitAndLoss)) {
       return '';
@@ -240,12 +268,15 @@ class ProfitLossWrapper extends React.Component {
     return (
       <div className='profit-loss-container'>
         <div className='accordion-wrapper profit-loss-accordion-wrapper profit-loss-open-trades-accordion-wrapper'>
-          <Accordion defaultActiveKey='0'>
+          <Accordion>
             <Card bg='dark'>
-              <Card.Header className='px-2 py-1'>
+              <Accordion.Toggle
+                as={Card.Header}
+                onClick={this.handleOpenedTradesClick}
+                className='px-2 py-1'>
                 <div className='d-flex flex-row justify-content-between'>
                   <div className='flex-column-left'>
-                    <div className='btn-profit-loss text-uppercase text-left font-weight-bold'>
+                    <div className='btn-profit-loss text-uppercase text-left font-weight-bold btn-link'>
                       <span>Open Trades</span>{' '}
                       <OverlayTrigger
                         trigger='click'
@@ -284,9 +315,8 @@ class ProfitLossWrapper extends React.Component {
                     )}
                   </div>
                 </div>
-              </Card.Header>
-
-              <Accordion.Collapse eventKey='0'>
+              </Accordion.Toggle>
+              <Accordion.Collapse in={openedTradesOpened}>
                 <Card.Body className='d-flex flex-column py-2 px-0 card-body'>
                   <div className='profit-loss-wrappers profit-loss-open-trades-wrappers'>
                     {_.isEmpty(totalProfitAndLoss) ? (
@@ -308,9 +338,12 @@ class ProfitLossWrapper extends React.Component {
           </Accordion>
         </div>
         <div className='accordion-wrapper profit-loss-accordion-wrapper profit-loss-closed-trades-accordion-wrapper'>
-          <Accordion defaultActiveKey='0'>
+          <Accordion>
             <Card bg='dark'>
-              <Card.Header className='px-2 py-1'>
+              <Accordion.Toggle
+                as={Card.Header}
+                onClick={this.handleClosedTradesClick}
+                className='px-2 py-1'>
                 <div className='d-flex flex-row justify-content-between'>
                   <div className='flex-column-left'>
                     <div className='btn-profit-loss text-uppercase font-weight-bold'>
@@ -321,7 +354,11 @@ class ProfitLossWrapper extends React.Component {
                         placement='bottom'
                         overlay={
                           <Popover id='profit-loss-overlay-right'>
-                            <Popover.Content>...</Popover.Content>
+                            <Popover.Content>
+                              This section displays the total profit of each
+                              asset as well as the number of closed trades and
+                              the last trade profit.
+                            </Popover.Content>
                           </Popover>
                         }>
                         <Button
@@ -371,9 +408,8 @@ class ProfitLossWrapper extends React.Component {
                     </button>
                   </div>
                 </div>
-              </Card.Header>
-
-              <Accordion.Collapse eventKey='0'>
+              </Accordion.Toggle>
+              <Accordion.Collapse in={closedTradesOpened}>
                 <Card.Body className='d-flex flex-column py-2 px-0 card-body'>
                   <div className='profit-loss-wrappers profit-loss-open-trades-wrappers'>
                     {closedTradesLoading === true || _.isEmpty(closedTrades) ? (

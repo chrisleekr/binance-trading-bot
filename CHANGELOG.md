@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 - Fixed the issue with minNotional - [#623](https://github.com/chrisleekr/binance-trading-bot/pull/623)
 - Add clear symbols button by [@TheSmuks](https://github.com/TheSmuks) - [#626](https://github.com/chrisleekr/binance-trading-bot/pull/626)
 - Improved customised setting details by [@rando128](https://github.com/rando128) - [#625](https://github.com/chrisleekr/binance-trading-bot/pull/625)
+- Updated collapsable header UX by [@rando128](https://github.com/rando128) - [#624](https://github.com/chrisleekr/binance-trading-bot/pull/624)
 
 Thanks [@TheSmuks](https://github.com/TheSmuks) and [@rando128](https://github.com/rando128) for your great contributions. 💯 :heart:
 
