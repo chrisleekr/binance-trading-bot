@@ -7,8 +7,9 @@ All notable changes to this project will be documented in this file.
 - Added the prefix to environment parameter for `TRADINGVIEW` related - [#616](https://github.com/chrisleekr/binance-trading-bot/pull/616)
 - Fixed the issue with minNotional - [#623](https://github.com/chrisleekr/binance-trading-bot/pull/623)
 - Add clear symbols button by [@TheSmuks](https://github.com/TheSmuks) - [#626](https://github.com/chrisleekr/binance-trading-bot/pull/626)
+- Improved customised setting details by [@rando128](https://github.com/rando128) - [#625](https://github.com/chrisleekr/binance-trading-bot/pull/625)
 
-Thanks [@TheSmuks](https://github.com/TheSmuks) for your great contributions. 💯 :heart:
+Thanks [@TheSmuks](https://github.com/TheSmuks) and [@rando128](https://github.com/rando128) for your great contributions. 💯 :heart:
 
 ## [0.0.97] - 2023-03-21
 
