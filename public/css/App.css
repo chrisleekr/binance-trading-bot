@@ -894,6 +894,23 @@ input[type='number'] {
 */
 
 /**
+  Start: Symbols selection
+*/
+.btn-clear-symbols {
+  background-color: #f84960;
+  color: white;
+}
+
+.btn-clear-symbols:hover {
+  box-shadow: none;
+  color: white;
+  background-color: #ff4265;
+}
+/**
+  End: Symbols selection
+*/
+
+/**
   Start: Grid Trade
 */
 .btn-add-new-grid-trade-buy {
