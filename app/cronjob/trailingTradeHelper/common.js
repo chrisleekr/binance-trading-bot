@@ -62,14 +62,23 @@ const cacheExchangeSymbols = async logger => {
   const { symbols } = exchangeInfo;
 
   const exchangeSymbols = symbols.reduce((acc, symbol) => {
+    // For backward compatibility, MIN_NOTIONAL is deprecated.
     const minNotionalFilter = _.find(symbol.filters, {
       filterType: 'MIN_NOTIONAL'
     });
+
+    // New filter type is NOTIONAL.
+    const notionalFilter = _.find(symbol.filters, {
+      filterType: 'NOTIONAL'
+    });
+
     acc[symbol.symbol] = {
       symbol: symbol.symbol,
       status: symbol.status,
       quoteAsset: symbol.quoteAsset,
-      minNotional: parseFloat(minNotionalFilter.minNotional)
+      minNotional: minNotionalFilter
+        ? parseFloat(minNotionalFilter.minNotional)
+        : parseFloat(notionalFilter.minNotional)
     };
 
     return acc;
@@ -555,6 +564,16 @@ const getSymbolInfo = async (logger, symbol) => {
     symbolInfo.filters,
     f => f.filterType === 'MIN_NOTIONAL'
   )[0];
+  // eslint-disable-next-line prefer-destructuring
+  symbolInfo.filterNotional = _.filter(
+    symbolInfo.filters,
+    f => f.filterType === 'NOTIONAL'
+  )[0];
+
+  // This is for a backward compatibility that filterMinNotional is not available.
+  if (symbolInfo.filterNotional) {
+    symbolInfo.filterMinNotional = symbolInfo.filterNotional;
+  }
 
   logger.info({ symbolInfo }, 'Retrieved symbol info from Binance.');
 
