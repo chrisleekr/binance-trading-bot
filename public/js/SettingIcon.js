@@ -260,6 +260,12 @@ class SettingIcon extends React.Component {
 
                                 configuration.symbols = selected;
 
+                                this.handleSetValidation('symbols', true);
+
+                                if (_.isEmpty(configuration.symbols)) {
+                                  this.handleSetValidation('symbols', false);
+                                }
+
                                 const {
                                   quoteAssets,
                                   minNotionals,
@@ -317,6 +323,9 @@ class SettingIcon extends React.Component {
                               )}
                               defaultSelected={selectedSymbols}
                               placeholder='Choose symbols to monitor...'
+                              isInvalid={
+                                _.get(validation, `symbols`, true) === false
+                              }
                             />
                           </Form.Group>
                         </div>
