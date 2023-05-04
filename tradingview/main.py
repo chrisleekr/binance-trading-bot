@@ -59,4 +59,17 @@ if __name__ == "__main__":
         print(f"Invalid port value: {port_str}. Using default value of 8080.")
         port = 8080
 
-    serve(app, host="0.0.0.0", port=port)
+
+    serve(
+        app,
+        host="0.0.0.0",
+        port=port,
+        # Stop creating new channels if too many are already active (integer).
+        connection_limit=5000,
+        # Minimum seconds between cleaning up inactive channels (integer). See also channel_timeout.
+        cleanup_interval=5,
+        # Maximum seconds to leave an inactive connection open (integer). "Inactive" is defined as "has received no data from a client and has sent no data to a client".
+        channel_timeout=5,
+        # Set to True to switch from using select() to poll() in asyncore.loop. By default asyncore.loop() uses select() which has a limit of 1024 file descriptors. select() and poll() provide basically the same functionality, but poll() doesn't have the file descriptors limit.
+        asyncore_use_poll=True
+    )

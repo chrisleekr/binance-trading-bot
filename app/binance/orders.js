@@ -4,7 +4,8 @@ const {
   getOpenOrdersFromAPI
 } = require('../cronjob/trailingTradeHelper/common');
 const {
-  updateGridTradeLastOrder
+  updateGridTradeLastOrder,
+  deleteGridTradeOrder
 } = require('../cronjob/trailingTradeHelper/order');
 const { errorHandlerWrapper } = require('../error-handler');
 
@@ -70,22 +71,32 @@ const syncDatabaseOrders = async logger => {
     {}
   );
 
-  await Promise.all(
+  return Promise.all(
     databaseOrders.map(async databaseOrder => {
-      const { order } = databaseOrder;
+      const { key, order } = databaseOrder;
       const { symbol, orderId } = order;
 
-      const orderResult = await binance.client.getOrder({
-        symbol,
-        orderId
-      });
+      try {
+        const orderResult = await binance.client.getOrder({
+          symbol,
+          orderId
+        });
 
-      const { side } = orderResult;
+        const { side } = orderResult;
 
-      return updateGridTradeLastOrder(logger, symbol, side.toLowerCase(), {
-        ...order,
-        ...orderResult
-      });
+        return updateGridTradeLastOrder(logger, symbol, side.toLowerCase(), {
+          ...order,
+          ...orderResult
+        });
+      } catch (e) {
+        logger.info(
+          { databaseOrder, saveLog: true, e },
+          `There was an error that occurred while retrieving the last grid order. ` +
+            `Delete the order - ${symbol} - ${orderId}`
+        );
+
+        return deleteGridTradeOrder(logger, key);
+      }
     })
   );
 };

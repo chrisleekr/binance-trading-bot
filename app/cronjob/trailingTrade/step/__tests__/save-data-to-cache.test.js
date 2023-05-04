@@ -47,9 +47,11 @@ describe('save-data-to-cache.js', () => {
             symbols: ['BTCUSDT', 'ETHUSDT']
           },
           other: 'data',
-          tradingView: {
-            some: 'thing'
-          }
+          tradingViews: [
+            {
+              some: 'thing'
+            }
+          ]
         };
 
         result = await step.execute(logger, rawData);

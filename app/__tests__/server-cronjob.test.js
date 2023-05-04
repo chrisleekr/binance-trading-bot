@@ -9,6 +9,7 @@ describe('server-cronjob', () => {
 
   let mockExecuteAlive;
   let mockExecuteTrailingTradeIndicator;
+  let mockExecuteTradingView;
 
   describe('cronjob running fine', () => {
     beforeEach(async () => {
@@ -19,10 +20,12 @@ describe('server-cronjob', () => {
 
       mockExecuteAlive = jest.fn().mockResolvedValue(true);
       mockExecuteTrailingTradeIndicator = jest.fn().mockResolvedValue(true);
+      mockExecuteTradingView = jest.fn().mockResolvedValue(true);
 
       jest.mock('../cronjob', () => ({
         executeAlive: mockExecuteAlive,
-        executeTrailingTradeIndicator: mockExecuteTrailingTradeIndicator
+        executeTrailingTradeIndicator: mockExecuteTrailingTradeIndicator,
+        executeTradingView: mockExecuteTradingView
       }));
 
       mockCronJob = jest
@@ -201,10 +204,12 @@ describe('server-cronjob', () => {
       mockExecuteTrailingTradeIndicator = jest.fn().mockImplementation(() => {
         setTimeout(() => Promise.resolve(true), 30000);
       });
+      mockExecuteTradingView = jest.fn().mockResolvedValue(true);
 
       jest.mock('../cronjob', () => ({
         executeAlive: mockExecuteAlive,
-        executeTrailingTradeIndicator: mockExecuteTrailingTradeIndicator
+        executeTrailingTradeIndicator: mockExecuteTrailingTradeIndicator,
+        executeTradingView: mockExecuteTradingView
       }));
 
       mockCronJob = jest

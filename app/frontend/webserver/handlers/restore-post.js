@@ -53,7 +53,7 @@ const handleRestorePost = async (funcLogger, app) => {
     });
 
     if (result.code !== 0) {
-      slack.sendMessage(`The restore has failed.`, {});
+      slack.sendMessage(`The restore has failed.`, { symbol: 'global' });
 
       return res.send({
         success: false,

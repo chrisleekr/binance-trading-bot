@@ -49,7 +49,7 @@ const handleBackupGet = async (funcLogger, app) => {
     if (result.code !== 0) {
       slack.sendMessage(
         `The backup has failed.\n\`\`\`${JSON.stringify(result)}\`\`\``,
-        {}
+        { symbol: 'global' }
       );
 
       return res.send({

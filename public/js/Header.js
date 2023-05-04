@@ -13,7 +13,8 @@ class Header extends React.Component {
       selectedSortOption,
       searchKeyword,
       setSortOption,
-      setSearchKeyword
+      setSearchKeyword,
+      tradingViewIntervals
     } = this.props;
 
     return (
@@ -69,6 +70,7 @@ class Header extends React.Component {
                 configuration={configuration}
                 sendWebSocket={sendWebSocket}
                 isAuthenticated={isAuthenticated}
+                tradingViewIntervals={tradingViewIntervals}
               />
             ) : (
               ''

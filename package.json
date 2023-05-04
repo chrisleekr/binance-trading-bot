@@ -17,6 +17,9 @@
     "docker:build:tradingview:prod": "docker build ./tradingview -t chrisleekr/binance-trading-bot:tradingview",
     "docker:build:bot:dev": "docker build . --build-arg PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --build-arg GIT_HASH=$(git rev-parse --short HEAD) --build-arg NODE_ENV=development --target dev-stage -t chrisleekr/binance-trading-bot:latest",
     "docker:build:tradingview:dev": "docker build ./tradingview -t chrisleekr/binance-trading-bot:tradingview",
+    "docker:buildx": "npm run docker:buildx:bot:prod && npm run docker:buildx:tradingview:prod",
+    "docker:buildx:bot:prod": "docker buildx build --platform=linux/amd64,linux/arm64 . --build-arg PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --build-arg GIT_HASH=$(git rev-parse --short HEAD) --build-arg NODE_ENV=production --target production-stage -t chrisleekr/binance-trading-bot:latest",
+    "docker:buildx:tradingview:prod": "docker buildx build --platform=linux/amd64,linux/arm64 ./tradingview -t chrisleekr/binance-trading-bot:tradingview",
     "migrate:create": "./node_modules/.bin/migrate create",
     "migrate:up": "./node_modules/.bin/migrate up --store=/srv/mongo-state-storage.js",
     "migrate:down": "./node_modules/.bin/migrate down --store=/srv/mongo-state-storage.js"

@@ -8,7 +8,8 @@ const mongo = require('./mongo');
 /* istanbul ignore next */
 const fakeLogger = {
   child: _childData => ({
-    info: (..._infoData) => {}
+    info: (..._infoData) => {},
+    debug: (..._infoData) => {}
   })
 };
 

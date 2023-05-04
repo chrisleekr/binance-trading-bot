@@ -6,129 +6,12 @@ const {
   getAPILimit,
   saveOrderStats,
   saveOverrideAction,
-  getAndCacheOpenOrdersForSymbol,
-  getAccountInfoFromAPI
+  refreshOpenOrdersAndAccountInfo
 } = require('../../trailingTradeHelper/common');
 const { saveGridTradeOrder } = require('../../trailingTradeHelper/order');
-
-/**
- * Check whether recommendation is allowed or not.
- *
- * @param {*} logger
- * @param {*} data
- * @returns
- */
-const isAllowedTradingViewRecommendation = (logger, data) => {
-  const {
-    symbolConfiguration: {
-      buy: {
-        tradingView: {
-          whenStrongBuy: tradingViewWhenStrongBuy,
-          whenBuy: tradingViewWhenBuy
-        }
-      },
-      botOptions: {
-        tradingView: {
-          useOnlyWithin: tradingViewUseOnlyWithin,
-          ifExpires: tradingViewIfExpires
-        }
-      }
-    },
-    tradingView,
-    overrideData
-  } = data;
-
-  const overrideCheckTradingView = _.get(
-    overrideData,
-    'checkTradingView',
-    false
-  );
-
-  // If this is override action, then process buy regardless recommendation.
-  if (overrideCheckTradingView === false && _.isEmpty(overrideData) === false) {
-    logger.info(
-      { overrideData },
-      'Override data is not empty. Ignore TradingView recommendation.'
-    );
-    return { isTradingViewAllowed: true, tradingViewRejectedReason: '' };
-  }
-
-  // If there is no tradingView result time or recommendation, then ignore TradingView recommendation.
-  const tradingViewTime = _.get(tradingView, 'result.time', '');
-
-  const tradingViewSummaryRecommendation = _.get(
-    tradingView,
-    'result.summary.RECOMMENDATION',
-    ''
-  );
-  if (tradingViewTime === '' || tradingViewSummaryRecommendation === '') {
-    logger.info(
-      { tradingViewTime, tradingViewSummaryRecommendation },
-      'TradingView time or recommendation is empty. Ignore TradingView recommendation.'
-    );
-    return { isTradingViewAllowed: true, tradingViewRejectedReason: '' };
-  }
-
-  // If tradingViewTime is more than configured time, then ignore TradingView recommendation.
-  const tradingViewUpdatedAt = moment
-    .utc(tradingViewTime, 'YYYY-MM-DDTHH:mm:ss.SSSSSS')
-    .add(tradingViewUseOnlyWithin, 'minutes');
-  const currentTime = moment.utc();
-  if (tradingViewUpdatedAt.isBefore(currentTime)) {
-    if (tradingViewIfExpires === 'do-not-buy') {
-      logger.info(
-        {
-          tradingViewUpdatedAt: tradingViewUpdatedAt.toISOString(),
-          currentTime: currentTime.toISOString()
-        },
-        `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. Do not buy.`
-      );
-      return {
-        isTradingViewAllowed: false,
-        tradingViewRejectedReason:
-          `Do not place an order because ` +
-          `TradingView data is older than ${tradingViewUseOnlyWithin} minutes.`
-      };
-    }
-
-    logger.info(
-      {
-        tradingViewUpdatedAt: tradingViewUpdatedAt.toISOString(),
-        currentTime: currentTime.toISOString()
-      },
-      `TradingView data is older than ${tradingViewUseOnlyWithin} minutes. Ignore TradingView recommendation.`
-    );
-    return { isTradingViewAllowed: true, tradingViewRejectedReason: '' };
-  }
-
-  // Get allowed recommendation
-  const allowedRecommendations = [];
-  if (tradingViewWhenStrongBuy) {
-    allowedRecommendations.push('strong_buy');
-  }
-
-  if (tradingViewWhenBuy) {
-    allowedRecommendations.push('buy');
-  }
-
-  // If summary recommendation is not allowed recommendation, then prevent buy
-  if (
-    allowedRecommendations.length > 0 &&
-    allowedRecommendations.includes(
-      tradingViewSummaryRecommendation.toLowerCase()
-    ) === false
-  ) {
-    return {
-      isTradingViewAllowed: false,
-      tradingViewRejectedReason:
-        `Do not place an order because ` +
-        `TradingView recommendation is ${tradingViewSummaryRecommendation}.`
-    };
-  }
-
-  // Otherwise, simply allow
-  return { isTradingViewAllowed: true, tradingViewRejectedReason: '' };
-};
+const {
+  isBuyAllowedByTradingView
+} = require('../../trailingTradeHelper/tradingview');
 
 /**
  * Set message and return data
@@ -173,10 +56,9 @@ const execute = async (logger, rawData) => {
     action,
     quoteAssetBalance: { free: quoteAssetFreeBalance },
     buy: { currentPrice, triggerPrice, openOrders },
-    tradingView,
+    tradingViews,
     overrideData
   } = data;
-
   const humanisedGridTradeIndex = currentGridTradeIndex + 1;
 
   if (action !== 'buy') {
@@ -202,7 +84,8 @@ const execute = async (logger, rawData) => {
   }
 
   const { isTradingViewAllowed, tradingViewRejectedReason } =
-    isAllowedTradingViewRecommendation(logger, data);
+    isBuyAllowedByTradingView(logger, data);
+
   if (isTradingViewAllowed === false) {
     await saveOverrideAction(
       logger,
@@ -381,13 +264,13 @@ const execute = async (logger, rawData) => {
     stopPercentage,
     limitPrice,
     triggerPrice,
-    tradingView: {
+    tradingViews: _.map(tradingViews, tradingView => ({
       request: _.get(tradingView, 'request', {}),
       result: {
         time: _.get(tradingView, 'result.time', ''),
         summary: _.get(tradingView, 'result.summary', {})
       }
-    },
+    })),
     overrideData
   };
 
@@ -429,15 +312,15 @@ const execute = async (logger, rawData) => {
   // Save number of open orders
   await saveOrderStats(logger, symbols);
 
-  // FIXME: If you change this comment, please refactor to use common.js:refreshOpenOrdersAndAccountInfo
-  // Get open orders and update cache
-  data.openOrders = await getAndCacheOpenOrdersForSymbol(logger, symbol);
-  data.buy.openOrders = data.openOrders.filter(
-    o => o.side.toLowerCase() === 'buy'
-  );
+  const {
+    accountInfo,
+    openOrders: updatedOpenOrders,
+    buyOpenOrders
+  } = await refreshOpenOrdersAndAccountInfo(logger, symbol);
 
-  // Refresh account info
-  data.accountInfo = await getAccountInfoFromAPI(logger);
+  data.accountInfo = accountInfo;
+  data.openOrders = updatedOpenOrders;
+  data.buy.openOrders = buyOpenOrders;
 
   if (notifyDebug || notifyOrderConfirm)
     slack.sendMessage(

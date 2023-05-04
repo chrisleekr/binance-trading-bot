@@ -2,7 +2,6 @@
   "editor.insertSpaces": true,
   "editor.formatOnSave": true,
   "editor.tabSize": 2,
-  "eslint.alwaysShowStatus": true,
   "files.trimTrailingWhitespace": true,
   "files.exclude": {},
   "files.insertFinalNewline": true,
@@ -18,10 +17,13 @@
   "cSpell.words": [
     "bbands",
     "Bollinger",
+    "buildx",
     "chrisleekr",
     "cummulative",
+    "hgetall",
     "MACD",
     "mrkdwn",
+    "redlock",
     "tradingview",
     "tulind",
     "uuidv"

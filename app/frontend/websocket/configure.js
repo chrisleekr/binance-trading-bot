@@ -48,8 +48,6 @@ const configureWebSocket = async (server, funcLogger, { loginLimiter }) => {
 
   wss.on('connection', ws => {
     ws.on('message', async message => {
-      logger.info({ message }, 'received');
-
       // eslint-disable-next-line no-underscore-dangle
       const clientIp = ws._socket.remoteAddress;
       const rateLimiterLogin = await loginLimiter.get(clientIp);

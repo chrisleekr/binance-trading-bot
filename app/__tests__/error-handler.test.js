@@ -217,5 +217,23 @@ describe('error-handler', () => {
         }).toThrow(`something-unhandled`);
       });
     });
+
+    describe(`redlock error`, () => {
+      it('does not throws an error', async () => {
+        expect(() => {
+          process.on = jest.fn().mockImplementation((event, error) => {
+            if (event === 'uncaughtException') {
+              error({
+                message: `redlock:lock-XRPBUSD`,
+                code: 500
+              });
+            }
+          });
+
+          const { runErrorHandler } = require('../error-handler');
+          runErrorHandler(mockLogger);
+        }).not.toThrow();
+      });
+    });
   });
 });

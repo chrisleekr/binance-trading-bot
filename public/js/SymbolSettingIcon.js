@@ -6,15 +6,11 @@ class SymbolSettingIcon extends React.Component {
     super(props);
 
     this.modalToStateMap = {
-      setting: 'showSettingModal',
-      confirm: 'showConfirmModal',
-      gridTrade: 'showResetGridTradeModal'
+      setting: 'showSettingModal'
     };
 
     this.state = {
       showSettingModal: false,
-      showConfirmModal: false,
-      showResetGridTradeModal: false,
       symbolConfiguration: {},
       validation: {}
     };
@@ -24,8 +20,7 @@ class SymbolSettingIcon extends React.Component {
     this.handleFormSubmit = this.handleFormSubmit.bind(this);
 
     this.handleInputChange = this.handleInputChange.bind(this);
-    this.resetToGlobalConfiguration =
-      this.resetToGlobalConfiguration.bind(this);
+
     this.handleGridTradeChange = this.handleGridTradeChange.bind(this);
     this.handleBotOptionsChange = this.handleBotOptionsChange.bind(this);
 
@@ -54,9 +49,21 @@ class SymbolSettingIcon extends React.Component {
     this.handleModalClose('setting');
 
     // Send with symbolInfo
-    const { symbolInfo } = this.props;
+    const { symbolInfo, tradingViewIntervals } = this.props;
     const newSymbolInfo = symbolInfo;
-    newSymbolInfo.configuration = this.state.symbolConfiguration;
+
+    const { symbolConfiguration } = this.state;
+
+    // Sorting botOptions.tradingViews by interval
+    symbolConfiguration.botOptions.tradingViews = (
+      symbolConfiguration.botOptions.tradingViews || []
+    ).sort((a, b) => {
+      const aIdx = tradingViewIntervals.indexOf(a.interval);
+      const bIdx = tradingViewIntervals.indexOf(b.interval);
+      return aIdx - bIdx;
+    });
+
+    newSymbolInfo.configuration = symbolConfiguration;
 
     this.props.sendWebSocket('symbol-setting-update', newSymbolInfo);
   }
@@ -90,27 +97,6 @@ class SymbolSettingIcon extends React.Component {
     });
   }
 
-  resetToGlobalConfiguration() {
-    const { symbolInfo } = this.props;
-
-    this.handleModalClose('confirm');
-    this.handleModalClose('setting');
-    this.handleModalClose('gridTrade');
-    this.props.sendWebSocket('symbol-setting-delete', symbolInfo);
-  }
-
-  resetGridTrade(action) {
-    const { symbolInfo } = this.props;
-
-    this.handleModalClose('confirm');
-    this.handleModalClose('setting');
-    this.handleModalClose('gridTrade');
-    this.props.sendWebSocket('symbol-grid-trade-delete', {
-      action,
-      symbol: symbolInfo.symbol
-    });
-  }
-
   handleGridTradeChange(type, newGrid) {
     const { symbolConfiguration } = this.state;
 
@@ -141,7 +127,7 @@ class SymbolSettingIcon extends React.Component {
   }
 
   render() {
-    const { symbolInfo, isAuthenticated } = this.props;
+    const { symbolInfo, isAuthenticated, tradingViewIntervals } = this.props;
     const { symbolConfiguration } = this.state;
 
     if (_.isEmpty(symbolConfiguration) || isAuthenticated === false) {
@@ -660,96 +646,6 @@ class SymbolSettingIcon extends React.Component {
                                     </Button>
                                   </OverlayTrigger>
                                 </div>
-                                <div className='col-12'>
-                                  <Form.Group
-                                    controlId='field-buy-tradingview-when-strong-buy'
-                                    className='mb-2'>
-                                    <Form.Check size='sm'>
-                                      <Form.Check.Input
-                                        type='checkbox'
-                                        data-state-key='buy.tradingView.whenStrongBuy'
-                                        checked={
-                                          symbolConfiguration.buy.tradingView
-                                            .whenStrongBuy
-                                        }
-                                        onChange={this.handleInputChange}
-                                      />
-                                      <Form.Check.Label>
-                                        Allow buy trigger when recommendation is{' '}
-                                        <code>Strong buy</code>{' '}
-                                        <OverlayTrigger
-                                          trigger='click'
-                                          key='buy-tradingview-when-strong-buy-overlay'
-                                          placement='bottom'
-                                          overlay={
-                                            <Popover id='buy-tradingview-when-strong-buy-overlay-right'>
-                                              <Popover.Content>
-                                                If enabled, the bot will use
-                                                TradingView recommendation to
-                                                trigger the buy. If the buy
-                                                trigger price is reached, the
-                                                bot will check TradingView
-                                                recommendation and if it is not
-                                                `Strong buy`, then the bot will
-                                                not place a buy order.
-                                              </Popover.Content>
-                                            </Popover>
-                                          }>
-                                          <Button
-                                            variant='link'
-                                            className='p-0 m-0 ml-1 text-info'>
-                                            <i className='fas fa-question-circle fa-sm'></i>
-                                          </Button>
-                                        </OverlayTrigger>
-                                      </Form.Check.Label>
-                                    </Form.Check>
-                                  </Form.Group>
-                                </div>
-                                <div className='col-12'>
-                                  <Form.Group
-                                    controlId='field-buy-tradingview-when-buy'
-                                    className='mb-2'>
-                                    <Form.Check size='sm'>
-                                      <Form.Check.Input
-                                        type='checkbox'
-                                        data-state-key='buy.tradingView.whenBuy'
-                                        checked={
-                                          symbolConfiguration.buy.tradingView
-                                            .whenBuy
-                                        }
-                                        onChange={this.handleInputChange}
-                                      />
-                                      <Form.Check.Label>
-                                        Allow buy trigger when recommendation is{' '}
-                                        <code>Buy</code>{' '}
-                                        <OverlayTrigger
-                                          trigger='click'
-                                          key='buy-tradingview-when-buy-overlay'
-                                          placement='bottom'
-                                          overlay={
-                                            <Popover id='buy-tradingview-when-buy-overlay-right'>
-                                              <Popover.Content>
-                                                If enabled, the bot will use
-                                                TradingView recommendation to
-                                                trigger the buy. If the buy
-                                                trigger price is reached, the
-                                                bot will check TradingView
-                                                recommendation and if it is not
-                                                `Buy`, then the bot will not
-                                                place a buy order.
-                                              </Popover.Content>
-                                            </Popover>
-                                          }>
-                                          <Button
-                                            variant='link'
-                                            className='p-0 m-0 ml-1 text-info'>
-                                            <i className='fas fa-question-circle fa-sm'></i>
-                                          </Button>
-                                        </OverlayTrigger>
-                                      </Form.Check.Label>
-                                    </Form.Check>
-                                  </Form.Group>
-                                </div>
                               </div>
                             </Card.Body>
                           </Accordion.Collapse>
@@ -986,335 +882,129 @@ class SymbolSettingIcon extends React.Component {
                             </Card>
                           </Accordion>
                         </div>
+                      </div>
+                    </Card.Body>
+                  </Accordion.Collapse>
+                </Card>
+              </Accordion>
 
+              <SymbolSettingIconTradingView
+                botOptions={symbolConfiguration.botOptions}
+                tradingViewIntervals={tradingViewIntervals}
+                handleBotOptionsChange={this.handleBotOptionsChange}
+              />
+
+              <Accordion defaultActiveKey='0'>
+                <Card className='mt-1'>
+                  <Card.Header className='px-2 py-1'>
+                    <Accordion.Toggle
+                      as={Button}
+                      variant='link'
+                      eventKey='0'
+                      className='p-0 fs-7 text-uppercase'>
+                      Conservative mode
+                    </Accordion.Toggle>
+                  </Card.Header>
+                  <Accordion.Collapse eventKey='0'>
+                    <Card.Body className='px-2 py-1'>
+                      <div className='row'>
                         <div className='col-12'>
-                          <Accordion defaultActiveKey='0'>
-                            <Card className='mt-1'>
-                              <Card.Header className='px-2 py-1'>
-                                <Accordion.Toggle
-                                  as={Button}
-                                  variant='link'
-                                  eventKey='0'
-                                  className='p-0 fs-7 text-uppercase'>
-                                  TradingView
-                                </Accordion.Toggle>
-                              </Card.Header>
-                              <Accordion.Collapse eventKey='0'>
-                                <Card.Body className='px-2 py-1'>
-                                  <div className='row'>
-                                    <div className='col-12'>
-                                      <Form.Group
-                                        controlId='field-sell-tradingview-force-sell-over-zero-below-trigger-price-when-neutral'
-                                        className='mb-2'>
-                                        <Form.Check size='sm'>
-                                          <Form.Check.Input
-                                            type='checkbox'
-                                            data-state-key='sell.tradingView.forceSellOverZeroBelowTriggerPrice.whenNeutral'
-                                            checked={
-                                              symbolConfiguration.sell
-                                                .tradingView
-                                                .forceSellOverZeroBelowTriggerPrice
-                                                .whenNeutral
-                                            }
-                                            onChange={this.handleInputChange}
-                                          />
-                                          <Form.Check.Label>
-                                            Force sell at the market price when
-                                            recommendation is{' '}
-                                            <code>Neutral</code> and the profit
-                                            is between <code>0</code> to{' '}
-                                            <code>trigger price</code>{' '}
-                                            <OverlayTrigger
-                                              trigger='click'
-                                              key='sell-tradingview-force-sell-over-zero-below-trigger-price-when-neutral-overlay'
-                                              placement='bottom'
-                                              overlay={
-                                                <Popover id='sell-tradingview-force-sell-over-zero-below-trigger-price-when-neutral-overlay-right'>
-                                                  <Popover.Content>
-                                                    If enabled, the bot will use
-                                                    TradingView recommendation
-                                                    to sell the coin at the
-                                                    market price if the profit
-                                                    is over 0 but under the
-                                                    trigger price. When the
-                                                    condition is met and the
-                                                    TradingView recommendation
-                                                    is `Neutral`, then the bot
-                                                    will place a market sell
-                                                    order immediately. If the
-                                                    auto-buy trigger is enabled,
-                                                    then it will place a buy
-                                                    order later. Note that this
-                                                    action can cause loss if the
-                                                    profit is less than
-                                                    commission.
-                                                  </Popover.Content>
-                                                </Popover>
-                                              }>
-                                              <Button
-                                                variant='link'
-                                                className='p-0 m-0 ml-1 text-info'>
-                                                <i className='fas fa-question-circle fa-sm'></i>
-                                              </Button>
-                                            </OverlayTrigger>
-                                          </Form.Check.Label>
-                                        </Form.Check>
-                                      </Form.Group>
-                                    </div>
-                                    <div className='col-12'>
-                                      <Form.Group
-                                        controlId='field-sell-tradingview-force-sell-over-zero-below-trigger-price-when-sell'
-                                        className='mb-2'>
-                                        <Form.Check size='sm'>
-                                          <Form.Check.Input
-                                            type='checkbox'
-                                            data-state-key='sell.tradingView.forceSellOverZeroBelowTriggerPrice.whenSell'
-                                            checked={
-                                              symbolConfiguration.sell
-                                                .tradingView
-                                                .forceSellOverZeroBelowTriggerPrice
-                                                .whenSell
-                                            }
-                                            onChange={this.handleInputChange}
-                                          />
-                                          <Form.Check.Label>
-                                            Force sell at the market price when
-                                            recommendation is <code>Sell</code>{' '}
-                                            and the profit is between{' '}
-                                            <code>0</code> to{' '}
-                                            <code>trigger price</code>{' '}
-                                            <OverlayTrigger
-                                              trigger='click'
-                                              key='sell-tradingview-force-sell-over-zero-below-trigger-price-when-sell-overlay'
-                                              placement='bottom'
-                                              overlay={
-                                                <Popover id='sell-tradingview-force-sell-over-zero-below-trigger-price-when-sell-overlay-right'>
-                                                  <Popover.Content>
-                                                    If enabled, the bot will use
-                                                    TradingView recommendation
-                                                    to sell the coin at the
-                                                    market price if the profit
-                                                    is over 0 but under the
-                                                    trigger price. When the
-                                                    condition is met and the
-                                                    TradingView recommendation
-                                                    is `Sell`, then the bot will
-                                                    place a market sell order
-                                                    immediately. If the auto-buy
-                                                    trigger is enabled, then it
-                                                    will place a buy order
-                                                    later. Note that this action
-                                                    can cause loss if the profit
-                                                    is less than commission.
-                                                  </Popover.Content>
-                                                </Popover>
-                                              }>
-                                              <Button
-                                                variant='link'
-                                                className='p-0 m-0 ml-1 text-info'>
-                                                <i className='fas fa-question-circle fa-sm'></i>
-                                              </Button>
-                                            </OverlayTrigger>
-                                          </Form.Check.Label>
-                                        </Form.Check>
-                                      </Form.Group>
-                                    </div>
-                                    <div className='col-12'>
-                                      <Form.Group
-                                        controlId='field-sell-tradingview-force-sell-over-zero-below-trigger-price-when-strong-sell'
-                                        className='mb-2'>
-                                        <Form.Check size='sm'>
-                                          <Form.Check.Input
-                                            type='checkbox'
-                                            data-state-key='sell.tradingView.forceSellOverZeroBelowTriggerPrice.whenStrongSell'
-                                            checked={
-                                              symbolConfiguration.sell
-                                                .tradingView
-                                                .forceSellOverZeroBelowTriggerPrice
-                                                .whenStrongSell
-                                            }
-                                            onChange={this.handleInputChange}
-                                          />
-                                          <Form.Check.Label>
-                                            Force sell at the market price when
-                                            recommendation is{' '}
-                                            <code>Strong sell</code> and the
-                                            profit is between <code>0</code> to{' '}
-                                            <code>trigger price</code>{' '}
-                                            <OverlayTrigger
-                                              trigger='click'
-                                              key='sell-tradingview-force-sell-over-zero-below-trigger-price-when-strong-sell-overlay'
-                                              placement='bottom'
-                                              overlay={
-                                                <Popover id='sell-tradingview-force-sell-over-zero-below-trigger-price-when-strong-sell-overlay-right'>
-                                                  <Popover.Content>
-                                                    If enabled, the bot will use
-                                                    TradingView recommendation
-                                                    to sell the coin at the
-                                                    market price if the profit
-                                                    is over 0 but under the
-                                                    trigger price. When the
-                                                    condition is met and the
-                                                    TradingView recommendation
-                                                    is `Strong sell`, then the
-                                                    bot will place a market sell
-                                                    order immediately. If the
-                                                    auto-buy trigger is enabled,
-                                                    then it will place a buy
-                                                    order later. Note that this
-                                                    action can cause loss if the
-                                                    profit is less than
-                                                    commission.
-                                                  </Popover.Content>
-                                                </Popover>
-                                              }>
-                                              <Button
-                                                variant='link'
-                                                className='p-0 m-0 ml-1 text-info'>
-                                                <i className='fas fa-question-circle fa-sm'></i>
-                                              </Button>
-                                            </OverlayTrigger>
-                                          </Form.Check.Label>
-                                        </Form.Check>
-                                      </Form.Group>
-                                    </div>
-                                  </div>
-                                </Card.Body>
-                              </Accordion.Collapse>
-                            </Card>
-                          </Accordion>
+                          <Form.Group
+                            controlId='field-sell-conservative-enabled'
+                            className='mb-2'>
+                            <Form.Check size='sm'>
+                              <Form.Check.Input
+                                type='checkbox'
+                                data-state-key='sell.conservativeMode.enabled'
+                                checked={
+                                  symbolConfiguration.sell.conservativeMode
+                                    .enabled
+                                }
+                                onChange={this.handleInputChange}
+                              />
+                              <Form.Check.Label>
+                                Reduce the sell trigger price proportionally to
+                                the number of executed buy grids - applies only
+                                to grids with at least 2 executed buy trades{' '}
+                                <OverlayTrigger
+                                  trigger='click'
+                                  key='sell-conservative-enabled-overlay'
+                                  placement='bottom'
+                                  overlay={
+                                    <Popover id='sell-conservative-enabled-overlay-right'>
+                                      <Popover.Content>
+                                        If enabled, the bot will sell at a
+                                        trigger price reduced by the
+                                        conservative ratio for each executed buy
+                                        grid. You can use this feature in bear
+                                        market conditions to secure smaller
+                                        benefits over unreached higher gains. At
+                                        least 2 buy trades must have been
+                                        executed for the ratio to be applied.
+                                      </Popover.Content>
+                                    </Popover>
+                                  }>
+                                  <Button
+                                    variant='link'
+                                    className='p-0 m-0 ml-1 text-info'>
+                                    <i className='fas fa-question-circle fa-sm'></i>
+                                  </Button>
+                                </OverlayTrigger>
+                              </Form.Check.Label>
+                            </Form.Check>
+                          </Form.Group>
                         </div>
-
-                        <div className='col-12'>
-                          <Accordion defaultActiveKey='0'>
-                            <Card className='mt-1'>
-                              <Card.Header className='px-2 py-1'>
-                                <Accordion.Toggle
-                                  as={Button}
+                        <div className='col-xs-12 col-sm-6'>
+                          <Form.Group
+                            controlId='field-sell-conservative-factor'
+                            className='mb-2'>
+                            <Form.Label className='mb-0'>
+                              Conservative ratio{' '}
+                              <OverlayTrigger
+                                trigger='click'
+                                key='sell-conservative-factor-overlay'
+                                placement='bottom'
+                                overlay={
+                                  <Popover id='sell-conservative-factor-overlay-right'>
+                                    <Popover.Content>
+                                      Set the conservative factor to be applied
+                                      on sell trades with at least 2 executed
+                                      buy grids. i.e. if set to{' '}
+                                      <code>0.90</code>, your current grid sell
+                                      percentage will be reduced by{' '}
+                                      <code>10%</code> for each executed buy
+                                      grid (except the first one). For example,
+                                      if your sell trigger percentage is{' '}
+                                      <code>1.10</code>, and you have 3 executed
+                                      buy grids, the sell order trigger will be{' '}
+                                      <code>1.081</code>. Remember the sell
+                                      trigger is not modified if you have only 1
+                                      executed buy grid.
+                                    </Popover.Content>
+                                  </Popover>
+                                }>
+                                <Button
                                   variant='link'
-                                  eventKey='0'
-                                  className='p-0 fs-7 text-uppercase'>
-                                  Conservative mode
-                                </Accordion.Toggle>
-                              </Card.Header>
-                              <Accordion.Collapse eventKey='0'>
-                                <Card.Body className='px-2 py-1'>
-                                  <div className='row'>
-                                    <div className='col-12'>
-                                      <Form.Group
-                                        controlId='field-sell-conservative-enabled'
-                                        className='mb-2'>
-                                        <Form.Check size='sm'>
-                                          <Form.Check.Input
-                                            type='checkbox'
-                                            data-state-key='sell.conservativeMode.enabled'
-                                            checked={
-                                              symbolConfiguration.sell
-                                                .conservativeMode.enabled
-                                            }
-                                            onChange={this.handleInputChange}
-                                          />
-                                          <Form.Check.Label>
-                                            Reduce the sell trigger price
-                                            proportionally to the number of
-                                            executed buy grids - applies only to
-                                            grids with at least 2 executed buy
-                                            trades{' '}
-                                            <OverlayTrigger
-                                              trigger='click'
-                                              key='sell-conservative-enabled-overlay'
-                                              placement='bottom'
-                                              overlay={
-                                                <Popover id='sell-conservative-enabled-overlay-right'>
-                                                  <Popover.Content>
-                                                    If enabled, the bot will
-                                                    sell at a trigger price
-                                                    reduced by the conservative
-                                                    ratio for each executed buy
-                                                    grid. You can use this
-                                                    feature in bear market
-                                                    conditions to secure smaller
-                                                    benefits over unreached
-                                                    higher gains. At least 2 buy
-                                                    trades must have been
-                                                    executed for the ratio to be
-                                                    applied.
-                                                  </Popover.Content>
-                                                </Popover>
-                                              }>
-                                              <Button
-                                                variant='link'
-                                                className='p-0 m-0 ml-1 text-info'>
-                                                <i className='fas fa-question-circle fa-sm'></i>
-                                              </Button>
-                                            </OverlayTrigger>
-                                          </Form.Check.Label>
-                                        </Form.Check>
-                                      </Form.Group>
-                                    </div>
-                                    <div className='col-xs-12 col-sm-6'>
-                                      <Form.Group
-                                        controlId='field-sell-conservative-factor'
-                                        className='mb-2'>
-                                        <Form.Label className='mb-0'>
-                                          Conservative ratio{' '}
-                                          <OverlayTrigger
-                                            trigger='click'
-                                            key='sell-conservative-factor-overlay'
-                                            placement='bottom'
-                                            overlay={
-                                              <Popover id='sell-conservative-factor-overlay-right'>
-                                                <Popover.Content>
-                                                  Set the conservative factor to
-                                                  be applied on sell trades with
-                                                  at least 2 executed buy grids.
-                                                  i.e. if set to{' '}
-                                                  <code>0.90</code>, your
-                                                  current grid sell percentage
-                                                  will be reduced by{' '}
-                                                  <code>10%</code> for each
-                                                  executed buy grid (except the
-                                                  first one). For example, if
-                                                  your sell trigger percentage
-                                                  is <code>1.10</code>, and you
-                                                  have 3 executed buy grids, the
-                                                  sell order trigger will be{' '}
-                                                  <code>1.081</code>. Remember
-                                                  the sell trigger is not
-                                                  modified if you have only 1
-                                                  executed buy grid.
-                                                </Popover.Content>
-                                              </Popover>
-                                            }>
-                                            <Button
-                                              variant='link'
-                                              className='p-0 m-0 ml-1 text-info'>
-                                              <i className='fas fa-question-circle fa-sm'></i>
-                                            </Button>
-                                          </OverlayTrigger>
-                                        </Form.Label>
-                                        <Form.Control
-                                          size='sm'
-                                          type='number'
-                                          placeholder='Enter conservative factor'
-                                          required
-                                          max='1'
-                                          min='0'
-                                          step='0.01'
-                                          data-state-key='sell.conservativeMode.factor'
-                                          value={
-                                            symbolConfiguration.sell
-                                              .conservativeMode.factor
-                                          }
-                                          onChange={this.handleInputChange}
-                                        />
-                                      </Form.Group>
-                                    </div>
-                                  </div>
-                                </Card.Body>
-                              </Accordion.Collapse>
-                            </Card>
-                          </Accordion>
+                                  className='p-0 m-0 ml-1 text-info'>
+                                  <i className='fas fa-question-circle fa-sm'></i>
+                                </Button>
+                              </OverlayTrigger>
+                            </Form.Label>
+                            <Form.Control
+                              size='sm'
+                              type='number'
+                              placeholder='Enter conservative factor'
+                              required
+                              max='1'
+                              min='0'
+                              step='0.01'
+                              data-state-key='sell.conservativeMode.factor'
+                              value={
+                                symbolConfiguration.sell.conservativeMode.factor
+                              }
+                              onChange={this.handleInputChange}
+                            />
+                          </Form.Group>
                         </div>
                       </div>
                     </Card.Body>
@@ -1327,48 +1017,15 @@ class SymbolSettingIcon extends React.Component {
                 handleBotOptionsChange={this.handleBotOptionsChange}
               />
 
-              <Accordion defaultActiveKey='0'>
-                <Card className='mt-1'>
-                  <Card.Header className='px-2 py-1'>
-                    <Accordion.Toggle
-                      as={Button}
-                      variant='link'
-                      eventKey='0'
-                      className='p-0 fs-7 text-uppercase'>
-                      Actions
-                    </Accordion.Toggle>
-                  </Card.Header>
-                  <Accordion.Collapse eventKey='0'>
-                    <Card.Body className='px-2 py-2'>
-                      <div className='row'>
-                        <div className='col-12'>
-                          <Button
-                            variant='danger'
-                            size='sm'
-                            type='button'
-                            className='mr-2'
-                            onClick={() => this.handleModalShow('confirm')}>
-                            Reset to Global Setting
-                          </Button>
-
-                          <Button
-                            variant='danger'
-                            size='sm'
-                            type='button'
-                            onClick={() => this.handleModalShow('gridTrade')}>
-                            Reset Grid Trade
-                          </Button>
-                        </div>
-                      </div>
-                    </Card.Body>
-                  </Accordion.Collapse>
-                </Card>
-              </Accordion>
+              <SymbolSettingIconActions
+                symbolInfo={this.symbolInfo}
+                sendWebSocket={this.props.sendWebSocket}
+              />
             </Modal.Body>
             <Modal.Footer>
               <div className='w-100'>
-                Note that the changes will be displayed in the frontend in the
-                next tick.
+                Note that the changes will display after the new price change is
+                processed.
               </div>
 
               <Button
@@ -1383,78 +1040,6 @@ class SymbolSettingIcon extends React.Component {
               </Button>
             </Modal.Footer>
           </Form>
-        </Modal>
-
-        <Modal
-          show={this.state.showConfirmModal}
-          onHide={() => this.handleModalClose('confirm')}
-          size='md'>
-          <Modal.Header className='pt-1 pb-1'>
-            <Modal.Title>
-              <span className='text-danger'>⚠ Reset to Global Setting</span>
-            </Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            Warning: You are about to reset the symbol setting to the global
-            setting.
-            <br />
-            <br />
-            Do you want to delete current symbol setting?
-          </Modal.Body>
-
-          <Modal.Footer>
-            <Button
-              variant='secondary'
-              size='sm'
-              onClick={() => this.handleModalClose('confirm')}>
-              Cancel
-            </Button>
-            <Button
-              variant='success'
-              size='sm'
-              onClick={() => this.resetToGlobalConfiguration()}>
-              Yes
-            </Button>
-          </Modal.Footer>
-        </Modal>
-
-        <Modal
-          show={this.state.showResetGridTradeModal}
-          onHide={() => this.handleModalClose('gridTrade')}
-          size='md'>
-          <Modal.Header className='pt-1 pb-1'>
-            <Modal.Title>
-              <span className='text-danger'>⚠ Reset Grid Trade</span>
-            </Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            You are about to reset the existing grid trades. If the grid trade
-            is already executed, the execution history will be removed.
-            <br />
-            <br />
-            Do you want to reset the grid trade history for the selected symbol?
-          </Modal.Body>
-
-          <Modal.Footer>
-            <Button
-              variant='secondary'
-              size='sm'
-              onClick={() => this.handleModalClose('gridTrade')}>
-              Cancel
-            </Button>
-            <Button
-              variant='info'
-              size='sm'
-              onClick={() => this.resetGridTrade('archive')}>
-              Archive and delete
-            </Button>
-            <Button
-              variant='danger'
-              size='sm'
-              onClick={() => this.resetGridTrade('delete')}>
-              Delete without archive
-            </Button>
-          </Modal.Footer>
         </Modal>
       </div>
     );

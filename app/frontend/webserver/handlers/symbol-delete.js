@@ -41,7 +41,14 @@ const handleSymbolDelete = async (funcLogger, app) => {
     );
 
     // Delete tradingview
-    await cache.hdel('trailing-trade-tradingview', symbol);
+    await Promise.all(
+      Object.keys(
+        await cache.hgetall(
+          'trailing-trade-tradingview:',
+          `trailing-trade-tradingview:${symbol}*`
+        )
+      ).map(key => cache.hdel('trailing-trade-tradingview', key))
+    );
 
     // Delete last buy price
     [`${symbol}-last-buy-price`].forEach(async key => {

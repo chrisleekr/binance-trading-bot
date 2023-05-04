@@ -1,4 +1,4 @@
-tradingview-ta==3.2.10
+tradingview-ta==3.3.0
 Flask==2.0.2
 waitress==2.1.1
 urllib3==1.26.7

@@ -23,13 +23,7 @@
     "candles": {
       "interval": "15m"
     },
-    "symbols": [
-      "BTCUSDT",
-      "BNBUSDT",
-      "ETHBUSD",
-      "BTCBUSD",
-      "LTCBUSD"
-    ],
+    "symbols": ["BTCUSDT", "BNBUSDT", "ETHBUSD", "BTCBUSD", "LTCBUSD"],
     "botOptions": {
       "authentication": {
         "lockList": true,
@@ -48,7 +42,7 @@
     "sell": {}
   },
   "common": {
-    "version": "0.0.85",
+    "version": "0.0.93",
     "gitHash": "some-hash",
     "accountInfo": {
       "makerCommission": 0,
@@ -126,9 +120,7 @@
           "tickSize": null
         }
       ],
-      "permissions": [
-        "SPOT"
-      ]
+      "permissions": ["SPOT"]
     },
     "apiInfo": {
       "spot": {
@@ -662,25 +654,6 @@
         },
         "order": {},
         "saveToCache": true,
-        "tradingView": {
-          "request": {
-            "symbol": "BTCUSDT",
-            "screener": "CRYPTO",
-            "exchange": "BINANCE",
-            "interval": "1h"
-          },
-          "result": {
-            "indicators": {
-              "summary": {
-                "BUY": 14,
-                "NEUTRAL": 10,
-                "RECOMMENDATION": "BUY",
-                "SELL": 2
-              },
-              "time": "2022-07-18T11:45:39.308508"
-            }
-          }
-        },
         "isActionDisabled": {
           "isDisabled": false,
           "ttl": -2
@@ -1398,6 +1371,27 @@
         "isActionDisabled": {
           "isDisabled": false,
           "ttl": -2
+        }
+      }
+    ],
+    "tradingViews": [
+      {
+        "request": {
+          "symbol": "BTCUSDT",
+          "screener": "CRYPTO",
+          "exchange": "BINANCE",
+          "interval": "1h"
+        },
+        "result": {
+          "indicators": {
+            "summary": {
+              "BUY": 14,
+              "NEUTRAL": 10,
+              "RECOMMENDATION": "BUY",
+              "SELL": 2
+            },
+            "time": "2022-07-18T11:45:39.308508"
+          }
         }
       }
     ]
