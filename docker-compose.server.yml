@@ -3,9 +3,18 @@ version: '3.7'
 services:
   binance-bot:
     container_name: binance-bot
-    image: chrisleekr/binance-trading-bot:latest
+    build:
+      context: ./
+      target: dev-stage
+      # target: production-stage
     networks:
       - internal
+    volumes:
+      - ./config:/srv/config
+      - ./app:/srv/app
+      - ./public:/srv/public
+      - ./migrations:/srv/migrations
+      - ./scripts:/srv/scripts
     env_file:
       - .env
     restart: unless-stopped
@@ -15,22 +24,34 @@ services:
       - BINANCE_REDIS_HOST=binance-redis
       - BINANCE_REDIS_PORT=6379
       - BINANCE_REDIS_PASSWORD=secretp422
+      - BINANCE_TRADINGVIEW_HOST=tradingview
+      - BINANCE_TRADINGVIEW_PORT=8082
+      - BINANCE_SLACK_ENABLED=true
+      - BINANCE_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/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
+      - BINANCE_SLACK_CHANNEL=#binance
+      - BINANCE_SLACK_USERNAME=bot
+      - BINANCE_LOG_LEVEL=WARN
+      - TZ=Europe/Warsaw
     ports:
-      - 8080:80
+      - 80:80
     logging:
       driver: 'json-file'
       options:
-        max-size: '50m'
+        max-size: '1G'
 
   tradingview:
     container_name: tradingview
-    image: chrisleekr/binance-trading-bot:tradingview
+    build:
+      context: ./tradingview
     networks:
       - internal
     restart: unless-stopped
     environment:
+      - PYTHONUNBUFFERED=1
+      - BINANCE_LOG_LEVEL=WARN
       # https://docs.python.org/3/howto/logging.html#logging-levels
       - BINANCE_TRADINGVIEW_LOG_LEVEL=INFO
+      - BINANCE_TRADINGVIEW_PORT=8082
     logging:
       driver: 'json-file'
       options:
@@ -41,9 +62,9 @@ services:
     image: redis:6.2.4
     sysctls:
       net.core.somaxconn: 1024
+    restart: unless-stopped
     networks:
       - internal
-    restart: unless-stopped
     volumes:
       - redis_data:/data
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
@@ -58,6 +79,15 @@ services:
       - internal
     volumes:
       - mongo_data:/data/db
+
+  binance-mongo-express:
+    container_name: binance-mongo-express
+    image: mongo-express:0.54
+    restart: unless-stopped
+    networks:
+      - internal
+    environment:
+      ME_CONFIG_MONGODB_SERVER: binance-mongo
 
 networks:
   internal:

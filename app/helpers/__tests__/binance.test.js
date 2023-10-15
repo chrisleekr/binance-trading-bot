@@ -33,7 +33,7 @@ describe('binance', () => {
         apiKey: 'value-binance.test.apiKey',
         apiSecret: 'value-binance.test.secretKey',
         httpBase: 'https://testnet.binance.vision',
-        wsBase: 'wss://testnet.binance.vision/ws'
+        wsBase: 'wss://stream.binance.com:9443/ws'
       });
     });
 
