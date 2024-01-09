@@ -7,7 +7,7 @@
 [![GitHub contributors](https://img.shields.io/github/contributors/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
 [![MIT License](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
 
-> 币安跟踪委托单高买低卖策略交易机器人
+> 币安跟踪委托单低买高卖策略交易机器人
 
 ---
 
