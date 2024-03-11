@@ -25,7 +25,7 @@ describe('common.js', () => {
     jest.clearAllMocks().resetModules();
 
     mockQueue = {
-      executeFor: jest.fn().mockResolvedValue(true)
+      execute: jest.fn().mockResolvedValue(true)
     };
 
     jest.mock('../queue', () => mockQueue);
@@ -915,130 +915,6 @@ describe('common.js', () => {
     });
   });
 
-  describe('lockSymbol', () => {
-    describe('without ttl', () => {
-      beforeEach(async () => {
-        const { cache, logger } = require('../../../helpers');
-
-        cacheMock = cache;
-        loggerMock = logger;
-
-        cacheMock.hset = jest.fn().mockResolvedValue(true);
-
-        commonHelper = require('../common');
-        result = await commonHelper.lockSymbol(loggerMock, 'BTCUSDT');
-      });
-
-      it('triggers cache.hset', () => {
-        expect(cacheMock.hset).toHaveBeenCalledWith(
-          'bot-lock',
-          'BTCUSDT',
-          true,
-          5
-        );
-      });
-
-      it('returns expected value', () => {
-        expect(result).toBeTruthy();
-      });
-    });
-
-    describe('with ttl', () => {
-      beforeEach(async () => {
-        const { cache, logger } = require('../../../helpers');
-
-        cacheMock = cache;
-        loggerMock = logger;
-
-        cacheMock.hset = jest.fn().mockResolvedValue(true);
-
-        commonHelper = require('../common');
-        result = await commonHelper.lockSymbol(loggerMock, 'BTCUSDT', 10);
-      });
-
-      it('triggers cache.hset', () => {
-        expect(cacheMock.hset).toHaveBeenCalledWith(
-          'bot-lock',
-          'BTCUSDT',
-          true,
-          10
-        );
-      });
-
-      it('returns expected value', () => {
-        expect(result).toBeTruthy();
-      });
-    });
-  });
-
-  describe('isSymbolLocked', () => {
-    describe('cache exists', () => {
-      beforeEach(async () => {
-        const { cache, logger } = require('../../../helpers');
-
-        cacheMock = cache;
-        loggerMock = logger;
-
-        cacheMock.hget = jest.fn().mockResolvedValue('true');
-
-        commonHelper = require('../common');
-        result = await commonHelper.isSymbolLocked(loggerMock, 'BTCUSDT');
-      });
-
-      it('triggers cache.hget', () => {
-        expect(cacheMock.hget).toHaveBeenCalledWith('bot-lock', 'BTCUSDT');
-      });
-
-      it('returns expected value', () => {
-        expect(result).toBeTruthy();
-      });
-    });
-
-    describe('cache does not exist', () => {
-      beforeEach(async () => {
-        const { cache, logger } = require('../../../helpers');
-
-        cacheMock = cache;
-        loggerMock = logger;
-
-        cacheMock.hget = jest.fn().mockResolvedValue(null);
-
-        commonHelper = require('../common');
-        result = await commonHelper.isSymbolLocked(loggerMock, 'BTCUSDT');
-      });
-
-      it('triggers cache.hget', () => {
-        expect(cacheMock.hget).toHaveBeenCalledWith('bot-lock', 'BTCUSDT');
-      });
-
-      it('returns expected value', () => {
-        expect(result).toBeFalsy();
-      });
-    });
-  });
-
-  describe('unlockSymbol', () => {
-    beforeEach(async () => {
-      const { cache, logger } = require('../../../helpers');
-
-      cacheMock = cache;
-      loggerMock = logger;
-
-      cacheMock.hdel = jest.fn().mockResolvedValue(true);
-
-      commonHelper = require('../common');
-      result = await commonHelper.unlockSymbol(loggerMock, 'BTCUSDT');
-    });
-
-    it('triggers cache.hdel', () => {
-      expect(cacheMock.hdel).toHaveBeenCalledWith('bot-lock', 'BTCUSDT');
-    });
-
-    it('returns expected value', () => {
-      expect(result).toBeTruthy();
-    });
-  });
-
   describe('disableAction', () => {
     beforeEach(async () => {
       const { cache } = require('../../../helpers');
@@ -1723,7 +1599,7 @@ describe('common.js', () => {
     });
 
     describe('when cached exchange info does not exist', () => {
-      beforeEach(async () => {
+      beforeEach(() => {
         const { cache, binance, logger } = require('../../../helpers');
 
         cacheMock = cache;
@@ -1742,93 +1618,137 @@ describe('common.js', () => {
           );
 
         commonHelper = require('../common');
-        result = await commonHelper.getSymbolInfo(loggerMock, 'BTCUSDT');
       });
 
-      it('triggers cache.hget', () => {
-        expect(cacheMock.hget).toHaveBeenCalledWith(
-          'trailing-trade-symbols',
-          'BTCUSDT-symbol-info'
-        );
-      });
+      describe('BTCUSDT - with MIN_NOTIONAL', () => {
+        beforeEach(async () => {
+          result = await commonHelper.getSymbolInfo(loggerMock, 'BTCUSDT');
+        });
 
-      it('triggers cache.hset for exchange-info', () => {
-        expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
-          'trailing-trade-common'
-        );
-        expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual('exchange-info');
-        const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
-        expect(args).toStrictEqual(
-          _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
-        );
-      });
+        it('triggers cache.hget', () => {
+          expect(cacheMock.hget).toHaveBeenCalledWith(
+            'trailing-trade-symbols',
+            'BTCUSDT-symbol-info'
+          );
+        });
 
-      it('triggers binance.client.exchangeInfo', () => {
-        expect(binanceMock.client.exchangeInfo).toHaveBeenCalled();
-      });
+        it('triggers cache.hset for exchange-info', () => {
+          expect(cacheMock.hset.mock.calls[0][0]).toStrictEqual(
+            'trailing-trade-common'
+          );
+          expect(cacheMock.hset.mock.calls[0][1]).toStrictEqual(
+            'exchange-info'
+          );
+          const args = JSON.parse(cacheMock.hset.mock.calls[0][2]);
+          expect(args).toStrictEqual(
+            _.cloneDeep(require('./fixtures/binance-exchange-info.json'))
+          );
+        });
 
-      it('triggers cache.hset for final symbol info', () => {
-        expect(cacheMock.hset.mock.calls[1][0]).toStrictEqual(
-          'trailing-trade-symbols'
-        );
-        expect(cacheMock.hset.mock.calls[1][1]).toStrictEqual(
-          'BTCUSDT-symbol-info'
-        );
-        const args = JSON.parse(cacheMock.hset.mock.calls[1][2]);
-        expect(args).toStrictEqual({
-          baseAsset: 'BTC',
-          baseAssetPrecision: 8,
-          filterLotSize: {
-            filterType: 'LOT_SIZE',
-            maxQty: '900.00000000',
-            minQty: '0.00000100',
-            stepSize: '0.00000100'
-          },
-          filterMinNotional: {
-            applyToMarket: true,
-            avgPriceMins: 5,
-            filterType: 'MIN_NOTIONAL',
-            minNotional: '10.00000000'
-          },
-          filterPrice: {
-            filterType: 'PRICE_FILTER',
-            maxPrice: '1000000.00000000',
-            minPrice: '0.01000000',
-            tickSize: '0.01000000'
-          },
-          quoteAsset: 'USDT',
-          quotePrecision: 8,
-          status: 'TRADING',
-          symbol: 'BTCUSDT'
+        it('triggers binance.client.exchangeInfo', () => {
+          expect(binanceMock.client.exchangeInfo).toHaveBeenCalled();
+        });
+
+        it('triggers cache.hset for final symbol info', () => {
+          expect(cacheMock.hset.mock.calls[1][0]).toStrictEqual(
+            'trailing-trade-symbols'
+          );
+          expect(cacheMock.hset.mock.calls[1][1]).toStrictEqual(
+            'BTCUSDT-symbol-info'
+          );
+          const args = JSON.parse(cacheMock.hset.mock.calls[1][2]);
+          expect(args).toStrictEqual({
+            baseAsset: 'BTC',
+            baseAssetPrecision: 8,
+            filterLotSize: {
+              filterType: 'LOT_SIZE',
+              maxQty: '900.00000000',
+              minQty: '0.00000100',
+              stepSize: '0.00000100'
+            },
+            filterMinNotional: {
+              applyToMarket: true,
+              avgPriceMins: 5,
+              filterType: 'MIN_NOTIONAL',
+              minNotional: '10.00000000'
+            },
+            filterPrice: {
+              filterType: 'PRICE_FILTER',
+              maxPrice: '1000000.00000000',
+              minPrice: '0.01000000',
+              tickSize: '0.01000000'
+            },
+            quoteAsset: 'USDT',
+            quotePrecision: 8,
+            status: 'TRADING',
+            symbol: 'BTCUSDT'
+          });
+        });
+
+        it('returns expected result', () => {
+          expect(result).toStrictEqual({
+            baseAsset: 'BTC',
+            baseAssetPrecision: 8,
+            filterLotSize: {
+              filterType: 'LOT_SIZE',
+              maxQty: '900.00000000',
+              minQty: '0.00000100',
+              stepSize: '0.00000100'
+            },
+            filterMinNotional: {
+              applyToMarket: true,
+              avgPriceMins: 5,
+              filterType: 'MIN_NOTIONAL',
+              minNotional: '10.00000000'
+            },
+            filterPrice: {
+              filterType: 'PRICE_FILTER',
+              maxPrice: '1000000.00000000',
+              minPrice: '0.01000000',
+              tickSize: '0.01000000'
+            },
+            quoteAsset: 'USDT',
+            quotePrecision: 8,
+            status: 'TRADING',
+            symbol: 'BTCUSDT'
+          });
         });
       });
 
-      it('returns expected result', () => {
-        expect(result).toStrictEqual({
-          baseAsset: 'BTC',
-          baseAssetPrecision: 8,
-          filterLotSize: {
-            filterType: 'LOT_SIZE',
-            maxQty: '900.00000000',
-            minQty: '0.00000100',
-            stepSize: '0.00000100'
-          },
-          filterMinNotional: {
-            applyToMarket: true,
-            avgPriceMins: 5,
-            filterType: 'MIN_NOTIONAL',
-            minNotional: '10.00000000'
-          },
-          filterPrice: {
-            filterType: 'PRICE_FILTER',
-            maxPrice: '1000000.00000000',
-            minPrice: '0.01000000',
-            tickSize: '0.01000000'
-          },
-          quoteAsset: 'USDT',
-          quotePrecision: 8,
-          status: 'TRADING',
-          symbol: 'BTCUSDT'
+      describe('BNBBUSD - without MIN_NOTIONAL', () => {
+        beforeEach(async () => {
+          result = await commonHelper.getSymbolInfo(loggerMock, 'BNBBUSD');
+        });
+
+        it('returns expected result', () => {
+          expect(result).toStrictEqual({
+            baseAsset: 'BNB',
+            baseAssetPrecision: 8,
+            filterLotSize: {
+              filterType: 'LOT_SIZE',
+              maxQty: '9000.00000000',
+              minQty: '0.01000000',
+              stepSize: '0.01000000'
+            },
+            filterMinNotional: {
+              applyMaxToMarket: false,
+              applyMinToMarket: true,
+              avgPriceMins: 1,
+              filterType: 'NOTIONAL',
+              maxNotional: '10000.00000000',
+              minNotional: '10.00000000'
+            },
+            filterPrice: {
+              filterType: 'PRICE_FILTER',
+              maxPrice: '10000.00000000',
+              minPrice: '0.00010000',
+              tickSize: '0.00010000'
+            },
+            quoteAsset: 'BUSD',
+            quotePrecision: 8,
+            status: 'TRADING',
+            symbol: 'BNBBUSD'
+          });
         });
       });
     });
@@ -2120,7 +2040,24 @@ describe('common.js', () => {
       loggerMock = logger;
       cacheMock = cache;
 
-      mongoMock.count = jest.fn().mockResolvedValue(3);
+      mongoMock.aggregate = jest.fn().mockResolvedValue([
+        {
+          _id: 1,
+          key: 'BTCUSDT-grid-trade-last-buy-order',
+          order: {
+            symbol: 'BTCUSDT',
+            orderId: 123
+          }
+        },
+        {
+          _id: 2,
+          key: 'BNBUSDT-grid-trade-last-buy-order',
+          order: {
+            symbol: 'BNBUSDT',
+            orderId: 234
+          }
+        }
+      ]);
 
       cacheMock.hset = jest.fn().mockResolvedValue(true);
 
@@ -2131,24 +2068,82 @@ describe('common.js', () => {
       ]);
     });
 
-    it('triggers mongo.count', () => {
-      expect(mongoMock.count).toHaveBeenCalledWith(
+    it('triggers mongo.aggregate', () => {
+      expect(mongoMock.aggregate).toHaveBeenCalledWith(
         loggerMock,
         'trailing-trade-grid-trade-orders',
-        {
-          key: {
-            $regex: `(BTCUSDT|BNBUSDT)-grid-trade-last-buy-order`
+        [
+          {
+            $match: {
+              key: {
+                $regex: `(BTCUSDT|BNBUSDT)-grid-trade-last-buy-order`
+              }
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              key: 1
+            }
           }
-        }
+        ]
       );
     });
 
-    it('triggers cache.hset', () => {
+    it('triggers cache.hset for open-orders-symbols', () => {
+      expect(cacheMock.hset).toHaveBeenCalledWith(
+        'trailing-trade-common',
+        'open-orders-symbols',
+        JSON.stringify(['BTCUSDT', 'BNBUSDT'])
+      );
+    });
+
+    it('triggers cache.hset for number-of-buy-open-orders', () => {
       expect(cacheMock.hset).toHaveBeenCalledWith(
         'trailing-trade-common',
         'number-of-buy-open-orders',
-        3
+        2
       );
+    });
+  });
+
+  describe('getOpenOrdersSymbols', () => {
+    describe('when return value', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hget = jest
+          .fn()
+          .mockResolvedValue(JSON.stringify(['BTCUSDT']));
+
+        commonHelper = require('../common');
+        result = await commonHelper.getOpenOrdersSymbols(loggerMock);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual(['BTCUSDT']);
+      });
+    });
+
+    describe('when return does not exist', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hget = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.getOpenOrdersSymbols(loggerMock);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual([]);
+      });
     });
   });
 
@@ -2212,7 +2207,20 @@ describe('common.js', () => {
       loggerMock = logger;
       cacheMock = cache;
 
-      mongoMock.count = jest.fn().mockResolvedValue(3);
+      mongoMock.aggregate = jest.fn().mockResolvedValue([
+        {
+          _id: 1,
+          key: 'BTCUSDT-last-buy-price',
+          lastBuyPrice: 29999,
+          quantity: 0.06
+        },
+        {
+          _id: 2,
+          key: 'BNBUSDT-last-buy-price',
+          lastBuyPrice: 2,
+          quantity: 0.06
+        }
+      ]);
 
       cacheMock.hset = jest.fn().mockResolvedValue(true);
 
@@ -2223,23 +2231,41 @@ describe('common.js', () => {
       ]);
     });
 
-    it('triggers mongo.count', () => {
-      expect(mongoMock.count).toHaveBeenCalledWith(
+    it('triggers mongo.aggregate', () => {
+      expect(mongoMock.aggregate).toHaveBeenCalledWith(
         loggerMock,
         'trailing-trade-symbols',
-        {
-          key: {
-            $regex: `(BTCUSDT|BNBUSDT)-last-buy-price`
+        [
+          {
+            $match: {
+              key: {
+                $regex: `(BTCUSDT|BNBUSDT)-last-buy-price`
+              }
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              key: 1
+            }
           }
-        }
+        ]
       );
     });
 
-    it('triggers cache.hset', () => {
+    it('triggers cache.hset for open-trades-symbols', () => {
+      expect(cacheMock.hset).toHaveBeenCalledWith(
+        'trailing-trade-common',
+        'open-trades-symbols',
+        JSON.stringify(['BTCUSDT', 'BNBUSDT'])
+      );
+    });
+
+    it('triggers cache.hset for number-of-open-trades', () => {
       expect(cacheMock.hset).toHaveBeenCalledWith(
         'trailing-trade-common',
         'number-of-open-trades',
-        3
+        2
       );
     });
   });
@@ -2296,6 +2322,46 @@ describe('common.js', () => {
     });
   });
 
+  describe('getOpenTradesSymbols', () => {
+    describe('when return value', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hget = jest
+          .fn()
+          .mockResolvedValue(JSON.stringify(['BTCUSDT']));
+
+        commonHelper = require('../common');
+        result = await commonHelper.getOpenTradesSymbols(loggerMock);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual(['BTCUSDT']);
+      });
+    });
+
+    describe('when return does not exist', () => {
+      beforeEach(async () => {
+        const { cache, logger } = require('../../../helpers');
+
+        loggerMock = logger;
+        cacheMock = cache;
+
+        cacheMock.hget = jest.fn().mockResolvedValue(null);
+
+        commonHelper = require('../common');
+        result = await commonHelper.getOpenTradesSymbols(loggerMock);
+      });
+
+      it('returns expected value', () => {
+        expect(result).toStrictEqual([]);
+      });
+    });
+  });
+
   describe('saveOrderStats', () => {
     beforeEach(async () => {
       const { mongo, cache, logger } = require('../../../helpers');
@@ -2304,7 +2370,40 @@ describe('common.js', () => {
       loggerMock = logger;
       cacheMock = cache;
 
-      mongoMock.count = jest.fn().mockResolvedValue(3);
+      mongoMock.aggregate = jest
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            _id: 1,
+            key: 'BTCUSDT-grid-trade-last-buy-order',
+            order: {
+              symbol: 'BTCUSDT',
+              orderId: 123
+            }
+          },
+          {
+            _id: 2,
+            key: 'BNBUSDT-grid-trade-last-buy-order',
+            order: {
+              symbol: 'BNBUSDT',
+              orderId: 234
+            }
+          }
+        ])
+        .mockResolvedValueOnce([
+          {
+            _id: 1,
+            key: 'BTCUSDT-last-buy-price',
+            lastBuyPrice: 29999,
+            quantity: 0.06
+          },
+          {
+            _id: 2,
+            key: 'BNBUSDT-last-buy-price',
+            lastBuyPrice: 2,
+            quantity: 0.06
+          }
+        ]);
 
       cacheMock.hset = jest.fn().mockResolvedValue(true);
 
@@ -2315,12 +2414,12 @@ describe('common.js', () => {
       ]);
     });
 
-    it('triggers mongo.count twice', () => {
-      expect(mongoMock.count).toHaveBeenCalledTimes(2);
+    it('triggers mongo.aggregate twice', () => {
+      expect(mongoMock.aggregate).toHaveBeenCalledTimes(2);
     });
 
     it('triggers cache.hset', () => {
-      expect(cacheMock.hset).toHaveBeenCalledTimes(2);
+      expect(cacheMock.hset).toHaveBeenCalledTimes(4);
     });
   });
 
@@ -3010,16 +3109,68 @@ describe('common.js', () => {
         sortByParam: 'alpha',
         searchKeyword: 'ETH',
         sortField: '$symbol'
+      },
+      {
+        desc: 'open trades',
+        sortByDesc: true,
+        sortByParam: 'alpha',
+        searchKeyword: 'open trades',
+        page: 2,
+        sortField: '$symbol',
+        getOpenTradesSymbols: ['BTCUSDT', 'BNBUSDT'],
+        getOpenOrdersSymbols: undefined,
+        overrideMatch: {
+          symbol: {
+            $regex: `(BTCUSDT|BNBUSDT)`,
+            $options: 'i'
+          }
+        }
+      },
+      {
+        desc: 'open orders',
+        sortByDesc: true,
+        sortByParam: 'alpha',
+        searchKeyword: 'open orders',
+        page: 2,
+        sortField: '$symbol',
+        getOpenTradesSymbols: undefined,
+        getOpenOrdersSymbols: ['BTCUSDT', 'LTCUSDT'],
+        overrideMatch: {
+          symbol: {
+            $regex: `(BTCUSDT|LTCUSDT)`,
+            $options: 'i'
+          }
+        }
       }
     ].forEach(t => {
       describe(`sortBy - ${t.desc}`, () => {
         beforeEach(async () => {
-          const { mongo, logger } = require('../../../helpers');
+          const { mongo, logger, cache } = require('../../../helpers');
 
           mongoMock = mongo;
           loggerMock = logger;
+          cacheMock = cache;
 
           mongoMock.aggregate = jest.fn().mockResolvedValue({ some: 'data' });
+
+          cacheMock.hget = jest.fn().mockImplementation((hash, key) => {
+            if (
+              hash === 'trailing-trade-common' &&
+              key === 'open-trades-symbols'
+            ) {
+              return JSON.stringify(t.getOpenTradesSymbols);
+            }
+
+            if (
+              hash === 'trailing-trade-common' &&
+              key === 'open-orders-symbols'
+            ) {
+              return JSON.stringify(t.getOpenOrdersSymbols);
+            }
+
+            return undefined;
+          });
+
           commonHelper = require('../common');
 
           result = await commonHelper.getCacheTrailingTradeSymbols(
@@ -3035,14 +3186,19 @@ describe('common.js', () => {
         it('triggers mongo.aggregate', () => {
           const pageNum = _.toNumber(t.page) >= 1 ? _.toNumber(t.page) : 1;
 
+          // eslint-disable-next-line no-nested-ternary
+          const match = t.overrideMatch
+            ? t.overrideMatch
+            : t.searchKeyword
+            ? { symbol: { $regex: t.searchKeyword, $options: 'i' } }
+            : {};
+
           expect(mongoMock.aggregate).toHaveBeenCalledWith(
             loggerMock,
             'trailing-trade-cache',
             [
               {
-                $match: t.searchKeyword
-                  ? { symbol: { $regex: t.searchKeyword, $options: 'i' } }
-                  : {}
+                $match: match
               },
               {
                 $project: {

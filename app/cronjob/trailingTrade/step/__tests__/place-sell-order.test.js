@@ -38,79 +38,6 @@ describe('place-sell-order.js', () => {
       mockGetAndCacheOpenOrdersForSymbol = jest.fn().mockResolvedValue([]);
     });
 
-    describe('when symbol is locked', () => {
-      beforeEach(async () => {
-        mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
-          account: 'info'
-        });
-
-        jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          isExceedAPILimit: mockIsExceedAPILimit,
-          getAPILimit: mockGetAPILimit,
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
-        }));
-
-        jest.mock('../../../trailingTradeHelper/order', () => ({
-          saveGridTradeOrder: mockSaveGridTradeOrder
-        }));
-
-        const step = require('../place-sell-order');
-
-        rawData = {
-          symbol: 'BTCUPUSDT',
-          isLocked: true,
-          symbolInfo: {
-            filterLotSize: {
-              stepSize: '0.01000000',
-              minQty: '0.01000000',
-              maxQty: '100.0000000'
-            },
-            filterPrice: { tickSize: '0.00100000' },
-            filterMinNotional: { minNotional: '10.00000000' }
-          },
-          symbolConfiguration: {
-            sell: {
-              enabled: true,
-              currentGridTradeIndex: 0,
-              currentGridTrade: {
-                triggerPercentage: 1.03,
-                stopPercentage: 0.99,
-                limitPercentage: 0.989,
-                quantityPercentage: 0.8,
-                executed: false,
-                executedOrder: null
-              }
-            },
-            system: {
-              checkOrderExecutePeriod: 10
-            }
-          },
-          action: 'not-determined',
-          baseAssetBalance: { free: 0.5 },
-          sell: { currentPrice: 200, openOrders: [] }
-        };
-
-        result = await step.execute(loggerMock, rawData);
-      });
-
-      it('does not trigger binance.client.order', () => {
-        expect(binanceMock.client.order).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger getAndCacheOpenOrdersForSymbol', () => {
-        expect(mockGetAndCacheOpenOrdersForSymbol).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger getAccountInfoFromAPI', () => {
-        expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
-      });
-
-      it('retruns expected value', () => {
-        expect(result).toStrictEqual(rawData);
-      });
-    });
-
     describe('when action is not sell', () => {
       beforeEach(async () => {
         mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
@@ -132,7 +59,6 @@ describe('place-sell-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
-          isLocked: false,
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -205,7 +131,6 @@ describe('place-sell-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
-          isLocked: false,
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -310,7 +235,6 @@ describe('place-sell-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
-          isLocked: false,
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -391,7 +315,6 @@ describe('place-sell-order.js', () => {
 
           rawData = {
             symbol: 'BTCUPUSDT',
-            isLocked: false,
             symbolInfo: {
               filterLotSize: {
                 stepSize: '0.01000000',
@@ -483,7 +406,6 @@ describe('place-sell-order.js', () => {
 
           rawData = {
             symbol: 'ALPHABTC',
-            isLocked: false,
             symbolInfo: {
               filterLotSize: {
                 stepSize: '1.00000000',
@@ -575,7 +497,6 @@ describe('place-sell-order.js', () => {
 
           rawData = {
             symbol: 'BTCBRL',
-            isLocked: false,
             symbolInfo: {
               filterLotSize: {
                 minQty: '0.00000100',
@@ -669,7 +590,6 @@ describe('place-sell-order.js', () => {
 
           rawData = {
             symbol: 'BTCUPUSDT',
-            isLocked: false,
             symbolInfo: {
               filterLotSize: {
                 stepSize: '0.01000000',
@@ -761,7 +681,6 @@ describe('place-sell-order.js', () => {
 
           rawData = {
             symbol: 'ALPHABTC',
-            isLocked: false,
             symbolInfo: {
               filterLotSize: {
                 minQty: '1.00000000',
@@ -853,7 +772,6 @@ describe('place-sell-order.js', () => {
 
           rawData = {
             symbol: 'BTCBRL',
-            isLocked: false,
             symbolInfo: {
               filterLotSize: {
                 minQty: '0.00000100',
@@ -946,7 +864,6 @@ describe('place-sell-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
-          isLocked: false,
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -1039,7 +956,6 @@ describe('place-sell-order.js', () => {
 
         rawData = {
           symbol: 'BTCUPUSDT',
-          isLocked: false,
           symbolInfo: {
             filterLotSize: {
               stepSize: '0.01000000',
@@ -1152,7 +1068,6 @@ describe('place-sell-order.js', () => {
 
             rawData = {
               symbol: 'BTCUPUSDT',
-              isLocked: false,
               symbolInfo: {
                 filterLotSize: {
                   stepSize: '0.01000000',
@@ -1308,7 +1223,6 @@ describe('place-sell-order.js', () => {
 
             rawData = {
               symbol: 'ALPHABTC',
-              isLocked: false,
               symbolInfo: {
                 filterLotSize: {
                   minQty: '1.00000000',
@@ -1464,7 +1378,6 @@ describe('place-sell-order.js', () => {
 
             rawData = {
               symbol: 'BTCBRL',
-              isLocked: false,
               symbolInfo: {
                 filterLotSize: {
                   minQty: '0.00000100',
@@ -1624,7 +1537,6 @@ describe('place-sell-order.js', () => {
 
               rawData = {
                 symbol: 'BTCUPUSDT',
-                isLocked: false,
                 symbolInfo: {
                   filterLotSize: {
                     stepSize: '0.01000000',
@@ -1781,7 +1693,6 @@ describe('place-sell-order.js', () => {
 
               rawData = {
                 symbol: 'ALPHABTC',
-                isLocked: false,
                 symbolInfo: {
                   filterLotSize: {
                     minQty: '1.00000000',
@@ -1938,7 +1849,6 @@ describe('place-sell-order.js', () => {
 
               rawData = {
                 symbol: 'BTCBRL',
-                isLocked: false,
                 symbolInfo: {
                   filterLotSize: {
                     minQty: '0.00000100',
@@ -2097,7 +2007,6 @@ describe('place-sell-order.js', () => {
 
               rawData = {
                 symbol: 'BTCUPUSDT',
-                isLocked: false,
                 symbolInfo: {
                   filterLotSize: {
                     stepSize: '0.01000000',
@@ -2254,7 +2163,6 @@ describe('place-sell-order.js', () => {
 
               rawData = {
                 symbol: 'ALPHABTC',
-                isLocked: false,
                 symbolInfo: {
                   filterLotSize: {
                     minQty: '1.00000000',
@@ -2411,7 +2319,6 @@ describe('place-sell-order.js', () => {
 
               rawData = {
                 symbol: 'BTCBRL',
-                isLocked: false,
                 symbolInfo: {
                   filterLotSize: {
                     minQty: '0.00000100',
@@ -2568,7 +2475,6 @@ describe('place-sell-order.js', () => {
 
               rawData = {
                 symbol: 'ONGUSDT',
-                isLocked: false,
                 symbolInfo: {
                   filterLotSize: {
                     minQty: '1.00000000',

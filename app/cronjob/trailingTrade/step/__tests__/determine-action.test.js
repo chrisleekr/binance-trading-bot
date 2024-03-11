@@ -39,7 +39,6 @@ describe('determine-action.js', () => {
       orgRawData = {
         action: 'not-determined',
         symbol: 'BTCUSDT',
-        isLocked: false,
         symbolInfo: {
           baseAsset: 'BTC',
           filterLotSize: { stepSize: '0.00000100' },
@@ -108,21 +107,6 @@ describe('determine-action.js', () => {
         },
         tradingView: {}
       };
-    });
-
-    describe('when symbol is locked', () => {
-      beforeEach(async () => {
-        rawData = _.cloneDeep(orgRawData);
-        rawData.isLocked = true;
-
-        step = require('../determine-action');
-
-        result = await step.execute(loggerMock, rawData);
-      });
-
-      it('returns same data', () => {
-        expect(result).toStrictEqual(rawData);
-      });
     });
 
     describe('when action is buy-order-wait', () => {
@@ -1161,6 +1145,111 @@ describe('determine-action.js', () => {
               });
             });
           });
+
+          describe(
+            `isLowerThanStopLossTriggerPrice - sell stop loss is enabled ` +
+              `and when current price is less than stop loss trigger price`,
+            () => {
+              beforeEach(async () => {
+                // Set action is enabled
+                mockIsActionDisabled = jest.fn().mockResolvedValue({
+                  isDisabled: false
+                });
+
+                // Set buy open orders and open trades
+                mockGetNumberOfBuyOpenOrders = jest.fn().mockResolvedValue(3);
+                mockGetNumberOfOpenTrades = jest.fn().mockResolvedValue(5);
+
+                jest.mock('../../../trailingTradeHelper/common', () => ({
+                  isActionDisabled: mockIsActionDisabled,
+                  getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+                  getNumberOfOpenTrades: mockGetNumberOfOpenTrades,
+                  getAPILimit: mockGetAPILimit,
+                  isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades
+                }));
+
+                // Set there is no grid trade order
+                mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+
+                jest.mock('../../../trailingTradeHelper/order', () => ({
+                  getGridTradeOrder: mockGetGridTradeOrder
+                }));
+
+                rawData = _.cloneDeep(orgRawData);
+
+                // Set balance less than minimum notional value
+                rawData.baseAssetBalance.total = 0.0003;
+
+                rawData.symbolConfiguration.botOptions.orderLimit = {
+                  enabled: true,
+                  maxBuyOpenOrders: 5,
+                  maxOpenTrades: 10
+                };
+
+                rawData.symbolConfiguration.buy = {
+                  athRestriction: {
+                    enabled: true
+                  },
+                  // Set the current index to 2nd
+                  currentGridTradeIndex: 1,
+                  currentGridTrade: {
+                    triggerPercentage: 1,
+                    stopPercentage: 1.025,
+                    limitPercentage: 1.026,
+                    maxPurchaseAmount: 10,
+                    executed: false,
+                    executedOrder: null
+                  }
+                };
+
+                // Enable sell stop loss
+                rawData.symbolConfiguration.sell.stopLoss = {
+                  enabled: true,
+                  maxLossPercentage: 0.95
+                };
+
+                // Set ATH restriction is higher than the current price
+                rawData.buy = {
+                  currentPrice: 28000,
+                  triggerPrice: 28000,
+                  athRestrictionPrice: 28001
+                };
+
+                // When stop loss trigger price is less than the current price,
+                // then do not try to buy. Let it sell by stop loss.
+                rawData.sell = {
+                  currentPrice: 28000,
+                  triggerPrice: 30900,
+                  lastBuyPrice: 30000,
+                  stopLossTriggerPrice: 28500
+                };
+
+                step = require('../determine-action');
+
+                result = await step.execute(loggerMock, rawData);
+              });
+
+              it('should not determine the action because it should be sold by the stop loss', () => {
+                expect(result).toMatchObject({
+                  action: 'not-determined',
+                  baseAssetBalance: {
+                    total: 0.0003
+                  },
+                  buy: {
+                    currentPrice: 28000,
+                    triggerPrice: 28000,
+                    athRestrictionPrice: 28001
+                  },
+                  sell: {
+                    currentPrice: 28000,
+                    lastBuyPrice: 30000,
+                    triggerPrice: 30900,
+                    stopLossTriggerPrice: 28500
+                  }
+                });
+              });
+            }
+          );
         }
       );
 

@@ -24,6 +24,10 @@
     "port": 27017,
     "database": "binance-bot"
   },
+  "tradingview": {
+    "host": "tradingview",
+    "port": 8080
+  },
   "slack": {
     "enabled": false,
     "webhookUrl": "",
@@ -144,6 +148,10 @@
             "whenSell": false,
             "whenStrongSell": false
           }
+        },
+        "conservativeMode": {
+          "enabled": false,
+          "factor": 0.5
         }
       },
       "system": {

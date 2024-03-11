@@ -30,7 +30,7 @@ services:
     restart: unless-stopped
     environment:
       # https://docs.python.org/3/howto/logging.html#logging-levels
-      - TRADINGVIEW_LOG_LEVEL=INFO
+      - BINANCE_TRADINGVIEW_LOG_LEVEL=INFO
     logging:
       driver: 'json-file'
       options:
@@ -47,7 +47,8 @@ services:
     volumes:
       - redis_data:/data
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
-    command: redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
+    command:
+      redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
 
   binance-mongo:
     container_name: binance-mongo

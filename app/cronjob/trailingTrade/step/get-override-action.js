@@ -129,21 +129,12 @@ const execute = async (logger, rawData) => {
   const {
     action,
     symbol,
-    isLocked,
     symbolConfiguration: {
       botOptions: {
         autoTriggerBuy: { triggerAfter: autoTriggerBuyTriggerAfter }
       }
     }
   } = data;
-
-  if (isLocked) {
-    logger.info(
-      { isLocked },
-      'Symbol is locked, do not process override-action'
-    );
-    return data;
-  }
 
   if (action !== 'not-determined') {
     logger.info(

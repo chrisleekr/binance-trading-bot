@@ -24,6 +24,8 @@ services:
       - BINANCE_REDIS_HOST=binance-redis
       - BINANCE_REDIS_PORT=6379
       - BINANCE_REDIS_PASSWORD=secretp422
+      - BINANCE_TRADINGVIEW_HOST=tradingview
+      - BINANCE_TRADINGVIEW_PORT=8082
     ports:
       - 8080:80
     logging:
@@ -41,9 +43,10 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       # https://docs.python.org/3/howto/logging.html#logging-levels
-      - TRADINGVIEW_LOG_LEVEL=INFO
+      - BINANCE_TRADINGVIEW_LOG_LEVEL=INFO
+      - BINANCE_TRADINGVIEW_PORT=8082
     ports:
-      - 8082:8080
+      - 8082:8082
     logging:
       driver: 'json-file'
       options:
@@ -62,7 +65,8 @@ services:
     volumes:
       - redis_data:/data
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
-    command: redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
+    command:
+      redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
 
   binance-mongo:
     container_name: binance-mongo

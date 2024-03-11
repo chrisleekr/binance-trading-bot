@@ -8,6 +8,7 @@ const {
   saveOverrideAction
 } = require('../../../cronjob/trailingTradeHelper/common');
 const queue = require('../../../cronjob/trailingTradeHelper/queue');
+const { executeTrailingTrade } = require('../../../cronjob/index');
 
 const handleManualTradeAllSymbols = async (logger, ws, payload) => {
   logger.info({ payload }, 'Start manual trade all symbols');
@@ -39,31 +40,35 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
         const quoteOrderQty = parseFloat(baseAsset.quoteOrderQty);
 
         if (quoteOrderQty > 0) {
-          const symbolOrder = {
-            action: 'manual-trade',
-            order: {
-              side: 'buy',
-              buy: {
-                type: buy.type,
-                marketType: buy.marketType,
-                quoteOrderQty
-              }
-            },
-            actionAt: currentTime.toISOString(),
-            triggeredBy: 'user'
+          const saveOverrideActionFn = async () => {
+            const symbolOrder = {
+              action: 'manual-trade',
+              order: {
+                side: 'buy',
+                buy: {
+                  type: buy.type,
+                  marketType: buy.marketType,
+                  quoteOrderQty
+                }
+              },
+              actionAt: currentTime.toISOString(),
+              triggeredBy: 'user'
+            };
+
+            logger.info({ symbolOrder }, `Queueing order for ${symbol}.`);
+
+            await saveOverrideAction(
+              logger,
+              symbol,
+              symbolOrder,
+              `Order for ${symbol} has been queued.`
+            );
           };
 
-          logger.info({ symbolOrder }, `Queueing order for ${symbol}.`);
-
-          await saveOverrideAction(
-            logger,
-            symbol,
-            symbolOrder,
-            `Order for ${symbol} has been queued.`
-          );
-
-          queue.executeFor(logger, symbol, {
-            correlationId: _.get(logger, 'fields.correlationId', '')
+          queue.execute(logger, symbol, {
+            correlationId: _.get(logger, 'fields.correlationId', ''),
+            preprocessFn: saveOverrideActionFn,
+            processFn: executeTrailingTrade
           });
 
           currentTime = moment(currentTime).add(
@@ -82,31 +87,35 @@ const handleManualTradeAllSymbols = async (logger, ws, payload) => {
         const marketQuantity = parseFloat(baseAsset.marketQuantity);
 
         if (marketQuantity > 0) {
-          const symbolOrder = {
-            action: 'manual-trade',
-            order: {
-              side: 'sell',
-              sell: {
-                type: sell.type,
-                marketType: sell.marketType,
-                marketQuantity
-              }
-            },
-            actionAt: currentTime.toISOString(),
-            triggeredBy: 'user'
+          const saveOverrideActionFn = async () => {
+            const symbolOrder = {
+              action: 'manual-trade',
+              order: {
+                side: 'sell',
+                sell: {
+                  type: sell.type,
+                  marketType: sell.marketType,
+                  marketQuantity
+                }
+              },
+              actionAt: currentTime.toISOString(),
+              triggeredBy: 'user'
+            };
+
+            logger.info({ symbolOrder }, `Queueing order for ${symbol}.`);
+
+            await saveOverrideAction(
+              logger,
+              symbol,
+              symbolOrder,
+              `Order for ${symbol} has been queued.`
+            );
           };
 
-          logger.info({ symbolOrder }, `Queueing order for ${symbol}.`);
-
-          await saveOverrideAction(
-            logger,
-            symbol,
-            symbolOrder,
-            `Order for ${symbol} has been queued.`
-          );
-
-          queue.executeFor(logger, symbol, {
-            correlationId: _.get(logger, 'fields.correlationId', '')
+          queue.execute(logger, symbol, {
+            correlationId: _.get(logger, 'fields.correlationId', ''),
+            preprocessFn: saveOverrideActionFn,
+            processFn: executeTrailingTrade
           });
 
           currentTime = moment(currentTime).add(

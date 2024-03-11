@@ -33,6 +33,13 @@
     },
     "database": "BINANCE_MONGO_DATABASE"
   },
+  "tradingview": {
+    "host": "BINANCE_TRADINGVIEW_HOST",
+    "port": {
+      "__name": "BINANCE_TRADINGVIEW_PORT",
+      "__format": "number"
+    }
+  },
   "slack": {
     "enabled": {
       "__name": "BINANCE_SLACK_ENABLED",
@@ -310,6 +317,18 @@
               "__description": "Set a boolean to use TradingView recommendation to sell the coin at the market price if the profit is over 0 but under the trigger price. When the condition is met and the TradingView recommendation is `Strong sell`, then the bot will place a market sell order immediately. If the auto-buy trigger is enabled, then it will place a buy order later. Note that this action can cause loss if the profit is less than commission.",
               "__format": "boolean"
             }
+          }
+        },
+        "conservativeMode": {
+          "enabled": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_CONSERVATIVE_MODE_ENABLED",
+            "__description": "Set a boolean for selling at a trigger price reduced by the conservative ratio for each executed buy grid. You can use this feature in bear market conditions to secure smaller benefits over unreached higher gains. At least 2 buy trades must have been executed for the ratio to be applied.",
+            "__format": "boolean"
+          },
+          "factor": {
+            "__name": "BINANCE_JOBS_TRAILING_TRADE_SELL_CONSERVATIVE_MODE_FACTOR",
+            "__description": "Set the conservative factor to be applied on sell trades with at least 2 executed buy grids.",
+            "__format": "number"
           }
         }
       },

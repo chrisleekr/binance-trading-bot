@@ -15,12 +15,7 @@ const { deleteManualOrder } = require('../../trailingTradeHelper/order');
  */
 const execute = async (logger, rawData) => {
   const data = rawData;
-  const { symbol, isLocked, action, order } = data;
-
-  if (isLocked) {
-    logger.info({ isLocked }, 'Symbol is locked, do not process cancel-order');
-    return data;
-  }
+  const { symbol, action, order } = data;
 
   if (action !== 'cancel-order') {
     logger.info(

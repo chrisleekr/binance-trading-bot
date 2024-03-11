@@ -12,9 +12,6 @@ describe('trailingTrade', () => {
   let mockConfigGet;
 
   let mockGetAccountInfo;
-  let mockLockSymbol;
-  let mockIsSymbolLocked;
-  let mockUnlockSymbol;
 
   let mockGetSymbolConfiguration;
   let mockGetSymbolInfo;
@@ -39,9 +36,6 @@ describe('trailingTrade', () => {
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
-
-    mockLockSymbol = jest.fn().mockResolvedValue(true);
-    mockUnlockSymbol = jest.fn().mockResolvedValue(true);
 
     mockLoggerInfo = jest.fn();
     mockSlackSendMessage = jest.fn().mockResolvedValue(true);
@@ -88,8 +82,6 @@ describe('trailingTrade', () => {
       jest.mock('config', () => ({
         get: mockConfigGet
       }));
-
-      mockIsSymbolLocked = jest.fn().mockResolvedValue(false);
 
       mockGetAccountInfo = jest.fn().mockResolvedValue({
         account: 'info'
@@ -268,10 +260,7 @@ describe('trailingTrade', () => {
         }));
 
       jest.mock('../trailingTradeHelper/common', () => ({
-        getAccountInfo: mockGetAccountInfo,
-        lockSymbol: mockLockSymbol,
-        isSymbolLocked: mockIsSymbolLocked,
-        unlockSymbol: mockUnlockSymbol
+        getAccountInfo: mockGetAccountInfo
       }));
 
       jest.mock('../trailingTrade/steps', () => ({
@@ -301,16 +290,11 @@ describe('trailingTrade', () => {
         await trailingTradeExecute(logger, 'BTCUSDT');
       });
 
-      it(`triggers isSymbolLocked - BTCUSDT`, () => {
-        expect(mockIsSymbolLocked).toHaveBeenCalledWith(logger, 'BTCUSDT');
-      });
-
-      it('returns expected result for BTCUSDT', () => {
+      it('returns expected result for BTCUSDT finish', () => {
         expect(mockLoggerInfo).toHaveBeenCalledWith(
           {
             data: {
               symbol: 'BTCUSDT',
-              isLocked: false,
               featureToggle: { feature1Enabled: true },
               lastCandle: { got: 'lowest value' },
               accountInfo: { account: 'info' },
@@ -348,16 +332,11 @@ describe('trailingTrade', () => {
         await trailingTradeExecute(logger, 'ETHUSDT');
       });
 
-      it(`triggers isSymbolLocked - ETHUSDT`, () => {
-        expect(mockIsSymbolLocked).toHaveBeenCalledWith(logger, 'ETHUSDT');
-      });
-
       it('returns expected result for ETHUSDT', () => {
         expect(mockLoggerInfo).toHaveBeenCalledWith(
           {
             data: {
               symbol: 'ETHUSDT',
-              isLocked: false,
               featureToggle: { feature1Enabled: true },
               lastCandle: { got: 'lowest value' },
               accountInfo: { account: 'info' },
@@ -395,16 +374,11 @@ describe('trailingTrade', () => {
         await trailingTradeExecute(logger, 'LTCUSDT');
       });
 
-      it(`triggers isSymbolLocked - LTCUSDT`, () => {
-        expect(mockIsSymbolLocked).toHaveBeenCalledWith(logger, 'LTCUSDT');
-      });
-
       it('returns expected result for LTCUSDT', async () => {
         expect(mockLoggerInfo).toHaveBeenCalledWith(
           {
             data: {
               symbol: 'LTCUSDT',
-              isLocked: false,
               featureToggle: { feature1Enabled: true },
               lastCandle: { got: 'lowest value' },
               accountInfo: { account: 'info' },

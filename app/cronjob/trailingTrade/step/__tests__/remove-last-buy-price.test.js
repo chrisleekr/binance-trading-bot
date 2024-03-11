@@ -61,77 +61,6 @@ describe('remove-last-buy-price.js', () => {
       mockGetGridTradeOrder = jest.fn().mockResolvedValue({});
     });
 
-    describe('when symbol is locked', () => {
-      beforeEach(async () => {
-        jest.mock('../../../trailingTradeHelper/common', () => ({
-          isActionDisabled: mockIsActionDisabled,
-          getAPILimit: mockGetAPILimit,
-          removeLastBuyPrice: mockRemoveLastBuyPrice,
-          saveOrderStats: mockSaveOrderStats,
-          saveOverrideAction: mockSaveOverrideAction,
-          getAndCacheOpenOrdersForSymbol: mockGetAndCacheOpenOrdersForSymbol
-        }));
-
-        jest.mock('../../../trailingTradeHelper/configuration', () => ({
-          archiveSymbolGridTrade: mockArchiveSymbolGridTrade,
-          deleteSymbolGridTrade: mockDeleteSymbolGridTrade,
-          getSymbolGridTrade: mockGetSymbolGridTrade
-        }));
-
-        jest.mock('../../../trailingTradeHelper/order', () => ({
-          getGridTradeOrder: mockGetGridTradeOrder
-        }));
-
-        const step = require('../remove-last-buy-price');
-
-        rawData = {
-          action: 'not-determined',
-          isLocked: true,
-          symbol: 'BTCUPUSDT',
-          symbolConfiguration: {
-            symbols: ['BTCUPUSDT', 'BTCUSDT', 'BNBUSDT'],
-            buy: { lastBuyPriceRemoveThreshold: 10 }
-          },
-          symbolInfo: {
-            filterLotSize: {
-              stepSize: '0.01000000',
-              minQty: '0.01000000'
-            },
-            filterMinNotional: {
-              minNotional: '10.00000000'
-            }
-          },
-          openOrders: [],
-          baseAssetBalance: {
-            free: 0,
-            locked: 0
-          },
-          sell: {
-            currentPrice: 200,
-            lastBuyPrice: null
-          }
-        };
-
-        result = await step.execute(loggerMock, rawData);
-      });
-
-      it('does not trigger archiveSymbolGridTrade', () => {
-        expect(mockArchiveSymbolGridTrade).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger deleteSymbolGridTrade', () => {
-        expect(mockDeleteSymbolGridTrade).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger saveOrderStats', () => {
-        expect(mockSaveOrderStats).not.toHaveBeenCalled();
-      });
-
-      it('returns expected data', () => {
-        expect(result).toStrictEqual(rawData);
-      });
-    });
-
     describe('when action is not `not-determined`', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
@@ -157,7 +86,6 @@ describe('remove-last-buy-price.js', () => {
 
         rawData = {
           action: 'buy',
-          isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolConfiguration: {
             symbols: ['BTCUPUSDT', 'BTCUSDT', 'BNBUSDT'],
@@ -230,7 +158,6 @@ describe('remove-last-buy-price.js', () => {
 
         rawData = {
           action: 'not-determined',
-          isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolConfiguration: {
             symbols: ['BTCUPUSDT', 'BTCUSDT', 'BNBUSDT'],
@@ -308,7 +235,6 @@ describe('remove-last-buy-price.js', () => {
 
         rawData = {
           action: 'not-determined',
-          isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolConfiguration: {
             symbols: ['BTCUPUSDT', 'BTCUSDT', 'BNBUSDT'],
@@ -386,7 +312,6 @@ describe('remove-last-buy-price.js', () => {
 
         rawData = {
           action: 'not-determined',
-          isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolConfiguration: {
             symbols: ['BTCUPUSDT', 'BTCUSDT', 'BNBUSDT'],
@@ -464,7 +389,6 @@ describe('remove-last-buy-price.js', () => {
 
         rawData = {
           action: 'not-determined',
-          isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolConfiguration: {
             symbols: ['BTCUSDT', 'BNBUSDT', 'BTCUPUSDT'],
@@ -863,7 +787,6 @@ describe('remove-last-buy-price.js', () => {
           },
           rawData: {
             action: 'not-determined',
-            isLocked: false,
             symbol: 'ALPHABTC',
             symbolConfiguration: {
               symbols: ['BTCUSDT', 'BNBUSDT', 'ALPHABTC'],
@@ -900,7 +823,6 @@ describe('remove-last-buy-price.js', () => {
           archivedSymbolGridTradeResult: {},
           rawData: {
             action: 'not-determined',
-            isLocked: false,
             symbol: 'BTCUPUSDT',
             symbolConfiguration: {
               symbols: ['BTCUSDT', 'BNBUSDT', 'BTCUPUSDT'],
@@ -1050,7 +972,6 @@ describe('remove-last-buy-price.js', () => {
 
           rawData = {
             action: 'not-determined',
-            isLocked: false,
             symbol: 'BTCUPUSDT',
             symbolConfiguration: {
               symbols: ['BTCUSDT', 'BNBUSDT', 'BTCUPUSDT'],
@@ -1179,7 +1100,6 @@ describe('remove-last-buy-price.js', () => {
 
           rawData = {
             action: 'not-determined',
-            isLocked: false,
             symbol: 'BTCUPUSDT',
             symbolConfiguration: {
               symbols: ['BTCUSDT', 'BNBUSDT', 'BTCUPUSDT'],
@@ -1266,7 +1186,6 @@ describe('remove-last-buy-price.js', () => {
 
         rawData = {
           action: 'not-determined',
-          isLocked: false,
           symbol: 'BTCUPUSDT',
           symbolConfiguration: {
             symbols: ['BTCUSDT', 'BNBUSDT', 'BTCUPUSDT'],

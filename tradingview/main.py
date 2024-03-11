@@ -9,7 +9,7 @@ from tradingview_ta import get_multiple_analysis
 app = Flask(__name__)
 
 logger = logging.getLogger('')
-logger.setLevel(os.environ.get("TRADINGVIEW_LOG_LEVEL", logging.DEBUG))
+logger.setLevel(os.environ.get("BINANCE_TRADINGVIEW_LOG_LEVEL", logging.DEBUG))
 sh = logging.StreamHandler(sys.stdout)
 sh.setFormatter(colorlog.ColoredFormatter(
     '%(log_color)s [%(asctime)s] %(levelname)s [%(filename)s.%(funcName)s:%(lineno)d] %(message)s', datefmt='%a, %d %b %Y %H:%M:%S'))
@@ -51,4 +51,12 @@ def index():
 
 if __name__ == "__main__":
     from waitress import serve
-    serve(app, host="0.0.0.0", port=8080)
+
+    port_str = os.environ.get("BINANCE_TRADINGVIEW_PORT", "8080")
+    try:
+        port = int(port_str)
+    except ValueError:
+        print(f"Invalid port value: {port_str}. Using default value of 8080.")
+        port = 8080
+
+    serve(app, host="0.0.0.0", port=port)

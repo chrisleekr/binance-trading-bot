@@ -11,7 +11,6 @@ describe('handle-open-orders.js', () => {
   let mockCancelOrder;
   let mockRefreshOpenOrdersAndAccountInfo;
   let mockGetAccountInfoFromAPI;
-  let mockSaveOverrideAction;
 
   let mockIsExceedingMaxOpenTrades;
 
@@ -33,7 +32,6 @@ describe('handle-open-orders.js', () => {
       });
       mockCancelOrder = jest.fn().mockResolvedValue(true);
 
-      mockSaveOverrideAction = jest.fn().mockResolvedValue(true);
       mockGetAccountInfoFromAPI = jest.fn().mockResolvedValue({
         account: 'updated'
       });
@@ -41,102 +39,10 @@ describe('handle-open-orders.js', () => {
       mockIsExceedingMaxOpenTrades = jest.fn().mockResolvedValue(false);
     });
 
-    describe('when symbol is locked', () => {
-      beforeEach(async () => {
-        jest.mock('../../../trailingTradeHelper/common', () => ({
-          getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          saveOverrideAction: mockSaveOverrideAction,
-          isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
-          cancelOrder: mockCancelOrder,
-          refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
-        }));
-
-        step = require('../handle-open-orders');
-
-        rawData = {
-          symbol: 'BTCUSDT',
-          isLocked: true,
-          action: 'not-determined',
-          openOrders: [
-            {
-              symbol: 'BTCUSDT',
-              orderId: 46838,
-              price: '1799.58000000',
-              type: 'LIMIT',
-              side: 'BUY'
-            }
-          ],
-          buy: {
-            limitPrice: 1800,
-            openOrders: [
-              {
-                symbol: 'BTCUSDT',
-                orderId: 46838,
-                price: '1799.58000000',
-                type: 'LIMIT',
-                side: 'BUY'
-              }
-            ]
-          },
-          sell: {
-            limitPrice: 1800,
-            openOrders: []
-          },
-          symbolInfo: {
-            quoteAsset: 'USDT'
-          }
-        };
-
-        result = await step.execute(loggerMock, rawData);
-      });
-
-      it('does not trigger cancelOrder', () => {
-        expect(mockCancelOrder).not.toHaveBeenCalled();
-      });
-
-      it('does not trigger refreshOpenOrdersAndAccountInfo', () => {
-        expect(mockRefreshOpenOrdersAndAccountInfo).not.toHaveBeenCalled();
-      });
-
-      it('returns expected value', () => {
-        expect(result).toStrictEqual({
-          symbol: 'BTCUSDT',
-          isLocked: true,
-          action: 'not-determined',
-          openOrders: [
-            {
-              symbol: 'BTCUSDT',
-              orderId: 46838,
-              price: '1799.58000000',
-              type: 'LIMIT',
-              side: 'BUY'
-            }
-          ],
-          buy: {
-            limitPrice: 1800,
-            openOrders: [
-              {
-                symbol: 'BTCUSDT',
-                orderId: 46838,
-                price: '1799.58000000',
-                type: 'LIMIT',
-                side: 'BUY'
-              }
-            ]
-          },
-          sell: { limitPrice: 1800, openOrders: [] },
-          symbolInfo: {
-            quoteAsset: 'USDT'
-          }
-        });
-      });
-    });
-
     describe('when action is not not-determined', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          saveOverrideAction: mockSaveOverrideAction,
           isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
           cancelOrder: mockCancelOrder,
           refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
@@ -146,7 +52,6 @@ describe('handle-open-orders.js', () => {
 
         rawData = {
           symbol: 'BTCUSDT',
-          isLocked: false,
           action: 'buy-wait',
           openOrders: [
             {
@@ -192,7 +97,6 @@ describe('handle-open-orders.js', () => {
       it('returns expected value', () => {
         expect(result).toStrictEqual({
           symbol: 'BTCUSDT',
-          isLocked: false,
           action: 'buy-wait',
           openOrders: [
             {
@@ -227,7 +131,6 @@ describe('handle-open-orders.js', () => {
       beforeEach(async () => {
         jest.mock('../../../trailingTradeHelper/common', () => ({
           getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-          saveOverrideAction: mockSaveOverrideAction,
           isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
           cancelOrder: mockCancelOrder,
           refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
@@ -237,7 +140,6 @@ describe('handle-open-orders.js', () => {
 
         rawData = {
           symbol: 'BTCUSDT',
-          isLocked: false,
           action: 'not-determined',
           openOrders: [
             {
@@ -283,7 +185,6 @@ describe('handle-open-orders.js', () => {
       it('returns expected value', () => {
         expect(result).toStrictEqual({
           symbol: 'BTCUSDT',
-          isLocked: false,
           action: 'not-determined',
           openOrders: [
             {
@@ -323,7 +224,6 @@ describe('handle-open-orders.js', () => {
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -334,7 +234,6 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
-              isLocked: false,
               action: 'not-determined',
               openOrders: [
                 {
@@ -385,7 +284,6 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
-              isLocked: false,
               action: 'buy-order-checking',
               openOrders: [
                 {
@@ -416,7 +314,6 @@ describe('handle-open-orders.js', () => {
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -427,7 +324,6 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
-              isLocked: false,
               action: 'not-determined',
               openOrders: [
                 {
@@ -485,7 +381,6 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
-              isLocked: false,
               action: 'buy-order-cancelled',
               openOrders: [
                 {
@@ -527,7 +422,6 @@ describe('handle-open-orders.js', () => {
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -538,7 +432,6 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: false
               },
@@ -604,21 +497,6 @@ describe('handle-open-orders.js', () => {
             expect(slackMock.sendMessage).not.toHaveBeenCalled();
           });
 
-          it('triggers saveOverrideAction', () => {
-            expect(mockSaveOverrideAction).toHaveBeenCalledWith(
-              loggerMock,
-              'BTCUSDT',
-              {
-                action: 'buy',
-                actionAt: expect.any(String),
-                triggeredBy: 'buy-cancelled',
-                notify: false,
-                checkTradingView: true
-              },
-              'The bot will place a buy order in the next tick because could not retrieve the cancelled order result.'
-            );
-          });
-
           it('does not trigger getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
           });
@@ -626,7 +504,6 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: false
               },
@@ -659,7 +536,6 @@ describe('handle-open-orders.js', () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -670,7 +546,6 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
-              isLocked: false,
               action: 'not-determined',
               openOrders: [
                 {
@@ -740,8 +615,7 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
-              isLocked: false,
-              action: 'buy',
+              action: 'buy-order-cancelled',
               openOrders: [
                 {
                   symbol: 'BTCUSDT',
@@ -779,7 +653,6 @@ describe('handle-open-orders.js', () => {
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -790,7 +663,6 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: false
               },
@@ -856,21 +728,6 @@ describe('handle-open-orders.js', () => {
             expect(slackMock.sendMessage).not.toHaveBeenCalled();
           });
 
-          it('triggers saveOverrideAction', () => {
-            expect(mockSaveOverrideAction).toHaveBeenCalledWith(
-              loggerMock,
-              'BTCUSDT',
-              {
-                action: 'buy',
-                actionAt: expect.any(String),
-                triggeredBy: 'buy-cancelled',
-                notify: false,
-                checkTradingView: true
-              },
-              'The bot will place a buy order in the next tick because could not retrieve the cancelled order result.'
-            );
-          });
-
           it('does not trigger getAccountInfoFromAPI', () => {
             expect(mockGetAccountInfoFromAPI).not.toHaveBeenCalled();
           });
@@ -878,7 +735,6 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: false
               },
@@ -911,7 +767,6 @@ describe('handle-open-orders.js', () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -922,7 +777,6 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
-              isLocked: false,
               action: 'not-determined',
               openOrders: [
                 {
@@ -992,8 +846,7 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
-              isLocked: false,
-              action: 'buy',
+              action: 'buy-order-cancelled',
               openOrders: [
                 {
                   symbol: 'BTCUSDT',
@@ -1028,7 +881,6 @@ describe('handle-open-orders.js', () => {
 
           jest.mock('../../../trailingTradeHelper/common', () => ({
             getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-            saveOverrideAction: mockSaveOverrideAction,
             isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
             cancelOrder: mockCancelOrder,
             refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
@@ -1038,7 +890,6 @@ describe('handle-open-orders.js', () => {
 
           rawData = {
             symbol: 'BTCUSDT',
-            isLocked: false,
             action: 'not-determined',
             openOrders: [
               {
@@ -1086,7 +937,6 @@ describe('handle-open-orders.js', () => {
         it('returns expected value', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
-            isLocked: false,
             action: 'buy-order-wait',
             openOrders: [
               {
@@ -1130,7 +980,6 @@ describe('handle-open-orders.js', () => {
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -1140,7 +989,6 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: false
               },
@@ -1209,7 +1057,6 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: false
               },
@@ -1242,7 +1089,6 @@ describe('handle-open-orders.js', () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -1253,7 +1099,6 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
-              isLocked: false,
               action: 'not-determined',
               openOrders: [
                 {
@@ -1324,7 +1169,6 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
-              isLocked: false,
               action: 'sell',
               openOrders: [
                 {
@@ -1364,7 +1208,6 @@ describe('handle-open-orders.js', () => {
 
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -1374,7 +1217,6 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: false
               },
@@ -1443,7 +1285,6 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
-              isLocked: false,
               featureToggle: {
                 notifyDebug: false
               },
@@ -1476,7 +1317,6 @@ describe('handle-open-orders.js', () => {
           beforeEach(async () => {
             jest.mock('../../../trailingTradeHelper/common', () => ({
               getAccountInfoFromAPI: mockGetAccountInfoFromAPI,
-              saveOverrideAction: mockSaveOverrideAction,
               isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
               cancelOrder: mockCancelOrder,
               refreshOpenOrdersAndAccountInfo:
@@ -1487,7 +1327,6 @@ describe('handle-open-orders.js', () => {
 
             rawData = {
               symbol: 'BTCUSDT',
-              isLocked: false,
               action: 'not-determined',
               openOrders: [
                 {
@@ -1558,7 +1397,6 @@ describe('handle-open-orders.js', () => {
           it('returns expected value', () => {
             expect(result).toStrictEqual({
               symbol: 'BTCUSDT',
-              isLocked: false,
               action: 'sell',
               openOrders: [
                 {
@@ -1592,7 +1430,6 @@ describe('handle-open-orders.js', () => {
       describe('when stop price is more than current limit price', () => {
         beforeEach(async () => {
           jest.mock('../../../trailingTradeHelper/common', () => ({
-            saveOverrideAction: mockSaveOverrideAction,
             isExceedingMaxOpenTrades: mockIsExceedingMaxOpenTrades,
             cancelOrder: mockCancelOrder,
             refreshOpenOrdersAndAccountInfo: mockRefreshOpenOrdersAndAccountInfo
@@ -1602,7 +1439,6 @@ describe('handle-open-orders.js', () => {
 
           rawData = {
             symbol: 'BTCUSDT',
-            isLocked: false,
             action: 'not-determined',
             openOrders: [
               {
@@ -1650,7 +1486,6 @@ describe('handle-open-orders.js', () => {
         it('returns expected value', () => {
           expect(result).toStrictEqual({
             symbol: 'BTCUSDT',
-            isLocked: false,
             action: 'sell-order-wait',
             openOrders: [
               {

@@ -1,9 +1,6 @@
 /* eslint-disable no-await-in-loop */
-const moment = require('moment');
-
 const {
   cancelOrder,
-  saveOverrideAction,
   isExceedingMaxOpenTrades,
   refreshOpenOrdersAndAccountInfo,
   getAccountInfoFromAPI
@@ -22,19 +19,10 @@ const execute = async (logger, rawData) => {
   const {
     symbol,
     action,
-    isLocked,
     openOrders,
     buy: { limitPrice: buyLimitPrice, currentPrice: buyCurrentPrice },
     sell: { limitPrice: sellLimitPrice, currentPrice: sellCurrentPrice }
   } = data;
-
-  if (isLocked) {
-    logger.info(
-      { isLocked },
-      'Symbol is locked, do not process handle-open-orders'
-    );
-    return data;
-  }
 
   if (action !== 'not-determined') {
     logger.info(
@@ -55,7 +43,6 @@ const execute = async (logger, rawData) => {
     if (order.side.toLowerCase() === 'buy') {
       if (await isExceedingMaxOpenTrades(logger, data)) {
         // Cancel the initial buy order if max. open trades exceeded
-        data.action = 'buy-order-cancelled';
         logger.info(
           { data, saveLog: true },
           `The current number of open trades has reached the maximum number of open trades. ` +
@@ -80,6 +67,9 @@ const execute = async (logger, rawData) => {
           data.action = 'buy-order-checking';
         } else {
           data.buy.openOrders = [];
+
+          // Set action as buy order cancelled
+          data.action = 'buy-order-cancelled';
 
           data.accountInfo = await getAccountInfoFromAPI(logger);
         }
@@ -120,25 +110,12 @@ const execute = async (logger, rawData) => {
           data.buy.openOrders = buyOpenOrders;
 
           data.action = 'buy-order-checking';
-
-          await saveOverrideAction(
-            logger,
-            symbol,
-            {
-              action: 'buy',
-              actionAt: moment().toISOString(),
-              triggeredBy: 'buy-cancelled',
-              notify: false,
-              checkTradingView: true
-            },
-            `The bot will place a buy order in the next tick because could not retrieve the cancelled order result.`
-          );
         } else {
           // Reset buy open orders
           data.buy.openOrders = [];
 
-          // Set action as buy
-          data.action = 'buy';
+          // Set action as buy order cancelled
+          data.action = 'buy-order-cancelled';
 
           data.accountInfo = await getAccountInfoFromAPI(logger);
         }

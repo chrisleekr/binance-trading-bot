@@ -220,7 +220,11 @@ class QuoteAssetGridTradeArchiveIcon extends React.Component {
                 parseFloat(row.stopLossQuoteQty).toFixed(quoteAssetTickSize)
               }
               className={`text-center align-middle ${
-                row.totalSellQuoteQty === 0 ? 'text-muted' : ''
+                row.totalSellQuoteQty === 0
+                  ? 'text-muted'
+                  : row.stopLossQuoteQty === 0
+                  ? ''
+                  : 'text-danger'
               }`}>
               {parseFloat(row.totalSellQuoteQty).toFixed(quoteAssetTickSize)}{' '}
               {quoteAsset}
