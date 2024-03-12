@@ -376,13 +376,17 @@ class CoinWrapperBuySignal extends React.Component {
               )}
             </span>{' '}
           </div>
-          {symbolConfiguration.buy.enabled === false ? (
-            <HightlightChange className='coin-info-message badge-pill badge-danger'>
-              Trading is disabled.
-            </HightlightChange>
-          ) : (
-            ''
-          )}
+          <span className='coin-info-value'>
+            {symbolConfiguration.buy.enabled === false ? (
+              <Badge pill variant='danger'>
+                Disabled
+              </Badge>
+            ) : (
+              <Badge pill variant='success'>
+                Enabled
+              </Badge>
+            )}
+          </span>
         </div>
         {symbolConfiguration.buy.athRestriction.enabled ? (
           <div className='d-flex flex-column w-100'>

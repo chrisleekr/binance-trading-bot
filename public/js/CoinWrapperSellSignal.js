@@ -304,13 +304,17 @@ class CoinWrapperSellSignal extends React.Component {
                 )}
               </span>
             </div>
-            {symbolConfiguration.sell.enabled === false ? (
-              <HightlightChange className='coin-info-message badge-pill badge-danger'>
-                Trading is disabled.
-              </HightlightChange>
-            ) : (
-              ''
-            )}
+            <span className='coin-info-value'>
+              {symbolConfiguration.sell.enabled === false ? (
+                <Badge pill variant='danger'>
+                  Disabled
+                </Badge>
+              ) : (
+                <Badge pill variant='success'>
+                  Enabled
+                </Badge>
+              )}
+            </span>
           </div>
 
           {sell.currentPrice ? (
@@ -429,13 +433,17 @@ class CoinWrapperSellSignal extends React.Component {
               )}
             </span>
           </div>
-          {symbolConfiguration.sell.enabled === false ? (
-            <HightlightChange className='coin-info-message badge-pill badge-danger'>
-              Trading is disabled.
-            </HightlightChange>
-          ) : (
-            ''
-          )}
+          <span className='coin-info-value'>
+            {symbolConfiguration.sell.enabled === false ? (
+              <Badge pill variant='danger'>
+                Disabled
+              </Badge>
+            ) : (
+              <Badge pill variant='success'>
+                Enabled
+              </Badge>
+            )}
+          </span>
         </div>
 
         <CoinWrapperSellLastBuyPrice
