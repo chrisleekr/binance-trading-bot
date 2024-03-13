@@ -3,11 +3,7 @@ version: '2.1'
 services:
   binance-bot:
     container_name: binance-bot
-    # image: chrisleekr/binance-trading-bot:latest
-    build:
-      context: ../
-      # target: dev-stage
-      target: production-stage
+    image: chrisleekr/binance-trading-bot:latest
     networks:
       - internal
     restart: unless-stopped
