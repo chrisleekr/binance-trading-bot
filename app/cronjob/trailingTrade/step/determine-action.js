@@ -302,12 +302,12 @@ const shouldForceSellByTradingViewRecommendation = (logger, data) => {
     };
   }
 
-  // If current profit is less than 0 or current price is more than trigger price
-  if (sellCurrentProfit <= 0 || sellCurrentPrice > sellTriggerPrice) {
+  // If current profit is less than minimal notional value or current price is more than trigger price
+  if (sellCurrentProfit <= parseFloat(minNotional) || sellCurrentPrice > sellTriggerPrice) {
     logger.info(
       { sellCurrentProfit, sellCurrentPrice, sellTriggerPrice },
-      `Current profit if equal or less than 0 or ` +
-        `current price is more than trigger price. Ignore TradingView recommendation.`
+      `Current profit if equal or less than minimum notional value or ` +
+      `current price is more than trigger price. Ignore TradingView recommendation.`
     );
 
     return { shouldForceSell: false, forceSellMessage: '' };
@@ -347,6 +347,7 @@ const shouldForceSellByTradingViewRecommendation = (logger, data) => {
 
   // If summary recommendation is force sell recommendation, then execute force sell
   if (
+    sellCurrentProfit > parseFloat(minNotional) &&
     forceSellRecommendations.length > 0 &&
     forceSellRecommendations.includes(
       tradingViewSummaryRecommendation.toLowerCase()
@@ -356,7 +357,7 @@ const shouldForceSellByTradingViewRecommendation = (logger, data) => {
       shouldForceSell: true,
       forceSellMessage:
         `TradingView recommendation is ${tradingViewSummaryRecommendation}. ` +
-        `The current profit (${sellCurrentProfit}) is more than 0 and the current price (${sellCurrentPrice}) ` +
+        `The current profit (${sellCurrentProfit}) is more than minimum notional value and the current price (${sellCurrentPrice}) ` +
         `is under trigger price (${sellTriggerPrice}). Sell at market price.`
     };
   }
@@ -462,9 +463,9 @@ const execute = async (logger, rawData) => {
         data,
         'wait',
         `The current price reached the trigger price. ` +
-          `But you have enough ${baseAsset} to sell. ` +
-          `Set the last buy price to start selling. ` +
-          `Do not process buy.`
+        `But you have enough ${baseAsset} to sell. ` +
+        `Set the last buy price to start selling. ` +
+        `Do not process buy.`
       );
     }
 
@@ -479,8 +480,8 @@ const execute = async (logger, rawData) => {
         data,
         'buy-temporary-disabled',
         'The current price reached the trigger price. ' +
-          `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
-          `Resume buy process after ${checkDisable.ttl}s.`
+        `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
+        `Resume buy process after ${checkDisable.ttl}s.`
       );
     }
 
@@ -490,7 +491,7 @@ const execute = async (logger, rawData) => {
         data,
         'wait',
         `The current price has reached the lowest price; however, it is restricted to buy the coin ` +
-          `because ATH price higher than the current price.`
+        `because ATH price higher than the current price.`
       );
     }
 
@@ -500,7 +501,7 @@ const execute = async (logger, rawData) => {
         data,
         'wait',
         `The current price has reached the lowest price; however, it is restricted to buy the coin ` +
-          `because of reached maximum buy open orders.`
+        `because of reached maximum buy open orders.`
       );
     }
 
@@ -510,7 +511,7 @@ const execute = async (logger, rawData) => {
         data,
         'wait',
         `The current price has reached the lowest price; however, it is restricted to buy the coin ` +
-          `because of reached maximum open trades.`
+        `because of reached maximum open trades.`
       );
     }
 
@@ -573,8 +574,8 @@ const execute = async (logger, rawData) => {
           data,
           'sell-temporary-disabled',
           'The current price is reached the sell trigger price. ' +
-            `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
-            `Resume sell process after ${checkDisable.ttl}s.`
+          `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
+          `Resume sell process after ${checkDisable.ttl}s.`
         );
       }
 
@@ -599,8 +600,8 @@ const execute = async (logger, rawData) => {
           data,
           'sell-temporary-disabled',
           'The current price is reached the stop-loss price. ' +
-            `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
-            `Resume sell process after ${checkDisable.ttl}s.`
+          `However, the action is temporarily disabled by ${checkDisable.disabledBy}. ` +
+          `Resume sell process after ${checkDisable.ttl}s.`
         );
       }
 
@@ -619,7 +620,7 @@ const execute = async (logger, rawData) => {
       data,
       'sell-wait',
       `The current price is lower than the selling trigger price ` +
-        `for the grid trade #${humanisedSellGridTradeIndex}. Wait.`
+      `for the grid trade #${humanisedSellGridTradeIndex}. Wait.`
     );
   }
 

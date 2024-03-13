@@ -1022,7 +1022,7 @@ class SymbolSettingIcon extends React.Component {
                                             Force sell at the market price when
                                             recommendation is{' '}
                                             <code>Neutral</code> and the profit
-                                            is between <code>0</code> to{' '}
+                                            is greater than <code>minimum notional value</code> and the <code>current price</code> is under{' '}
                                             <code>trigger price</code>{' '}
                                             <OverlayTrigger
                                               trigger='click'
@@ -1035,7 +1035,7 @@ class SymbolSettingIcon extends React.Component {
                                                     TradingView recommendation
                                                     to sell the coin at the
                                                     market price if the profit
-                                                    is over 0 but under the
+                                                    is over minimum notional value and current price is under the
                                                     trigger price. When the
                                                     condition is met and the
                                                     TradingView recommendation
@@ -1080,9 +1080,9 @@ class SymbolSettingIcon extends React.Component {
                                           <Form.Check.Label>
                                             Force sell at the market price when
                                             recommendation is <code>Sell</code>{' '}
-                                            and the profit is between{' '}
-                                            <code>0</code> to{' '}
-                                            <code>trigger price</code>{' '}
+                                            aand the profit is greater than{' '}
+                                            <code>minimum notional value</code> and{' '}
+                                            the <code>current price</code> is under the <code>trigger price</code>{' '}
                                             <OverlayTrigger
                                               trigger='click'
                                               key='sell-tradingview-force-sell-over-zero-below-trigger-price-when-sell-overlay'
@@ -1094,7 +1094,7 @@ class SymbolSettingIcon extends React.Component {
                                                     TradingView recommendation
                                                     to sell the coin at the
                                                     market price if the profit
-                                                    is over 0 but under the
+                                                    is greater than minimum notional value and the current price is under the
                                                     trigger price. When the
                                                     condition is met and the
                                                     TradingView recommendation
@@ -1139,8 +1139,8 @@ class SymbolSettingIcon extends React.Component {
                                             Force sell at the market price when
                                             recommendation is{' '}
                                             <code>Strong sell</code> and the
-                                            profit is between <code>0</code> to{' '}
-                                            <code>trigger price</code>{' '}
+                                            profit is greater than <code>minimal notional value</code> and{' '}
+                                            the <code>current price</code> is under the <code>trigger price</code>{' '}
                                             <OverlayTrigger
                                               trigger='click'
                                               key='sell-tradingview-force-sell-over-zero-below-trigger-price-when-strong-sell-overlay'
@@ -1152,7 +1152,7 @@ class SymbolSettingIcon extends React.Component {
                                                     TradingView recommendation
                                                     to sell the coin at the
                                                     market price if the profit
-                                                    is over 0 but under the
+                                                    is greater than minimum notional value and the current price is under the
                                                     trigger price. When the
                                                     condition is met and the
                                                     TradingView recommendation
