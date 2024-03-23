@@ -16,4 +16,4 @@ jobs:
         if: success()
         with:
           balena_api_token: ${{ secrets.BALENA_API_TOKEN }}
-          balena_command: "push ${{ secrets.BALENA_APPLICATION_NAME }} --pull --debug --release-tag type binance-trading-bot --source balena"
+          balena_command: "push ${{ secrets.BALENA_APPLICATION_NAME }} --pull --debug --release-tag type binance-trading-bot --source ."
