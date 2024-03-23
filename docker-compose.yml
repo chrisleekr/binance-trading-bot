@@ -1,0 +1,68 @@
+version: '2.1'
+
+services:
+  binance-bot:
+    container_name: binance-bot
+    # image: chrisleekr/binance-trading-bot:latest
+    build:
+      context: ./
+      # target: dev-stage
+      target: production-stage
+    networks:
+      - internal
+    restart: unless-stopped
+    environment:
+      - BINANCE_MODE=live
+      - BINANCE_REDIS_HOST=binance-redis
+      - BINANCE_REDIS_PORT=6379
+      - BINANCE_REDIS_PASSWORD=secretp422
+
+    ports:
+      - 80:80
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '50m'
+
+  tradingview:
+    container_name: tradingview
+    image: chrisleekr/binance-trading-bot:tradingview
+    networks:
+      - internal
+    restart: unless-stopped
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '50m'
+
+  binance-redis:
+    container_name: binance-redis
+    build: ./redis
+    image: redis:6.2.6-binance-trading-bot
+    sysctls:
+      net.core.somaxconn: 1024
+    networks:
+      - internal
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
+
+  binance-mongo:
+    container_name: binance-mongo
+    image: mongo:4.4.13
+    restart: unless-stopped
+    networks:
+      - internal
+    volumes:
+      - mongo_data:/data/db
+
+networks:
+  internal:
+    driver: bridge
+    # driver_opts:
+    #     com.docker.network.driver.mtu: 1442
+
+volumes:
+  redis_data:
+  mongo_data:
