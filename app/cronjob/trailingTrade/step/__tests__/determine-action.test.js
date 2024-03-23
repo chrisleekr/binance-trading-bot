@@ -1777,7 +1777,8 @@ describe('determine-action.js', () => {
               },
               expectedAction: 'sell-stop-loss',
               expectedProcessMessage:
-                `TradingView recommendation is NEUTRAL. The current profit (100) is more than 0 and ` +
+                `TradingView recommendation is NEUTRAL. The current profit (100) is more than ` +
+                `minimum notional value and ` +
                 `the current price (30100) is under trigger price (30900). Sell at market price.`
             },
             {
@@ -1924,7 +1925,8 @@ describe('determine-action.js', () => {
               },
               expectedAction: 'sell-stop-loss',
               expectedProcessMessage:
-                `TradingView recommendation is SELL. The current profit (100) is more than 0 and ` +
+                `TradingView recommendation is SELL. The current profit (100) is more than ` +
+                `minimum notional value and ` +
                 `the current price (30100) is under trigger price (30900). Sell at market price.`
             },
             {
@@ -1963,7 +1965,8 @@ describe('determine-action.js', () => {
               },
               expectedAction: 'sell-stop-loss',
               expectedProcessMessage:
-                `TradingView recommendation is STRONG_SELL. The current profit (100) is more than 0 and ` +
+                `TradingView recommendation is STRONG_SELL. The current profit (100) is more than ` +
+                `minimum notional value and ` +
                 `the current price (30100) is under trigger price (30900). Sell at market price.`
             }
           ].forEach(t => {
