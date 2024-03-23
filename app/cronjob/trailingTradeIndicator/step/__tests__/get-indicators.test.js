@@ -47,7 +47,7 @@ describe('get-indicators.js', () => {
       });
 
       it('triggers binance.client.candles once', () => {
-        expect(binanceMock.client.candles).toBeCalledTimes(1);
+        expect(binanceMock.client.candles).toHaveBeenCalledTimes(1);
       });
 
       it('triggers binance.client.candles for high/low prices', () => {
@@ -128,7 +128,7 @@ describe('get-indicators.js', () => {
       });
 
       it('triggers binance.client.candles twice', () => {
-        expect(binanceMock.client.candles).toBeCalledTimes(2);
+        expect(binanceMock.client.candles).toHaveBeenCalledTimes(2);
       });
 
       it('triggers binance.client.candles for high/low prices', () => {
