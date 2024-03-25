@@ -311,24 +311,22 @@ class CoinWrapperTradingView extends React.Component {
     return (
       <div className='coin-info-sub-wrapper'>
         <div className='coin-info-column coin-info-column-title'>
-          <div className='coin-info-label'>
-            Tradingview
-          </div>
+          <div className='coin-info-label'>Tradingview</div>
           <div className='coin-info-value'>
-            Open: <a
+            Open:{' '}
+            <a
               href={
                 'https://www.tradingview.com/symbols/' + symbol + '/technicals/'
               }
               rel='noopener noreferrer'
               target='_blank'>
-            Technical analysis
-          </a> &nbsp; | &nbsp;
+              Analysis
+            </a>{' '}
+            &nbsp; | &nbsp;
             <a
-                href={
-                  'https://www.tradingview.com/chart/?symbol=' + symbol
-                }
-                rel='noopener noreferrer'
-                target='_blank'>
+              href={'https://www.tradingview.com/chart/?symbol=' + symbol}
+              rel='noopener noreferrer'
+              target='_blank'>
               Chart
             </a>
           </div>
