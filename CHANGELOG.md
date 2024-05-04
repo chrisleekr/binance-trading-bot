@@ -9,7 +9,6 @@ All notable changes to this project will be documented in this file.
 - Add clear symbols button by [@TheSmuks](https://github.com/TheSmuks) - [#626](https://github.com/chrisleekr/binance-trading-bot/pull/626)
 - Improved customised setting details by [@rando128](https://github.com/rando128) - [#625](https://github.com/chrisleekr/binance-trading-bot/pull/625)
 - Updated collapsable header UX by [@rando128](https://github.com/rando128) - [#624](https://github.com/chrisleekr/binance-trading-bot/pull/624)
-- Added multiple TradingView indicators - [#539](https://github.com/chrisleekr/binance-trading-bot/pull/539)
 
 Thanks [@TheSmuks](https://github.com/TheSmuks) and [@rando128](https://github.com/rando128) for your great contributions. 💯 :heart:
 
