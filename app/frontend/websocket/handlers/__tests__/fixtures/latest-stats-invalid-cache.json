@@ -2,27 +2,14 @@
   "result": true,
   "type": "latest",
   "isAuthenticated": true,
-  "configuration": {
-    "enabled": true,
-    "symbols": ["BTCUSDT", "BNBUSDT"]
-  },
+  "configuration": { "enabled": true, "symbols": ["BTCUSDT", "BNBUSDT"] },
   "common": {
-    "version": "0.0.94",
-    "gitHash": "unspecified",
-    "accountInfo": {
-      "balances": []
-    },
-    "apiInfo": {
-      "spot": {
-        "usedWeight1m": "60"
-      },
-      "futures": {}
-    },
+    "version": "0.0.96",
+    "gitHash": "some-hash",
+    "accountInfo": { "balances": [] },
+    "apiInfo": { "spot": { "usedWeight1m": "60" }, "futures": {} },
     "closedTradesSetting": {},
-    "orderStats": {
-      "numberOfOpenTrades": null,
-      "numberOfBuyOpenOrders": null
-    },
+    "orderStats": { "numberOfOpenTrades": null, "numberOfBuyOpenOrders": null },
     "closedTrades": [],
     "totalProfitAndLoss": [],
     "streamsCount": 6,
@@ -51,28 +38,16 @@
           "enabled": true,
           "cronTime": "* * * * * *",
           "botOptions": {
-            "authentication": {
-              "lockList": false,
-              "lockAfter": 120
-            },
-            "autoTriggerBuy": {
-              "enabled": true,
-              "triggerAfter": 1
-            }
+            "authentication": { "lockList": false, "lockAfter": 120 },
+            "autoTriggerBuy": { "enabled": true, "triggerAfter": 1 }
           },
-          "candles": {
-            "interval": "1m",
-            "limit": 10
-          },
+          "candles": { "interval": "1m", "limit": 10 },
           "buy": {
             "enabled": true,
             "lastBuyPriceRemoveThreshold": 10,
             "athRestriction": {
               "enabled": false,
-              "candles": {
-                "interval": "1d",
-                "limit": 30
-              },
+              "candles": { "interval": "1d", "limit": 30 },
               "restrictionPercentage": 0.9
             },
             "maxPurchaseAmount": -1,
@@ -301,19 +276,13 @@
         "symbolConfiguration": {
           "_id": "611e5f2dd3630e44f849b05b",
           "key": "BTCUSDT-configuration",
-          "candles": {
-            "interval": "1m",
-            "limit": 10
-          },
+          "candles": { "interval": "1m", "limit": 10 },
           "buy": {
             "enabled": true,
             "lastBuyPriceRemoveThreshold": 10,
             "athRestriction": {
               "enabled": false,
-              "candles": {
-                "interval": "1d",
-                "limit": 30
-              },
+              "candles": { "interval": "1d", "limit": 30 },
               "restrictionPercentage": 0.9
             },
             "maxPurchaseAmount": -1,
@@ -366,14 +335,8 @@
             }
           },
           "botOptions": {
-            "authentication": {
-              "lockList": false,
-              "lockAfter": 120
-            },
-            "autoTriggerBuy": {
-              "enabled": true,
-              "triggerAfter": 1
-            }
+            "authentication": { "lockList": false, "lockAfter": 120 },
+            "autoTriggerBuy": { "enabled": true, "triggerAfter": 1 }
           },
           "enabled": true,
           "cronTime": "* * * * * *",
@@ -512,10 +475,7 @@
         },
         "order": {},
         "saveToCache": true,
-        "isActionDisabled": {
-          "isDisabled": false,
-          "ttl": -2
-        }
+        "isActionDisabled": { "isDisabled": false, "ttl": -2 }
       },
       {
         "symbol": "ETHBUSD",
@@ -536,28 +496,16 @@
           "enabled": true,
           "cronTime": "* * * * * *",
           "botOptions": {
-            "authentication": {
-              "lockList": false,
-              "lockAfter": 120
-            },
-            "autoTriggerBuy": {
-              "enabled": true,
-              "triggerAfter": 1
-            }
+            "authentication": { "lockList": false, "lockAfter": 120 },
+            "autoTriggerBuy": { "enabled": true, "triggerAfter": 1 }
           },
-          "candles": {
-            "interval": "1m",
-            "limit": 10
-          },
+          "candles": { "interval": "1m", "limit": 10 },
           "buy": {
             "enabled": true,
             "lastBuyPriceRemoveThreshold": 10,
             "athRestriction": {
               "enabled": false,
-              "candles": {
-                "interval": "1d",
-                "limit": 30
-              },
+              "candles": { "interval": "1d", "limit": 30 },
               "restrictionPercentage": 0.9
             },
             "maxPurchaseAmount": -1,
@@ -762,10 +710,7 @@
         },
         "order": {},
         "saveToCache": true,
-        "isActionDisabled": {
-          "isDisabled": false,
-          "ttl": -2
-        }
+        "isActionDisabled": { "isDisabled": false, "ttl": -2 }
       },
       {
         "symbol": "BTCBUSD",
@@ -786,28 +731,16 @@
           "enabled": true,
           "cronTime": "* * * * * *",
           "botOptions": {
-            "authentication": {
-              "lockList": false,
-              "lockAfter": 120
-            },
-            "autoTriggerBuy": {
-              "enabled": true,
-              "triggerAfter": 1
-            }
+            "authentication": { "lockList": false, "lockAfter": 120 },
+            "autoTriggerBuy": { "enabled": true, "triggerAfter": 1 }
           },
-          "candles": {
-            "interval": "1m",
-            "limit": 10
-          },
+          "candles": { "interval": "1m", "limit": 10 },
           "buy": {
             "enabled": true,
             "lastBuyPriceRemoveThreshold": 10,
             "athRestriction": {
               "enabled": false,
-              "candles": {
-                "interval": "1d",
-                "limit": 30
-              },
+              "candles": { "interval": "1d", "limit": 30 },
               "restrictionPercentage": 0.9
             },
             "maxPurchaseAmount": -1,
@@ -994,10 +927,7 @@
         },
         "order": {},
         "saveToCache": true,
-        "isActionDisabled": {
-          "isDisabled": false,
-          "ttl": -2
-        }
+        "isActionDisabled": { "isDisabled": false, "ttl": -2 }
       },
       {
         "symbol": "LTCBUSD",
@@ -1018,28 +948,16 @@
           "enabled": true,
           "cronTime": "* * * * * *",
           "botOptions": {
-            "authentication": {
-              "lockList": false,
-              "lockAfter": 120
-            },
-            "autoTriggerBuy": {
-              "enabled": true,
-              "triggerAfter": 1
-            }
+            "authentication": { "lockList": false, "lockAfter": 120 },
+            "autoTriggerBuy": { "enabled": true, "triggerAfter": 1 }
           },
-          "candles": {
-            "interval": "1m",
-            "limit": 10
-          },
+          "candles": { "interval": "1m", "limit": 10 },
           "buy": {
             "enabled": true,
             "lastBuyPriceRemoveThreshold": 10,
             "athRestriction": {
               "enabled": false,
-              "candles": {
-                "interval": "1d",
-                "limit": 30
-              },
+              "candles": { "interval": "1d", "limit": 30 },
               "restrictionPercentage": 0.9
             },
             "maxPurchaseAmount": -1,
@@ -1226,11 +1144,9 @@
         },
         "order": {},
         "saveToCache": true,
-        "isActionDisabled": {
-          "isDisabled": false,
-          "ttl": -2
-        }
+        "isActionDisabled": { "isDisabled": false, "ttl": -2 }
       }
-    ]
+    ],
+    "tradingViews": []
   }
 }

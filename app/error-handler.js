@@ -13,6 +13,12 @@ const runErrorHandler = logger => {
   // and report them to slack
   // https://nodejs.org/api/process.html#process_event_uncaughtexception
   process.on('uncaughtException', async err => {
+    // Ignore the error with redlock
+    if (err.message.includes('redlock')) {
+      // Simply ignore
+      return;
+    }
+
     logger.error({ err });
     const githubIssuesLink =
       'https://github.com/chrisleekr/binance-trading-bot/issues/new' +
@@ -27,13 +33,13 @@ const runErrorHandler = logger => {
             ? `Stack:\`\`\`${err.stack}\`\`\`\n`
             : ''
         }`,
-      { apiLimit: getAPILimit(logger) }
+      { symbol: 'global', apiLimit: getAPILimit(logger) }
     );
   });
 };
 
 const handleError = (logger, job, err) => {
-  // For the redlock fail
+  // Ignore the error with redlock
   if (err.message.includes('redlock')) {
     // Simply ignore
     return;
@@ -61,7 +67,7 @@ const handleError = (logger, job, err) => {
             ? `Stack:\`\`\`${err.stack}\`\`\`\n`
             : ''
         }`,
-      { apiLimit: getAPILimit(logger) }
+      { symbol: 'global', apiLimit: getAPILimit(logger) }
     );
   }
 };

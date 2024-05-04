@@ -80,7 +80,8 @@ const handleAuth = async (funcLogger, app, { loginLimiter }) => {
           'appName'
         )} Webserver:\n❌ The bot failed to authenticate.\n` +
           `- Entered password: ${requestedPassword}\n` +
-          `- IP: ${clientIp}`
+          `- IP: ${clientIp}`,
+        { symbol: 'global' }
       );
 
       return res.send({
@@ -105,7 +106,8 @@ const handleAuth = async (funcLogger, app, { loginLimiter }) => {
     slack.sendMessage(
       `${config.get(
         'appName'
-      )} Webserver:\n✅ The bot succeeded to authenticate.\n- IP: ${clientIp}`
+      )} Webserver:\n✅ The bot succeeded to authenticate.\n- IP: ${clientIp}`,
+      { symbol: 'global' }
     );
 
     return res.send({

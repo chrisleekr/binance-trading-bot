@@ -94,12 +94,18 @@ describe('webserver/handlers/symbol-delete', () => {
 
       mongoMock.deleteOne = jest.fn().mockResolvedValue(true);
 
-      cacheMock.hgetall = jest.fn().mockResolvedValueOnce({
-        'BTCUSDT-latest-candle': 'value1',
-        'BTCUSDT-symbol-info': 'value2'
-      });
+      cacheMock.hgetall = jest
+        .fn()
+        .mockResolvedValueOnce({
+          'BTCUSDT-latest-candle': 'value1',
+          'BTCUSDT-symbol-info': 'value2'
+        })
+        .mockResolvedValueOnce({
+          'BTCUSDT:5m': { request: { interval: '5m' } },
+          'BTCUSDT:15m': { request: { interval: '15m' } }
+        });
 
-      cacheMock.hdel = jest.fn().mockResolvedValue(true);
+      cacheMock.hdel = jest.fn().mockReturnValue(true);
 
       PubSubMock.publish = jest.fn().mockResolvedValue(true);
 
@@ -131,7 +137,7 @@ describe('webserver/handlers/symbol-delete', () => {
     });
 
     ['BTCUSDT-latest-candle', 'BTCUSDT-symbol-info'].forEach(key => {
-      it('triggers cache.hdel for trailing-trade-symbols', () => {
+      it(`triggers cache.hdel for trailing-trade-symbols:${key}`, () => {
         expect(cacheMock.hdel).toHaveBeenCalledWith(
           'trailing-trade-symbols',
           key
@@ -139,11 +145,13 @@ describe('webserver/handlers/symbol-delete', () => {
       });
     });
 
-    it('triggers cache.del for trailing-trade-tradingview', () => {
-      expect(cacheMock.hdel).toHaveBeenCalledWith(
-        'trailing-trade-tradingview',
-        'BTCUSDT'
-      );
+    ['BTCUSDT:5m', 'BTCUSDT:15m'].forEach(key => {
+      it(`triggers cache.hdel for trailing-trade-tradingview:${key}`, () => {
+        expect(cacheMock.hdel).toHaveBeenCalledWith(
+          'trailing-trade-tradingview',
+          key
+        );
+      });
     });
 
     it('triggers mongo.deleteOne for last buy price', () => {

@@ -1,4 +1,5 @@
 /* eslint-disable global-require */
+const moment = require('moment');
 
 describe('setting-update.test.js', () => {
   let mockWebSocketServer;
@@ -13,6 +14,8 @@ describe('setting-update.test.js', () => {
   let PubSubMock;
 
   let config;
+
+  const validTime = moment().utc().format('YYYY-MM-DDTHH:mm:ss.SSSSSS');
 
   beforeEach(() => {
     jest.clearAllMocks().resetModules();
@@ -114,10 +117,50 @@ describe('setting-update.test.js', () => {
         cacheMock = cache;
 
         cacheMock.hdel = jest.fn().mockResolvedValue(true);
-        cacheMock.hgetall = jest.fn().mockResolvedValue({
-          'BTCUSDT-symbol-info': JSON.stringify({ some: 'value' }),
-          'ETHUSDT-symbol-info': JSON.stringify({ some: 'value' })
-        });
+        cacheMock.hgetall = jest
+          .fn()
+          .mockResolvedValueOnce({
+            'BTCUSDT-symbol-info': JSON.stringify({ some: 'value' }),
+            'ETHUSDT-symbol-info': JSON.stringify({ some: 'value' })
+          })
+          .mockResolvedValueOnce({
+            'BTCUSDT:5m': JSON.stringify({
+              request: {
+                interval: '5m'
+              },
+              result: {
+                summary: { RECOMMENDATION: 'STRONG_SELL' },
+                time: validTime
+              }
+            }),
+            'BTCUSDT:15m': JSON.stringify({
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: { RECOMMENDATION: 'STRONG_SELL' },
+                time: validTime
+              }
+            }),
+            'BTCUSDT:30m': JSON.stringify({
+              request: {
+                interval: '30m'
+              },
+              result: {
+                summary: { RECOMMENDATION: 'STRONG_SELL' },
+                time: validTime
+              }
+            }),
+            'ETHUSDT:5m': JSON.stringify({
+              request: {
+                interval: '5m'
+              },
+              result: {
+                summary: { RECOMMENDATION: 'STRONG_SELL' },
+                time: validTime
+              }
+            })
+          });
 
         mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
           enabled: true,
@@ -137,7 +180,49 @@ describe('setting-update.test.js', () => {
             lastbuyPercentage: 1.06,
             stopPercentage: 0.99,
             limitPercentage: 0.98
-          }
+          },
+          botOptions: {
+            tradingViews: [
+              {
+                interval: '5m',
+                buy: {
+                  whenStrongBuy: true,
+                  whenBuy: true
+                },
+                sell: {
+                  forceSellOverZeroBelowTriggerPrice: {
+                    whenNeutral: false,
+                    whenSell: true,
+                    whenStrongSell: true
+                  }
+                }
+              }
+            ],
+            tradingViewOptions: {
+              useOnlyWithin: 5,
+              ifExpires: 'ignore'
+            }
+          },
+          tradingViews: [
+            {
+              request: {
+                interval: '5m'
+              },
+              result: {
+                summary: { RECOMMENDATION: 'STRONG_SELL' },
+                time: validTime
+              }
+            },
+            {
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: { RECOMMENDATION: 'SELL' },
+                time: validTime
+              }
+            }
+          ]
         });
 
         mockSaveGlobalConfiguration = jest.fn().mockResolvedValue(true);
@@ -164,6 +249,42 @@ describe('setting-update.test.js', () => {
               lastbuyPercentage: 1.07,
               stopPercentage: 0.98,
               limitPercentage: 0.97
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '15m',
+                  buy: {
+                    whenStrongBuy: true,
+                    whenBuy: true
+                  },
+                  sell: {
+                    forceSellOverZeroBelowTriggerPrice: {
+                      whenNeutral: false,
+                      whenSell: false,
+                      whenStrongSell: true
+                    }
+                  }
+                },
+                {
+                  interval: '30m',
+                  buy: {
+                    whenStrongBuy: false,
+                    whenBuy: false
+                  },
+                  sell: {
+                    forceSellOverZeroBelowTriggerPrice: {
+                      whenNeutral: false,
+                      whenSell: false,
+                      whenStrongSell: true
+                    }
+                  }
+                }
+              ],
+              tradingViewOptions: {
+                useOnlyWithin: 5,
+                ifExpires: 'ignore'
+              }
             }
           }
         });
@@ -192,7 +313,67 @@ describe('setting-update.test.js', () => {
             lastbuyPercentage: 1.07,
             stopPercentage: 0.98,
             limitPercentage: 0.97
-          }
+          },
+          botOptions: {
+            tradingViews: [
+              {
+                buy: {
+                  whenBuy: true,
+                  whenStrongBuy: true
+                },
+                interval: '15m',
+                sell: {
+                  forceSellOverZeroBelowTriggerPrice: {
+                    whenNeutral: false,
+                    whenSell: false,
+                    whenStrongSell: true
+                  }
+                }
+              },
+              {
+                buy: {
+                  whenBuy: false,
+                  whenStrongBuy: false
+                },
+                interval: '30m',
+                sell: {
+                  forceSellOverZeroBelowTriggerPrice: {
+                    whenNeutral: false,
+                    whenSell: false,
+                    whenStrongSell: true
+                  }
+                }
+              }
+            ],
+            tradingViewOptions: {
+              ifExpires: 'ignore',
+              useOnlyWithin: 5
+            }
+          },
+          tradingViews: [
+            {
+              request: {
+                interval: '5m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'STRONG_SELL'
+                },
+                time: validTime
+              }
+            },
+            {
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL'
+                },
+                time: validTime
+              }
+            }
+          ]
         });
       });
 
@@ -247,7 +428,50 @@ describe('setting-update.test.js', () => {
                 lastbuyPercentage: 1.07,
                 stopPercentage: 0.98,
                 limitPercentage: 0.97
-              }
+              },
+              botOptions: {
+                tradingViews: [
+                  {
+                    interval: '15m',
+                    buy: { whenStrongBuy: true, whenBuy: true },
+                    sell: {
+                      forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: false,
+                        whenSell: false,
+                        whenStrongSell: true
+                      }
+                    }
+                  },
+                  {
+                    interval: '30m',
+                    buy: { whenStrongBuy: false, whenBuy: false },
+                    sell: {
+                      forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: false,
+                        whenSell: false,
+                        whenStrongSell: true
+                      }
+                    }
+                  }
+                ],
+                tradingViewOptions: { useOnlyWithin: 5, ifExpires: 'ignore' }
+              },
+              tradingViews: [
+                {
+                  request: { interval: '5m' },
+                  result: {
+                    summary: { RECOMMENDATION: 'STRONG_SELL' },
+                    time: validTime
+                  }
+                },
+                {
+                  request: { interval: '15m' },
+                  result: {
+                    summary: { RECOMMENDATION: 'SELL' },
+                    time: validTime
+                  }
+                }
+              ]
             }
           })
         );
@@ -261,10 +485,50 @@ describe('setting-update.test.js', () => {
         cacheMock = cache;
 
         cacheMock.hdel = jest.fn().mockResolvedValue(true);
-        cacheMock.hgetall = jest.fn().mockResolvedValue({
-          'BTCUSDT-symbol-info': JSON.stringify({ some: 'value' }),
-          'ETHUSDT-symbol-info': JSON.stringify({ some: 'value' })
-        });
+        cacheMock.hgetall = jest
+          .fn()
+          .mockResolvedValueOnce({
+            'BTCUSDT-symbol-info': JSON.stringify({ some: 'value' }),
+            'ETHUSDT-symbol-info': JSON.stringify({ some: 'value' })
+          })
+          .mockResolvedValueOnce({
+            'BTCUSDT:5m': JSON.stringify({
+              request: {
+                interval: '5m'
+              },
+              result: {
+                summary: { RECOMMENDATION: 'STRONG_SELL' },
+                time: validTime
+              }
+            }),
+            'BTCUSDT:15m': JSON.stringify({
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: { RECOMMENDATION: 'STRONG_SELL' },
+                time: validTime
+              }
+            }),
+            'BTCUSDT:30m': JSON.stringify({
+              request: {
+                interval: '30m'
+              },
+              result: {
+                summary: { RECOMMENDATION: 'STRONG_SELL' },
+                time: validTime
+              }
+            }),
+            'ETHUSDT:5m': JSON.stringify({
+              request: {
+                interval: '5m'
+              },
+              result: {
+                summary: { RECOMMENDATION: 'STRONG_SELL' },
+                time: validTime
+              }
+            })
+          });
 
         mockGetGlobalConfiguration = jest.fn().mockResolvedValue({
           enabled: true,
@@ -284,7 +548,49 @@ describe('setting-update.test.js', () => {
             lastbuyPercentage: 1.06,
             stopPercentage: 0.99,
             limitPercentage: 0.98
-          }
+          },
+          botOptions: {
+            tradingViews: [
+              {
+                interval: '5m',
+                buy: {
+                  whenStrongBuy: true,
+                  whenBuy: true
+                },
+                sell: {
+                  forceSellOverZeroBelowTriggerPrice: {
+                    whenNeutral: false,
+                    whenSell: true,
+                    whenStrongSell: true
+                  }
+                }
+              }
+            ],
+            tradingViewOptions: {
+              useOnlyWithin: 5,
+              ifExpires: 'ignore'
+            }
+          },
+          tradingViews: [
+            {
+              request: {
+                interval: '5m'
+              },
+              result: {
+                summary: { RECOMMENDATION: 'STRONG_SELL' },
+                time: validTime
+              }
+            },
+            {
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: { RECOMMENDATION: 'SELL' },
+                time: validTime
+              }
+            }
+          ]
         });
 
         mockSaveGlobalConfiguration = jest.fn().mockResolvedValue(true);
@@ -311,6 +617,42 @@ describe('setting-update.test.js', () => {
               lastbuyPercentage: 1.07,
               stopPercentage: 0.98,
               limitPercentage: 0.97
+            },
+            botOptions: {
+              tradingViews: [
+                {
+                  interval: '15m',
+                  buy: {
+                    whenStrongBuy: true,
+                    whenBuy: true
+                  },
+                  sell: {
+                    forceSellOverZeroBelowTriggerPrice: {
+                      whenNeutral: false,
+                      whenSell: false,
+                      whenStrongSell: true
+                    }
+                  }
+                },
+                {
+                  interval: '30m',
+                  buy: {
+                    whenStrongBuy: false,
+                    whenBuy: false
+                  },
+                  sell: {
+                    forceSellOverZeroBelowTriggerPrice: {
+                      whenNeutral: false,
+                      whenSell: false,
+                      whenStrongSell: true
+                    }
+                  }
+                }
+              ],
+              tradingViewOptions: {
+                useOnlyWithin: 5,
+                ifExpires: 'ignore'
+              }
             }
           }
         });
@@ -339,7 +681,67 @@ describe('setting-update.test.js', () => {
             lastbuyPercentage: 1.07,
             stopPercentage: 0.98,
             limitPercentage: 0.97
-          }
+          },
+          botOptions: {
+            tradingViews: [
+              {
+                buy: {
+                  whenBuy: true,
+                  whenStrongBuy: true
+                },
+                interval: '15m',
+                sell: {
+                  forceSellOverZeroBelowTriggerPrice: {
+                    whenNeutral: false,
+                    whenSell: false,
+                    whenStrongSell: true
+                  }
+                }
+              },
+              {
+                buy: {
+                  whenBuy: false,
+                  whenStrongBuy: false
+                },
+                interval: '30m',
+                sell: {
+                  forceSellOverZeroBelowTriggerPrice: {
+                    whenNeutral: false,
+                    whenSell: false,
+                    whenStrongSell: true
+                  }
+                }
+              }
+            ],
+            tradingViewOptions: {
+              ifExpires: 'ignore',
+              useOnlyWithin: 5
+            }
+          },
+          tradingViews: [
+            {
+              request: {
+                interval: '5m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'STRONG_SELL'
+                },
+                time: validTime
+              }
+            },
+            {
+              request: {
+                interval: '15m'
+              },
+              result: {
+                summary: {
+                  RECOMMENDATION: 'SELL'
+                },
+                time: validTime
+              }
+            }
+          ]
         });
       });
 
@@ -394,7 +796,50 @@ describe('setting-update.test.js', () => {
                 lastbuyPercentage: 1.07,
                 stopPercentage: 0.98,
                 limitPercentage: 0.97
-              }
+              },
+              botOptions: {
+                tradingViews: [
+                  {
+                    interval: '15m',
+                    buy: { whenStrongBuy: true, whenBuy: true },
+                    sell: {
+                      forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: false,
+                        whenSell: false,
+                        whenStrongSell: true
+                      }
+                    }
+                  },
+                  {
+                    interval: '30m',
+                    buy: { whenStrongBuy: false, whenBuy: false },
+                    sell: {
+                      forceSellOverZeroBelowTriggerPrice: {
+                        whenNeutral: false,
+                        whenSell: false,
+                        whenStrongSell: true
+                      }
+                    }
+                  }
+                ],
+                tradingViewOptions: { useOnlyWithin: 5, ifExpires: 'ignore' }
+              },
+              tradingViews: [
+                {
+                  request: { interval: '5m' },
+                  result: {
+                    summary: { RECOMMENDATION: 'STRONG_SELL' },
+                    time: validTime
+                  }
+                },
+                {
+                  request: { interval: '15m' },
+                  result: {
+                    summary: { RECOMMENDATION: 'SELL' },
+                    time: validTime
+                  }
+                }
+              ]
             }
           })
         );

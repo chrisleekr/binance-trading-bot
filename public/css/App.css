@@ -1088,3 +1088,28 @@ input[type='number'] {
 /**
   End: Dropzone
 **/
+
+/**
+  Start: TradingView
+**/
+.coin-info-tradingview-name {
+  width: 40%;
+}
+
+.coin-info-tradingview-recommend {
+  width: 10%;
+}
+
+.btn-add-new-tradingview {
+  background-color: #02c076;
+  color: white;
+}
+
+.btn-add-new-grid-trade-buy:hover {
+  box-shadow: none;
+  color: white;
+  background-color: #2ed191;
+}
+/**
+  End: TradingView
+**/

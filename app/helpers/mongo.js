@@ -49,11 +49,11 @@ const count = async (funcLogger, collectionName, query) => {
 
   const collection = database.collection(collectionName);
 
-  logger.info({ query }, 'Finding document from MongoDB');
+  logger.debug({ query }, 'Finding document from MongoDB');
 
   const result = await collection.count(query);
 
-  logger.info({ result }, 'Found documents from MongoDB');
+  logger.debug({ result }, 'Found documents from MongoDB');
 
   return result;
 };
@@ -73,11 +73,11 @@ const findAll = async (funcLogger, collectionName, query, params = {}) => {
 
   const collection = database.collection(collectionName);
 
-  logger.info({ query, params }, 'Finding document from MongoDB');
+  logger.debug({ query, params }, 'Finding document from MongoDB');
 
   const result = await collection.find(query, params).toArray();
 
-  logger.info({ result }, 'Found documents from MongoDB');
+  logger.debug({ result }, 'Found documents from MongoDB');
 
   return result;
 };
@@ -95,11 +95,11 @@ const aggregate = async (funcLogger, collectionName, query) => {
 
   const collection = database.collection(collectionName);
 
-  logger.info({ query }, 'Finding document from MongoDB');
+  logger.debug({ query }, 'Finding document from MongoDB');
 
   const result = await collection.aggregate(query).toArray();
 
-  logger.info({ result }, 'Found documents from MongoDB');
+  logger.debug({ result }, 'Found documents from MongoDB');
 
   return result;
 };
@@ -118,9 +118,9 @@ const findOne = async (funcLogger, collectionName, query) => {
 
   const collection = database.collection(collectionName);
 
-  logger.info({ collectionName, query }, 'Finding document from MongoDB');
+  logger.debug({ collectionName, query }, 'Finding document from MongoDB');
   const result = await collection.findOne(query);
-  logger.info({ result }, 'Found document from MongoDB');
+  logger.debug({ result }, 'Found document from MongoDB');
 
   return result;
 };
@@ -139,7 +139,7 @@ const insertOne = async (funcLogger, collectionName, document) => {
 
   const collection = database.collection(collectionName);
 
-  logger.info({ collectionName, document }, 'Inserting document to MongoDB');
+  logger.debug({ collectionName, document }, 'Inserting document to MongoDB');
   const result = await collection.insertOne(document, {
     // https://docs.mongodb.com/v3.2/reference/write-concern/
     writeConcern: {
@@ -147,7 +147,7 @@ const insertOne = async (funcLogger, collectionName, document) => {
       j: false
     }
   });
-  logger.info({ result }, 'Inserted document to MongoDB');
+  logger.debug({ result }, 'Inserted document to MongoDB');
 
   return result;
 };
@@ -167,7 +167,7 @@ const upsertOne = async (funcLogger, collectionName, filter, document) => {
 
   const collection = database.collection(collectionName);
 
-  logger.info(
+  logger.debug(
     { collectionName, filter, document },
     'Upserting document to MongoDB'
   );
@@ -183,7 +183,7 @@ const upsertOne = async (funcLogger, collectionName, filter, document) => {
       }
     }
   );
-  logger.info({ result }, 'Upserted document to MongoDB');
+  logger.debug({ result }, 'Upserted document to MongoDB');
 
   return result;
 };
@@ -200,7 +200,7 @@ const upsertOne = async (funcLogger, collectionName, filter, document) => {
 const deleteAll = async (funcLogger, collectionName, filter) => {
   const logger = funcLogger.child({ helper: 'mongo', funcName: 'deleteAll' });
 
-  logger.info({ collectionName, filter }, 'Deleting documents from MongoDB');
+  logger.debug({ collectionName, filter }, 'Deleting documents from MongoDB');
   const collection = database.collection(collectionName);
   const result = collection.deleteMany(filter, {
     // https://docs.mongodb.com/v3.2/reference/write-concern/
@@ -209,7 +209,7 @@ const deleteAll = async (funcLogger, collectionName, filter) => {
       j: false
     }
   });
-  logger.info({ result }, 'Deleted documents from MongoDB');
+  logger.debug({ result }, 'Deleted documents from MongoDB');
 
   return result;
 };
@@ -226,7 +226,7 @@ const deleteAll = async (funcLogger, collectionName, filter) => {
 const deleteOne = async (funcLogger, collectionName, filter) => {
   const logger = funcLogger.child({ helper: 'mongo', funcName: 'deleteOne' });
 
-  logger.info({ collectionName, filter }, 'Deleting document from MongoDB');
+  logger.debug({ collectionName, filter }, 'Deleting document from MongoDB');
   const collection = database.collection(collectionName);
   const result = collection.deleteOne(filter, {
     // https://docs.mongodb.com/v3.2/reference/write-concern/
@@ -235,7 +235,7 @@ const deleteOne = async (funcLogger, collectionName, filter) => {
       j: false
     }
   });
-  logger.info({ result }, 'Deleted document from MongoDB');
+  logger.debug({ result }, 'Deleted document from MongoDB');
 
   return result;
 };
@@ -252,10 +252,13 @@ const deleteOne = async (funcLogger, collectionName, filter) => {
 const createIndex = async (funcLogger, collectionName, keys, options) => {
   const logger = funcLogger.child({ helper: 'mongo', funcName: 'createIndex' });
 
-  logger.info({ collectionName, keys, options }, 'Creating index from MongoDB');
+  logger.debug(
+    { collectionName, keys, options },
+    'Creating index from MongoDB'
+  );
   const collection = database.collection(collectionName);
   const result = collection.createIndex(keys, options);
-  logger.info({ result }, 'Created index from MongoDB');
+  logger.debug({ result }, 'Created index from MongoDB');
 
   return result;
 };
@@ -271,10 +274,10 @@ const createIndex = async (funcLogger, collectionName, keys, options) => {
 const dropIndex = async (funcLogger, collectionName, indexName) => {
   const logger = funcLogger.child({ helper: 'mongo', funcName: 'dropIndex' });
 
-  logger.info({ collectionName, indexName }, 'Dropping index from MongoDB');
+  logger.debug({ collectionName, indexName }, 'Dropping index from MongoDB');
   const collection = database.collection(collectionName);
   const result = collection.dropIndex(indexName);
-  logger.info({ result }, 'Dropped index from MongoDB');
+  logger.debug({ result }, 'Dropped index from MongoDB');
 
   return result;
 };
@@ -293,7 +296,7 @@ const bulkWrite = async (funcLogger, collectionName, operations) => {
 
   const collection = database.collection(collectionName);
 
-  logger.info(
+  logger.debug(
     { collectionName, operations },
     'Bulk writing documents to MongoDB'
   );
@@ -304,7 +307,7 @@ const bulkWrite = async (funcLogger, collectionName, operations) => {
     },
     ordered: false
   });
-  logger.info({ result }, 'Finished bulk writing documents to MongoDB');
+  logger.debug({ result }, 'Finished bulk writing documents to MongoDB');
 
   return result;
 };

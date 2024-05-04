@@ -859,6 +859,23 @@ const postProcessConfiguration = async (
   return newConfiguration;
 };
 
+const getBotOptionTradingViews = (
+  _logger,
+  _cachedSymbolInfo,
+  globalConfiguration,
+  symbolConfiguration
+) => {
+  const {
+    botOptions: { tradingViews: globalTradingViews }
+  } = globalConfiguration;
+
+  const {
+    botOptions: { tradingViews: symbolTradingViews }
+  } = symbolConfiguration;
+
+  return symbolTradingViews ?? globalTradingViews;
+};
+
 /**
  * Get global/symbol configuration
  *
@@ -869,7 +886,10 @@ const getConfiguration = async (logger, symbol = null) => {
   // To reduce MongoDB query, try to get cached configuration first.
   const cachedConfiguration =
     JSON.parse(
-      await cache.hget('trailing-trade-configurations', `${symbol || 'global'}`)
+      await cache.hgetWithoutLock(
+        'trailing-trade-configurations',
+        `${symbol || 'global'}`
+      )
     ) || {};
 
   if (_.isEmpty(cachedConfiguration) === false) {
@@ -885,7 +905,12 @@ const getConfiguration = async (logger, symbol = null) => {
   let mergedConfigValue = _.defaultsDeep(
     symbolConfigValue,
     symbol !== null
-      ? _.omit(globalConfigValue, 'buy.gridTrade', 'sell.gridTrade')
+      ? _.omit(
+          globalConfigValue,
+          'buy.gridTrade',
+          'sell.gridTrade',
+          'botOptions.tradingViews'
+        )
       : globalConfigValue
   );
   let cachedSymbolInfo;
@@ -893,7 +918,10 @@ const getConfiguration = async (logger, symbol = null) => {
   if (symbol !== null) {
     cachedSymbolInfo =
       JSON.parse(
-        await cache.hget('trailing-trade-symbols', `${symbol}-symbol-info`)
+        await cache.hgetWithoutLock(
+          'trailing-trade-symbols',
+          `${symbol}-symbol-info`
+        )
       ) || {};
 
     // Post process configuration value to prefill some default values
@@ -909,6 +937,10 @@ const getConfiguration = async (logger, symbol = null) => {
       {
         key: 'sell.gridTrade',
         keyFunc: getGridTradeSell
+      },
+      {
+        key: 'botOptions.tradingViews',
+        keyFunc: getBotOptionTradingViews
       }
     ].forEach(d => {
       const { key, keyFunc } = d;

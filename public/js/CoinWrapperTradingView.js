@@ -31,37 +31,21 @@ class CoinWrapperTradingView extends React.Component {
     }
   }
 
-  isTriggeredByAutoTrigger(overrideData) {
-    return (
-      _.get(overrideData, 'action', '') === 'buy' &&
-      _.get(overrideData, 'triggeredBy', '') === 'auto-trigger'
-    );
-  }
-
   render() {
     const { collapsed } = this.state;
     const {
       connected,
       symbolInfo: {
-        symbol,
         symbolInfo: {
           filterPrice: { tickSize }
         },
         symbolConfiguration: {
           botOptions: {
-            tradingView: { useOnlyWithin: tradingViewUseOnlyWithin },
-            autoTriggerBuy: {
-              conditions: {
-                tradingView: {
-                  overrideInterval: autoTriggerBuyTradingViewOverrideInterval
-                }
-              }
-            }
+            tradingViewOptions: { useOnlyWithin: tradingViewUseOnlyWithin }
           }
-        },
-        tradingView,
-        overrideData
-      }
+        }
+      },
+      tradingView
     } = this.props;
 
     if (_.isEmpty(tradingView)) {
@@ -153,11 +137,15 @@ class CoinWrapperTradingView extends React.Component {
       return (
         <React.Fragment key={'tradingview-oscillator-' + i}>
           <div className='coin-info-column coin-info-column-tradingview fs-9'>
-            <span className='coin-info-label'>{oscillator.name}</span>
-            <div className='coin-info-value'>{oscillator.indicator}</div>
+            <span className='coin-info-label coin-info-tradingview-name'>
+              {oscillator.name}
+            </span>
+            <div className='coin-info-value coin-info-tradingview-indicator'>
+              {oscillator.indicator}
+            </div>
             <div
               className={
-                'coin-info-value ' +
+                'coin-info-value coin-info-tradingview-recommend ' +
                 this.getRecommendationClass(oscillator.recommend)
               }>
               {oscillator.recommend}
@@ -277,11 +265,15 @@ class CoinWrapperTradingView extends React.Component {
       return (
         <React.Fragment key={'tradingview-moving-average-' + i}>
           <div className='coin-info-column coin-info-column-tradingview fs-9'>
-            <span className='coin-info-label'>{movingAverage.name}</span>
-            <div className='coin-info-value'>{movingAverage.indicator}</div>
+            <span className='coin-info-label coin-info-tradingview-name'>
+              {movingAverage.name}
+            </span>
+            <div className='coin-info-value coin-info-tradingview-indicator'>
+              {movingAverage.indicator}
+            </div>
             <div
               className={
-                'coin-info-value ' +
+                'coin-info-value coin-info-tradingview-recommend ' +
                 this.getRecommendationClass(movingAverage.recommend)
               }>
               {movingAverage.recommend}
@@ -299,76 +291,42 @@ class CoinWrapperTradingView extends React.Component {
     // Show error message only if connected
     if (connected && updatedAt.isBefore(currentTime)) {
       updatedWithinAlert = (
-        <div className='coin-info-column coin-info-column-title border-bottom-0 m-0 p-0'>
-          <div className='text-warning w-100 px-1'>
-            The data is older than {tradingViewUseOnlyWithin} minute(s). This
-            data will not be used until it is updated.
-          </div>
-        </div>
+        <OverlayTrigger
+          trigger='click'
+          key='trading-view-alert-overlay'
+          placement='bottom'
+          overlay={
+            <Popover id='trading-view-alert-overlay-right'>
+              <Popover.Content>
+                The data is older than {tradingViewUseOnlyWithin} minute(s).
+                This data will not be used until it is updated.
+                <br />
+                <br />
+                Last updated: {updatedAt.fromNow()}
+              </Popover.Content>
+            </Popover>
+          }>
+          <Button
+            variant='link'
+            className='p-0 m-0 ml-2 text-white-50 d-inline-block'
+            style={{ lineHeight: '17px' }}>
+            <i className='fas fa-exclamation-circle mx-1'></i>
+          </Button>
+        </OverlayTrigger>
       );
     }
 
     return (
       <div className='coin-info-sub-wrapper'>
-        <div className='coin-info-column coin-info-column-title'>
+        <div className='coin-info-column'>
           <div className='coin-info-label'>
-            Tradingview
+            <span className='tradingview-summary-interval'>
+              {tradingView.request.interval}
+              {updatedWithinAlert}
+            </span>
           </div>
+
           <div className='coin-info-value'>
-            Open: <a
-              href={
-                'https://www.tradingview.com/symbols/' + symbol + '/technicals/'
-              }
-              rel='noopener noreferrer'
-              target='_blank'>
-            Technical analysis
-          </a> &nbsp; | &nbsp;
-            <a
-                href={
-                  'https://www.tradingview.com/chart/?symbol=' + symbol
-                }
-                rel='noopener noreferrer'
-                target='_blank'>
-              Chart
-            </a>
-          </div>
-        </div>
-        <div className='d-flex flex-column w-100'>
-          <div className='coin-info-column coin-info-column-price'>
-            <div className='coin-info-label'>
-              Summary ({tradingView.request.interval})
-              {this.isTriggeredByAutoTrigger(overrideData) &&
-              autoTriggerBuyTradingViewOverrideInterval !== '' ? (
-                <OverlayTrigger
-                  trigger='click'
-                  key={'tradingview-overriden-interval-' + symbol + '-overlay'}
-                  placement='bottom'
-                  overlay={
-                    <Popover
-                      id={
-                        'tradingview-overriden-interval-' +
-                        symbol +
-                        '-overlay-right'
-                      }>
-                      <Popover.Content>
-                        TradingView interval is overridden by the auto-buy
-                        trigger. While the auto-buy trigger is active,
-                        TradingView will retrieve the data by the override
-                        interval.
-                      </Popover.Content>
-                    </Popover>
-                  }>
-                  <Button
-                    variant='link'
-                    className='p-0 m-0 ml-1 text-warning d-inline-block'
-                    style={{ lineHeight: '17px' }}>
-                    <i className='fas fa-info-circle fa-sm'></i>
-                  </Button>
-                </OverlayTrigger>
-              ) : (
-                ''
-              )}
-            </div>
             <HightlightChange
               className={
                 'coin-info-value font-weight-bold ' +
@@ -388,45 +346,51 @@ class CoinWrapperTradingView extends React.Component {
                 }`}></i>
             </button>
           </div>
-          <div className='coin-info-column-rows coin-info-column-price'>
-            <div className='coin-info-column-row'>
-              <div className='coin-info-column w-row-3 text-center text-danger'>
-                Sell
-              </div>
-              <div className='coin-info-column w-row-3 text-center text-muted'>
-                Neutral
-              </div>
-              <div className='coin-info-column w-row-3 text-center text-success'>
-                Buy
-              </div>
-            </div>
-            <div className='coin-info-column-row'>
-              <div className='coin-info-column w-row-3 text-center text-danger'>
-                {tradingView.result.summary.SELL}
-              </div>
-              <div className='coin-info-column w-row-3 text-center text-muted'>
-                {tradingView.result.summary.NEUTRAL}
-              </div>
-              <div className='coin-info-column w-row-3 text-center text-success'>
-                {tradingView.result.summary.BUY}
-              </div>
-            </div>
-          </div>
+        </div>
+        <div className='d-flex flex-column w-100'>
           <div className='coin-info-column coin-info-column-price'>
-            <span
-              className='coin-info-value font-italic fs-9'
-              title={tradingView.result.time}>
-              Updated{' '}
-              {moment
-                .utc(tradingView.result.time, 'YYYY-MM-DDTHH:mm:ss.SSSSSS')
-                .fromNow()}
-            </span>
+            <div className='coin-info-label'></div>
           </div>
-          {updatedWithinAlert}
+
           <div
             className={`coin-info-content-setting ${
               collapsed ? 'd-none' : ''
             }`}>
+            <div className='coin-info-column-rows coin-info-column-price'>
+              <div className='coin-info-column-row'>
+                <div className='coin-info-column w-row-3 text-center text-danger'>
+                  Sell
+                </div>
+                <div className='coin-info-column w-row-3 text-center text-muted'>
+                  Neutral
+                </div>
+                <div className='coin-info-column w-row-3 text-center text-success'>
+                  Buy
+                </div>
+              </div>
+              <div className='coin-info-column-row'>
+                <div className='coin-info-column w-row-3 text-center text-danger'>
+                  {tradingView.result.summary.SELL}
+                </div>
+                <div className='coin-info-column w-row-3 text-center text-muted'>
+                  {tradingView.result.summary.NEUTRAL}
+                </div>
+                <div className='coin-info-column w-row-3 text-center text-success'>
+                  {tradingView.result.summary.BUY}
+                </div>
+              </div>
+            </div>
+            <div className='coin-info-column coin-info-column-price'>
+              <span
+                className='coin-info-value font-italic fs-9'
+                title={tradingView.result.time}>
+                Updated{' '}
+                {moment
+                  .utc(tradingView.result.time, 'YYYY-MM-DDTHH:mm:ss.SSSSSS')
+                  .fromNow()}
+              </span>
+            </div>
+
             <div className='coin-info-sub-wrapper'>
               <div className='coin-info-sub-label'>
                 Oscillators (

@@ -21,7 +21,7 @@ const reconnect = (logger, message, ms) => {
 
   isReconnecting = true;
   if (config.get('featureToggle.notifyDebug')) {
-    slack.sendMessage(`Local Tunnel:\n${message}`);
+    slack.sendMessage(`Local Tunnel:\n${message}`, { symbol: 'global' });
   }
   logger.warn(message);
 
@@ -76,7 +76,7 @@ const connect = async logger => {
     // Save config with local tunnel url
     await cache.hset('trailing-trade-common', 'local-tunnel-url', tunnel.url);
 
-    slack.sendMessage(`*Public URL:* ${tunnel.url}`);
+    slack.sendMessage(`*Public URL:* ${tunnel.url}`, { symbol: 'global' });
     logger.info(
       { localTunnelURL: tunnel.url },
       'New URL detected, sent to Slack.'

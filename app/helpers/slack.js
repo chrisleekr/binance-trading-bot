@@ -12,10 +12,10 @@ const lastMessages = {};
  *
  * @param {*} text
  */
-const sendMessage = (text, params = {}) => {
+const sendMessage = async (text, params = {}) => {
   if (_.get(params, 'symbol', '') !== '') {
     if (_.get(lastMessages, `${params.symbol}.message`, '') === text) {
-      return Promise.resolve({});
+      return {};
     }
 
     lastMessages[params.symbol] = { message: text };
@@ -32,15 +32,26 @@ const sendMessage = (text, params = {}) => {
   );
 
   if (config.get('slack.enabled') !== true) {
-    return Promise.resolve({});
+    return {};
   }
 
-  return axios.post(config.get('slack.webhookUrl'), {
-    channel: config.get('slack.channel'),
-    username: `${config.get('slack.username')} - ${config.get('mode')}`,
-    type: 'mrkdwn',
-    text: formattedText
-  });
+  try {
+    const response = await axios.post(config.get('slack.webhookUrl'), {
+      channel: config.get('slack.channel'),
+      username: `${config.get('slack.username')} - ${config.get('mode')}`,
+      type: 'mrkdwn',
+      text: formattedText
+    });
+
+    return response;
+  } catch (e) {
+    logger.error(
+      { tag: 'slack-send-message', e },
+      'Error occurred while sending slack message.'
+    );
+
+    return {};
+  }
 };
 
 module.exports = { sendMessage };

@@ -7,6 +7,7 @@ describe('orders.js', () => {
   let spyOnClearInterval;
 
   let mockUpdateGridTradeLastOrder;
+  let mockDeleteGridTradeOrder;
   let mockGetOpenOrdersFromAPI;
   let mockErrorHandlerWrapper;
 
@@ -216,6 +217,7 @@ describe('orders.js', () => {
         );
       });
     });
+
     describe('when database orders not found', () => {
       beforeEach(async () => {
         mongoMock.findAll = jest.fn().mockResolvedValue([]);
@@ -243,6 +245,54 @@ describe('orders.js', () => {
 
       it('does not trigger updateGridTradeLastOrder', () => {
         expect(mockUpdateGridTradeLastOrder).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('when an error is occurred', () => {
+      beforeEach(async () => {
+        mongoMock.findAll = jest.fn().mockResolvedValue([
+          {
+            key: 'BTCUSDT',
+            order: {
+              symbol: 'BTCUSDT',
+              cummulativeQuoteQty: '0.00000000',
+              executedQty: '0.00000000',
+              isWorking: false,
+              orderId: 7479643460,
+              origQty: '0.00920000',
+              price: '3248.37000000',
+              side: 'BUY',
+              status: 'NEW',
+              stopPrice: '3245.19000000',
+              type: 'STOP_LOSS_LIMIT',
+              updateTime: 1642713283562
+            }
+          }
+        ]);
+
+        binanceMock.client.getOrder = jest
+          .fn()
+          .mockRejectedValue(new Error('something happened'));
+
+        mockUpdateGridTradeLastOrder = jest.fn();
+
+        mockDeleteGridTradeOrder = jest.fn().mockResolvedValue(true);
+
+        jest.mock('../../cronjob/trailingTradeHelper/order', () => ({
+          updateGridTradeLastOrder: mockUpdateGridTradeLastOrder,
+          deleteGridTradeOrder: mockDeleteGridTradeOrder
+        }));
+
+        const { syncDatabaseOrders } = require('../orders');
+
+        await syncDatabaseOrders(loggerMock);
+      });
+
+      it('triggers deleteGridTradeOrder', () => {
+        expect(mockDeleteGridTradeOrder).toHaveBeenCalledWith(
+          loggerMock,
+          'BTCUSDT'
+        );
       });
     });
   });

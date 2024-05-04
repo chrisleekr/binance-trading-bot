@@ -1,5 +1,4 @@
 /* eslint-disable global-require */
-const moment = require('moment');
 const _ = require('lodash');
 
 describe('determine-action.js', () => {
@@ -19,6 +18,7 @@ describe('determine-action.js', () => {
   let mockGetGridTradeOrder;
 
   let mockIsExceedingMaxOpenTrades;
+  let mockShouldForceSellByTradingView;
 
   describe('execute', () => {
     beforeEach(() => {
@@ -1254,6 +1254,98 @@ describe('determine-action.js', () => {
       );
 
       describe('sell - when last buy price is set and has enough to sell', () => {
+        describe('shouldForceSellByTradingView', () => {
+          beforeEach(() => {
+            mockIsActionDisabled = jest.fn().mockResolvedValue({
+              isDisabled: false
+            });
+
+            jest.mock('../../../trailingTradeHelper/common', () => ({
+              isActionDisabled: mockIsActionDisabled,
+              getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
+              getNumberOfOpenTrades: mockGetNumberOfOpenTrades,
+              getAPILimit: mockGetAPILimit
+            }));
+
+            mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
+            jest.mock('../../../trailingTradeHelper/order', () => ({
+              getGridTradeOrder: mockGetGridTradeOrder
+            }));
+
+            rawData = _.cloneDeep(orgRawData);
+
+            // Set total value more than notional value
+            rawData.baseAssetBalance.total = 0.0006;
+
+            rawData.buy = {
+              currentPrice: 31000,
+              triggerPrice: 28000,
+              athRestrictionPrice: 27000
+            };
+
+            rawData.sell = {
+              currentProfit: 1000,
+              currentPrice: 30800,
+              triggerPrice: 30900,
+              lastBuyPrice: 30000,
+              stopLossTriggerPrice: 24000
+            };
+          });
+
+          describe('when shouldForceSell is true', () => {
+            beforeEach(async () => {
+              mockShouldForceSellByTradingView = jest.fn().mockReturnValue({
+                shouldForceSell: true,
+                forceSellMessage: 'you must sell'
+              });
+
+              jest.mock('../../../trailingTradeHelper/tradingview', () => ({
+                shouldForceSellByTradingView: mockShouldForceSellByTradingView
+              }));
+
+              step = require('../determine-action');
+
+              result = await step.execute(loggerMock, rawData);
+            });
+
+            it('should wait for a sell order because grid trade is found', () => {
+              expect(result).toMatchObject({
+                action: 'sell-stop-loss',
+                sell: {
+                  processMessage: 'you must sell'
+                }
+              });
+            });
+          });
+
+          describe('when shouldForceSell is false', () => {
+            beforeEach(async () => {
+              mockShouldForceSellByTradingView = jest.fn().mockReturnValue({
+                shouldForceSell: false,
+                forceSellMessage: ''
+              });
+
+              jest.mock('../../../trailingTradeHelper/tradingview', () => ({
+                shouldForceSellByTradingView: mockShouldForceSellByTradingView
+              }));
+
+              step = require('../determine-action');
+
+              result = await step.execute(loggerMock, rawData);
+            });
+
+            it('should wait for a sell order because grid trade is found', () => {
+              expect(result).toMatchObject({
+                action: 'sell-wait',
+                sell: {
+                  processMessage:
+                    'The current price is lower than the selling trigger price for the grid trade #1. Wait.'
+                }
+              });
+            });
+          });
+        });
+
         describe('isHigherThanSellTriggerPrice - when current price is higher than trigger price', () => {
           beforeEach(() => {
             mockIsActionDisabled = jest.fn().mockResolvedValue({
@@ -1456,566 +1548,6 @@ describe('determine-action.js', () => {
                   updatedAt: expect.any(Object)
                 }
               });
-            });
-          });
-        });
-
-        describe('shouldForceSellByTradingViewRecommendation', () => {
-          beforeEach(() => {
-            mockIsActionDisabled = jest.fn().mockResolvedValue({
-              isDisabled: false
-            });
-
-            jest.mock('../../../trailingTradeHelper/common', () => ({
-              isActionDisabled: mockIsActionDisabled,
-              getNumberOfBuyOpenOrders: mockGetNumberOfBuyOpenOrders,
-              getNumberOfOpenTrades: mockGetNumberOfOpenTrades,
-              getAPILimit: mockGetAPILimit
-            }));
-
-            mockGetGridTradeOrder = jest.fn().mockResolvedValue(null);
-            jest.mock('../../../trailingTradeHelper/order', () => ({
-              getGridTradeOrder: mockGetGridTradeOrder
-            }));
-
-            rawData = _.cloneDeep(orgRawData);
-
-            // Set total value more than notional value
-            rawData.baseAssetBalance.total = 0.0006;
-
-            rawData.buy = {
-              currentPrice: 31000,
-              triggerPrice: 28000,
-              athRestrictionPrice: 27000
-            };
-
-            rawData.sell = {
-              currentProfit: 1000,
-              currentPrice: 31000,
-              triggerPrice: 30900,
-              lastBuyPrice: 30000,
-              stopLossTriggerPrice: 24000
-            };
-          });
-
-          [
-            {
-              name: 'when tradingView recommendation option is not enabled',
-              rawData: {
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: false,
-                        whenSell: false,
-                        whenStrongSell: false
-                      }
-                    }
-                  }
-                },
-                tradingView: {
-                  result: {
-                    time: moment().toISOString(),
-                    summary: {
-                      RECOMMENDATION: 'SELL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell'
-            },
-            {
-              name: 'when tradingView time is not defined',
-              rawData: {
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: true,
-                        whenSell: true,
-                        whenStrongSell: true
-                      }
-                    }
-                  }
-                },
-                tradingView: {
-                  result: {
-                    time: undefined,
-                    summary: {
-                      RECOMMENDATION: 'SELL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell'
-            },
-            {
-              name: 'when tradingView recommendation is not defined',
-              rawData: {
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: true,
-                        whenSell: true,
-                        whenStrongSell: true
-                      }
-                    }
-                  }
-                },
-                tradingView: {
-                  result: {
-                    time: moment().toISOString(),
-                    summary: {
-                      RECOMMENDATION: undefined
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell'
-            },
-            {
-              name: 'when tradingView data is old',
-              rawData: {
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: true,
-                        whenSell: true,
-                        whenStrongSell: true
-                      }
-                    }
-                  }
-                },
-                tradingView: {
-                  result: {
-                    time: moment().subtract('6', 'minutes').toISOString(),
-                    summary: {
-                      RECOMMENDATION: 'SELL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell'
-            },
-            {
-              name: 'when current profit is less than 0',
-              rawData: {
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: true,
-                        whenSell: true,
-                        whenStrongSell: true
-                      }
-                    }
-                  }
-                },
-                sell: {
-                  currentProfit: -1
-                },
-                tradingView: {
-                  result: {
-                    time: moment().toISOString(),
-                    summary: {
-                      RECOMMENDATION: 'SELL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell'
-            },
-            {
-              name: 'when current price is higher than trigger price',
-              rawData: {
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: true,
-                        whenSell: true,
-                        whenStrongSell: true
-                      }
-                    }
-                  }
-                },
-                sell: {
-                  currentProfit: 1000,
-                  currentPrice: 31000,
-                  triggerPrice: 30900,
-                  lastBuyPrice: 30000,
-                  stopLossTriggerPrice: 24000
-                },
-                tradingView: {
-                  result: {
-                    time: moment().toISOString(),
-                    summary: {
-                      RECOMMENDATION: 'SELL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell'
-            },
-            {
-              name: 'when current balance is less than minimum notional - BTCUSDT',
-              rawData: {
-                baseAssetBalance: {
-                  free: 0.000323
-                },
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: true,
-                        whenSell: true,
-                        whenStrongSell: true
-                      }
-                    }
-                  }
-                },
-                sell: {
-                  currentProfit: 960,
-                  currentPrice: 30960,
-                  triggerPrice: 31000,
-                  lastBuyPrice: 30000,
-                  stopLossTriggerPrice: 24000
-                },
-                tradingView: {
-                  result: {
-                    time: moment().toISOString(),
-                    summary: {
-                      RECOMMENDATION: 'SELL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell-wait'
-            },
-            {
-              name: 'when current balance is less than minimum notional - ALPHABTC',
-              rawData: {
-                symbol: 'ALPHABTC',
-                symbolInfo: {
-                  baseAsset: 'ALPHA',
-                  quoteAsset: 'BTC',
-                  filterLotSize: {
-                    stepSize: '1.00000000',
-                    minQty: '1.00000000'
-                  },
-                  filterPrice: { tickSize: '0.00000001' },
-                  filterMinNotional: { minNotional: '0.00010000' }
-                },
-                baseAssetBalance: {
-                  free: 3,
-                  total: 10
-                },
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: true,
-                        whenSell: true,
-                        whenStrongSell: true
-                      }
-                    }
-                  }
-                },
-                sell: {
-                  currentProfit: 2,
-                  currentPrice: 0.00003813,
-                  triggerPrice: 0.000039264,
-                  lastBuyPrice: 0.00003812,
-                  stopLossTriggerPrice: 0.00030496
-                },
-                tradingView: {
-                  result: {
-                    time: moment().toISOString(),
-                    summary: {
-                      RECOMMENDATION: 'SELL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell-wait'
-            },
-            {
-              name: 'when tradingView recommendation is neutral, and allowed neutral',
-              rawData: {
-                baseAssetBalance: {
-                  free: 0.0004,
-                  total: 0.0004
-                },
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: true,
-                        whenSell: true,
-                        whenStrongSell: true
-                      }
-                    }
-                  }
-                },
-                sell: {
-                  currentProfit: 100,
-                  currentPrice: 30100,
-                  triggerPrice: 30900,
-                  lastBuyPrice: 30000,
-                  stopLossTriggerPrice: 24000
-                },
-                tradingView: {
-                  result: {
-                    time: moment().toISOString(),
-                    summary: {
-                      RECOMMENDATION: 'NEUTRAL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell-stop-loss',
-              expectedProcessMessage:
-                `TradingView recommendation is NEUTRAL. The current profit (100) is more than 0 and ` +
-                `the current price (30100) is under trigger price (30900). Sell at market price.`
-            },
-            {
-              name: 'when tradingView recommendation is neutral, but only allowed sell',
-              rawData: {
-                baseAssetBalance: {
-                  free: 0.0004,
-                  total: 0.0004
-                },
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: false,
-                        whenSell: true,
-                        whenStrongSell: false
-                      }
-                    }
-                  }
-                },
-                sell: {
-                  currentProfit: 100,
-                  currentPrice: 30100,
-                  triggerPrice: 30900,
-                  lastBuyPrice: 30000,
-                  stopLossTriggerPrice: 24000
-                },
-                tradingView: {
-                  result: {
-                    time: moment().toISOString(),
-                    summary: {
-                      RECOMMENDATION: 'NEUTRAL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell-wait'
-            },
-            {
-              name: 'when tradingView recommendation is sell, but only allowed strong_sell',
-              rawData: {
-                baseAssetBalance: {
-                  free: 0.0004,
-                  total: 0.0004
-                },
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: true,
-                        whenSell: false,
-                        whenStrongSell: true
-                      }
-                    }
-                  }
-                },
-                sell: {
-                  currentProfit: 100,
-                  currentPrice: 30100,
-                  triggerPrice: 30900,
-                  lastBuyPrice: 30000,
-                  stopLossTriggerPrice: 24000
-                },
-                tradingView: {
-                  result: {
-                    time: moment().toISOString(),
-                    summary: {
-                      RECOMMENDATION: 'SELL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell-wait'
-            },
-            {
-              name: 'when tradingView recommendation is strong sell, but only allowed sell',
-              rawData: {
-                baseAssetBalance: {
-                  free: 0.0004,
-                  total: 0.0004
-                },
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: true,
-                        whenSell: true,
-                        whenStrongSell: false
-                      }
-                    }
-                  }
-                },
-                sell: {
-                  currentProfit: 100,
-                  currentPrice: 30100,
-                  triggerPrice: 30900,
-                  lastBuyPrice: 30000,
-                  stopLossTriggerPrice: 24000
-                },
-                tradingView: {
-                  result: {
-                    time: moment().toISOString(),
-                    summary: {
-                      RECOMMENDATION: 'STRONG_SELL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell-wait'
-            },
-            {
-              name: 'when tradingView recommendation is sell, and allowed sell',
-              rawData: {
-                baseAssetBalance: {
-                  free: 0.0004,
-                  total: 0.0004
-                },
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: true,
-                        whenSell: true,
-                        whenStrongSell: true
-                      }
-                    }
-                  }
-                },
-                sell: {
-                  currentProfit: 100,
-                  currentPrice: 30100,
-                  triggerPrice: 30900,
-                  lastBuyPrice: 30000,
-                  stopLossTriggerPrice: 24000
-                },
-                tradingView: {
-                  result: {
-                    time: moment().toISOString(),
-                    summary: {
-                      RECOMMENDATION: 'SELL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell-stop-loss',
-              expectedProcessMessage:
-                `TradingView recommendation is SELL. The current profit (100) is more than 0 and ` +
-                `the current price (30100) is under trigger price (30900). Sell at market price.`
-            },
-            {
-              name: 'when tradingView recommendation is strong sell, and allowed strong sell',
-              rawData: {
-                baseAssetBalance: {
-                  free: 0.0004,
-                  total: 0.0004
-                },
-                symbolConfiguration: {
-                  sell: {
-                    tradingView: {
-                      forceSellOverZeroBelowTriggerPrice: {
-                        whenNeutral: true,
-                        whenSell: true,
-                        whenStrongSell: true
-                      }
-                    }
-                  }
-                },
-                sell: {
-                  currentProfit: 100,
-                  currentPrice: 30100,
-                  triggerPrice: 30900,
-                  lastBuyPrice: 30000,
-                  stopLossTriggerPrice: 24000
-                },
-                tradingView: {
-                  result: {
-                    time: moment().toISOString(),
-                    summary: {
-                      RECOMMENDATION: 'STRONG_SELL'
-                    }
-                  }
-                }
-              },
-              expectedAction: 'sell-stop-loss',
-              expectedProcessMessage:
-                `TradingView recommendation is STRONG_SELL. The current profit (100) is more than 0 and ` +
-                `the current price (30100) is under trigger price (30900). Sell at market price.`
-            }
-          ].forEach(t => {
-            describe(`${t.name}`, () => {
-              let testRawData;
-              beforeEach(async () => {
-                testRawData = _.mergeWith(rawData, t.rawData);
-
-                step = require('../determine-action');
-
-                result = await step.execute(loggerMock, testRawData);
-              });
-
-              if (t.expectedAction === 'sell-stop-loss') {
-                it('should place a stop-loss order after checking tradingView', () => {
-                  expect(result).toMatchObject({
-                    action: 'sell-stop-loss',
-                    baseAssetBalance: testRawData.baseAssetBalance,
-                    sell: {
-                      ...testRawData.sell,
-                      processMessage: t.expectedProcessMessage,
-                      updatedAt: expect.any(Object)
-                    }
-                  });
-                });
-              } else if (t.expectedAction === 'sell') {
-                it('should place an order after ignoring tradingView', () => {
-                  expect(result).toMatchObject({
-                    action: 'sell',
-                    baseAssetBalance: testRawData.baseAssetBalance,
-                    sell: {
-                      ...testRawData.sell,
-                      processMessage:
-                        "The current price is more than the trigger price. Let's sell.",
-                      updatedAt: expect.any(Object)
-                    }
-                  });
-                });
-              } else {
-                it('should wait for sell orderorder after ignoring tradingView', () => {
-                  expect(result).toMatchObject({
-                    action: 'sell-wait',
-                    baseAssetBalance: testRawData.baseAssetBalance,
-                    sell: {
-                      ...testRawData.sell,
-                      processMessage:
-                        'The current price is lower than the selling trigger price for the grid trade #1. Wait.',
-                      updatedAt: expect.any(Object)
-                    }
-                  });
-                });
-              }
             });
           });
         });
