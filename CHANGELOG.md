@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Added multiple TradingView indicators - [#539](https://github.com/chrisleekr/binance-trading-bot/pull/539)
+
 ## [0.0.98] - 2023-04-13
 
 - Added the prefix to environment parameter for `TRADINGVIEW` related - [#616](https://github.com/chrisleekr/binance-trading-bot/pull/616)
