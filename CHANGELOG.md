@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 - Added multiple TradingView indicators - [#539](https://github.com/chrisleekr/binance-trading-bot/pull/539)
+- Added docker-compose.log.yml for log viewer - [#654](https://github.com/chrisleekr/binance-trading-bot/pull/654)
 
 ## [0.0.98] - 2023-04-13
 
