@@ -1,0 +1,20 @@
+# This YAML file is used to run a log viewer for Docker containers.
+#
+# To minimize system load, it's recommended to set BINANCE_LOG_LEVEL to ERROR in the docker-compose.server.yml or docker-compose.yml file. This will allow logging to ERROR messages only.
+#
+# For the development environment: `docker-compose -f docker-compose.yml -f docker-compose.log.yml up -d --build`
+# For the production environment: `docker-compose -f docker-compose.server.yml -f docker-compose.log.yml up -d`
+
+services:
+  dozzle:
+    container_name: dozzle
+    image: amir20/dozzle:latest
+    restart: unless-stopped
+    networks:
+      - internal
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 8888:8080
+    environment:
+      - DOZZLE_ENABLE_ACTIONS=true
