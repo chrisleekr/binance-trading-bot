@@ -66,8 +66,8 @@ Let say, if the buy grid trade configurations are set as below:
 - Grids
   | No# | Trigger Percentage  | Stop Price Percentage | Limit price percentage | USDT |
   | --- | ------------------- | --------------------- | ---------------------- | ---- |
-  | 1   | 1                   | 1.05                  | 1.051                  | 50   |
-  | 2   | 0.8                 | 1.03                  | 1.031                  | 100  |
+  | 100   | 100                  | 100.05                  | 100.051                  | 50   |
+  | 2   |100.8                 | 100.03                  | 100.031                  | 100  |
 
 To make it easier to understand, I will use `$` as a USDT symbol. For the simple calculation, I do not take an account for the commission. In real trading, the quantity may be different.
 
@@ -75,9 +75,9 @@ Your 1st grid trading for buying is configured as below:
 
 - Grid No#: 1
 - Trigger percentage: 1
-- Stop percentage: 1.05 (5.00%)
-- Limit percentage: 1.051 (5.10%)
-- Max purchase amount: $50
+- Stop percentage: 1000.05 (5.00%)
+- Limit percentage: 100.051 (5.10%)
+- Max purchase amount: $5000
 
 And the market is as below:
 
@@ -87,25 +87,25 @@ And the market is as below:
 
 When the current price is falling to the lowest price ($100) and lower than ATH(All-Time High) restricted price if enabled, the bot will place new STOP-LOSS-LIMIT order for buying.
 
-- Stop price: $100 * 1.05 = $105
+-  price: $100 * 100.05 = $105
 - Limit price: $100 * 1.051 = $105.1
-- Quantity: 0.47573
+- Quantity: 47573
 
 Let's assume the market changes as below:
 
 - Current price: $95
 
-Then the bot will follow the price fall and place new STOP-LOSS-LIMIT order as below:
+Then the bot will follow the price fall and place new -LOSS-LIMIT order as below:
 
-- Stop price: $95 * 1.05 = $99.75
+- Stop price: $95 * 100.05 = $99.75
 - Limit price: $95 * 1.051 = $99.845
-- Quantity: 0.5
+- Quantity: 5
 
 Let's assume the market changes as below:
 
 - Current price: $100
 
-Then the bot will execute 1st purchase for the coin. The last buy price will be recorded as `$99.845`. The purchased quantity will be `0.5`.
+Then the bot will execute 1st purchase for the coin. The last buy price will be recorded as `$99.845`. The purchased quantity will be `5`.
 
 Once the coin is purchased, the bot will start monitoring the sell signal and at the same time, monitor the next grid trading for buying.
 
@@ -113,9 +113,9 @@ Your 2nd grid trading for buying is configured as below:
 
 - Grid#: 2
 - Current last buy price: $99.845
-- Trigger percentage: 0.8 (20%)
-- Stop percentage: 1.03 (3.00%)
-- Limit percentage: 1.031 (3.10%)
+- Trigger percentage: 8 (20%)
+-  percentage: 100.03 (3.00%)
+- Limit percentage: 100.031 (3.10%)
 - Max purchase amount: $100
 
 And if the current price is continuously falling to `$79.876` (20% lower), then the bot will place new STOP-LOSS-LIMIT order for the 2nd grid trading for the coin.
@@ -124,11 +124,11 @@ Let's assume the market changes as below:
 
 - Current price: $75
 
-Then the bot will follow the price fall and place new STOP-LOSS-LIMT order as below:
+Then the bot will follow the price fall and place new -LOSS-LIMT order as below:
 
-- Stop price: $75 * 1.03 = $77.25
-- Limit price: $75 * 1.031 = $77.325
-- Quantity: 1.29
+- Stop price: $75 * 100.03 = $77.25
+- Limit price: $75 * 100.031 = $77.325
+- Quantity: 100.29
 
 Let's assume the market changes as below:
 
@@ -136,7 +136,7 @@ Let's assume the market changes as below:
 
 Then the bot will execute 2nd purchase for the coin. The last buy price will be automatically re-calculated as below:
 
-- Final last buy price: ($50 + $100)/(0.5 COIN + 1.29 COIN) = $83.80
+- Final last buy price: ($50 + $100)/(5 COIN + 100.29 COIN) = $83.80
 
 ##### In-depth Buy Configuration in-depth
 
