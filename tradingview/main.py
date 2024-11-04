@@ -48,6 +48,9 @@ def index():
     logger.info("Response: "+str(response))
     return jsonify(response)
 
+@app.route('/status', methods=['GET'])
+def status():
+    return jsonify({'status': 'ok'})
 
 if __name__ == "__main__":
     from waitress import serve
