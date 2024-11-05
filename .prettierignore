@@ -1,4 +1,4 @@
 /node_modules/**
 /dist/**
 /tests/unit/coverage/**
-*.md
+*.yaml
