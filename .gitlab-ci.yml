@@ -3,7 +3,7 @@ stages:
   - build production
 
 cache:
-  key: '$CI_PIPELINE_ID'
+  key: "$CI_PIPELINE_ID"
   paths:
     - /root/.cache
     - /root/.npm
@@ -12,7 +12,7 @@ cache:
 testing:
   stage: testing
   image: node:14
-  allow_failure: true
+  interruptible: true
   script:
     - npm install
     - npm run lint
@@ -20,75 +20,54 @@ testing:
 
 production:
   stage: build production
-  image: docker:20-dind
+  image: docker:27-dind
   services:
-    - name: docker:20-dind
+    - name: docker:27-dind
       alias: docker
-      command: ['--tls=false']
   variables:
-    DOCKER_HOST: tcp://docker:2375/
-    DOCKER_DRIVER: overlay2
-    DOCKER_TLS_CERTDIR: ''
-  tags:
-    - dind
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: 1
+    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
   only:
     - master
     - development
   before_script:
     - apk add curl git jq
-    - mkdir -p ~/.docker/cli-plugins/
-    - BUILDX_LATEST_BIN_URI=$(curl -s -L
-      https://api.github.com/repos/docker/buildx/releases/latest | jq
-      --raw-output '.assets[] | select(.name | contains ("linux-amd64")) |
-      .browser_download_url')
-    - curl -s -L ${BUILDX_LATEST_BIN_URI} -o ~/.docker/cli-plugins/docker-buildx
-    - chmod a+x ~/.docker/cli-plugins/docker-buildx
-    - docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER"
-      --password-stdin $CI_REGISTRY
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - docker context create dind
-    - docker buildx create --driver docker-container --use dind
+    - docker buildx create --driver docker-container --use dind --buildkitd-flags '--allow-insecure-entitlement network.host'
   script:
     - PACKAGE_VERSION=$(grep -m1 version package.json | cut -c 15- | rev | cut
       -c 3- | rev)
     - GIT_HASH=$(git rev-parse --short HEAD)
-    - docker buildx build --progress plain --platform
-      linux/amd64,linux/arm/v7,linux/arm64 --build-arg
-      PACKAGE_VERSION=$PACKAGE_VERSION --build-arg GIT_HASH=$GIT_HASH
+    - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7,linux/arm64
+      --allow network.host --provenance false
+      --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg GIT_HASH=$GIT_HASH
       --build-arg NODE_ENV=production --target production-stage --pull --tag
-      $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:latest --push .
+      $CI_REGISTRY/chrisleekr/binance-trading-bot:latest --push .
 
 production-tradingview:
   stage: build production
-  image: docker:20-dind
+  image: docker:27-dind
   services:
-    - name: docker:20-dind
+    - name: docker:27-dind
       alias: docker
-      command: ['--tls=false']
   variables:
-    DOCKER_HOST: tcp://docker:2375/
-    DOCKER_DRIVER: overlay2
-    DOCKER_TLS_CERTDIR: ''
-  tags:
-    - dind
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: 1
+    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
   only:
     - master
     - development
   before_script:
     - apk add curl git jq
-    - mkdir -p ~/.docker/cli-plugins/
-    - BUILDX_LATEST_BIN_URI=$(curl -s -L
-      https://api.github.com/repos/docker/buildx/releases/latest | jq
-      --raw-output '.assets[] | select(.name | contains ("linux-amd64")) |
-      .browser_download_url')
-    - curl -s -L ${BUILDX_LATEST_BIN_URI} -o ~/.docker/cli-plugins/docker-buildx
-    - chmod a+x ~/.docker/cli-plugins/docker-buildx
-    - docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER"
-      --password-stdin $CI_REGISTRY
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - docker context create dind
-    - docker buildx create --driver docker-container --use dind
+    - docker buildx create --driver docker-container --use dind --buildkitd-flags '--allow-insecure-entitlement network.host'
   script:
     - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7
-      --pull --tag $REGISTRY_DOMAIN/chrisleekr/binance-trading-bot:tradingview
+      --allow network.host --provenance false
+      --pull --tag $CI_REGISTRY/chrisleekr/binance-trading-bot:tradingview
       --push ./tradingview
