@@ -1,5 +1,6 @@
 stages:
   - testing
+  - build development
   - build production
 
 cache:
@@ -18,9 +19,10 @@ testing:
     - npm run lint
     - npm run test
 
-production:
-  stage: build production
+build-development:
+  stage: build development
   image: docker:27-dind
+  interruptible: true
   services:
     - name: docker:27-dind
       alias: docker
@@ -29,10 +31,11 @@ production:
     DOCKER_TLS_CERTDIR: "/certs"
     DOCKER_TLS_VERIFY: 1
     DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
-  only:
+  except:
     - master
     - development
-  before_script:
+  # Set reference for this block
+  before_script: &before_script_docker
     - apk add curl git jq
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
     - docker context create dind
@@ -45,9 +48,32 @@ production:
       --allow network.host --provenance false
       --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg GIT_HASH=$GIT_HASH
       --build-arg NODE_ENV=production --target production-stage --pull --tag
-      $CI_REGISTRY/chrisleekr/binance-trading-bot:latest --push .
+      $CI_REGISTRY/chrisleekr/binance-trading-bot:dev-${CI_COMMIT_SHORT_SHA} --push .
 
-production-tradingview:
+build-development-tradingview:
+  stage: build development
+  image: docker:27-dind
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: 1
+    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  except:
+    - master
+    - development
+  before_script:
+    - *before_script_docker
+  script:
+    - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7
+      --allow network.host --provenance false
+      --pull --tag $CI_REGISTRY/chrisleekr/binance-trading-bot:tradingview-dev-${CI_COMMIT_SHORT_SHA}
+      --push ./tradingview
+
+
+build-production:
   stage: build production
   image: docker:27-dind
   services:
@@ -62,10 +88,33 @@ production-tradingview:
     - master
     - development
   before_script:
-    - apk add curl git jq
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
-    - docker context create dind
-    - docker buildx create --driver docker-container --use dind --buildkitd-flags '--allow-insecure-entitlement network.host'
+    - *before_script_docker
+  script:
+    - PACKAGE_VERSION=$(grep -m1 version package.json | cut -c 15- | rev | cut
+      -c 3- | rev)
+    - GIT_HASH=$(git rev-parse --short HEAD)
+    - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7,linux/arm64
+      --allow network.host --provenance false
+      --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg GIT_HASH=$GIT_HASH
+      --build-arg NODE_ENV=production --target production-stage --pull --tag
+      $CI_REGISTRY/chrisleekr/binance-trading-bot:latest --push .
+
+build-production-tradingview:
+  stage: build production
+  image: docker:27-dind
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: 1
+    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  only:
+    - master
+    - development
+  before_script:
+    - *before_script_docker
   script:
     - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7
       --allow network.host --provenance false

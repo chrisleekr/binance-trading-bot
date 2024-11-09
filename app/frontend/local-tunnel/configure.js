@@ -49,7 +49,7 @@ const connect = async logger => {
   let tunnel;
   try {
     tunnel = await localtunnel({
-      port: 80,
+      port: config.get('frontend.port'),
       subdomain: config.get('localTunnel.subdomain')
     });
     logger.info({ url: tunnel.url }, 'Connected local tunnel');

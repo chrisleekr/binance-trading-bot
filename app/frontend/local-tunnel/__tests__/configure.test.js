@@ -83,7 +83,7 @@ describe('local-tunnel/configure.js', () => {
       await configureLocalTunnel(mockLogger);
     });
 
-    it('does not initalise', () => {
+    it('does not initialise', () => {
       expect(localTunnel).not.toHaveBeenCalled();
     });
   });
@@ -113,9 +113,9 @@ describe('local-tunnel/configure.js', () => {
       jest.advanceTimersByTime(300 * 1000);
     });
 
-    it('initalise with expected', () => {
+    it('initialise with expected', () => {
       expect(localTunnel).toHaveBeenCalledWith({
-        port: 80,
+        port: 'value-frontend.port',
         subdomain: 'my-domain'
       });
     });
@@ -167,9 +167,9 @@ describe('local-tunnel/configure.js', () => {
       jest.advanceTimersByTime(60 * 60 * 1000);
     });
 
-    it('initalise with expected', () => {
+    it('initialise with expected', () => {
       expect(localTunnel).toHaveBeenCalledWith({
-        port: 80,
+        port: 'value-frontend.port',
         subdomain: 'my-domain'
       });
     });
@@ -241,9 +241,9 @@ describe('local-tunnel/configure.js', () => {
         jest.advanceTimersByTime(60 * 60 * 1000);
       });
 
-      it('initalise with expected', () => {
+      it('initialise with expected', () => {
         expect(localTunnel).toHaveBeenCalledWith({
-          port: 80,
+          port: 'value-frontend.port',
           subdomain: 'my-domain'
         });
       });
@@ -298,9 +298,9 @@ describe('local-tunnel/configure.js', () => {
       jest.advanceTimersByTime(60 * 60 * 1000);
     });
 
-    it('initalise with expected', () => {
+    it('initialise with expected', () => {
       expect(localTunnel).toHaveBeenCalledWith({
-        port: 80,
+        port: 'value-frontend.port',
         subdomain: 'my-domain'
       });
     });
@@ -360,9 +360,9 @@ describe('local-tunnel/configure.js', () => {
       jest.advanceTimersByTime(60 * 60 * 1000);
     });
 
-    it('initalise with expected', () => {
+    it('initialise with expected', () => {
       expect(localTunnel).toHaveBeenCalledWith({
-        port: 80,
+        port: 'value-frontend.port',
         subdomain: 'my-domain'
       });
     });

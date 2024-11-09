@@ -53,7 +53,7 @@ const runFrontend = async serverLogger => {
   app.use(attachmentMiddleware);
   app.use(express.static(path.join(global.appRoot, '/../public')));
 
-  const server = app.listen(80);
+  const server = app.listen(config.get('frontend.port'));
 
   if (config.get('authentication.enabled')) {
     const rateLimiterMiddleware = async (req, res, next) => {

@@ -192,7 +192,7 @@ describe('server-frontend', () => {
       });
 
       it('triggers server.listen', () => {
-        expect(mockExpressListen).toHaveBeenCalledWith(80);
+        expect(mockExpressListen).toHaveBeenCalledWith('value-frontend.port');
       });
 
       it('triggers configureWebServer', () => {
