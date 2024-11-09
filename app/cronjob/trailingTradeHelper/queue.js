@@ -63,12 +63,20 @@ const executeJob = async (funcLogger, symbol, jobPayload) => {
 
   // Execute the job
   if (jobPayload.processFn) {
-    // processFn
-    await jobPayload.processFn(
-      funcLogger,
-      symbol,
-      _.get(jobPayload, 'correlationId')
-    );
+    // processFn with 20 seconds timeout
+    await Promise.race([
+      jobPayload.processFn(
+        funcLogger,
+        symbol,
+        _.get(jobPayload, 'correlationId')
+      ),
+      new Promise(r =>
+        // eslint-disable-next-line no-promise-executor-return
+        setTimeout(r, 20000).then(
+          logger.error({ symbol }, `Queue ${symbol} job timeout`)
+        )
+      )
+    ]);
   }
 
   // Postprocess after executeTrailingTrade
