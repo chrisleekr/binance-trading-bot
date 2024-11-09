@@ -3,6 +3,9 @@
   "tz": "Australia/Melbourne",
   "appName": "Binance Trading Bot",
   "demoMode": false,
+  "frontend": {
+    "port": 80
+  },
   "binance": {
     "live": {
       "apiKey": "",

@@ -6,6 +6,12 @@
     "__description": "Set a boolean to configure the bot in demo mode. If set as true, the bot will not allow updating configurations via the frontend.",
     "__format": "boolean"
   },
+  "frontend": {
+    "port": {
+      "__name": "BINANCE_FRONTEND_PORT",
+      "__format": "number"
+    }
+  },
   "binance": {
     "live": {
       "apiKey": "BINANCE_LIVE_API_KEY",
