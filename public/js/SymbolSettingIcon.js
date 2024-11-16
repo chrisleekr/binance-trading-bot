@@ -1018,7 +1018,7 @@ class SymbolSettingIcon extends React.Component {
               />
 
               <SymbolSettingIconActions
-                symbolInfo={this.symbolInfo}
+                symbolInfo={this.props.symbolInfo}
                 sendWebSocket={this.props.sendWebSocket}
               />
             </Modal.Body>
