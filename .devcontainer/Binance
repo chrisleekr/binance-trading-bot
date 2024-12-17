@@ -1,0 +1,2324 @@
+Ed5a2845c39d402e539a0ceff8c38114150272b3 Pazartesi 17 Eylül 00:00:00 2001
+Gönderen: Recep <148443421+zxramozx@users.noreply.github.com>
+Tarih: 30 Ağustos 2024 Cum 16:13:00 +0300
+Konu: [PATCH 1/3] Binance api.blockchain./Dosya
+
+---
+ Binance api.blockchain./Dosya | 311 +++++++++++++++++++++++++++
+ README.md | 394 -----------------------------------
+ 2 dosya değiştirildi, 311 ekleme(+), 394 silme(-)
+ 100644 Binance api.blockchain./File modunu oluştur
+ silme modu 100644 README.md
+
+diff --git a/Binance api.blockchain./Dosya b/Binance api.blockchain./Dosya
+yeni dosya modu 100644
+dizin 00000000..41c31abd
+--- /dev/null
++++ b/Binance api.blockchain./Dosya	
+@@ -0,0 +1,311 @@
++
++Kimlik doğrulama
++Piyasa verileri
++L2SiparişKitabınıal
++getL3OrderBook
++Ticker'ları al
++SembolBağlıTicker'ı al
++sembolleri al
++SembolİsmineGöreAl
++Ticaret
++Ödemeler
++Şemalar
++Kod örnekleri, örnek istekler ve yanıtlar için aşağı kaydırın. Yukarıdaki sekmelerden veya mobil gezinme menüsünden kod örnekleri için bir dil seçin.
++
++Giriş
++Blockchain.com'un Borsa API'sine ve geliştirici belgelerine hoş geldiniz. Bu belgeler, gerçek zamanlı piyasa verilerini alma, bakiye bilgisi isteme ve işlem yapma gibi API tarafından sunulan çeşitli işlevlerin ayrıntılarını verir ve bunlara örnekler verir.
++
++Başlamak için
++ Blockchain.com Borsası hesabınızı oluşturun veya mevcut hesabınıza giriş yapın
++Açılır menüden API'yi seçin
++Formu doldurun ve “Şimdi Yeni API Anahtarı Oluştur”a tıklayın
++ Oluşturulduktan sonra anahtarlarınızı API Ayarları altında görüntüleyebilirsiniz. Lütfen API anahtarının yalnızca e-posta yoluyla doğrulandıktan sonra kullanılabileceğini unutmayın.
++
++API anahtarı X-API-Token başlığı üzerinden ayarlanmalıdır.
++
++Tüm çağrılar için kullanılacak temel URL https://api.blockchain.com/v3/exchange'dir
++
++Bu API için otomatik oluşturulan istemcileri burada bulabilirsiniz.
++
++Temel URL'ler:
++
++https://api.blockchain.com/v3/exchange
++Kimlik doğrulama
++API Anahtarı (ApiKeyAuth)
++Parametre Adı: X-API-Token, başlıkta.
++Piyasa verileri
++Güncel fiyatları ve piyasaları alın
++
++L2SiparişKitabınıal
++
++Kod örnekleri
++
++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/l2/{sembol}");
++HttpURLConnection con = (HttpURLConnection) obj.openConnection();
++con.setRequestMethod("GET");
++int yanıtKodu = con.getResponseCode();
++ArabellekliOkuyucu = yeni ArabellekliOkuyucu(
++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
++Dize girişSatırı;
++StringBuffer yanıtı = yeni StringBuffer();
++while ((inputLine = in.readLine()) != null) {
++ yanıt.append(girişsatırı);
++}
++in.close();
++System.out.println(yanıt.toString());
++
++GET /l2/{sembol}
++
++L2 Sipariş Defteri
++
++Seviye 2 Sipariş Defteri verileri l2 kanalı aracılığıyla kullanılabilir. Teklif ve talep dizilerindeki her giriş, fiyatı (px), miktarı (qty) ve sipariş sayısı (num) öznitelikleriyle birlikte bir fiyat seviyesidir.
++
++Parametreler
++Ad Türü Gerekli Açıklama
++sembol yol sembolü doğru Sembol
++Örnek yanıtlar
++
++200 Yanıt
++
++{
++ "sembol": "BTC-USD",
++ "teklifler": [
++ {
++ "px": "8723.45",
++ "adet": "1,45",
++ "sayı": "1"
++ }
++ ],
++ "sorular": [
++ {
++ "px": "8723.45",
++ "adet": "1,45",
++ "sayı": "1"
++ }
++ ]
++}
++Yanıtlar
++Durum Anlamı Açıklama Şema
++200 Tamam Başarılı Sipariş Defteri
++getL3OrderBook
++
++Kod örnekleri
++
++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/l3/{sembol}");
++HttpURLConnection con = (HttpURLConnection) obj.openConnection();
++con.setRequestMethod("GET");
++int yanıtKodu = con.getResponseCode();
++ArabellekliOkuyucu = yeni ArabellekliOkuyucu(
++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
++Dize girişSatırı;
++StringBuffer yanıtı = yeni StringBuffer();
++while ((inputLine = in.readLine()) != null) {
++ yanıt.append(girişsatırı);
++}
++in.close();
++System.out.println(yanıt.toString());
++
++GET /l3/{sembol}
++
++L3 Sipariş Defteri
++
++3. Seviye Emir Defteri verileri l3 kanalı üzerinden kullanılabilir. Teklif ve talep dizilerindeki her giriş, id (id), fiyat (px) ve miktar (qty) öznitelikleriyle birlikte bir emirdir. L2 emir defterinin aksine, L3 emir defteri, toplama olmaksızın tüm bireysel emirleri içerir.
++
++Parametreler
++Ad Türü Gerekli Açıklama
++sembol yol sembolü doğru Sembol
++Örnek yanıtlar
++
++200 Yanıt
++
++{
++ "sembol": "BTC-USD",
++ "teklifler": [
++ {
++ "px": "8723.45",
++ "adet": "1,45",
++ "sayı": "1"
++ }
++ ],
++ "sorular": [
++ {
++ "px": "8723.45",
++ "adet": "1,45",
++ "sayı": "1"
++ }
++ ]
++}
++Yanıtlar
++Durum Anlamı Açıklama Şema
++200 Tamam Başarılı Sipariş Defteri
++Ticker'ları al
++
++Kod örnekleri
++
++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/tickers");
++HttpURLConnection con = (HttpURLConnection) obj.openConnection();
++con.setRequestMethod("GET");
++int yanıtKodu = con.getResponseCode();
++ArabellekliOkuyucu = yeni ArabellekliOkuyucu(
++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
++Dize girişSatırı;
++StringBuffer yanıtı = yeni StringBuffer();
++while ((inputLine = in.readLine()) != null) {
++ yanıt.append(girişsatırı);
++}
++in.close();
++System.out.println(yanıt.toString());
++
++GET /ticker'lar
++
++Fiyat
++
++Örnek yanıtlar
++
++200 Yanıt
++
++[
++ {
++ "sembol": "BTC-USD",
++ "fiyat_24h": "4998.0",
++ "hacim_24h": "0,3015",
++ "son_işlem_fiyatı": "5000.0"
++ }
++]
++Yanıtlar
++Durum Anlamı Açıklama Şema
++200 OK Başarı Satır İçi
++Yanıt Şeması
++Durum Kodu 200
++
++Ad Türü Gerekli Kısıtlamalar Açıklama
++anonim [PriceEvent] false hiçbiri hiçbiri
++» sembol sembol yanlış hiçbiri Blockchain sembol tanımlayıcı
++» price_24h number(double) false hiçbiri hiçbiri
++» volume_24h number(double) false hiçbiri hiçbiri
++» son_işlem_fiyatı numarası(çift) false hiçbiri hiçbiri
++SembolBağlıTicker'ı al
++
++Kod örnekleri
++
++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/tickers/{sembol}");
++HttpURLConnection con = (HttpURLConnection) obj.openConnection();
++con.setRequestMethod("GET");
++int yanıtKodu = con.getResponseCode();
++ArabellekliOkuyucu = yeni ArabellekliOkuyucu(
++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
++Dize girişSatırı;
++StringBuffer yanıtı = yeni StringBuffer();
++while ((inputLine = in.readLine()) != null) {
++ yanıt.append(girişsatırı);
++}
++in.close();
++System.out.println(yanıt.toString());
++
++GET /tickers/{sembol}
++
++Fiyat
++
++Parametreler
++Ad Türü Gerekli Açıklama
++sembol yol sembolü doğru Sembol
++Örnek yanıtlar
++
++200 Yanıt
++
++{
++ "sembol": "BTC-USD",
++ "fiyat_24h": "4998.0",
++ "hacim_24h": "0,3015",
++ "son_işlem_fiyatı": "5000.0"
++}
++Yanıtlar
++Durum Anlamı Açıklama Şema
++200 Tamam Başarı FiyatEtkinlik
++sembolleri al
++
++Kod örnekleri
++
++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/semboller");
++HttpURLConnection con = (HttpURLConnection) obj.openConnection();
++con.setRequestMethod("GET");
++int yanıtKodu = con.getResponseCode();
++ArabellekliOkuyucu = yeni ArabellekliOkuyucu(
++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
++Dize girişSatırı;
++StringBuffer yanıtı = yeni StringBuffer();
++while ((inputLine = in.readLine()) != null) {
++ yanıt.append(girişsatırı);
++}
++in.close();
++System.out.println(yanıt.toString());
++
++GET /semboller
++
++Semboller
++
++Sembol durdurulmadığında mesajdaki açık artırma verileri boş olabilir. Bir sembol durdurulmuş durumda olduğunda açık artırma verileri kitap oluşturulurken doldurulacaktır. Bir açılış saati seçildiğinde, açık artırma saati alanı açılış saatini gösterecektir. Sonraki güncellemeler yalnızca sembol durumu herhangi bir şekilde değişirse gönderilecektir.
++
++Örnek yanıtlar
++
++200 Yanıt
++
++{
++ "özellik1": {
++ "temel_para_birimi": "BTC-USD",
++ "temel_para_ölçeği": 8,
++ "karşı_para": "BTC-USD",
++ "karşı_para_ölçeği": 2,
++ "min_fiyat_artışı": 10,
++ "min_fiyat_artış_ölçeği": 0,
++ "min_sipariş_boyutu": 10,
++ "min_sipariş_boyutu_ölçeği": 2,
++ "maksimum_sipariş_boyutu": 0,
++ "maksimum_sipariş_boyutu_ölçeği": 8,
++ "parti_boyutu": 5,
++ "parti_boyutu_ölçeği": 2,
++ "durum": "açık",
++ "kimlik": 1,
++ "müzayede_fiyatı": 0,
++ "müzayede_boyutu": 0,
++ "müzayede_zamanı": "1530",
++ "dengesizlik": 0
++ },
++ "özellik2": {
++ "temel_para_birimi": "BTC-USD",
++ "temel_para_ölçeği": 8,
++ "karşı_para": "BTC-USD",
++ "karşı_para_ölçeği": 2,
++ "min_fiyat_artışı": 10,
++ "min_fiyat_artış_ölçeği": 0,
++ "min_sipariş_boyutu": 10,
++ "min_sipariş_boyutu_ölçeği": 2,
++ "maksimum_sipariş_boyutu": 0,
++ "maksimum_sipariş_boyutu_ölçeği": 8,
++ "parti_boyutu": 5,
++ "parti_boyutu_ölçeği": 2,
++ "durum": "açık",
++ "kimlik": 1,
++ "müzayede_fiyatı": 0,
++ "müzayede_boyutu": 0,
++ "müzayede_zamanı": "1530",
++ "dengesizlik": 0
++ }
++}
++Yanıtlar
++Durum Anlamı Açıklama Şema
++200 OK Başarı Satır İçi
++Yanıt Şeması
++Durum Kodu 200
++
++Ad Türü Gerekli Kısıtlamalar Açıklama
++» additionalProperties SymbolStatus false hiçbiri hiçbiri
++»» base_currency sembolü false none Blockchain sembol tanımlayıcısı
++»» base_currency_scale integer false none Para biriminin bölünebileceği ondalık sayı
++»» karşıt_para birimi sembolü yanlış hiçbiri Blockchain sembol tanımlayıcısı
++»» counter_currency_scale tamsayı false none Para biriminin bölünebileceği ondalık sayı
++»» min_price_increment integer(int64) false none Enstrümanın fiyatı min_price_increment * (10^-min_price_increment_scale)'in bir katı olmalıdır
++»» min_price_increment_scale tamsayı false hiçbiri hiçbiri
++»» min_order_size integer(int64) false none Bu enstrüman için bir siparişin minimum miktarı min_order_size*(10^-min_order_size_scale) olmalıdır
++»» min_order_size_scale tamsayı false hiçbiri hiçbiri
++»» max_order_size integer(int64) false hiçbiri
+diff --git a/README.md b/README.md
+silinen dosya modu 100644
+dizin 9bcdabc8..00000000
+--- a/README.md
++++ /dev/null
+@@ -1.394 +0,0 @@
+-# Binance Ticaret Botu
+-
+-[![Ukrayna'nın Yanında Olun](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://war.ukraine.ua)
+-
+-
+-[![GitHub sürümü](https://img.shields.io/github/package-json/v/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading- bot/sürümler)
+-[![Oluştur](https://github.com/chrisleekr/binance-trading-bot/workflows/Push/badge.svg)](https://github.com/chrisleekr/binance-trading-bot/actions?query=workflow%3APush)
+-[![CodeCov](https://codecov.io/gh/chrisleekr/binance-ticaret-botu/branch/master/graph/badge.svg)](https://codecov.io/gh/chrisleekr/binance-ticaret-botu)
+-[![Docker çekme](https://img.shields.io/docker/pulls/chrisleekr/binance-trading-bot)](https://hub.docker.com/r/chrisleekr/binance-trading-bot)
+-[![GitHub katılımcıları](https://img.shields.io/github/contributors/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
+-[![MIT Lisansı](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
+-
+-> Takip eden alım/satım stratejisine sahip otomatik Binance ticaret botu
+-
+----
+-
+-[![ko](https://img.shields.io/badge/lang-한국어-brightgreen.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README .ko.md)
+-[![中文](https://img.shields.io/badge/lang-中文-blue.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README .zh-cn.md)
+-
+-Bu bir test projesidir. Sadece kodumu test ediyorum.
+-
+-## Uyarılar
+-
+-**Para kazanıp kazanamayacağınızı garanti edemem.**
+-
+-**Bu yüzden kendi riskinizle kullanın! Herhangi bir kayıp veya zorluktan sorumlu değilim
+-Bu kodu kullanarak doğrudan veya dolaylı olarak ortaya çıkan. Oku
+-Bu kodu kullanmadan önce [sorumluluk reddi](#sorumluluk reddi)'ni okuyun.**
+-
+-**Botu güncellemeden önce notta son satın alma fiyatını kaydettiğinizden emin olun. Yapılandırma veya son satın alma fiyatı kayıtlarını kaybedebilir.**
+-
+-## Nasıl çalışır
+-
+-### Trailing Grid Trade Alım/Satım Botu
+-
+-Bu bot, fiyatın düşüşünü/yükselişini takip etmeyi sağlayan takip eden alım/satım emri konseptini kullanıyor.
+-
+-> Takip Eden Durdurma Emirleri
+-> Trailing Stop Emirleri Konsepti hakkında daha fazla bilgiyi [Binance Resmi Belgesi](https://www.binance.com/en/support/faq/360042299292) adresinde bulabilirsiniz
+->
+-> ÖZET:
+-> Fiyat değiştiğinde sabit bir değer veya yüzde üzerinden emir verin. Bu özelliği kullanarak, aşağı satın alırken mümkün olan en düşük fiyattan satın alabilir ve yukarı satarken mümkün olan en yüksek fiyattan satabilirsiniz.
+-
+-- Bot, yapılandırmaya bağlı olarak birden fazla alım/satım emrini destekler.
+-- Bot birden fazla sembolü izleyebilir. Tüm semboller saniyede bir izlenecektir.
+-- Bot, kalıcılık veritabanı sağlamak için MongoDB kullanıyor. Ancak, Raspberry Pi 32bit'i desteklemek için en son MongoDB'yi kullanmıyor. Kullanılan MongoDB sürümü
+- [apcheamitru](https://hub.docker.com/r/apcheamitru/arm32v7-mongo) tarafından sağlanan 3.2.20'dir.
+-- Bot Linux ve Raspberry Pi 4 32bit ile test edildi/çalışıyor. Diğer platformlar test edilmedi.
+-
+-#### Satın Alma Sinyali
+-
+-Bot, grid ticaret yapılandırmasına göre coin'i sürekli olarak izleyecektir.
+-
+- Grid ticareti #1 için bot, mevcut fiyat en düşük fiyata ulaştığında satın almak için bir STOP-LOSS-LIMIT emri verecektir. Mevcut fiyat sürekli düşerse, bot önceki emri iptal edecek ve yeni STOP-LOSS-LIMIT emrini yeni fiyatla yeniden koyacaktır.
+-
+-Grid ticareti #1'den sonra bot, COIN'i son satın alma fiyatına göre izleyecektir.
+-
+-- Bot, satış için tetikleyici fiyata ulaştığında satmaya yetecek kadar coin'i (genellikle 10$'ın üzerinde) varsa, grid ticareti #1 için satın alma emri vermeyecektir.
+-- Tahmini değer son satın alma fiyatı kaldırma eşiğinden düşükse bot son satın alma fiyatını kaldıracaktır.
+-
+-##### Satın Alma Senaryosu
+-
+-Diyelim ki buy grid trade konfigürasyonları aşağıdaki gibi ayarlanmış olsun:
+-
+-- Izgara sayısı: 2
+-- Izgaralar
+- | Hayır# | Tetikleme Yüzdesi | Durdurma Fiyat Yüzdesi | Limit fiyat yüzdesi | USDT |
+- | --- | ------------------- | --------------------- | ----------------------- | ---- |
+- | 1 | 1 | 1.05 | 1.051 | 50 |
+- | 2 | 0.8 | 1.03 | 1.031 | 100 |
+-
+-Anlaşılmasını kolaylaştırmak için USDT sembolü olarak `$` kullanacağım. Basit hesaplama için komisyonu hesaba katmıyorum. Gerçek ticarette miktar farklı olabilir.
+-
+-Alım için 1. grid ticaretiniz aşağıdaki gibi yapılandırılmıştır:
+-
+-- Izgara No#: 1
+-- Tetikleme yüzdesi: 1
+-- Durdurma yüzdesi: 1.05 (5.00%)
+-- Sınır yüzdesi: 1.051 (5.10%)
+-- Maksimum satın alma tutarı: 50$
+-
+-Ve piyasa şu şekilde:
+-
+-- Güncel fiyat: 105$
+-- En düşük fiyat: 100$
+-- Tetik fiyatı: 100$
+-
+-Mevcut fiyat en düşük fiyata (100$) düştüğünde ve etkinleştirilmişse ATH (Tüm Zamanların En Yüksek) kısıtlı fiyatından daha düşük olduğunda, bot satın alma için yeni STOP-LOSS-LIMIT emri verecektir.
+-
+-- Durdurma fiyatı: 100$ * 1,05 = 105$
+-- Limit fiyatı: 100$ * 1.051 = 105.1$
+-- Miktar: 0.47573
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 95$
+-
+-Ardından bot fiyat düşüşünü takip edecek ve aşağıdaki gibi yeni STOP-LOSS-LIMIT emri verecektir:
+-
+-- Durdurma fiyatı: 95$ * 1.05 = 99.75$
+-- Limit fiyatı: 95$ * 1.051 = 99.845$
+-- Miktar: 0,5
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 100$
+-
+-Ardından bot coin için 1. satın alma işlemini gerçekleştirecektir. Son satın alma fiyatı `$99.845` olarak kaydedilecektir. Satın alınan miktar `0.5` olacaktır.
+-
+-Coin satın alındıktan sonra bot satış sinyalini izlemeye başlayacak ve aynı zamanda satın alma için bir sonraki grid ticaretini izleyecektir.
+-
+-Alım için 2. grid ticaretiniz aşağıdaki gibi yapılandırılmıştır:
+-
+-- Izgara #: 2
+-- Güncel son satın alma fiyatı: 99.845$
+-- Tetikleme yüzdesi: 0,8 (%20)
+-- Durdurma yüzdesi: 1.03 (3.00%)
+-- Sınır yüzdesi: 1.031 (3.10%)
+-- Maksimum satın alma tutarı: 100$
+-
+-Ve eğer mevcut fiyat sürekli olarak `$79.876`ya (yüzde 20 daha düşük) düşerse, bot coin için 2. grid ticareti için yeni STOP-LOSS-LIMIT emri verecektir.
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 75$
+-
+-Ardından bot fiyat düşüşünü takip edecek ve aşağıdaki gibi yeni STOP-LOSS-LIMT emri verecektir:
+-
+-- Durdurma fiyatı: 75$ * 1.03 = 77.25$
+-- Limit fiyatı: 75$ * 1.031 = 77.325$
+-- Miktar: 1.29
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 78$
+-
+-Ardından bot coin için 2. satın alma işlemini gerçekleştirecektir. Son satın alma fiyatı otomatik olarak aşağıdaki gibi yeniden hesaplanacaktır:
+-
+-- Son satın alma fiyatı: (50 $ + 100 $)/(0,5 COIN + 1,29 COIN) = 83,80 $
+-
+-##### Ayrıntılı Satın Alma Yapılandırması ayrıntılı
+-
+-Satın alma yapılandırmasına ilişkin detaylı dokümana buradan ulaşabilirsiniz.
+-
+-[https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario)
+-
+-### Satış Sinyali
+-
+- Satış için yeterli bakiye varsa ve son satın alma fiyatı bota kaydedilmişse, bot grid ticareti #1'in satış sinyalini izlemeye başlayacaktır. Mevcut fiyat grid ticareti #1'in tetik fiyatına ulaştığında, bot satış için bir DURDURMA-KAYIP-SINIRLAMA emri verecektir. Mevcut fiyat sürekli olarak yükselirse, bot önceki emri iptal edecek ve yeni DURDURMA-KAYIP-SINIRLAMA emrini yeni fiyatla yeniden koyacaktır.
+-
+-- Botun son alış fiyatına dair bir kaydı yoksa, bot coin'i satmayacaktır.
+-- Eğer coin son satın alma fiyatı kaldırma eşiğinden daha az değerde ise bot son satın alma fiyatını kaldıracaktır.
+-- Eğer coin minimum nominal değerden daha az değerde ise bot emir vermeyecektir.
+-
+-#### Satış Senaryosu
+-
+-Diyelim ki satış şebekesi ticaret konfigürasyonları aşağıdaki gibi ayarlanmış olsun:
+-
+-- Izgara sayısı: 2
+-- Izgaralar
+- | Hayır# | Tetikleme Yüzdesi | Durdurma Fiyat Yüzdesi | Limit fiyat yüzdesi | Satış Miktarı Yüzdesi |
+- | --- | ------------------- | --------------------- | --------------------- |--------------------------- |
+- | 1. | 1.05 | 0,97 | 0,969 | 0,5 |
+- | 2. | 1.08 | 0,95 | 0,949 | 1 |
+-
+-Satın almanın aksine, satış yapılandırması bir miktarın yüzdesini kullanacaktır. Tüm coin miktarınızı satmak istiyorsanız, bunu basitçe `1` (100%) olarak yapılandırın.
+-
+-Son satın alma işlemlerinizden itibaren bakiyeleriniz şu şekilde:
+-
+-- Mevcut miktar: 1.79
+-- Güncel son satın alma fiyatı: 83,80 $
+-
+- Satış için 1. grid ticaretiniz aşağıdaki gibi yapılandırılmıştır:
+-
+-- Şebeke No# 1
+-- Tetikleme yüzdesi: 1.05
+-- Stop fiyat yüzdesi: 0,97
+-- Limit fiyat yüzdesi: 0,969
+-- Satış miktarı yüzdesi: 0.5
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 88$
+-
+-Mevcut fiyat satış tetikleyici fiyatından ($87.99) yüksek olduğunda, bot satış için yeni STOP-LOSS-LIMIT emri verecektir.
+-
+-- Durdurma fiyatı: 88$ * 0,97 = 85,36$
+-- Limit fiyatı: 88$ * 0,969 = 85,272$
+-- Miktar: 0,895
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 90$
+-
+-Ardından bot fiyat artışını takip edecek ve aşağıdaki gibi yeni STOP-LOSS-LIMIT emri verecektir:
+-
+-- Durdurma fiyatı: 90$ * 0,97 = 87,30$
+-- Limit fiyatı: 90$ * 0,969 = 87,21$
+-- Miktar: 0,895
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 87$
+-
+-Ardından bot coin için 1. satışı gerçekleştirecek. Daha sonra bot 2. satış tetikleyici fiyatını bekleyecek ($83.80 * 1.08 = $90.504).
+-
+-- Mevcut miktar: 0,895
+-- Güncel son satın alma fiyatı: 83,80 $
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 91$
+-
+- O zaman mevcut fiyat (91 $) 2. satış tetikleyici fiyatından (90.504 $) yüksekse, bot aşağıdaki gibi yeni STOP-LOSS-LIMIT emri verecektir:
+-
+-- Durdurma fiyatı: 91$ * 0,95 = 86,45$
+-- Limit fiyatı: 91$ * 0,949 = 86,359$
+-- Miktar: 0,895
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 100$
+-
+-Ardından bot fiyat artışını takip edecek ve aşağıdaki gibi yeni STOP-LOSS-LIMT emri verecektir:
+-
+-- Durdurma fiyatı: 100$ * 0,95 = 95$
+-- Limit fiyatı: 100$ * 0,949 = 94,9$
+-- Miktar: 0,895
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 94$
+-
+-Daha sonra bot coin için 2. satışı gerçekleştirecek.
+-
+-Son kar ne olur?
+-
+-- 1. satış: 94,9$ * 0,895 = 84,9355$
+-- 2. satış: 87,21$ * 0,895 = 78,05295$
+-- Son kar: 162 $ (%8 kar)
+-
+-##### Derinlemesine Satış Yapılandırması
+-
+-Satın alma yapılandırmasına ilişkin detaylı dokümana buradan ulaşabilirsiniz.
+-
+-[https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario)
+-
+-### [Özellikler](https://github.com/chrisleekr/binance-trading-bot/wiki/Features)
+-
+-- El işi ticareti
+-- Küçük bakiyeleri BNB'ye dönüştürün
+-- Tüm sembollerle işlem yapın
+-- Birden fazla coin'i aynı anda izleme
+-- Zarar Durdurma
+-- ATH fiyatıyla satın almayı kısıtla
+-- Alım/satım için Grid Ticareti
+-- TradingView Teknik Analizi ile Entegre
+-
+-### Ön Uç + WebSocket
+-
+-Web Socket üzerinden haberleşen React.js tabanlı önyüz:
+-
+-- Satın alma/satış sinyalleri/açık emirleri olan coin'leri listeleme
+-- Hesap bakiyelerini görüntüle
+-- Açık/kapalı işlemleri görüntüle
+-- Küresel/sembol ayarlarını yönet
+-- İzlenmeyen önbellekleri silin
+-- Genel URL'ye bağlantı
+-- Ana Ekrana Ekleme Desteği
+-- Güvenli ön uç
+-
+-## Çevre Parametreleri
+-
+- Parametreleri ayarlamak için ortam parametrelerini kullanın. Kullanılabilir ortam parametrelerinin listesini görmek için `/config/custom-environment-variables.json`'u kontrol edin.
+-
+-Veya uygulamayı başlattıktan sonra konfigürasyonları ayarlamak için ön yüzü kullanın.
+-
+-## Nasıl kullanılır
+-
+-1. `.env.dist` temel alınarak `.env` dosyası oluşturulur.
+-
+- | Ortam Anahtarı | Açıklama | Örnek Değer |
+- | ------------------------------ | -------------------------------------------------- ----------------------- | -------------------------------------------------- -------------------------------------------------- |
+- | BINANCE_LIVE_API_KEY | Canlı yayın için Binance API anahtarı | (kaynak: [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-API-nasıl-oluşturulur)) |
+- | BINANCE_LIVE_SECRET_KEY | Canlı yayın için Binance API sırrı | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-API-nasıl-oluşturulur)) |
+- | BINANCE_TEST_API_KEY | Test için Binance API anahtarı | (Binance Spot Test Ağı'ndan](https://testnet.binance.vision/)) |
+- | BINANCE_TEST_SECRET_KEY | Test için Binance API sırrı | (Binance Spot Test Ağı'ndan](https://testnet.binance.vision/)) |
+- | BINANCE_SLACK_ENABLED | Slack etkinleştirme/devre dışı bırakma | true |
+- | BINANCE_SLACK_WEBHOOK_URL | Slack webhook URL'si | (Slack'ten) |
+- | BINANCE_SLACK_CHANNEL | Slack kanalı | "#binance" |
+- | BINANCE_SLACK_USERNAME | Slack kullanıcı adı | Chris |
+- | BINANCE_LOCAL_TUNNEL_ENABLED | [Yerel tünel](https://github.com/localtunnel/localtunnel)'i Etkinleştir/Devre Dışı Bırak | true |
+- | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Yerel tünel genel URL alt etki alanı | binance |
+- | BINANCE_AUTHENTICATION_ENABLED | Önyüz kimlik doğrulamasını etkinleştir/devre dışı bırak | true |
+- | BINANCE_AUTHENTICATION_PASSWORD | Ön uç şifresi | 123456 |
+- | BINANCE_LOG_LEVEL | Günlük kaydı düzeyi. [`bunyan` belgelerinde açıklanan olası değerler.](https://www.npmjs.com/package/bunyan#levels) | HATA |
+-
+- *Yerel bir tünel botu dışarıdan erişilebilir hale getirir. Lütfen yerel tünelin alt alan adını yalnızca sizin hatırlayabileceğiniz bir alt alan adı olarak ayarlayın.*
+- *Kimlik doğrulama şifrenizi değiştirmeniz gerekmektedir; aksi takdirde varsayılan şifre olarak yapılandırılacaktır.*
+-
+-2. Botu docker-compose ile başlatın/güncelleyin
+-
+- Önce son kodu çek:
+-
+- ```vurmak
+- git çek
+- ```
+-
+- Eğer üretim/canlı modunu istiyorsanız, DockerHub'dan en son yapı imajını kullanın:
+-
+- ```vurmak
+- docker-compose -f docker-compose.server.yml çekme
+- docker-compose -f docker-compose.server.yml yukarı -d
+- ```
+-
+- Veya geliştirme/test modunu istiyorsanız, aşağıdaki komutları çalıştırın:
+-
+- ```vurmak
+- docker-compose up -d --build
+- ```
+-
+-3. Ön yüzü görmek için `http://0.0.0.0:8080` tarayıcısını açın
+-
+- - Uygulama başlatıldığında Slack'e ait genel URL'yi bildirecektir.
+- - Botla ilgili herhangi bir sorun yaşarsanız botta ne olduğunu öğrenmek için log'u kontrol edebilirsiniz. Lütfen [Sorun Giderme](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting) adresine bakın
+-
+-### Stackfile aracılığıyla yükleyin
+-
+-1. [Portainer](https://www.portainer.io/)'da yeni bir Yığın oluşturun
+-
+-2. `docker-stack.yml` içeriğini kopyalayın veya dosyayı yükleyin
+-
+-3. `docker-stack.yml` dosyasında `binance-bot` için ortam anahtarlarını ayarlayın
+-
+-4. Ön yüzü görmek için tarayıcıyı başlatın ve açın `http://0.0.0.0:8080`
+-
+-## Ekran Görüntüleri
+-
+-| Şifre Korumalı | Ön Uç Mobil |
+-| ------------------ | --------------- |
+-| ![Şifre Korumalı](https://user-images.githubusercontent.com/5715919/133920104-49d1b590-c2ba-46d7-a294-eb6b24b459f5.png) | ![Ön Uç Mobil](https://user-images.githubusercontent.com/5715919/137472107-4059fcdf-5174-4282-81af-80cea5b269a0.png) |
+-
+-| Ayar | Manuel İşlem |
+-| ------- | ------------ |
+-| ![Ayar](https://user-images.githubusercontent.com/5715919/127318581-4e422ac9-b145-4e83-a90d-5c05c61d6e2f.png) | ![Manuel Ticaret](https://user-images.githubusercontent.com/5715919/127318630-f2180e1b-3feb-48fa-a083-4cb7f90f743f.png) |
+-
+-| Önyüz Masaüstü | Kapalı İşlemler |
+-| ----------------- | ------------- |
+-| ![Ön Uç Masaüstü](https://user-images.githubusercontent.com/5715919/137472148-7be1e19b-3ce5-4d5a-aa28-18c55b3b48aa.png) | ![Kapalı İşlemler](https://user-images.githubusercontent.com/5715919/137472190-a4c6ef0f-3399-44bb-852f-eedb7c67d629.png) |
+-
+-### Örnek Ticaret
+-
+-| Grafik | Alış Emirleri | Satış Emirleri |
+-| -------------------------------------------------- -------------------------------------------------- ---------- | -------------------------------------------------- -------------------------------------------------- --------------- | -------------------------------------------------- -------------------------------------------------- ---------------- |
+-| ![Grafik](https://user-images.githubusercontent.com/5715919/111027391-192db300-8444-11eb-8df4-91c98d0c835b.png) | ![Satın Alma Siparişleri](https://user-images.githubusercontent.com/5715919/111027403-36628180-8444-11eb-91dc-f3cdabc5a79e.png) | ![Satış Siparişleri](https://user-images.githubusercontent.com/5715919/111027411-4b3f1500-8444-11eb-8525-37f02a63de25.png) |
+-
+-## Değişiklikler ve Yapılacaklar
+-
+-Lütfen bakınız
+-[CHANGELOG.md](https://github.com/chrisleekr/binance-ticaret-botu/blob/master/CHANGELOG.md)
+-geçmiş değişiklikleri görüntülemek için.
+-
+-- [ ] Sırlar için basit kurulum ekranı geliştirin
+-- [ ] Satın alma eyleminden önce stop-loss'un yürütülmesine izin ver - [#299](https://github.com/chrisleekr/binance-trading-bot/issues/299)
+-- [ ] Kar yüzdesine dayalı koşullu durdurma fiyatı yüzdesiyle satış stratejisini geliştirin - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
+-- [ ] Ani düşüş alım stratejisini ekleyin - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
+-- [ ] Ayar profillerini yönet (kaydet/değiştir/yükle?/dışa aktar?) - [#151](https://github.com/chrisleekr/binance-trading-bot/issues/151)
+-- [ ] Apprise'ı destekleyerek bildirimleri iyileştirin - [#106](https://github.com/chrisleekr/binance-trading-bot/issues/106)
+-- [ ] Satın almadan önce en düşük fiyata ulaştıktan sonraki destek soğuma süresi - [#105](https://github.com/chrisleekr/binance-trading-bot/issues/105)
+-- [ ] Genel yapılandırmayı başlangıç ​​yapılandırmasına sıfırla - [#97](https://github.com/chrisleekr/binance-trading-bot/issues/97)
+-- [ ] Çok dilli ön ucu destekleyin - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
+-- [ ] Doğrusal olmayan durdurma fiyatı ve takip fonksiyonu - [#246](https://github.com/chrisleekr/binance-trading-bot/issues/246)
+-- [ ] Satış için ızgara ticareti başına STOP-LOSS yapılandırmasını destekleyin - [#261](https://github.com/chrisleekr/binance-trading-bot/issues/261)
+-
+-## Bağışlar
+-
+-Bu projeyi faydalı bulursanız, küçük bir tane yapmaktan çekinmeyin
+-[bağış](https://github.com/chrisleekr/binance-trading-bot/blob/master/DONATIONS.md)
+-geliştiriciye.
+-
+-## Teşekkürler
+-
+-- [@d0x2f](https://github.com/d0x2f)
+-- Ve daha niceleri! Teşekkürler beyler!
+-
+-## Katkıda Bulunanlar
+-
+-Tüm katılımcılara teşekkürler :heart: [Kahramanlarımızı görmek için tıklayın](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
+-
+-## Sorumluluk Reddi
+-
+-Bu projede yer alan bilgi ve materyallerin doğruluğu veya eksiksizliği konusunda hiçbir garanti vermiyorum ve hiçbir sorumluluk veya yükümlülük kabul etmiyorum. Hiçbir koşulda, bu kodu veya ona bağlı herhangi bir kodu kullanmanızdan veya kullanamamanızdan veya bu koddaki bilgi ve materyale güvenmenizden kaynaklanan veya doğrudan veya dolaylı olarak ortaya çıkan herhangi bir talep, hasar, kayıp, masraf, maliyet veya yükümlülükten (kar kaybı, iş kesintisi veya bilgi kaybı için doğrudan veya dolaylı hasarlar dahil ancak bunlarla sınırlı olmamak üzere) hiçbir şekilde sorumlu veya yükümlü tutulmayacağım, bu tür hasarların olasılığı önceden bildirilmiş olsa bile.
+-
+-**Bu yüzden kendi sorumluluğunuzda kullanın!**
+
+3181d707e74b3477dbaf148e0f5296486a032a5b Pazartesi 17 Eylül 00:00:00 2001
+Gönderen: Recep <148443421+zxramozx@users.noreply.github.com>
+Tarih: 30 Ağu 2024 Cum 16:26:04 +0300
+Konu: [PATCH 2/3] Azure Pipelines ile CI Kurulumu
+
+vmImage: ubuntu-en son [ci'yi atla]
+---
+ azure-pipelines.yml | 21 +++++++++++++++++++++
+ 1 dosya değiştirildi, 21 ekleme(+)
+ 100644 azure-pipelines.yml modunu oluştur
+
+diff --git a/azure-pipelines.yml b/azure-pipelines.yml
+yeni dosya modu 100644
+dizin 00000000..a7f2a029
+--- /dev/null
++++ b/azure-pipelines.yml
+@@ -0,0 +1,21 @@
++# React ile Node.js
++# React kullanan bir Node.js projesi oluşturun.
++# Kodu analiz eden, derleme eserlerini kaydeden, dağıtan ve daha fazlasını yapan adımlar ekleyin:
++# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
++
++tetikleyici:
++- usta
++
++havuz:
++ vmImage: ubuntu-en son
++
++adımlar:
++- görev: NodeTool@0
++ girdiler:
++ sürümÖzelliği: '10.x'
++ displayName: 'Node.js'yi Yükle'
++
++- komut dosyası: |
++ npm kurulumu
++ npm run build
++ displayName: 'npm kurulum ve derleme'
+
+abca01df4674cc1a847a55b729bcd2906b3a6522 Pazartesi Eylül 17 00:00:00 2001
+Gönderen: Recep <148443421+zxramozx@users.noreply.github.com>
+Tarih: Pzr, 15 Ara 2024 22:55:12 +0300
+Konu: [PATCH 3/3] devcontainer.json'u oluşturun
+MIME-Sürüm: 1.0
+İçerik Türü: text/plain; karakter kümesi=UTF-8
+İçerik Aktarım Kodlaması: 8bit
+
+Ed5a2845c39d402e539a0ceff8c38114150272b3 Pazartesi 17 Eylül 00:00:00 2001
+Gönderen: Recep <148443421+zxramozx@users.noreply.github.com>
+Tarih: 30 Ağustos 2024 Cum 16:13:00 +0300
+Konu: [PATCH 1/2] Binance api.blockchain./Dosya
+
+---
+ Binance api.blockchain./Dosya | 311 +++++++++++++++++++++++++++
+ README.md | 394 -----------------------------------
+ 2 dosya değiştirildi, 311 ekleme(+), 394 silme(-)
+ 100644 Binance api.blockchain./File modunu oluştur
+ silme modu 100644 README.md
+
+diff --git a/Binance api.blockchain./Dosya b/Binance api.blockchain./Dosya
+yeni dosya modu 100644
+dizin 00000000..41c31abd
+--- /dev/null
++++ b/Binance api.blockchain./Dosya
+@@ -0,0 +1,311 @@
++
++Kimlik doğrulama
++Piyasa verileri
++L2SiparişKitabınıal
++getL3OrderBook
++Ticker'ları al
++SembolBağlıTicker'ı al
++sembolleri al
++SembolİsmineGöreAl
++Ticaret
++Ödemeler
++Şemalar
++Kod örnekleri, örnek istekler ve yanıtlar için aşağı kaydırın. Yukarıdaki sekmelerden veya mobil gezinme menüsünden kod örnekleri için bir dil seçin.
++
++Giriş
++Blockchain.com'un Borsa API'sine ve geliştirici belgelerine hoş geldiniz. Bu belgeler, gerçek zamanlı piyasa verilerini alma, bakiye bilgisi isteme ve işlem yapma gibi API tarafından sunulan çeşitli işlevlerin ayrıntılarını verir ve bunlara örnekler verir.
++
++Başlamak için
++ Blockchain.com Borsası hesabınızı oluşturun veya mevcut hesabınıza giriş yapın
++Açılır menüden API'yi seçin
++Formu doldurun ve “Şimdi Yeni API Anahtarı Oluştur”a tıklayın
++ Oluşturulduktan sonra anahtarlarınızı API Ayarları altında görüntüleyebilirsiniz. Lütfen API anahtarının yalnızca e-posta yoluyla doğrulandıktan sonra kullanılabileceğini unutmayın.
++
++API anahtarı X-API-Token başlığı üzerinden ayarlanmalıdır.
++
++Tüm çağrılar için kullanılacak temel URL https://api.blockchain.com/v3/exchange'dir
++
++Bu API için otomatik oluşturulan istemcileri burada bulabilirsiniz.
++
++Temel URL'ler:
++
++https://api.blockchain.com/v3/exchange
++Kimlik doğrulama
++API Anahtarı (ApiKeyAuth)
++Parametre Adı: X-API-Token, başlıkta.
++Piyasa verileri
++Güncel fiyatları ve piyasaları alın
++
++L2SiparişKitabınıal
++
++Kod örnekleri
++
++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/l2/{sembol}");
++HttpURLConnection con = (HttpURLConnection) obj.openConnection();
++con.setRequestMethod("GET");
++int yanıtKodu = con.getResponseCode();
++ArabellekliOkuyucu = yeni ArabellekliOkuyucu(
++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
++Dize girişSatırı;
++StringBuffer yanıtı = yeni StringBuffer();
++while ((inputLine = in.readLine()) != null) {
++ yanıt.append(girişsatırı);
++}
++in.close();
++System.out.println(yanıt.toString());
++
++GET /l2/{sembol}
++
++L2 Sipariş Defteri
++
++Seviye 2 Sipariş Defteri verileri l2 kanalı aracılığıyla kullanılabilir. Teklif ve talep dizilerindeki her giriş, fiyatı (px), miktarı (qty) ve sipariş sayısı (num) öznitelikleriyle birlikte bir fiyat seviyesidir.
++
++Parametreler
++Ad Türü Gerekli Açıklama
++sembol yol sembolü doğru Sembol
++Örnek yanıtlar
++
++200 Yanıt
++
++{
++ "sembol": "BTC-USD",
++ "teklifler": [
++ {
++ "px": "8723.45",
++ "adet": "1,45",
++ "sayı": "1"
++ }
++ ],
++ "sorular": [
++ {
++ "px": "8723.45",
++ "adet": "1,45",
++ "sayı": "1"
++ }
++ ]
++}
++Yanıtlar
++Durum Anlamı Açıklama Şema
++200 Tamam Başarılı Sipariş Defteri
++getL3OrderBook
++
++Kod örnekleri
++
++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/l3/{sembol}");
++HttpURLConnection con = (HttpURLConnection) obj.openConnection();
++con.setRequestMethod("GET");
++int yanıtKodu = con.getResponseCode();
++ArabellekliOkuyucu = yeni ArabellekliOkuyucu(
++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
++Dize girişSatırı;
++StringBuffer yanıtı = yeni StringBuffer();
++while ((inputLine = in.readLine()) != null) {
++ yanıt.append(girişsatırı);
++}
++in.close();
++System.out.println(yanıt.toString());
++
++GET /l3/{sembol}
++
++L3 Sipariş Defteri
++
++3. Seviye Emir Defteri verileri l3 kanalı üzerinden kullanılabilir. Teklif ve talep dizilerindeki her giriş, id (id), fiyat (px) ve miktar (qty) öznitelikleriyle birlikte bir emirdir. L2 emir defterinin aksine, L3 emir defteri, toplama olmaksızın tüm bireysel emirleri içerir.
++
++Parametreler
++Ad Türü Gerekli Açıklama
++sembol yol sembolü doğru Sembol
++Örnek yanıtlar
++
++200 Yanıt
++
++{
++ "sembol": "BTC-USD",
++ "teklifler": [
++ {
++ "px": "8723.45",
++ "adet": "1,45",
++ "sayı": "1"
++ }
++ ],
++ "sorular": [
++ {
++ "px": "8723.45",
++ "adet": "1,45",
++ "sayı": "1"
++ }
++ ]
++}
++Yanıtlar
++Durum Anlamı Açıklama Şema
++200 Tamam Başarılı Sipariş Defteri
++Ticker'ları al
++
++Kod örnekleri
++
++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/tickers");
++HttpURLConnection con = (HttpURLConnection) obj.openConnection();
++con.setRequestMethod("GET");
++int yanıtKodu = con.getResponseCode();
++ArabellekliOkuyucu = yeni ArabellekliOkuyucu(
++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
++Dize girişSatırı;
++StringBuffer yanıtı = yeni StringBuffer();
++while ((inputLine = in.readLine()) != null) {
++ yanıt.append(girişsatırı);
++}
++in.close();
++System.out.println(yanıt.toString());
++
++GET /ticker'lar
++
++Fiyat
++
++Örnek yanıtlar
++
++200 Yanıt
++
++[
++ {
++ "sembol": "BTC-USD",
++ "fiyat_24h": "4998.0",
++ "hacim_24h": "0,3015",
++ "son_işlem_fiyatı": "5000.0"
++ }
++]
++Yanıtlar
++Durum Anlamı Açıklama Şema
++200 OK Başarı Satır İçi
++Yanıt Şeması
++Durum Kodu 200
++
++Ad Türü Gerekli Kısıtlamalar Açıklama
++anonim [PriceEvent] false hiçbiri hiçbiri
++» sembol sembol yanlış hiçbiri Blockchain sembol tanımlayıcı
++» price_24h number(double) false hiçbiri hiçbiri
++» volume_24h number(double) false hiçbiri hiçbiri
++» son_işlem_fiyatı numarası(çift) false hiçbiri hiçbiri
++SembolBağlıTicker'ı al
++
++Kod örnekleri
++
++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/tickers/{sembol}");
++HttpURLConnection con = (HttpURLConnection) obj.openConnection();
++con.setRequestMethod("GET");
++int yanıtKodu = con.getResponseCode();
++ArabellekliOkuyucu = yeni ArabellekliOkuyucu(
++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
++Dize girişSatırı;
++StringBuffer yanıtı = yeni StringBuffer();
++while ((inputLine = in.readLine()) != null) {
++ yanıt.append(girişsatırı);
++}
++in.close();
++System.out.println(yanıt.toString());
++
++GET /tickers/{sembol}
++
++Fiyat
++
++Parametreler
++Ad Türü Gerekli Açıklama
++sembol yol sembolü doğru Sembol
++Örnek yanıtlar
++
++200 Yanıt
++
++{
++ "sembol": "BTC-USD",
++ "fiyat_24h": "4998.0",
++ "hacim_24h": "0,3015",
++ "son_işlem_fiyatı": "5000.0"
++}
++Yanıtlar
++Durum Anlamı Açıklama Şema
++200 Tamam Başarı FiyatEtkinlik
++sembolleri al
++
++Kod örnekleri
++
++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/semboller");
++HttpURLConnection con = (HttpURLConnection) obj.openConnection();
++con.setRequestMethod("GET");
++int yanıtKodu = con.getResponseCode();
++ArabellekliOkuyucu = yeni ArabellekliOkuyucu(
++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
++Dize girişSatırı;
++StringBuffer yanıtı = yeni StringBuffer();
++while ((inputLine = in.readLine()) != null) {
++ yanıt.append(girişsatırı);
++}
++in.close();
++System.out.println(yanıt.toString());
++
++GET /semboller
++
++Semboller
++
++Sembol durdurulmadığında mesajdaki açık artırma verileri boş olabilir. Bir sembol durdurulmuş durumda olduğunda açık artırma verileri kitap oluşturulurken doldurulacaktır. Bir açılış saati seçildiğinde, açık artırma saati alanı açılış saatini gösterecektir. Sonraki güncellemeler yalnızca sembol durumu herhangi bir şekilde değişirse gönderilecektir.
++
++Örnek yanıtlar
++
++200 Yanıt
++
++{
++ "özellik1": {
++ "temel_para_birimi": "BTC-USD",
++ "temel_para_ölçeği": 8,
++ "karşı_para": "BTC-USD",
++ "karşı_para_ölçeği": 2,
++ "min_fiyat_artışı": 10,
++ "min_fiyat_artış_ölçeği": 0,
++ "min_sipariş_boyutu": 10,
++ "min_sipariş_boyutu_ölçeği": 2,
++ "maksimum_sipariş_boyutu": 0,
++ "maksimum_sipariş_boyutu_ölçeği": 8,
++ "parti_boyutu": 5,
++ "parti_boyutu_ölçeği": 2,
++ "durum": "açık",
++ "kimlik": 1,
++ "müzayede_fiyatı": 0,
++ "müzayede_boyutu": 0,
++ "müzayede_zamanı": "1530",
++ "dengesizlik": 0
++ },
++ "özellik2": {
++ "temel_para_birimi": "BTC-USD",
++ "temel_para_ölçeği": 8,
++ "karşı_para": "BTC-USD",
++ "karşı_para_ölçeği": 2,
++ "min_fiyat_artışı": 10,
++ "min_fiyat_artış_ölçeği": 0,
++ "min_sipariş_boyutu": 10,
++ "min_sipariş_boyutu_ölçeği": 2,
++ "maksimum_sipariş_boyutu": 0,
++ "maksimum_sipariş_boyutu_ölçeği": 8,
++ "parti_boyutu": 5,
++ "parti_boyutu_ölçeği": 2,
++ "durum": "açık",
++ "kimlik": 1,
++ "müzayede_fiyatı": 0,
++ "müzayede_boyutu": 0,
++ "müzayede_zamanı": "1530",
++ "dengesizlik": 0
++ }
++}
++Yanıtlar
++Durum Anlamı Açıklama Şema
++200 OK Başarı Satır İçi
++Yanıt Şeması
++Durum Kodu 200
++
++Ad Türü Gerekli Kısıtlamalar Açıklama
++» additionalProperties SymbolStatus false hiçbiri hiçbiri
++»» base_currency sembolü false none Blockchain sembol tanımlayıcısı
++»» base_currency_scale integer false none Para biriminin bölünebileceği ondalık sayı
++»» karşıt_para birimi sembolü yanlış hiçbiri Blockchain sembol tanımlayıcısı
++»» counter_currency_scale tamsayı false none Para biriminin bölünebileceği ondalık sayı
++»» min_price_increment integer(int64) false none Enstrümanın fiyatı min_price_increment * (10^-min_price_increment_scale)'in bir katı olmalıdır
++»» min_price_increment_scale tamsayı false hiçbiri hiçbiri
++»» min_order_size integer(int64) false none Bu enstrüman için bir siparişin minimum miktarı min_order_size*(10^-min_order_size_scale) olmalıdır
++»» min_order_size_scale tamsayı false hiçbiri hiçbiri
++»» max_order_size integer(int64) false hiçbiri
+diff --git a/README.md b/README.md
+silinen dosya modu 100644
+dizin 9bcdabc8..00000000
+--- a/README.md
++++ /dev/null
+@@ -1.394 +0,0 @@
+-# Binance Ticaret Botu
+-
+-[![Ukrayna'nın Yanında Olun](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://war.ukraine.ua)
+-
+-
+-[![GitHub sürümü](https://img.shields.io/github/package-json/v/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading- bot/sürümler)
+-[![Oluştur](https://github.com/chrisleekr/binance-trading-bot/workflows/Push/badge.svg)](https://github.com/chrisleekr/binance-trading-bot/actions?query=workflow%3APush)
+-[![CodeCov](https://codecov.io/gh/chrisleekr/binance-ticaret-botu/branch/master/graph/badge.svg)](https://codecov.io/gh/chrisleekr/binance-ticaret-botu)
+-[![Docker çekme](https://img.shields.io/docker/pulls/chrisleekr/binance-trading-bot)](https://hub.docker.com/r/chrisleekr/binance-trading-bot)
+-[![GitHub katılımcıları](https://img.shields.io/github/contributors/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
+-[![MIT Lisansı](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
+-
+-> Takip eden alım/satım stratejisine sahip otomatik Binance ticaret botu
+-
+----
+-
+-[![ko](https://img.shields.io/badge/lang-한국어-brightgreen.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README .ko.md)
+-[![中文](https://img.shields.io/badge/lang-中文-blue.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README .zh-cn.md)
+-
+-Bu bir test projesidir. Sadece kodumu test ediyorum.
+-
+-## Uyarılar
+-
+-**Para kazanıp kazanamayacağınızı garanti edemem.**
+-
+-**Bu yüzden kendi riskinizle kullanın! Herhangi bir kayıp veya zorluktan sorumlu değilim
+-Bu kodu kullanarak doğrudan veya dolaylı olarak ortaya çıkan. Oku
+-Bu kodu kullanmadan önce [sorumluluk reddi](#sorumluluk reddi)'ni okuyun.**
+-
+-**Botu güncellemeden önce notta son satın alma fiyatını kaydettiğinizden emin olun. Yapılandırma veya son satın alma fiyatı kayıtlarını kaybedebilir.**
+-
+-## Nasıl çalışır
+-
+-### Trailing Grid Trade Alım/Satım Botu
+-
+-Bu bot, fiyatın düşüşünü/yükselişini takip etmeyi sağlayan takip eden alım/satım emri konseptini kullanıyor.
+-
+-> Takip Eden Durdurma Emirleri
+-> Trailing Stop Emirleri Konsepti hakkında daha fazla bilgiyi [Binance Resmi Belgesi](https://www.binance.com/en/support/faq/360042299292) adresinde bulabilirsiniz
+->
+-> ÖZET:
+-> Fiyat değiştiğinde sabit bir değer veya yüzde üzerinden emir verin. Bu özelliği kullanarak, aşağı satın alırken mümkün olan en düşük fiyattan satın alabilir ve yukarı satarken mümkün olan en yüksek fiyattan satabilirsiniz.
+-
+-- Bot, yapılandırmaya bağlı olarak birden fazla alım/satım emrini destekler.
+-- Bot birden fazla sembolü izleyebilir. Tüm semboller saniyede bir izlenecektir.
+-- Bot, kalıcılık veritabanı sağlamak için MongoDB kullanıyor. Ancak, Raspberry Pi 32bit'i desteklemek için en son MongoDB'yi kullanmıyor. Kullanılan MongoDB sürümü
+- [apcheamitru](https://hub.docker.com/r/apcheamitru/arm32v7-mongo) tarafından sağlanan 3.2.20'dir.
+-- Bot Linux ve Raspberry Pi 4 32bit ile test edildi/çalışıyor. Diğer platformlar test edilmedi.
+-
+-#### Satın Alma Sinyali
+-
+-Bot, grid ticaret yapılandırmasına göre coin'i sürekli olarak izleyecektir.
+-
+- Grid ticareti #1 için bot, mevcut fiyat en düşük fiyata ulaştığında satın almak için bir STOP-LOSS-LIMIT emri verecektir. Mevcut fiyat sürekli düşerse, bot önceki emri iptal edecek ve yeni STOP-LOSS-LIMIT emrini yeni fiyatla yeniden koyacaktır.
+-
+-Grid ticareti #1'den sonra bot, COIN'i son satın alma fiyatına göre izleyecektir.
+-
+-- Bot, satış için tetikleyici fiyata ulaştığında satmaya yetecek kadar coin'i (genellikle 10$'ın üzerinde) varsa, grid ticareti #1 için satın alma emri vermeyecektir.
+-- Tahmini değer son satın alma fiyatı kaldırma eşiğinden düşükse bot son satın alma fiyatını kaldıracaktır.
+-
+-##### Satın Alma Senaryosu
+-
+-Diyelim ki buy grid trade konfigürasyonları aşağıdaki gibi ayarlanmış olsun:
+-
+-- Izgara sayısı: 2
+-- Izgaralar
+- | Hayır# | Tetikleme Yüzdesi | Durdurma Fiyat Yüzdesi | Limit fiyat yüzdesi | USDT |
+- | --- | ------------------- | --------------------- | ----------------------- | ---- |
+- | 1 | 1 | 1.05 | 1.051 | 50 |
+- | 2 | 0.8 | 1.03 | 1.031 | 100 |
+-
+-Anlaşılmasını kolaylaştırmak için USDT sembolü olarak `$` kullanacağım. Basit hesaplama için komisyonu hesaba katmıyorum. Gerçek ticarette miktar farklı olabilir.
+-
+-Alım için 1. grid ticaretiniz aşağıdaki gibi yapılandırılmıştır:
+-
+-- Izgara No#: 1
+-- Tetikleme yüzdesi: 1
+-- Durdurma yüzdesi: 1.05 (5.00%)
+-- Sınır yüzdesi: 1.051 (5.10%)
+-- Maksimum satın alma tutarı: 50$
+-
+-Ve piyasa şu şekilde:
+-
+-- Güncel fiyat: 105$
+-- En düşük fiyat: 100$
+-- Tetik fiyatı: 100$
+-
+-Mevcut fiyat en düşük fiyata (100$) düştüğünde ve etkinleştirilmişse ATH (Tüm Zamanların En Yüksek) kısıtlı fiyatından daha düşük olduğunda, bot satın alma için yeni STOP-LOSS-LIMIT emri verecektir.
+-
+-- Durdurma fiyatı: 100$ * 1,05 = 105$
+-- Limit fiyatı: 100$ * 1.051 = 105.1$
+-- Miktar: 0.47573
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 95$
+-
+-Ardından bot fiyat düşüşünü takip edecek ve aşağıdaki gibi yeni STOP-LOSS-LIMIT emri verecektir:
+-
+-- Durdurma fiyatı: 95$ * 1.05 = 99.75$
+-- Limit fiyatı: 95$ * 1.051 = 99.845$
+-- Miktar: 0,5
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 100$
+-
+-Ardından bot coin için 1. satın alma işlemini gerçekleştirecektir. Son satın alma fiyatı `$99.845` olarak kaydedilecektir. Satın alınan miktar `0.5` olacaktır.
+-
+-Coin satın alındıktan sonra bot satış sinyalini izlemeye başlayacak ve aynı zamanda satın alma için bir sonraki grid ticaretini izleyecektir.
+-
+-Alım için 2. grid ticaretiniz aşağıdaki gibi yapılandırılmıştır:
+-
+-- Izgara #: 2
+-- Güncel son satın alma fiyatı: 99.845$
+-- Tetikleme yüzdesi: 0,8 (%20)
+-- Durdurma yüzdesi: 1.03 (3.00%)
+-- Sınır yüzdesi: 1.031 (3.10%)
+-- Maksimum satın alma tutarı: 100$
+-
+-Ve eğer mevcut fiyat sürekli olarak `$79.876`ya (yüzde 20 daha düşük) düşerse, bot coin için 2. grid ticareti için yeni STOP-LOSS-LIMIT emri verecektir.
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 75$
+-
+-Ardından bot fiyat düşüşünü takip edecek ve aşağıdaki gibi yeni STOP-LOSS-LIMT emri verecektir:
+-
+-- Durdurma fiyatı: 75$ * 1.03 = 77.25$
+-- Limit fiyatı: 75$ * 1.031 = 77.325$
+-- Miktar: 1.29
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 78$
+-
+-Ardından bot coin için 2. satın alma işlemini gerçekleştirecektir. Son satın alma fiyatı otomatik olarak aşağıdaki gibi yeniden hesaplanacaktır:
+-
+-- Son satın alma fiyatı: (50 $ + 100 $)/(0,5 COIN + 1,29 COIN) = 83,80 $
+-
+-##### Ayrıntılı Satın Alma Yapılandırması ayrıntılı
+-
+-Satın alma yapılandırmasına ilişkin detaylı dokümana buradan ulaşabilirsiniz.
+-
+-[https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario)
+-
+-### Satış Sinyali
+-
+- Satış için yeterli bakiye varsa ve son satın alma fiyatı bota kaydedilmişse, bot grid ticareti #1'in satış sinyalini izlemeye başlayacaktır. Mevcut fiyat grid ticareti #1'in tetik fiyatına ulaştığında, bot satış için bir DURDURMA-KAYIP-SINIRLAMA emri verecektir. Mevcut fiyat sürekli olarak yükselirse, bot önceki emri iptal edecek ve yeni DURDURMA-KAYIP-SINIRLAMA emrini yeni fiyatla yeniden koyacaktır.
+-
+-- Botun son alış fiyatına dair bir kaydı yoksa, bot coin'i satmayacaktır.
+-- Eğer coin son satın alma fiyatı kaldırma eşiğinden daha az değerde ise bot son satın alma fiyatını kaldıracaktır.
+-- Eğer coin minimum nominal değerden daha az değerde ise bot emir vermeyecektir.
+-
+-#### Satış Senaryosu
+-
+-Diyelim ki satış şebekesi ticaret konfigürasyonları aşağıdaki gibi ayarlanmış olsun:
+-
+-- Izgara sayısı: 2
+-- Izgaralar
+- | Hayır# | Tetikleme Yüzdesi | Durdurma Fiyat Yüzdesi | Limit fiyat yüzdesi | Satış Miktarı Yüzdesi |
+- | --- | ------------------- | --------------------- | --------------------- |--------------------------- |
+- | 1. | 1.05 | 0,97 | 0,969 | 0,5 |
+- | 2. | 1.08 | 0,95 | 0,949 | 1 |
+-
+-Satın almanın aksine, satış yapılandırması bir miktarın yüzdesini kullanacaktır. Tüm coin miktarınızı satmak istiyorsanız, bunu basitçe `1` (100%) olarak yapılandırın.
+-
+-Son satın alma işlemlerinizden itibaren bakiyeleriniz şu şekilde:
+-
+-- Mevcut miktar: 1.79
+-- Güncel son satın alma fiyatı: 83,80 $
+-
+- Satış için 1. grid ticaretiniz aşağıdaki gibi yapılandırılmıştır:
+-
+-- Şebeke No# 1
+-- Tetikleme yüzdesi: 1.05
+-- Stop fiyat yüzdesi: 0,97
+-- Limit fiyat yüzdesi: 0,969
+-- Satış miktarı yüzdesi: 0.5
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 88$
+-
+-Mevcut fiyat satış tetikleyici fiyatından ($87.99) yüksek olduğunda, bot satış için yeni STOP-LOSS-LIMIT emri verecektir.
+-
+-- Durdurma fiyatı: 88$ * 0,97 = 85,36$
+-- Limit fiyatı: 88$ * 0,969 = 85,272$
+-- Miktar: 0,895
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 90$
+-
+-Ardından bot fiyat artışını takip edecek ve aşağıdaki gibi yeni STOP-LOSS-LIMIT emri verecektir:
+-
+-- Durdurma fiyatı: 90$ * 0,97 = 87,30$
+-- Limit fiyatı: 90$ * 0,969 = 87,21$
+-- Miktar: 0,895
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 87$
+-
+-Ardından bot coin için 1. satışı gerçekleştirecek. Daha sonra bot 2. satış tetikleyici fiyatını bekleyecek ($83.80 * 1.08 = $90.504).
+-
+-- Mevcut miktar: 0,895
+-- Güncel son satın alma fiyatı: 83,80 $
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 91$
+-
+- O zaman mevcut fiyat (91 $) 2. satış tetikleyici fiyatından (90.504 $) yüksekse, bot aşağıdaki gibi yeni STOP-LOSS-LIMIT emri verecektir:
+-
+-- Durdurma fiyatı: 91$ * 0,95 = 86,45$
+-- Limit fiyatı: 91$ * 0,949 = 86,359$
+-- Miktar: 0,895
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 100$
+-
+-Ardından bot fiyat artışını takip edecek ve aşağıdaki gibi yeni STOP-LOSS-LIMT emri verecektir:
+-
+-- Durdurma fiyatı: 100$ * 0,95 = 95$
+-- Limit fiyatı: 100$ * 0,949 = 94,9$
+-- Miktar: 0,895
+-
+-Piyasanın aşağıdaki gibi değiştiğini varsayalım:
+-
+-- Güncel fiyat: 94$
+-
+-Daha sonra bot coin için 2. satışı gerçekleştirecek.
+-
+-Son kar ne olur?
+-
+-- 1. satış: 94,9$ * 0,895 = 84,9355$
+-- 2. satış: 87,21$ * 0,895 = 78,05295$
+-- Son kar: 162 $ (%8 kar)
+-
+-##### Derinlemesine Satış Yapılandırması
+-
+-Satın alma yapılandırmasına ilişkin detaylı dokümana buradan ulaşabilirsiniz.
+-
+-[https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario)
+-
+-### [Özellikler](https://github.com/chrisleekr/binance-trading-bot/wiki/Features)
+-
+-- El işi ticareti
+-- Küçük bakiyeleri BNB'ye dönüştürün
+-- Tüm sembollerle işlem yapın
+-- Birden fazla coin'i aynı anda izleme
+-- Zarar Durdurma
+-- ATH fiyatıyla satın almayı kısıtla
+-- Alım/satım için Grid Ticareti
+-- TradingView Teknik Analizi ile Entegre
+-
+-### Ön Uç + WebSocket
+-
+-Web Socket üzerinden haberleşen React.js tabanlı önyüz:
+-
+-- Satın alma/satış sinyalleri/açık emirleri olan coin'leri listeleme
+-- Hesap bakiyelerini görüntüle
+-- Açık/kapalı işlemleri görüntüle
+-- Küresel/sembol ayarlarını yönet
+-- İzlenmeyen önbellekleri silin
+-- Genel URL'ye bağlantı
+-- Ana Ekrana Ekleme Desteği
+-- Güvenli ön uç
+-
+-## Çevre Parametreleri
+-
+- Parametreleri ayarlamak için ortam parametrelerini kullanın. Kullanılabilir ortam parametrelerinin listesini görmek için `/config/custom-environment-variables.json`'u kontrol edin.
+-
+-Veya uygulamayı başlattıktan sonra konfigürasyonları ayarlamak için ön yüzü kullanın.
+-
+-## Nasıl kullanılır
+-
+-1. `.env.dist` temel alınarak `.env` dosyası oluşturulur.
+-
+- | Ortam Anahtarı | Açıklama | Örnek Değer |
+- | ------------------------------ | -------------------------------------------------- ----------------------- | -------------------------------------------------- -------------------------------------------------- |
+- | BINANCE_LIVE_API_KEY | Canlı yayın için Binance API anahtarı | (kaynak: [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-API-nasıl-oluşturulur)) |
+- | BINANCE_LIVE_SECRET_KEY | Canlı yayın için Binance API sırrı | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-API-nasıl-oluşturulur)) |
+- | BINANCE_TEST_API_KEY | Test için Binance API anahtarı | (Binance Spot Test Ağı'ndan](https://testnet.binance.vision/)) |
+- | BINANCE_TEST_SECRET_KEY | Test için Binance API sırrı | (Binance Spot Test Ağı'ndan](https://testnet.binance.vision/)) |
+- | BINANCE_SLACK_ENABLED | Slack etkinleştirme/devre dışı bırakma | true |
+- | BINANCE_SLACK_WEBHOOK_URL | Slack webhook URL'si | (Slack'ten) |
+- | BINANCE_SLACK_CHANNEL | Slack kanalı | "#binance" |
+- | BINANCE_SLACK_USERNAME | Slack kullanıcı adı | Chris |
+- | BINANCE_LOCAL_TUNNEL_ENABLED | [Yerel tünel](https://github.com/localtunnel/localtunnel)'i Etkinleştir/Devre Dışı Bırak | true |
+- | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Yerel tünel genel URL alt etki alanı | binance |
+- | BINANCE_AUTHENTICATION_ENABLED | Önyüz kimlik doğrulamasını etkinleştir/devre dışı bırak | true |
+- | BINANCE_AUTHENTICATION_PASSWORD | Ön uç şifresi | 123456 |
+- | BINANCE_LOG_LEVEL | Günlük kaydı düzeyi. [`bunyan` belgelerinde açıklanan olası değerler.](https://www.npmjs.com/package/bunyan#levels) | HATA |
+-
+- *Yerel bir tünel botu dışarıdan erişilebilir hale getirir. Lütfen yerel tünelin alt alan adını yalnızca sizin hatırlayabileceğiniz bir alt alan adı olarak ayarlayın.*
+- *Kimlik doğrulama şifrenizi değiştirmeniz gerekmektedir; aksi takdirde varsayılan şifre olarak yapılandırılacaktır.*
+-
+-2. Botu docker-compose ile başlatın/güncelleyin
+-
+- Önce son kodu çek:
+-
+- ```vurmak
+- git çek
+- ```
+-
+- Eğer üretim/canlı modunu istiyorsanız, DockerHub'dan en son yapı imajını kullanın:
+-
+- ```vurmak
+- docker-compose -f docker-compose.server.yml çekme
+- docker-compose -f docker-compose.server.yml yukarı -d
+- ```
+-
+- Veya geliştirme/test modunu istiyorsanız, aşağıdaki komutları çalıştırın:
+-
+- ```vurmak
+- docker-compose up -d --build
+- ```
+-
+-3. Ön yüzü görmek için `http://0.0.0.0:8080` tarayıcısını açın
+-
+- - Uygulama başlatıldığında Slack'e ait genel URL'yi bildirecektir.
+- - Botla ilgili herhangi bir sorun yaşarsanız botta ne olduğunu öğrenmek için log'u kontrol edebilirsiniz. Lütfen [Sorun Giderme](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting) adresine bakın
+-
+-### Stackfile aracılığıyla yükleyin
+-
+-1. [Portainer](https://www.portainer.io/)'da yeni bir Yığın oluşturun
+-
+-2. `docker-stack.yml` içeriğini kopyalayın veya dosyayı yükleyin
+-
+-3. `docker-stack.yml` dosyasında `binance-bot` için ortam anahtarlarını ayarlayın
+-
+-4. Ön yüzü görmek için tarayıcıyı başlatın ve açın `http://0.0.0.0:8080`
+-
+-## Ekran Görüntüleri
+-
+-| Şifre Korumalı | Ön Uç Mobil |
+-| ------------------ | --------------- |
+-| ![Şifre Korumalı](https://user-images.githubusercontent.com/5715919/133920104-49d1b590-c2ba-46d7-a294-eb6b24b459f5.png) | ![Ön Uç Mobil](https://user-images.githubusercontent.com/5715919/137472107-4059fcdf-5174-4282-81af-80cea5b269a0.png) |
+-
+-| Ayar | Manuel İşlem |
+-| ------- | ------------ |
+-| ![Ayar](https://user-images.githubusercontent.com/5715919/127318581-4e422ac9-b145-4e83-a90d-5c05c61d6e2f.png) | ![Manuel Ticaret](https://user-images.githubusercontent.com/5715919/127318630-f2180e1b-3feb-48fa-a083-4cb7f90f743f.png) |
+-
+-| Önyüz Masaüstü | Kapalı İşlemler |
+-| ----------------- | ------------- |
+-| ![Ön Uç Masaüstü](https://user-images.githubusercontent.com/5715919/137472148-7be1e19b-3ce5-4d5a-aa28-18c55b3b48aa.png) | ![Kapalı İşlemler](https://user-images.githubusercontent.com/5715919/137472190-a4c6ef0f-3399-44bb-852f-eedb7c67d629.png) |
+-
+-### Örnek Ticaret
+-
+-| Grafik | Alış Emirleri | Satış Emirleri |
+-| -------------------------------------------------- -------------------------------------------------- ---------- | -------------------------------------------------- -------------------------------------------------- --------------- | -------------------------------------------------- -------------------------------------------------- ---------------- |
+-| ![Grafik](https://user-images.githubusercontent.com/5715919/111027391-192db300-8444-11eb-8df4-91c98d0c835b.png) | ![Satın Alma Siparişleri](https://user-images.githubusercontent.com/5715919/111027403-36628180-8444-11eb-91dc-f3cdabc5a79e.png) | ![Satış Siparişleri](https://user-images.githubusercontent.com/5715919/111027411-4b3f1500-8444-11eb-8525-37f02a63de25.png) |
+-
+-## Değişiklikler ve Yapılacaklar
+-
+-Lütfen bakınız
+-[CHANGELOG.md](https://github.com/chrisleekr/binance-ticaret-botu/blob/master/CHANGELOG.md)
+-geçmiş değişiklikleri görüntülemek için.
+-
+-- [ ] Sırlar için basit kurulum ekranı geliştirin
+-- [ ] Satın alma eyleminden önce stop-loss'un yürütülmesine izin ver - [#299](https://github.com/chrisleekr/binance-trading-bot/issues/299)
+-- [ ] Kar yüzdesine dayalı koşullu durdurma fiyatı yüzdesiyle satış stratejisini geliştirin - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
+-- [ ] Ani düşüş alım stratejisini ekleyin - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
+-- [ ] Ayar profillerini yönet (kaydet/değiştir/yükle?/dışa aktar?) - [#151](https://github.com/chrisleekr/binance-trading-bot/issues/151)
+-- [ ] Apprise'ı destekleyerek bildirimleri iyileştirin - [#106](https://github.com/chrisleekr/binance-trading-bot/issues/106)
+-- [ ] Satın almadan önce en düşük fiyata ulaştıktan sonraki destek soğuma süresi - [#105](https://github.com/chrisleekr/binance-trading-bot/issues/105)
+-- [ ] Genel yapılandırmayı başlangıç ​​yapılandırmasına sıfırla - [#97](https://github.com/chrisleekr/binance-trading-bot/issues/97)
+-- [ ] Çok dilli ön ucu destekleyin - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
+-- [ ] Doğrusal olmayan durdurma fiyatı ve takip fonksiyonu - [#246](https://github.com/chrisleekr/binance-trading-bot/issues/246)
+-- [ ] Satış için ızgara ticareti başına STOP-LOSS yapılandırmasını destekleyin - [#261](https://github.com/chrisleekr/binance-trading-bot/issues/261)
+-
+-## Bağışlar
+-
+-Bu projeyi faydalı bulursanız, küçük bir tane yapmaktan çekinmeyin
+-[bağış](https://github.com/chrisleekr/binance-trading-bot/blob/master/DONATIONS.md)
+-geliştiriciye.
+-
+-## Teşekkürler
+-
+-- [@d0x2f](https://github.com/d0x2f)
+-- Ve daha niceleri! Teşekkürler beyler!
+-
+-## Katkıda Bulunanlar
+-
+-Tüm katılımcılara teşekkürler :heart: [Kahramanlarımızı görmek için tıklayın](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
+-
+-## Sorumluluk Reddi
+-
+-Bu projede yer alan bilgi ve materyallerin doğruluğu veya eksiksizliği konusunda hiçbir garanti vermiyorum ve hiçbir sorumluluk veya yükümlülük kabul etmiyorum. Hiçbir koşulda, bu kodu veya ona bağlı herhangi bir kodu kullanmanızdan veya kullanamamanızdan veya bu koddaki bilgi ve materyale güvenmenizden kaynaklanan veya doğrudan veya dolaylı olarak ortaya çıkan herhangi bir talep, hasar, kayıp, masraf, maliyet veya yükümlülükten (kar kaybı, iş kesintisi veya bilgi kaybı için doğrudan veya dolaylı hasarlar dahil ancak bunlarla sınırlı olmamak üzere) hiçbir şekilde sorumlu veya yükümlü tutulmayacağım, bu tür hasarların olasılığı önceden bildirilmiş olsa bile.
+-
+-**Bu yüzden kendi sorumluluğunuzda kullanın!**
+
+3181d707e74b3477dbaf148e0f5296486a032a5b Pazartesi 17 Eylül 00:00:00 2001
+Gönderen: Recep <148443421+zxramozx@users.noreply.github.com>
+Tarih: 30 Ağu 2024 Cum 16:26:04 +0300
+Konu: [PATCH 2/2] Azure Pipelines ile CI Kurulumu
+
+vmImage: ubuntu-en son [ci'yi atla]
+---
+ azure-pipelines.yml | 21 +++++++++++++++++++++
+ 1 dosya değiştirildi, 21 ekleme(+)
+ 100644 azure-pipelines.yml modunu oluştur
+
+diff --git a/azure-pipelines.yml b/azure-pipelines.yml
+yeni dosya modu 100644
+dizin 00000000..a7f2a029
+--- /dev/null
++++ b/azure-pipelines.yml
+@@ -0,0 +1,21 @@
++# React ile Node.js
++# React kullanan bir Node.js projesi oluşturun.
++# Kodu analiz eden, derleme eserlerini kaydeden, dağıtan ve daha fazlasını yapan adımlar ekleyin:
++# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
++
++tetikleyici:
++- usta
++
++havuz:
++ vmImage: ubuntu-en son
++
++adımlar:
++- görev: NodeTool@0
++ girdiler:
++ sürümÖzelliği: '10.x'
++ displayName: 'Node.js'yi Yükle'
++
++- komut dosyası: |
++ npm kurulumu
++ npm run build
++ displayName: 'npm kurulum ve derleme'
+---
+ .devcontainer/devcontainer.json | 768 ++++++++++++++++++++++++++++++++
+ 1 dosya değiştirildi, 768 ekleme(+)
+ 100644 .devcontainer/devcontainer.json modunu oluştur
+
+diff --git a/.devcontainer/devcontainer.json b/.devcontainer/devcontainer.json
+yeni dosya modu 100644
+dizin 00000000..dacf3e8f
+--- /dev/null
++++ b/.devcontainer/devcontainer.json
+@@ -0,0 +1,768 @@
++Ed5a2845c39d402e539a0ceff8c38114150272b3 Pazartesi 17 Eylül 00:00:00 2001
++Gönderen: Recep <148443421+zxramozx@users.noreply.github.com>
++Tarih: 30 Ağu 2024 Cum 16:13:00 +0300
++Konu: [PATCH 1/2] Binance api.blockchain./Dosya
++
++---
++ Binance api.blockchain./Dosya | 311 +++++++++++++++++++++++++++
++ README.md | 394 -----------------------------------
++ 2 dosya değiştirildi, 311 ekleme(+), 394 silme(-)
++ 100644 Binance api.blockchain./File modunu oluştur
++ silme modu 100644 README.md
++
++diff --git a/Binance api.blockchain./Dosya b/Binance api.blockchain./Dosya
++yeni dosya modu 100644
++indeks 00000000..41c31abd
++--- /dev/null
+++++ b/Binance api.blockchain./Dosya	
++@@ -0,0 +1.311 @@
+++
+++Kimlik Doğrulama
+++Piyasa verileri
+++getL2OrderBook
+++getL3OrderBook
+++Ticker'ları al
+++SembolBağlıTicker'ı al
+++sembolleri al
+++SembolİsmineGöreAl
+++Ticaret
+++Ödemeler
+++Şemalar
+++Kod örnekleri, örnek istekler ve yanıtlar için aşağı kaydırın. Yukarıdaki sekmelerden veya mobil gezinme menüsünden kod örnekleri için bir dil seçin.
+++
+++Giriş
+++Blockchain.com'un Borsa API'sine ve geliştirici belgelerine hoş geldiniz. Bu belgeler, gerçek zamanlı piyasa verilerini alma, bakiye bilgisi isteme ve işlem yapma gibi API tarafından sunulan çeşitli işlevlerin ayrıntılarını verir ve bunlara örnekler verir.
+++
+++Başlamak için
+++Blockchain.com Borsası hesabınızı oluşturun veya mevcut hesabınıza giriş yapın
+++Açılır menüden API'yi seçin
+++Formu doldurun ve “Şimdi Yeni API Anahtarı Oluştur”a tıklayın
+++Oluşturulduktan sonra anahtarlarınızı API Ayarları altında görüntüleyebilirsiniz. Lütfen API anahtarının yalnızca e-posta yoluyla doğrulandıktan sonra kullanılabileceğini unutmayın.
+++
+++API anahtarı X-API-Token başlığı üzerinden ayarlanmalıdır.
+++
+++Tüm çağrılar için kullanılacak temel URL https://api.blockchain.com/v3/exchange'dir
+++
+++Bu API için otomatik oluşturulan istemcileri burada bulabilirsiniz.
+++
+++Temel URL'ler:
+++
+++https://api.blockchain.com/v3/exchange
+++Kimlik Doğrulama
+++API Anahtarı (ApiKeyAuth)
+++Parametre Adı: X-API-Token, başlıkta.
+++Piyasa verileri
+++Güncel fiyatları ve piyasaları alın
+++
+++getL2OrderBook
+++
+++Kod örnekleri
+++
+++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/l2/{sembol}");
+++HttpURLBağlantısı con = (HttpURLBağlantısı) obj.openConnection();
+++con.setRequestMethod("GET");
+++int yanıtKodu = con.getResponseCode();
+++ArabellekliOkuyucu in = yeni ArabellekliOkuyucu(
+++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
+++Dize girişSatırı;
+++StringBuffer yanıtı = yeni StringBuffer();
+++while ((inputLine = in.readLine()) != null) {
+++ yanıt.append(girişsatırı);
+++}
+++in.close();
+++System.out.println(yanıt.toString());
+++
+++GET /l2/{sembol}
+++
+++L2 Emir Defteri
+++
+++Seviye 2 Sipariş Defteri verileri l2 kanalı aracılığıyla kullanılabilir. Teklif ve talep dizilerindeki her giriş, fiyatı (px), miktarı (qty) ve sipariş sayısı (num) attrib ile birlikte bir fiyat seviyesidir. .
+++
+++Parametreler
+++Ad Türü Gerekli Açıklama
+++sembol yol sembolü doğru Sembol
+++Örnek yanıtlar
+++
+++200 Yanıt
+++
+++{
+++ "sembol": "BTC-USD",
+++ "teklifler": [
+++ {
+++ "px": "8723.45",
+++ "adet": "1,45",
+++ "sayı": "1"
+++ }
+++ ],
+++ "sorular": [
+++ {
+++ "px": "8723.45",
+++ "adet": "1,45",
+++ "sayı": "1"
+++ }
+++ ]
+++}
+++Yanıtlar
+++Durum Anlamı Açıklama Şema
+++200 Tamam Başarılı Sipariş Defteri
+++getL3OrderBook
+++
+++Kod örnekleri
+++
+++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/l3/{sembol}");
+++HttpURLBağlantısı con = (HttpURLBağlantısı) obj.openConnection();
+++con.setRequestMethod("GET");
+++int yanıtKodu = con.getResponseCode();
+++ArabellekliOkuyucu in = yeni ArabellekliOkuyucu(
+++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
+++Dize girişSatırı;
+++StringBuffer yanıtı = yeni StringBuffer();
+++while ((inputLine = in.readLine()) != null) {
+++ yanıt.append(girişsatırı);
+++}
+++in.close();
+++System.out.println(yanıt.toString());
+++
+++GET /l3/{sembol}
+++
+++L3 Emir Defteri
+++
+++3. Seviye Sipariş Defteri verileri l3 kanalı aracılığıyla kullanılabilir. Teklif ve talep dizilerindeki her giriş, kimliği (id), fiyatı (px) ve miktarı (qty) öznitelikleriyle birlikte bir emirdir. L2 sipariş defterinin aksine, L3 sipariş defteri, toplama olmaksızın tüm bireysel emirleri içerir.
+++
+++Parametreler
+++Ad Türü Gerekli Açıklama
+++sembol yol sembolü doğru Sembol
+++Örnek yanıtlar
+++
+++200 Yanıt
+++
+++{
+++ "sembol": "BTC-USD",
+++ "teklifler": [
+++ {
+++ "px": "8723.45",
+++ "adet": "1,45",
+++ "sayı": "1"
+++ }
+++ ],
+++ "sorular": [
+++ {
+++ "px": "8723.45",
+++ "adet": "1,45",
+++ "sayı": "1"
+++ }
+++ ]
+++}
+++Yanıtlar
+++Durum Anlamı Açıklama Şema
+++200 Tamam Başarılı Sipariş Defteri
+++Ticker'ları al
+++
+++Kod örnekleri
+++
+++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/tickers");
+++HttpURLBağlantısı con = (HttpURLBağlantısı) obj.openConnection();
+++con.setRequestMethod("GET");
+++int yanıtKodu = con.getResponseCode();
+++ArabellekliOkuyucu in = yeni ArabellekliOkuyucu(
+++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
+++Dize girişSatırı;
+++StringBuffer yanıtı = yeni StringBuffer();
+++while ((inputLine = in.readLine()) != null) {
+++ yanıt.append(girişsatırı);
+++}
+++in.close();
+++System.out.println(yanıt.toString());
+++
+++GET /ticker'lar
+++
+++Fiyat
+++
+++Örnek yanıtlar
+++
+++200 Yanıt
+++
+++[
+++ {
+++ "sembol": "BTC-USD",
+++ "fiyat_24h": "4998.0",
+++ "hacim_24h": "0,3015",
+++ "son_işlem_fiyatı": "5000.0"
+++ }
+++]
+++Yanıtlar
+++Durum Anlamı Açıklama Şema
+++200 OK Başarılı Satır İçi
+++Yanıt Şeması
+++Durum Kodu 200
+++
+++Ad Türü Gerekli Kısıtlamalar Açıklama
+++anonymous [PriceEvent] false hiçbiri hiçbiri
+++» sembol sembol yanlış hiçbiri Blockchain sembol tanımlayıcı
+++» price_24h number(double) false hiçbiri hiçbiri
+++» volume_24h number(double) false hiçbiri hiçbiri
+++» son_işlem_fiyatı number(double) false hiçbiri hiçbiri
+++SembolBağlıTicker'ı al
+++
+++Kod örnekleri
+++
+++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/tickers/{sembol}");
+++HttpURLBağlantısı con = (HttpURLBağlantısı) obj.openConnection();
+++con.setRequestMethod("GET");
+++int yanıtKodu = con.getResponseCode();
+++ArabellekliOkuyucu in = yeni ArabellekliOkuyucu(
+++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
+++Dize girişSatırı;
+++StringBuffer yanıtı = yeni StringBuffer();
+++while ((inputLine = in.readLine()) != null) {
+++ yanıt.append(girişsatırı);
+++}
+++in.close();
+++System.out.println(yanıt.toString());
+++
+++GET /tickers/{sembol}
+++
+++Fiyat
+++
+++Parametreler
+++Ad Türü Gerekli Açıklama
+++sembol yol sembolü doğru Sembol
+++Örnek yanıtlar
+++
+++200 Yanıt
+++
+++{
+++ "sembol": "BTC-USD",
+++ "fiyat_24h": "4998.0",
+++ "hacim_24h": "0,3015",
+++ "son_işlem_fiyatı": "5000.0"
+++}
+++Yanıtlar
+++Durum Anlamı Açıklama Şema
+++200 Tamam Başarı FiyatEtkinlik
+++sembolleri al
+++
+++Kod örnekleri
+++
+++URL obj = yeni URL("https://api.blockchain.com/v3/exchange/semboller");
+++HttpURLBağlantısı con = (HttpURLBağlantısı) obj.openConnection();
+++con.setRequestMethod("GET");
+++int yanıtKodu = con.getResponseCode();
+++ArabellekliOkuyucu in = yeni ArabellekliOkuyucu(
+++ yeni GirişAkışıOkuyucusu(con.getInputStream()));
+++Dize girişSatırı;
+++StringBuffer yanıtı = yeni StringBuffer();
+++while ((inputLine = in.readLine()) != null) {
+++ yanıt.append(girişsatırı);
+++}
+++in.close();
+++System.out.println(yanıt.toString());
+++
+++GET /semboller
+++
+++Semboller
+++
+++Sembol durdurulmadığında mesajdaki açık artırma verileri boş olabilir. Bir sembol durdurulmuş durumda olduğunda açık artırma verileri kitap oluşturulurken doldurulacaktır. Bir açılış saati seçildiğinde, açık artırma saati alanı açılış saatini gösterecektir. Sonraki güncellemeler yalnızca sembol durumu herhangi bir şekilde değişirse gönderilecektir.
+++
+++Örnek yanıtlar
+++
+++200 Yanıt
+++
+++{
+++ "özellik1": {
+++ "temel_para_birimi": "BTC-USD",
+++ "temel_para_ölçeği": 8,
+++ "karşı_para": "BTC-USD",
+++ "karşı_para_ölçeği": 2,
+++ "min_fiyat_artışı": 10,
+++ "min_fiyat_artış_ölçeği": 0,
+++ "min_sipariş_boyutu": 10,
+++ "min_sipariş_boyutu_ölçeği": 2,
+++ "maksimum_sipariş_boyutu": 0,
+++ "maksimum_sipariş_boyutu_ölçeği": 8,
+++ "parti_boyutu": 5,
+++ "parti_boyutu_ölçeği": 2,
+++ "durum": "açık",
+++ "kimlik": 1,
+++ "müzayede_fiyatı": 0,
+++ "müzayede_boyutu": 0,
+++ "müzayede_zamanı": "1530",
+++ "dengesizlik": 0
+++ },
+++ "özellik2": {
+++ "temel_para_birimi": "BTC-USD",
+++ "temel_para_ölçeği": 8,
+++ "karşı_para": "BTC-USD",
+++ "karşı_para_ölçeği": 2,
+++ "min_fiyat_artışı": 10,
+++ "min_fiyat_artış_ölçeği": 0,
+++ "min_sipariş_boyutu": 10,
+++ "min_sipariş_boyutu_ölçeği": 2,
+++ "maksimum_sipariş_boyutu": 0,
+++ "maksimum_sipariş_boyutu_ölçeği": 8,
+++ "parti_boyutu": 5,
+++ "parti_boyutu_ölçeği": 2,
+++ "durum": "açık",
+++ "kimlik": 1,
+++ "müzayede_fiyatı": 0,
+++ "müzayede_boyutu": 0,
+++ "müzayede_zamanı": "1530",
+++ "dengesizlik": 0
+++ }
+++}
+++Yanıtlar
+++Durum Anlamı Açıklama Şema
+++200 OK Başarılı Satır İçi
+++Yanıt Şeması
+++Durum Kodu 200
+++
+++Ad Türü Gerekli Kısıtlamalar Açıklama
+++» additionalProperties SymbolStatus false hiçbiri hiçbiri
+++»» base_currency sembolü false none Blockchain sembol tanımlayıcısı
+++»» base_currency_scale integer false none Para biriminin bölünebileceği ondalık sayı
+++»» karşıt_para birimi sembolü false none Blockchain sembol tanımlayıcısı
+++»» counter_currency_scale integer false none Para biriminin bölünebileceği ondalık sayı
+++»» min_price_increment integer(int64) false none Enstrümanın fiyatı min_price_increment * (10^-min_price_increment_scale)'in bir katı olmalıdır
+++»» min_price_increment_scale tamsayı false hiçbiri hiçbiri
+++»» min_order_size integer(int64) false none Bu enstrüman için bir siparişin minimum miktarı min_order_size*(10^-min_order_size_scale) olmalıdır
+++»» min_order_size_scale tamsayı false hiçbiri hiçbiri
+++»» max_order_size integer(int64) false hiçbiri
++diff --git a/README.md b/README.md
++ silinen dosya modu 100644
++indeks 9bcdabc8..00000000
++--- a/README.md
+++++ /dev/null
++@@ -1.394 +0,0 @@
++-# Binance Ticaret Botu
++-
++-[![Ukrayna'nın Yanında Olun](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://war.ukraine.ua)
++-
++-
++-[![GitHub sürümü](https://img.shields.io/github/package-json/v/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading -bot/sürümler)
++-[![Oluştur](https://github.com/chrisleekr/binance-trading-bot/workflows/Push/badge.svg)](https://github.com/chrisleekr/binance-trading-bot/actions?query=workflow%3APush)
++-[![CodeCov](https://codecov.io/gh/chrisleekr/binance-ticaret-botu/branch/master/graph/badge.svg)](https://codecov.io/gh/chrisleekr/binance-ticaret-botu)
++-[![Docker çekme](https://img.shields.io/docker/pulls/chrisleekr/binance-trading-bot)](https://hub.docker.com/r/chrisleekr/binance-trading-bot)
++-[![GitHub katılımcıları](https://img.shields.io/github/contributors/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
++-[![MIT Lisansı](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
++-
++-> Takip eden alım/satım stratejisine sahip otomatik Binance ticaret botu
++-
++----
++-
++-[![ko](https://img.shields.io/badge/lang-한국어-brightgreen.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/ README.ko.md)
++-[![中文](https://img.shields.io/badge/lang-中文-blue.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/ README.zh-cn.md)
++-
++-Bu bir test projesidir. Sadece kodumu test ediyorum.
++-
++-## Uyarılar
++-
++-**Para kazanıp kazanamayacağınızı garanti edemem.**
++-
++-**Bu yüzden kendi riskinizle kullanın! Herhangi bir kayıp veya zorluktan sorumlu değilim
++-bu kodu kullanarak doğrudan veya dolaylı olarak ortaya çıkan. Oku
++-[sorumluluk reddi](#sorumluluk reddi) bu kodu kullanmadan önce.**
++-
++-**Botu güncellemeden önce notta son satın alma fiyatını kaydettiğinizden emin olun. Yapılandırma veya son satın alma fiyatı kayıtlarını kaybedebilir.**
++-
++-## Nasıl çalışır
++-
++-### Trailing Grid Trade Alım/Satım Botu
++-
++-Bu bot, fiyatın düşüşünü/yükselişini takip etmeyi sağlayan takip eden alım/satım emri konseptini kullanıyor.
++-
++-> Takip Eden Durdurma Emirleri
++-> Trailing Stop Emirleri Konsepti hakkında daha fazla bilgi edinmek için [Binance Resmi Belgesi](https://www.binance.com/en/support/faq/360042299292) adresini ziyaret edebilirsiniz.
++->
++-> ÖZET
++-> Fiyat değiştiğinde sabit bir değer veya yüzde ile emir verin. Bu özelliği kullanarak, aşağı satın alırken mümkün olan en düşük fiyattan satın alabilir ve yukarı satarken mümkün olan en yüksek fiyattan satabilirsiniz.
++-
++-- Bot, yapılandırmaya bağlı olarak birden fazla alım/satım emrini destekler.
++-- Bot birden fazla sembolü izleyebilir. Tüm semboller saniyede bir izlenecektir.
++-- Bot, kalıcılık veritabanı sağlamak için MongoDB kullanıyor. Ancak, Raspberry Pi 32bit'i desteklemek için en son MongoDB'yi kullanmıyor. Kullanılan MongoDB sürümü
++- [apcheamitru](https://hub.docker.com/r/apcheamitru/arm32v7-mongo) tarafından sağlanan 3.2.20'dir.
++-- Bot Linux ve Raspberry Pi 4 32bit ile test edildi/çalışıyor. Diğer platformlar test edilmedi.
++-
++-#### Satın Alma Sinyali
++-
++-Bot, grid ticaret yapılandırmasına göre coin'i sürekli olarak izleyecektir.
++-
++-Grid ticareti #1 için bot, mevcut fiyat en düşük fiyata ulaştığında satın almak için bir STOP-LOSS-LIMIT emri verecektir. Mevcut fiyat sürekli düşerse, bot önceki emri iptal edecek ve yeni STOP-LOSS-LIMIT emrini yeni fiyatla yeniden koyacaktır.
++-
++- 1. Grid ticareti sonrasında bot, COIN'i son satın alma fiyatına göre izleyecektir.
++-
++-- Bot, satış için tetikleyici fiyata ulaştığında satmaya yetecek kadar coin'i (genellikle 10$'ın üzerinde) varsa, grid ticareti #1 için satın alma emri vermeyecektir.
++-- Tahmini değer son satın alma fiyatı kaldırma eşiğinden düşükse bot son satın alma fiyatını kaldıracaktır.
++-
++-##### Satın Alma Senaryosu
++-
++-Diyelim ki, buy grid trade konfigürasyonları aşağıdaki gibi ayarlanmış olsun:
++-
++-- Izgara sayısı: 2
++-- Izgaralar
++- | Hayır# | Tetikleme Yüzdesi | Durdurma Fiyat Yüzdesi | Limit fiyat yüzdesi | USDT |
++- | --- | ------------------- | --------------------- | ----------------------- | ---- |
++- | 1 | 1 | 1.05 | 1.051 | 50 |
++- | 2 | 0.8 | 1.03 | 1.031 | 100 |
++-
++-Anlaşılmasını kolaylaştırmak için USDT sembolü olarak `$` kullanacağım. Basit hesaplama için komisyonu hesaba katmıyorum. Gerçek ticarette miktar farklı olabilir.
++-
++-Alım için 1. grid ticaretiniz aşağıdaki gibi yapılandırılmıştır:
++-
++-- Izgara No#: 1
++-- Tetikleme yüzdesi: 1
++-- Durdurma yüzdesi: 1.05 (5.00%)
++-- Sınır yüzdesi: 1.051 (5.10%)
++-- Maksimum satın alma tutarı: 50$
++-
++-Ve piyasa şu şekilde:
++-
++-- Güncel fiyat: 105$
++-- En düşük fiyat: 100$
++-- Tetik fiyatı: 100$
++-
++-Mevcut fiyat en düşük fiyata (100$) düştüğünde ve etkinleştirildiğinde ATH (Tüm Zamanların En Yüksek) kısıtlı fiyatından daha düşük olduğunda, bot satın alma için yeni STOP-LOSS-LIMIT emri verecektir.
++-
++-- Durdurma fiyatı: 100$ * 1,05 = 105$
++-- Limit fiyatı: 100$ * 1.051 = 105.1$
++-- Miktar: 0.47573
++-
++- Piyasanın aşağıdaki gibi değiştiğini varsayalım:
++-
++-- Güncel fiyat: 95$
++-
++-Ardından bot fiyat düşüşünü takip edecek ve aşağıdaki gibi yeni STOP-LOSS-LIMIT emri verecektir:
++-
++-- Durdurma fiyatı: 95$ * 1,05 = 99,75$
++-- Limit fiyatı: 95$ * 1.051 = 99.845$
++-- Miktar: 0,5
++-
++- Piyasanın aşağıdaki gibi değiştiğini varsayalım:
++-
++-- Güncel fiyat: 100$
++-
++-Ardından bot coin için ilk satın alma işlemini gerçekleştirecek. Son satın alma fiyatı `$99.845` olarak kaydedilecek. Satın alınan miktar `0.5` olacak.
++-
++-Coin satın alındıktan sonra bot satış sinyalini izlemeye başlayacak ve aynı zamanda satın alma için bir sonraki grid ticaretini izleyecektir.
++-
++-Alım için 2. grid ticaretiniz aşağıdaki gibi yapılandırılmıştır:
++-
++-- Izgara #: 2
++-- Güncel son satın alma fiyatı: 99.845$
++-- Tetikleme yüzdesi: 0,8 (%20)
++-- Durdurma yüzdesi: 1.03 (3.00%)
++-- Sınır yüzdesi: 1.031 (3.10%)
++-- Maksimum satın alma tutarı: 100$
++-
++-Ve eğer mevcut fiyat sürekli olarak `$79.876`ya (yüzde 20 daha düşük) düşerse, bot coin için 2. grid ticareti için yeni bir STOP-LOSS-LIMIT emri verecektir.
++-
++- Piyasanın aşağıdaki gibi değiştiğini varsayalım:
++-
++-- Güncel fiyat: 75$
++-
++-Ardından bot fiyat düşüşünü takip edecek ve aşağıdaki gibi yeni STOP-LOSS-LIMT emri verecektir:
++-
++-- Durdurma fiyatı: 75$ * 1.03 = 77.25$
++-- Limit fiyatı: 75$ * 1.031 = 77.325$
++-- Miktar: 1,29
++-
++- Piyasanın aşağıdaki gibi değiştiğini varsayalım:
++-
++-- Güncel fiyat: 78$
++-
++-Ardından bot coin için 2. satın alma işlemini gerçekleştirecektir. Son satın alma fiyatı otomatik olarak aşağıdaki gibi yeniden hesaplanacaktır:
++-
++-- Son satın alma fiyatı: (50 $ + 100 $)/(0,5 COIN + 1,29 COIN) = 83,80 $
++-
++-##### Ayrıntılı Satın Alma Yapılandırması ayrıntılı
++-
++-Satın alma yapılandırmasına ilişkin detaylı dokümana buradan ulaşabilirsiniz.
++-
++-[https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario)
++-
++-### Satış Sinyali
++-
++-Satış için yeterli bakiye varsa ve son alım fiyatı bota kaydedilmişse, bot grid ticareti #1'in satış sinyalini izlemeye başlayacaktır. Mevcut fiyat grid ticareti #1'in tetik fiyatına ulaştığında, bot satış için bir DURDURMA-KAYIP-SINIRI emri verecektir. Mevcut fiyat sürekli olarak yükselirse, bot önceki emri iptal edecek ve yeni DURDURMA-KAYIP-SINIRI emrini yeni fiyatla yeniden koyacaktır.
++-
++-- Botun son alış fiyatına dair bir kaydı yoksa, bot coin'i satmayacaktır.
++-- Eğer coin son satın alma fiyatı kaldırma eşiğinden daha az değerliyse, bot son satın alma fiyatını kaldıracaktır.
++-- Eğer coin minimum nominal değerden daha az değerde ise bot emir vermeyecektir.
++-
++-#### Satış Senaryosu
++-
++- Diyelim ki satış ızgarası ticaret yapılandırmaları aşağıdaki gibi ayarlandı:
++-
++-- Izgara sayısı: 2
++-- Izgaralar
++- | Hayır# | Tetikleme Yüzdesi | Durdurma Fiyat Yüzdesi | Limit fiyat yüzdesi | Satış Miktarı Yüzdesi |
++- | --- | ------------------- | --------------------- | --------------------- |--------------------------- |
++- | 1. | 1.05 | 0,97 | 0,969 | 0,5 |
++- | 2. | 1.08 | 0,95 | 0,949 | 1 |
++-
++-Satın almanın aksine, satış yapılandırması bir miktarın yüzdesini kullanacaktır. Tüm coin miktarınızı satmak istiyorsanız, bunu basitçe `1` (100%) olarak yapılandırın.
++-
++-Son satın alma işlemlerinizden itibaren bakiyeleriniz şu şekilde:
++-
++-- Mevcut miktar: 1.79
++-- Güncel son satın alma fiyatı: 83,80$
++-
++- Satış için 1. grid ticaretiniz aşağıdaki gibi yapılandırılmıştır:
++-
++-- Izgara No# 1
++-- Tetikleme yüzdesi: 1.05
++-- Stop fiyat yüzdesi: 0,97
++-- Limit fiyat yüzdesi: 0,969
++-- Satış miktarı yüzdesi: 0.5
++-
++- Piyasanın aşağıdaki gibi değiştiğini varsayalım:
++-
++-- Güncel fiyat: 88$
++-
++-Mevcut fiyat satış tetikleyici fiyatından ($87.99) yüksek olduğu için bot satış için yeni STOP-LOSS-LIMIT emri verecektir.
++-
++-- Durdurma fiyatı: 88$ * 0,97 = 85,36$
++-- Limit fiyatı: 88$ * 0,969 = 85,272$
++-- Miktar: 0,895
++-
++- Piyasanın aşağıdaki gibi değiştiğini varsayalım:
++-
++-- Güncel fiyat: 90$
++-
++-Ardından bot fiyat artışını takip edecek ve aşağıdaki gibi yeni STOP-LOSS-LIMIT emri verecektir:
++-
++-- Durdurma fiyatı: 90$ * 0,97 = 87,30$
++-- Limit fiyatı: 90$ * 0,969 = 87,21$
++-- Miktar: 0,895
++-
++- Piyasanın aşağıdaki gibi değiştiğini varsayalım:
++-
++-- Güncel fiyat: 87$
++-
++-Ardından bot coin için 1. satışı gerçekleştirecek. Daha sonra bot 2. satış tetikleyici fiyatını bekleyecek ($83.80 * 1.08 = $90.504).
++-
++-- Mevcut miktar: 0,895
++-- Güncel son satın alma fiyatı: 83,80$
++-
++- Piyasanın aşağıdaki gibi değiştiğini varsayalım:
++-
++-- Güncel fiyat: 91$
++-
++- O zaman mevcut fiyat (91 $) 2. satış tetikleyici fiyatından (90.504 $) yüksekse, bot aşağıdaki gibi yeni STOP-LOSS-LIMIT emri verecektir:
++-
++-- Durdurma fiyatı: 91$ * 0,95 = 86,45$
++-- Limit fiyatı: 91$ * 0,949 = 86,359$
++-- Miktar: 0,895
++-
++- Piyasanın aşağıdaki gibi değiştiğini varsayalım:
++-
++-- Güncel fiyat: 100$
++-
++-Ardından bot fiyat artışını takip edecek ve aşağıdaki gibi yeni STOP-LOSS-LIMT emri verecektir:
++-
++-- Durdurma fiyatı: 100$ * 0,95 = 95$
++-- Limit fiyatı: 100$ * 0,949 = 94,9$
++-- Miktar: 0,895
++-
++- Piyasanın aşağıdaki gibi değiştiğini varsayalım:
++-
++-- Güncel fiyat: 94$
++-
++-Ardından bot coin için 2. satışı gerçekleştirecek.
++-
++-Son kar şu şekilde olacaktır:
++-
++-- 1. satış: 94,9$ * 0,895 = 84,9355$
++-- 2. satış: 87,21$ * 0,895 = 78,05295$
++-- Son kar: 162 $ (%8 kar)
++-
++-##### Derinlemesine Satış Yapılandırması
++-
++-Satın alma yapılandırmasına ilişkin detaylı dokümana buradan ulaşabilirsiniz.
++-
++-[https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario)
++-
++-### [Özellikler](https://github.com/chrisleekr/binance-trading-bot/wiki/Features)
++-
++-- Manuel ticaret
++-- Küçük bakiyeleri BNB'ye dönüştürün
++-- Tüm sembollerle işlem yapın
++-- Birden fazla coin'i aynı anda izleme
++-- Zarar Durdurma
++-- ATH fiyatıyla satın almayı kısıtla
++-- Alım/satım için Grid Ticareti
++-- TradingView Teknik Analizi ile Entegre
++-
++-### Ön Uç + WebSocket
++-
++-Web Socket üzerinden haberleşen React.js tabanlı önyüz:
++-
++-- Satın alma/satış sinyalleri/açık emirleri olan coin'leri listeleme
++-- Hesap bakiyelerini görüntüle
++-- Açık/kapalı işlemleri görüntüle
++-- Küresel/sembol ayarlarını yönet
++-- İzlenmeyen önbellekleri sil
++-- Genel URL'ye bağlantı
++-- Destek Ana Ekrana Ekle
++-- Güvenli önyüz
++-
++-## Çevre Parametreleri
++-
++- Parametreleri ayarlamak için ortam parametrelerini kullanın. Kullanılabilir ortam parametrelerinin listesini görmek için `/config/custom-environment-variables.json`'u kontrol edin.
++-
++-Veya uygulamayı başlattıktan sonra yapılandırmaları ayarlamak için ön ucu kullanın.
++-
++-## Nasıl kullanılır
++-
++-1. `.env.dist` temel alınarak `.env` dosyası oluşturulur.
++-
++- | Ortam Anahtarı | Açıklama | Örnek Değer |
++- | ------------------------------ | -------------------------------------------------- ----------------------- | -------------------------------------------------- -------------------------------------------------- |
++- | BINANCE_LIVE_API_KEY | Canlı yayın için Binance API anahtarı | (kaynak: [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-API-nasıl-oluşturulur)) |
++- | BINANCE_LIVE_SECRET_KEY | Canlı yayın için Binance API sırrı | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-API-nasıl-oluşturulur)) |
++- | BINANCE_TEST_API_KEY | Test için Binance API anahtarı | ([Binance Spot Test Ağı](https://testnet.binance.vision/) adresinden) |
++- | BINANCE_TEST_SECRET_KEY | Test için Binance API sırrı | (Binance Spot Test Ağı'ndan](https://testnet.binance.vision/)) |
++- | BINANCE_SLACK_ENABLED | Slack etkinleştirme/devre dışı bırakma | true |
++- | BINANCE_SLACK_WEBHOOK_URL | Slack webhook URL'si | (Slack'ten) |
++- | BINANCE_SLACK_CHANNEL | Slack kanalı | "#binance" |
++- | BINANCE_SLACK_USERNAME | Slack kullanıcı adı | Chris |
++- | BINANCE_LOCAL_TUNNEL_ENABLED | [yerel tüneli](https://github.com/localtunnel/localtunnel) Etkinleştir/Devre Dışı Bırak | true |
++- | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Yerel tünel genel URL alt etki alanı | binance |
++- | BINANCE_AUTHENTICATION_ENABLED | Önyüz kimlik doğrulamasını etkinleştir/devre dışı bırak | true |
++- | BINANCE_AUTHENTICATION_PASSWORD | Ön uç şifresi | 123456 |
++- | BINANCE_LOG_LEVEL | Günlük kaydı düzeyi. [Olası değerler `bunyan` belgelerinde açıklanmıştır.](https://www.npmjs.com/package/bunyan#levels) | HATA |
++-
++- *Yerel bir tünel botu dışarıdan erişilebilir hale getirir. Lütfen yerel tünelin alt alan adını yalnızca sizin hatırlayabileceğiniz bir alt alan adı olarak ayarlayın.*
++- *Kimlik doğrulama şifresini değiştirmeniz gerekmektedir; aksi takdirde varsayılan şifre olarak yapılandırılacaktır.*
++-
++-2. Botu docker-compose ile başlatın/güncelleyin
++-
++- Önce son kodu çek:
++-
++- ```vur
++- git çek
++- ```
++-
++- Eğer üretim/canlı modunu istiyorsanız, DockerHub'dan en son yapı imajını kullanın:
++-
++- ```vur
++- docker-compose -f docker-compose.server.yml çekme
++- docker-compose -f docker-compose.server.yml yukarı -d
++- ```
++-
++- Veya geliştirme/test modunu istiyorsanız, aşağıdaki komutları çalıştırın:
++-
++- ```vur
++- docker-compose up -d --build
++- ```
++-
++-3. Ön yüzü görmek için `http://0.0.0.0:8080` tarayıcısını açın
++-
++- - Uygulamayı başlattığınızda Slack'e ait genel URL'yi bildirecektir.
++- - Botla ilgili herhangi bir sorun yaşarsanız botta ne olduğunu öğrenmek için log'u kontrol edebilirsiniz. Lütfen [Sorun Giderme](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting) bölümüne bakın
++-
++-### Stackfile aracılığıyla yükleyin
++-
++-1. [Portainer](https://www.portainer.io/)'da yeni bir Yığın oluşturun
++-
++-2. `docker-stack.yml` içeriğini kopyalayın veya dosyayı yükleyin
++-
++-3. `docker-stack.yml` dosyasında `binance-bot` için ortam anahtarlarını ayarlayın
++-
++-4. Ön yüzü görmek için tarayıcıyı başlatın ve açın `http://0.0.0.0:8080`
++-
++-## Ekran Görüntüleri
++-
++-| Şifre Korumalı | Ön Uç Mobil |
++-| ------------------ | --------------- |
++-| ![Şifre Korumalı](https://user-images.githubusercontent.com/5715919/133920104-49d1b590-c2ba-46d7-a294-eb6b24b459f5.png) | ![Ön Uç Mobil](https://user-images.githubusercontent.com/5715919/137472107-4059fcdf-5174-4282-81af-80cea5b269a0.png) |
++-
++-| Ayarlar | Manuel İşlem |
++-| ------- | ------------ |
++-| ![Ayar](https://user-images.githubusercontent.com/5715919/127318581-4e422ac9-b145-4e83-a90d-5c05c61d6e2f.png) | ![Manuel Ticaret](https://user-images.githubusercontent.com/5715919/127318630-f2180e1b-3feb-48fa-a083-4cb7f90f743f.png) |
++-
++-| Ön Uç Masaüstü | Kapalı İşlemler |
++-| ----------------- | ------------- |
++-| ![Ön Uç Masaüstü](https://user-images.githubusercontent.com/5715919/137472148-7be1e19b-3ce5-4d5a-aa28-18c55b3b48aa.png) | ![Kapalı İşlemler](https://user-images.githubusercontent.com/5715919/137472190-a4c6ef0f-3399-44bb-852f-eedb7c67d629.png) |
++-
++-### Örnek Ticaret
++-
++-| Grafik | Alış Emirleri | Satış Emirleri |
++-| -------------------------------------------------- -------------------------------------------------- ---------- | -------------------------------------------------- -------------------------------------------------- --------------- | -------------------------------------------------- -------------------------------------------------- ---------------- |
++-| ![Grafik](https://user-images.githubusercontent.com/5715919/111027391-192db300-8444-11eb-8df4-91c98d0c835b.png) | ![Satın Alma Siparişleri](https://user-images.githubusercontent.com/5715919/111027403-36628180-8444-11eb-91dc-f3cdabc5a79e.png) | ![Satış Siparişleri](https://user-images.githubusercontent.com/5715919/111027411-4b3f1500-8444-11eb-8525-37f02a63de25.png) |
++-
++-## Değişiklikler ve Yapılacaklar
++-
++-Lütfen bakınız
++-[CHANGELOG.md](https://github.com/chrisleekr/binance-ticaret-botu/blob/master/CHANGELOG.md)
++-Geçmiş değişiklikleri görüntülemek için.
++-
++-- [ ] Sırlar için basit kurulum ekranı geliştirin
++-- [ ] Satın alma eyleminden önce stop-loss'un yürütülmesine izin ver - [#299](https://github.com/chrisleekr/binance-trading-bot/issues/299)
++-- [ ] Kar yüzdesine dayalı koşullu durdurma fiyatı yüzdesiyle satış stratejisini geliştirin - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
++-- [ ] Ani düşüş alım stratejisi ekleyin - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
++-- [ ] Ayar profillerini yönet (kaydet/değiştir/yükle?/dışa aktar?) - [#151](https://github.com/chrisleekr/binance-trading-bot/issues/151)
++-- [ ] Apprise'ı destekleyerek bildirimleri iyileştirin - [#106](https://github.com/chrisleekr/binance-trading-bot/issues/106)
++-- [ ] Satın almadan önce en düşük fiyata ulaştıktan sonra destek soğuma süresi - [#105](https://github.com/chrisleekr/binance-trading-bot/issues/105)
++-- [ ] Genel yapılandırmayı ilk yapılandırmaya sıfırla - [#97](https://github.com/chrisleekr/binance-trading-bot/issues/97)
++-- [ ] Çok dilli ön ucu destekleyin - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
++-- [ ] Doğrusal olmayan durdurma fiyatı ve takip fonksiyonu - [#246](https://github.com/chrisleekr/binance-trading-bot/issues/246)
++-- [ ] Satış için ızgara ticareti başına STOP-LOSS yapılandırmasını destekleyin - [#261](https://github.com/chrisleekr/binance-trading-bot/issues/261)
++-
++-## Bağışlar
++-
++-Bu projeyi faydalı bulursanız, küçük bir
++-[bağış](https://github.com/chrisleekr/binance-trading-bot/blob/master/DONATIONS.md)
++-geliştiriciye.
++-
++-## Teşekkürler
++-
++-- [@d0x2f](https://github.com/d0x2f)
++-- Ve daha niceleri! Teşekkürler beyler!
++-
++-## Katkıda Bulunanlar
++-
++-Tüm katılımcılara teşekkürler :heart: [Kahramanlarımızı görmek için tıklayın](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
++-
++-## Sorumluluk reddi
++-
++-Bu projede yer alan bilgi ve materyallerin doğruluğu veya eksiksizliği konusunda hiçbir garanti vermiyorum ve hiçbir sorumluluk veya yükümlülük kabul etmiyorum. Hiçbir koşulda, bu kodu veya buna bağlı herhangi bir kodu kullanmanızdan veya kullanamamanızdan veya bu koddaki bilgi ve materyale güvenmenizden kaynaklanan veya doğrudan veya dolaylı olarak ortaya çıkan herhangi bir talep, hasar, kayıp, masraf, maliyet veya yükümlülükten (kar kaybı, iş kesintisi veya bilgi kaybı için doğrudan veya dolaylı hasarlar dahil ancak bunlarla sınırlı olmamak üzere) hiçbir şekilde sorumlu veya yükümlü tutulmayacağım, bu tür hasarların olasılığı önceden bana bildirilmiş olsa bile.
++-
++-**Bu yüzden kendi sorumluluğunuzda kullanın!**
++
++3181d707e74b3477dbaf148e0f5296486a032a5b Pazartesi 17 Eylül 00:00:00 2001
++Gönderen: Recep <148443421+zxramozx@users.noreply.github.com>
++Tarih: Cum, 30 Ağu 2024 16:26:04 +0300
++Konu: [PATCH 2/2] Azure Pipelines ile CI Kurulumu
++
++vmImage: ubuntu-en son [ci'yi atla]
++---
++ azure-pipelines.yml | 21 +++++++++++++++++++++
++ 1 dosya değiştirildi, 21 ekleme(+)
++ 100644 azure-pipelines.yml modunu oluştur
++
++diff --git a/azure-pipelines.yml b/azure-pipelines.yml
++yeni dosya modu 100644
++indeks 00000000..a7f2a029
++--- /dev/null
+++++ b/azure-pipelines.yml
++@@ -0,0 +1,21 @@
+++# React ile Node.js
+++# React kullanan bir Node.js projesi oluşturun.
+++# Kodu analiz eden, derleme eserlerini kaydeden, dağıtan ve daha fazlasını yapan adımlar ekleyin:
+++# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
+++
+++tetikleyici:
+++-usta
+++
+++havuz:
+++ vmImage: ubuntu-latest
+++
+++adımlar:
+++- görev: NodeTool@0
+++ girişleri:
+++ sürümÖzelliği: '10.x'
+++ displayName: 'Node.js'yi Yükle'
+++
+++- komut dosyası: |
+++ npm kurulumu
+++ npm build'i çalıştır
+++ displayName: 'npm kurulum ve derleme'
