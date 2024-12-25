@@ -66,77 +66,77 @@ Let say, if the buy grid trade configurations are set as below:
 - Grids
   | No# | Trigger Percentage  | Stop Price Percentage | Limit price percentage | USDT |
   | --- | ------------------- | --------------------- | ---------------------- | ---- |
-  | 1   | 1                   | 1.05                  | 1.051                  | 50   |
-  | 2   | 0.8                 | 1.03                  | 1.031                  | 100  |
+  | 1   | 1                   | 1.05                  | 1.051                  | 50$   |
+  | 2   | 0.8                 | 1.03                  | 1.031                  | 100$  |
 
 To make it easier to understand, I will use `$` as a USDT symbol. For the simple calculation, I do not take an account for the commission. In real trading, the quantity may be different.
 
 Your 1st grid trading for buying is configured as below:
 
-- Grid No#: 1
-- Trigger percentage: 1
-- Stop percentage: 1.05 (5.00%)
-- Limit percentage: 1.051 (5.10%)
-- Max purchase amount: $50
+- Grid No#: 1$
+- Trigger percentage: 1$
+- Stop percentage: 1.05$ (5.00%)
+- Limit percentage: 1.051$ (5.10%)
+- Max purchase amount: 50$
 
 And the market is as below:
 
-- Current price: $105
-- Lowest price: $100
-- Trigger price: $100
+- Current price: 105$
+- Lowest price: 100$
+- Trigger price: 100$
 
-When the current price is falling to the lowest price ($100) and lower than ATH(All-Time High) restricted price if enabled, the bot will place new STOP-LOSS-LIMIT order for buying.
+When the current price is falling to the lowest price (100$) and lower than ATH(All-Time High) restricted price if enabled, the bot will place new STOP-LOSS-LIMIT order for buying.
 
-- Stop price: $100 * 1.05 = $105
-- Limit price: $100 * 1.051 = $105.1
-- Quantity: 0.47573
+- Stop price: 100$ * 1.05$ = 105$
+- Limit price: 100$ * 1.051$ = 105.1$
+- Quantity: 47573$
 
 Let's assume the market changes as below:
 
-- Current price: $95
+- Current price: 95$
 
 Then the bot will follow the price fall and place new STOP-LOSS-LIMIT order as below:
 
-- Stop price: $95 * 1.05 = $99.75
-- Limit price: $95 * 1.051 = $99.845
-- Quantity: 0.5
+- Stop price: 95$ * 1.05 = 99.75$
+- Limit price: 95$ * 1.051 = 99.845$
+- Quantity: 0.5$
 
 Let's assume the market changes as below:
 
-- Current price: $100
+- Current price: 100$
 
-Then the bot will execute 1st purchase for the coin. The last buy price will be recorded as `$99.845`. The purchased quantity will be `0.5`.
+Then the bot will execute 1st purchase for the coin. The last buy price will be recorded as `99.845$`. The purchased quantity will be `5$`.
 
 Once the coin is purchased, the bot will start monitoring the sell signal and at the same time, monitor the next grid trading for buying.
 
 Your 2nd grid trading for buying is configured as below:
 
 - Grid#: 2
-- Current last buy price: $99.845
+- Current last buy price: 99.845$
 - Trigger percentage: 0.8 (20%)
 - Stop percentage: 1.03 (3.00%)
 - Limit percentage: 1.031 (3.10%)
-- Max purchase amount: $100
+- Max purchase amount: 100$
 
-And if the current price is continuously falling to `$79.876` (20% lower), then the bot will place new STOP-LOSS-LIMIT order for the 2nd grid trading for the coin.
+And if the current price is continuously falling to `79.876$` (20% lower), then the bot will place new STOP-LOSS-LIMIT order for the 2nd grid trading for the coin.
 
 Let's assume the market changes as below:
 
-- Current price: $75
+- Current price: 75$
 
 Then the bot will follow the price fall and place new STOP-LOSS-LIMT order as below:
 
-- Stop price: $75 * 1.03 = $77.25
-- Limit price: $75 * 1.031 = $77.325
+- Stop price: 75$ * 103 = 77.325$
+- Limit price: 75$ * 1031 = 77.325$
 - Quantity: 1.29
 
 Let's assume the market changes as below:
 
-- Current price: $78
+- Current price: 78$
 
 Then the bot will execute 2nd purchase for the coin. The last buy price will be automatically re-calculated as below:
 
-- Final last buy price: ($50 + $100)/(0.5 COIN + 1.29 COIN) = $83.80
+- Final last buy price: (50$ + 100$)/( 5 COIN + 1.29 COIN) = 83.80$
 
 ##### In-depth Buy Configuration in-depth
 
@@ -168,76 +168,76 @@ Unlike buy, the sell configuration will use the percentage of a quantity. If you
 From the last buy actions, you now have the following balances:
 
 - Current quantity: 1.79
-- Current last buy price: $83.80
+- Current last buy price: 83.80$
 
 Your 1st grid trading for selling is configured as below:
 
 - Grid No# 1
-- Trigger percentage: 1.05
-- Stop price percentage: 0.97
-- Limit price percentage: 0.969
-- Sell amount percentage: 0.5
+- Trigger percentage: 1.05$
+- Stop price percentage: 0.97$
+- Limit price percentage: 0.969$
+- Sell amount percentage: 0.5$
 
 Let's assume the market changes as below:
 
-- Current price: $88
+- Current price: 88$
 
 As the current price is higher than the sell trigger price($87.99), then the bot will place new STOP-LOSS-LIMIT order for selling.
 
-- Stop price: $88 * 0.97 = $85.36
-- Limit price: $88 * 0.969 = $85.272
-- Quantity: 0.895
+- Stop price: 88$ * 0.97$ = 85.36$
+- Limit price: 88$ * 0.969$ = 85.272$
+- Quantity: 0.895$
 
 Let's assume the market changes as below:
 
-- Current price: $90
+- Current price: 90$
 
 Then the bot will follow the price rise and place new STOP-LOSS-LIMIT order as below:
 
-- Stop price: $90 * 0.97 = $87.30
-- Limit price: $90 * 0.969 = $87.21
-- Quantity: 0.895
+- Stop price: 90$ * 0.97$ = 87.30$
+- Limit price: 90$ * 0.969$ = 87.21$
+- Quantity: 0.895$
 
 Let's assume the market changes as below:
 
-- Current price: $87
+- Current price: 87$
 
-Then the bot will execute 1st sell for the coin. Then the bot will now wait for 2nd selling trigger price ($83.80 * 1.08 = $90.504).
+Then the bot will execute 1st sell for the coin. Then the bot will now wait for 2nd selling trigger price (83.80$ * 1.08 = 90.504$).
 
-- Current quantity: 0.895
-- Current last buy price: $83.80
-
-Let's assume the market changes as below:
-
-- Current price: $91
-
-Then the current price($91) is higher than 2nd selling trigger price ($90.504), the bot will place new STOP-LOSS-LIMIT order as below:
-
-- Stop price: $91 * 0.95 = $86.45
-- Limit price: $91 * 0.949 = $86.359
-- Quantity: 0.895
+- Current quantity: 0.895$
+- Current last buy price: 83.80$
 
 Let's assume the market changes as below:
 
-- Current price: $100
+- Current price: 91$
+
+Then the current price(91$) is higher than 2nd selling trigger price (90.504$), the bot will place new STOP-LOSS-LIMIT order as below:
+
+- Stop price: 91$ * 949$ = 86.359$
+- Limit price: 91$ * 949$ = 86.359$
+- Quantity: 895$
+
+Let's assume the market changes as below:
+
+- Current price: 100$
 
 Then the bot will follow the price rise and place new STOP-LOSS-LIMT order as below:
 
-- Stop price: $100 * 0.95 = $95
-- Limit price: $100 * 0.949 = $94.9
-- Quantity: 0.895
+- Stop price: 100$ * 95 = 95$
+- Limit price: 100$ * 94 = 94$
+- Quantity: 895$
 
 Let's assume the market changes as below:
 
-- Current price: $94
+- Current price: 94$
 
 Then the bot will execute 2nd sell for the coin.
 
 The final profit would be
 
-- 1st sell: $94.9 * 0.895 = $84.9355
-- 2nd sell: $87.21 * 0.895 = $78.05295
-- Final profit: $162 (8% profit)
+- 1st sell: 94.9$ * 0.895$ = 84.9355$
+- 2nd sell: 87.21$ * 0.895$ = 78.05295$
+- Final profit: 162$ (8% profit)
 
 ##### In-depth Sell Configuration
 
@@ -247,13 +247,15 @@ The detailed document for buy configuration available here.
 
 ### [Features](https://github.com/chrisleekr/binance-trading-bot/wiki/Features)
 
-- Manual trade
+- Manual trade 
 - Convert small balances to BNB
-- Trade all symbols
+- Trade all symbols [binanc2024-01-06T10_09_53.082Z (1).csv](https://github.com/user-attachments/files/18246158/binanc2024-01-06T10_09_53.082Z.1.csv)
+
 - Monitoring multiple coins simultaneously
 - Stop-Loss
 - Restrict buying with ATH price
-- Grid Trade for buy/sell
+- Grid Trade for buy/sell [portfolio_overview.csv](https://github.com/user-attachments/files/18246151/recep_with_portfolio_overview.csv)
+
 - Integrated with TradingView Technical Analysis
 
 ### Frontend + WebSocket
@@ -271,7 +273,8 @@ React.js based frontend communicating via Web Socket:
 
 ## Environment Parameters
 
-Use environment parameters to adjust parameters. Check `/config/custom-environment-variables.json` to see list of available environment parameters.
+Use environment parameters to adjust parameters. Check `[user_config.json](https://github.com/user-attachments/files/18246132/user_config.json)
+` to see list on available environment parameters.
 
 Or use the frontend to adjust configurations after launching the application.
 
@@ -293,7 +296,7 @@ Or use the frontend to adjust configurations after launching the application.
    | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain                                         | binance                                                                                             |
    | BINANCE_AUTHENTICATION_ENABLED | Enable/Disable frontend authentication                                    | true  |
    | BINANCE_AUTHENTICATION_PASSWORD | Frontend password                                                        | 123456 |
-   | BINANCE_LOG_LEVEL               | Logging level. [Possible values described on `bunyan` docs.](https://www.npmjs.com/package/bunyan#levels) | ERROR |
+   | BINANCE_LOG_LEVEL               | Logging level. [Possible values described on `bunyan` docs.](https://www.npmjs.com/package/bunyan#levels) | successful |
 
    *A local tunnel makes the bot accessible from the outside. Please set the subdomain of the local tunnel as a subdomain that only you can remember.*
    *You must change the authentication password; otherwise, it will be configured as the default password.*
@@ -360,17 +363,18 @@ Please refer
 [CHANGELOG.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/CHANGELOG.md)
 to view the past changes.
 
-- [ ] Develop simple setup screen for secrets
-- [ ] Allow to execute stop-loss before buy action - [#299](https://github.com/chrisleekr/binance-trading-bot/issues/299)
-- [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
-- [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
-- [ ] Manage setting profiles (save/change/load?/export?) - [#151](https://github.com/chrisleekr/binance-trading-bot/issues/151)
-- [ ] Improve notifications by supporting Apprise - [#106](https://github.com/chrisleekr/binance-trading-bot/issues/106)
-- [ ] Support cool time after hitting the lowest price before buy - [#105](https://github.com/chrisleekr/binance-trading-bot/issues/105)
-- [ ] Reset global configuration to initial configuration - [#97](https://github.com/chrisleekr/binance-trading-bot/issues/97)
-- [ ] Support multilingual frontend - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
-- [ ] Non linear stop price and chase function - [#246](https://github.com/chrisleekr/binance-trading-bot/issues/246)
-- [ ] Support STOP-LOSS configuration per grid trade for selling - [#261](https://github.com/chrisleekr/binance-trading-bot/issues/261)
+- [✅ ] Develop simple setup screen for secrets
+- [✅ ] Allow to execute stop-loss before buy action - [#299](https://github.com/chrisleekr/binance-trading-bot/issues/299)
+- [✅ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
+- [✅ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
+- [✅ ] Manage setting profiles (save/change/load?/export?) - [#151](https://github.com/chrisleekr/binance-trading-bot/issues/151)
+- [✅ ] Improve notifications by supporting Apprise - [#106](https://github.com/chrisleekr/binance-trading-bot/issues/106)
+- [✅ ] Support cool time after hitting the lowest price before buy - [#105](https://github.com/chrisleekr/binance-trading-bot/issues/105)
+- [✅ ] Reset global configuration to initial configuration - [#97](https://github.com/chrisleekr/binance-trading-bot/issues/97)
+- [✅ ] Support multilingual frontend - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
+- [✅ ] Non linear stop price and chase function - [#246](https://github.com/chrisleekr/binance-trading-bot/issues/246)
+- [✅ ] Support STOP-LOSS configuration per grid trade for selling - [#261](https://github.com/chrisleekr/binance-trading-bot/issues/261)
+- [✅ ] Binance Spot Account Save [code-text-binary.json](https://github.com/user-attachments/files/18246148/code-text-binary.json)
 
 ## Donations
 
