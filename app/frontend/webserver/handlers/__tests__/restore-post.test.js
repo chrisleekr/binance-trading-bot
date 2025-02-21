@@ -19,11 +19,13 @@ describe('webserver/handlers/restore-post', () => {
   beforeEach(async () => {
     jest.clearAllMocks().resetModules();
 
-    const shell = require('shelljs');
-    jest.mock('shelljs');
+    const childProcess = require('child_process');
+    jest.mock('child_process');
 
-    shellMock = shell;
-    shellMock.exec = jest.fn().mockImplementation((_cmd, fn) => fn());
+    shellMock = childProcess;
+    shellMock.execFile = jest
+      .fn()
+      .mockImplementation((_cmd, _args, fn) => fn(1, '', 'something happened'));
 
     rsSend = jest.fn().mockResolvedValue(true);
     appMock.route = jest.fn(() => ({
@@ -146,9 +148,11 @@ describe('webserver/handlers/restore-post', () => {
           }
         };
 
-        shellMock.exec = jest
+        shellMock.execFile = jest
           .fn()
-          .mockImplementation((_cmd, fn) => fn(1, '', 'something happened'));
+          .mockImplementation((_cmd, _args, fn) =>
+            fn(new Error('something happened'), '', 'something happened')
+          );
 
         const { handleRestorePost } = require('../restore-post');
 
@@ -174,13 +178,14 @@ describe('webserver/handlers/restore-post', () => {
           data: {
             code: 1,
             stderr: 'something happened',
-            stdout: ''
+            stdout: '',
+            error: new Error('something happened')
           }
         });
       });
     });
 
-    describe(`backup succeeed`, () => {
+    describe(`backup succeed`, () => {
       beforeEach(async () => {
         const { logger } = require('../../../../helpers');
 
@@ -202,9 +207,9 @@ describe('webserver/handlers/restore-post', () => {
           }
         };
 
-        shellMock.exec = jest
+        shellMock.execFile = jest
           .fn()
-          .mockImplementation((_cmd, fn) => fn(0, 'all good', ''));
+          .mockImplementation((_cmd, _args, fn) => fn(null, 'all good', ''));
 
         const { handleRestorePost } = require('../restore-post');
 
@@ -218,11 +223,10 @@ describe('webserver/handlers/restore-post', () => {
         );
       });
 
-      it('triggers shell.exec', () => {
-        expect(shellMock.exec).toHaveBeenCalledWith(
-          expect.stringContaining(
-            `${process.cwd()}/scripts/restore.sh binance-mongo 27017`
-          ),
+      it('triggers execFile', () => {
+        expect(shellMock.execFile).toHaveBeenCalledWith(
+          `${process.cwd()}/scripts/restore.sh`,
+          ['binance-mongo', 27017, expect.stringContaining('/tmp/')],
           expect.any(Function)
         );
       });

@@ -1,5 +1,7 @@
-const shell = require('shelljs');
+const { execFile } = require('child_process');
 const config = require('config');
+const path = require('path');
+const crypto = require('crypto');
 const {
   verifyAuthenticated
 } = require('../../../cronjob/trailingTradeHelper/common');
@@ -38,16 +40,22 @@ const handleRestorePost = async (funcLogger, app) => {
 
     const { archive } = req.files;
 
-    const filepath = `/tmp/${archive.name}`;
-    archive.mv(filepath);
+    // Create a random name for the archive file
+    const randomName = crypto.randomBytes(16).toString('hex');
+    const filepath = path.join('/tmp', `${randomName}`);
+    await archive.mv(filepath);
 
+    // Execute the restore script
     const result = await new Promise(resolve => {
-      shell.exec(
-        `${process.cwd()}/scripts/restore.sh ${config.get(
-          'mongo.host'
-        )} ${config.get('mongo.port')} ${filepath}`,
-        (code, stdout, stderr) => {
-          resolve({ code, stdout, stderr });
+      execFile(
+        `${process.cwd()}/scripts/restore.sh`,
+        [config.get('mongo.host'), config.get('mongo.port'), filepath],
+        (error, stdout, stderr) => {
+          if (error) {
+            resolve({ code: 1, stdout, stderr, error });
+            return;
+          }
+          resolve({ code: 0, stdout, stderr });
         }
       );
     });
