@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Added support for binance api TLD configuration
 - Added to support frontend port configuration - [#670](https://github.com/chrisleekr/binance-trading-bot/pull/670)
 
 ## [0.0.99] - 2024-11-04

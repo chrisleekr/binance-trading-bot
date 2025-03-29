@@ -1,6 +1,7 @@
 {
   "mode": "test",
   "tz": "Australia/Melbourne",
+  "tld": "com",
   "appName": "Binance Trading Bot",
   "demoMode": false,
   "frontend": {
