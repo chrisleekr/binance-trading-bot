@@ -8,13 +8,17 @@ class SettingIconActions extends React.Component {
     this.modalToStateMap = {
       'backup-confirm': 'showBackupConfirmModal',
       'restore-confirm': 'showRestoreConfirmModal',
-      'restore-success': 'showRestoreSuccessModal'
+      'restore-success': 'showRestoreSuccessModal',
+      'reset-confirm': 'showResetConfirmModal',
+      'reset-success': 'showResetSuccessModal'
     };
 
     this.state = {
       showBackupConfirmModal: false,
       showRestoreConfirmModal: false,
-      showRestoreSuccessModal: false
+      showRestoreSuccessModal: false,
+      showResetConfirmModal: false,
+      showResetSuccessModal: false
     };
 
     this.handleModalShow = this.handleModalShow.bind(this);
@@ -52,6 +56,17 @@ class SettingIconActions extends React.Component {
           handleModalClose={this.handleModalClose}
         />
 
+        <SettingIconActionResetConfirmModal
+          showResetConfirmModal={this.state.showResetConfirmModal}
+          handleModalShow={this.handleModalShow}
+          handleModalClose={this.handleModalClose}
+        />
+
+        <SettingIconActionResetSuccessModal
+          showResetSuccessModal={this.state.showResetSuccessModal}
+          handleModalClose={this.handleModalClose}
+        />
+
         <Accordion defaultActiveKey='0'>
           <Card className='mt-1'>
             <Card.Header className='px-2 py-1'>
@@ -80,8 +95,17 @@ class SettingIconActions extends React.Component {
                       variant='primary'
                       size='sm'
                       type='button'
+                      className='mr-2'
                       onClick={() => this.handleModalShow('restore-confirm')}>
                       Restore Database
+                    </Button>
+
+                    <Button
+                      variant='primary'
+                      size='sm'
+                      type='button'
+                      onClick={() => this.handleModalShow('reset-confirm')}>
+                      Reset Config
                     </Button>
                   </div>
                 </div>
