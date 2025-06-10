@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Added a button to reset the global configuration
+- Added 3 vs code tasks for running in test/live mode needed for testing tld
+- Added support for binance api TLD configuration - [#689](https://github.com/chrisleekr/binance-trading-bot/pull/689)
 - Added to support frontend port configuration - [#670](https://github.com/chrisleekr/binance-trading-bot/pull/670)
 
 ## [0.0.99] - 2024-11-04

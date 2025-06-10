@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run Dev",
+      "type": "shell",
+      "command": "docker-compose down; docker-compose -f ${workspaceFolder}/docker-compose.yml up -d --build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run",
+      "type": "shell",
+      "command": "docker-compose down; docker-compose -f ${workspaceFolder}/docker-compose.server.yml up -d --build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Stop",
+      "type": "shell",
+      "command": "docker-compose down",
+      "problemMatcher": []
+    }
+  ]
+}

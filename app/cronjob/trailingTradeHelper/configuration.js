@@ -134,6 +134,21 @@ const getGlobalConfiguration = async logger => {
 };
 
 /**
+ * Reset global configuration
+ * @param {*} logger
+ * @returns
+ */
+const resetGlobalConfiguration = async (logger) => {
+  const orgConfigValue = _.cloneDeep(config.get('jobs.trailingTrade'));
+
+  orgConfigValue.symbols = Object.values(orgConfigValue.symbols);
+
+  const result = await saveGlobalConfiguration(logger, orgConfigValue);
+
+  return result;
+};
+
+/**
  * Get symbol configuration from mongodb
  *
  * @param {*} logger
@@ -976,6 +991,7 @@ const getConfiguration = async (logger, symbol = null) => {
 
 module.exports = {
   saveGlobalConfiguration,
+  resetGlobalConfiguration,
 
   getGlobalConfiguration,
   getSymbolConfiguration,
