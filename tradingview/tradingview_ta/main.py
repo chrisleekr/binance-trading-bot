@@ -1,4 +1,6 @@
 # Tradingview Technical Analysis (tradingview-ta)
+# Author: AnalyzerREST (https://github.com/AnalyzerREST)
+# Copied from https://github.com/AnalyzerREST/python-tradingview-ta
 # Author: deathlyface (https://github.com/deathlyface)
 # License: MIT
 
@@ -6,10 +8,9 @@ import requests
 import json
 import datetime
 import warnings
-import time
 from .technicals import Compute
 
-__version__ = "3.3.0"
+__version__ = "3.3.1"
 
 
 class Analysis(object):
@@ -390,9 +391,6 @@ class TA_Handler(object):
 
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
 
-        # Add a small delay to avoid rate limiting
-        time.sleep(0.5)
-
         response = requests.get(
             scan_url, params=params, headers=headers, timeout=self.timeout, proxies=self.proxies)
 
@@ -465,13 +463,9 @@ def get_multiple_analysis(screener, interval, symbols, additional_indicators=[],
 
     final = {}
 
-        # Since the new API doesn't support multiple symbols, we need to make individual requests
-    for i, symbol in enumerate(symbols):
+    # Since the new API doesn't support multiple symbols, we need to make individual requests
+    for _, symbol in enumerate(symbols):
         try:
-            # Add delay between requests to avoid rate limiting (except for first request)
-            if i > 0:
-                time.sleep(1)
-
             # Create a temporary TA_Handler for each symbol
             exchange, ticker = symbol.split(":")
             handler = TA_Handler(screener=screener, exchange=exchange, symbol=ticker, interval=interval, timeout=timeout, proxies=proxies)

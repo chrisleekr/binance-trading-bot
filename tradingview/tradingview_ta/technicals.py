@@ -12,6 +12,7 @@ class Recommendation:
     error = "ERROR"
 
 class Compute:
+    @staticmethod
     def MA(ma, close):
         """Compute Moving Average
 
@@ -29,6 +30,7 @@ class Compute:
         else:
             return Recommendation.neutral
 
+    @staticmethod
     def RSI(rsi, rsi1):
         """Compute Relative Strength Index
 
@@ -46,6 +48,7 @@ class Compute:
         else:
             return Recommendation.neutral
 
+    @staticmethod
     def Stoch(k, d, k1, d1):
         """Compute Stochastic
 
@@ -65,6 +68,7 @@ class Compute:
         else:
             return Recommendation.neutral
 
+    @staticmethod
     def CCI20(cci20, cci201):
         """Compute Commodity Channel Index 20
 
@@ -82,6 +86,7 @@ class Compute:
         else:
             return Recommendation.neutral
 
+    @staticmethod
     def ADX(adx, adxpdi, adxndi, adxpdi1, adxndi1):
         """Compute Average Directional Index
 
@@ -102,6 +107,7 @@ class Compute:
         else:
             return Recommendation.neutral
 
+    @staticmethod
     def AO(ao, ao1, ao2):
         """Compute Awesome Oscillator
 
@@ -120,6 +126,7 @@ class Compute:
         else:
             return Recommendation.neutral
 
+    @staticmethod
     def Mom(mom, mom1):
         """Compute Momentum
 
@@ -137,6 +144,7 @@ class Compute:
         else:
             return Recommendation.neutral
 
+    @staticmethod
     def MACD(macd, signal):
         """Compute Moving Average Convergence/Divergence
 
@@ -153,7 +161,8 @@ class Compute:
             return Recommendation.sell
         else:
             return Recommendation.neutral
-        
+
+    @staticmethod
     def BBBuy(close, bblower):
         """Compute Bull Bear Buy
 
@@ -169,6 +178,7 @@ class Compute:
         else:
             return Recommendation.neutral
 
+    @staticmethod
     def BBSell(close, bbupper):
         """Compute Bull Bear Sell
 
@@ -184,23 +194,25 @@ class Compute:
         else:
             return Recommendation.neutral
 
-    def PSAR(psar, open):
+    @staticmethod
+    def PSAR(psar, open_price):
         """Compute Parabolic Stop-And-Reverse
 
         Args:
             psar (float): P.SAR value
-            open (float): open value
+            open_price (float): open value
 
         Returns:
             string: "BUY", "SELL", or "NEUTRAL"
         """
-        if (psar < open):
+        if (psar < open_price):
             return Recommendation.buy
-        elif (psar > open):
+        elif (psar > open_price):
             return Recommendation.sell
         else:
             return Recommendation.neutral
 
+    @staticmethod
     def Recommend(value):
         """Compute Recommend
 
@@ -223,6 +235,7 @@ class Compute:
         else:
             return Recommendation.error
 
+    @staticmethod
     def Simple(value):
         """Compute Simple
 
