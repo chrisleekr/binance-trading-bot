@@ -9,29 +9,6 @@ const {
   executeTradingView
 } = require('./cronjob');
 
-const fulfillWithTimeLimit = async (logger, timeLimit, task, failureValue) => {
-  let timeout;
-  const timeoutPromise = new Promise(resolve => {
-    timeout = setTimeout(() => {
-      logger.error(
-        { tag: 'job-timeout' },
-        `Failed to run the job within ${timeLimit}ms.`
-      );
-
-      resolve(failureValue);
-    }, timeLimit);
-  });
-
-  const response = await Promise.race([task, timeoutPromise]);
-
-  /* istanbul ignore next */
-  if (timeout) {
-    // the code works without this but let's be safe and clean up the timeout.
-    clearTimeout(timeout);
-  }
-  return response;
-};
-
 const runCronjob = async serverLogger => {
   const logger = serverLogger.child({ server: 'cronjob' });
   logger.info(
@@ -66,14 +43,7 @@ const runCronjob = async serverLogger => {
 
           const moduleLogger = logger.child({ job: jobName, uuid: uuidv4() });
 
-          // Make sure the job running within 20 seconds.
-          // If longer than 20 seconds, something went wrong.
-          await fulfillWithTimeLimit(
-            moduleLogger,
-            20000,
-            executeJob(moduleLogger),
-            null
-          );
+          executeJob(moduleLogger);
 
           jobInstances[jobName].taskRunning = false;
         },
