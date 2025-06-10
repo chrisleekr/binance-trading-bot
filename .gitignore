@@ -2,7 +2,6 @@
 node_modules
 /dist
 
-
 # local env files
 .env.local
 .env.*.local
@@ -11,7 +10,6 @@ node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
 
 # Editor directories and files
 .idea
@@ -28,7 +26,6 @@ log
 .env
 .vs
 
-
 /public/dist/*
 !/public/dist/.gitkeep
 /public/data/*
@@ -36,3 +33,4 @@ log
 
 result.csv
 .~lock.result.csv#
+tradingview/*/__pycache__
