@@ -1,3 +1,4 @@
+import warnings
 from colorama import Fore, Style
 from tradingview_ta import TA_Handler, Interval, get_multiple_analysis
 import tradingview_ta, requests, argparse
@@ -33,13 +34,13 @@ handler = TA_Handler(
 try:
     analysis = handler.get_analysis()
     if analysis:
-        print("{}#0{} Invalid symbol test {}failed{}. No exception occured.".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
+        print("{}#0{} Invalid symbol test {}failed{}. No exception occurred.".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
 except Exception as e:
     if str(e) == "Exchange or symbol not found.":
         print("{}#0{} Invalid symbol test {}success{}.".format(Fore.BLUE, Style.RESET_ALL, Fore.GREEN, Style.RESET_ALL))
         success += 1
     else:
-        print("{}#0{} Invalid symbol test {}failed{}. An exception occured, but the symbol is valid.".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
+        print("{}#0{} Invalid symbol test {}failed{}. An exception occurred, but the symbol is valid.".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
 
 
 print("{}#1{} {}Testing invalid exchange{}".format(Fore.BLUE, Style.RESET_ALL, Fore.LIGHTBLUE_EX, Style.RESET_ALL))
@@ -53,13 +54,13 @@ handler = TA_Handler(
 try:
     analysis = handler.get_analysis()
     if analysis:
-        print("{}#1{} Invalid exchange test {}failed{}. No exception occured.".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
+        print("{}#1{} Invalid exchange test {}failed{}. No exception occurred.".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
 except Exception as e:
     if str(e) == "Exchange or symbol not found.":
         print("{}#1{} Invalid exchange test {}success{}.".format(Fore.BLUE, Style.RESET_ALL, Fore.GREEN, Style.RESET_ALL))
         success += 1
     else:
-        print("{}#1{} Invalid exchange test {}failed{}. An exception occured, but symbol is valid.".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
+        print("{}#1{} Invalid exchange test {}failed{}. An exception occurred, but symbol is valid.".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
 
 print("{}#2{} {}Testing timeout{}".format(Fore.BLUE, Style.RESET_ALL, Fore.LIGHTBLUE_EX, Style.RESET_ALL))
 handler = TA_Handler(
@@ -89,15 +90,21 @@ handler = TA_Handler(
     proxies = proxies
 )
 try:
-    analysis = handler.get_analysis()
-    if analysis and input('{}#3{} Did you see a "defaulting to 1 day" {}warning{}? (Y/N) '.format(Fore.BLUE, Style.RESET_ALL, Fore.YELLOW, Style.RESET_ALL)).lower() == "y":
-        print("{}#3{} Invalid interval test {}success{}.".format(Fore.BLUE, Style.RESET_ALL, Fore.GREEN, Style.RESET_ALL))
-        success += 1
-    else:
-        print("{}#3{} Invalid interval test {}failed{}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
+    # Capture warnings
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        analysis = handler.get_analysis()
+
+        # Check if warning was issued and contains the expected message
+        if analysis and len(w) > 0 and "defaulting to 1 day" in str(w[0].message):
+            print("{}#3{} Invalid interval test {}success{}.".format(Fore.BLUE, Style.RESET_ALL, Fore.GREEN, Style.RESET_ALL))
+            success += 1
+        else:
+            print("{}#3{} Invalid interval test {}failed{}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
+
 
 except Exception as e:
-    print("{}#3{} Invalid interval test {}failed{}. An exception occured: {}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL, e))
+    print("{}#3{} Invalid interval test {}failed{}. An exception occurred: {}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL, e))
 
 print("{}#4{} {}Testing stock (NASDAQ:AAPL){}".format(Fore.BLUE, Style.RESET_ALL, Fore.LIGHTBLUE_EX, Style.RESET_ALL))
 handler = TA_Handler(
@@ -117,7 +124,7 @@ try:
     else:
         print("{}#4{} Stock test {}failed{}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
 except Exception as e:
-    print("{}#4{} Stock test {}failed{}. An exception occured: {}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL, e))
+    print("{}#4{} Stock test {}failed{}. An exception occurred: {}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL, e))
 
 print("{}#5{} {}Testing multiple analysis (NASDAQ:TSLA and NYSE:DOCN){}".format(Fore.BLUE, Style.RESET_ALL, Fore.LIGHTBLUE_EX, Style.RESET_ALL))
 try:
@@ -131,7 +138,7 @@ try:
     else:
         print("{}#5{} Multiple analysis test {}failed{}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
 except Exception as e:
-    print("{}#5{} Multiple analysis test {}failed{}. An exception occured: {}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL, e))
+    print("{}#5{} Multiple analysis test {}failed{}. An exception occurred: {}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL, e))
 
 print("{}#6{} {}Testing get indicators (BINANCE:BTCUSDT){}".format(Fore.BLUE, Style.RESET_ALL, Fore.LIGHTBLUE_EX, Style.RESET_ALL))
 handler = TA_Handler(
@@ -150,7 +157,7 @@ try:
     else:
         print("{}#6{} Get indicators test {}failed{}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL))
 except Exception as e:
-    print("{}#6{} Get indicators test {}failed{}. An exception occured: {}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL, e))
+    print("{}#6{} Get indicators test {}failed{}. An exception occurred: {}".format(Fore.BLUE, Style.RESET_ALL, Fore.RED, Style.RESET_ALL, e))
 
 
 print("------------------------------------------------")
