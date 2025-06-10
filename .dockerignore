@@ -34,3 +34,4 @@ docker-compose.server.yml
 
 tradingview
 result.csv
+tradingview/*/__pycache__

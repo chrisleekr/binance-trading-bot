@@ -4,7 +4,7 @@ import colorlog
 import os
 
 from flask import Flask, jsonify, request
-from tradingview_ta import get_multiple_analysis
+from tradingview_ta.main import get_multiple_analysis
 
 app = Flask(__name__)
 
