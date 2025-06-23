@@ -1,6 +1,7 @@
 {
   "mode": "BINANCE_MODE",
   "tz": "BINANCE_TZ",
+  "tld": "BINANCE_TLD",
   "demoMode": {
     "__name": "BINANCE_DEMO_MODE",
     "__description": "Set a boolean to configure the bot in demo mode. If set as true, the bot will not allow updating configurations via the frontend.",
