@@ -331,6 +331,14 @@
         "__format": "boolean"
       },
       "cronTime": "BINANCE_JOBS_TRADING_VIEW_INDICATOR_CRON_TIME"
+    },
+    "interestTracker": {
+      "enabled": "JOBS_INTEREST_TRACKER_ENABLED",
+      "cronTime": "JOBS_INTEREST_TRACKER_CRONTIME"
+    },
+    "marginSafety": {
+      "enabled": "JOBS_MARGIN_SAFETY_ENABLED",
+      "cronTime": "JOBS_MARGIN_SAFETY_CRONTIME"
     }
   }
 }

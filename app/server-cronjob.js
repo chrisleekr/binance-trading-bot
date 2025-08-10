@@ -2,6 +2,8 @@ const { v4: uuidv4 } = require('uuid');
 const config = require('config');
 const { CronJob } = require('cron');
 const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
+const { run: runMarginSafety } = require('./cronjob/marginSafety');
+const { run: runInterestTracker } = require('./cronjob/interestTracker');
 
 const {
   executeAlive,
@@ -44,14 +46,10 @@ const runCronjob = async serverLogger => {
   // Execute jobs
   [
     { jobName: 'alive', executeJob: executeAlive },
-    {
-      jobName: 'trailingTradeIndicator',
-      executeJob: executeTrailingTradeIndicator
-    },
-    {
-      jobName: 'tradingView',
-      executeJob: executeTradingView
-    }
+    { jobName: 'trailingTradeIndicator', executeJob: executeTrailingTradeIndicator },
+    { jobName: 'tradingView', executeJob: executeTradingView },
+    { jobName: 'interestTracker', executeJob: runInterestTracker },
+    { jobName: 'marginSafety', executeJob: runMarginSafety }
   ].forEach(job => {
     const { jobName, executeJob } = job;
     if (config.get(`jobs.${jobName}.enabled`)) {
@@ -83,11 +81,12 @@ const runCronjob = async serverLogger => {
       );
       jobInstances[jobName].start();
       logger.info(
-        { cronTime: config.get(`jobs.${jobName}.cronTime`) },
+        { everySec: config.get(`jobs.${jobName}.cronTime`) },
         `Job ${jobName} has been started.`
       );
     }
   });
+
 };
 
 module.exports = { runCronjob };

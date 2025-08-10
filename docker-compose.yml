@@ -5,8 +5,8 @@ services:
     container_name: binance-bot
     build:
       context: ./
-      target: dev-stage
-      # target: production-stage
+      # target: dev-stage
+      target: production-stage
     networks:
       - internal
     volumes:
@@ -19,8 +19,8 @@ services:
       - .env
     restart: unless-stopped
     environment:
-      - BINANCE_MODE=test
-      # - BINANCE_MODE=live
+      # - BINANCE_MODE=test
+      - BINANCE_MODE=live
       - BINANCE_REDIS_HOST=binance-redis
       - BINANCE_REDIS_PORT=6379
       - BINANCE_REDIS_PASSWORD=secretp422
@@ -66,8 +66,7 @@ services:
     volumes:
       - redis_data:/data
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
-    command:
-      redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass secretp422
 
   binance-mongo:
     container_name: binance-mongo

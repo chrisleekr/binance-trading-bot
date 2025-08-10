@@ -11,6 +11,7 @@ const {
 const {
   saveSymbolGridTrade
 } = require('../../trailingTradeHelper/configuration');
+const { placeOrderRouted } = require('../../../helpers/placeOrderRouted');
 
 /**
  * Set message and return data
@@ -90,7 +91,7 @@ const execute = async (logger, rawData) => {
       logger,
       data,
       `Order quantity is less or equal than the minimum quantity - ${minQty}. ` +
-        `Do not place a stop-loss order.`
+      `Do not place a stop-loss order.`
     );
   }
 
@@ -103,7 +104,7 @@ const execute = async (logger, rawData) => {
       logger,
       data,
       `Notional value is less than the minimum notional value. ` +
-        `Do not place a stop-loss order.`
+      `Do not place a stop-loss order.`
     );
   }
 
@@ -142,11 +143,11 @@ const execute = async (logger, rawData) => {
 
   slack.sendMessage(
     `*${symbol}* Sell Stop-Loss Action: *MARKET*` +
-      `- Order Params: \`\`\`${JSON.stringify(
-        orderParams,
-        undefined,
-        2
-      )}\`\`\``,
+    `- Order Params: \`\`\`${JSON.stringify(
+      orderParams,
+      undefined,
+      2
+    )}\`\`\``,
     { symbol, apiLimit: getAPILimit(logger) }
   );
 
@@ -154,7 +155,7 @@ const execute = async (logger, rawData) => {
     { function: 'order', orderParams, saveLog: true },
     'The market sell order will be placed.'
   );
-  const orderResult = await binance.client.order(orderParams);
+  const orderResult = await placeOrderRouted(orderParams);
 
   logger.info(
     { orderResult, saveLog: true },
@@ -196,11 +197,11 @@ const execute = async (logger, rawData) => {
 
   slack.sendMessage(
     `*${symbol}* Sell Stop-Loss Action Result: *MARKET*\n` +
-      `- Order Result: \`\`\`${JSON.stringify(
-        orderResult,
-        undefined,
-        2
-      )}\`\`\``,
+    `- Order Result: \`\`\`${JSON.stringify(
+      orderResult,
+      undefined,
+      2
+    )}\`\`\``,
     { symbol, apiLimit: getAPILimit(logger) }
   );
 

@@ -22,9 +22,6 @@ const sendMessage = async (text, params = {}) => {
   }
 
   let formattedText = `(${moment().format('HH:mm:ss.SSS')}) ${text}`;
-  if (params.apiLimit) {
-    formattedText += `\n- Current API Usage: ${params.apiLimit}`;
-  }
 
   logger.info(
     { tag: 'slack-send-message', formattedText },

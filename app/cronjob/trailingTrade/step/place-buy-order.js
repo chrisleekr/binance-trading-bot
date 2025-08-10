@@ -1,6 +1,7 @@
 const _ = require('lodash');
 const moment = require('moment');
 const { binance, slack } = require('../../../helpers');
+const { placeOrderRouted } = require('../../../helpers/placeOrderRouted'); // ← lagt til
 const {
   isExceedAPILimit,
   getAPILimit,
@@ -71,7 +72,7 @@ const execute = async (logger, rawData) => {
       logger,
       data,
       `There are open orders for ${symbol}. ` +
-        `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`
+      `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`
     );
   }
 
@@ -98,7 +99,7 @@ const execute = async (logger, rawData) => {
         checkTradingView: true
       },
       `The bot queued the action to trigger the grid trade #${humanisedGridTradeIndex} for buying.` +
-        ` ${tradingViewRejectedReason}`
+      ` ${tradingViewRejectedReason}`
     );
 
     return setMessage(logger, data, tradingViewRejectedReason);
@@ -150,7 +151,7 @@ const execute = async (logger, rawData) => {
       logger,
       data,
       `Do not place a buy order for the grid trade #${humanisedGridTradeIndex} ` +
-        `as not enough ${quoteAsset} to buy ${baseAsset}.`
+      `as not enough ${quoteAsset} to buy ${baseAsset}.`
     );
   }
 
@@ -159,7 +160,7 @@ const execute = async (logger, rawData) => {
       logger,
       data,
       `Do not place a buy order for the grid trade #${humanisedGridTradeIndex} ` +
-        `because free balance is less than minimum purchase amount.`
+      `because free balance is less than minimum purchase amount.`
     );
   }
 
@@ -181,7 +182,7 @@ const execute = async (logger, rawData) => {
   let orderQuantity = parseFloat(
     _.floor(
       orderQuantityBeforeCommission -
-        orderQuantityBeforeCommission * (0.1 / 100),
+      orderQuantityBeforeCommission * (0.1 / 100),
       lotStepSizePrecision
     )
   );
@@ -228,7 +229,7 @@ const execute = async (logger, rawData) => {
       logger,
       data,
       `Trading for ${symbol} is disabled. ` +
-        `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`
+      `Do not place an order for the grid trade #${humanisedGridTradeIndex}.`
     );
   }
 
@@ -282,8 +283,8 @@ const execute = async (logger, rawData) => {
   if (notifyDebug || notifyOrderConfirm)
     slack.sendMessage(
       `*${symbol}* Action - Buy Trade #${humanisedGridTradeIndex}: *STOP_LOSS_LIMIT*\n` +
-        `- Order Params: \n` +
-        `\`\`\`${JSON.stringify(notifyMessage, undefined, 2)}\`\`\``,
+      `- Order Params: \n` +
+      `\`\`\`${JSON.stringify(notifyMessage, undefined, 2)}\`\`\``,
       { symbol, apiLimit: getAPILimit(logger) }
     );
 
@@ -296,7 +297,7 @@ const execute = async (logger, rawData) => {
     },
     `The grid trade #${humanisedGridTradeIndex} buy order will be placed.`
   );
-  const orderResult = await binance.client.order(orderParams);
+  const orderResult = await placeOrderRouted(orderParams);
 
   logger.info(
     { orderResult, saveLog: true },
@@ -325,11 +326,11 @@ const execute = async (logger, rawData) => {
   if (notifyDebug || notifyOrderConfirm)
     slack.sendMessage(
       `*${symbol}* Buy Action Grid Trade #${humanisedGridTradeIndex} Result: *STOP_LOSS_LIMIT*\n` +
-        `- Order Result: \`\`\`${JSON.stringify(
-          orderResult,
-          undefined,
-          2
-        )}\`\`\``,
+      `- Order Result: \`\`\`${JSON.stringify(
+        orderResult,
+        undefined,
+        2
+      )}\`\`\``,
       { symbol, apiLimit: getAPILimit(logger) }
     );
 

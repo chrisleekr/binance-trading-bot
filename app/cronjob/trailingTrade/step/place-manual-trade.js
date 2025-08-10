@@ -6,6 +6,7 @@ const {
   getAccountInfoFromAPI
 } = require('../../trailingTradeHelper/common');
 const { saveManualOrder } = require('../../trailingTradeHelper/order');
+const { placeOrderRouted } = require('../../../helpers/placeOrderRouted');
 
 /**
  * Set message and return data
@@ -160,7 +161,7 @@ const slackMessageOrderParams = async (logger, symbol, side, order, params) => {
 
   slack.sendMessage(
     `*${symbol}* Manual ${side.toUpperCase()} Action: *${type}*\n` +
-      `- Order Params: \`\`\`${JSON.stringify(params, undefined, 2)}\`\`\``,
+    `- Order Params: \`\`\`${JSON.stringify(params, undefined, 2)}\`\`\``,
     { symbol, apiLimit: getAPILimit(logger) }
   );
 };
@@ -202,11 +203,11 @@ const slackMessageOrderResult = async (
 
   slack.sendMessage(
     `*${symbol}* Manual ${side.toUpperCase()} Result: *${type}*\n` +
-      `- Order Result: \`\`\`${JSON.stringify(
-        orderResult,
-        undefined,
-        2
-      )}\`\`\``,
+    `- Order Result: \`\`\`${JSON.stringify(
+      orderResult,
+      undefined,
+      2
+    )}\`\`\``,
     { symbol, apiLimit: getAPILimit(logger) }
   );
 };
@@ -252,7 +253,7 @@ const execute = async (logger, rawData) => {
     baseAssetBalance
   });
 
-  const orderResult = await binance.client.order(orderParams);
+  const orderResult = await placeOrderRouted(orderParams);
 
   logger.info({ orderResult }, 'Manual order result');
 
