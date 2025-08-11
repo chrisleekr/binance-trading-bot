@@ -4,6 +4,7 @@ const { CronJob } = require('cron');
 const { maskConfig } = require('./cronjob/trailingTradeHelper/util');
 const { run: runMarginSafety } = require('./cronjob/marginSafety');
 const { run: runInterestTracker } = require('./cronjob/interestTracker');
+const { run: runPolicyTrader } = require('./cronjob/policyTrader'); // <-- Ny linje
 
 const {
   executeAlive,
@@ -49,7 +50,8 @@ const runCronjob = async serverLogger => {
     { jobName: 'trailingTradeIndicator', executeJob: executeTrailingTradeIndicator },
     { jobName: 'tradingView', executeJob: executeTradingView },
     { jobName: 'interestTracker', executeJob: runInterestTracker },
-    { jobName: 'marginSafety', executeJob: runMarginSafety }
+    { jobName: 'marginSafety', executeJob: runMarginSafety },
+    { jobName: 'policyTrader', executeJob: runPolicyTrader } // <-- Ny linje
   ].forEach(job => {
     const { jobName, executeJob } = job;
     if (config.get(`jobs.${jobName}.enabled`)) {

@@ -1,80 +1,91 @@
-// // app/helpers/placeOrderRouted.js
-// require('dotenv').config();
-// const { routeOrder } = require('./orderRouter');
-// const { binance } = require('.'); // original helper (for Spot fallback)
 
-// const isMarginMode = String(process.env.MARGIN_MODE || 'false').toLowerCase() === 'true';
+// app/helpers/placeOrderRouted.js
+// Ruter ordre til Cross Margin API med riktig sideEffectType og felter.
+// Forutsetter at app/binance/margin.js eksporterer:
+//   getMarginAccount, placeMarginOrder, cancelMarginOrder, getOpenMarginOrders, borrowAsset, repayAsset
 
-// /**
-//  * Drop-in erstatning for binance.client.order(payload).
-//  * - Hvis MARGIN_MODE=true → rout via margin (med guard + dry-run støtte)
-//  * - Ellers → kall original spot-API (som før)
-//  *
-//  * @param {object} payload - samsvarer med eksisterende kall i koden
-//  *    { symbol, side, type, quantity, quoteOrderQty, price, timeInForce, newClientOrderId, ... }
-//  */
-// async function placeOrderRouted(payload) {
-//   // Normaliser felter vi bryr oss om:
-//   const {
-//     symbol,
-//     side,
-//     type = 'MARKET',
-//     quantity,
-//     quoteOrderQty,
-//     price,
-//     timeInForce,
-//     newClientOrderId
-//   } = payload;
+const {
+  placeMarginOrder
+} = require('../binance/margin');
 
-//   if (!isMarginMode) {
-//     // Kjør som før (Spot)
-//     // Viktig: behold hele payload slik eksisterende kode ikke brekker
-//     return binance.client.order(payload);
-//   }
+function toUpperSafe(v) {
+  return (v == null ? '' : String(v)).toUpperCase();
+}
 
-//   // Margin-mode: bruk vår router (inkl. guard og dry-run)
-//   const routed = await routeOrder({
-//     symbol,
-//     side,
-//     type,
-//     quantity,
-//     quoteOrderQty,
-//     price,
-//     timeInForce,
-//     newClientOrderId
-//   });
+function normalizeSymbol(s) {
+  const sym = String(s || '').trim().toUpperCase();
+  if (!sym) throw new Error('placeOrderRouted: symbol mangler');
+  // Her kunne vi validert mot en whitelist, men lar det være generisk.
+  return sym;
+}
 
-//   // Hvis guard blokkerer → kast feil som fanges i eksisterende error flow
-//   if (routed && routed.success === false && routed.blockedByGuard) {
-//     const err = new Error('BlockedByMarginGuard');
-//     err.details = routed;
-//     throw err;
-//   }
-
-//   // Returner noe som ligner på spot-respons slik resten av koden forstår det
-//   return routed && routed.response ? routed.response : routed;
-// }
-
-// module.exports = { placeOrderRouted };
-
-const { marginRepay, marginOrder } = require('../exchange/binance');
-
-async function placeOrderRouted(assetOrSymbol, side, amount, opts = {}) {
-  if (side === 'REPAY') return await marginRepay(assetOrSymbol, amount);
-
-  if (side === 'BUY' || side === 'SELL') {
-    const symbol = opts.symbol || `${assetOrSymbol}${process.env.AI_TRADER_QUOTE_ASSET || 'USDT'}`;
-    const type = opts.type || 'MARKET';
-    const params = Object.assign({}, opts.params || {});
-    // helpful defaults for cross margin
-    if (!params.sideEffectType && (side === 'BUY' || side === 'SELL')) {
-      // Consider AUTO_BORROW for BUY and AUTO_REPAY for SELL if you prefer; keep undefined if account has defaults
-      if (opts.autoBorrow === true && side === 'BUY') params.sideEffectType = 'MARGIN_BUY';
-      if (opts.autoRepay === true && side === 'SELL') params.sideEffectType = 'AUTO_REPAY';
-    }
-    return await marginOrder(symbol, side, amount, type, params);
+/**
+ * placeOrderRouted(input)
+ * input:
+ *  - symbol: 'BTCUSDC' (required)
+ *  - side: 'BUY' | 'SELL' (required)
+ *  - type: 'MARKET' | 'LIMIT' | 'STOP_LOSS_LIMIT' ... (default 'MARKET')
+ *  - quantity: number (base qty)  | eller |
+ *  - quoteOrderQty: number (beløp i quote)
+ *  - price?: number               (på LIMIT/STOP_LOSS_LIMIT)
+ *  - stopPrice?: number           (på STOP_LOSS_LIMIT)
+ *  - timeInForce?: 'GTC' | 'IOC' | 'FOK' (på LIMIT/STOP_LOSS_LIMIT; default 'GTC')
+ *  - isIsolated?: boolean (default false = Cross)
+ *  - newClientOrderId?: string
+ *  - newOrderRespType?: 'ACK' | 'RESULT' (default 'RESULT')
+ */
+async function placeOrderRouted(input = {}) {
+  const symbol = normalizeSymbol(input.symbol);
+  const side = toUpperSafe(input.side);
+  if (side !== 'BUY' && side !== 'SELL') {
+    throw new Error(`placeOrderRouted: side må være BUY eller SELL, fikk "${input.side}"`);
   }
-  throw new Error(`Ukjent ordretype: ${side}`);
+
+  const type = toUpperSafe(input.type || 'MARKET');
+
+  // Må ha enten quantity eller quoteOrderQty
+  const hasQty = input.quantity != null;
+  const hasQuote = input.quoteOrderQty != null;
+  if (!hasQty && !hasQuote) {
+    throw new Error('placeOrderRouted: krever quantity eller quoteOrderQty');
+  }
+
+  // For limit/stop-limit krever vi pris og TIF, default GTC
+  let timeInForce = input.timeInForce;
+  if ((type === 'LIMIT' || type === 'STOP_LOSS_LIMIT')) {
+    if (input.price == null) {
+      throw new Error(`placeOrderRouted: type=${type} krever "price"`);
+    }
+    if (!timeInForce) timeInForce = 'GTC';
+  }
+
+  // sideEffectType: BUY => MARGIN_BUY (auto-borrow), SELL => AUTO_REPAY
+  const sideEffectType = side === 'BUY' ? 'MARGIN_BUY' : 'AUTO_REPAY';
+
+  const params = {
+    symbol,
+    side,
+    type,
+    isIsolated: !!input.isIsolated,        // false = Cross (vår default)
+    sideEffectType,
+    newClientOrderId: input.newClientOrderId,
+    newOrderRespType: input.newOrderRespType || 'RESULT'
+  };
+
+  if (hasQty) params.quantity = input.quantity;
+  if (hasQuote) params.quoteOrderQty = input.quoteOrderQty;
+  if (input.price != null) params.price = input.price;
+  if (input.stopPrice != null) params.stopPrice = input.stopPrice;
+  if (timeInForce) params.timeInForce = timeInForce;
+
+  // Kall Binance Cross Margin-ordre
+  const res = await placeMarginOrder(params);
+
+  return {
+    ok: true,
+    request: params,
+    response: res
+  };
 }
 
 module.exports = { placeOrderRouted };

@@ -339,6 +339,13 @@
     "marginSafety": {
       "enabled": "JOBS_MARGIN_SAFETY_ENABLED",
       "cronTime": "JOBS_MARGIN_SAFETY_CRONTIME"
+    },
+    "policyTrader": {
+      "enabled": {
+        "__name": "JOBS_POLICY_TRADER_ENABLED",
+        "__format": "boolean"
+      },
+      "cronTime": "JOBS_POLICY_TRADER_CRONTIME"
     }
   }
 }

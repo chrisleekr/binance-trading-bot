@@ -63,7 +63,12 @@
     "trailingTrade": {
       "enabled": true,
       "cronTime": "* * * * * *",
-      "symbols": ["BTCUSDT", "ETHUSDT", "ETHBTC", "XRPBTC"],
+      "symbols": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "ETHBTC",
+        "XRPBTC"
+      ],
       "botOptions": {
         "authentication": {
           "lockList": true,
@@ -171,6 +176,10 @@
     "tradingView": {
       "enabled": true,
       "cronTime": "* * * * * *"
+    },
+    "policyTrader": {
+      "enabled": true,
+      "cronTime": "* * * * *"
     }
   }
 }
