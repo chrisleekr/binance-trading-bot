@@ -20,7 +20,10 @@ const {
   placeSellOrder,
   placeSellStopLossOrder,
   removeLastBuyPrice,
-  saveDataToCache
+  saveDataToCache,
+  checkMomentum,
+  placeMomentumBuyOrder,
+  placeMomentumSellOrder
 } = require('./trailingTrade/steps');
 const { errorHandlerWrapper } = require('../error-handler');
 
@@ -108,6 +111,10 @@ const execute = async (rawLogger, symbol, correlationId = uuidv4()) => {
         stepFunc: determineAction
       },
       {
+        stepName: 'check-momentum',
+        stepFunc: checkMomentum
+      },
+      {
         stepName: 'place-manual-order',
         stepFunc: placeManualTrade
       },
@@ -116,8 +123,16 @@ const execute = async (rawLogger, symbol, correlationId = uuidv4()) => {
         stepFunc: cancelOrder
       },
       {
+        stepName: 'place-momentum-buy-order',
+        stepFunc: placeMomentumBuyOrder
+      },
+      {
         stepName: 'place-buy-order',
         stepFunc: placeBuyOrder
+      },
+      {
+        stepName: 'place-momentum-sell-order',
+        stepFunc: placeMomentumSellOrder
       },
       {
         stepName: 'place-sell-order',

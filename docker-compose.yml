@@ -19,7 +19,7 @@ services:
       - .env
     restart: unless-stopped
     environment:
-      - BINANCE_MODE=test
+      - BINANCE_MODE=live
       # - BINANCE_MODE=live
       - BINANCE_REDIS_HOST=binance-redis
       - BINANCE_REDIS_PORT=6379

@@ -156,6 +156,21 @@
           "factor": 0.5
         }
       },
+      "momentum": {
+        "enabled": false,
+        "timeframes": ["15m", "1h"],
+        "buyAmount": 100,
+        "orderType": "MARKET",
+        "rsiPeriod": 14,
+        "rsiBuyThreshold": 40,
+        "rsiSellThreshold": 70,
+        "volumeMultiplier": 1.5,
+        "maxHoldingMinutes": 120,
+        "minHoldingMinutes": 5,
+        "profitTarget": 1.5,
+        "stopLoss": -1.0,
+        "trailingStopPercentage": 0.5
+      },
       "system": {
         "temporaryDisableActionAfterConfirmingOrder": 20,
         "checkManualOrderPeriod": 5,

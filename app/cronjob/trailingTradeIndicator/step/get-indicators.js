@@ -1,5 +1,5 @@
 const _ = require('lodash');
-const { binance } = require('../../../helpers');
+const { binance, mongo } = require('../../../helpers');
 
 /**
  * Flatten candle data
@@ -115,6 +115,69 @@ const execute = async (logger, rawData) => {
     lowestPrice,
     athPrice
   };
+
+  // Fetch and store candles for momentum trading if enabled
+  const momentumConfig = data.symbolConfiguration?.momentum;
+  if (momentumConfig && momentumConfig.enabled) {
+    const timeframes = momentumConfig.timeframes || ['15m', '1h'];
+
+    logger.info(
+      { timeframes },
+      'Momentum trading enabled, fetching candles for additional timeframes'
+    );
+
+    // eslint-disable-next-line no-restricted-syntax
+    await Promise.all(
+      timeframes.map(async timeframe => {
+        try {
+          logger.info(
+            { timeframe, limit: 100 },
+            `Fetching ${timeframe} candles for momentum analysis`
+          );
+
+          const momentumCandles = await binance.client.candles({
+            symbol,
+            interval: timeframe,
+            limit: 100
+          });
+
+          // Store candles in MongoDB for momentum analysis
+          await mongo.deleteAll(logger, 'trailing-trade-candles', {
+            key: `${symbol}-${timeframe}`
+          });
+
+          const candlesToStore = momentumCandles.map(candle => ({
+            key: `${symbol}-${timeframe}`,
+            symbol,
+            interval: timeframe,
+            openTime: candle.openTime,
+            open: candle.open,
+            high: candle.high,
+            low: candle.low,
+            close: candle.close,
+            volume: candle.volume,
+            closeTime: candle.closeTime
+          }));
+
+          await mongo.insertMany(
+            logger,
+            'trailing-trade-candles',
+            candlesToStore
+          );
+
+          logger.info(
+            { timeframe, count: candlesToStore.length },
+            `Stored ${timeframe} candles for momentum analysis`
+          );
+        } catch (error) {
+          logger.error(
+            { error, timeframe },
+            `Failed to fetch/store ${timeframe} candles for momentum`
+          );
+        }
+      })
+    );
+  }
 
   return data;
 };

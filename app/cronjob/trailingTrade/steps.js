@@ -21,6 +21,13 @@ const {
 } = require('./step/place-sell-stop-loss-order');
 const { execute: removeLastBuyPrice } = require('./step/remove-last-buy-price');
 const { execute: saveDataToCache } = require('./step/save-data-to-cache');
+const { execute: checkMomentum } = require('./step/check-momentum');
+const {
+  execute: placeMomentumBuyOrder
+} = require('./step/place-momentum-buy-order');
+const {
+  execute: placeMomentumSellOrder
+} = require('./step/place-momentum-sell-order');
 
 module.exports = {
   getSymbolConfiguration,
@@ -39,5 +46,8 @@ module.exports = {
   placeSellOrder,
   placeSellStopLossOrder,
   removeLastBuyPrice,
-  saveDataToCache
+  saveDataToCache,
+  checkMomentum,
+  placeMomentumBuyOrder,
+  placeMomentumSellOrder
 };
