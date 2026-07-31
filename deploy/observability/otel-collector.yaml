@@ -1,0 +1,99 @@
+# OpenTelemetry Collector — tail-sampling config for binance-trading-bot v1.0.
+#
+# Operator-deployable: drop this into `otelcol --config` on a host that
+# accepts spans from the workers. Without a running Collector, the
+# policies below are inert and only the in-process head sampler in
+# packages/observability applies (parent-based, 10% baseline).
+#
+# Caveat: head sampling drops 90% of non-error baseline traces BEFORE
+# they reach this Collector, so the `baseline-10pct` policy here
+# operates on what already escaped the head sampler. The 100%-of-errors
+# guarantee is explicitly NOT in v1.0; it would require an AlwaysOn
+# head sampler and a mandatory Collector. See `.claude/plans/10-observability.md`.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Standard hygiene — bound queues so a misbehaving exporter cannot
+  # back-pressure the receiver indefinitely.
+  batch:
+    timeout: 5s
+    send_batch_size: 8192
+    send_batch_max_size: 16384
+
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+
+  # Tail sampling decides per-trace, not per-span. `decision_wait` is
+  # the window the processor holds spans before deciding; longer windows
+  # catch late spans on slow traces but raise memory pressure.
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 50000
+    expected_new_traces_per_sec: 200
+    policies:
+      # Always sample traces that contain at least one ERROR span.
+      # status_code=ERROR is the OTel canonical signal; any service
+      # that flips a span to ERROR pulls the whole trace through.
+      - name: errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+
+      # Always sample traces whose root span exceeds the 1s budget.
+      # This is the slow-path trap: even successful traces matter
+      # when they breach the latency SLO.
+      - name: slow
+        type: latency
+        latency:
+          threshold_ms: 1000
+
+      # Probabilistic baseline at 10%. Combined with the in-process
+      # parent-based sampler at 10%, the Collector receives ~10% of
+      # baseline traffic and forwards ~1% to the backend — adequate
+      # for capacity planning without exhausting backend budget.
+      - name: baseline-10pct
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 10
+
+exporters:
+  # The actual upstream is operator-chosen. The block below shows the
+  # OTLP-over-gRPC shape; replace `endpoint` with the operator's
+  # vendor (Honeycomb, Datadog, Grafana Tempo, Jaeger, etc.).
+  otlp:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    headers:
+      authorization: ${env:OTEL_EXPORTER_OTLP_HEADERS_AUTHORIZATION}
+    tls:
+      insecure: false
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, tail_sampling, batch]
+      exporters: [otlp]
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      level: detailed
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                # Bind self-metrics to loopback by default; operators that
+                # want a remote scrape should override this in their own
+                # collector config rather than expose internal metrics on
+                # every interface out of the box.
+                host: 127.0.0.1
+                port: 8888

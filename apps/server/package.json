@@ -1,0 +1,19 @@
+{
+  "name": "@app/server",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "bun src/index.ts",
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@app/api": "workspace:*",
+    "@app/core": "workspace:*",
+    "@app/worker": "workspace:*"
+  }
+}

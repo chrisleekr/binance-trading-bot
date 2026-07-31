@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0b0c" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>binance-trading-bot</title>
+    <!-- External (not inline) so the strict CSP `script-src 'self'` allows it;
+         runs before paint to avoid a theme flash. See public/theme-init.js. -->
+    <script src="/theme-init.js"></script>
+  </head>
+  <body class="bg-[var(--bg)] text-[var(--fg)]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

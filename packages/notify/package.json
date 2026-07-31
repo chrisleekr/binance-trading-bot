@@ -1,0 +1,22 @@
+{
+  "name": "@app/notify",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./providers/slack": "./src/providers/slack.ts",
+    "./providers/telegram": "./src/providers/telegram.ts",
+    "./providers/webhook": "./src/providers/webhook.ts",
+    "./test-harness": "./src/test-harness.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "~4.4.3"
+  }
+}

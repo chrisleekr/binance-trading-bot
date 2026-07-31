@@ -1,0 +1,37 @@
+{
+  "name": "order-status — query FILLED LIMIT BUY",
+  "request": {
+    "method": "GET",
+    "path": "/api/v3/order",
+    "matchQuery": "any"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json",
+      "x-mbx-used-weight-1m": "22"
+    },
+    "body": {
+      "symbol": "BTCUSDT",
+      "orderId": 28,
+      "orderListId": -1,
+      "clientOrderId": "fixture-limit-buy-1",
+      "price": "30000.00000000",
+      "origQty": "0.00100000",
+      "executedQty": "0.00100000",
+      "cummulativeQuoteQty": "30.00000000",
+      "status": "FILLED",
+      "timeInForce": "GTC",
+      "type": "LIMIT",
+      "side": "BUY",
+      "stopPrice": "0.00000000",
+      "icebergQty": "0.00000000",
+      "time": 1700000000100,
+      "updateTime": 1700000000500,
+      "isWorking": false,
+      "origQuoteOrderQty": "0.00000000",
+      "workingTime": 1700000000100,
+      "selfTradePreventionMode": "NONE"
+    }
+  }
+}

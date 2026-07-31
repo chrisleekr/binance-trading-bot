@@ -1,0 +1,71 @@
+// Order quantity / price live inside the opaque Binance `raw` payload an
+// `OrderResponse` carries — the contract keeps `raw` unknown so it does not
+// churn whenever Binance adds a property. These readers pull the fields the
+// UI shows, falling back to an em-dash when the payload is unexpected.
+
+import { formatPrice } from '@/shared/lib/format';
+
+import type { OrderResponse } from '@app/contracts';
+
+export interface RawOrderShape {
+  readonly origQty?: string;
+  readonly price?: string;
+  readonly type?: string;
+  readonly executedQty?: string;
+  readonly cummulativeQuoteQty?: string;
+}
+
+/**
+ * Narrows an order's opaque `raw` payload to the fields the UI reads. The
+ * field-type checks matter: a payload like `{ origQty: 123 }` must fail the
+ * guard so the readers fall back to an em-dash rather than leak a non-string.
+ */
+export const isRawShape = (v: unknown): v is RawOrderShape => {
+  if (typeof v !== 'object' || v === null) return false;
+  const raw = v as Record<string, unknown>;
+  const isOptString = (key: string): boolean =>
+    raw[key] === undefined || typeof raw[key] === 'string';
+  return (
+    isOptString('origQty') &&
+    isOptString('price') &&
+    isOptString('type') &&
+    isOptString('executedQty') &&
+    isOptString('cummulativeQuoteQty')
+  );
+};
+
+/** Order quantity from the Binance `raw` payload, or an em-dash. */
+export const orderQty = (order: OrderResponse): string =>
+  isRawShape(order.raw) ? (order.raw.origQty ?? '—') : '—';
+
+/** Order price from the Binance `raw` payload, or an em-dash. */
+export const orderPrice = (order: OrderResponse): string =>
+  isRawShape(order.raw) ? (order.raw.price ?? '—') : '—';
+
+/**
+ * Display string for the Price column. MARKET orders book at the trade fill
+ * price, so the request-side `price` field is "0" — rendering "0" was the
+ * operator-confusing behaviour we are replacing. For a filled MARKET order we
+ * derive the average fill price from `cummulativeQuoteQty / executedQty`
+ * (a display-only Number divide; the result never feeds an order) and render
+ * `MKT @ {avg}`. For an unfilled or partially-filled MARKET order with no
+ * usable quote total we render bare `MKT`. LIMIT orders fall through to the
+ * regular price reader.
+ *
+ * `cummulativeQuoteQty` matches Binance's misspelling on the wire; preserved
+ * verbatim so the guard reads the field Binance actually ships.
+ */
+export const orderDisplayPrice = (order: OrderResponse): string => {
+  if (!isRawShape(order.raw)) return '—';
+  const raw = order.raw;
+  if (raw.type !== 'MARKET') return raw.price ? formatPrice(raw.price) : '—';
+  const executed = Number(raw.executedQty);
+  const quote = Number(raw.cummulativeQuoteQty);
+  if (Number.isFinite(executed) && Number.isFinite(quote) && executed > 0 && quote > 0) {
+    const avg = quote / executed;
+    // Post-divide finite check: a sub-normal `executed` could still push the
+    // ratio to Infinity, which `formatPrice` would echo back as "Infinity".
+    if (Number.isFinite(avg) && avg > 0) return `MKT @ ${formatPrice(String(avg))}`;
+  }
+  return 'MKT';
+};

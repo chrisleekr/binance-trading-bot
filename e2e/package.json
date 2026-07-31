@@ -1,0 +1,19 @@
+{
+  "name": "@app/e2e",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test",
+    "docs:capture": "node docs-screenshots.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.59.1",
+    "@types/ws": "~8.5.0",
+    "sharp": "^0.35.3",
+    "ws": "~8.18.0"
+  }
+}

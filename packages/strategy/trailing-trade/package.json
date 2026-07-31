@@ -1,0 +1,28 @@
+{
+  "name": "@app/strategy-trailing-trade",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./force-sell-guards": "./src/force-sell-guards.ts",
+    "./preview": "./src/preview.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run",
+    "test:replay": "vitest run __tests__/replay.test.ts"
+  },
+  "dependencies": {
+    "@app/contracts": "workspace:*",
+    "@app/core": "workspace:*",
+    "@app/indicators": "workspace:*",
+    "@app/money": "workspace:*",
+    "@app/strategy-core": "workspace:*",
+    "zod": "~4.4.3"
+  }
+}

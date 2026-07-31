@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["bun"],
+    "paths": { "*": ["./src/*"] }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"],
+  // api and worker map their internal bare imports via their own tsconfig
+  // `paths`. Consuming them as project references makes tsc compile each in its
+  // own context and hand this project their declarations, so those paths
+  // resolve correctly instead of being reinterpreted against server's paths.
+  "references": [{ "path": "../api" }, { "path": "../worker" }, { "path": "../../packages/core" }]
+}

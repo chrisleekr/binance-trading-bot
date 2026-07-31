@@ -2,7 +2,7 @@
   "recommendations": [
     "streetsidesoftware.code-spell-checker",
     "editorconfig.editorconfig",
-    "dbaeumer.vscode-eslint",
+    "oxc.oxc-vscode",
     "christian-kohler.npm-intellisense",
     "esbenp.prettier-vscode"
   ]

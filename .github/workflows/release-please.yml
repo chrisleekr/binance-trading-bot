@@ -1,0 +1,82 @@
+name: release-please
+
+on:
+  push:
+    branches: [main, beta]
+  workflow_dispatch:
+
+# release-please opens a release PR. When that PR merges, the same job
+# (gated on release_created) builds and pushes the multi-arch image to
+# Docker Hub at chrisleekr/binance-trading-bot with service-prefixed
+# tags (api-vX.Y.Z, worker-vX.Y.Z, ...). Keeping release + push in a
+# single job avoids needing a chained workflow; the GITHUB_TOKEN has
+# contents:write for the release PR + tag, and DOCKERHUB_USERNAME +
+# DOCKERHUB_TOKEN repo secrets authenticate the push.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOCKERHUB_IMAGE: chrisleekr/binance-trading-bot
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # main uses the stable config (production tags vX.Y.Z); beta uses
+      # the beta config (prerelease vX.Y.Z-beta.N). Both share the same
+      # manifest so a single root version line moves with each branch.
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target-branch: ${{ github.ref_name }}
+          manifest-file: .release-please-manifest.json
+          config-file: ${{ github.ref_name == 'main' && '.release-please-config.json' || '.release-please-config-beta.json' }}
+
+      - name: Set up QEMU
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # --tag-latest moves :latest only on main. Beta releases keep
+      # their immutable :vX.Y.Z-beta.N tag and never overwrite :latest.
+      - name: Build + push images
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          TAG_VERSION: ${{ steps.release.outputs.tag_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          # Stamp the git short SHA so the status bar shows it, not "unknown"
+          # (the alpine runtime carries no git). docker-build.sh forwards it as
+          # a --build-arg.
+          export GIT_SHA="${GITHUB_SHA:0:7}"
+          tag_latest=()
+          if [[ "$REF_NAME" == "main" ]]; then
+            tag_latest+=(--tag-latest)
+          fi
+          bash scripts/ci/docker-build.sh \
+            --push \
+            --single-repo \
+            --registry "$DOCKERHUB_IMAGE" \
+            --platforms linux/amd64,linux/arm64 \
+            --tag-version "$TAG_VERSION" \
+            "${tag_latest[@]}"

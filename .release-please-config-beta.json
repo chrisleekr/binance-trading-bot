@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "include-v-in-tag": true,
+  "bump-minor-pre-major": true,
+  "prerelease": true,
+  "prerelease-type": "beta",
+  "versioning-strategy": "prerelease",
+  "packages": {
+    ".": {
+      "package-name": "binance-trading-bot",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}

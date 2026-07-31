@@ -1,0 +1,27 @@
+{
+  "name": "@app/strategy-core",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./merge-config": "./src/merge-config.ts",
+    "./replay": "./src/replay.ts",
+    "./test": "./src/test.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit && tsc -p tsconfig.test-d.json --noEmit",
+    "test": "vitest run",
+    "test:replay": "vitest run --dir __replay__ --passWithNoTests",
+    "bench": "vitest bench --run"
+  },
+  "dependencies": {
+    "@app/contracts": "workspace:*",
+    "@app/money": "workspace:*",
+    "zod": "~4.4.3"
+  }
+}

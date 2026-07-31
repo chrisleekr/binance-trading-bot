@@ -1,0 +1,20 @@
+{
+  "branchNameLinter": {
+    "prefixes": ["feat", "fix", "chore", "refactor", "docs", "test", "ci", "archive"],
+    "suggestions": {
+      "features": "feat",
+      "feature": "feat",
+      "bug": "fix",
+      "hotfix": "fix"
+    },
+    "banned": ["wip"],
+    "skip": [],
+    "disallowed": ["main", "beta"],
+    "separator": "/",
+    "msgBranchBanned": "Branch \"%s\" is banned. Use one of: feat/*, fix/*, chore/*, refactor/*, docs/*, test/*, ci/*, archive/*",
+    "msgBranchDisallowed": "Branch \"%s\" cannot be pushed directly. main/beta are protected; open a PR.",
+    "msgPrefixNotAllowed": "Branch prefix is not allowed: %s. Allowed: feat, fix, chore, refactor, docs, test, ci, archive.",
+    "msgPrefixSuggestion": "Did you mean \"%s/...\"?",
+    "msgSeparatorRequired": "Branch must contain a \"/\" separator (e.g. feat/my-thing)."
+  }
+}

@@ -1,0 +1,38 @@
+# Local development override. Layers on top of docker-compose.yml:
+# `docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.local.yml up`.
+#
+# Runs the single `app` image (ROLE=all) serving the built SPA + /api same-origin
+# on host port 53000. For SPA hot-reload use the native `bun run dev` flow (Vite
+# on :5173); the dockerized stack serves the built bundle, so a web change needs
+# an image rebuild (`--build`). Postgres + Redis are published to the host so
+# external tools (psql, redis-cli, drizzle-kit) can reach them during dev.
+#
+# Host ports use a 5xxxx prefix (5 + the well-known port) so the stack co-exists
+# with other homelab services on the well-known numbers. Container-internal ports
+# are unchanged, so service-to-service DNS (`postgres:5432`, `redis:6379`) and the
+# native `bun run dev` flow keep working.
+
+services:
+  postgres:
+    ports:
+      - '55432:5432'
+
+  redis:
+    ports:
+      - '56379:6379'
+
+  app:
+    environment:
+      # node-postgres has no libpq `prefer` SSL fallback: with the base default
+      # `PGSSLMODE=prefer` it attempts TLS and errors against the local Postgres,
+      # which serves no TLS, crashing migrate-on-boot and the pool. Force
+      # plaintext for the dockerized dev stack.
+      PGSSLMODE: disable
+      # The browser loads the SPA + calls /api from the published app port
+      # (53000), same-origin. The api's Origin === WEB_ORIGIN check rejects
+      # anything else, so this must match the published port.
+      WEB_ORIGIN: http://localhost:53000
+    # Replace the base 3000 publish (not merge) so the dockerized stack does not
+    # also grab host 3000, which a native `bun run dev` api uses.
+    ports: !override
+      - '53000:3000'

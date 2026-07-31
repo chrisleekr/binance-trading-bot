@@ -1,0 +1,21 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`adapter — canonical BTC fixture (parity snapshot) > produces stable values for every indicator 1`] = `
+{
+  "adx": "14.1643",
+  "diMinus": "0.2764",
+  "diPlus": "0.1966",
+  "ema10": "77604.26",
+  "ema200": "78292.09",
+  "macdLine": "55.2013",
+  "macdSignal": "142.3343",
+  "sma10": "77742.02",
+  "sma200": "78439.77",
+  "stochD": "38.8866",
+  "stochK": "17.5953",
+  "stochRsiD": "16.4419",
+  "stochRsiK": "2.0031",
+  "vwma20": "77689.16",
+  "wma9": "77587.25",
+}
+`;

@@ -1,0 +1,46 @@
+{
+  "generatedAt": "2026-05-10T04:20:31.099Z",
+  "totals": {
+    "entryGz": 54927,
+    "lazyGz": 126156,
+    "cssGz": 4832
+  },
+  "chunks": [
+    {
+      "name": "vendor-react-WUdDW2bX.js",
+      "kind": "lazy",
+      "rawBytes": 209026,
+      "gzippedBytes": 67199
+    },
+    {
+      "name": "index-BK9tQJ7r.js",
+      "kind": "entry",
+      "rawBytes": 190108,
+      "gzippedBytes": 54927
+    },
+    {
+      "name": "vendor-tanstack-D0RndhKX.js",
+      "kind": "lazy",
+      "rawBytes": 87564,
+      "gzippedBytes": 27438
+    },
+    {
+      "name": "vendor-radix-FSRBN4sB.js",
+      "kind": "lazy",
+      "rawBytes": 63336,
+      "gzippedBytes": 18550
+    },
+    {
+      "name": "vendor-decimal-CaUHonIL.js",
+      "kind": "lazy",
+      "rawBytes": 32216,
+      "gzippedBytes": 12969
+    },
+    {
+      "name": "index-qQCmwayJ.css",
+      "kind": "css",
+      "rawBytes": 22672,
+      "gzippedBytes": 4832
+    }
+  ]
+}

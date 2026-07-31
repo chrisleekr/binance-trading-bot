@@ -1,0 +1,46 @@
+-- 0075_override_actions_picked_up_at.sql
+--
+-- The stranded-row sweep settles every override still pending long after its
+-- Redis key can only have expired, and it could not tell the two ways a row
+-- strands apart: no tick ever fired inside the window (harmless, nothing was
+-- placed) versus a tick that took the override, put an order on the wire, and was
+-- SIGKILLed before recording an outcome (an order may be live on the exchange).
+-- Both got one `expired` sentence, and nobody ever read it: the sweep's staleness
+-- bound and the override read route's window are the same 600 000 ms with opposite
+-- comparisons, so a row this sweep settles is already outside what the API will
+-- serve. The crashed-tick case therefore reached the operator not at all, and the
+-- row could not even record that an order might be live. This column is the
+-- breadcrumb that splits the two: the tick stamps it after the consuming Redis DEL
+-- and before the executor can dispatch, so its presence on a stranded row proves a
+-- tick owned the override when it died — which is what lets the sweep record the
+-- difference and raise the notification that is the only surface an operator can
+-- actually see it on.
+--
+-- Deliberately a NEW column rather than a reuse of `processing_at`, and the reason
+-- is not which paths happen to filter on it today. `processing_at` is a LEASE: it
+-- exists in order to be cleared and reused, and two paths do exactly that
+-- (`releaseClaim` on a failed side-effect, and the stale-claim reaper on a claim a
+-- dead worker abandoned) — both `set processing_at = null`. A lease structurally
+-- cannot carry "a tick owned this override at the moment the process died", because
+-- whichever reaper runs first erases the evidence, and the crash we are trying to
+-- explain is precisely what summons those reapers. `picked_up_at` is written once,
+-- guarded on `picked_up_at is null` so a retry cannot slide it forward, and cleared
+-- by nothing. That is what makes it durable, and it stays true if the tick ever
+-- becomes a claiming consumer: a claim would then mark in-flight work, never the
+-- fact that work was once in flight.
+--
+-- Secondary, but real today: `processing_at` is also read as a guard —
+-- `deletePendingForSymbol` skips a claimed row — so stamping it on every override
+-- tick would make an operator's cancel silently do nothing, and the compensating
+-- re-arm infers "the operator revoked this" from that DELETE having removed the row.
+-- No path is GATED on `picked_up_at`. It does appear in the sweep's own WHERE, of
+-- course, but nothing branches its behaviour on it the way the cancel guard branches
+-- on a claim.
+--
+-- No index. The sweep's predicate is unchanged, and its two branches are disjoint
+-- halves of the same pending set already covered by
+-- `override_actions_pending_symbol_idx`; an index on a column with two values
+-- would earn nothing and cost every override write.
+
+alter table override_actions
+  add column if not exists picked_up_at timestamptz;

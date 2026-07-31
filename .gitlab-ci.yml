@@ -1,122 +1,371 @@
+# GitLab CI mirror of the GitHub Actions pipeline. GitLab is the dev-image
+# factory. main and tag pipelines push images tagged with the slugified
+# ref (`:main` / `:<tag-slug>`); feature-branch pipelines push a single
+# rolling `:dev` tag per app, so each feature pipeline overwrites the last
+# instead of accreting a tag per commit and per branch. Releases (and the
+# `:latest` tag) ship from GitHub only — no release stage here.
+#
+# All step logic lives in scripts/ci/*.sh; this file is wiring.
+
+variables:
+  # Project-relative bun cache so GitLab CI can persist it between jobs;
+  # GitLab's cache: paths only honour project-relative directories.
+  BUN_INSTALL_CACHE: ${CI_PROJECT_DIR}/.bun-install-cache
+
+# Dedupe push + MR pipelines on the same commit. Without this, every push
+# to an MR branch fires two identical pipelines (one `push`, one
+# `merge_request_event`), doubling runner load and registry churn. The
+# pattern is the canonical "MR-OR-branch" recipe from GitLab docs:
+#   1. Always run on MR events.
+#   2. Suppress the branch pipeline when an MR is open for that branch
+#      (the MR pipeline covers it).
+#   3. Otherwise run the branch pipeline (push to a branch with no MR).
+#   4. And always run on tags.
+# Rule order matters — first match wins.
+workflow:
+  # Cancel superseded runs deterministically: only jobs marked `interruptible`
+  # (all of them, via `default:` below) are cancelled when a new commit lands on
+  # the same ref. Pairs with the faster DAG below to shrink the window where a
+  # merge attempt collides with an in-flight pipeline (the API-PUT-merge friction).
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    # MR pipeline is the canonical pipeline for in-flight feature work. The
+    # previous rule set tried to run branch pipelines too and dedupe via
+    # `$CI_OPEN_MERGE_REQUESTS`, but that env var is only populated when an
+    # MR already exists at pipeline-creation time. The first push always
+    # races MR creation, so the dedupe fired AFTER both pipelines had
+    # already queued. Restrict branch pipelines to the release branches and
+    # tags, which leaves exactly one pipeline per commit: MR-attached
+    # commits get the MR pipeline, post-merge `main` and `beta` commits get
+    # the branch pipeline, and tags get the release pipeline. A push to a
+    # feature branch without an open MR runs no CI — that is intentional;
+    # the MR is the entry point.
+    #
+    # `beta` is the prerelease branch: release-please cuts `vX.Y.Z-beta.N`
+    # from it, so a commit landing there is release input and needs the same
+    # post-merge gate as `main`. It is not the default branch, so
+    # `$CI_DEFAULT_BRANCH` does not cover it.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH == "beta"
+    - if: $CI_COMMIT_TAG
+
+default:
+  image: oven/bun:1.3.12-alpine
+  # Every job is interruptible so `workflow.auto_cancel.on_new_commit` above can
+  # cancel superseded runs. docker-build overrides this (see its job) so a push
+  # image build is never left half-done.
+  interruptible: true
+  before_script:
+    # bash for the CI scripts (alpine ships only sh). Docker is not needed
+    # here: only `docker-build` talks to docker, and it overrides before_script.
+    - apk add --no-cache bash
+    - bash scripts/ci/bootstrap.sh
+  cache:
+    # Shared deps. Content-addressed key: GitLab hashes `bun.lock` and forms
+    # `bun-<sha>`, so unchanged lockfiles hit the same cache across branches.
+    # Read-only here so the parallel `validate` jobs don't race on upload —
+    # last-writer-wins on a shared key produces non-deterministic content.
+    # The `lint` job is the sole writer (`pull-push`); everyone else reads.
+    - key:
+        files:
+          - bun.lock
+        prefix: bun
+      paths:
+        - .bun-install-cache/
+        - node_modules/
+      policy: pull
+    # Per-job turbo cache. A distinct key per job means each job persists and
+    # restores only its own task outputs, so typecheck/unit/test-replay cache
+    # across pipelines instead of recomputing every run. Distinct keys also
+    # remove the write race that forced the single-writer scheme above.
+    - key: 'turbo-${CI_JOB_NAME}'
+      paths:
+        - .turbo/
+      policy: pull-push
+
 stages:
-  - testing
-  - build development
-  - build production
+  # DAG, not a stage chain. The previous two-tier scheme (validate → heavy)
+  # forced e2e (~130s) to wait for the validate long-pole (unit ~119s) even
+  # though e2e depends on neither lint nor unit — a ~119s stage barrier on
+  # every MR. Every test/check job now declares `needs: []` and starts right
+  # after bootstrap, so the MR critical path collapses from ~250s to
+  # max(unit, e2e) ≈ 130s. Trade-off (accepted, #577): a failing lint no
+  # longer short-circuits the expensive jobs; since lint is run locally and
+  # rarely fails on CI, the per-run latency win beats the occasional wasted
+  # runner minutes. `docker-build` still gates on all tests passing (see its
+  # `needs:`) so a broken image is never pushed.
+  - test
+  - build
 
-cache:
-  key: "$CI_PIPELINE_ID"
-  paths:
-    - /root/.cache
-    - /root/.npm
-    - node_modules
+lint:
+  stage: test
+  needs: []
+  # The canonical cache writer for the pipeline. Picked because lint is
+  # cheap, stable, and runs first (so a refreshed cache lands before any
+  # consumer needs it). All other jobs inherit the default `policy: pull`.
+  cache:
+    # Sole writer of the shared-deps slot: same key as `default.cache` so
+    # readers (every other job) agree on the slot, but `pull-push` here.
+    - key:
+        files:
+          - bun.lock
+        prefix: bun
+      paths:
+        - .bun-install-cache/
+        - node_modules/
+      policy: pull-push
+    # lint's own turbo slot, same per-job scheme as the default.
+    - key: 'turbo-${CI_JOB_NAME}'
+      paths:
+        - .turbo/
+      policy: pull-push
+  script: bash scripts/ci/lint.sh
 
-testing:
-  stage: testing
-  image: node:14
-  interruptible: true
-  script:
-    - npm install
-    - npm run lint
-    - npm run test
+typecheck:
+  stage: test
+  needs: []
+  script: bash scripts/ci/typecheck.sh
 
-build-development:
-  stage: build development
-  image: docker:27-dind
-  interruptible: true
-  services:
-    - name: docker:27-dind
-      alias: docker
-  variables:
-    DOCKER_HOST: tcp://docker:2376
-    DOCKER_TLS_CERTDIR: "/certs"
-    DOCKER_TLS_VERIFY: 1
-    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
-  except:
-    - master
-    - development
-  # Set reference for this block
-  before_script: &before_script_docker
-    - apk add curl git jq
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
-    - docker context create dind
-    - docker buildx create --driver docker-container --use dind --buildkitd-flags '--allow-insecure-entitlement network.host'
-  script:
-    - PACKAGE_VERSION=$(grep -m1 version package.json | cut -c 15- | rev | cut
-      -c 3- | rev)
-    - GIT_HASH=$(git rev-parse --short HEAD)
-    - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7,linux/arm64
-      --allow network.host --provenance false
-      --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg GIT_HASH=$GIT_HASH
-      --build-arg NODE_ENV=production --target production-stage --pull --tag
-      $CI_REGISTRY/chrisleekr/binance-trading-bot:dev-${CI_COMMIT_SHORT_SHA} --push .
-
-build-development-tradingview:
-  stage: build development
-  image: docker:27-dind
-  services:
-    - name: docker:27-dind
-      alias: docker
-  variables:
-    DOCKER_HOST: tcp://docker:2376
-    DOCKER_TLS_CERTDIR: "/certs"
-    DOCKER_TLS_VERIFY: 1
-    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
-  except:
-    - master
-    - development
+unit:
+  stage: test
+  needs: []
+  # `apps/api/__tests__/login-throttle.test.ts` is gated on `REDIS_TEST_URL`
+  # and silently skipped without a Redis. Run it here so the throttle's
+  # 5-attempts-per-60s sliding window + 10-failures lockout contract is
+  # enforced on every push (#48-C). The throttle test does not touch
+  # Postgres, so no DB service is needed in this job.
+  #
+  # nodejs on top of the default before_script: test-unit.sh runs vitest with
+  # `--coverage`, and the v8 coverage provider needs Node's V8 inspector API,
+  # which Bun does not implement. `bun run` delegates the vitest bin to `node`
+  # when it is on PATH; without node here vitest aborts with "Coverage APIs are
+  # not supported" (the GitHub runner already ships node, so this only affects
+  # the bun-alpine image). Scoped to this job — no other job collects coverage.
   before_script:
-    - *before_script_docker
-  script:
-    - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7
-      --allow network.host --provenance false
-      --pull --tag $CI_REGISTRY/chrisleekr/binance-trading-bot:tradingview-dev-${CI_COMMIT_SHORT_SHA}
-      --push ./tradingview
-
-
-build-production:
-  stage: build production
-  image: docker:27-dind
+    - !reference [default, before_script]
+    - apk add --no-cache nodejs
   services:
-    - name: docker:27-dind
-      alias: docker
+    - name: redis:8-alpine
+      alias: redis
+  variables:
+    REDIS_TEST_URL: redis://redis:6379
+  script: bash scripts/ci/test-unit.sh
+
+# Strategy golden-fixture replay. Runs the synthesised set on every push;
+# diff = 0 is required to merge.
+test-replay:
+  stage: test
+  needs: []
+  script: bash scripts/ci/test-replay.sh
+
+# apps/api integration tests against real Postgres + Redis service containers.
+# The suites gate on DATABASE_TEST_URL (see apps/api/__tests__/_helpers.ts), so
+# the names matter: exporting DATABASE_URL left every DB-backed suite silently
+# `describe.skip`ped. POSTGRES_DB must end in `_test` because setupApp TRUNCATEs
+# the target and assertTestDatabaseUrl refuses anything else.
+integration:
+  stage: test
+  needs: []
+  services:
+    - name: timescale/timescaledb:latest-pg17
+      alias: postgres
+    - name: redis:8-alpine
+      alias: redis
+  variables:
+    POSTGRES_DB: binance_trading_bot_test
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    DATABASE_TEST_URL: postgres://postgres:postgres@postgres:5432/binance_trading_bot_test
+    REDIS_TEST_URL: redis://redis:6379
+    # See db-isolation below: timescaledb-tune aborts Postgres init on this runner.
+    NO_TS_TUNE: '1'
+  script: bash scripts/ci/test-integration.sh
+
+# apps/worker integration suites against real Postgres + Redis service
+# containers. Kept separate from `integration` (apps/api) because both TRUNCATE
+# their database; each job gets its own service container. The worker suites
+# gate on DATABASE_TEST_URL / REDIS_TEST_URL and run serially — before this job
+# existed they were never run in CI and rotted silently on contract changes.
+worker-integration:
+  stage: test
+  needs: []
+  # nodejs on top of the default before_script (same as the `unit` job):
+  # `test-worker-integration.sh` runs vitest via `bun run`, which delegates the
+  # vitest bin to `node` when it is on PATH. The tick-and-audit suite mocks
+  # Binance with nock, whose fetch interception throws under the bun-alpine
+  # runtime; running vitest under node avoids it.
+  before_script:
+    - !reference [default, before_script]
+    - apk add --no-cache nodejs
+  services:
+    - name: timescale/timescaledb:latest-pg17
+      alias: postgres
+    - name: redis:8-alpine
+      alias: redis
+  variables:
+    POSTGRES_DB: binance_trading_bot_test
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    DATABASE_TEST_URL: postgres://postgres:postgres@postgres:5432/binance_trading_bot_test
+    REDIS_TEST_URL: redis://redis:6379
+    # See db-isolation below: timescaledb-tune aborts Postgres init on this runner.
+    NO_TS_TUNE: '1'
+  script: bash scripts/ci/test-worker-integration.sh
+
+# packages/db isolation + projection tests against a real Postgres. The service
+# creates the test DB as POSTGRES_DB, so DATABASE_TEST_URL points straight at it
+# (no create step). Kept separate from `integration` because each job gets its
+# own service container and both TRUNCATE their database.
+db-isolation:
+  stage: test
+  needs: []
+  services:
+    - name: timescale/timescaledb:latest-pg17
+      alias: postgres
+  variables:
+    POSTGRES_DB: binance_trading_bot_test
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    DATABASE_TEST_URL: postgres://postgres:postgres@postgres:5432/binance_trading_bot_test
+    # The timescaledb image's auto-tune init script reads cgroup limit files
+    # (/sys/fs/cgroup/memory.max, cpu.max) that do not exist in this k8s runner
+    # pod, so timescaledb-tune panics and aborts Postgres init (the server never
+    # opens its TCP port). Skip tuning; the untuned default config is fine for
+    # tests. GitLab passes job variables to service containers.
+    NO_TS_TUNE: '1'
+  script: bash scripts/ci/test-db-isolation.sh
+
+# Pinned to the Playwright image whose version matches the @app/e2e
+# package; bumping the package's playwright version requires bumping
+# this image tag in lockstep so browser and runtime stay aligned.
+# The image is debian/ubuntu-based and ships node + browsers but not
+# Bun, so we install Bun and then run the same bootstrap.
+e2e:
+  stage: test
+  needs: []
+  image: mcr.microsoft.com/playwright:v1.59.1-noble
+  variables:
+    BUN_INSTALL: /root/.bun
+    BUN_VERSION: '1.3.12'
+    # The MS Playwright image bundles browsers under /ms-playwright;
+    # Playwright defaults to $HOME/.cache/ms-playwright which is empty
+    # in this container. Pointing at the image's bundled set avoids
+    # the otherwise-required (and slow) per-run download.
+    PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+  cache:
+    # Same content-addressed scheme as `default.cache`, but with a
+    # distinct prefix from the alpine-based default jobs. Restoring
+    # `node_modules` across musl ↔ glibc causes flaky failures when
+    # prebuilt binaries don't match the C library at runtime.
+    key:
+      files:
+        - bun.lock
+      prefix: bun-ubuntu
+    paths:
+      - .bun-install-cache/
+      - node_modules/
+    # No `.turbo/`: test-e2e.sh bypasses turbo to preserve PLAYWRIGHT_BROWSERS_PATH.
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends curl unzip
+    # Pin Bun to the same version the default oven/bun image runs so
+    # lockfile + binary expectations stay aligned across runtimes.
+    - curl -fsSL https://bun.sh/install | bash -s "bun-v$BUN_VERSION"
+    - export PATH="$BUN_INSTALL/bin:$PATH"
+    - bash scripts/ci/bootstrap.sh
+  script:
+    - export PATH="$BUN_INSTALL/bin:$PATH"
+    - bash scripts/ci/test-e2e.sh
+
+# Build + push the app images to the GitLab Container Registry on every
+# push. main/tag pipelines emit the slugified ref tag (`:main` /
+# `:<tag-slug>`). Feature-branch pipelines emit a single rolling `:dev` tag
+# per app (see `DOCKER_TAGS` in the rules below), overwriting the previous
+# feature image rather than accreting registry tags. No `--tag-latest`;
+# latest belongs to GitHub releases.
+#
+# Runs the docker:27-dind service over TLS on port 2376. The matching
+# `docker:27-dind` client image ships the certs the daemon mints into
+# `/certs/client/`, which `DOCKER_CERT_PATH` points at. `docker:24` +
+# `DOCKER_TLS_CERTDIR: ''` (the previous config) silently broke against
+# the modern dind image, which defaults to TLS-on; the daemon was up but
+# the client could not reach it. Pattern lifted from the v0 archive
+# branch which ran the same dind setup on this same shared runner.
+docker-build:
+  stage: build
+  # Gate the image on every test/check passing so a broken image is never
+  # pushed. On MRs this job is `when: manual` (below), so the gate only bites on
+  # main/tag pushes where the image actually ships.
+  needs:
+    - lint
+    - typecheck
+    - unit
+    - test-replay
+    - integration
+    - worker-integration
+    - db-isolation
+    - e2e
+  # A push image build must run to completion, not be cancelled mid-push by a
+  # newer commit (overrides `default.interruptible`).
+  interruptible: false
+  image: docker:27-cli
+  services:
+    - docker:27-dind
   variables:
     DOCKER_HOST: tcp://docker:2376
-    DOCKER_TLS_CERTDIR: "/certs"
-    DOCKER_TLS_VERIFY: 1
-    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
-  only:
-    - master
-    - development
+    DOCKER_TLS_CERTDIR: /certs
+    DOCKER_TLS_VERIFY: '1'
+    DOCKER_CERT_PATH: /certs/client
+    # Mirror tonistiigi/binfmt and oven/bun in the project's GitLab registry
+    # so this job sidesteps Docker Hub's 100/6h unauthenticated pull rate
+    # limit (#122). The mirror images are populated by hand; refresh with
+    # `docker buildx imagetools create --tag <mirror> <upstream>` whenever
+    # the upstream tag is bumped.
+    #
+    # `:master` here is the MIRROR IMAGE'S OWN registry tag, not a git ref.
+    # It survives the master -> main default-branch rename untouched;
+    # renaming it would orphan the hand-populated mirror.
+    BINFMT_IMAGE: $CI_REGISTRY_IMAGE/mirror/binfmt:master
+    BUN_IMAGE: $CI_REGISTRY_IMAGE/mirror/bun
+    # Default (feature branches): amd64-only. arm64 cross-compile under QEMU
+    # roughly doubles docker-build wall clock, and the `:dev` image has no
+    # arm64 consumer. main/tag refs override this below with multi-arch
+    # because the arm64 homelab node clsrv-v2-worker-01 pulls `:main`.
+    PLATFORMS: linux/amd64
+    # Feature branches publish one rolling `:dev` tag per app so each
+    # pipeline overwrites the last. main/tag pipelines override this
+    # with the ref-slug tag (`:main` / `:<tag-slug>`). Predefined CI vars
+    # are expanded by the runner inside this value; word-splitting in
+    # `script` is safe because slugs/`dev` contain no spaces.
+    DOCKER_TAGS: --tag-extra dev
+    # Stamp the running build's git short SHA so the status bar shows it instead
+    # of "unknown" (the alpine runtime carries no git). docker-build.sh forwards
+    # this as a --build-arg.
+    GIT_SHA: $CI_COMMIT_SHORT_SHA
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH || $CI_COMMIT_TAG'
+      variables:
+        DOCKER_TAGS: --tag-extra $CI_COMMIT_REF_SLUG
+        # Multi-arch only for the refs the homelab pulls: the arm64 node
+        # clsrv-v2-worker-01 (Raspberry Pi) runs the server + migrate Job
+        # from `:main`. binfmt QEMU is already registered by the dind job.
+        PLATFORMS: linux/amd64,linux/arm64
+    # Feature branches: amd64 :dev image, built on demand. Nothing in CI
+    # consumes it (e2e/integration use service containers), so it's an
+    # optional manual action — non-blocking, kept off the iteration critical
+    # path. One click to test a Dockerfile change on a branch.
+    - when: manual
+      allow_failure: true
   before_script:
-    - *before_script_docker
+    - apk add --no-cache bash
+    # `--password-stdin` keeps the registry token out of process listings
+    # and shell history; the `-p` form leaks the password to anything that
+    # can read /proc/<pid>/cmdline on the runner.
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    - PACKAGE_VERSION=$(grep -m1 version package.json | cut -c 15- | rev | cut
-      -c 3- | rev)
-    - GIT_HASH=$(git rev-parse --short HEAD)
-    - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7,linux/arm64
-      --allow network.host --provenance false
-      --build-arg PACKAGE_VERSION=$PACKAGE_VERSION --build-arg GIT_HASH=$GIT_HASH
-      --build-arg NODE_ENV=production --target production-stage --pull --tag
-      $CI_REGISTRY/chrisleekr/binance-trading-bot:latest --push .
-
-build-production-tradingview:
-  stage: build production
-  image: docker:27-dind
-  services:
-    - name: docker:27-dind
-      alias: docker
-  variables:
-    DOCKER_HOST: tcp://docker:2376
-    DOCKER_TLS_CERTDIR: "/certs"
-    DOCKER_TLS_VERIFY: 1
-    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
-  only:
-    - master
-    - development
-  before_script:
-    - *before_script_docker
-  script:
-    - docker buildx build --progress plain --platform linux/amd64,linux/arm/v7
-      --allow network.host --provenance false
-      --pull --tag $CI_REGISTRY/chrisleekr/binance-trading-bot:tradingview
-      --push ./tradingview
+    - bash scripts/ci/docker-build.sh
+      --push
+      --registry "$CI_REGISTRY_IMAGE"
+      --platforms "$PLATFORMS"
+      $DOCKER_TAGS

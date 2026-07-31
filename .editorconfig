@@ -1,6 +1,15 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
 indent_style = space
 indent_size = 2
-end_of_line = lf
-trim_trailing_whitespace = true
 insert_final_newline = true
-max_line_length = 150
+trim_trailing_whitespace = true
+
+[*.md]
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab

@@ -1,0 +1,98 @@
+# Scale-out override. Layer on the base to run the app as separate api / worker
+# / study services from the SAME image instead of one ROLE=all process:
+#
+#   docker compose -f deploy/compose/docker-compose.yml \
+#     -f deploy/compose/docker-compose.scale.yml up
+#
+# The single-process `app` is parked (moved under an inactive profile) so only
+# the split services run. Only the api service migrates on boot; worker and study
+# set SKIP_MIGRATIONS=1 so concurrent starts never race on _app_migrations.
+#
+# This is the horizontal-scaling seam. Multi-replica live worker is NOT yet
+# enabled (epic #561 plumbing is merged but dormant at one replica), so keep
+# WORKER_REPLICAS=1.
+
+x-app-image: &app-image
+  build:
+    context: ../..
+    dockerfile: apps/server/Dockerfile
+    args:
+      GIT_SHA: ${GIT_SHA:-}
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+  # Match the single-process `app`'s prod hardening so the split topology is not
+  # weaker: read-only root + a tmpfs for /tmp (the app writes only /tmp and the
+  # /backups bind mount).
+  read_only: true
+  tmpfs:
+    - /tmp
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks: [internal]
+
+x-app-env: &app-env
+  NODE_ENV: ${NODE_ENV:-production}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/binance_trading_bot}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+  PGSSLMODE: ${PGSSLMODE:-prefer}
+  WORKER_ADMIN_PORT: ${WORKER_ADMIN_PORT:-9101}
+
+# Worker/study run no api, so probe the worker admin (/healthz on 9101) instead
+# of the image's default api /readyz on 9100.
+x-worker-healthcheck: &worker-healthcheck
+  test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:9101/healthz']
+  interval: 10s
+  timeout: 3s
+  retries: 5
+  start_period: 10s
+
+services:
+  # Park the all-in-one: an inactive profile keeps it from starting while the
+  # split services below replace it.
+  app:
+    profiles: ['_parked']
+
+  api:
+    <<: *app-image
+    environment:
+      <<: *app-env
+      ROLE: api
+      PORT: 3000
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      AUTH_SECRET: ${AUTH_SECRET}
+      BACKUP_DIR: ${BACKUP_DIR:-/backups}
+    volumes:
+      - ./../../backups:/backups
+    ports:
+      - '${APP_HTTP_PORT:-3000}:3000'
+
+  worker:
+    <<: *app-image
+    environment:
+      <<: *app-env
+      ROLE: worker
+      BACKUP_DIR: ${BACKUP_DIR:-/backups}
+      ACTION_LOG_RETENTION_DAYS: ${ACTION_LOG_RETENTION_DAYS:-30}
+      AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS:-90}
+      # Only the api service migrates; skip here so concurrent boots never race.
+      SKIP_MIGRATIONS: '1'
+    volumes:
+      # db-backup cron runs pg_dump here, sharing the dump dir with the api.
+      - ./../../backups:/backups
+    healthcheck: *worker-healthcheck
+    deploy:
+      # Live-worker replica count. Keep at 1: multi-replica is not yet enabled
+      # (epic #561 scale-out plumbing is merged but dormant at one replica).
+      replicas: ${WORKER_REPLICAS:-1}
+
+  study:
+    <<: *app-image
+    environment:
+      <<: *app-env
+      ROLE: study
+      SKIP_MIGRATIONS: '1'
+    healthcheck: *worker-healthcheck

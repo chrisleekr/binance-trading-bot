@@ -1,0 +1,493 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`trailingTrade — backtest golden-fixture gate > matches the committed report snapshot (drift gate) 1`] = `
+{
+  "decisionBreakdown": {
+    "logs": [
+      {
+        "count": 1,
+        "level": "info",
+        "message": "tt-stop-loss",
+        "reason": null,
+      },
+      {
+        "count": 1,
+        "level": "info",
+        "message": "tt-trailing-stop",
+        "reason": null,
+      },
+    ],
+    "metrics": [
+      {
+        "count": 11,
+        "name": "tt_tick_pure_path",
+        "tags": {
+          "symbol": "BTCUSDT",
+        },
+      },
+      {
+        "count": 3,
+        "name": "tt_tick_buy_path",
+        "tags": {
+          "symbol": "BTCUSDT",
+        },
+      },
+      {
+        "count": 1,
+        "name": "tt_grid_sell_emit",
+        "tags": {
+          "symbol": "BTCUSDT",
+        },
+      },
+      {
+        "count": 1,
+        "name": "tt_grid_stop_loss_emit",
+        "tags": {
+          "symbol": "BTCUSDT",
+        },
+      },
+    ],
+  },
+  "drawdownSeries": [
+    {
+      "ddPct": 0,
+      "tsMs": 1700014399999,
+    },
+    {
+      "ddPct": 0,
+      "tsMs": 1700017999999,
+    },
+    {
+      "ddPct": 0,
+      "tsMs": 1700021599999,
+    },
+    {
+      "ddPct": 0,
+      "tsMs": 1700025199999,
+    },
+    {
+      "ddPct": 0,
+      "tsMs": 1700028799999,
+    },
+    {
+      "ddPct": -0.05992943354147567,
+      "tsMs": 1700032399999,
+    },
+    {
+      "ddPct": -0.06226590236695718,
+      "tsMs": 1700035999999,
+    },
+    {
+      "ddPct": -0.0792025914885237,
+      "tsMs": 1700039599999,
+    },
+    {
+      "ddPct": -0.049825418888930925,
+      "tsMs": 1700043199999,
+    },
+    {
+      "ddPct": -0.09389117778832008,
+      "tsMs": 1700046799999,
+    },
+    {
+      "ddPct": -0.12326835038791287,
+      "tsMs": 1700050399999,
+    },
+    {
+      "ddPct": -0.12542685283325425,
+      "tsMs": 1700053999999,
+    },
+    {
+      "ddPct": -0.08085508575470099,
+      "tsMs": 1700057599999,
+    },
+    {
+      "ddPct": -0.03403521580042312,
+      "tsMs": 1700061199999,
+    },
+    {
+      "ddPct": 0,
+      "tsMs": 1700064799999,
+    },
+    {
+      "ddPct": -0.031209256640659745,
+      "tsMs": 1700068399999,
+    },
+  ],
+  "equityCurve": [
+    {
+      "equity": "1000",
+      "tsMs": 1700014399999,
+    },
+    {
+      "equity": "1000.1274925",
+      "tsMs": 1700017999999,
+    },
+    {
+      "equity": "1000.4274925",
+      "tsMs": 1700021599999,
+    },
+    {
+      "equity": "1000.8774925",
+      "tsMs": 1700025199999,
+    },
+    {
+      "equity": "1001.1774925",
+      "tsMs": 1700028799999,
+    },
+    {
+      "equity": "1000.5774925",
+      "tsMs": 1700032399999,
+    },
+    {
+      "equity": "1000.5541003",
+      "tsMs": 1700035999999,
+    },
+    {
+      "equity": "1000.38453398054018",
+      "tsMs": 1700039599999,
+    },
+    {
+      "equity": "1000.67865162054018",
+      "tsMs": 1700043199999,
+    },
+    {
+      "equity": "1000.23747516054018",
+      "tsMs": 1700046799999,
+    },
+    {
+      "equity": "999.94335752054018",
+      "tsMs": 1700050399999,
+    },
+    {
+      "equity": "999.92174707988236",
+      "tsMs": 1700053999999,
+    },
+    {
+      "equity": "1000.36798957988236",
+      "tsMs": 1700057599999,
+    },
+    {
+      "equity": "1000.83673957988236",
+      "tsMs": 1700061199999,
+    },
+    {
+      "equity": "1001.30548957988236",
+      "tsMs": 1700064799999,
+    },
+    {
+      "equity": "1000.99298957988236",
+      "tsMs": 1700068399999,
+    },
+  ],
+  "metrics": {
+    "absoluteDrawdown": "1.25574542011764",
+    "absoluteProfit": "0.99298957988236",
+    "alphaVsDcaPct": -1.027524367108727,
+    "alphaVsHoldPct": -2.900701042011764,
+    "avgTradeDurationMs": 16200000,
+    "avgTradePnl": "-0.03912646005882",
+    "bestTradePct": 3.688467454584396,
+    "cagrPct": 0,
+    "calmar": 0,
+    "dcaChangePct": 1.126823325096963,
+    "drawdownEndMs": 1700053999999,
+    "drawdownStartMs": 1700028799999,
+    "expectancy": "-0.03912646005882",
+    "finalBalance": "1000.99298957988236",
+    "losses": 1,
+    "marketChangePct": 3,
+    "maxDrawdownPct": -0.12542685283325425,
+    "profitFactor": 0.8762512506806209,
+    "sharpe": null,
+    "sortino": null,
+    "sqn": null,
+    "startingBalance": "1000",
+    "totalReturnPct": 0.099298957988236,
+    "totalTrades": 2,
+    "winRate": 50,
+    "wins": 1,
+    "worstTradePct": -4.209372072499332,
+  },
+  "outOfSample": {
+    "alphaVsHoldPct": -4.9970716646792965,
+    "expectancy": "0",
+    "fraction": 0.3,
+    "fromMs": 1700052199999,
+    "holdReturnPct": 5.1020408163265305,
+    "profitFactor": null,
+    "returnPct": 0.1049691516472341,
+    "toMs": 1700068399999,
+    "trades": 0,
+    "winRate": 0,
+  },
+  "perSymbol": [
+    {
+      "pnlQuote": "-0.07825292011764",
+      "symbol": "BTCUSDT",
+      "tradeCount": 5,
+    },
+  ],
+  "regimeBreakdown": [],
+  "roundTrips": [
+    {
+      "closeTsMs": 1700035999999,
+      "durationMs": 18000000,
+      "entryPrice": "100.05",
+      "exitPrice": "103.948",
+      "exitReason": "grid-sell",
+      "feeQuote": "0.0305997",
+      "openTsMs": 1700017999999,
+      "pnlQuote": "0.5541003",
+      "qty": "0.15",
+      "returnPct": 3.688467454584396,
+      "symbol": "BTCUSDT",
+    },
+    {
+      "closeTsMs": 1700053999999,
+      "durationMs": 14400000,
+      "entryPrice": "102.051",
+      "exitPrice": "97.951",
+      "exitReason": "grid-stop-loss",
+      "feeQuote": "0.02941205811764",
+      "openTsMs": 1700039599999,
+      "pnlQuote": "-0.63235322011764",
+      "qty": "0.14705882",
+      "returnPct": -4.209372072499332,
+      "symbol": "BTCUSDT",
+    },
+  ],
+  "summary": {
+    "finalBalance": "1000.99298957988236",
+    "startingBalance": "1000",
+    "totalReturnPct": 0.099298957988236,
+    "tradeCount": 5,
+  },
+  "trades": [
+    {
+      "feeQuote": "0.0150075",
+      "price": "100.05",
+      "qty": "0.15",
+      "reason": "grid-buy",
+      "side": "BUY",
+      "symbol": "BTCUSDT",
+      "tsMs": 1700017999999,
+    },
+    {
+      "feeQuote": "0.0155922",
+      "price": "103.948",
+      "qty": "0.15",
+      "reason": "grid-sell",
+      "side": "SELL",
+      "symbol": "BTCUSDT",
+      "tsMs": 1700035999999,
+    },
+    {
+      "feeQuote": "0.01500749963982",
+      "price": "102.051",
+      "qty": "0.14705882",
+      "reason": "grid-buy",
+      "side": "BUY",
+      "symbol": "BTCUSDT",
+      "tsMs": 1700039599999,
+    },
+    {
+      "feeQuote": "0.01440455847782",
+      "price": "97.951",
+      "qty": "0.14705882",
+      "reason": "grid-stop-loss",
+      "side": "SELL",
+      "symbol": "BTCUSDT",
+      "tsMs": 1700053999999,
+    },
+    {
+      "feeQuote": "0.0150075",
+      "price": "96.048",
+      "qty": "0.15625",
+      "reason": "grid-buy",
+      "side": "BUY",
+      "symbol": "BTCUSDT",
+      "tsMs": 1700057599999,
+    },
+  ],
+}
+`;
+
+exports[`trailingTrade — stop-limit buy (backtest) > matches the committed report snapshot (drift gate) 1`] = `
+{
+  "decisionBreakdown": {
+    "logs": [
+      {
+        "count": 2,
+        "level": "info",
+        "message": "tt-grid-buy-emit",
+        "reason": null,
+      },
+      {
+        "count": 1,
+        "level": "info",
+        "message": "tt-trailing-stop",
+        "reason": null,
+      },
+    ],
+    "metrics": [
+      {
+        "count": 2,
+        "name": "tt_grid_buy_emit",
+        "tags": {
+          "level": "0",
+          "symbol": "BTCUSDT",
+        },
+      },
+      {
+        "count": 2,
+        "name": "tt_tick_pure_path",
+        "tags": {
+          "symbol": "BTCUSDT",
+        },
+      },
+      {
+        "count": 1,
+        "name": "tt_grid_sell_emit",
+        "tags": {
+          "symbol": "BTCUSDT",
+        },
+      },
+    ],
+  },
+  "drawdownSeries": [
+    {
+      "ddPct": 0,
+      "tsMs": 3599999,
+    },
+    {
+      "ddPct": -0.0451,
+      "tsMs": 7199999,
+    },
+    {
+      "ddPct": 0,
+      "tsMs": 10799999,
+    },
+    {
+      "ddPct": -0.14955895065451982,
+      "tsMs": 14399999,
+    },
+    {
+      "ddPct": -0.15740817828224565,
+      "tsMs": 17999999,
+    },
+  ],
+  "equityCurve": [
+    {
+      "equity": "1000",
+      "tsMs": 3599999,
+    },
+    {
+      "equity": "999.549",
+      "tsMs": 7199999,
+    },
+    {
+      "equity": "1002.949",
+      "tsMs": 10799999,
+    },
+    {
+      "equity": "1001.449",
+      "tsMs": 14399999,
+    },
+    {
+      "equity": "1001.37027625",
+      "tsMs": 17999999,
+    },
+  ],
+  "metrics": {
+    "absoluteDrawdown": "1.57872375",
+    "absoluteProfit": "1.37027625",
+    "alphaVsDcaPct": -1.0584049617369347,
+    "alphaVsHoldPct": -4.862972375,
+    "avgTradeDurationMs": 10800000,
+    "avgTradePnl": "1.37027625",
+    "bestTradePct": 2.6841320444261623,
+    "cagrPct": 0,
+    "calmar": 0,
+    "dcaChangePct": 1.1954325867369346,
+    "drawdownEndMs": 17999999,
+    "drawdownStartMs": 10799999,
+    "expectancy": "1.37027625",
+    "finalBalance": "1001.37027625",
+    "losses": 0,
+    "marketChangePct": 5,
+    "maxDrawdownPct": -0.15740817828224565,
+    "profitFactor": null,
+    "sharpe": null,
+    "sortino": null,
+    "sqn": null,
+    "startingBalance": "1000",
+    "totalReturnPct": 0.137027625,
+    "totalTrades": 1,
+    "winRate": 100,
+    "wins": 1,
+    "worstTradePct": 2.6841320444261623,
+  },
+  "outOfSample": {
+    "alphaVsHoldPct": 2.620369599495532,
+    "expectancy": "0",
+    "fraction": 0.3,
+    "fromMs": 13679999,
+    "holdReturnPct": -2.7777777777777777,
+    "profitFactor": null,
+    "returnPct": -0.15740817828224565,
+    "toMs": 17999999,
+    "trades": 0,
+    "winRate": 0,
+  },
+  "perSymbol": [
+    {
+      "pnlQuote": "1.37027625",
+      "symbol": "BTCUSDT",
+      "tradeCount": 2,
+    },
+  ],
+  "regimeBreakdown": [],
+  "roundTrips": [
+    {
+      "closeTsMs": 17999999,
+      "durationMs": 10800000,
+      "entryPrice": "102",
+      "exitPrice": "104.9475",
+      "exitReason": "grid-sell",
+      "feeQuote": "0.10347375",
+      "openTsMs": 7199999,
+      "pnlQuote": "1.37027625",
+      "qty": "0.5",
+      "returnPct": 2.6841320444261623,
+      "symbol": "BTCUSDT",
+    },
+  ],
+  "summary": {
+    "finalBalance": "1001.37027625",
+    "startingBalance": "1000",
+    "totalReturnPct": 0.137027625,
+    "tradeCount": 2,
+  },
+  "trades": [
+    {
+      "feeQuote": "0.051",
+      "price": "102",
+      "qty": "0.5",
+      "reason": "grid-buy",
+      "side": "BUY",
+      "symbol": "BTCUSDT",
+      "tsMs": 7199999,
+    },
+    {
+      "feeQuote": "0.05247375",
+      "price": "104.9475",
+      "qty": "0.5",
+      "reason": "grid-sell",
+      "side": "SELL",
+      "symbol": "BTCUSDT",
+      "tsMs": 17999999,
+    },
+  ],
+}
+`;

@@ -1,25 +1,36 @@
-<!--- Provide a general summary of your changes in the Title above -->
+<!--
+Conventional-Commit titles are enforced by .github/workflows/ci.yml's
+pr-title-lint job. The PR title becomes the squashed commit subject.
+-->
 
-## Description
+## Motivation
 
-<!--- Describe your changes in detail -->
+<!-- What problem does this solve? Link the issue. -->
 
-## Related Issue
+Closes #
 
-<!--- This project only accepts pull requests related to open issues -->
-<!--- If suggesting a new feature or change, please discuss it in an issue first -->
-<!--- If fixing a bug, there should be an issue describing it with steps to reproduce -->
-<!--- Please link to the issue here: -->
+## Changes
 
-## Motivation and Context
+<!-- One bullet per significant change, grouped by file or subsystem. -->
 
-<!--- Why is this change required? What problem does it solve? -->
-<!--- If it fixes an open issue, please link to the issue here. -->
+-
 
-## How Has This Been Tested?
+## Test plan
 
-<!--- Please describe in detail how you tested your changes. -->
-<!--- Include details of your testing environment, and the tests you ran to -->
-<!--- see how your change affects other areas of the code, etc. -->
+- [ ] `bun run lint` clean
+- [ ] `bun run typecheck` clean
+- [ ] `bun run test` clean
+- [ ] Manual:
 
-## Screenshots (if appropriate):
+## Breaking changes
+
+<!-- "None" or describe what consumers must do to upgrade. -->
+
+None.
+
+<details>
+<summary>Screenshots (UI changes only)</summary>
+
+<!-- Drag images here. Mobile (375×667) before/after for UI-touching MRs. -->
+
+</details>

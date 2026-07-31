@@ -1,0 +1,31 @@
+{
+  "name": "order-place — LIMIT BUY accepted (NEW)",
+  "request": {
+    "method": "POST",
+    "path": "/api/v3/order",
+    "matchQuery": "any"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json",
+      "x-mbx-used-weight-1m": "21"
+    },
+    "body": {
+      "symbol": "BTCUSDT",
+      "orderId": 28,
+      "orderListId": -1,
+      "clientOrderId": "fixture-limit-buy-1",
+      "transactTime": 1700000000100,
+      "price": "30000.00000000",
+      "origQty": "0.00100000",
+      "executedQty": "0.00000000",
+      "cummulativeQuoteQty": "0.00000000",
+      "status": "NEW",
+      "timeInForce": "GTC",
+      "type": "LIMIT",
+      "side": "BUY",
+      "fills": []
+    }
+  }
+}

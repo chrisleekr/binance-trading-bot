@@ -1,394 +1,117 @@
+<div align="center">
+
 # Binance Trading Bot
 
-[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://war.ukraine.ua)
+**Automated Binance trading bot with pluggable strategies, historical backtesting, and a live dashboard.**<br/> Self-hosted. Multiple strategy profiles: grid, momentum, or rebalancing.
 
+[Documentation](https://chrisleekr.github.io/binance-trading-bot) · [Quick start](#quick-start-development) · [Deploy](deploy/README.md) · [Strategies](https://chrisleekr.github.io/binance-trading-bot/concepts/strategies/)
 
-[![GitHub version](https://img.shields.io/github/package-json/v/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/releases)
-[![Build](https://github.com/chrisleekr/binance-trading-bot/workflows/Push/badge.svg)](https://github.com/chrisleekr/binance-trading-bot/actions?query=workflow%3APush)
-[![CodeCov](https://codecov.io/gh/chrisleekr/binance-trading-bot/branch/master/graph/badge.svg)](https://codecov.io/gh/chrisleekr/binance-trading-bot)
-[![Docker pull](https://img.shields.io/docker/pulls/chrisleekr/binance-trading-bot)](https://hub.docker.com/r/chrisleekr/binance-trading-bot)
-[![GitHub contributors](https://img.shields.io/github/contributors/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
-[![MIT License](https://img.shields.io/github/license/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/blob/master/LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/chrisleekr/binance-trading-bot/ci.yml?branch=main&label=CI)](https://github.com/chrisleekr/binance-trading-bot/actions/workflows/ci.yml) [![Docs](https://img.shields.io/github/actions/workflow/status/chrisleekr/binance-trading-bot/docs.yml?branch=main&label=docs)](https://chrisleekr.github.io/binance-trading-bot) [![Release](https://img.shields.io/github/v/release/chrisleekr/binance-trading-bot?sort=semver)](https://github.com/chrisleekr/binance-trading-bot/releases) [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-> Automated Binance trading bot with trailing buy/sell strategy
+[![Docker pulls](https://img.shields.io/docker/pulls/chrisleekr/binance-trading-bot)](https://hub.docker.com/r/chrisleekr/binance-trading-bot) [![Stars](https://img.shields.io/github/stars/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/stargazers) [![Contributors](https://img.shields.io/github/contributors/chrisleekr/binance-trading-bot)](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
 
----
+<img src="docs/assets/readme/dashboard.png" alt="Dashboard showing open positions, open orders, market trend and the monitored symbol table" width="900" />
 
-[![ko](https://img.shields.io/badge/lang-한국어-brightgreen.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.ko.md)
-[![中文](https://img.shields.io/badge/lang-中文-blue.svg)](https://github.com/chrisleekr/binance-trading-bot/blob/master/README.zh-cn.md)
+</div>
 
-This is a test project. I am just testing my code.
-
-## Warnings
-
-**I cannot guarantee whether you can make money or not.**
-
-**So use it at your own risk! I have no responsibility for any loss or hardship
-incurred directly or indirectly by using this code. Read
-[disclaimer](#disclaimer) before using this code.**
-
-**Before updating the bot, make sure to record the last buy price in the note. It may lose the configuration or last buy price records.**
+<!-- prettier-ignore -->
+> [!WARNING]
+> **I cannot guarantee whether you can make money or not. Use it at your own risk.** I have no responsibility for any loss or hardship incurred directly or indirectly by using this code. Read the [disclaimer](#disclaimer) before using it.
+>
+> Under active development and not recommended for real funds.
 
 ## How it works
 
-### Trailing Grid Trade Buy/Sell Bot
+You run the app on your own server, connect it to your Binance account with an API key, and it watches the market and places buy and sell orders on your behalf. Once running, it repeats a short loop for every coin you told it to watch: read the market, run your strategy's rules, decide buy / sell / wait, and act.
 
-This bot is using the concept of trailing buy/sell order which allows following the price fall/rise.
+- **Strategy-pluggable.** A _strategy_ is the rulebook the bot trades by. Three ship today: **trailing-trade**, **momentum**, and **rebalance**, and you pick one per profile. Each lives in its own package behind a shared contract, so adding a fourth is mostly a new package plus a registry entry, not a rewrite of the trading loop.
+- **Account-scoped profiles.** One operator login owns one or more Binance _accounts_. Each account is one API key pair, one environment (testnet or live), and one wallet. Each account runs N independent _profiles_, each with its own coins, budget, and strategy, all sharing that account's wallet.
+- **Reliability-first.** Crash-only worker, idempotent jobs, and a version-aware per-symbol state commit mean a restart resumes cleanly and never double-places an order.
 
-> Trailing Stop Orders
-> About Trailing Stop Orders Concept you can find at [Binance Official document](https://www.binance.com/en/support/faq/360042299292)
->
-> TL;DR
-> Place orders at a fixed value or percentage when the price changes. Using this feature you can buy at the lowest possible price when buying down and sell at the highest possible price when selling up.
+Persistence is Postgres + TimescaleDB; cache and queues are Redis + BullMQ. Schema lives in [`packages/db`](packages/db).
 
-- The bot supports multiple buy/sell orders based on the configuration.
-- The bot can monitor multiple symbols. All symbols will be monitored per second.
-- The bot is using MongoDB to provide a persistence database. However, it does not use the latest MongoDB to support Raspberry Pi 32bit. Used MongoDB version
-  is 3.2.20, which is provided by [apcheamitru](https://hub.docker.com/r/apcheamitru/arm32v7-mongo).
-- The bot is tested/working with Linux and Raspberry Pi 4 32bit. Other platforms are not tested.
+### Act on a symbol
 
-#### Buy Signal
+Every monitored symbol gets a workspace: live market data, the strategy's current signal, open orders, and manual overrides in one place.
 
-The bot will continuously monitor the coin based on the grid trade configuration.
+<img src="docs/assets/readme/symbol-workspace.png" alt="Symbol workspace showing a live candle chart with the entry price and trailing stop drawn on it" width="900" />
 
-For grid trade #1, the bot will place a STOP-LOSS-LIMIT order to buy when the current price reaches the lowest price. If the current price continuously falls, then the bot will cancel the previous order and re-place the new STOP-LOSS-LIMIT order with the new price.
+### Tune a strategy, then backtest it
 
-After grid trade #1, the bot will monitor the COIN based on the last buy price.
+Configure a strategy per profile, then replay it against historical candles before risking anything. Every run is kept, so you can compare windows and symbols side by side.
 
-- The bot will not place a buy order of the grid trade #1 if has enough coin (typically over $10 worth) to sell when reaches the trigger price for selling.
-- The bot will remove the last buy price if the estimated value is less than the last buy price removal threshold.
+<img src="docs/assets/readme/backtest-history.png" alt="Backtest history listing past runs with their window period, status and profit or loss" width="900" />
 
-##### Buy Scenario
+More screens are covered in the [user guide](https://chrisleekr.github.io/binance-trading-bot/user-guide/).
 
-Let say, if the buy grid trade configurations are set as below:
+## Configuration
 
-- Number of grids: 2
-- Grids
-  | No# | Trigger Percentage  | Stop Price Percentage | Limit price percentage | USDT |
-  | --- | ------------------- | --------------------- | ---------------------- | ---- |
-  | 1   | 1                   | 1.05                  | 1.051                  | 50   |
-  | 2   | 0.8                 | 1.03                  | 1.031                  | 100  |
+Per-profile configuration (grid, indicators, notifier providers, Technicals gates) lives in the database and is editable through the SPA after first run. See [configure a profile](https://chrisleekr.github.io/binance-trading-bot/get-started/configure/).
 
-To make it easier to understand, I will use `$` as a USDT symbol. For the simple calculation, I do not take an account for the commission. In real trading, the quantity may be different.
+Process-level environment variables (`DATABASE_URL`, `REDIS_URL`, `WEB_ORIGIN`, `AUTH_SECRET`, etc.) are listed in [`.env.example`](.env.example) and described in the [environment variable reference](https://chrisleekr.github.io/binance-trading-bot/operations/env-vars/).
 
-Your 1st grid trading for buying is configured as below:
+## Quick start (development)
 
-- Grid No#: 1
-- Trigger percentage: 1
-- Stop percentage: 1.05 (5.00%)
-- Limit percentage: 1.051 (5.10%)
-- Max purchase amount: $50
+Prerequisites: [Bun](https://bun.sh) 1.3+ and Docker (with the `compose` plugin) for the local Postgres + Redis stack.
 
-And the market is as below:
+Run all commands from the repo root.
 
-- Current price: $105
-- Lowest price: $100
-- Trigger price: $100
+```bash
+# 1. Install deps, write .env from .env.example, bring up Postgres + Redis
+#    with host ports exposed (via the local compose override), and run
+#    migrations.
+bun install
+bun run setup
 
-When the current price is falling to the lowest price ($100) and lower than ATH(All-Time High) restricted price if enabled, the bot will place new STOP-LOSS-LIMIT order for buying.
+# 2. Start api + web + worker + technicals via turbo
+bun run dev
+```
 
-- Stop price: $100 * 1.05 = $105
-- Limit price: $100 * 1.051 = $105.1
-- Quantity: 0.47573
+Open the SPA at `http://localhost:5173`.
 
-Let's assume the market changes as below:
+To run the whole stack in containers instead, use `bun run docker:dev`. One `app` service (ROLE=all) serves the SPA + `/api` on `http://localhost:53000`.
 
-- Current price: $95
+## Quick start (deploy to a VM)
 
-Then the bot will follow the price fall and place new STOP-LOSS-LIMIT order as below:
+The 9-step operator runbook lives at [`deploy/README.md`](deploy/README.md). It covers `.env`, `AUTH_SECRET`, image pull, `docker compose up`, migrations, onboarding, IP-allowlisting the Binance key, smoke tests, and three TLS options.
 
-- Stop price: $95 * 1.05 = $99.75
-- Limit price: $95 * 1.051 = $99.845
-- Quantity: 0.5
+Images are published to Docker Hub as `chrisleekr/binance-trading-bot:vX.Y.Z`. Pin a version with `IMAGE_TAG` rather than tracking `:latest`.
 
-Let's assume the market changes as below:
+## Documentation
 
-- Current price: $100
+The full guide is at **<https://chrisleekr.github.io/binance-trading-bot>**, split by audience:
 
-Then the bot will execute 1st purchase for the coin. The last buy price will be recorded as `$99.845`. The purchased quantity will be `0.5`.
+| Audience | What's there |
+| --- | --- |
+| [**Get started**](https://chrisleekr.github.io/binance-trading-bot/get-started/) | Install, configure a profile, go live |
+| [**User guide**](https://chrisleekr.github.io/binance-trading-bot/user-guide/) | Dashboard, symbol workspace, profile and account settings |
+| [**Concepts**](https://chrisleekr.github.io/binance-trading-bot/concepts/) | Strategies, discovery, technicals, backtesting, notifiers, written for non-experts |
+| [**Operations**](https://chrisleekr.github.io/binance-trading-bot/operations/) | Deploy, kill switch, environment variables, troubleshooting |
+| [**Contributing**](https://chrisleekr.github.io/binance-trading-bot/contributing/) | Architecture, plugin contracts, CI gates, coding rules, testing |
 
-Once the coin is purchased, the bot will start monitoring the sell signal and at the same time, monitor the next grid trading for buying.
+Build the site locally:
 
-Your 2nd grid trading for buying is configured as below:
+```bash
+bun run docs:install
+bun run docs:serve   # http://127.0.0.1:8000
+```
 
-- Grid#: 2
-- Current last buy price: $99.845
-- Trigger percentage: 0.8 (20%)
-- Stop percentage: 1.03 (3.00%)
-- Limit percentage: 1.031 (3.10%)
-- Max purchase amount: $100
+## Contributing
 
-And if the current price is continuously falling to `$79.876` (20% lower), then the bot will place new STOP-LOSS-LIMIT order for the 2nd grid trading for the coin.
+Issues and pull requests are welcome at [github.com/chrisleekr/binance-trading-bot](https://github.com/chrisleekr/binance-trading-bot).
 
-Let's assume the market changes as below:
+1. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow.
+2. Read [`AGENTS.md`](AGENTS.md) for the engineering charter and the invariants (`CLAUDE.md` is a symlink alias for Claude Code).
+3. `bun run lint` and `bun run typecheck` must be clean before opening a pull request.
 
-- Current price: $75
+Security issues: please follow [`SECURITY.md`](SECURITY.md) rather than opening a public issue.
 
-Then the bot will follow the price fall and place new STOP-LOSS-LIMT order as below:
+## License
 
-- Stop price: $75 * 1.03 = $77.25
-- Limit price: $75 * 1.031 = $77.325
-- Quantity: 1.29
-
-Let's assume the market changes as below:
-
-- Current price: $78
-
-Then the bot will execute 2nd purchase for the coin. The last buy price will be automatically re-calculated as below:
-
-- Final last buy price: ($50 + $100)/(0.5 COIN + 1.29 COIN) = $83.80
-
-##### In-depth Buy Configuration in-depth
-
-The detailed document for buy configuration available here.
-
-[https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Buy-Scenario)
-
-### Sell Signal
-
-If there is enough balance for selling and the last buy price is recorded in the bot, then the bot will start monitoring the sell signal of the grid trade #1. Once the current price reaches the trigger price of the grid trade #1, then the bot will place a STOP-LOSS-LIMIT order to sell. If the current price continuously rises, then the bot will cancel the previous order and re-place the new STOP-LOSS-LIMIT order with the new price.
-
-- If the bot does not have a record for the last buy price, the bot will not sell the coin.
-- If the coin is worth less than the last buy price removal threshold, then the bot will remove the last buy price.
-- If the coin is not worth than the minimum notional value, then the bot will not place an order.
-
-#### Sell Scenario
-
-Let say, if the sell grid trade configurations are set as below:
-
-- Number of grids: 2
-- Grids
-  | No# | Trigger Percentage  | Stop Price Percentage | Limit price percentage | Sell Quantity Percentage |
-  | --- | ------------------- | --------------------- | ---------------------- |------------------------- |
-  | 1st | 1.05                | 0.97                  | 0.969                  | 0.5                      |
-  | 2nd | 1.08                | 0.95                  | 0.949                  | 1                        |
-
-Unlike buy, the sell configuration will use the percentage of a quantity. If you want to sell all of your coin quantity, then simply configure it as `1` (100%).
-
-From the last buy actions, you now have the following balances:
-
-- Current quantity: 1.79
-- Current last buy price: $83.80
-
-Your 1st grid trading for selling is configured as below:
-
-- Grid No# 1
-- Trigger percentage: 1.05
-- Stop price percentage: 0.97
-- Limit price percentage: 0.969
-- Sell amount percentage: 0.5
-
-Let's assume the market changes as below:
-
-- Current price: $88
-
-As the current price is higher than the sell trigger price($87.99), then the bot will place new STOP-LOSS-LIMIT order for selling.
-
-- Stop price: $88 * 0.97 = $85.36
-- Limit price: $88 * 0.969 = $85.272
-- Quantity: 0.895
-
-Let's assume the market changes as below:
-
-- Current price: $90
-
-Then the bot will follow the price rise and place new STOP-LOSS-LIMIT order as below:
-
-- Stop price: $90 * 0.97 = $87.30
-- Limit price: $90 * 0.969 = $87.21
-- Quantity: 0.895
-
-Let's assume the market changes as below:
-
-- Current price: $87
-
-Then the bot will execute 1st sell for the coin. Then the bot will now wait for 2nd selling trigger price ($83.80 * 1.08 = $90.504).
-
-- Current quantity: 0.895
-- Current last buy price: $83.80
-
-Let's assume the market changes as below:
-
-- Current price: $91
-
-Then the current price($91) is higher than 2nd selling trigger price ($90.504), the bot will place new STOP-LOSS-LIMIT order as below:
-
-- Stop price: $91 * 0.95 = $86.45
-- Limit price: $91 * 0.949 = $86.359
-- Quantity: 0.895
-
-Let's assume the market changes as below:
-
-- Current price: $100
-
-Then the bot will follow the price rise and place new STOP-LOSS-LIMT order as below:
-
-- Stop price: $100 * 0.95 = $95
-- Limit price: $100 * 0.949 = $94.9
-- Quantity: 0.895
-
-Let's assume the market changes as below:
-
-- Current price: $94
-
-Then the bot will execute 2nd sell for the coin.
-
-The final profit would be
-
-- 1st sell: $94.9 * 0.895 = $84.9355
-- 2nd sell: $87.21 * 0.895 = $78.05295
-- Final profit: $162 (8% profit)
-
-##### In-depth Sell Configuration
-
-The detailed document for buy configuration available here.
-
-[https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario](https://github.com/chrisleekr/binance-trading-bot/wiki/Sell-Scenario)
-
-### [Features](https://github.com/chrisleekr/binance-trading-bot/wiki/Features)
-
-- Manual trade
-- Convert small balances to BNB
-- Trade all symbols
-- Monitoring multiple coins simultaneously
-- Stop-Loss
-- Restrict buying with ATH price
-- Grid Trade for buy/sell
-- Integrated with TradingView Technical Analysis
-
-### Frontend + WebSocket
-
-React.js based frontend communicating via Web Socket:
-
-- List monitoring coins with buy/sell signals/open orders
-- View account balances
-- View open/closed trades
-- Manage global/symbol settings
-- Delete caches that are not monitored
-- Link to public URL
-- Support Add to Home Screen
-- Secure frontend
-
-## Environment Parameters
-
-Use environment parameters to adjust parameters. Check `/config/custom-environment-variables.json` to see list of available environment parameters.
-
-Or use the frontend to adjust configurations after launching the application.
-
-## How to use
-
-1. Create `.env` file based on `.env.dist`.
-
-   | Environment Key                | Description                                                               | Sample Value                                                                                        |
-   | ------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-   | BINANCE_LIVE_API_KEY           | Binance API key for live                                                  | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API))      |
-   | BINANCE_LIVE_SECRET_KEY        | Binance API secret for live                                               | (from [Binance](https://binance.zendesk.com/hc/en-us/articles/360002502072-How-to-create-API))      |
-   | BINANCE_TEST_API_KEY           | Binance API key for test                                                  | (from [Binance Spot Test Network](https://testnet.binance.vision/))                                 |
-   | BINANCE_TEST_SECRET_KEY        | Binance API secret for test                                               | (from [Binance Spot Test Network](https://testnet.binance.vision/))                                 |
-   | BINANCE_SLACK_ENABLED          | Slack enable/disable                                                      | true                                                                                                |
-   | BINANCE_SLACK_WEBHOOK_URL      | Slack webhook URL                                                         | (from [Slack](https://slack.com/intl/en-au/help/articles/115005265063-Incoming-webhooks-for-Slack)) |
-   | BINANCE_SLACK_CHANNEL          | Slack channel                                                             | "#binance"                                                                                          |
-   | BINANCE_SLACK_USERNAME         | Slack username                                                            | Chris                                                                                               |
-   | BINANCE_LOCAL_TUNNEL_ENABLED   | Enable/Disable [local tunnel](https://github.com/localtunnel/localtunnel) | true                                                                                                |
-   | BINANCE_LOCAL_TUNNEL_SUBDOMAIN | Local tunnel public URL subdomain                                         | binance                                                                                             |
-   | BINANCE_AUTHENTICATION_ENABLED | Enable/Disable frontend authentication                                    | true  |
-   | BINANCE_AUTHENTICATION_PASSWORD | Frontend password                                                        | 123456 |
-   | BINANCE_LOG_LEVEL               | Logging level. [Possible values described on `bunyan` docs.](https://www.npmjs.com/package/bunyan#levels) | ERROR |
-
-   *A local tunnel makes the bot accessible from the outside. Please set the subdomain of the local tunnel as a subdomain that only you can remember.*
-   *You must change the authentication password; otherwise, it will be configured as the default password.*
-
-2. Launch/Update the bot with docker-compose
-
-   Pull latest code first:
-
-   ```bash
-   git pull
-   ```
-
-   If want production/live mode, then use the latest build image from DockerHub:
-
-   ```bash
-   docker-compose -f docker-compose.server.yml pull
-   docker-compose -f docker-compose.server.yml up -d
-   ```
-
-   Or if want development/test mode, then run below commands:
-
-   ```bash
-   docker-compose up -d --build
-   ```
-
-3. Open browser `http://0.0.0.0:8080` to see the frontend
-
-   - When launching the application, it will notify public URL to the Slack.
-   - If you have any issue with the bot, you can check the log to find out what happened with the bot. Please take a look [Troubleshooting](https://github.com/chrisleekr/binance-trading-bot/wiki/Troubleshooting)
-
-### Install via Stackfile
-
-1. In [Portainer](https://www.portainer.io/) create new Stack
-
-2. Copy content of `docker-stack.yml` or upload the file
-
-3. Set environment keys for `binance-bot` in the `docker-stack.yml`
-
-4. Launch and open browser `http://0.0.0.0:8080` to see the frontend
-
-## Screenshots
-
-| Password Protected | Frontend Mobile |
-| ------------------ | --------------- |
-| ![Password Protected](https://user-images.githubusercontent.com/5715919/133920104-49d1b590-c2ba-46d7-a294-eb6b24b459f5.png) | ![Frontend Mobile](https://user-images.githubusercontent.com/5715919/137472107-4059fcdf-5174-4282-81af-80cea5b269a0.png) |
-
-| Setting | Manual Trade |
-| ------- | ------------ |
-| ![Setting](https://user-images.githubusercontent.com/5715919/127318581-4e422ac9-b145-4e83-a90d-5c05c61d6e2f.png) | ![Manual Trade](https://user-images.githubusercontent.com/5715919/127318630-f2180e1b-3feb-48fa-a083-4cb7f90f743f.png) |
-
-| Frontend Desktop  | Closed Trades |
-| ----------------- | ------------- |
-| ![Frontend Desktop](https://user-images.githubusercontent.com/5715919/137472148-7be1e19b-3ce5-4d5a-aa28-18c55b3b48aa.png) | ![Closed Trades](https://user-images.githubusercontent.com/5715919/137472190-a4c6ef0f-3399-44bb-852f-eedb7c67d629.png) |
-
-### Sample Trade
-
-| Chart                                                                                                          | Buy Orders                                                                                                          | Sell Orders                                                                                                          |
-| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| ![Chart](https://user-images.githubusercontent.com/5715919/111027391-192db300-8444-11eb-8df4-91c98d0c835b.png) | ![Buy Orders](https://user-images.githubusercontent.com/5715919/111027403-36628180-8444-11eb-91dc-f3cdabc5a79e.png) | ![Sell Orders](https://user-images.githubusercontent.com/5715919/111027411-4b3f1500-8444-11eb-8525-37f02a63de25.png) |
-
-## Changes & Todo
-
-Please refer
-[CHANGELOG.md](https://github.com/chrisleekr/binance-trading-bot/blob/master/CHANGELOG.md)
-to view the past changes.
-
-- [ ] Develop simple setup screen for secrets
-- [ ] Allow to execute stop-loss before buy action - [#299](https://github.com/chrisleekr/binance-trading-bot/issues/299)
-- [ ] Improve sell strategy with conditional stop price percentage based on the profit percentage - [#94](https://github.com/chrisleekr/binance-trading-bot/issues/94)
-- [ ] Add sudden drop buy strategy - [#67](https://github.com/chrisleekr/binance-trading-bot/issues/67)
-- [ ] Manage setting profiles (save/change/load?/export?) - [#151](https://github.com/chrisleekr/binance-trading-bot/issues/151)
-- [ ] Improve notifications by supporting Apprise - [#106](https://github.com/chrisleekr/binance-trading-bot/issues/106)
-- [ ] Support cool time after hitting the lowest price before buy - [#105](https://github.com/chrisleekr/binance-trading-bot/issues/105)
-- [ ] Reset global configuration to initial configuration - [#97](https://github.com/chrisleekr/binance-trading-bot/issues/97)
-- [ ] Support multilingual frontend - [#56](https://github.com/chrisleekr/binance-trading-bot/issues/56)
-- [ ] Non linear stop price and chase function - [#246](https://github.com/chrisleekr/binance-trading-bot/issues/246)
-- [ ] Support STOP-LOSS configuration per grid trade for selling - [#261](https://github.com/chrisleekr/binance-trading-bot/issues/261)
-
-## Donations
-
-If you find this project helpful, feel free to make a small
-[donation](https://github.com/chrisleekr/binance-trading-bot/blob/master/DONATIONS.md)
-to the developer.
-
-## Acknowledgments
-
-- [@d0x2f](https://github.com/d0x2f)
-- And many others! Thanks guys!
-
-## Contributors
-
-Thanks to all contributors :heart: [Click to see our heroes](https://github.com/chrisleekr/binance-trading-bot/graphs/contributors)
+[Apache-2.0](LICENSE). Third-party attributions are in [`NOTICE`](NOTICE).
 
 ## Disclaimer
 
-I give no warranty and accepts no responsibility or liability for the accuracy or the completeness of the information and materials contained in this project. Under no circumstances will I be held responsible or liable in any way for any claims, damages, losses, expenses, costs or liabilities whatsoever (including, without limitation, any direct or indirect damages for loss of profits, business interruption or loss of information) resulting from or arising directly or indirectly from your use of or inability to use this code or any code linked to it, or from your reliance on the information and material on this code, even if I have been advised of the possibility of such damages in advance.
+I give no warranty and accept no responsibility or liability for the accuracy or the completeness of the information and materials contained in this project. Under no circumstances will I be held responsible or liable in any way for any claims, damages, losses, expenses, costs or liabilities whatsoever (including, without limitation, any direct or indirect damages for loss of profits, business interruption or loss of information) resulting from or arising directly or indirectly from your use of or inability to use this code or any code linked to it, or from your reliance on the information and material on this code, even if I have been advised of the possibility of such damages in advance.
 
 **So use it at your own risk!**

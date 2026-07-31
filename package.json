@@ -1,149 +1,68 @@
 {
   "name": "binance-trading-bot",
-  "version": "0.0.101",
-  "description": "Binance Auto Trading Bot",
-  "scripts": {
-    "prepare": "husky install",
-    "start": "node dist/server.js",
-    "dev": "cross-env NODE_ENV=development nodemon --trace-warnings app/server.js",
-    "build:webpack": "cross-env NODE_ENV=production webpack --config webpack.config.prod.js --progress --profile",
-    "build:grunt": "grunt",
-    "lint": "eslint ./app --fix",
-    "test": "cross-env NODE_ENV=test jest --coverage --detectOpenHandles",
-    "docker:build": "npm run docker:build:bot:prod && npm run docker:build:tradingview:prod",
-    "docker:build:dev": "npm run docker:build:bot:dev && npm run docker:build:tradingview:dev",
-    "docker:build:win": "powershell -NoProfile -ExecutionPolicy Unrestricted -Command ./scripts/docker-build.ps1",
-    "docker:build:bot:prod": "docker build . --build-arg PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --build-arg GIT_HASH=$(git rev-parse --short HEAD) --build-arg NODE_ENV=production --target production-stage -t chrisleekr/binance-trading-bot:latest",
-    "docker:build:tradingview:prod": "docker build ./tradingview -t chrisleekr/binance-trading-bot:tradingview",
-    "docker:build:bot:dev": "docker build . --build-arg PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --build-arg GIT_HASH=$(git rev-parse --short HEAD) --build-arg NODE_ENV=development --target dev-stage -t chrisleekr/binance-trading-bot:latest",
-    "docker:build:tradingview:dev": "docker build ./tradingview -t chrisleekr/binance-trading-bot:tradingview",
-    "docker:buildx": "npm run docker:buildx:bot:prod && npm run docker:buildx:tradingview:prod",
-    "docker:buildx:bot:prod": "docker buildx build --platform=linux/amd64,linux/arm64 . --build-arg PACKAGE_VERSION=$(node -p \"require('./package.json').version\") --build-arg GIT_HASH=$(git rev-parse --short HEAD) --build-arg NODE_ENV=production --target production-stage -t chrisleekr/binance-trading-bot:latest",
-    "docker:buildx:tradingview:prod": "docker buildx build --platform=linux/amd64,linux/arm64 ./tradingview -t chrisleekr/binance-trading-bot:tradingview",
-    "migrate:create": "./node_modules/.bin/migrate create",
-    "migrate:up": "./node_modules/.bin/migrate up --store=/srv/mongo-state-storage.js",
-    "migrate:down": "./node_modules/.bin/migrate down --store=/srv/mongo-state-storage.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/chrisleekr/binance-traiding-bot.git"
-  },
-  "keywords": [
-    "Binance",
-    "Auto Trading Bot",
-    "Binance Trading Bot"
+  "private": true,
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "e2e",
+    "packages/*",
+    "packages/strategy/*"
   ],
-  "author": "Chris Lee <git@chrislee.kr>",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/chrisleekr/binance-traiding-bot/issues"
+  "packageManager": "bun@1.3.12",
+  "engines": {
+    "bun": ">=1.3"
   },
-  "homepage": "https://github.com/chrisleekr/binance-traiding-bot#readme",
-  "dependencies": {
-    "axios": "^0.27.2",
-    "bcryptjs": "^2.4.3",
-    "binance-api-node": "^0.11.43",
-    "bunyan": "^1.8.15",
-    "clean-webpack-plugin": "^4.0.0",
-    "compression": "^1.7.4",
-    "config": "^3.3.7",
-    "cors": "^2.8.5",
-    "cron": "^2.0.0",
-    "cross-env": "^7.0.3",
-    "express": "^4.18.1",
-    "express-fileupload": "^1.4.0",
-    "husky": "^8.0.1",
-    "ioredis": "^5.0.5",
-    "jsonwebtoken": "^8.5.1",
-    "localtunnel": "^2.0.2",
-    "lodash": "^4.17.21",
-    "lodash-webpack-plugin": "^0.11.6",
-    "migrate": "^1.8.0",
-    "moment": "^2.29.4",
-    "moment-timezone": "^0.5.37",
-    "mongodb": "4.1.0",
-    "pubsub-js": "^1.9.4",
-    "qs": "^6.11.0",
-    "rate-limiter-flexible": "^2.3.8",
-    "redlock": "^4.2.0",
-    "request-ip": "^3.3.0",
-    "shelljs": "^0.8.5",
-    "uuid": "^8.3.2",
-    "ws": "^8.8.1"
+  "scripts": {
+    "dev": "turbo run dev dev:study",
+    "dev:infra": "docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.local.yml -f deploy/compose/docker-compose.infra.yml up -d --build --no-deps postgres redis",
+    "docker:dev": "docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.local.yml up --build",
+    "build": "turbo build",
+    "lint": "bash scripts/ci/lint.sh",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "test:replay": "bun --filter @app/strategy-trailing-trade test:replay && bun --filter @app/strategy-momentum test:replay",
+    "bench:strategy": "turbo bench",
+    "test:e2e": "turbo test:e2e",
+    "db:generate": "bun --filter @app/db generate",
+    "db:migrate": "bun --filter @app/db migrate",
+    "db:check": "bun --filter @app/db check",
+    "compose:build": "docker compose -f deploy/compose/docker-compose.yml build",
+    "setup": "bun ./scripts/setup.ts",
+    "seed:dev": "bun ./scripts/seed-dev-data.ts",
+    "docs:screenshots": "bun ./scripts/docs/screenshots.ts",
+    "docs:gen": "bun scripts/docs/gen-config-tables.ts",
+    "docs:install": "uv sync --group docs",
+    "docs:serve": "uv run mkdocs serve",
+    "docs:build": "bun run docs:gen --check && uv run mkdocs build --strict",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "@babel/cli": "^7.17.10",
-    "@babel/plugin-transform-react-jsx": "^7.17.12",
-    "@babel/preset-env": "^7.18.2",
-    "@commitlint/cli": "^17.0.1",
-    "@commitlint/config-conventional": "^17.0.0",
-    "@types/express": "^4.17.13",
-    "@types/jest": "^27.5.1",
-    "@types/node": "^17.0.36",
-    "babel-cli": "^6.26.0",
-    "babel-core": "^6.26.3",
-    "babel-eslint": "^10.1.0",
-    "babel-loader": "^8.2.5",
-    "babel-plugin-lodash": "^3.3.4",
-    "babel-preset-env": "^1.7.0",
-    "branch-name-lint": "^2.1.1",
-    "eslint": "^8.16.0",
-    "eslint-config-airbnb": "^19.0.4",
-    "eslint-config-prettier": "^8.5.0",
-    "eslint-config-react-app": "^7.0.1",
-    "eslint-plugin-flowtype": "^8.0.3",
-    "eslint-plugin-import": "^2.26.0",
-    "eslint-plugin-jest": "^26.4.2",
-    "eslint-plugin-jsx-a11y": "^6.5.1",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-prettier": "^4.0.0",
-    "eslint-plugin-promise": "^6.0.0",
-    "eslint-plugin-react": "^7.30.0",
-    "eslint-plugin-react-hooks": "^4.5.0",
-    "grunt": "^1.5.3",
-    "grunt-babel": "^8.0.0",
-    "grunt-cli": "^1.4.3",
-    "grunt-contrib-clean": "^2.0.1",
-    "grunt-contrib-concat": "^2.1.0",
-    "grunt-contrib-cssmin": "^4.0.0",
-    "jest": "^28.1.0",
-    "lint-staged": "^12.4.2",
-    "nodemon": "^2.0.19",
-    "prettier": "^2.6.2",
-    "webpack": "^5.72.1",
-    "webpack-cli": "^4.9.2"
+    "@commitlint/cli": "~19.6.0",
+    "@commitlint/config-conventional": "~19.6.0",
+    "@types/bun": "~1.3.0",
+    "@vitest/coverage-v8": "~4.0.0",
+    "branch-name-lint": "~3.0.0",
+    "husky": "~9.1.0",
+    "lint-staged": "~15.4.0",
+    "oxlint": "1.73.0",
+    "prettier": "~3.8.0",
+    "prettier-plugin-tailwindcss": "~0.6.0",
+    "turbo": "^2.9.16",
+    "typescript": "~6.0.0",
+    "vitest": "~4.0.0"
   },
-  "optionalDependencies": {
-    "fsevents": "^2.3.2"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "resetMocks": false,
-    "globalSetup": "./jest.setup.js",
-    "collectCoverageFrom": [
-      "app/**/*.js",
-      "!**/node_modules/**",
-      "!**/__tests__/**",
-      "!**/coverage/**"
-    ],
-    "testPathIgnorePatterns": [
-      "/node_modules/"
-    ],
-    "coverageThreshold": {
-      "global": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      }
-    }
-  },
-  "lint-staged": {
-    "*.js": [
-      "prettier --write",
-      "npm run lint",
-      "git add",
-      "npm test ."
-    ]
+  "dependencies": {
+    "@app/api": "workspace:*",
+    "@app/contracts": "workspace:*",
+    "@app/core": "workspace:*",
+    "@app/db": "workspace:*",
+    "@app/money": "workspace:*",
+    "@app/notify": "workspace:*",
+    "@app/strategy-core": "workspace:*",
+    "@app/strategy-registry": "workspace:*",
+    "@app/strategy-trailing-trade": "workspace:*",
+    "drizzle-orm": "~0.45.2"
   }
 }

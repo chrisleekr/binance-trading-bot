@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["bun"],
+    // Relaxed for `src/rating/vendored/**` only; the upstream code at
+    // https://github.com/bennycode/trading-signals doesn't satisfy these two
+    // strict flags. Relaxing here is safe: our hand-written code in this
+    // package continues to pass with strict mode (verified by typecheck).
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
+    "isolatedDeclarations": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

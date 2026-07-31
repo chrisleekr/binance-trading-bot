@@ -1,0 +1,108 @@
+{
+  "name": "exchange-info — happy path (BTCUSDT + ETHUSDT trading)",
+  "request": {
+    "method": "GET",
+    "path": "/api/v3/exchangeInfo",
+    "matchQuery": "any"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json",
+      "x-mbx-used-weight-1m": "20"
+    },
+    "body": {
+      "timezone": "UTC",
+      "serverTime": 1700000000000,
+      "rateLimits": [
+        {
+          "rateLimitType": "REQUEST_WEIGHT",
+          "interval": "MINUTE",
+          "intervalNum": 1,
+          "limit": 6000
+        },
+        { "rateLimitType": "ORDERS", "interval": "SECOND", "intervalNum": 10, "limit": 100 },
+        { "rateLimitType": "ORDERS", "interval": "DAY", "intervalNum": 1, "limit": 200000 }
+      ],
+      "exchangeFilters": [],
+      "symbols": [
+        {
+          "symbol": "BTCUSDT",
+          "status": "TRADING",
+          "baseAsset": "BTC",
+          "baseAssetPrecision": 8,
+          "quoteAsset": "USDT",
+          "quotePrecision": 8,
+          "quoteAssetPrecision": 8,
+          "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+          "icebergAllowed": true,
+          "ocoAllowed": true,
+          "quoteOrderQtyMarketAllowed": true,
+          "isSpotTradingAllowed": true,
+          "isMarginTradingAllowed": false,
+          "filters": [
+            {
+              "filterType": "PRICE_FILTER",
+              "minPrice": "0.01000000",
+              "maxPrice": "1000000.00000000",
+              "tickSize": "0.01000000"
+            },
+            {
+              "filterType": "LOT_SIZE",
+              "minQty": "0.00001000",
+              "maxQty": "9000.00000000",
+              "stepSize": "0.00001000"
+            },
+            {
+              "filterType": "NOTIONAL",
+              "minNotional": "10.00000000",
+              "applyMinToMarket": true,
+              "maxNotional": "9000000.00000000",
+              "applyMaxToMarket": false,
+              "avgPriceMins": 5
+            }
+          ],
+          "permissions": ["SPOT"]
+        },
+        {
+          "symbol": "ETHUSDT",
+          "status": "TRADING",
+          "baseAsset": "ETH",
+          "baseAssetPrecision": 8,
+          "quoteAsset": "USDT",
+          "quotePrecision": 8,
+          "quoteAssetPrecision": 8,
+          "orderTypes": ["LIMIT", "LIMIT_MAKER", "MARKET", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
+          "icebergAllowed": true,
+          "ocoAllowed": true,
+          "quoteOrderQtyMarketAllowed": true,
+          "isSpotTradingAllowed": true,
+          "isMarginTradingAllowed": false,
+          "filters": [
+            {
+              "filterType": "PRICE_FILTER",
+              "minPrice": "0.01000000",
+              "maxPrice": "100000.00000000",
+              "tickSize": "0.01000000"
+            },
+            {
+              "filterType": "LOT_SIZE",
+              "minQty": "0.00010000",
+              "maxQty": "100000.00000000",
+              "stepSize": "0.00010000"
+            },
+            {
+              "filterType": "NOTIONAL",
+              "minNotional": "10.00000000",
+              "applyMinToMarket": true,
+              "maxNotional": "9000000.00000000",
+              "applyMaxToMarket": false,
+              "avgPriceMins": 5
+            }
+          ],
+          "permissions": ["SPOT"]
+        }
+      ]
+    }
+  }
+}

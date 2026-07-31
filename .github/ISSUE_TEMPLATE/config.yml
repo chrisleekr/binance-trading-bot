@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://chrisleekr.github.io/binance-trading-bot
+    about: Setup, configuration, strategies, and troubleshooting are covered here first.
+  - name: Report a security vulnerability
+    url: https://github.com/chrisleekr/binance-trading-bot/security/advisories/new
+    about: Never report a security problem in a public issue. Use the private advisory form.

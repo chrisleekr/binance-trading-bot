@@ -1,0 +1,24 @@
+{
+  "files": [],
+  "references": [
+    { "path": "apps/api" },
+    { "path": "apps/server" },
+    { "path": "apps/web" },
+    { "path": "apps/worker" },
+    { "path": "packages/binance" },
+    { "path": "packages/config" },
+    { "path": "packages/contracts" },
+    { "path": "packages/db" },
+    { "path": "packages/discovery" },
+    { "path": "packages/indicators" },
+    { "path": "packages/money" },
+    { "path": "packages/notify" },
+    { "path": "packages/strategy/backtest" },
+    { "path": "packages/strategy/core" },
+    { "path": "packages/strategy/momentum" },
+    { "path": "packages/strategy/rebalance" },
+    { "path": "packages/strategy/registry" },
+    { "path": "packages/strategy/trailing-trade" },
+    { "path": "e2e" }
+  ]
+}

@@ -1,0 +1,13 @@
+-- Retire the `technicals_recommendations` hypertable.
+--
+-- The technicals pipeline never wrote here. `technicals-compute` computes
+-- ratings in-process and persists them to Redis under `GLOBAL_KEYS.technicals`;
+-- the api reads them back from Redis. The table, its repo module, and its
+-- schema module had no reader and no writer, so the persistence layer only
+-- advertised a Postgres store that does not exist.
+--
+-- Dropping the table also drops its TimescaleDB retention policy and the
+-- recommendation CHECK constraint; no separate teardown is needed.
+--
+-- Idempotent: safe to re-run. Greenfield/not-deployed, so no data migration.
+drop table if exists technicals_recommendations;

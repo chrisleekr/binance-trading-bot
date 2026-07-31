@@ -1,0 +1,45 @@
+{
+  "$schema": "https://v2-9-16.turborepo.dev/schema.json",
+  "globalDependencies": ["tsconfig.base.json", ".env*"],
+  "globalEnv": ["NODE_ENV"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "dev:study": {
+      "cache": false,
+      "persistent": true
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": ["**/tsconfig.tsbuildinfo"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "env": [
+        "DATABASE_TEST_URL",
+        "REDIS_TEST_URL",
+        "TESTCONTAINERS",
+        "TESTCONTAINERS_CONTENTION_CHECK"
+      ],
+      "outputs": ["coverage/**", "test-results/**"]
+    },
+    "test:replay": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "outputs": ["test-results/**", "playwright-report/**"]
+    },
+    "bench": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    }
+  }
+}

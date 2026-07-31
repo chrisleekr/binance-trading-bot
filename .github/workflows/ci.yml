@@ -1,0 +1,330 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    # Every branch, so CI is a real gate before a pull request exists.
+    # Tags are owned by release-please.yml, not this workflow.
+    branches: ['**']
+  workflow_dispatch:
+
+# Top-level least-privilege token; jobs that need write must opt in.
+permissions:
+  contents: read
+
+# Cancel in-flight runs on the same ref when a new commit lands.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: 1.3.12
+
+# DAG, not a chain. Every test/check job is a root (no `needs:`) so it starts
+# immediately and runs concurrently; each re-bootstraps from the bun cache, so a
+# serial install gate would only add latency. docker-build alone fans in on every
+# test passing, so a broken image is never built.
+jobs:
+  # Conventional-commit shape on PR titles. The squashed commit subject
+  # is the PR title, so this gate doubles as a commit-message lint.
+  pr-title-lint:
+    name: pr-title-lint
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bash scripts/ci/bootstrap.sh
+      - run: bash scripts/ci/lint.sh
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-typecheck-${{ github.sha }}
+          restore-keys: turbo-typecheck-
+      - run: bash scripts/ci/bootstrap.sh
+      - run: bash scripts/ci/typecheck.sh
+
+  unit:
+    name: unit
+    runs-on: ubuntu-24.04
+    # `apps/api/__tests__/login-throttle.test.ts` is gated on `REDIS_TEST_URL`.
+    # Provide a Redis service so the throttle contract (#48-C) runs on every
+    # push instead of silently skipping.
+    services:
+      redis:
+        image: redis:8-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    env:
+      REDIS_TEST_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-unit-${{ github.sha }}
+          restore-keys: turbo-unit-
+      - run: bash scripts/ci/bootstrap.sh
+      - run: bash scripts/ci/test-unit.sh
+
+  replay:
+    name: replay
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-replay-${{ github.sha }}
+          restore-keys: turbo-replay-
+      - run: bash scripts/ci/bootstrap.sh
+      - run: bash scripts/ci/test-replay.sh
+
+  integration:
+    name: integration
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg17
+        env:
+          POSTGRES_DB: binance_trading_bot_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          NO_TS_TUNE: '1'
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d binance_trading_bot_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    # The apps/api suites gate on DATABASE_TEST_URL, not DATABASE_URL; and the
+    # `_test` suffix is required because setupApp TRUNCATEs the target.
+    env:
+      DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/binance_trading_bot_test
+      REDIS_TEST_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-integration-${{ github.sha }}
+          restore-keys: turbo-integration-
+      - run: bash scripts/ci/bootstrap.sh
+      - run: bash scripts/ci/test-integration.sh
+
+  # apps/worker integration suites against real Postgres + Redis service
+  # containers. Kept separate from `integration` (apps/api) because both
+  # TRUNCATE their database; each job gets its own service container. The worker
+  # suites gate on DATABASE_TEST_URL / REDIS_TEST_URL and run serially — before
+  # this job existed they were never run in CI and rotted silently.
+  worker-integration:
+    name: worker-integration
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg17
+        env:
+          POSTGRES_DB: binance_trading_bot_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          NO_TS_TUNE: '1'
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d binance_trading_bot_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/binance_trading_bot_test
+      REDIS_TEST_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bash scripts/ci/bootstrap.sh
+      - run: bash scripts/ci/test-worker-integration.sh
+
+  # packages/db isolation + projection tests against a real Postgres. The service
+  # creates the test DB as POSTGRES_DB, so DATABASE_TEST_URL points straight at
+  # it. Kept separate from `integration` because each job gets its own service
+  # container and both TRUNCATE their database.
+  db-isolation:
+    name: db-isolation
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg17
+        env:
+          POSTGRES_DB: binance_trading_bot_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d binance_trading_bot_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/binance_trading_bot_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-db-isolation-${{ github.sha }}
+          restore-keys: turbo-db-isolation-
+      - run: bash scripts/ci/bootstrap.sh
+      - run: bash scripts/ci/test-db-isolation.sh
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bash scripts/ci/bootstrap.sh
+      - run: bash scripts/ci/test-e2e.sh
+
+  docker-build:
+    name: docker-build
+    # Fan-in gate: only build the image once every test/check is green.
+    needs: [lint, typecheck, unit, replay, integration, worker-integration, db-isolation, e2e]
+    runs-on: ubuntu-24.04
+    env:
+      # Push the rolling dev image only from the default branch of this repo.
+      # Forks and pull requests have no secrets, so they stay build-only.
+      PUSH_DEV_IMAGE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'chrisleekr/binance-trading-bot' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: ${{ env.PUSH_DEV_IMAGE == 'true' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # `--check` builds both platforms and discards the result, so an
+      # arm64-specific Dockerfile break surfaces here rather than at release
+      # time. `:dev` is a single rolling tag each push overwrites, so the
+      # registry never accretes a tag per commit; versioned tags come from
+      # release-please.yml.
+      - name: Build (and push :dev on main)
+        env:
+          DOCKERHUB_IMAGE: chrisleekr/binance-trading-bot
+        run: |
+          export GIT_SHA="${GITHUB_SHA:0:7}"
+          if [[ "$PUSH_DEV_IMAGE" == "true" ]]; then
+            bash scripts/ci/docker-build.sh \
+              --push \
+              --single-repo \
+              --registry "$DOCKERHUB_IMAGE" \
+              --platforms linux/amd64,linux/arm64 \
+              --tag-extra dev
+          else
+            bash scripts/ci/docker-build.sh --check
+          fi

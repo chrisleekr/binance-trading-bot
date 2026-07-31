@@ -1,0 +1,22 @@
+binance-trading-bot
+Copyright 2026 Chris Lee
+
+This product includes software developed by Chris Lee (https://github.com/chrisleekr).
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+---
+
+Third-party components
+----------------------
+
+packages/indicators/src/rating/vendored/ contains code ported from bennycode/trading-signals (https://github.com/bennycode/trading-signals) at commit 537d859, v7.4.3.
+
+    SPDX-License-Identifier: MIT
+    (c) 2018-2026 Benny Neugebauer
+
+The original MIT License is retained for those files; each carries an SPDX header. No semantic edits were made to the ported code.
+
+Runtime and build dependencies retain their own licences; see the respective package metadata in node_modules or the lockfile.

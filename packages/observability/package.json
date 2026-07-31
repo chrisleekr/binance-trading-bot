@@ -1,0 +1,29 @@
+{
+  "name": "@app/observability",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./otel": "./src/otel.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "~1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "~0.75.0",
+    "@opentelemetry/context-async-hooks": "~2.1.0",
+    "@opentelemetry/core": "~2.1.0",
+    "@opentelemetry/exporter-trace-otlp-http": "~0.217.0",
+    "@opentelemetry/resources": "~2.1.0",
+    "@opentelemetry/sdk-node": "~0.217.0",
+    "@opentelemetry/sdk-trace-base": "~2.1.0",
+    "@opentelemetry/semantic-conventions": "~1.40.0",
+    "opentelemetry-instrumentation-bullmq": "~0.7.15",
+    "prom-client": "~15.1.0"
+  }
+}

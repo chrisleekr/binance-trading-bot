@@ -1,0 +1,8 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`bb-power > snapshots stable values on the canonical BTC fixture 1`] = `
+{
+  "bear": "-475.41",
+  "bull": "-250.56",
+}
+`;

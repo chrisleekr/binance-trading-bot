@@ -1,0 +1,23 @@
+// "This position has no safety net right now." Louder than the entry blocker: an
+// entry that does not fire costs an opportunity, an open position with no
+// protective stop costs money if the price falls. Renders nothing when the stop
+// is armed (or there is no position).
+
+import type { SymbolStateResponse } from '@app/contracts';
+
+import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
+import { glossProtectiveStopBlocker } from '@/shared/lib/gloss-protective-stop-blocker';
+
+export function SymbolProtectiveStopBlocker({
+  protectiveStopBlocker,
+}: {
+  readonly protectiveStopBlocker: SymbolStateResponse['protectiveStopBlocker'];
+}): React.JSX.Element | null {
+  if (!protectiveStopBlocker) return null;
+  return (
+    <Alert variant="danger" data-testid="symbol-protective-stop-blocker">
+      <AlertTitle>Protective stop not in place</AlertTitle>
+      <AlertDescription>{glossProtectiveStopBlocker(protectiveStopBlocker)}</AlertDescription>
+    </Alert>
+  );
+}

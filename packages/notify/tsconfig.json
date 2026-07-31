@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "lib": ["ES2024", "DOM"],
+    // off because the provider modules export `z.object(...)` schemas whose
+    // inferred types isolated-declaration emit cannot synthesise — same reason
+    // as packages/contracts.
+    "isolatedDeclarations": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

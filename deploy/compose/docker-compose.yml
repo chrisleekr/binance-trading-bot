@@ -1,0 +1,98 @@
+# Base stack used by both local development (with docker-compose.local.yml)
+# and production (with docker-compose.prod.yml). Postgres + Redis are NOT
+# exposed on the host network in this base file — overrides choose whether
+# to publish them.
+#
+# One `app` service runs the whole application in a single process
+# (ROLE=all): the api (which also serves the built SPA same-origin), the
+# live worker, and the study/backtest consumer. This is the fewer-services
+# default; to scale out, layer docker-compose.scale.yml which parks `app`
+# and runs separate api/worker/study services from the SAME image.
+#
+# `app` depends on Postgres and Redis being *healthy*, not just running, so
+# a fresh `docker compose up` waits for the database and queue to accept
+# connections before booting.
+
+name: binance-trading-bot
+
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-binance_trading_bot}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./../../backups:/backups
+    networks: [internal]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    command: ['redis-server', '--save', '60', '1', '--loglevel', 'warning']
+    volumes:
+      - redis_data:/data
+    networks: [internal]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: ../..
+      dockerfile: apps/server/Dockerfile
+      # `GIT_SHA=$(git rev-parse --short HEAD) docker compose build` stamps the
+      # build SHA onto the operator /status surface; empty default is fine.
+      args:
+        GIT_SHA: ${GIT_SHA:-}
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    volumes:
+      # The db-backup cron runs pg_dump in this container; the dump dir is shared
+      # with Postgres so GET /backup/config lists the same files.
+      - ./../../backups:/backups
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # api + live worker + study in one process. The scale override
+      # (docker-compose.scale.yml) parks this service and sets per-service roles.
+      ROLE: ${ROLE:-all}
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/binance_trading_bot}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      AUTH_SECRET: ${AUTH_SECRET}
+      # AI assist (the backtest advisor) is DB-configured via Account → AI
+      # assistant, not env. No ANTHROPIC_* here.
+      PGSSLMODE: ${PGSSLMODE:-prefer}
+      # Where GET /backup/config lists on-disk dumps; matches the db-backup cron
+      # output dir and the bind mount above.
+      BACKUP_DIR: ${BACKUP_DIR:-/backups}
+      WORKER_ADMIN_PORT: ${WORKER_ADMIN_PORT:-9101}
+      ACTION_LOG_RETENTION_DAYS: ${ACTION_LOG_RETENTION_DAYS:-30}
+      AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS:-90}
+    ports:
+      # Public ingress: the api serves both /api and the SPA. Host port is
+      # overridable so the stack co-exists with a native `bun run dev` on 3000.
+      - '${APP_HTTP_PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [internal]
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

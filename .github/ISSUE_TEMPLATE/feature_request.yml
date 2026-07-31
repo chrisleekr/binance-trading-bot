@@ -1,0 +1,38 @@
+name: Feature request
+description: Propose a change.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is a single-maintainer hobby project. Focused proposals with a
+        concrete use case get considered; broad wishlists usually do not.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you hitting
+      description: Describe the situation, not the solution. What can you not do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried or considered
+      description: Existing settings, strategies, or workarounds you already ruled out.
+
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the [documentation](https://chrisleekr.github.io/binance-trading-bot) and this is not already possible.
+          required: true

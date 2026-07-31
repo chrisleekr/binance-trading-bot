@@ -1,0 +1,21 @@
+/* Wide layout: Material caps content at 61rem by default. Widen it. */
+.md-grid {
+  max-width: 100rem;
+}
+
+/* Mermaid diagrams (rendered by docs/javascripts/mermaid.js into pre.mermaid-block). */
+pre.mermaid-block {
+  text-align: center;
+  background: none;
+  border: none;
+  padding: 0;
+  overflow-x: auto;
+}
+pre.mermaid-block svg {
+  max-width: 100%;
+  height: auto;
+}
+/* Hide the raw source text until the renderer replaces it with SVG. */
+pre.mermaid-block:not([data-rendered]) code {
+  display: none;
+}

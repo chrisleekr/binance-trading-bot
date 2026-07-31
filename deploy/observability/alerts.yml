@@ -1,0 +1,111 @@
+# Recommended Prometheus alerting rules for binance-trading-bot v1.0.
+#
+# These rules ship with the repo so operators can drop them into their
+# Prometheus stack and have a sane default alert posture without
+# inventing thresholds. Alertmanager / PagerDuty / Slack receiver
+# wiring is operator-owned (see deploy/README.md).
+#
+# Severity convention:
+#   - critical: pages immediately (worker is offline, queue is wedged,
+#     Binance weight exhausted, DB pool starved).
+#   - warning: investigate within the working day (cache-miss rate
+#     elevated, WS reconnect storms).
+#
+# Lint: `bash scripts/ci/promtool-lint.sh` (CI runs this on every push).
+
+groups:
+  - name: binance-trading-bot.workers
+    interval: 30s
+    rules:
+      - alert: WorkerDown
+        # The worker exposes an `up{job="worker"}` series via /metrics.
+        # If the scrape fails for 2 minutes the worker is offline; v1.0
+        # has a single replica so this is page-level.
+        expr: up{job="worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Worker scrape down for 2m'
+          description: 'No /metrics scrape from job=worker for 2 minutes. v1.0 is single-replica, so trading is halted until the worker recovers.'
+
+      - alert: HighTickFailureRate
+        # Tick failures are tracked by the strategy executor. A 5%
+        # rate over 10 minutes is well above the noise floor (single
+        # rejected order or transient Binance hiccup); sustained at
+        # 5% means a code-level bug or a Binance protocol change.
+        expr: |
+          sum(rate(tick_failures_total[10m])) / sum(rate(tick_total[10m])) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Tick failure rate > 5% for 10m'
+          description: 'Strategy tick() failed on >5% of attempts for the last 10 minutes. Inspect worker logs and recent strategy/notifier deploys.'
+
+      - alert: BinanceWeightExhausted
+        # The executor records `binance_weight_used_1m` from the
+        # X-MBX-USED-WEIGHT-1M response header. Binance bans on >1200;
+        # 1000 is the safe ceiling we want to alert on so the operator
+        # can intervene before a ban. The bare metric (rather than
+        # `max_over_time`) lets `for: 2m` measure sustained pressure
+        # instead of letting one spike satisfy the window.
+        expr: binance_weight_used_1m > 1000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Binance request weight > 1000/min'
+          description: 'Trading load exceeds the Binance weight budget. Reduce profile cadence or pause symbols.'
+
+  # Technicals alerts removed when the FastAPI scanner was replaced by
+  # in-process compute (`apps/worker/src/crons/technicals-compute.ts` +
+  # `packages/indicators/rating`). The prior `technicals_breaker_state`,
+  # `technicals_last_success_timestamp_seconds`, and `technicals_cache_*`
+  # metrics were emitted by the deleted Python service; new alerts can
+  # be wired against the worker's fetch-status receipt
+  # (`technicals:compute:status:<interval>` Redis key) when needed.
+
+  - name: binance-trading-bot.infra
+    interval: 30s
+    rules:
+      - alert: QueueBacklog
+        # BullMQ exposes wait queue depth per queue. A 1000-job
+        # backlog sustained for 5 minutes means the worker cannot
+        # keep up; the executor's chainByKey serialises per profile
+        # so a backlog implies a structural slowdown. The bare
+        # metric (rather than `max_over_time`) lets `for: 5m`
+        # measure sustained backlog rather than firing on a spike.
+        expr: bullmq_queue_wait_jobs > 1000
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'BullMQ wait queue > 1000 jobs for 5m'
+          description: 'Queue {{ $labels.queue }} is backlogged. Inspect worker tick latency and BullMQ stalled-job count.'
+
+      - alert: DBPoolStarved
+        # pg pool exposes idle/total. <5% idle means clients are
+        # waiting for connections; sustained means a slow query is
+        # holding a connection or the pool is undersized.
+        expr: |
+          (pg_pool_idle / pg_pool_total) < 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Postgres pool idle ratio < 5% for 5m'
+          description: 'Connection contention against Postgres. Check for long-running queries; consider raising pool size if load grew.'
+
+      - alert: WSDisconnectsHigh
+        # Repeated reconnects against Binance WS chew through the
+        # `listenKey` budget and leak partial state. >5 disconnects
+        # in 15 minutes is well above the single network-blip floor.
+        expr: |
+          sum(increase(binance_ws_disconnects_total[15m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Binance WS disconnects > 5 in 15m'
+          description: 'WebSocket reconnect rate is elevated. Check apps/worker logs and the operator-side egress network.'

@@ -1,0 +1,78 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`indicator parity — full rating over the canonical BTC 1h fixture > locks every moving-average value 1`] = `
+{
+  "ema10": "77604.26091447665",
+  "ema100": "77607.22259158822",
+  "ema20": "77603.80492379003",
+  "ema200": "78292.09398650646",
+  "ema30": "77536.2996067128",
+  "ema50": "77449.4833078109",
+  "hullMa9": "77335.56637037038",
+  "ichimokuBLine": "77545.805",
+  "sma10": "77742.017",
+  "sma100": "77300.3943",
+  "sma20": "77675.909",
+  "sma200": "78439.76634999999",
+  "sma30": "77592.71500000001",
+  "sma50": "77283.80399999999",
+  "vwma20": "77689.15628528513",
+}
+`;
+
+exports[`indicator parity — full rating over the canonical BTC 1h fixture > locks every oscillator value 1`] = `
+{
+  "adx": "14.1643463789421",
+  "adxMinusDi": "0.2763824172517016",
+  "adxPlusDi": "0.19662329867413555",
+  "ao": "146.85708823530877",
+  "bbPowerBear": "-475.41468928792",
+  "bbPowerBull": "-250.56468928792",
+  "cci20": "-130.05417414913595",
+  "macdMacd": "55.201331800737535",
+  "macdSignal": "142.3342789979798",
+  "mom": "-608.8600000000006",
+  "rsi": "43.31462282635751",
+  "stochD": "38.88657043670205",
+  "stochK": "17.59528517990898",
+  "stochRsiK": "2.0030537341246633",
+  "uo": "36.21196120738159977",
+  "wr": "-89.75732535498786",
+}
+`;
+
+exports[`indicator parity — full rating over the canonical BTC 1h fixture > locks the aggregate verdicts and every per-indicator vote 1`] = `
+{
+  "perIndicatorVotes": {
+    "adx": 0,
+    "ao": 0,
+    "bbPower": 0,
+    "cci": 0,
+    "ema10": -1,
+    "ema100": -1,
+    "ema20": -1,
+    "ema200": -1,
+    "ema30": -1,
+    "ema50": -1,
+    "hullMa9": -1,
+    "ichimokuBLine": 0,
+    "macd": -1,
+    "mom": 1,
+    "rsi": 0,
+    "sma10": -1,
+    "sma100": -1,
+    "sma20": -1,
+    "sma200": -1,
+    "sma30": -1,
+    "sma50": -1,
+    "stoch": 0,
+    "stochRsi": 0,
+    "uo": 0,
+    "vwma20": -1,
+    "wr": 1,
+  },
+  "recommendAll": "-0.42121212121212121212",
+  "recommendMa": "-0.93333333333333333333",
+  "recommendOther": "0.090909090909090909091",
+}
+`;

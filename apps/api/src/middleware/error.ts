@@ -1,0 +1,122 @@
+import { errorCodeToStatus, type ErrorCode } from '@app/contracts';
+import {
+  AccountNotOwnedError,
+  ProfileNotOwnedError,
+  SiblingQuoteConflictError,
+  SymbolOwnershipConflictError,
+} from '@app/db';
+import type { ErrorHandler, MiddlewareHandler } from 'hono';
+import { ZodError } from 'zod';
+import type { Logger } from 'di.js';
+import type { Env } from 'types.js';
+
+export class HttpError extends Error {
+  constructor(
+    public readonly code: ErrorCode,
+    message: string,
+    public readonly details?: unknown,
+  ) {
+    super(message);
+    this.name = 'HttpError';
+  }
+}
+
+// Duck-typed checks. `instanceof HttpError`/`instanceof ZodError` flakes
+// when the same logical module loads under two different specifiers
+// (bare path vs relative path with `tsconfig.paths`) and yields two class
+// identities. The shape is stable across copies; the identity isn't.
+// Probe whether `code` is a known ErrorCode by asking the mapping
+// directly. `errorCodeToStatus` returns `undefined` for unknown codes
+// (the STATUS map has no entry), so this also guards against a
+// caller throwing an HttpError with a typo / stale code.
+const isKnownErrorCode = (code: unknown): code is ErrorCode =>
+  typeof code === 'string' && errorCodeToStatus(code as ErrorCode) !== undefined;
+
+const isHttpErrorShape = (
+  err: unknown,
+): err is { code: ErrorCode; message: string; details?: unknown } =>
+  typeof err === 'object' &&
+  err !== null &&
+  (err as { name?: unknown }).name === 'HttpError' &&
+  isKnownErrorCode((err as { code?: unknown }).code) &&
+  typeof (err as { message?: unknown }).message === 'string';
+
+const isZodErrorShape = (err: unknown): err is ZodError =>
+  typeof err === 'object' &&
+  err !== null &&
+  (err as { name?: unknown }).name === 'ZodError' &&
+  Array.isArray((err as { issues?: unknown }).issues);
+
+const isProfileNotOwnedShape = (err: unknown): boolean =>
+  typeof err === 'object' &&
+  err !== null &&
+  (err as { name?: unknown }).name === 'ProfileNotOwnedError';
+
+const isAccountNotOwnedShape = (err: unknown): boolean =>
+  typeof err === 'object' &&
+  err !== null &&
+  (err as { name?: unknown }).name === 'AccountNotOwnedError';
+
+// Both cross-profile exclusivity errors — a base asset already traded by a
+// sibling, or a base asset a sibling settles in — surface as CONFLICT with the
+// error's own operator-facing message. One predicate covers both names (see the
+// duck-typed rationale above; instanceof is unreliable across module copies).
+const isConflictErrorShape = (err: unknown): err is { message: string } =>
+  typeof err === 'object' &&
+  err !== null &&
+  ((err as { name?: unknown }).name === 'SymbolOwnershipConflictError' ||
+    (err as { name?: unknown }).name === 'SiblingQuoteConflictError') &&
+  typeof (err as { message?: unknown }).message === 'string';
+
+const respond = (code: ErrorCode, message: string, details: unknown): Response => {
+  const body: Record<string, unknown> = { error: { code, message } };
+  if (details !== undefined) (body['error'] as Record<string, unknown>)['details'] = details;
+  return new Response(JSON.stringify(body), {
+    status: errorCodeToStatus(code),
+    headers: { 'content-type': 'application/json' },
+  });
+};
+
+const buildResponse = (err: unknown, logger: Logger, path: string): Response => {
+  if (isHttpErrorShape(err)) return respond(err.code, err.message, err.details);
+  if (isZodErrorShape(err)) return respond('VALIDATION_FAILED', 'invalid request', err.issues);
+  if (err instanceof ProfileNotOwnedError || isProfileNotOwnedShape(err)) {
+    return respond('NOT_FOUND', 'profile', undefined);
+  }
+  if (err instanceof AccountNotOwnedError || isAccountNotOwnedShape(err)) {
+    return respond('NOT_FOUND', 'account', undefined);
+  }
+  if (
+    err instanceof SymbolOwnershipConflictError ||
+    err instanceof SiblingQuoteConflictError ||
+    isConflictErrorShape(err)
+  ) {
+    return respond('CONFLICT', (err as { message: string }).message, undefined);
+  }
+  logger.error({ err, path }, 'unhandled');
+  return respond('INTERNAL', 'internal server error', undefined);
+};
+
+// Hono onError handler. Registered via `app.onError(...)` and reliably
+// fires for errors thrown anywhere in the middleware/route chain —
+// including from inside `@hono/zod-openapi` validator wrappers, which
+// can swallow rejections before an outer `try/await next()` middleware
+// would see them.
+export const errorHandler =
+  (logger: Logger): ErrorHandler<Env> =>
+  (err, c) =>
+    buildResponse(err, logger, c.req.path);
+
+// Legacy middleware form. Retained so existing test harnesses that mount
+// `app.use('*', errorEnvelope(...))` keep working. New code should rely
+// on `app.onError(errorHandler(...))` instead.
+export const errorEnvelope =
+  (logger: Logger): MiddlewareHandler<Env> =>
+  async (c, next) => {
+    try {
+      await next();
+    } catch (err) {
+      return buildResponse(err, logger, c.req.path);
+    }
+    return undefined;
+  };

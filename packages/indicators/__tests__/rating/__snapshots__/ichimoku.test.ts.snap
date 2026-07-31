@@ -1,0 +1,10 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ichimokuCloud > snapshots stable cloud lines on the canonical BTC fixture 1`] = `
+{
+  "base": "77545.81",
+  "conversion": "77673.58",
+  "leadA": "77609.69",
+  "leadB": "77172.36",
+}
+`;

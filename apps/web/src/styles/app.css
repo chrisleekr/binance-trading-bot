@@ -1,0 +1,229 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/space-grotesk';
+@import '@fontsource-variable/jetbrains-mono';
+
+/*
+ * Theme tokens — "Operator Terminal" v2 (see DESIGN.md). Bauhaus-inspired
+ * dark terminal: flat near-black ramp, hairline 1px borders, square corners,
+ * one loud accent. Light is a functional fallback. Toggled via [data-theme]
+ * on <html> (see useTheme).
+ *
+ * Colour is reserved for meaning: accent (amber yellow, black ink) =
+ * selection / active nav / value-commit / focus, primary (signal green,
+ * black ink) = positive + irreversible "go", danger (signal red) =
+ * destructive + negative, warning (orange, dark ink) = caution.
+ * Neutral chrome stays in the grey ramp.
+ */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0e0e0e; /* canvas — flat near-black, not pure #000 */
+  --bg-elevated: #141414; /* panel surface, one step up */
+  --surface-alt: #1a1a1a; /* raised input fill, zebra row, hover */
+  --fg: #e8e8e8;
+  --fg-emphasis: #ffffff;
+  --muted-fg: #9a9aa0; /* labels, metadata — lifted vs the mock's #888 for legibility */
+  --muted: #141414;
+  --border: #2a2a2a; /* hairline panel borders / dividers */
+  --border-strong: #3a3a3a;
+  --accent: #ffcc00; /* amber yellow: selection / active nav / commit */
+  --accent-fg: #000000; /* black ink on yellow, never white */
+  --primary: #00e070; /* signal green: go / positive action */
+  --primary-rgb: 0 224 112; /* primary channels for rgba() alpha ramps (heatmap) */
+  --primary-fg: #001509;
+  --success: #00e070;
+  --up: #00e070;
+  --down: #ff6257; /* lifted vs the mock's #e63b2e so small text clears contrast */
+  --danger: #ef4f3c;
+  --danger-fg: #ffffff;
+  --destructive: #ef4f3c;
+  --warning: #ff8c00;
+  --warning-fg: #1a0f00; /* dark ink on orange — white fails contrast */
+  --focus: #ffcc00;
+  --card: #141414;
+  --card-fg: #e8e8e8;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: oklch(99% 0 0);
+  --bg-elevated: oklch(97% 0 0);
+  --surface-alt: oklch(95% 0 0);
+  --fg: oklch(15% 0 0);
+  --fg-emphasis: oklch(8% 0 0);
+  --muted-fg: oklch(45% 0 0);
+  --muted: oklch(95% 0 0);
+  --border: oklch(88% 0 0);
+  --border-strong: oklch(80% 0 0);
+  /* Amber accent darkened for white canvas; ink stays dark. */
+  --accent: oklch(75% 0.16 85);
+  --accent-fg: oklch(15% 0 0);
+  --primary: oklch(70% 0.17 162);
+  --primary-rgb: 0 190 125; /* sRGB of --primary for rgba() alpha ramps (heatmap) */
+  --primary-fg: oklch(20% 0.05 162);
+  --success: oklch(58% 0.16 145);
+  --up: oklch(58% 0.16 145);
+  --down: oklch(55% 0.22 27);
+  --danger: oklch(55% 0.22 27);
+  --danger-fg: oklch(99% 0 0);
+  --destructive: oklch(55% 0.22 27);
+  --warning: oklch(70% 0.16 70);
+  --warning-fg: oklch(15% 0 0);
+  --focus: oklch(60% 0.14 85);
+  --card: oklch(97% 0 0);
+  --card-fg: oklch(15% 0 0);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-surface-alt: var(--surface-alt);
+  --color-fg: var(--fg);
+  --color-fg-emphasis: var(--fg-emphasis);
+  --color-muted-fg: var(--muted-fg);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-success: var(--success);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
+  --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-warning-fg: var(--warning-fg);
+  --color-focus: var(--focus);
+  --color-card: var(--card);
+  --color-card-fg: var(--card-fg);
+
+  /* Square corners everywhere (Bauhaus): collapse the radius scale to 0 so
+     existing rounded-* utilities go flat without per-file edits. Dots, pills
+     and switch thumbs keep rounded-full. */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+
+  /* Space Grotesk for prose and labels; mono reserved for numbers and code,
+     where column alignment and slashed-zero earn their place. Both are
+     self-hosted via @fontsource-variable (PWA: no CDN dependency). */
+  --font-sans:
+    'Space Grotesk Variable', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+    'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
+  --font-mono:
+    'JetBrains Mono Variable', ui-monospace, 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Menlo,
+    Monaco, 'Roboto Mono', monospace;
+}
+
+@layer base {
+  /* No `height: 100%` chain on html/body/#root. The app shell sizes itself in
+     viewport units (`h-svh`) and owns the only scroller, so the chain bought
+     nothing — it only pinned the document to the viewport, which is what let a
+     collapsing mobile URL bar jump the page. */
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* Kill the browser's native pull-to-refresh: a downward drag at the top of
+       any scroll container was reloading the SPA and dropping in-page state on
+       mobile. `none` also removes the overscroll glow. */
+    overscroll-behavior: none;
+  }
+  /* Tabular figures + slashed zero only where numbers live — applied via the
+     mono utility so prose keeps proportional spacing. */
+  .font-mono {
+    font-feature-settings:
+      'tnum' 1,
+      'zero' 1;
+  }
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+  /* Terminal selection highlight. */
+  ::selection {
+    background-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  /* Thin terminal scrollbars, always shown with reserved space so the bar is
+     visible even when content does not overflow and the layout never shifts when
+     it appears. `scrollbar-gutter` reserves the track app-wide; the primary
+     scroll regions additionally force `overflow-y: scroll` so the track renders
+     at all times (see the app-shell + symbol-workspace scroll wrappers). */
+  html {
+    scrollbar-gutter: stable both-edges;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) var(--bg-elevated);
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--bg-elevated);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+  }
+}
+
+/* Tinted semantic fill, used by technicals badges and flash cells:
+   the semantic color laid over the panel surface at low alpha. */
+@utility tint-up {
+  background-color: color-mix(in srgb, var(--up) 22%, var(--bg-elevated));
+  color: var(--up);
+}
+@utility tint-down {
+  background-color: color-mix(in srgb, var(--down) 22%, var(--bg-elevated));
+  color: var(--down);
+}
+@utility tint-accent {
+  background-color: color-mix(in srgb, var(--accent) 22%, var(--bg-elevated));
+  color: var(--accent);
+}
+@utility tint-warning {
+  background-color: color-mix(in srgb, var(--warning) 22%, var(--bg-elevated));
+  color: var(--warning);
+}
+@utility tint-danger {
+  background-color: color-mix(in srgb, var(--danger) 22%, var(--bg-elevated));
+  color: var(--danger);
+}
+
+/* Bauhaus hard offset shadow — the only shadow in the system (modals). */
+@utility shadow-offset {
+  box-shadow: 6px 6px 0 #000;
+}
+
+/* Ticker marquee: the track is two identical halves, so translating it by -50%
+   loops with no seam. Perceived speed is one half-width over the duration; the
+   component renders enough runs that a half overflows the slot, so the stream
+   stays full while it moves. The operator asked for a clearly active crawl. */
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@utility animate-ticker {
+  /* Duration is set per-instance from the measured track width so the scroll
+     holds a constant pixel speed however many coins the stream carries. The
+     fallback covers the first frame before the measurement lands. */
+  animation: ticker-scroll var(--ticker-duration, 40s) linear infinite;
+}

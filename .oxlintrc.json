@@ -1,0 +1,115 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "import", "oxc"],
+  "categories": { "correctness": "error" },
+  "env": { "node": true, "es2024": true },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/.turbo/**",
+    "**/playwright-report/**",
+    "**/test-results/**",
+    "**/__tests__/fixtures/**",
+    "**/*.tsbuildinfo",
+    "apps/web/public/**",
+    "packages/indicators/src/rating/vendored/**"
+  ],
+  "rules": {
+    "no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_",
+        "destructuredArrayIgnorePattern": "^_"
+      }
+    ],
+    "import/no-cycle": ["error", { "maxDepth": 10 }],
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          { "name": "decimal.js", "message": "decimal.js banned outside money-math packages" }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "packages/strategy/*/src/**/*.ts",
+        "packages/indicators/src/**/*.ts",
+        "packages/discovery/src/**/*.ts"
+      ],
+      "excludeFiles": ["packages/strategy/core/src/replay.ts"],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          {
+            "name": "Date",
+            "message": "Use injected clock.now() instead of Date in pure strategy code"
+          },
+          { "name": "Math", "message": "Math.random forbidden; use injected RNG" },
+          { "name": "process", "message": "process is forbidden in pure strategy code" },
+          { "name": "performance", "message": "performance is forbidden in pure strategy code" }
+        ],
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              { "name": "fs", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "node:fs", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "fs/promises", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "net", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "node:net", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "http", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "node:http", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "https", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "node:https", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "crypto", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "node:crypto", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "ioredis", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "pg", "message": "IO forbidden in strategy/indicator code" },
+              { "name": "drizzle-orm", "message": "IO forbidden in strategy/indicator code" }
+            ],
+            "patterns": [
+              {
+                "group": ["*/db", "*/redis"],
+                "message": "DB/Redis forbidden in strategy/indicator code"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/money/src/**/*.ts",
+        "packages/money/__tests__/**/*.ts",
+        "packages/contracts/src/**/*.ts",
+        "packages/contracts/__tests__/**/*.ts",
+        "packages/strategy/*/__tests__/**/*.ts",
+        "packages/indicators/__tests__/**/*.ts",
+        "packages/discovery/__tests__/**/*.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": ["apps/web/**/*.ts", "apps/web/**/*.tsx"],
+      "env": { "browser": true, "es2024": true }
+    },
+    {
+      "files": [
+        "**/__tests__/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx"
+      ],
+      "rules": { "no-unsafe-optional-chaining": "off" }
+    }
+  ]
+}

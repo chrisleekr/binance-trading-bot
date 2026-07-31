@@ -1,0 +1,32 @@
+{
+  "name": "account-info — happy path",
+  "request": {
+    "method": "GET",
+    "path": "/api/v3/account",
+    "matchQuery": "any"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json",
+      "x-mbx-used-weight-1m": "20"
+    },
+    "body": {
+      "makerCommission": 10,
+      "takerCommission": 10,
+      "buyerCommission": 0,
+      "sellerCommission": 0,
+      "canTrade": true,
+      "canWithdraw": false,
+      "canDeposit": false,
+      "updateTime": 1700000000000,
+      "accountType": "SPOT",
+      "balances": [
+        { "asset": "BTC", "free": "0.10000000", "locked": "0.00000000" },
+        { "asset": "USDT", "free": "10000.00000000", "locked": "0.00000000" },
+        { "asset": "ETH", "free": "1.50000000", "locked": "0.00000000" }
+      ],
+      "permissions": ["SPOT"]
+    }
+  }
+}

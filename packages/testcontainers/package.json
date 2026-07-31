@@ -1,0 +1,19 @@
+{
+  "name": "@app/testcontainers",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@testcontainers/postgresql": "~11.10.0",
+    "@testcontainers/redis": "~11.10.0",
+    "testcontainers": "~11.10.0"
+  }
+}

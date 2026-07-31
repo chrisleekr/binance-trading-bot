@@ -1,0 +1,37 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`computeTechnicalsRating — snapshot on canonical BTC fixture > produces stable aggregates and vote map 1`] = `
+{
+  "recommendAll": "-0.4212",
+  "recommendMa": "-0.9333",
+  "recommendOther": "0.0909",
+  "votes": {
+    "adx": 0,
+    "ao": 0,
+    "bbPower": 0,
+    "cci": 0,
+    "ema10": -1,
+    "ema100": -1,
+    "ema20": -1,
+    "ema200": -1,
+    "ema30": -1,
+    "ema50": -1,
+    "hullMa9": -1,
+    "ichimokuBLine": 0,
+    "macd": -1,
+    "mom": 1,
+    "rsi": 0,
+    "sma10": -1,
+    "sma100": -1,
+    "sma20": -1,
+    "sma200": -1,
+    "sma30": -1,
+    "sma50": -1,
+    "stoch": 0,
+    "stochRsi": 0,
+    "uo": 0,
+    "vwma20": -1,
+    "wr": 1,
+  },
+}
+`;

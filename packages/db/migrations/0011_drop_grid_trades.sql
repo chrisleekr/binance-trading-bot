@@ -1,0 +1,11 @@
+-- 0011_drop_grid_trades.sql
+-- Removes the `grid_trades` table. It was written only by the dev seeder and
+-- read only by the symbol-state API route; the running trailing-trade strategy
+-- keeps grid progress in its state row (`currentGridTradeIndex`) and the ladder
+-- in its config (`buy.gridLevels`), so the table was always empty in
+-- production. The API now derives the grid view from strategy config + state,
+-- making the table dead infrastructure (CLAUDE.md anti-pattern).
+--
+-- Wrapped with `if exists` for idempotency. Drops the unique index with the
+-- table.
+drop table if exists grid_trades;

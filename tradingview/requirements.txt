@@ -1,9 +1,0 @@
-tradingview-ta==3.3.0
-Flask==2.0.2
-waitress==2.1.1
-urllib3==1.26.7
-paste==3.5.0
-colorlog==6.5.0
-Werkzeug==2.2.2
-requests==2.32.4
-colorama==0.4.6

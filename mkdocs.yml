@@ -1,0 +1,157 @@
+site_name: Binance Trading Bot
+
+# Generated config-table partials (bun run docs:gen) are included into pages via
+# pymdownx.snippets `--8<--`; exclude them from the page tree so they don't build
+# as standalone pages or trip the strict not-in-nav check.
+exclude_docs: |
+  _generated/
+  ci-secrets.md
+
+site_description: Operator and contributor guide for Binance Trading Bot v1.0.
+site_url: https://chrisleekr.github.io/binance-trading-bot/
+repo_url: https://github.com/chrisleekr/binance-trading-bot
+repo_name: Binance Trading Bot
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - content.action.edit
+    - navigation.instant
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - search.highlight
+    - search.share
+    - toc.follow
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        # Emit under a class Material's built-in mermaid loader ignores, so our
+        # own renderer (docs/javascripts/mermaid.js) fully controls the config
+        # (htmlLabels + antiscript security → <br/> breaks and classDef text colour).
+        - name: mermaid
+          class: mermaid-block
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - path: javascripts/mermaid.js
+    type: module
+
+plugins:
+  - search
+  # Click any screenshot to open it full-size in a lightbox (full-page captures
+  # are wide; inline they render small, so zoom-on-click is how you read detail).
+  - glightbox
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+
+# Top-level entries render as horizontal tabs (navigation.tabs). The IA mirrors the
+# app: "Get started" is the ordered first-run path; "User Guide" is the screen-by-screen
+# reference (Dashboard, Profile tabs, Account, System); "Concepts" explains the
+# mechanisms behind those screens; "Operations" is the runbook set; "Contributing" is
+# the contributor reference (architecture, extending, design).
+nav:
+  - Home: index.md
+  - Get started:
+      - Overview: get-started/index.md
+      - Install & deploy: get-started/install.md
+      - Configure your first profile: get-started/configure.md
+      - Go live: get-started/go-live.md
+  - User Guide:
+      - Overview: user-guide/index.md
+      - Dashboard: user-guide/dashboard.md
+      - Symbol workspace: user-guide/symbol-workspace.md
+      - Profile:
+          - Overview: user-guide/profile/index.md
+          - Strategy: user-guide/profile/strategy.md
+          - Risk: user-guide/profile/risk.md
+          - Live gate: user-guide/profile/live-gate.md
+          - Discovery: user-guide/profile/discovery.md
+          - Notifications: user-guide/profile/notifications.md
+          - Backtest: user-guide/profile/backtest.md
+          - History: user-guide/profile/history.md
+          - Bulk order: user-guide/profile/bulk-order.md
+          - General: user-guide/profile/general.md
+      - Account:
+          - Manage account: user-guide/account/index.md
+          - API key: user-guide/account/api-key.md
+          - Dust transfer: user-guide/account/dust-transfer.md
+          - Orphan orders: user-guide/account/orphan-orders.md
+      - System:
+          - Settings: user-guide/system/settings.md
+          - Backup & restore: user-guide/system/backup-restore.md
+  - Concepts:
+      - Overview: concepts/index.md
+      - Strategies:
+          - Compare & choose: concepts/strategies/index.md
+          - Trailing Trade: concepts/strategies/trailing-trade.md
+          - Momentum: concepts/strategies/momentum.md
+          - Rebalance: concepts/strategies/rebalance.md
+      - Discovery: concepts/discovery.md
+      - Technicals: concepts/technicals.md
+      - Account health: concepts/account-health.md
+      - Execution modes: concepts/execution-modes.md
+      - Backtesting: concepts/backtesting.md
+      - Backtest metrics: concepts/backtest-metrics.md
+      - Notifiers: concepts/notifiers.md
+  - Operations:
+      - Overview: operations/index.md
+      - Production deploy: operations/deploy.md
+      - Kill switch: operations/kill-switch.md
+      - Environment variables: operations/env-vars.md
+      - Troubleshooting: operations/troubleshooting.md
+  - Contributing:
+      - Overview: contributing/index.md
+      - Architecture:
+          - Tech stack & components: architecture/tech-stack.md
+          - Reliability: architecture/reliability.md
+          - Account isolation: architecture/account-isolation.md
+          - Worker pipeline: architecture/worker-pipeline.md
+          - Database: architecture/database.md
+          - Auth: architecture/auth.md
+      - Extending:
+          - Strategy plugin contract: architecture/extensibility.md
+      - Contributing:
+          - Coding rules: contributing/coding-rules.md
+          - Backtesting internals: contributing/backtesting-internals.md
+      - Design:
+          - Index: design/index.md
+          - UI interaction guidelines: design/ui-interaction-guidelines.md
+          - Bloomberg terminal spec: design/bloomberg-terminal-design-spec.md

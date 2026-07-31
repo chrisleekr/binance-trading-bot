@@ -1,0 +1,36 @@
+# CodeRabbit configuration for binance-trading-bot.
+# Docs: https://docs.coderabbit.ai/
+
+language: 'en-US'
+early_access: false
+
+reviews:
+  profile: 'chill'
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+
+  path_instructions:
+    - path: 'apps/**/*.{ts,tsx,js,mjs}'
+      instructions: |
+        Comments must capture the "why" behind code, not point at planning docs,
+        issue numbers, phase labels, or caller lists. Flag any new comment matching
+        ^\s*(//|/\*+|\*)\s*(Spec:|Issue #|Phase [0-9]|Refs?:|Used by|Called from|@see).
+        These are banned per CLAUDE.md "Anti-patterns to refuse" and
+        scripts/ci/no-stale-comment-refs.sh.
+    - path: 'packages/**/*.{ts,tsx,js,mjs}'
+      instructions: |
+        Comments must capture the "why" behind code, not point at planning docs,
+        issue numbers, phase labels, or caller lists. Flag any new comment matching
+        ^\s*(//|/\*+|\*)\s*(Spec:|Issue #|Phase [0-9]|Refs?:|Used by|Called from|@see).
+        These are banned per CLAUDE.md "Anti-patterns to refuse" and
+        scripts/ci/no-stale-comment-refs.sh.
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+chat:
+  auto_reply: true

@@ -1,0 +1,29 @@
+{
+  "name": "@app/db",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit && tsc -p tsconfig.test-d.json --noEmit",
+    "test": "vitest run",
+    "generate": "drizzle-kit generate",
+    "migrate": "bun ./src/migrate-cli.ts",
+    "check": "drizzle-kit check"
+  },
+  "dependencies": {
+    "@app/contracts": "workspace:*",
+    "@app/core": "workspace:*",
+    "drizzle-orm": "~0.45.2",
+    "ioredis": "~5.4.0",
+    "pg": "~8.13.0"
+  },
+  "devDependencies": {
+    "@app/testcontainers": "workspace:*",
+    "@types/pg": "~8.11.0",
+    "drizzle-kit": "~0.31.10"
+  }
+}

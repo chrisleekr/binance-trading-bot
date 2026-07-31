@@ -1,0 +1,15 @@
+-- 0012_override_actions_processing.sql
+-- Adds the `processing` state to `override_actions`. The table had a
+-- two-state model (`consumed_at` null = pending, set = consumed); a consumer
+-- of a non-idempotent external side-effect (Binance dust conversion) ran the
+-- side-effect then set `consumed_at`, so a post-success `consumed_at`-write
+-- failure left the row pending and replayed the external write on retry.
+--
+-- `processing_at` adds an intermediate claimed state: a consumer flips
+-- pending->processing atomically before the call, runs the side-effect only
+-- when the claim wins, then flips processing->consumed. A claim that never
+-- finalises (worker died mid-action) is reset to pending by a reaper.
+--
+-- Nullable, no default — every existing row is pending or consumed, and a
+-- null `processing_at` is the correct value for both.
+alter table override_actions add column if not exists processing_at timestamptz;

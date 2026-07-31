@@ -1,0 +1,21 @@
+{
+  "name": "@app/llm",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "~0.100.0",
+    "@app/contracts": "workspace:*",
+    "@app/strategy-core": "workspace:*",
+    "@toon-format/toon": "~2.3.0",
+    "zod": "~4.4.3"
+  }
+}

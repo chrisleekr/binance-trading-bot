@@ -1,0 +1,14 @@
+# Native-app dev override. Run the app on the host with `bun run dev` while
+# Postgres and Redis run in containers. Layers on top of docker-compose.local.yml
+# and is meant to start only the backing services:
+#
+#   docker compose -f deploy/compose/docker-compose.yml \
+#     -f deploy/compose/docker-compose.local.yml \
+#     -f deploy/compose/docker-compose.infra.yml \
+#     up -d --build --no-deps postgres redis   # = `bun run dev:infra`
+#
+# Postgres + Redis are already published to the host by docker-compose.local.yml,
+# so this override adds no further service config today. It stays in the `-f`
+# chain as the seam for host-only backing-service overrides.
+
+services: {}

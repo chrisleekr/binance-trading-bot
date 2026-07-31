@@ -1,0 +1,100 @@
+# Production override. Layers on top of docker-compose.yml:
+# `docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml up -d`.
+#
+# Runs the single `app` image (ROLE=all): the api (public ingress + SPA), the
+# live worker, and the throttled study consumer in one process — the
+# fewer-services default. To scale out horizontally add docker-compose.scale.yml
+# (separate api/worker/study from the same image).
+#
+# - Replaces `build:` with a pinned `image:` from Docker Hub. CI publishes an
+#   immutable tag `vX.Y.Z` to `chrisleekr/binance-trading-bot`; the operator
+#   pins via env (`IMAGE_TAG=v1.2.3 docker compose pull`).
+# - `restart: unless-stopped` so the stack auto-recovers from a host reboot but
+#   stays down when the operator stops it manually.
+# - Resource limits under `deploy.resources` are enforced under both docker
+#   compose and Swarm. The numbers are starting points; tune to the host.
+# - Logging caps each container's json-file driver at 100 MB x 5 files so a busy
+#   log loop cannot exhaust the host disk.
+# - Docker Secrets surface secrets as files under /run/secrets/<name>. Postgres
+#   reads POSTGRES_PASSWORD_FILE; the app reads AUTH_SECRET / REDIS_URL from
+#   `.env` lines the operator populates from deploy/secrets/*.
+# - Hardening (#68): the app runs `read_only: true` with a tmpfs for /tmp;
+#   cap_drop:[ALL] + no-new-privileges come from the base file. Base images
+#   (postgres, redis) are pinned by SHA256.
+
+services:
+  postgres:
+    # Pinned: timescale/timescaledb:latest-pg17 @ 2026-05-10
+    image: timescale/timescaledb@sha256:dfbf3c54f03e01d9a6fe7eeb736b513064a849606ca5acd7edcf51fdcab76a5e
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-binance_trading_bot}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      # Reset the inline POSTGRES_PASSWORD inherited from the base file so
+      # `docker compose config` does NOT print the default value; the secret is
+      # read from /run/secrets/postgres_password instead.
+      POSTGRES_PASSWORD: !reset null
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    deploy:
+      resources:
+        limits: { cpus: '2.0', memory: 2g }
+        reservations: { cpus: '0.5', memory: 512m }
+    logging:
+      driver: json-file
+      options: { max-size: 100m, max-file: '5' }
+
+  redis:
+    # Pinned: redis:8-alpine @ 2026-05-10
+    image: redis@sha256:d146f83b1e0f02fc27c26a50cee39338c736674c5959db84363e6ae3cd9e02d2
+    restart: unless-stopped
+    command:
+      - 'sh'
+      - '-c'
+      - 'redis-server --requirepass "$$(cat /run/secrets/redis_password)" --save 60 1 --loglevel warning'
+    secrets:
+      - redis_password
+    deploy:
+      resources:
+        limits: { cpus: '0.5', memory: 512m }
+    logging:
+      driver: json-file
+      options: { max-size: 100m, max-file: '5' }
+
+  app:
+    image: chrisleekr/binance-trading-bot:${IMAGE_TAG:-latest}
+    build: !reset null
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      # The api validates AUTH_SECRET (zod min-32) at startup. Operators populate
+      # the `.env` line via `AUTH_SECRET=$(cat deploy/secrets/session_secret)` so
+      # the secret only lives in the on-disk secrets file but is consumed via the
+      # existing env path (the api does not implement `_FILE` indirection).
+      AUTH_SECRET: ${AUTH_SECRET}
+      # Redis runs with `--requirepass`; the URL must include the same password.
+      # `REDIS_URL=redis://:$(cat deploy/secrets/redis_password)@redis:6379`.
+      REDIS_URL: ${REDIS_URL}
+    # Publish the public ingress on host 80 by default (the api serves both /api
+    # and the SPA). Replace, not merge, the base 3000 publish.
+    ports: !override
+      - '${APP_HTTP_PORT:-80}:3000'
+    deploy:
+      resources:
+        # One process runs api + live + throttled study (STUDY_CPU_SHARE holds
+        # the replay to a fraction of a core so live stays responsive).
+        limits: { cpus: '2.0', memory: 2g }
+    logging:
+      driver: json-file
+      options: { max-size: 100m, max-file: '5' }
+
+secrets:
+  postgres_password:
+    file: ../secrets/postgres_password
+  redis_password:
+    file: ../secrets/redis_password
+  session_secret:
+    file: ../secrets/session_secret
