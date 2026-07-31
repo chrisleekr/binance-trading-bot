@@ -52,6 +52,10 @@ jobs:
       - name: Run e2e against testnet
         if: ${{ steps.gate.outputs.skip != 'true' }}
         env:
+          # Firefox refuses to launch as root when $HOME belongs to another
+          # user, and GitHub mounts a /github/home owned by the host runner uid
+          # into this root-running container.
+          HOME: /root
           BINANCE_BACKEND: testnet
           BINANCE_API_BASE: https://testnet.binance.vision
           BINANCE_WS_BASE: wss://testnet.binance.vision/ws

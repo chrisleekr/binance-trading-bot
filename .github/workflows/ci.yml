@@ -88,6 +88,7 @@ jobs:
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 5
 
+
     env:
       REDIS_TEST_URL: redis://localhost:6379
     steps:
@@ -145,12 +146,14 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres -d binance_trading_bot_test" --health-interval 5s --health-timeout 3s --health-retries 10
 
+
       redis:
         image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+
 
     # The apps/api suites gate on DATABASE_TEST_URL, not DATABASE_URL; and the
     # `_test` suffix is required because setupApp TRUNCATEs the target.
@@ -196,12 +199,14 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres -d binance_trading_bot_test" --health-interval 5s --health-timeout 3s --health-retries 10
 
+
       redis:
         image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+
 
     env:
       DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/binance_trading_bot_test
@@ -237,6 +242,7 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres -d binance_trading_bot_test" --health-interval 5s --health-timeout 3s --health-retries 10
+
 
     env:
       DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/binance_trading_bot_test
@@ -278,7 +284,15 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
       - run: bash scripts/ci/bootstrap.sh
+      # Firefox refuses to launch as root when $HOME belongs to another user.
+      # GitHub mounts /github/home as HOME for container jobs while the step
+      # runs as root, so the ownership check trips; GitLab keeps the image's
+      # root-owned /root and never hits it. HOME=/root is the workaround
+      # Playwright's own launch error prescribes. Browsers resolve through the
+      # image's absolute PLAYWRIGHT_BROWSERS_PATH, so moving HOME can't lose them.
       - run: bash scripts/ci/test-e2e.sh
+        env:
+          HOME: /root
 
   docker-build:
     name: docker-build
