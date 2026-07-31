@@ -11,4 +11,10 @@ ci::start test-e2e
 # turbo strips env vars not listed in `globalEnv` / `globalPassThroughEnv`,
 # and adding PLAYWRIGHT_BROWSERS_PATH there would force a cache miss on
 # every other task that reads the env.
-(cd "$(git rev-parse --show-toplevel)/e2e" && bun x playwright test)
+# Derive the root from this script's location, not `git rev-parse`: this step
+# runs inside the playwright container, where the workspace is owned by the
+# host runner uid but the shell is root, so git rejects the repo as dubious
+# ownership. checkout's safe.directory lands in a temp HOME and is gone by now.
+REPO_ROOT="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
+
+(cd "$REPO_ROOT/e2e" && bun x playwright test)
