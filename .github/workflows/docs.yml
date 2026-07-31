@@ -15,6 +15,9 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # deploy-pages reads the run's artifact via the Actions API; upstream
+  # documents this as required from v4 on.
+  actions: read
 
 concurrency:
   group: docs-${{ github.ref }}
@@ -25,11 +28,13 @@ jobs:
     name: build
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # mkdocs-git-revision-date needs full history
 
-      - uses: astral-sh/setup-uv@v5
+      # Pinned to a full version: astral-sh/setup-uv stopped publishing the
+      # moving `vN` major tag after v7, so `@v8`/`@v9` do not resolve.
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
 
@@ -38,7 +43,7 @@ jobs:
       - name: Build site
         run: uv run mkdocs build --strict
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site/
 
@@ -51,4 +56,4 @@ jobs:
       url: ${{ steps.pages.outputs.page_url }}
     steps:
       - id: pages
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

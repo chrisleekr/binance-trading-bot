@@ -51,7 +51,9 @@ yarn-error.log*
 .bun-version
 
 .claude/*
-!.claude/rules/principles.md
+# Negation must target the directory: git never descends into a dir excluded by
+# .claude/*, so a pattern naming a file inside it can never re-include it.
+!.claude/rules/
 !.claude/skills/
 
 # Playwright MCP scratch output (snapshots, screenshots, console logs)

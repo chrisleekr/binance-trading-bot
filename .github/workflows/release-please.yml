@@ -5,17 +5,18 @@ on:
     branches: [main, beta]
   workflow_dispatch:
 
-# release-please opens a release PR. When that PR merges, the same job
-# (gated on release_created) builds and pushes the multi-arch image to
-# Docker Hub at chrisleekr/binance-trading-bot with service-prefixed
-# tags (api-vX.Y.Z, worker-vX.Y.Z, ...). Keeping release + push in a
-# single job avoids needing a chained workflow; the GITHUB_TOKEN has
-# contents:write for the release PR + tag, and DOCKERHUB_USERNAME +
-# DOCKERHUB_TOKEN repo secrets authenticate the push.
+# release-please opens a release PR. When that PR merges, `publish` builds and
+# pushes the multi-arch image to Docker Hub at chrisleekr/binance-trading-bot.
+#
+# Release and publish are separate jobs so the push is independently
+# re-runnable. release-please reports release_created only on the run that
+# actually creates the release, so a single job could never retry a failed
+# push: the re-run would see release_created=false and skip every push step,
+# stranding a tagged release with no image. Split, "Re-run failed jobs" leaves
+# the succeeded release job alone and replays only publish, which reads the
+# preserved job outputs.
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+  contents: read
 
 concurrency:
   group: release-please-${{ github.ref }}
@@ -28,31 +29,44 @@ jobs:
   release:
     name: release
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # main uses the stable config (production tags vX.Y.Z); beta uses
       # the beta config (prerelease vX.Y.Z-beta.N). Both share the same
       # manifest so a single root version line moves with each branch.
       - id: release
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           target-branch: ${{ github.ref_name }}
           manifest-file: .release-please-manifest.json
           config-file: ${{ github.ref_name == 'main' && '.release-please-config.json' || '.release-please-config-beta.json' }}
 
-      - name: Set up QEMU
-        if: ${{ steps.release.outputs.release_created == 'true' }}
-        uses: docker/setup-qemu-action@v3
+  publish:
+    name: publish
+    needs: release
+    if: ${{ needs.release.outputs.release_created == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      # Build the tag release-please just cut, not the branch head. A commit
+      # landing while this job queues would otherwise ship as vX.Y.Z.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.tag_name }}
 
-      - name: Set up Buildx
-        if: ${{ steps.release.outputs.release_created == 'true' }}
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
-        if: ${{ steps.release.outputs.release_created == 'true' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -60,15 +74,15 @@ jobs:
       # --tag-latest moves :latest only on main. Beta releases keep
       # their immutable :vX.Y.Z-beta.N tag and never overwrite :latest.
       - name: Build + push images
-        if: ${{ steps.release.outputs.release_created == 'true' }}
         env:
-          TAG_VERSION: ${{ steps.release.outputs.tag_name }}
+          TAG_VERSION: ${{ needs.release.outputs.tag_name }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           # Stamp the git short SHA so the status bar shows it, not "unknown"
           # (the alpine runtime carries no git). docker-build.sh forwards it as
-          # a --build-arg.
-          export GIT_SHA="${GITHUB_SHA:0:7}"
+          # a --build-arg. Read from HEAD because this job checks out the tag,
+          # not the pushed commit.
+          export GIT_SHA="$(git rev-parse --short=7 HEAD)"
           tag_latest=()
           if [[ "$REF_NAME" == "main" ]]; then
             tag_latest+=(--tag-latest)

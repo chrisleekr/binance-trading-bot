@@ -34,7 +34,7 @@ jobs:
     permissions:
       pull-requests: read
     steps:
-      - uses: amannn/action-semantic-pull-request@v5
+      - uses: amannn/action-semantic-pull-request@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -42,11 +42,11 @@ jobs:
     name: lint
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
@@ -58,16 +58,16 @@ jobs:
     name: typecheck
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .turbo
           key: turbo-typecheck-${{ github.sha }}
@@ -86,23 +86,22 @@ jobs:
         image: redis:8-alpine
         ports: ['6379:6379']
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 5
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 5
+
+
     env:
       REDIS_TEST_URL: redis://localhost:6379
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .turbo
           key: turbo-unit-${{ github.sha }}
@@ -114,16 +113,16 @@ jobs:
     name: replay
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .turbo
           key: turbo-replay-${{ github.sha }}
@@ -145,35 +144,33 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d binance_trading_bot_test"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
+          --health-cmd "pg_isready -U postgres -d binance_trading_bot_test" --health-interval 5s --health-timeout 3s --health-retries 10
+
+
       redis:
         image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+
+
     # The apps/api suites gate on DATABASE_TEST_URL, not DATABASE_URL; and the
     # `_test` suffix is required because setupApp TRUNCATEs the target.
     env:
       DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/binance_trading_bot_test
       REDIS_TEST_URL: redis://localhost:6379
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .turbo
           key: turbo-integration-${{ github.sha }}
@@ -200,28 +197,26 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d binance_trading_bot_test"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
+          --health-cmd "pg_isready -U postgres -d binance_trading_bot_test" --health-interval 5s --health-timeout 3s --health-retries 10
+
+
       redis:
         image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+
+
     env:
       DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/binance_trading_bot_test
       REDIS_TEST_URL: redis://localhost:6379
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
@@ -246,23 +241,22 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d binance_trading_bot_test"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
+          --health-cmd "pg_isready -U postgres -d binance_trading_bot_test" --health-interval 5s --health-timeout 3s --health-retries 10
+
+
     env:
       DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/binance_trading_bot_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .turbo
           key: turbo-db-isolation-${{ github.sha }}
@@ -276,17 +270,29 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      # setup-bun unzips the release archive; the Playwright image ships no
+      # unzip, so without this the job dies before any test runs.
+      - name: Install unzip
+        run: apt-get update && apt-get install -y --no-install-recommends unzip
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
       - run: bash scripts/ci/bootstrap.sh
+      # Firefox refuses to launch as root when $HOME belongs to another user.
+      # GitHub mounts /github/home as HOME for container jobs while the step
+      # runs as root, so the ownership check trips; GitLab keeps the image's
+      # root-owned /root and never hits it. HOME=/root is the workaround
+      # Playwright's own launch error prescribes. Browsers resolve through the
+      # image's absolute PLAYWRIGHT_BROWSERS_PATH, so moving HOME can't lose them.
       - run: bash scripts/ci/test-e2e.sh
+        env:
+          HOME: /root
 
   docker-build:
     name: docker-build
@@ -298,12 +304,12 @@ jobs:
       # Forks and pull requests have no secrets, so they stay build-only.
       PUSH_DEV_IMAGE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.repository == 'chrisleekr/binance-trading-bot' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker Hub
         if: ${{ env.PUSH_DEV_IMAGE == 'true' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
