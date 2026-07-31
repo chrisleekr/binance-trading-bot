@@ -26,7 +26,11 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.59.1-noble
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      # setup-bun unzips the release archive; the Playwright image ships no
+      # unzip, so without this the job dies before any test runs.
+      - name: Install unzip
+        run: apt-get update && apt-get install -y --no-install-recommends unzip
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
@@ -65,7 +69,7 @@ jobs:
     if: ${{ always() && needs.testnet-e2e.result == 'failure' }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         env:
           TESTNET_RESULT: ${{ needs.testnet-e2e.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

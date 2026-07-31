@@ -7,6 +7,7 @@ import { buildStrategyRegistry } from '@app/strategy-registry';
 // the fixture has to MINT a real clientOrderId, and only the strategy that owns
 // the id scheme can produce one.
 import { firstBuyClientOrderId, protectiveStopClientOrderId } from '@app/strategy-trailing-trade';
+import { exchangeInfoCacheKey } from '../../src/routes/exchange-info.js';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 
 /**
@@ -99,16 +100,21 @@ describeIfInfra('orphan-orders router', () => {
     // Adopt resolves the orphan symbol's base asset via exchangeInfo for the
     // base-asset exclusivity check. Seed the cache so the route never reaches
     // out to live Binance during tests.
-    await fx.di.redis.raw().set(
-      'exchange-info:cache',
-      JSON.stringify({
-        symbols: [
-          { symbol: 'BTCUSDT', baseAsset: 'BTC', quoteAsset: 'USDT', status: 'TRADING' },
-          { symbol: 'ETHUSDT', baseAsset: 'ETH', quoteAsset: 'USDT', status: 'TRADING' },
-        ],
-        fetchedAt: '2026-05-31T00:00:00.000Z',
-      }),
-    );
+    //
+    // Key off exchangeInfoCacheKey rather than a literal: the cache is keyed per
+    // mode, and adopt reads the ORPHAN's mode. A literal live key left the test
+    // mode a cache miss, so the route silently fetched real Binance on every run
+    // and only failed where that host is unreachable. Seed both modes so no
+    // orphan mode can reopen that hole.
+    const exchangeInfo = JSON.stringify({
+      symbols: [
+        { symbol: 'BTCUSDT', baseAsset: 'BTC', quoteAsset: 'USDT', status: 'TRADING' },
+        { symbol: 'ETHUSDT', baseAsset: 'ETH', quoteAsset: 'USDT', status: 'TRADING' },
+      ],
+      fetchedAt: '2026-05-31T00:00:00.000Z',
+    });
+    await fx.di.redis.raw().set(exchangeInfoCacheKey('test'), exchangeInfo);
+    await fx.di.redis.raw().set(exchangeInfoCacheKey('live'), exchangeInfo);
   });
 
   it('GET derives the owning profile for an order that profile placed', async () => {
