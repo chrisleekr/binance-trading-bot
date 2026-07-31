@@ -3,7 +3,7 @@
   "release-type": "node",
   "include-v-in-tag": true,
   "bump-minor-pre-major": true,
-  "bootstrap-sha": "ee69f27e9a70f93bcfe9d7f2e3c03f9b45d50160",
+  "bootstrap-sha": "a9b93a1b27965bc7ae5b8ef6b2de222e1605229a",
   "packages": {
     ".": {
       "package-name": "binance-trading-bot",
