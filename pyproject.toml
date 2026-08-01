@@ -13,7 +13,7 @@ docs = [
     "mkdocs-git-revision-date-localized-plugin>=1.2.0,<2",
     "mkdocs-mermaid2-plugin>=1.2.0,<2",
     "mkdocs-glightbox>=0.4.0,<1",
-    "pymdown-extensions>=10.7,<11",
+    "pymdown-extensions>=11.0,<12",
 ]
 
 [tool.uv]
