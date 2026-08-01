@@ -182,6 +182,20 @@ describe('config-doc render core', () => {
     expect(cells[3]).not.toContain('\\\\');
   });
 
+  it('a pipe in a default drops out of the code span rather than corrupt the row', () => {
+    const { markdown } = renderSchemaWithPaths(
+      toConfigJsonSchema(z.object({ sep: z.string().default('a|b') })),
+    );
+    const rows = dataRows(markdown);
+    expect(rows).toHaveLength(1);
+    // No renderer this repo targets shows a pipe faithfully inside a code span:
+    // the row needs it escaped, GitHub then unescapes it and MkDocs does not.
+    // Escaped plain text is the one form both agree on, so the monospace goes
+    // rather than the accuracy.
+    expect(rows[0]).toContain(String.raw`a\|b`);
+    expect(rows[0]).not.toContain('`a');
+  });
+
   it('a bare @handle in a note is code-spanned so GitLab cannot link it to a user', () => {
     const { markdown } = renderSchemaWithPaths(toConfigJsonSchema(z.object({ pct: z.number() })), {
       pct: { when: 'Send /newbot to @BotFather.', expect: 'Message @userinfobot for your id.' },
