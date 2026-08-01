@@ -92,9 +92,12 @@ describe('NotificationsPanel', () => {
     expect(await screen.findByRole('heading', { name: /^slack$/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /^telegram$/i })).toBeInTheDocument();
     // Secret-field labels render humanised (titleCase) on the password inputs.
-    expect(screen.getAllByText(/Webhook URL/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Bot Token/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Chat ID/).length).toBeGreaterThan(0);
+    // The heading comes from the provider-list GET; the fields come from a
+    // per-provider GET, one per provider on its own promise chain. Awaiting
+    // Slack's does not flush Telegram's, so each provider is awaited in turn.
+    expect((await screen.findAllByText(/Webhook URL/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/Bot Token/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/Chat ID/)).length).toBeGreaterThan(0);
   });
 
   it('renders schema descriptions as inline help and marks secrets required vs optional from the schema', async () => {
@@ -123,7 +126,10 @@ describe('NotificationsPanel', () => {
     // Non-secret fields render through AutoForm/FieldRenderer, whose description
     // is painted inline under the field; secret-field help renders inline from
     // the panel. All visible without interaction.
-    expect(screen.getByText('HTTPS endpoint that receives the payload.')).toBeInTheDocument();
+    // Field help arrives with the per-provider GET, one round trip after the heading.
+    expect(
+      await screen.findByText('HTTPS endpoint that receives the payload.'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Required API key for the endpoint.')).toBeInTheDocument();
     expect(screen.getByText('Optional Authorization header value.')).toBeInTheDocument();
     // Required secret → asterisk, aria-required=true.
@@ -148,8 +154,10 @@ describe('NotificationsPanel', () => {
       return json({}, 404);
     });
     await screen.findByRole('heading', { name: /^slack$/i });
-    expect(screen.getByTestId('save-slack')).not.toBeDisabled();
-    expect(screen.getByTestId('save-telegram')).not.toBeDisabled();
+    // Buttons mount with the per-provider GET, one round trip after the heading,
+    // and each provider fetches independently — so both are awaited.
+    expect(await screen.findByTestId('save-slack')).not.toBeDisabled();
+    expect(await screen.findByTestId('save-telegram')).not.toBeDisabled();
     // Test Fire is disabled until a config has been saved.
     expect(screen.getByTestId('test-fire-slack')).toBeDisabled();
   });

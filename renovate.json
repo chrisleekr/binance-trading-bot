@@ -1,0 +1,74 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Australia/Melbourne",
+  "schedule": ["before 6am on monday"],
+
+  "branchPrefix": "chore/renovate-",
+  "semanticCommits": "enabled",
+  "labels": ["dependencies"],
+
+  "prConcurrentLimit": 2,
+  "branchConcurrentLimit": 2,
+  "prHourlyLimit": 2,
+
+  "rangeStrategy": "bump",
+  "minimumReleaseAge": "3 days",
+  "rebaseWhen": "behind-base-branch",
+
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+
+  "osvVulnerabilityAlerts": true,
+
+  "vulnerabilityAlerts": {
+    "labels": ["dependencies", "security"]
+  },
+
+  "packageRules": [
+    {
+      "description": "Everything non-breaking lands in a single PR, across every manager. Grouping across managers is deliberate: the Bun and Playwright versions are each duplicated in package.json, CI workflows, the Dockerfile and .gitlab-ci.yml, and they only stay consistent if one PR moves all copies together. That holds only for copies a manager actually discovers — the two customManagers below cover the Bun pins, and the bun/github-actions/gitlabci managers cover the Playwright ones. A hand-pin somewhere none of them read is invisible here and drifts silently.",
+      "matchPackageNames": ["*"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-non-major",
+      "semanticCommitType": "chore"
+    },
+    {
+      "description": "Majors land in a second, separate PR. They are the ones that need reading, so they never ride along with the routine bumps.",
+      "matchPackageNames": ["*"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "all major dependencies",
+      "groupSlug": "all-major",
+      "semanticCommitType": "chore"
+    },
+    {
+      "description": "BullMQ >= 5.58.7 rejects ':' in custom job ids. The worker's single-execution guarantee is jobId coalescing over colon-delimited keys (tick:<profileId>:<symbol>, backtest:<runId>), and the repo runs no distributed locks, so adopting a newer BullMQ means redesigning that key scheme first. Verified: 5.58.6 passes the worker integration suite, 5.58.7+ fails it.",
+      "matchPackageNames": ["bullmq"],
+      "allowedVersions": "<5.58.7"
+    }
+  ],
+
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Bun runtime pinned as a build arg in the app image.",
+      "managerFilePatterns": ["/(^|/)Dockerfile$/"],
+      "matchStrings": ["ARG BUN_VERSION=(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"],
+      "depNameTemplate": "oven/bun",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Bun runtime pinned in the GitHub Actions workflow env blocks (fed to oven-sh/setup-bun) and in the GitLab CI variables block. Both CI systems must move together, and GitLab quotes the value where GitHub does not, hence the optional quotes.",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/", "/^\\.gitlab-ci\\.ya?ml$/"],
+      "matchStrings": ["BUN_VERSION:\\s*['\"]?(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)['\"]?"],
+      "depNameTemplate": "oven/bun",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
+    }
+  ]
+}

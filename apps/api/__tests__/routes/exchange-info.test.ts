@@ -239,7 +239,10 @@ describe('loadOrFetchExchangeInfo', () => {
     await loadOrFetchExchangeInfo(fixture.store, 'test', fetchImpl as unknown as typeof fetch);
     const call = fetchImpl.mock.calls[0];
     if (!call) throw new Error('expected fetch to have been called');
-    expect((call[0] as string).startsWith('https://testnet.binance.vision')).toBe(true);
+    // Compare the parsed origin, not a URL prefix: a prefix match also accepts
+    // `https://testnet.binance.vision.evil.test`, and a bare host check would
+    // stop pinning the scheme that the literal used to cover.
+    expect(new URL(call[0] as string).origin).toBe('https://testnet.binance.vision');
   });
 
   it('does not serve a live-populated cache entry to a test-mode load', async () => {

@@ -64,6 +64,11 @@ USER 1000:1000
 # no-arg dev build working (boot falls back to local git, then 'unknown').
 ARG GIT_SHA
 ENV GIT_SHA=${GIT_SHA:-}
+# The env-var reference tells operators the image sets this, and several
+# framework defaults key off it — Better Auth derives its sign-in rate limit
+# from NODE_ENV, so an image without it served `docker run` with the login
+# throttle silently off. Compose still overrides it.
+ENV NODE_ENV=production
 # ROLE=all runs api + live worker + study in one process (single-box default).
 # Override to api|worker|study to split across services from this same image.
 ENV ROLE=all

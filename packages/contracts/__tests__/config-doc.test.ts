@@ -136,6 +136,66 @@ describe('config-doc render core', () => {
     ).toHaveLength(3);
   });
 
+  it('a backslash in a note is escaped before the pipe, so `\\|` cannot break the row', () => {
+    const { markdown } = renderSchemaWithPaths(toConfigJsonSchema(z.object({ pct: z.number() })), {
+      pct: { when: String.raw`a \| b`, expect: String.raw`C:\temp` },
+    });
+    const rows = dataRows(markdown);
+    expect(rows).toHaveLength(1);
+    // Escaping backslashes first turns the source `\|` into `\\` + `\|`: an
+    // escaped backslash followed by an escaped pipe. Escaping the pipe first
+    // would instead emit `\\|`, a literal backslash and a live pipe that
+    // splits the cell.
+    expect(rows[0]).toContain(String.raw`a \\\| b`);
+    expect(rows[0]).toContain(String.raw`C:\\temp`);
+    expect(
+      markdown
+        .trimEnd()
+        .split('\n')
+        .filter((l) => l.startsWith('|')),
+    ).toHaveLength(3);
+  });
+
+  it('a lone carriage return in a default is flattened, not left to split the row', () => {
+    const { markdown } = renderSchemaWithPaths(
+      toConfigJsonSchema(z.object({ sep: z.string().default('one\rtwo') })),
+    );
+    // GitHub's GFM renderer starts a new table row at a bare `\r`, same as at a
+    // `\n`. The prose columns survive one either way because `cell` collapses all
+    // whitespace; the default, label and field columns do not, so the line-ending
+    // match is the only thing standing between them and a split row.
+    expect(dataRows(markdown)).toHaveLength(1);
+    expect(markdown).not.toContain('\r');
+    expect(onlyRow(markdown)[3]).toBe('`one two`');
+  });
+
+  it('a backslash in a code-span cell is left alone, since GFM renders `\\\\` literally there', () => {
+    const { markdown } = renderSchemaWithPaths(
+      toConfigJsonSchema(z.object({ path: z.string().default(String.raw`C:\temp`) })),
+    );
+    const cells = onlyRow(markdown);
+    // The default arrives already wrapped in backticks from renderDefault, and a
+    // code span does not process backslash escapes — doubling here would surface
+    // `C:\\temp` to the reader. Contrast the prose columns above, where the
+    // backslash is live markdown and must be doubled.
+    expect(cells[3]).toBe('`C:\\temp`');
+    expect(cells[3]).not.toContain('\\\\');
+  });
+
+  it('a pipe in a default drops out of the code span rather than corrupt the row', () => {
+    const { markdown } = renderSchemaWithPaths(
+      toConfigJsonSchema(z.object({ sep: z.string().default('a|b') })),
+    );
+    const rows = dataRows(markdown);
+    expect(rows).toHaveLength(1);
+    // No renderer this repo targets shows a pipe faithfully inside a code span:
+    // the row needs it escaped, GitHub then unescapes it and MkDocs does not.
+    // Escaped plain text is the one form both agree on, so the monospace goes
+    // rather than the accuracy.
+    expect(rows[0]).toContain(String.raw`a\|b`);
+    expect(rows[0]).not.toContain('`a');
+  });
+
   it('a bare @handle in a note is code-spanned so GitLab cannot link it to a user', () => {
     const { markdown } = renderSchemaWithPaths(toConfigJsonSchema(z.object({ pct: z.number() })), {
       pct: { when: 'Send /newbot to @BotFather.', expect: 'Message @userinfobot for your id.' },

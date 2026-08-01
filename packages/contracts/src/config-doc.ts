@@ -55,17 +55,40 @@ const getByPath = (obj: unknown, path: string): unknown => {
   return cur;
 };
 
+/** Any line ending breaks a row — a lone `\r` splits it as surely as `\n` does. */
+const flattenLines = (s: string): string => s.replace(/\r\n?|\n/g, ' ');
+
+/**
+ * Flattening plus the two characters that are live markdown in a text cell: the
+ * pipe, which would split the row, and the backslash, which has to go first so
+ * the one we put in front of the pipe is not itself doubled.
+ */
+const escapeText = (s: string): string =>
+  flattenLines(s).replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+
+/**
+ * A monospace cell, or escaped plain text when the value carries a pipe.
+ *
+ * A pipe cannot render faithfully inside a code span across both renderers this
+ * repo targets. Keeping the row intact requires escaping it, and only GitHub
+ * unescapes it again; MkDocs leaves the backslash, showing the reader `a\|b`.
+ * Backslashes need no escape here for the same reason they must not get one:
+ * a code span processes neither, so what is written is what is shown.
+ */
+const codeCell = (s: string): string =>
+  s.includes('|') ? escapeText(s) : `\`${flattenLines(s)}\``;
+
 export const renderDefault = (v: unknown, required: boolean): string => {
   if (v === undefined) return required ? '_required_' : '—';
   if (v === null) return '`null`';
-  if (Array.isArray(v)) return v.length === 0 ? '`[]`' : `\`${JSON.stringify(v)}\``;
+  if (Array.isArray(v)) return v.length === 0 ? '`[]`' : codeCell(JSON.stringify(v));
   if (typeof v === 'object') return '—';
-  if (typeof v === 'string') return v === '' ? '`""`' : `\`${v}\``;
+  if (typeof v === 'string') return v === '' ? '`""`' : codeCell(v);
   return `\`${String(v)}\``;
 };
 
 /**
- * Table cells are pipe-delimited and single-line, so neither may survive.
+ * A prose cell: escaped, then whitespace-collapsed and `@handle`-guarded.
  * `@handle` is wrapped in a code span because GitLab resolves a bare one to a
  * user on its own instance, rewriting the text into a link nobody authored. The
  * source `.describe()` stays plain: the web form renders it as text, so a
@@ -74,9 +97,7 @@ export const renderDefault = (v: unknown, required: boolean): string => {
  * renders into the same generated docs and must escape identically.
  */
 export const cell = (s: string): string =>
-  s
-    .replace(/\r?\n/g, ' ')
-    .replace(/\|/g, '\\|')
+  escapeText(s)
     .replace(/\s+/g, ' ')
     .replace(/(^|[^`\w])@(\w+)/g, '$1`@$2`')
     .trim() || '—';
@@ -150,8 +171,13 @@ const table = (rows: Row[]): string =>
   HEAD +
   rows
     .map(
+      // None of these three carry prose, but they still need escaping: a pipe in
+      // a schema label or a string default splits the row exactly as one in a
+      // description would. field is monospace, label is bare text, and def
+      // arrives from renderDefault already escaped and already formatted — it
+      // alone chooses between a code span and `_required_`/`—`.
       (r) =>
-        `| \`${r.field}\`<br/>${r.label} | ${r.desc} | ${r.values} | ${r.def} | ${r.when} | ${r.expect} |`,
+        `| ${codeCell(r.field)}<br/>${escapeText(r.label)} | ${r.desc} | ${r.values} | ${r.def} | ${r.when} | ${r.expect} |`,
     )
     .join('\n') +
   '\n';
