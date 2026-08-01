@@ -50,6 +50,12 @@ jobs:
   deploy:
     name: deploy
     needs: build
+    # Mirrors the github-pages environment's deployment branch policy, which
+    # admits main only. Without this the job still starts on a docs/** pull
+    # request and GitHub rejects it at the environment gate — a red check with
+    # no failing step and no log, because nothing ran. Pull requests keep the
+    # build job, which is the part that validates `mkdocs build --strict`.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment:
       name: github-pages
