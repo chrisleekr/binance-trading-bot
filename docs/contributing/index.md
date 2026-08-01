@@ -31,6 +31,7 @@ Read the engineering charter in `AGENTS.md` at the repo root before your first p
 
 - **[Coding rules](coding-rules.md)** — narrower conventions, including the [documentation-accuracy rules](coding-rules.md#documentation-accuracy).
 - **CI secrets** — the image-tag scheme and the secrets table live in `docs/ci-secrets.md` in the repository. It is deliberately not published to this site: it maps which secrets exist in which provider and which job reads them, which is an infrastructure map rather than contributor documentation.
+- **Dependency updates** — automated by Renovate (`renovate.json`), which is the only dependency bot; there is no Dependabot config. Updates arrive weekly on `chore/renovate-*` branches as at most two pull requests: one grouping every non-major bump, one grouping every major. Grouping spans managers on purpose, because the Bun and Playwright versions are each duplicated across `package.json`, both CI providers and the Dockerfile, and only move consistently when a single PR moves them together. A dependency that must not advance is expressed as an `allowedVersions` rule in `renovate.json` with the reason in its `description` — never as a silent hand-pin.
 
 ## Run the docs site locally
 

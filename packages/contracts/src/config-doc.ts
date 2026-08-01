@@ -76,6 +76,9 @@ export const renderDefault = (v: unknown, required: boolean): string => {
 export const cell = (s: string): string =>
   s
     .replace(/\r?\n/g, ' ')
+    // Backslashes escape first, else a source `\|` would emit `\\|` — a literal
+    // backslash followed by a live pipe, which splits the cell.
+    .replace(/\\/g, '\\\\')
     .replace(/\|/g, '\\|')
     .replace(/\s+/g, ' ')
     .replace(/(^|[^`\w])@(\w+)/g, '$1`@$2`')

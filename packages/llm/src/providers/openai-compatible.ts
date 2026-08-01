@@ -21,7 +21,11 @@ export function createOpenAiCompatClient(opts: {
   apiKey: string;
   model: string;
 }): LlmClient {
-  const baseUrl = opts.baseUrl.trim().replace(/\/+$/, '');
+  // Trailing slashes are stripped by a loop rather than `/\/+$/`: the anchored
+  // quantifier backtracks from every start position, so an operator-supplied
+  // base URL ending in a long run of slashes costs quadratic time to reject.
+  let baseUrl = opts.baseUrl.trim();
+  while (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
   const apiKey = opts.apiKey.trim();
   const model = opts.model.trim();
   const available = Boolean(baseUrl && model);

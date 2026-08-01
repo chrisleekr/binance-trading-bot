@@ -63,6 +63,24 @@ describe('createOpenAiCompatClient', () => {
     ]);
   });
 
+  it('strips a whole run of trailing slashes, and an all-slash base URL is unavailable', async () => {
+    fetchMock.mockResolvedValue(okResponse('{"a":1}'));
+    const client = createOpenAiCompatClient({
+      baseUrl: '  http://host:11434/v1//////  ',
+      apiKey: '',
+      model: 'm',
+    });
+    await client.generateStructured(req);
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://host:11434/v1/chat/completions');
+
+    // Trimming every slash leaves nothing, which must read as unconfigured
+    // rather than as a base URL of ''.
+    expect(createOpenAiCompatClient({ baseUrl: '///', apiKey: '', model: 'm' }).available).toBe(
+      false,
+    );
+  });
+
   it('sends a Bearer header when an API key is set', async () => {
     fetchMock.mockResolvedValue(okResponse('{"a":1}'));
     const client = createOpenAiCompatClient({

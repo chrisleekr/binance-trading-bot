@@ -14,6 +14,8 @@ The worker runs a **single replica** today on purpose: no Redis-backed distribut
 2. **In-process `chainByKey`** — successive ticks for the same profile serialise on a Promise chain so one replica never runs two ticks concurrently.
 3. **Idempotent `clientOrderId`** — Binance dedupes order placements if the worker crashes between submit and Redis-side acknowledgement.
 
+**BullMQ is pinned to `5.58.6` exactly, not to a range.** Every coalescing key above is colon-delimited (`tick:<profileId>:<symbol>`, `reconcile-symbol:<pid>:<sym>`, `archive-grid:<pid>:<sym>:<ms>`), and 5.58.7 added validation that rejects a custom job id containing `:` — Redis uses it as a key separator. Upgrading past 5.58.6 therefore breaks primitive 1 outright, and with no distributed lock there is nothing to fall back on: the redesign of the key scheme has to land first. `renovate.json` holds the ceiling as an `allowedVersions` rule so the bot cannot propose the bump; a hand-edit is not gated, which is why it is written down here.
+
 Multi-replica is not yet enabled; the elastic worker pool is built ahead of it: tick/cron jobs distribute via BullMQ competing consumers, and each account's user-data stream is owned by exactly one pod, elected by rendezvous (HRW) hashing over the Redis membership registry (ownership is a pure function of the live member set — no lock, no held key). The propagation seams land ahead of the flag but stay dormant at single replica: the fleet-global membership reconcile (above) and the strategy's optional `mergeConcurrent` latch-merge on a cross-pod tick-commit CAS miss (see the strategy contract). Reintroducing `redlock` / `Redlock` / `intents:` Redis sets / soft balance reservation fails CI (`scripts/ci/no-locks.sh`).
 
 ## Cron health observability

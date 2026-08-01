@@ -55,9 +55,9 @@
     "@types/react-dom": "~19.0.0",
     "@vitejs/plugin-react": "~4.3.0",
     "cryptocurrency-icons": "0.18.1",
-    "happy-dom": "~16.0.0",
+    "happy-dom": "~20.11.1",
     "tailwindcss": "~4.0.0",
-    "vite": "~7.0.0",
+    "vite": "~7.3.6",
     "vite-plugin-pwa": "~1.3.0",
     "workbox-window": "~7.4.1"
   }

@@ -77,13 +77,13 @@ The stack serves plain HTTP and **does not bundle a reverse proxy** — put TLS 
 | **`@hono/zod-openapi`** | 1.3.x | Routes declare Zod schemas; the OpenAPI spec and Swagger UI at `/docs` are generated from them. |
 | **Drizzle ORM** | 0.45.x | Typed queries. Migrations are **hand-authored SQL**, applied by a checksum-tracked runner. |
 | **pg** | 8.13.x | Postgres driver. |
-| **ioredis** | 5.4.x | Redis client, configured with `maxRetriesPerRequest: null` for BullMQ. |
-| **BullMQ** | 5.34.x | Job queues: ticks, crons, backtest replays. |
-| **Better Auth** | 1.3.x | Session auth. No email, no SMTP, no 2FA — one master account. |
+| **ioredis** | 5.11.x | Redis client, configured with `maxRetriesPerRequest: null` for BullMQ. |
+| **BullMQ** | 5.58.6, pinned exactly | Job queues: ticks, crons, backtest replays. Not a range: 5.58.7 rejects `:` in a custom job id, which is what the coalescing keys are built from. See [Worker pipeline](worker-pipeline.md). |
+| **Better Auth** | 1.6.x | Session auth. No email, no SMTP, no 2FA — one master account. |
 | **decimal.js** | 10.6.x | **All money math.** Every price, quantity, balance, and P/L is a `Decimal` end to end; `number` is only for counters and timestamps. |
 | **Zod** | 4.4.x | The contract layer: config schemas, API payloads, and the generated config docs all come from these. |
 | **pino** | 9.5.x | Structured logging. |
-| **ws** | 8.18.x | Binance WebSocket streams. |
+| **ws** | 8.21.x | Binance WebSocket streams. |
 
 ### Frontend
 
@@ -105,7 +105,7 @@ The web app carries **no `decimal.js`**. Money arrives from the api as pre-forma
 | Library | Version | Why it is here |
 | --- | --- | --- |
 | **prom-client** | 15.1.x | Prometheus metrics on the admin port. |
-| **OpenTelemetry** | 0.217.x | Optional OTLP trace export. Off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. |
+| **OpenTelemetry** | 2.10.x SDK / 0.221.x exporters | Optional OTLP trace export. Off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. |
 
 ## Repository layout
 

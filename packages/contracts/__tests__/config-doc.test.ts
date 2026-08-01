@@ -136,6 +136,26 @@ describe('config-doc render core', () => {
     ).toHaveLength(3);
   });
 
+  it('a backslash in a note is escaped before the pipe, so `\\|` cannot break the row', () => {
+    const { markdown } = renderSchemaWithPaths(toConfigJsonSchema(z.object({ pct: z.number() })), {
+      pct: { when: String.raw`a \| b`, expect: String.raw`C:\temp` },
+    });
+    const rows = dataRows(markdown);
+    expect(rows).toHaveLength(1);
+    // Escaping backslashes first turns the source `\|` into `\\` + `\|`: an
+    // escaped backslash followed by an escaped pipe. Escaping the pipe first
+    // would instead emit `\\|`, a literal backslash and a live pipe that
+    // splits the cell.
+    expect(rows[0]).toContain(String.raw`a \\\| b`);
+    expect(rows[0]).toContain(String.raw`C:\\temp`);
+    expect(
+      markdown
+        .trimEnd()
+        .split('\n')
+        .filter((l) => l.startsWith('|')),
+    ).toHaveLength(3);
+  });
+
   it('a bare @handle in a note is code-spanned so GitLab cannot link it to a user', () => {
     const { markdown } = renderSchemaWithPaths(toConfigJsonSchema(z.object({ pct: z.number() })), {
       pct: { when: 'Send /newbot to @BotFather.', expect: 'Message @userinfobot for your id.' },
