@@ -15,7 +15,7 @@
     "@anthropic-ai/sdk": "~0.100.0",
     "@app/contracts": "workspace:*",
     "@app/strategy-core": "workspace:*",
-    "@toon-format/toon": "~2.3.0",
+    "@toon-format/toon": "~4.1.0",
     "zod": "~4.4.3"
   }
 }

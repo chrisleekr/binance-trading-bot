@@ -29,18 +29,18 @@
     "@app/strategy-core": "workspace:*",
     "@app/strategy-registry": "workspace:*",
     "@app/strategy-trailing-trade": "workspace:*",
-    "bullmq": "~5.34.0",
-    "ioredis": "~5.4.0",
-    "pg": "~8.13.0",
-    "pino": "~9.5.0",
-    "ws": "~8.18.0",
+    "bullmq": "~5.81.2",
+    "ioredis": "~5.11.1",
+    "pg": "~8.22.0",
+    "pino": "~10.3.1",
+    "ws": "~8.21.1",
     "zod": "~4.4.3",
     "@app/observability": "workspace:*"
   },
   "devDependencies": {
     "@app/testcontainers": "workspace:*",
-    "@types/pg": "~8.11.0",
-    "@types/ws": "~8.5.0",
+    "@types/pg": "~8.20.0",
+    "@types/ws": "~8.18.1",
     "nock": "~14.0.0"
   }
 }

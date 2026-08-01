@@ -18,12 +18,12 @@
     "@app/contracts": "workspace:*",
     "@app/core": "workspace:*",
     "drizzle-orm": "~0.45.2",
-    "ioredis": "~5.4.0",
-    "pg": "~8.13.0"
+    "ioredis": "~5.11.1",
+    "pg": "~8.22.0"
   },
   "devDependencies": {
     "@app/testcontainers": "workspace:*",
-    "@types/pg": "~8.11.0",
+    "@types/pg": "~8.20.0",
     "drizzle-kit": "~0.31.10"
   }
 }

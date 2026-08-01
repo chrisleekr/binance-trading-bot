@@ -22,6 +22,6 @@
     "decimal.js": "~10.6.0"
   },
   "devDependencies": {
-    "fast-check": "~3.23.0"
+    "fast-check": "~4.9.0"
   }
 }
