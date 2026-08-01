@@ -65,17 +65,19 @@ export const renderDefault = (v: unknown, required: boolean): string => {
 };
 
 /**
- * The two characters a table cell cannot carry, neutralised. Every value
- * interpolated into a row goes through this, including the ones that carry no
- * prose (field path, label, rendered default) and so skip `cell` below.
+ * What breaks a table row: any line ending — a lone `\r` splits it as surely as
+ * `\n` does — and an unescaped pipe. Safe on code-span content, because GFM
+ * unescapes `\|` even inside backticks.
  */
-const escapeCell = (s: string): string =>
-  s
-    .replace(/\r?\n/g, ' ')
-    // Backslashes escape first, else a source `\|` would emit `\\|` — a literal
-    // backslash followed by a live pipe, which splits the cell.
-    .replace(/\\/g, '\\\\')
-    .replace(/\|/g, '\\|');
+const escapeRow = (s: string): string => s.replace(/\r\n?|\n/g, ' ').replace(/\|/g, '\\|');
+
+/**
+ * Row escaping plus the backslash, which is live markdown outside a code span.
+ * It has to go first, else the backslash `escapeRow` puts in front of a pipe
+ * would itself be doubled. Never apply this to code-span content: backslash
+ * escapes are inert inside backticks, so `\\` renders as two visible characters.
+ */
+const escapeText = (s: string): string => escapeRow(s.replace(/\\/g, '\\\\'));
 
 /**
  * A prose cell: escaped, then whitespace-collapsed and `@handle`-guarded.
@@ -87,7 +89,7 @@ const escapeCell = (s: string): string =>
  * renders into the same generated docs and must escape identically.
  */
 export const cell = (s: string): string =>
-  escapeCell(s)
+  escapeText(s)
     .replace(/\s+/g, ' ')
     .replace(/(^|[^`\w])@(\w+)/g, '$1`@$2`')
     .trim() || '—';
@@ -161,11 +163,13 @@ const table = (rows: Row[]): string =>
   HEAD +
   rows
     .map(
-      // field/label/def carry no prose, so they take the escape only — but they
-      // still take it: a pipe in a schema label or a string default splits the
-      // row exactly as one in a description would.
+      // None of these three carry prose, but they still need escaping: a pipe in
+      // a schema label or a string default splits the row exactly as one in a
+      // description would. field and def land inside a code span — the template
+      // supplies field's backticks, renderDefault brings its own — so they take
+      // the row escape only; label is bare text and takes the full one.
       (r) =>
-        `| \`${escapeCell(r.field)}\`<br/>${escapeCell(r.label)} | ${r.desc} | ${r.values} | ${escapeCell(r.def)} | ${r.when} | ${r.expect} |`,
+        `| \`${escapeRow(r.field)}\`<br/>${escapeText(r.label)} | ${r.desc} | ${r.values} | ${escapeRow(r.def)} | ${r.when} | ${r.expect} |`,
     )
     .join('\n') +
   '\n';

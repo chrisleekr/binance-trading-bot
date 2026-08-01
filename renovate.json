@@ -29,7 +29,7 @@
 
   "packageRules": [
     {
-      "description": "Everything non-breaking lands in a single PR, across every manager. Grouping across managers is deliberate: the Bun and Playwright versions are each duplicated in package.json, CI workflows, the Dockerfile and .gitlab-ci.yml, and they only stay consistent if one PR moves all copies together.",
+      "description": "Everything non-breaking lands in a single PR, across every manager. Grouping across managers is deliberate: the Bun and Playwright versions are each duplicated in package.json, CI workflows, the Dockerfile and .gitlab-ci.yml, and they only stay consistent if one PR moves all copies together. That holds only for copies a manager actually discovers — the two customManagers below cover the Bun pins, and the bun/github-actions/gitlabci managers cover the Playwright ones. A hand-pin somewhere none of them read is invisible here and drifts silently.",
       "matchPackageNames": ["*"],
       "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
       "groupName": "all non-major dependencies",

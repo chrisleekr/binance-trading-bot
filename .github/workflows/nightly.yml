@@ -74,6 +74,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+        with:
+          # checkout@v7 still leaves the job token on disk for later git
+          # commands. This job runs `bun install` and then never touches git, so
+          # the credential is pure exposure — the workflow's token can write
+          # issues.
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
@@ -113,7 +119,7 @@ jobs:
               ``,
               `Triage:`,
               `- testnet-e2e failures usually mean Binance protocol or symbol-info drift.`,
-              `- audit failures mean a new high/critical advisory. Renovate normally opens the fix PR itself; if it has not, the package is likely held by an \`allowedVersions\` ceiling in renovate.json.`,
+              `- audit covers two steps, so read the log before concluding: \`bun install --frozen-lockfile\` fails on lockfile drift, while \`bun audit\` fails on a new high/critical advisory. For an advisory, Renovate normally opens the fix PR itself; if it has not, the package is likely held by an \`allowedVersions\` ceiling in renovate.json.`,
               ``,
               `_Auto-opened by .github/workflows/nightly.yml._`,
             ].join('\n');
@@ -130,7 +136,10 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: sameDay.number,
-                body: `Re-run still failing: ${process.env.RUN_URL}`,
+                // Name the jobs here too: the day's first failure may have been
+                // testnet-e2e and this one audit, and a bare "still failing"
+                // reads as a repeat of the original.
+                body: `Re-run still failing in: **${failing.join(', ')}**. ${process.env.RUN_URL}`,
               });
             } else {
               await github.rest.issues.create({
