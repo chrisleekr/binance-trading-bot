@@ -65,7 +65,20 @@ export const renderDefault = (v: unknown, required: boolean): string => {
 };
 
 /**
- * Table cells are pipe-delimited and single-line, so neither may survive.
+ * The two characters a table cell cannot carry, neutralised. Every value
+ * interpolated into a row goes through this, including the ones that carry no
+ * prose (field path, label, rendered default) and so skip `cell` below.
+ */
+const escapeCell = (s: string): string =>
+  s
+    .replace(/\r?\n/g, ' ')
+    // Backslashes escape first, else a source `\|` would emit `\\|` — a literal
+    // backslash followed by a live pipe, which splits the cell.
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|');
+
+/**
+ * A prose cell: escaped, then whitespace-collapsed and `@handle`-guarded.
  * `@handle` is wrapped in a code span because GitLab resolves a bare one to a
  * user on its own instance, rewriting the text into a link nobody authored. The
  * source `.describe()` stays plain: the web form renders it as text, so a
@@ -74,12 +87,7 @@ export const renderDefault = (v: unknown, required: boolean): string => {
  * renders into the same generated docs and must escape identically.
  */
 export const cell = (s: string): string =>
-  s
-    .replace(/\r?\n/g, ' ')
-    // Backslashes escape first, else a source `\|` would emit `\\|` — a literal
-    // backslash followed by a live pipe, which splits the cell.
-    .replace(/\\/g, '\\\\')
-    .replace(/\|/g, '\\|')
+  escapeCell(s)
     .replace(/\s+/g, ' ')
     .replace(/(^|[^`\w])@(\w+)/g, '$1`@$2`')
     .trim() || '—';
@@ -153,8 +161,11 @@ const table = (rows: Row[]): string =>
   HEAD +
   rows
     .map(
+      // field/label/def carry no prose, so they take the escape only — but they
+      // still take it: a pipe in a schema label or a string default splits the
+      // row exactly as one in a description would.
       (r) =>
-        `| \`${r.field}\`<br/>${r.label} | ${r.desc} | ${r.values} | ${r.def} | ${r.when} | ${r.expect} |`,
+        `| \`${escapeCell(r.field)}\`<br/>${escapeCell(r.label)} | ${r.desc} | ${r.values} | ${escapeCell(r.def)} | ${r.when} | ${r.expect} |`,
     )
     .join('\n') +
   '\n';

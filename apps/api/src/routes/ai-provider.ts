@@ -69,7 +69,12 @@ async function probeProvider(cfg: AiProviderConfig): Promise<{ ok: boolean; deta
     }
     const { baseUrl, apiKey, model } = cfg.openai;
     if (!baseUrl || !model) return { ok: false, detail: 'Base URL and model required' };
-    const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/models`, {
+    // Trailing slashes come off in a loop rather than via `/\/+$/`: the anchored
+    // quantifier backtracks from every start position, so an operator-supplied
+    // base URL ending in a long run of slashes costs quadratic time to reject.
+    let probeBase = baseUrl;
+    while (probeBase.endsWith('/')) probeBase = probeBase.slice(0, -1);
+    const res = await fetch(`${probeBase}/models`, {
       signal: controller.signal,
       headers: apiKey ? { authorization: `Bearer ${apiKey}` } : {},
     });

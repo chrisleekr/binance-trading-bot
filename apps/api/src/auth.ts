@@ -42,7 +42,10 @@ const authOptions = (opts: AuthOptions): BetterAuthOptions => ({
     },
   }),
   emailAndPassword: { enabled: true, requireEmailVerification: false },
-  rateLimit: { window: 60, max: 5 },
+  // `enabled` is stated rather than left to default: Better Auth otherwise
+  // derives it from its own read of process.env.NODE_ENV, which is a second,
+  // invisible source of truth for a security control. Same value, one owner.
+  rateLimit: { enabled: opts.isProduction, window: 60, max: 5 },
   session: {
     expiresIn: 60 * 60 * 24,
     updateAge: 60 * 60,

@@ -21,6 +21,8 @@
     "schedule": ["before 6am on monday"]
   },
 
+  "osvVulnerabilityAlerts": true,
+
   "vulnerabilityAlerts": {
     "labels": ["dependencies", "security"]
   },

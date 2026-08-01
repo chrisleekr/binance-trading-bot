@@ -3,9 +3,13 @@ name: CI
 on:
   pull_request:
   push:
-    # Every branch, so CI is a real gate before a pull request exists.
+    # main only. Listing every branch here ran the whole suite twice for any
+    # branch with an open pull request — once for the push, once for the pull
+    # request, on the same commit. The pull_request event is the better of the
+    # two anyway: it tests the merge result rather than the branch head. Use
+    # workflow_dispatch to gate a branch that has no pull request yet.
     # Tags are owned by release-please.yml, not this workflow.
-    branches: ['**']
+    branches: [main]
   workflow_dispatch:
 
 # Top-level least-privilege token; jobs that need write must opt in.

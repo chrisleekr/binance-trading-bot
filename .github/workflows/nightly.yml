@@ -63,19 +63,40 @@ jobs:
           BINANCE_TESTNET_API_SECRET: ${{ secrets.BINANCE_TESTNET_API_SECRET }}
         run: bash scripts/ci/test-e2e.sh
 
+  # Standing advisory check. Renovate opens security PRs on its own, but it
+  # cannot for a dependency held below a known-bad version by an
+  # `allowedVersions` ceiling (bullmq, see docs/architecture/worker-pipeline.md)
+  # — it filters the fixed release out and says nothing. This job is what makes
+  # that case audible: `bun audit` reads the lockfile directly and ignores every
+  # Renovate rule.
+  audit:
+    name: audit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      # Non-zero on any advisory at or above the level. The two accepted
+      # dev-only advisories sit at moderate, so gating on high keeps this
+      # quiet until something genuinely new lands.
+      - run: bun audit --audit-level=high
+
   # Auto-open a tracking issue when the nightly job fails so the
   # operator's morning surface includes drift signals. One issue per
   # UTC day; later runs the same day add a comment with the failing-job
   # set so a re-fail is visible without spawning a duplicate issue.
   open-issue-on-failure:
     name: open-issue-on-failure
-    needs: [testnet-e2e]
-    if: ${{ always() && needs.testnet-e2e.result == 'failure' }}
+    needs: [testnet-e2e, audit]
+    if: ${{ always() && (needs.testnet-e2e.result == 'failure' || needs.audit.result == 'failure') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/github-script@v9
         env:
           TESTNET_RESULT: ${{ needs.testnet-e2e.result }}
+          AUDIT_RESULT: ${{ needs.audit.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -83,6 +104,7 @@ jobs:
             const today = new Date().toISOString().slice(0, 10);
             const failing = [];
             if (process.env.TESTNET_RESULT === 'failure') failing.push('testnet-e2e');
+            if (process.env.AUDIT_RESULT === 'failure') failing.push('audit');
             const title = `nightly drift ${today}`;
             const body = [
               `Nightly run on ${today} surfaced drift in: **${failing.join(', ')}**.`,
@@ -91,6 +113,7 @@ jobs:
               ``,
               `Triage:`,
               `- testnet-e2e failures usually mean Binance protocol or symbol-info drift.`,
+              `- audit failures mean a new high/critical advisory. Renovate normally opens the fix PR itself; if it has not, the package is likely held by an \`allowedVersions\` ceiling in renovate.json.`,
               ``,
               `_Auto-opened by .github/workflows/nightly.yml._`,
             ].join('\n');
