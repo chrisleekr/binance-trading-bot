@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "import", "oxc"],
+  "plugins": ["typescript", "import", "oxc", "react"],
   "categories": { "correctness": "error" },
   "env": { "node": true, "es2024": true },
   "ignorePatterns": [
@@ -26,6 +26,8 @@
       }
     ],
     "import/no-cycle": ["error", { "maxDepth": 10 }],
+    "react/no-unstable-nested-components": "error",
+    "react/exhaustive-deps": "off",
     "no-restricted-imports": [
       "error",
       {

@@ -27,4 +27,35 @@ describe('app.css', () => {
     });
     expect(offenders.map(([, s]) => (s ?? '').trim())).toEqual([]);
   });
+
+  it('exposes --skeleton in both themes and as a Tailwind colour utility', () => {
+    const dark = /:root,\s*\[data-theme='dark'\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    const light = /\[data-theme='light'\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(dark).toMatch(/--skeleton:/);
+    expect(light).toMatch(/--skeleton:/);
+    // Without this mapping Tailwind emits no `bg-skeleton`, every placeholder
+    // bar paints transparent, and the loading screens go invisible again.
+    expect(css).toMatch(/--color-skeleton:\s*var\(--skeleton\)/);
+  });
+
+  it('insets the pending screen wherever its parent supplies no padding', () => {
+    // Styled on data-route-pending, not the test id: a test id is meant to be
+    // safe to rename, and renaming this one would silently drop the padding on
+    // the screen shown for every hard page load.
+    expect(css).toMatch(/:is\(#root, main:not\(\.p-4\)\) > \[data-route-pending\]/);
+    const component = readFileSync(resolve(process.cwd(), 'src/app/route-pending.tsx'), 'utf8');
+    expect(component).toContain('data-route-pending');
+  });
+
+  it('the boot placeholder literals still match the dark tokens they copy', () => {
+    // index.html paints before the token stylesheet applies, so those values
+    // must be literals; this is what bounds the copy when the theme moves.
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+    const token = (name: string): string | undefined =>
+      new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`, 'i').exec(css)?.[1];
+    expect(html).toContain(`background: ${token('bg')}`);
+    expect(html).toContain(`background: ${token('bg-elevated')}`);
+    expect(html).toContain(`border: 1px solid ${token('border')}`);
+    expect(html).toContain(`solid ${token('accent')}`);
+  });
 });

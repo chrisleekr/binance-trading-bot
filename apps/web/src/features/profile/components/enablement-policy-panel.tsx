@@ -21,6 +21,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Switch } from '@/shared/components/ui/switch';
 import { Panel } from '@/shared/components/panel';
+import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 
 interface NumberFieldProps {
   readonly id: string;
@@ -122,7 +123,9 @@ export function EnablementPolicyPanel({
     value: EnablementPolicy['monitor'][K],
   ): void => setForm((f) => (f ? { ...f, monitor: { ...f.monitor, [key]: value } } : f));
 
-  if (!form) return <p className="text-muted-fg text-sm">Loading…</p>;
+  // Two panels land here — the quality-check essentials and the advanced
+  // thresholds — so stand in for both rather than a lone row of bars.
+  if (!form) return <PanelStackSkeleton shape={[5, 4]} />;
 
   return (
     <div className="space-y-6" data-testid="enablement-policy-panel">

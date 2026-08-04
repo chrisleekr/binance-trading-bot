@@ -43,6 +43,7 @@ import {
 import { queryDefaults } from '@/shared/lib/query-client';
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
 import { errorMessage } from '@/shared/lib/api';
+import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 
 /**
  * Self-contained symbol-config editor. Renders the load/error/ready states for
@@ -130,7 +131,9 @@ export function SymbolConfigPanel({
 
   return (
     <div className="space-y-6" data-testid="symbol-config-panel">
-      {!ready && !loadError ? <p className="text-sm">Loading…</p> : null}
+      {/* Shape mirrors what lands here: the reserve card, then the override
+          form's groups. */}
+      {!ready && !loadError ? <PanelStackSkeleton shape={[2, 5, 4]} /> : null}
 
       {loadError ? (
         <Alert variant="danger">

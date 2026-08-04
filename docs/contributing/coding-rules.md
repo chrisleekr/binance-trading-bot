@@ -125,3 +125,43 @@ Pick the kind and labels from what the call site means, not from the name:
 - A call site that passes no tags declares `labelNames: []`. Declaring a label the caller never supplies stamps it `unknown` on every series and invents a dimension the metric does not have.
 
 Names are checked; **labels are not**. `record()` resolves each declared label as `tags?.[key] ?? 'unknown'`, so renaming a tag key at a call site (`stream` → `streamKey`) still compiles: the metric exports `audit_stream_length{stream="unknown"}` and every profile collapses into one series. Nothing catches that today — check the labels by hand when you edit a call site.
+
+### Alert rules may only name metrics we emit
+
+Every metric named in an `expr:` in `deploy/observability/alerts.yml` must be a series this repo actually emits. `no-phantom-alert-metric.sh` enforces it, and `lint.sh` runs it immediately before `promtool-lint.sh`.
+
+The two gates catch different faults and the order matters. `promtool check rules` validates PromQL **syntax**; it has no view of which series exist, so a rule over a metric nothing writes passes it, then evaluates to an empty vector forever. Such a rule never fires and never errors, which looks exactly like a healthy rule that has not tripped — the operator believes they are covered and is not. Name existence therefore has to fail first, or the author reads a syntax verdict and stops.
+
+The allowed set is assembled from the code rather than a list in the gate, so a new sink is covered the day it lands:
+
+- the worker catalogue — the `MetricName` union and the `CATALOG` keys, parsed separately and diffed against each other, since TypeScript already couples them and a divergence means the parser regressed;
+- every `new Counter/Gauge/Histogram/Summary({ name: … })` under `apps/**` and `packages/**`, which picks up the api HTTP sink and the `@app/observability` registry without either path being named in the gate. The scan window closes at that call's own `})`, never at a character count: a fixed window can run past the call and adopt an unrelated `name:` literal as a declared metric, which is fail-open and would stop a real phantom being reported;
+- `_count` / `_sum` / `_bucket` off a name declared `kind: 'histogram'`, and `_count` / `_sum` off a `summary`, because Prometheus derives those and only for those kinds. A counter or gauge derives nothing, so `decision_count_sum` is still a phantom even though `decision_count` is real;
+- two exact-match sets for series no repo code declares: Prometheus' synthesised `up`, and the `process_*` / `nodejs_*` metrics `collectDefaultMetrics` registers. Both match exactly and never by prefix, so `up_wrong` is still reported. `nodejs_gc_duration_seconds` carries a kind alongside its name because it is the one default metric prom-client registers as a Histogram, so its derived series are real.
+
+Only `expr:` values are scanned — annotations legitimately carry `{{ $labels.profileId }}` and prose. Tokenising is subtractive (strip quoted strings, label matchers, range selectors, grouping label lists, `offset`/`@` modifiers, then numeric literals, and read what survives), so a parse miss over-reports and fails the build instead of skipping a name.
+
+Two YAML shapes are handled rather than skipped, because in both the subtractive order would erase the name before it was read and the rule would pass as if it named nothing: a fully quoted `expr:` scalar (unwrapped first, `''` and `\"` escapes included) and a `{__name__="x"}` matcher (harvested before the brace strip). A regex or negated `__name__` matcher cannot be resolved to a concrete series at all, so it is a hard error rather than a silent skip. Flow-style rule entries (`- {alert: …, expr: …}`) are rejected the same way: they match neither key pattern while keeping the head and expr counts balanced, so the consistency assert would not notice them.
+
+Five vacuity floors fail the gate rather than pass it: zero catalogue names, zero constructed names, zero rules, zero exprs, and **any single expr that names no metric**. That last one is per-expr deliberately — a global count is satisfied by one healthy rule and lets a sibling parsed down to nothing through, which is the silent pass the gate exists to stop. A sixth assert requires every rule entry to have yielded an expr, so a block-scalar walk that over-consumed fails red instead of quietly checking less.
+
+A rule that names no metric **on purpose** — a dead-man switch watchdog is `expr: vector(1)` by construction — opts out with a `# names-no-metric: <reason>` comment on the line directly above its `expr:` key. The opt-out is per-rule and has to be typed, so the floor stays fail-closed: an expression that silently parsed to nothing is still an error.
+
+Rules are read as entries, starting at the dash that introduces each one, and sibling keys are matched at exactly that entry's key column. That is what makes key order inside a rule irrelevant (`expr:` may lead) while keeping a block-scalar annotation that happens to contain `expr:` or `alert:` from being read as a rule key.
+
+`no-phantom-alert-metric.selftest.sh` runs the gate over twelve fixture trees under `scripts/ci/__fixtures__/alert-metric/`, and `lint.sh` runs it **before** the gate itself: `set -e` stops at the first failure, and on the run where both would fail it is the self-test that says whether the rules file is wrong or the parser regressed. Every rejecting case asserts its own diagnostic string, never a bare non-zero exit: the floors and the hard parse errors all exit 1, so a moved fixture would trip one of them and a non-zero-means-caught check would read that as a successful catch. The `pass` tree exercises every accepted syntax at once, since a false positive there would start rejecting valid rules, and the `fail` tree pins six distinct phantom shapes by name.
+
+If a rule you want has no series behind it, emit the metric or drop the rule. Do not leave it in place: the file is operator-facing, and a rule structurally incapable of firing is worse than a documented gap. Record the gap in `alerts.yml` instead, as the "no alert coverage today" block does.
+
+### A lint rule carrying an invariant must stay armed
+
+Some oxlint rules are not style — they are the only thing standing between the repo and a defect class. `react/no-unstable-nested-components` is one: a component declared inside another's render body is a new type every render, so React tears its subtree down instead of updating it, and on WebKit that clamps `scrollTop` and drags a reader off their place on every poll.
+
+oxlint hard-fails on a misspelled rule or an unknown plugin prefix, so those need no gate. Two drift shapes are **silent**, and both exit 0:
+
+- **A plugin removed from `plugins`.** Setting that array overwrites oxlint's defaults, and `react` is not among them, so trimming the list makes every `react/*` rule vanish from the resolved config with no diagnostic.
+- **A severity downgraded to `warn`.** The rule still runs, but `lint.sh` invokes `bunx oxlint` without `--deny-warnings`, so a warning can never fail the build.
+
+`no-dropped-lint-rule.sh` asserts against `oxlint --print-config` — the _resolved_ config, not the source file — that each listed rule is present at the expected severity, and `lint.sh` runs it before `bunx oxlint` so a disarmed rule is reported before the lint pass reports clean. Add a rule to `required_rules` when its absence would retire an invariant rather than relax a preference.
+
+`no-dropped-lint-rule.selftest.sh` drives the gate over mutated copies via the `OXLINT_CONFIG` seam, so the tracked `.oxlintrc.json` is never edited and a killed run cannot leave a disarmed rule behind. It fixtures only the two silent shapes: a fixture for a misspelling would prove nothing, because oxlint exits 1 before the gate can read anything. Each rejecting case asserts its own diagnostic string, and each fixture asserts that its own `sed` actually applied — a substitution that silently stopped matching would otherwise leave the case passing against an unmodified config.

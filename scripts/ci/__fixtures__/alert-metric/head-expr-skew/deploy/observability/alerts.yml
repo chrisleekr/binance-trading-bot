@@ -1,0 +1,24 @@
+# Two rule heads, one expr. The gate counts both and asserts they agree, because
+# the failure it guards is invisible otherwise: if the block-scalar walk ever
+# over-consumed and swallowed the next rule's expr, the swallowed expression
+# would simply never be checked and the gate would still report OK. A count that
+# does not add up is a parser fault, not a file fault.
+
+groups:
+  - name: fixture.head-expr-skew
+    interval: 30s
+    rules:
+      - alert: HasExpr
+        expr: binance_api_weight > 1000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Parsed normally'
+
+      - alert: MissingExpr
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'No expr key at all'

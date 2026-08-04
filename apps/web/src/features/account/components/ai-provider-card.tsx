@@ -20,6 +20,7 @@ import {
 } from '@/features/account/api/ai-provider';
 
 import type { AiProvider } from '@app/contracts';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 
 const SELECT_CLASS =
   'border-border bg-bg-elevated text-fg w-full rounded-md border px-3 py-2 text-sm sm:w-72';
@@ -105,7 +106,7 @@ export function AiProviderCard(): React.JSX.Element {
       testId="ai-provider-card"
     >
       <div className="space-y-4">
-        {q.isLoading ? <p className="text-muted-fg text-sm">Loading…</p> : null}
+        {q.isLoading ? <LoadingRows /> : null}
 
         <div className="space-y-1">
           <Label htmlFor="ai-provider-select">Provider</Label>

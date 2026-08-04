@@ -367,6 +367,17 @@ export function SymbolCandleChart({
             vertLines: { color: CHART_COLORS.border },
             horzLines: { color: CHART_COLORS.border },
           },
+          // The canvas sits inside the page scroller, and lightweight-charts
+          // defaults these to on: it then consumes vertical drags and wheel
+          // ticks that were meant to scroll the page. On a phone the canvas is a
+          // large target, so the page simply stops scrolling wherever a thumb
+          // lands on it. Both mouseWheel flags have to go, not just the scale
+          // one: the wheel handler only bails early when BOTH axes are opted
+          // out, so a trackpad's incidental horizontal delta still reached
+          // preventDefault. With both off no wheel listener is attached at all.
+          // Drag-to-pan and pinch zoom stay on.
+          handleScroll: { vertTouchDrag: false, mouseWheel: false },
+          handleScale: { mouseWheel: false },
         });
         const fmt = priceFormatRef.current;
         const series = chart.addSeries(mod.CandlestickSeries, {

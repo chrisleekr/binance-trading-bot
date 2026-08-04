@@ -18,6 +18,7 @@ import {
 } from '@/features/account/api/ops-notify';
 
 import { ACCOUNT_NOTIFY_EVENT_CATALOG, type OpsNotifyConfig } from '@app/contracts';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 
 /**
  * The ops-alert card. Owns the ops-config query and the patch mutation; renders
@@ -50,7 +51,7 @@ export function OpsNotifyCard(): React.JSX.Element {
       testId="ops-notify-card"
     >
       <div className="space-y-3">
-        {q.isLoading ? <p className="text-muted-fg text-sm">Loading…</p> : null}
+        {q.isLoading ? <LoadingRows /> : null}
 
         <ActionBanner banner={banner} />
 

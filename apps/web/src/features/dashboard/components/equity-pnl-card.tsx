@@ -16,6 +16,7 @@ import { patchProfile } from '@/features/profile/api/profiles-mutations';
 import { formatMoneyAmount, formatPercent } from '@/shared/lib/format';
 import { formatDate, formatInstant } from '@/shared/lib/format-time';
 import { useTimezone } from '@/shared/context/timezone-context';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 
 interface ChartPoint {
   tsMs: number;
@@ -176,7 +177,7 @@ export function EquityPnlCard({ profileId }: { profileId: string }): React.JSX.E
       {isError ? (
         <p className="text-down text-sm">Could not load the profit history.</p>
       ) : isPending ? (
-        <p className="text-muted-fg text-sm">Loading…</p>
+        <LoadingRows />
       ) : series.length === 0 ? (
         <p className="text-muted-fg text-sm">
           No profit history yet — the first point is recorded within 15 minutes of the worker

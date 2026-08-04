@@ -10,9 +10,81 @@
     <!-- External (not inline) so the strict CSP `script-src 'self'` allows it;
          runs before paint to avoid a theme flash. See public/theme-init.js. -->
     <script src="/theme-init.js"></script>
+    <!-- Boot placeholder styling. Inline and literal, not theme tokens: the
+         token stylesheet is pulled in by the app bundle and is not applied yet
+         at first paint, which is the only moment this markup is on screen.
+         Values track --bg-elevated / --border / --accent in styles/app.css.
+         Inline styling is CSP-safe here because style-src allows
+         'unsafe-inline'; inline scripting is not, hence theme-init.js. -->
+    <style>
+      /* Paints its own canvas: the page background comes from a Tailwind
+         utility on <body>, which lives in that same not-yet-applied
+         stylesheet. */
+      .boot {
+        min-height: 100svh;
+        background: #0e0e0e;
+      }
+      .boot-bar {
+        height: 48px;
+        background: #141414;
+        border-bottom: 2px solid #ffcc00;
+      }
+      .boot-body {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        padding: 16px;
+      }
+      .boot-panel {
+        height: 220px;
+        background: #141414;
+        border: 1px solid #2a2a2a;
+        animation: boot-pulse 2s ease-in-out infinite;
+      }
+      /* Light values are sRGB approximations of the light theme's oklch tokens.
+         The bar keeps its accent rule: border-color is a four-side shorthand
+         and would grey out the bottom edge. */
+      [data-theme='light'] .boot {
+        background: #fcfcfc;
+      }
+      [data-theme='light'] .boot-bar {
+        background: #f7f7f7;
+        border-bottom-color: #e0a838;
+      }
+      [data-theme='light'] .boot-panel {
+        background: #f7f7f7;
+        border-color: #e0e0e0;
+      }
+      @keyframes boot-pulse {
+        50% {
+          opacity: 0.5;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-panel {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body class="bg-[var(--bg)] text-[var(--fg)]">
-    <div id="root"></div>
+    <!-- Shown from first paint until React's first commit clears #root. The
+         router's root beforeLoad has to resolve before React renders anything,
+         so on a slow link this container sat empty for seconds: a blank page
+         with no scroll range, which on iOS reads as a frozen app rather than a
+         loading one. Deliberately taller than a phone viewport so a touch has
+         somewhere to drag while the operator waits. -->
+    <div id="root">
+      <div class="boot" role="status" aria-label="Loading">
+        <div class="boot-bar"></div>
+        <div class="boot-body">
+          <div class="boot-panel"></div>
+          <div class="boot-panel"></div>
+          <div class="boot-panel"></div>
+          <div class="boot-panel"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

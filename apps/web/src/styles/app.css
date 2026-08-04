@@ -26,6 +26,11 @@
   --muted: #141414;
   --border: #2a2a2a; /* hairline panel borders / dividers */
   --border-strong: #3a3a3a;
+  /* Loading placeholder fill. Its own token, not surface-alt: that one also
+     paints zebra rows and hover, so tuning placeholder brightness there would
+     drag those with it. Sits ~1.5:1 against the panel surface — a placeholder
+     only has to be perceivable, not readable. */
+  --skeleton: #303030;
   --accent: #ffcc00; /* amber yellow: selection / active nav / commit */
   --accent-fg: #000000; /* black ink on yellow, never white */
   --primary: #00e070; /* signal green: go / positive action */
@@ -55,6 +60,7 @@
   --muted: oklch(95% 0 0);
   --border: oklch(88% 0 0);
   --border-strong: oklch(80% 0 0);
+  --skeleton: oklch(90% 0 0);
   /* Amber accent darkened for white canvas; ink stays dark. */
   --accent: oklch(75% 0.16 85);
   --accent-fg: oklch(15% 0 0);
@@ -84,6 +90,7 @@
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
+  --color-skeleton: var(--skeleton);
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
   --color-primary: var(--primary);
@@ -137,6 +144,17 @@
        any scroll container was reloading the SPA and dropping in-page state on
        mobile. `none` also removes the overscroll glow. */
     overscroll-behavior: none;
+  }
+  /* The route pending screen is padless so it sits flush inside a route that
+     already owns its padding, and insets itself where nothing else does. Two
+     such parents: #root, when the ROOT route is the pending one (every hard
+     page load, since its beforeLoad resolves the onboarding check) and the
+     shell is not mounted yet; and <main> on the full-screen routes, where the
+     shell drops its own p-4 because those routes are full-bleed. Without this
+     the panels sit flush against the edges and jump inward 1rem the moment the
+     real content commits. */
+  :is(#root, main:not(.p-4)) > [data-route-pending] {
+    padding: 1rem;
   }
   /* Tabular figures + slashed zero only where numbers live — applied via the
      mono utility so prose keeps proportional spacing. */

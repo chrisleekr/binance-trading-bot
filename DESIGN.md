@@ -11,6 +11,7 @@ colors:
   surface-alt: '#1a1a1a'
   border: '#2a2a2a'
   border-strong: '#3a3a3a'
+  skeleton: '#303030'
   text: '#e8e8e8'
   text-emphasis: '#ffffff'
   text-muted: '#9a9aa0'
@@ -124,6 +125,7 @@ v2 superseded **v1 "Operator Console"**; v1's _behavioural_ rules carry forward 
 | `surface-alt` | `#1a1a1a` | Raised input fill, zebra row, hover. |
 | `border` | `#2a2a2a` | Hairline panel borders / dividers. |
 | `border-strong` | `#3a3a3a` | Emphasised dividers, off-track switch. |
+| `skeleton` | `#303030` | Loading-placeholder fill. Separate from `surface-alt`, which also paints zebra rows and hover — a placeholder only has to be perceivable, not readable. |
 | `text` | `#e8e8e8` | Default body and numeric text. |
 | `text-emphasis` | `#ffffff` | Emphasised values. |
 | `text-muted` | `#9a9aa0` | Labels, captions, metadata. (Lifted vs the mock's `#888` for legibility.) |

@@ -62,6 +62,46 @@ Per core invariant 3, every view must be fully usable on a 375×667 phone. Inter
 
 Pair colour with a glyph, icon, or text label. Red-only / green-only state fails the roughly 8% of men with red-green colour-vision deficiency and is a WCAG violation. Status uses colour **plus** the status word; trade direction uses colour **plus** ▲/▼. Source: [WCAG 2.2 — Use of Colour](https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html).
 
+## Loading states have height
+
+The shell owns the only scroll surface (`h-svh … overflow-hidden`) and the document never scrolls, so a loading branch with no height leaves **nothing under the thumb to drag**. Combined with `overscroll-behavior: none`, which suppresses even the rubber-band, a phone reads that as a frozen app rather than a loading one — the app was unscrollable for 9–16 s per route on a slow link.
+
+A loading branch renders a placeholder from `@/shared/components/page-skeleton`, never a bare `<p>Loading…</p>`:
+
+| Surface | Use |
+| --- | --- |
+| Inside a `Panel` that already draws its frame | `LoadingRows` |
+| A page body that will render a stack of panels | `PanelStackSkeleton shape={[…]}` — one entry per real panel, its value that panel's field count |
+| A list or table | `TableSkeleton` |
+| The router's pending screen, where the route is not yet known | `PageSkeleton` |
+
+Rules that make them safe to render a page-full of:
+
+- **Exactly one `role="status"` per loading surface.** The bars are `aria-hidden`; a live region per bar (or per panel) makes a screen reader read "Loading" once for every box.
+- **No pulse under `prefers-reduced-motion`.** A full page of synchronised pulsing is a vestibular trigger.
+- **Mirror the loaded layout, don't draw a bare frame.** A frame with no internal structure reads as a broken page. Match the panel count and field counts of what will land ([NN/g on skeleton screens](https://www.nngroup.com/articles/skeleton-screens/)).
+- **A route that owns its own scroller must own it while loading too.** The full-screen routes drop `<main>`'s scroll, so their loading branch carries the same `min-h-0 flex-1 overflow-y-auto p-4` box the loaded branch does.
+
+A one-line "Loading…" is still fine **inside a box that already has height** and whose chrome is drawn — the order-book and recent-trades panels, the realised-P/L card. The rule targets surfaces that would otherwise contribute no height at all.
+
+## A polling page must hold the reader still
+
+Every screen refetches on a timer. If a poll re-render changes layout above the fold, the reader is shoved off their spot; if it _rebuilds_ a subtree rather than updating it, the damage is worse and silent. While the subtree is detached the scroller is briefly shorter, so the browser clamps `scrollTop` to the new maximum — and re-inserting the content restores the height but never the scroll position. A reader parked at the bottom is dragged upward on every tick.
+
+That shipped once. `MarketTrendCard` declared its wrapper component **inside** its own render body, so the wrapper got a fresh identity on every render and React discarded the card and rebuilt it. A `setInterval` driving the "next update in ~Xs" countdown fired that once a second. Measured in Safari at 375×667, the card's `getBoundingClientRect().height` was 298 px, and the scroller jumped by exactly that amount 24 times over a 12 s watch — twice per tick, because the dev build runs under `StrictMode`, which re-renders each component an extra time.
+
+Rules:
+
+- **Never declare a component inside another component's body.** Its identity changes per render, which React reads as a different component type: full teardown, not an update. Enforced by `react/no-unstable-nested-components` in `.oxlintrc.json`. A render prop that is _called_ rather than mounted (`fallback(error, reset)`) is safe, but hoist it anyway rather than relaxing the rule.
+- **Keep list `key`s stable across polls.** A key derived from an array index or a formatted timestamp remounts rows whenever the data shifts.
+- **Prefer a reserved box to a panel that appears and disappears.** A block that renders `null` on empty data and content on the next poll changes the page height under the reader.
+
+`useScrollAnchor` (`overflow-anchor` is in Technology Preview and the Safari 27 beta, but no stable Safari release ships it and no iOS Safari release supports it — [caniuse](https://caniuse.com/css-overflow-anchor), checked 2026-08; the shim can be deleted once it lands on iOS) absorbs _legitimate_ reflow — content genuinely growing. It is not a licence to reflow: it corrects a frame late, and it stands down while the reader's own scrolling is live, because a `scrollTop` write during a drag or its momentum cancels the fling on WebKit instead of nudging the reader. A page that needs the shim to look still on a phone is a page with a layout bug.
+
+"The reader's own scrolling" is measured against gestures, not scroll events. A scroll event is not proof a human scrolled: when content shrinks, the browser clamps `scrollTop` and emits one too, and that event is dispatched _before_ the animation frame the correction runs in. Standing down for it would disable the shim for the exact reflow it exists to absorb, and re-anchor at the drifted position — turning a one-frame clamp into permanent drift.
+
+`e2e/tests/scroll-stability.spec.ts` measures this: it parks each route's anchored scroller (the one marked `data-scroll-anchor`, so the probe cannot drift onto an inner panel that no poll touches) at the bottom, **blocks the shim's corrections**, and asserts zero drift, zero subtree teardowns and zero attempted corrections while the page polls. Blocking the shim is the point — with it live, the drift is repaired a frame later and the page looks stable on Blink and desktop WebKit, which is why the defect survived review. The spec needs a running stack (`E2E_USER_EMAIL` / `E2E_USER_PASSWORD` / `E2E_ACCOUNT_ID` / `E2E_PROFILE_ID`); CI runs only the no-stack smoke subset, so it does not gate merges today.
+
 ## Before adding an interactive element
 
 1. Is there already a `variant` or shared component for this intent? Use it.
@@ -69,3 +109,4 @@ Pair colour with a glyph, icon, or text label. Red-only / green-only state fails
 3. Is it in a table row? Use `RowActions`, keep status and action separate.
 4. Is it ≥44px and reachable on a 375px screen?
 5. Does it convey state by more than colour alone?
+6. If it has a loading state, does that state have height and exactly one live region?

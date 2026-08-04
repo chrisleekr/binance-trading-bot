@@ -165,6 +165,32 @@ function BreadthRow({
 }
 
 /**
+ * The card's outer frame, shared by the loading, warming and loaded branches.
+ *
+ * Module scope is load-bearing, not style. Declared inside the component its
+ * identity changes every render, so React tears the whole subtree down and
+ * rebuilds it rather than updating in place. The countdown below re-renders
+ * once a second, and each teardown briefly removed this card's full height from
+ * the dashboard scroller — long enough for the browser to clamp `scrollTop` to
+ * the shorter content, and never restored when the height came back. An
+ * operator reading the bottom of the overview was pulled upward once a second.
+ */
+function Shell({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return (
+    <section
+      className="@container space-y-2"
+      aria-label="Market trend"
+      data-testid="market-trend-card"
+    >
+      <h2 className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider">
+        Market trend
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+/**
  * Render the market-trend card. Loading and warming (no snapshot yet) collapse
  * to a single muted line so the dashboard never flashes a zeroed band.
  */
@@ -183,19 +209,6 @@ export function MarketTrendCard(): React.JSX.Element | null {
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-
-  const Shell = ({ children }: { children: React.ReactNode }) => (
-    <section
-      className="@container space-y-2"
-      aria-label="Market trend"
-      data-testid="market-trend-card"
-    >
-      <h2 className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider">
-        Market trend
-      </h2>
-      {children}
-    </section>
-  );
 
   if (q.isLoading) {
     return (

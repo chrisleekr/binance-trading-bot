@@ -20,6 +20,7 @@ import { Switch } from '@/shared/components/ui/switch';
 import { errorMessage } from '@/shared/lib/api';
 import { humaniseAge } from '@/shared/lib/format-time';
 import { fetchBackupConfig, putBackupConfig } from '@/features/account/api/backup-config';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 
 // Mirror the server bounds (`BackupConfigPut`) so the client catches an
 // out-of-range value before the round trip. The server 422 remains the backstop.
@@ -143,7 +144,7 @@ export function BackupSettingsCard(): React.JSX.Element {
   if (status === null) {
     return (
       <Panel title="Automatic backups">
-        <p className="text-muted-fg text-sm">Loading…</p>
+        <LoadingRows />
       </Panel>
     );
   }

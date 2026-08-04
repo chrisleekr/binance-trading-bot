@@ -1,7 +1,12 @@
 // The router keeps the previous route mounted until a navigation's loaders
 // resolve. After sign-in that left the login form on screen through the whole
 // account+dashboard fetch. A global defaultPendingComponent replaces it with a
-// full-screen loading screen once the navigation passes pendingMs.
+// loading screen once the navigation passes pendingMs.
+//
+// The pending screen is in flow, not a `fixed inset-0` overlay — the first test
+// below pins the reason that is safe (the router hides the outgoing match
+// itself), and the last one pins that it stays in flow, so the shell chrome is
+// reachable during a slow load.
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -88,9 +93,12 @@ describe('route pending screen', () => {
 
     void router.navigate({ to: '/slow' });
 
-    // During the pending navigation the router hides the previous route
-    // (display:none) and the pending screen covers the view — so the login form
-    // is no longer visible.
+    // The outgoing route is hidden by React, not by the pending screen's
+    // stacking: each match renders inside a Suspense boundary that is reused
+    // across the transition, and re-suspending a populated boundary hides the
+    // committed nodes with `display: none !important`. That is what keeps the
+    // sign-in form off screen, so the pending screen does not have to cover the
+    // viewport to do its job.
     await waitFor(() => expect(screen.getByTestId('route-pending')).toBeInTheDocument());
     expect(screen.getByTestId('login-marker')).not.toBeVisible();
 
@@ -103,5 +111,21 @@ describe('route pending screen', () => {
   it('wires the pending screen into the real app router', () => {
     expect(appRouter.options.defaultPendingComponent).toBe(RoutePending);
     expect(appRouter.options.defaultPendingMs).toBe(150);
+  });
+
+  // A proxy for the real property, which is "has scroll range under the thumb".
+  // happy-dom does no layout, so height cannot be measured here; these classes
+  // are what produce it.
+  it('renders in flow as a scroll container, so the shell chrome stays reachable', () => {
+    render(<RoutePending />);
+    const pending = screen.getByTestId('route-pending');
+    // `fixed inset-0` would cover the top bar, ticker, health bar and nav for
+    // the length of a slow load, leaving the operator nothing to tap.
+    expect(pending.className).not.toMatch(/\bfixed\b/);
+    // The shell makes <main> a non-scrolling flex column on the full-screen
+    // routes, so the pending screen has to own a scroller there or a touch
+    // lands on something with no range and the app reads as frozen.
+    expect(pending.className).toMatch(/\boverflow-y-auto\b/);
+    expect(pending.className).toMatch(/\bflex-1\b/);
   });
 });

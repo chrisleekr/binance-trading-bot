@@ -32,6 +32,7 @@ import { useTimezone } from '@/shared/context/timezone-context';
 
 import { isRestingSell } from '@app/contracts';
 import type { OrphanOrderView } from '@app/contracts';
+import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 
 const lastChecked = (computedAtMs: number | null, timeZone: string): string =>
   computedAtMs === null
@@ -97,7 +98,7 @@ function OrphanOrdersPage(): React.JSX.Element {
         with it.
       </p>
 
-      {query.isLoading ? <p className="text-sm">Loading…</p> : null}
+      {query.isLoading ? <PanelStackSkeleton shape={[4]} /> : null}
       {query.error ? (
         <Alert variant="danger">
           <AlertTitle>Failed to load</AlertTitle>

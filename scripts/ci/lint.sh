@@ -33,7 +33,17 @@ bash "$(dirname "$0")/no-stripped-err-log.sh"
 bash "$(dirname "$0")/no-error-cast.sh"
 bash "$(dirname "$0")/no-uncommented-coverage-ignore.sh"
 bash "$(dirname "$0")/notify-conformance-coverage.sh"
+# Self-test first: `set -e` aborts on the first failure, and on the one run where
+# both would fail it is the self-test that says whether the rules file is wrong
+# or the parser regressed. Then metric-name existence before PromQL syntax,
+# because promtool accepts a rule over a series nothing emits.
+bash "$(dirname "$0")/no-phantom-alert-metric.selftest.sh"
+bash "$(dirname "$0")/no-phantom-alert-metric.sh"
 bash "$(dirname "$0")/promtool-lint.sh"
+# Self-test first, same reasoning as the alert-metric pair above: on a run where
+# both fail it says whether the config drifted or the gate itself broke.
+bash "$(dirname "$0")/no-dropped-lint-rule.selftest.sh"
+bash "$(dirname "$0")/no-dropped-lint-rule.sh"
 # Whole-repo single-pass lint. One invocation (not per-package) so oxlint's
 # multi-file analysis builds one project-wide module graph for import/no-cycle,
 # rather than a per-package view blind to imports crossing package folders.

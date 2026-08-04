@@ -1,0 +1,19 @@
+# A flow-style rule entry. It is legal YAML, and it is the dangerous shape:
+# neither the rule-head regex nor the expr regex matches it, so the head and expr
+# counts stay balanced, the consistency assert sees nothing wrong, and the
+# phantom inside is never tokenised. The gate rejects the shape rather than
+# growing a second parser for it.
+
+groups:
+  - name: fixture.flow-style
+    interval: 30s
+    rules:
+      - alert: BlockStyleNeighbour
+        expr: binance_api_weight > 1000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Parsed normally'
+
+      - { alert: FlowStyleRule, expr: phantom_in_flow_style > 0, for: 5m }

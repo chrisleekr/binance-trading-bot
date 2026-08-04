@@ -1,0 +1,14 @@
+# A rule head with no expr key anywhere in the file. Scanning every rule and
+# extracting nothing to check means the expr parser stopped matching, not that
+# the rules are fine, so this is a failure rather than a clean run.
+
+groups:
+  - name: fixture.no-exprs
+    interval: 30s
+    rules:
+      - alert: MissingExpr
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'No expr key at all'

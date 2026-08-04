@@ -44,6 +44,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { ApiError } from '@/shared/lib/api';
 import { t } from '@/shared/lib/i18n';
+import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 
 type ProfileRow = DashboardAggregateResponse['profiles'][number];
 
@@ -61,7 +62,7 @@ export function ProfileGeneralPanel({
   // Mirror the gate panel: a brief Loading line while the aggregate resolves,
   // then nothing if the profile is genuinely absent.
   if (!row) {
-    return aggregate.isLoading ? <p className="text-muted-fg text-sm">Loading…</p> : null;
+    return aggregate.isLoading ? <PanelStackSkeleton shape={[1, 3, 2, 3]} /> : null;
   }
   // The account's other profiles are the candidate handoff targets when this
   // profile is deleted with live exposure. Derived from the same aggregate the
