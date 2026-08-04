@@ -1,4 +1,4 @@
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -182,6 +182,57 @@ describe('LiveVsBacktestCard', () => {
     expect(screen.getByText('1.80 → 3.00')).toBeInTheDocument();
     // PF must NOT carry a misleading ratio-difference delta.
     expect(screen.queryByText('(+1.20)')).toBeNull();
+  });
+
+  it('surfaces a terminal notice when the pinned baseline run cannot be read', async () => {
+    // A failed read must not sit on a pulsing skeleton forever: nothing is in
+    // flight, so a placeholder there would claim data that never arrives.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return jsonOf(archiveBody);
+        if (url.includes('/backtests/')) return new Response('boom', { status: 500 });
+        return jsonOf(profileBody(RUN_ID));
+      }),
+    );
+    render(
+      // Retries would keep the query pending past the assertion window.
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/Couldn't load the pinned backtest baseline/i)).toBeInTheDocument(),
+    );
+    expect(document.querySelectorAll('[data-skeleton-bar]')).toHaveLength(0);
+  });
+
+  it('says the pinned run has no result yet rather than pulsing forever', async () => {
+    // Pinned, fetched, still queued or running: terminal for this render.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return jsonOf(archiveBody);
+        if (url.includes('/backtests/'))
+          return jsonOf({ ...runDetailBody, status: 'running', progress: 40, result: null });
+        return jsonOf(profileBody(RUN_ID));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/pinned backtest has no result yet/i)).toBeInTheDocument(),
+    );
+    expect(document.querySelectorAll('[data-skeleton-bar]')).toHaveLength(0);
   });
 
   it('shows an edge-weakening badge when live profit factor decays below the baseline', async () => {

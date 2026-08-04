@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { AutoForm } from '@/shared/forms';
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
 import { Panel } from '@/shared/components/panel';
+import { LoadingRows, PanelStackSkeleton } from '@/shared/components/page-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -237,7 +238,9 @@ function ProviderEditor({
       {/* Gate the AutoForm on the GET so `defaultValues` is populated at mount
           — `useForm` reads them once and a later arrival would not re-seed. */}
       {saved.isLoading ? (
-        <p className="text-muted-fg text-sm">Loading saved config…</p>
+        // Stands in for the generated provider form: its config fields plus the
+        // save row.
+        <LoadingRows rows={4} />
       ) : (
         // groupLooseFields={false}: this Panel is the provider's section, so the
         // form's loose fields render bare rather than in a nested "Core settings" box.
@@ -341,7 +344,9 @@ export function NotificationsPanel({
     <div className="space-y-6" data-testid="notifications-panel">
       <EventSubscriptions profileId={profileId} />
 
-      {list.isLoading ? <p className="text-sm">Loading providers…</p> : null}
+      {/* One panel per registered provider — Slack, Telegram and Webhook ship
+          in the default build. */}
+      {list.isLoading ? <PanelStackSkeleton shape={[3, 2, 2]} /> : null}
       {list.error ? (
         <Alert variant="danger">
           <AlertTitle>Failed</AlertTitle>

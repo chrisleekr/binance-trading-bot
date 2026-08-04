@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { closedTradesQueryOptions } from '@/features/dashboard/api/dashboard';
 import { Card } from '@/shared/components/ui/card';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 import { PnlValue, PNL_TONE } from '@/shared/components/pnl-value';
 import { Button } from '@/shared/components/ui/button';
 import { useTimezone } from '@/shared/context/timezone-context';
@@ -122,10 +123,11 @@ export function RealisedPnlCard({
                 : `${data.tradeCount} closed trade${data.tradeCount === 1 ? '' : 's'} · ${periodLabel(period, data.from, data.to, timeZone)}`}
             </p>
           </div>
+        ) : query.isLoading ? (
+          // The headline figure and the trade-count line under it.
+          <LoadingRows rows={2} />
         ) : (
-          <p className="text-muted-fg text-sm">
-            {query.isLoading ? 'Loading…' : 'Realised P/L unavailable.'}
-          </p>
+          <p className="text-muted-fg text-sm">Realised P/L unavailable.</p>
         )}
       </section>
     </Card>

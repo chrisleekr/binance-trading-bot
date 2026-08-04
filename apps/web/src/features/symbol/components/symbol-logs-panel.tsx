@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { TableSkeleton } from '@/shared/components/page-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
 import {
@@ -203,13 +204,12 @@ export function SymbolLogsPanel({
   });
 
   if (initial.isLoading) {
+    // Sized to the loaded `h-72` virtualiser box rather than the shorter dashed
+    // frame it replaces, so the scroller keeps its range across the swap.
     return (
-      <section
-        aria-label="Action logs loading"
-        data-testid="symbol-logs-loading"
-        className="border-border bg-bg-elevated flex h-48 items-center justify-center rounded-md border border-dashed text-sm"
-      >
-        Loading logs…
+      <section className="space-y-2" data-testid="symbol-logs-loading">
+        <h2 className="text-sm font-semibold">Action logs</h2>
+        <TableSkeleton rows={7} />
       </section>
     );
   }

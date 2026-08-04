@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from '@/shared/components/ui/dialog';
 import { Panel } from '@/shared/components/panel';
+import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 import { Switch } from '@/shared/components/ui/switch';
 import { AutoForm } from '@/shared/forms';
 import { useTimezone } from '@/shared/context/timezone-context';
@@ -648,7 +649,9 @@ export function DiscoveryDashboard({
   });
 
   if (query.isLoading) {
-    return <p className="text-muted-fg text-sm">Loading discovery…</p>;
+    // Mirrors the loaded stack: the Auto-discovery settings panel, the
+    // candidate scoreboard, and the holdings panel.
+    return <PanelStackSkeleton shape={[3, 6, 4]} />;
   }
   // A discovery endpoint error must not break the rest of the profile page.
   if (query.isError || !data) return null;

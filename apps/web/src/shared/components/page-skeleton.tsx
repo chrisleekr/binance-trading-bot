@@ -56,6 +56,23 @@ export function LoadingRows({ rows = 3 }: { readonly rows?: number }): React.JSX
 }
 
 /**
+ * One tall block sized by the caller, for surfaces whose loaded body is a
+ * single unbroken area rather than a list or a field stack — a chart canvas, a
+ * stats strip, a ladder. Field rows there would read as content that never
+ * arrives; a solid block of the finished height does not.
+ *
+ * The caller must pass an explicit height (`h-[300px]`, `h-48`, …): matching
+ * the loaded body is the whole point, and there is no sensible default for it.
+ */
+export function BlockSkeleton({ className }: { readonly className: string }): React.JSX.Element {
+  return (
+    <LoadingStatus>
+      <Skeleton className={className} />
+    </LoadingStatus>
+  );
+}
+
+/**
  * A Panel-shaped placeholder: header block, hairline, then `rows` field rows.
  * Silent on its own — stacks announce once, via `PanelStackSkeleton`.
  */

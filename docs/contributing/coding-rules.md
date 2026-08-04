@@ -89,6 +89,16 @@ Type-level assertions live in `<pkg>/__tests__/*.test-d.ts` — their `@ts-expec
 
 Each package holding a guard file needs a `tsconfig.test-d.json` extending the package config with `include` covering `__tests__/**/*.test-d.ts` (and `noEmit`, non-`composite`, so it only typechecks), and its `typecheck` script must append `tsc -p tsconfig.test-d.json --noEmit`. The `no-unwired-test-d` CI gate fails the build if any `.test-d.ts` is missing either wiring.
 
+## Loading branches must reserve height
+
+`apps/web/__tests__/loading-placeholder-gate.test.ts` parses every `apps/web/src/**/*.tsx` with the TypeScript compiler API and fails listing each `path:line` that renders a bare-text loading state instead of a placeholder from `@/shared/components/page-skeleton`. It is a vitest test, not a shell gate: CI runs on `bun:alpine`, whose BusyBox `grep` silently no-ops GNU flags, so a shell version of this check would pass vacuously.
+
+Two orthogonal detectors run and their results are unioned, deduped by source position. **A** is condition-side — a `?:` / `if` / `&&` whose condition is a loading test (`.isLoading` / `.isPending` / `.isFetching`, an identifier matching `/^(is)?\w*[Ll]oading$/`, or a `||` of those) and whose branch renders text with no `Skeleton`-suffixed tag under it. Negations and compound conditions are deliberately not loading tests. **B** is content-side — any element carrying loading-shaped copy (`/^Loading\b/i`, an ellipsis-terminated "loading"/"fetching" string, or a `t('….loading')` key) with no skeleton descendant, whatever guards it. B is what catches a placeholder behind a _data_ test (`data ? … : <p>Loading…</p>`), which A structurally cannot see. A third rule flags a `Skeleton`/`*Skeleton` element whose static `className` carries no height token (`h-`, `min-h-`, `aspect-`, `size-`) — the right tag name is not the invariant, the reserved box is.
+
+Exemptions are **structural, never a path allow-list** (an allow-list fails open the moment a file moves): a control tag as the _nearest_ enclosing element, an `sr-only` element, and a value that cannot render. A render prop is not exempt — `aside={<Panel/>}` and `pendingComponent={() => <p/>}` are painted as page content.
+
+Vacuity guards, because a gate that scans nothing is worse than no gate: the source root must exist, the walk must collect ≥150 files and find ≥30 loading branches (the denominator, not the offender count), `parseDiagnostics` is read off each `SourceFile` and throws rather than letting a truncated tree report clean, and each detector has a fixture only _it_ can reach so neither can be neutered without a test going red.
+
 ## Deadline-bounded writes take a thunk
 
 A best-effort write whose reply you do not read — one you want attempted, not confirmed — goes through `raceDeadline` (`apps/worker/src/lib/race-deadline.ts`), which bounds it by a deadline and routes a stall, a rejection and a synchronous throw to a callback instead of propagating. Pass the write as a **thunk** (`() => redis.set(...)`), never as an already-created promise.

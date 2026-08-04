@@ -73,16 +73,20 @@ A loading branch renders a placeholder from `@/shared/components/page-skeleton`,
 | Inside a `Panel` that already draws its frame | `LoadingRows` |
 | A page body that will render a stack of panels | `PanelStackSkeleton shape={[…]}` — one entry per real panel, its value that panel's field count |
 | A list or table | `TableSkeleton` |
+| A single unbroken area — a chart canvas, a stats strip | `BlockSkeleton className="…"` — the height is required and must match the loaded body |
 | The router's pending screen, where the route is not yet known | `PageSkeleton` |
 
 Rules that make them safe to render a page-full of:
 
-- **Exactly one `role="status"` per loading surface.** The bars are `aria-hidden`; a live region per bar (or per panel) makes a screen reader read "Loading" once for every box.
+- **Exactly one `role="status"` per loading surface.** The bars are `aria-hidden`; a live region per bar (or per panel) makes a screen reader read "Loading" once for every box. **Inline chrome is the exception** — a pill or badge sitting inside a larger surface takes a bare `Skeleton` with a static `aria-label` and _no_ live region, because a second one announces the same fetch twice and re-announces it on every poll. `TechnicalsHealthPill` is the worked example.
 - **No pulse under `prefers-reduced-motion`.** A full page of synchronised pulsing is a vestibular trigger.
 - **Mirror the loaded layout, don't draw a bare frame.** A frame with no internal structure reads as a broken page. Match the panel count and field counts of what will land ([NN/g on skeleton screens](https://www.nngroup.com/articles/skeleton-screens/)).
 - **A route that owns its own scroller must own it while loading too.** The full-screen routes drop `<main>`'s scroll, so their loading branch carries the same `min-h-0 flex-1 overflow-y-auto p-4` box the loaded branch does.
+- **Size the placeholder off the body it replaces.** Read the loaded branch and count its real rows; mirror its `max-h-*` cap and its responsive breakpoints. A three-row skeleton standing in for a 600 px panel passes the gate while leaving the same hole under the thumb.
+- **A Tailwind height must be a source-text literal.** The JIT scans source, so ``className={`h-[${CHART_HEIGHT}px]`}`` compiles to nothing and the placeholder silently renders 0 px. Write `h-[320px]` and pin the constant with an assertion if the two must agree.
+- **Only the loading arm gets a skeleton.** An error or a terminal empty state is not "still arriving" — a pulsing block there is a claim that never resolves. Split the branch and give each its own notice.
 
-A one-line "Loading…" is still fine **inside a box that already has height** and whose chrome is drawn — the order-book and recent-trades panels, the realised-P/L card. The rule targets surfaces that would otherwise contribute no height at all.
+There is no longer an exemption for a one-line "Loading…" inside a box that already has height: `apps/web/__tests__/loading-placeholder-gate.test.ts` rejects it outright. The exemptions are structural, not per-file — a control label (`button`/`Button`/`option`/`summary`/`label`/`a`) as the **nearest** enclosing element, an `sr-only` element, and a value that cannot render (an inert attribute or object property; a render prop holding JSX is **not** exempt). If the gate flags a line, the fix is a sized placeholder, not an allow-list entry.
 
 ## A polling page must hold the reader still
 

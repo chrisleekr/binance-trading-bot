@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, RefreshCw } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 
+import { TableSkeleton } from '@/shared/components/page-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Badge } from '@/shared/components/ui/badge';
 import { cn } from '@/shared/lib/cn';
@@ -671,9 +672,11 @@ export function SymbolTechnicalsPanel({
       </div>
 
       {recs.isLoading ? (
-        <p className="text-muted-fg text-xs" data-testid="symbol-tv-loading">
-          Loading Technicals…
-        </p>
+        // The loaded body is dominated by the oscillator and moving-average
+        // tables; reserving them holds the panel's height through the poll.
+        <div data-testid="symbol-tv-loading">
+          <TableSkeleton rows={12} />
+        </div>
       ) : intervalRows.length === 0 && recs.error ? (
         // A failed poll keeps the last good response in `recs.data` (TanStack
         // v5 holds data and error together after a background refetch fails);

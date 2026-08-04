@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import type React from 'react';
 
 import { fetchMarketTrend, marketTrendQueryKey } from '@/features/dashboard/api/market-trend';
+import { TableSkeleton } from '@/shared/components/page-skeleton';
 import type { MarketRegime, MarketTrendSymbol } from '@app/contracts';
 
 /**
@@ -213,7 +214,8 @@ export function MarketTrendCard(): React.JSX.Element | null {
   if (q.isLoading) {
     return (
       <Shell>
-        <p className="text-muted-fg text-xs">Loading market trend…</p>
+        {/* One row per tracked symbol plus the breadth and verdict rows. */}
+        <TableSkeleton rows={4} />
       </Shell>
     );
   }

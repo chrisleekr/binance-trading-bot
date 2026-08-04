@@ -15,6 +15,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { symbolTickerQuery } from '@/features/symbol/api/symbol';
+import { BlockSkeleton } from '@/shared/components/page-skeleton';
 import { formatPrice } from '@/shared/lib/format';
 import { useFlashOnChange, type FlashTone } from '@/shared/lib/use-flash-on-change';
 
@@ -121,12 +122,21 @@ export function SymbolStatsStrip({
 
   if (ticker.isSuccess) return <StatsRow ticker={ticker.data} />;
 
+  if (ticker.isLoading) {
+    // The loaded strip is one bordered band of stat cells. A single block of
+    // the same height keeps the symbol header from collapsing under the
+    // operator's thumb while the ticker is in flight.
+    return (
+      <BlockSkeleton className="border-border bg-bg-elevated h-[4.25rem] w-full rounded-md border" />
+    );
+  }
+
   return (
     <div
       className="border-border bg-bg-elevated text-muted-fg flex items-center rounded-md border px-4 py-3 text-sm"
       data-testid="symbol-stats-strip"
     >
-      {ticker.isLoading ? 'Loading 24h stats…' : '24h stats unavailable.'}
+      24h stats unavailable.
     </div>
   );
 }

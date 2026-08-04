@@ -262,7 +262,10 @@ export function ProfileConfigPanel({
               </AutoForm>
             </FormEquityProvider>
           ) : strategies.isLoading ? (
-            <p className="text-muted-fg text-xs tracking-wide">Loading config schema…</p>
+            // The generated config form is the tallest thing on this page; a
+            // one-liner here collapsed it to nothing for the whole registry
+            // fetch. Shape mirrors the form's grouped panels.
+            <PanelStackSkeleton shape={[4, 6, 3]} />
           ) : strategies.error ? (
             <Alert variant="danger">
               <AlertTitle>Failed to load config schema</AlertTitle>

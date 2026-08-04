@@ -7,7 +7,12 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { LoadingRows, PanelStackSkeleton, TableSkeleton } from '@/shared/components/page-skeleton';
+import {
+  BlockSkeleton,
+  LoadingRows,
+  PanelStackSkeleton,
+  TableSkeleton,
+} from '@/shared/components/page-skeleton';
 import { Skeleton } from '@/shared/components/ui/skeleton';
 
 const bars = (root: Element): number => root.querySelectorAll('[data-skeleton-bar]').length;
@@ -42,6 +47,18 @@ describe('skeleton placeholders', () => {
     // A four-panel page would otherwise read "Loading" four times.
     render(<PanelStackSkeleton shape={[3, 3, 3, 3]} />);
     expect(screen.getAllByRole('status')).toHaveLength(1);
+  });
+
+  it('reserves a caller-sized block for a single unbroken surface', () => {
+    // Chart and strip surfaces have no rows to mirror; the caller passes the
+    // loaded body's height and the block reserves exactly that.
+    const { container } = render(<BlockSkeleton className="h-[300px] w-full" />);
+    expect(bars(container)).toBe(1);
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    const bar = container.querySelector('[data-skeleton-bar]');
+    expect(bar?.getAttribute('aria-hidden')).toBe('true');
+    expect(bar?.className).toContain('motion-reduce:animate-none');
+    expect(bar?.className).toContain('h-[300px]');
   });
 
   it('reserves a page-worth of table rows', () => {
