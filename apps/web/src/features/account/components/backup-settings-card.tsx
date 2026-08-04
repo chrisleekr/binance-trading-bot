@@ -144,7 +144,10 @@ export function BackupSettingsCard(): React.JSX.Element {
   if (status === null) {
     return (
       <Panel title="Automatic backups">
-        <LoadingRows />
+        {/* Sized against the loaded card — three status rows, a four-control
+            form, then the recent-backups list — so the panels below it do not
+            slide down when the fetch lands. */}
+        <LoadingRows rows={12} />
       </Panel>
     );
   }

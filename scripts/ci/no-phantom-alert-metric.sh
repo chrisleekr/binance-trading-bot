@@ -394,9 +394,16 @@ for (const { rule, expr, exprLine } of exprs) {
     // plus a stray `s`. No fractional part: PromQL does not allow one.
     .replace(/\boffset\s+-?(?:\d+(?:ms|[smhdwy]))+/g, " ")
     .replace(/@\s*-?\d+(?:\.\d+)?/g, " ") // @ timestamp modifier
+    // Every float-literal form the PromQL grammar accepts: decimal with an
+    // optional exponent, hex, and `_` digit separators. A form the strip misses
+    // does not survive as a number, it survives as an identifier — `1e6` reaches
+    // the scan below as `e6` and `0x1f` as `x1f` — so the gate rejects a
+    // legitimate rule, which is how a gate gets switched off. Hex leads: the
+    // decimal branch would take the `0` and leave `x1f` behind.
     // Word-boundary anchored so a digit inside an identifier survives and the
     // name is still reported: binance_weight_used_1m keeps its _1m.
-    .replace(/\b\d+(?:\.\d+)?\b/g, " ");
+    .replace(/\b0[xX]_?[0-9a-fA-F][0-9a-fA-F_]*\b/g, " ")
+    .replace(/\b\d[\d_]*(?:\.[\d_]+)?(?:[eE][-+]?\d+)?\b/g, " ");
 
   for (const m of stripped.matchAll(/[a-zA-Z_:][a-zA-Z0-9_:]*\s*\(?/g)) {
     // A metric name is never call-applied, so a trailing `(` marks a function.

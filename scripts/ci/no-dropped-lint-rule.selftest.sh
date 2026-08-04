@@ -14,10 +14,18 @@ gate="$dir/no-dropped-lint-rule.sh"
 config="$(cd -- "$dir/../.." && pwd)/.oxlintrc.json"
 
 repo_root="$(cd -- "$dir/../.." && pwd)"
-probe="$repo_root/apps/web/src/__lint_probe__.tsx"
 
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"; rm -f "$probe"' EXIT INT TERM
+
+# The probe has to live under apps/web/src — the positive control below proves
+# the rule REACHES files there — but the trap deletes whatever this names, so a
+# fixed path would destroy a same-named file that already existed and two runs
+# would race on it. mktemp -d owns a fresh directory instead. Trailing Xs only:
+# BSD mktemp leaves a template's Xs literal when a suffix follows them, handing
+# back exactly the fixed path this avoids.
+probe_dir="$(mktemp -d "$repo_root/apps/web/src/__lint_probe__.XXXXXX")"
+probe="$probe_dir/probe.tsx"
+trap 'rm -rf "$tmp" "$probe_dir"' EXIT INT TERM
 
 fails=0
 
@@ -92,7 +100,7 @@ export function Outer() {
 }
 TSX
 out="$(bunx oxlint "$probe" 2>&1)" && rc=0 || rc=$?
-rm -f "$probe"
+rm -rf "$probe_dir"
 if [ "$rc" -eq 0 ] || ! grep -qF 'no-unstable-nested-components' <<<"$out"; then
   echo "FAIL: react/no-unstable-nested-components did not fire on a file under apps/web/src."
   echo "      It is armed in the config but reaches no files — check ignorePatterns and overrides."

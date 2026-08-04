@@ -8,7 +8,9 @@
 # Read the "no alert coverage today" block at the bottom before you rely on
 # this file: it lists the failure modes these rules do NOT watch.
 #
-# Every name an `expr:` reads has to be a series this repo emits.
+# Every name an `expr:` reads has to resolve: either a series this repo emits,
+# or one of the few Prometheus-generated series the gate allowlists by exact
+# name (`up`, which no target writes — see WorkerDown below).
 # `promtool check rules` validates PromQL syntax only, so a rule over a
 # metric nothing writes parses clean and then evaluates empty forever: it
 # never fires and never errors, which is indistinguishable from a healthy

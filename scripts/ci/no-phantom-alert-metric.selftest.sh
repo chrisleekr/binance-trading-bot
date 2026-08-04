@@ -40,7 +40,8 @@ expect_reject() {
 # here rejects legitimate rules and is what gets a gate switched off: synthesised
 # `up`, a histogram-derived `_count`, a `_bucket` off the one default histogram, a
 # declared gauge, a constructor name, a default process metric, a `by (…)` label
-# list, a compound `offset 1h30m`, a quoted scalar with a trailing YAML comment, a
+# list, a compound `offset 1h30m`, the non-decimal float literals, a quoted
+# scalar with a trailing YAML comment, a
 # `#` inside quotes that is content, a `__name__` equality matcher, the bare
 # binary operator `atan2`, a Go-template `- {{ … }}` bullet inside an annotation
 # block scalar, an entry whose first key is `expr:`, and a recording rule.

@@ -1,17 +1,14 @@
-# Known-good fixture: every referenced name resolves, across every syntax the
-# gate has to understand. If any one of these regressed into a false positive the
-# gate would start rejecting legitimate rules, which is how a gate gets disabled.
+# Rejection fixture: the tree carries no prom-client constructor call, so the
+# gate has to fail on its empty-constructor-scan floor. That floor is what stops
+# a scan-path regression — a moved package, a renamed source root — from
+# emptying the emitted set and passing every rule in silence.
 #
-# Covered here: Prometheus-synthesised `up`; a `_count` series derived from a
-# declared histogram; a `_bucket` off the one prom-client default that is a
-# histogram; a declared gauge; a prom-client constructor name; a default process
-# metric; an aggregation with a `by (…)` label list; an `offset` modifier; a
-# fully quoted expr scalar; a `__name__` equality matcher; an inline expr and a
-# block-scalar expr; and a recording rule, whose head must be counted like an
-# alert head or the head-vs-expr assert misfires.
+# These rules are here only so the gate reaches that floor with a well-formed
+# file behind it. They are never resolved: the floor exits before any expr is
+# read, so nothing below asserts anything about name resolution.
 
 groups:
-  - name: fixture.pass
+  - name: fixture.no-ctor
     interval: 30s
     rules:
       - alert: ScrapeDown

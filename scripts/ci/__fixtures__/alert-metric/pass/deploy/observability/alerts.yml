@@ -5,10 +5,11 @@
 # Covered here: Prometheus-synthesised `up`; a `_count` series derived from a
 # declared histogram; a `_bucket` off the one prom-client default that is a
 # histogram; a declared gauge; a prom-client constructor name; a default process
-# metric; an aggregation with a `by (…)` label list; an `offset` modifier; a
-# fully quoted expr scalar; a `__name__` equality matcher; an inline expr and a
-# block-scalar expr; and a recording rule, whose head must be counted like an
-# alert head or the head-vs-expr assert misfires.
+# metric; an aggregation with a `by (…)` label list; an `offset` modifier; the
+# exponent, hex and `_`-separated float literals; a fully quoted expr scalar; a
+# `__name__` equality matcher; an inline expr and a block-scalar expr; and a
+# recording rule, whose head must be counted like an alert head or the
+# head-vs-expr assert misfires.
 
 groups:
   - name: fixture.pass
@@ -104,6 +105,17 @@ groups:
           severity: warning
         annotations:
           summary: 'This pod owns no accounts'
+
+      - alert: NumericLiteralForms
+        # The float-literal forms beyond a plain decimal. Each leaves a bare
+        # identifier behind if the numeric strip does not know it: `1e6` reads
+        # as `e6`, `0x1f` as `x1f`, `1_000_000` as `_000_000`.
+        expr: binance_api_weight > 1e6 or binance_api_weight > 0x1f or decision_count > 1_000_000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Numeric literals stay literals'
 
       - alert: GcSlow
         expr: histogram_quantile(0.9, rate(nodejs_gc_duration_seconds_bucket[5m])) > 1
