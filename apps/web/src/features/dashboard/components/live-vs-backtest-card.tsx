@@ -5,6 +5,7 @@ import { fetchEquitySnapshots } from '@/features/dashboard/api/equity-snapshots'
 import { fetchBacktestRun } from '@/features/backtest/api/backtest';
 import { fetchProfileArchive } from '@/features/profile/api/archive';
 import { fetchProfile, profileQueryKey } from '@/features/profile/api/profile';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 import { useTimezone } from '@/shared/context/timezone-context';
 import { formatMoneyAmount, formatPercent } from '@/shared/lib/format';
 import { maxDrawdownQuote, mergeRollupBuckets } from '@/shared/lib/live-scorecard';
@@ -138,8 +139,21 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
             <Stat label="Profit factor (bt → live)" value={`${fmtPf(btPf)} → ${fmtPf(livePf)}`} />
           </div>
         </div>
+      ) : baseline.isError ? (
+        // A failed read must not sit on a pulsing skeleton forever — surface it.
+        <p className="text-muted-fg text-xs">Couldn't load the pinned backtest baseline.</p>
+      ) : baseline.isLoading || baseline.isPaused ? (
+        <div className="border-border space-y-1 border-t pt-2">
+          {/* The note plus the two side-by-side comparison stats. */}
+          <LoadingRows rows={2} />
+        </div>
       ) : (
-        <p className="text-muted-fg text-xs">Loading the pinned backtest baseline…</p>
+        // Pinned, fetched, but carrying no result: the run is still queued or
+        // running, or it errored. Terminal for this render — a skeleton here
+        // would claim data is arriving when nothing is in flight.
+        <p className="text-muted-fg text-xs">
+          The pinned backtest has no result yet — it is still running, or the run failed.
+        </p>
       )}
     </section>
   );

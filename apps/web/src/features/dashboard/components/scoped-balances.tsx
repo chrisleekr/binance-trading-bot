@@ -5,6 +5,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 
+import { TableSkeleton } from '@/shared/components/page-skeleton';
 import { Card } from '@/shared/components/ui/card';
 import { t } from '@/shared/lib/i18n';
 import {
@@ -38,7 +39,11 @@ export function ScopedBalances({ profileId }: { readonly profileId: string }): R
           />
         </Card>
       ) : (
-        <p className="text-muted-fg text-sm">{t('home.balances.loading')}</p>
+        <Card>
+          {/* AccountBalancesPanel is a titled list of held assets; a page-worth
+              of rows is what the operator is waiting on. */}
+          <TableSkeleton rows={6} />
+        </Card>
       )}
     </section>
   );

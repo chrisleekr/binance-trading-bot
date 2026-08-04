@@ -9,6 +9,7 @@ import {
 } from '@app/contracts';
 
 import { cn } from '@/shared/lib/cn';
+import { BlockSkeleton } from '@/shared/components/page-skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import {
   SymbolCandleChart,
@@ -22,7 +23,13 @@ import { backtestCandlesQueryKey, fetchBacktestCandles } from '@/features/backte
 // interval shows only its first 1000 candles; every trade still appears in the
 // table. The default interval is picked so the whole run fits this budget.
 const KLINE_PAGE_CAP = 1000;
-const CHART_HEIGHT = 320;
+export const CHART_HEIGHT = 320;
+/**
+ * The pending placeholder's sm-and-up height. A source-text literal because
+ * Tailwind's JIT cannot see a computed class name; exported so a test can pin
+ * it against {@link CHART_HEIGHT} and catch a drift the compiler cannot.
+ */
+export const CHART_SM_HEIGHT_CLASS = 'sm:h-[320px]';
 
 /** Milliseconds per bar for a backtest interval (units are m/h/d/w only). */
 function intervalToMs(interval: BacktestInterval): number {
@@ -151,7 +158,15 @@ function SymbolPriceChart({
         ))}
       </div>
       {candles.isPending ? (
-        <p className="text-muted-fg text-sm">Loading candles…</p>
+        // Mirrors SymbolCandleChart's own responsive height: it renders
+        // `h-[300px] w-full sm:h-[var(--chart-h)]`, so CHART_HEIGHT applies
+        // only from sm up and the mobile box is 300px.
+        //
+        // Literal, not an interpolation of CHART_HEIGHT: Tailwind's JIT scans
+        // source text, so a computed class name compiles to nothing and the
+        // placeholder would silently have no height at all. CHART_SM_HEIGHT_CLASS
+        // is asserted against CHART_HEIGHT in the tests so the two cannot drift.
+        <BlockSkeleton className={`h-[300px] w-full rounded-md ${CHART_SM_HEIGHT_CLASS}`} />
       ) : candles.isError ? (
         <p className="text-danger text-sm">Could not load candles for {symbol}.</p>
       ) : data.length === 0 ? (

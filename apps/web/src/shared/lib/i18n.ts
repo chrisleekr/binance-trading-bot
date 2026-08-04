@@ -77,7 +77,6 @@ const en: Readonly<Record<string, string>> = {
   'home.summary.open_orders': 'Open orders',
   'home.profiles.title': 'Profiles',
   'home.activity.title': 'Recent activity',
-  'home.activity.loading': 'Loading recent activity…',
   'home.activity.empty': 'Nothing has happened yet.',
   'home.activity.error': 'Could not load recent activity.',
   'home.activity.partial': 'Some profiles’ activity could not be loaded.',
@@ -113,7 +112,6 @@ const en: Readonly<Record<string, string>> = {
   'home.symbols.filter': 'Filter symbols',
   'home.symbols.empty': 'No symbols configured yet.',
   'home.symbols.no_match': 'No symbols match the filter.',
-  'home.symbols.loading': 'Loading symbols…',
   'home.symbols.error': 'Could not load symbols.',
   'home.symbols.partial': 'Some profiles’ symbols could not be loaded.',
   'home.symbols.held': '{qty} held',
@@ -153,7 +151,6 @@ const en: Readonly<Record<string, string>> = {
   'home.scoped.by_source_desc':
     'Discovery (coins the bot auto-found) vs manual (coins you pinned) for this period. Win% is winners over trades; PF (profit factor) is gross wins over gross losses — above 1 makes money.',
   'home.balances.title': 'Balances',
-  'home.balances.loading': 'Loading balances…',
   'home.balances.error': "Couldn't load balances. Retry shortly.",
   'profile.controls.rename': 'Rename profile',
   'profile.controls.bulk_order': 'Bulk manual order',
@@ -249,7 +246,6 @@ const en: Readonly<Record<string, string>> = {
   'wizard.step1.error.name_too_long': 'Profile name must be 64 characters or fewer.',
   'wizard.step1.error.name_invalid':
     'Profile name can only contain letters, numbers, spaces, dashes, and underscores.',
-  'wizard.step2.loading': 'Loading strategies…',
   'wizard.step2.title': 'Strategy',
   'wizard.step2.subtitle': 'Pick the trading strategy this profile will run.',
   'wizard.step2.empty': 'No strategies are registered on the server.',

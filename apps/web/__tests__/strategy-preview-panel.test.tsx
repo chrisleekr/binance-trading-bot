@@ -162,9 +162,14 @@ describe('PreviewModelView — failure surfaces', () => {
     expect(screen.queryByTestId('strategy-preview-empty')).not.toBeInTheDocument();
   });
 
-  it('shows the loading placeholder while an empty model is still resolving', () => {
-    render(<PreviewModelView model={{ sections: [] }} currentPrice={null} isLoading />);
-    expect(screen.getByText('Loading preview…')).toBeInTheDocument();
+  it('reserves the projection panels while an empty model is still resolving', () => {
+    const { container } = render(
+      <PreviewModelView model={{ sections: [] }} currentPrice={null} isLoading />,
+    );
+    // A one-line notice occupied no height, so the aside collapsed mid-resolve.
+    // The placeholder stands in for the PreviewSection panels instead.
+    expect(container.querySelectorAll('[data-skeleton-bar]').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('status')).toHaveLength(1);
     expect(screen.queryByTestId('strategy-preview-empty')).not.toBeInTheDocument();
   });
 });

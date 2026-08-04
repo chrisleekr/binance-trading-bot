@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
 import { BackLink, Page, PageHeader } from '@/shared/components/page';
 import { Panel } from '@/shared/components/panel';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
 import { useProfiles } from '@/features/profile/lib/profile-context';
@@ -40,6 +41,10 @@ const DUST_THRESHOLD_BTC = 0.001;
 // BNB is the destination asset and BTC is the quote asset for the estimate;
 // neither can be the source of a dust conversion.
 const NON_SOURCE_ASSETS = new Set(['BNB', 'BTC']);
+
+// Shared by the pending placeholder and the loaded panel so the chrome the
+// operator sees mid-load is the chrome they keep.
+const ELIGIBLE_PANEL_TITLE = 'Eligible assets';
 
 // `profileId` is optional: a bare `/account/dust-transfer` visit falls back to
 // the active profile from context. The dust pool is exchange-account-wide so
@@ -139,7 +144,13 @@ function DustTransferPage(): React.JSX.Element {
         <p className="text-muted-fg text-sm">No profile available. Create a profile first.</p>
       ) : null}
 
-      {list.isLoading ? <p className="text-sm">Loading balances…</p> : null}
+      {/* Stands in for the eligible-assets panel: one checkbox row per
+          dust-eligible balance, plus the convert action. */}
+      {list.isLoading || list.isPaused ? (
+        <Panel title={ELIGIBLE_PANEL_TITLE}>
+          <LoadingRows rows={6} />
+        </Panel>
+      ) : null}
       {list.error ? (
         <Alert variant="danger">
           <AlertTitle>Failed</AlertTitle>
@@ -149,7 +160,14 @@ function DustTransferPage(): React.JSX.Element {
         </Alert>
       ) : null}
 
-      {profileId !== null && !list.isLoading && eligible.length === 0 && !list.error ? (
+      {/* `isPaused` as well as `isLoading`: a first fetch queued behind an
+          offline network leaves `isLoading` false with no data, which would
+          otherwise read as a confirmed empty wallet. */}
+      {profileId !== null &&
+      !list.isLoading &&
+      !list.isPaused &&
+      eligible.length === 0 &&
+      !list.error ? (
         <div className="text-muted-fg space-y-1 text-sm">
           <p>No dust-eligible assets (≥ {DUST_THRESHOLD_BTC} BTC).</p>
           <p className="text-xs">
@@ -160,7 +178,7 @@ function DustTransferPage(): React.JSX.Element {
       ) : null}
 
       {eligible.length > 0 ? (
-        <Panel title="Eligible assets">
+        <Panel title={ELIGIBLE_PANEL_TITLE}>
           <form onSubmit={onSubmit} className="space-y-4">
             <ul className="divide-border divide-y">
               {eligible.map((asset) => {

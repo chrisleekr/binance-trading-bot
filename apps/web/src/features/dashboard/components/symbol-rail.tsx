@@ -16,6 +16,7 @@ import { useActiveAccountId } from '@/shared/lib/account-scope';
 import { isHeldPosition } from '@/features/profile/lib/unrealised-pnl';
 import { deriveQuote } from '@/shared/lib/symbol-quote';
 import { formatPrice } from '@/shared/lib/format';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 import { Badge } from '@/shared/components/ui/badge';
 import { Input } from '@/shared/components/ui/input';
 import { cn } from '@/shared/lib/cn';
@@ -76,7 +77,11 @@ export function SymbolRail({
         {merged.isError ? (
           <p className="text-muted-fg px-3 py-4 text-xs">{t('home.symbols.error')}</p>
         ) : merged.isLoading ? (
-          <p className="text-muted-fg px-3 py-4 text-xs">{t('home.symbols.loading')}</p>
+          // The rail's own scroller needs range of its own while the
+          // per-profile fan-out is in flight, not a single line at the top.
+          <div className="p-3">
+            <LoadingRows rows={8} />
+          </div>
         ) : visible.length === 0 ? (
           <p className="text-muted-fg px-3 py-4 text-xs">
             {merged.items.length === 0 ? t('home.symbols.empty') : t('home.symbols.no_match')}

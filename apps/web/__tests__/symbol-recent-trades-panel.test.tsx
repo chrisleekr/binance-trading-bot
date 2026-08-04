@@ -60,10 +60,15 @@ describe('SymbolRecentTradesPanel', () => {
     expect(within(rows[1] as HTMLElement).getByText(/▲\s*78,000\.00/)).toHaveClass('text-success');
   });
 
-  it('shows a loading notice while the request is in flight', () => {
+  it('reserves the tape box while the request is in flight', () => {
     // A fetch that never settles keeps the query in its loading state.
     setUp(() => new Promise<Response>(() => undefined) as unknown as Response);
-    expect(screen.getByText('Loading recent trades…')).toBeInTheDocument();
+    const panel = screen.getByTestId('symbol-recent-trades-panel');
+    // A one-line notice occupied no height; on a phone that left nothing under
+    // the thumb for the whole poll. The placeholder carries the tape's box.
+    expect(panel.querySelectorAll('[data-skeleton-bar]').length).toBeGreaterThan(0);
+    expect(within(panel).getAllByRole('status')).toHaveLength(1);
+    expect(screen.queryByText('No recent trades.')).not.toBeInTheDocument();
   });
 
   it('shows an empty notice when the trade list is empty', async () => {

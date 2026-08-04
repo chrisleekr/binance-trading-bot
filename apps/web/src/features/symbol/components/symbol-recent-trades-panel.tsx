@@ -12,6 +12,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { fetchSymbolRecentTrades, symbolRecentTradesQueryKey } from '@/features/symbol/api/symbol';
+import { TableSkeleton } from '@/shared/components/page-skeleton';
 import { useTimezone } from '@/shared/context/timezone-context';
 import { formatAmount, formatPrice } from '@/shared/lib/format';
 import { formatClock } from '@/shared/lib/format-time';
@@ -90,13 +91,12 @@ export function SymbolRecentTradesPanel({
             ))}
           </ul>
         </div>
+      ) : trades.isLoading ? (
+        // Matches the loaded tape's `max-h-72` cap on the mobile stack.
+        <TableSkeleton rows={7} />
       ) : (
         <p className="text-muted-fg text-sm">
-          {trades.isLoading
-            ? 'Loading recent trades…'
-            : trades.isError
-              ? 'Recent trades unavailable.'
-              : 'No recent trades.'}
+          {trades.isError ? 'Recent trades unavailable.' : 'No recent trades.'}
         </p>
       )}
     </section>

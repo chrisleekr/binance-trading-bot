@@ -17,6 +17,7 @@ import {
 import { SymbolCancelOverridePanel } from '@/features/symbol/components/symbol-cancel-override-panel';
 import { SymbolPausePanel } from '@/features/symbol/components/symbol-pause-panel';
 import { SymbolStopTrackingPanel } from '@/features/symbol/components/symbol-stop-tracking-panel';
+import { BlockSkeleton, LoadingRows } from '@/shared/components/page-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Card } from '@/shared/components/ui/card';
 import { Panel } from '@/shared/components/panel';
@@ -76,7 +77,9 @@ export function WorkspaceTradeTab({
 
           {stateLoading ? (
             <Card>
-              <p className="text-muted-fg text-sm">Loading symbol state…</p>
+              {/* Stands in for the strategy's signal panel, which is a stack of
+                  labelled readouts rather than a single block. */}
+              <LoadingRows rows={5} />
             </Card>
           ) : null}
 
@@ -206,13 +209,11 @@ function ChartBody({
   readonly filterTickSize: string | null;
 }): React.JSX.Element {
   if (isLoading) {
+    // Exactly the height the mounted chart takes, so the tab does not grow
+    // under the operator's thumb when the candles land.
     return (
-      <section
-        aria-label="Candle chart loading"
-        data-testid="symbol-chart-loading"
-        className="border-border bg-bg-elevated flex h-[300px] items-center justify-center rounded-md border border-dashed text-sm sm:h-[440px]"
-      >
-        Loading chart…
+      <section data-testid="symbol-chart-loading">
+        <BlockSkeleton className="h-[300px] w-full rounded-md sm:h-[440px]" />
       </section>
     );
   }

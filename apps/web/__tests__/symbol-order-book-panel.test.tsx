@@ -1,7 +1,7 @@
 // SymbolOrderBookPanel — ask/bid ladder, spread row, loading and error states.
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SymbolOrderBookPanel } from '../src/features/symbol/components/symbol-order-book-panel.js';
@@ -118,10 +118,15 @@ describe('SymbolOrderBookPanel', () => {
     expect(await screen.findByText('No depth.')).toBeInTheDocument();
   });
 
-  it('shows a loading notice while the request is in flight', () => {
+  it('reserves the ladder box while the request is in flight', () => {
     // A fetch that never settles keeps the query in its loading state.
     setUp(() => new Promise<Response>(() => undefined) as unknown as Response);
-    expect(screen.getByText('Loading order book…')).toBeInTheDocument();
+    const panel = screen.getByTestId('symbol-order-book-panel');
+    // A one-line notice occupied no height; on a phone that left nothing under
+    // the thumb for the whole poll. The placeholder carries the ladder's box.
+    expect(panel.querySelectorAll('[data-skeleton-bar]').length).toBeGreaterThan(0);
+    expect(within(panel).getAllByRole('status')).toHaveLength(1);
+    expect(screen.queryByTestId('order-book-ladder')).not.toBeInTheDocument();
   });
 
   it('degrades to a notice when the request fails', async () => {

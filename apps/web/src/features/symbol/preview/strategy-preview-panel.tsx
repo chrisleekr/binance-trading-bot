@@ -18,6 +18,7 @@ import type {
 } from '@app/strategy-core';
 
 import { Panel } from '@/shared/components/panel';
+import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 import { formatAmount, formatPercent, formatPrice } from '@/shared/lib/format';
 
 import { humanizeCode } from './preview-chart-lines';
@@ -170,7 +171,9 @@ export function PreviewModelView({
           />
         ))
       ) : isLoading ? (
-        <p className="text-muted-fg text-xs">Loading preview…</p>
+        // One placeholder per PreviewSection panel the model resolves to —
+        // typically the entry ladder and the exit levels.
+        <PanelStackSkeleton shape={[4, 3]} />
       ) : (
         <p className="text-muted-fg text-xs" data-testid="strategy-preview-empty">
           Nothing to project yet — set the config and a reference price to see where this strategy

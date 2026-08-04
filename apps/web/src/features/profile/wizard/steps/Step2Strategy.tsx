@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavBar } from '@/features/profile/wizard/steps/NavBar';
 import type { StepProps } from '@/features/profile/wizard/reducer';
 import { Panel } from '@/shared/components/panel';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Badge } from '@/shared/components/ui/badge';
 import { t } from '@/shared/lib/i18n';
@@ -61,7 +62,20 @@ export function Step2Strategy({
     if (only && !state.strategy) onSelect(only);
   }, [strategies, state.strategy, onSelect]);
 
-  if (loading) return <p className="text-muted-fg text-sm">{t('wizard.step2.loading')}</p>;
+  if (loading) {
+    // The step is the whole page body here, so its placeholder has to carry the
+    // panel chrome and the strategy cards the operator is about to choose from.
+    return (
+      // Its own id, not the loaded step's: `wizard-step-2` is what the wizard
+      // tests wait on to mean "step 2 is interactive", and the placeholder
+      // renders none of the controls that follows.
+      <div className="space-y-5" data-testid="wizard-step-2-loading">
+        <Panel title={t('wizard.step2.title')} description={t('wizard.step2.subtitle')}>
+          <LoadingRows rows={3} />
+        </Panel>
+      </div>
+    );
+  }
   if (error) {
     return (
       <Alert variant="danger">

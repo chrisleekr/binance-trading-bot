@@ -5,7 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BacktestResult, BacktestTrade } from '@app/contracts';
 
 import { createQueryClient } from '@/shared/lib/query-client';
-import { BacktestPriceCharts } from '@/features/backtest/components/backtest-price-charts';
+import {
+  BacktestPriceCharts,
+  CHART_HEIGHT,
+  CHART_SM_HEIGHT_CLASS,
+} from '@/features/backtest/components/backtest-price-charts';
 import type { ChartModule } from '@/features/symbol/components/symbol-candle-chart';
 
 // Minimal lightweight-charts stub so happy-dom's missing canvas never runs.
@@ -179,5 +183,11 @@ describe('BacktestPriceCharts', () => {
     await waitFor(() => expect(screen.getAllByRole('tab')).toHaveLength(2));
     expect(screen.getByRole('tab', { name: 'BTCUSDT' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'ETHUSDT' })).toBeInTheDocument();
+  });
+
+  it('keeps the pending placeholder height pinned to the chart height', () => {
+    // The class must be a source-text literal for Tailwind's JIT to compile it,
+    // so the compiler cannot catch a drift from CHART_HEIGHT. This can.
+    expect(CHART_SM_HEIGHT_CLASS).toBe(`sm:h-[${CHART_HEIGHT}px]`);
   });
 });
