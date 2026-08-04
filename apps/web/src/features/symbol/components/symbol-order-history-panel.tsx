@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { fetchSymbolOrderHistory, symbolOrderHistoryQueryKey } from '@/features/symbol/api/symbol';
 import { orderDisplayPrice, orderQty } from '@/features/symbol/lib/order-raw';
+import { TableSkeleton } from '@/shared/components/page-skeleton';
 import { Badge } from '@/shared/components/ui/badge';
 import { formatAmount } from '@/shared/lib/format';
 import { formatInstant } from '@/shared/lib/format-time';
@@ -158,13 +159,15 @@ export function SymbolOrderHistoryPanel({
             </ul>
           </div>
         </div>
+      ) : orders.isLoading ? (
+        // Matches the loaded list's `max-h-80` cap, so the box does not resize
+        // under the operator's thumb when the rows arrive.
+        <TableSkeleton rows={7} />
       ) : (
         <p className="text-muted-fg text-sm">
-          {orders.isLoading
-            ? 'Loading order history…'
-            : orders.isError
-              ? 'Order history unavailable.'
-              : 'No orders yet for this symbol. If you expected some, check whether trading is paused (banner above) or the strategy is still waiting for entry conditions.'}
+          {orders.isError
+            ? 'Order history unavailable.'
+            : 'No orders yet for this symbol. If you expected some, check whether trading is paused (banner above) or the strategy is still waiting for entry conditions.'}
         </p>
       )}
     </section>

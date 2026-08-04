@@ -10,6 +10,7 @@ import {
   fetchDiscoveryDashboard,
 } from '@/features/profile/api/discovery';
 import { readFailureReason } from '@/features/dashboard/lib/action-log-ctx';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 import { formatLastTick } from '@/shared/lib/format-tick';
 import { t } from '@/shared/lib/i18n';
 
@@ -116,7 +117,10 @@ export function ActivityFeed({ rows }: { rows: readonly DashboardAggregateRow[] 
       });
       return {
         items,
-        isLoading: queries.some((q) => q.isLoading),
+        // `isPaused` counts as loading: a first fetch queued behind an offline
+        // network leaves `isLoading` false with no data, and the feed would
+        // then render its empty state as if the account had no activity.
+        isLoading: queries.some((q) => q.isLoading || q.isPaused),
         isError: queries.length > 0 && queries.every((q) => q.isError),
         anyError: queries.some((q) => q.isError),
         failedProfiles,
@@ -143,7 +147,7 @@ export function ActivityFeed({ rows }: { rows: readonly DashboardAggregateRow[] 
         for (const entry of q.data?.activity ?? [])
           items.push({ kind: 'discovery', time: entry.time, profileName, entry });
       });
-      return { items, isLoading: queries.some((q) => q.isLoading) };
+      return { items, isLoading: queries.some((q) => q.isLoading || q.isPaused) };
     },
     [rows],
   );
@@ -163,7 +167,7 @@ export function ActivityFeed({ rows }: { rows: readonly DashboardAggregateRow[] 
         for (const entry of q.data?.items ?? [])
           items.push({ kind: 'error', time: entry.time, profileName, entry });
       });
-      return { items, isLoading: queries.some((q) => q.isLoading) };
+      return { items, isLoading: queries.some((q) => q.isLoading || q.isPaused) };
     },
     [rows],
   );
@@ -233,7 +237,11 @@ export function ActivityFeed({ rows }: { rows: readonly DashboardAggregateRow[] 
         {audit.isError ? (
           <p className="text-muted-fg px-4 py-6 text-sm">{t('home.activity.error')}</p>
         ) : isLoading ? (
-          <p className="text-muted-fg px-4 py-6 text-sm">{t('home.activity.loading')}</p>
+          // The enclosing div already draws the feed's box; this fills it with
+          // event rows rather than nesting a second bordered frame.
+          <div className="p-4">
+            <LoadingRows rows={6} />
+          </div>
         ) : visible.length === 0 && !isPartial ? (
           <p className="text-muted-fg px-4 py-6 text-sm">{t('home.activity.empty')}</p>
         ) : (

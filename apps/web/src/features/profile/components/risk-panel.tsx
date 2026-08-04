@@ -14,6 +14,7 @@ import { Badge } from '@/shared/components/ui/badge';
 import { FormActions } from '@/shared/components/form-actions';
 import { Button } from '@/shared/components/ui/button';
 import { Panel } from '@/shared/components/panel';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 import { AutoForm } from '@/shared/forms';
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
 import {
@@ -23,6 +24,12 @@ import {
 } from '@/features/profile/api/risk';
 import { useTimezone } from '@/shared/context/timezone-context';
 import { formatClock } from '@/shared/lib/format-time';
+
+// Shared by the pending placeholder and the loaded panel so the chrome the
+// operator sees mid-load is the chrome they keep.
+const RISK_PANEL_TITLE = 'Daily-loss circuit breaker';
+const RISK_PANEL_DESCRIPTION =
+  "Pauses new buys once today's realised loss reaches your limit. Open positions and their stops keep running, and it clears at the next UTC day.";
 
 const fmtSigned = (s: string, quote: string): string => {
   const n = Number(s);
@@ -50,7 +57,21 @@ export function RiskPanel({ profileId }: { readonly profileId: string }): React.
   });
 
   if (query.isPending) {
-    return <p className="text-muted-fg text-sm">Loading risk controls…</p>;
+    // The panel chrome is what tells the operator this section exists at all;
+    // dropping it mid-load made the whole control disappear off the page.
+    return (
+      <div className="space-y-6" data-testid="risk-panel">
+        <Panel
+          title={RISK_PANEL_TITLE}
+          description={RISK_PANEL_DESCRIPTION}
+          testId="risk-status-card"
+        >
+          {/* Realised-today and limit readouts, plus the limit field and its
+              save row — four rows in the loaded body. */}
+          <LoadingRows rows={4} />
+        </Panel>
+      </div>
+    );
   }
   if (query.isError || !query.data) {
     return <p className="text-down text-sm">Could not load risk controls.</p>;
@@ -86,8 +107,8 @@ export function RiskPanel({ profileId }: { readonly profileId: string }): React.
           control seen two ways, so they read as one section rather than a
           status box above a separate settings box. */}
       <Panel
-        title="Daily-loss circuit breaker"
-        description="Pauses new buys once today's realised loss reaches your limit. Open positions and their stops keep running, and it clears at the next UTC day."
+        title={RISK_PANEL_TITLE}
+        description={RISK_PANEL_DESCRIPTION}
         actions={statusBadge}
         testId="risk-status-card"
       >

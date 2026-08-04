@@ -24,6 +24,7 @@ import { formatAmount, formatPrice } from '@/shared/lib/format';
 import { glossProtectiveStopBlocker } from '@/shared/lib/gloss-protective-stop-blocker';
 import { glossEntryBlocker } from '@/shared/lib/gloss-entry-blocker';
 import { PnlValue } from '@/shared/components/pnl-value';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -109,7 +110,11 @@ export function SymbolTable({
         {merged.isError ? (
           <p className="text-muted-fg px-4 py-6 text-sm">{t('home.symbols.error')}</p>
         ) : merged.isLoading ? (
-          <p className="text-muted-fg px-4 py-6 text-sm">{t('home.symbols.loading')}</p>
+          // The enclosing div already draws the table's box, so this fills it
+          // with rows rather than nesting a second bordered frame.
+          <div className="p-4">
+            <LoadingRows rows={8} />
+          </div>
         ) : merged.items.length === 0 ? (
           <p className="text-muted-fg px-4 py-6 text-sm">{t('home.symbols.empty')}</p>
         ) : visible.length === 0 ? (

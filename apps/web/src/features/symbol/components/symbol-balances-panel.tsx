@@ -17,6 +17,7 @@ import {
   fetchProfileDashboard,
   profileDashboardQueryKey,
 } from '@/features/profile/api/profile-dashboard';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 import { formatBalanceAmount, formatBalanceMoney } from '@/shared/lib/format';
 import { queryDefaults } from '@/shared/lib/query-client';
 
@@ -108,7 +109,8 @@ export function SymbolBalancesPanel({
       );
     }
     if (dashboard.isLoading || exchangeInfo.isLoading) {
-      return <p className="text-muted-fg text-sm">Loading balances…</p>;
+      // Two rows: the base and quote balances the loaded body renders.
+      return <LoadingRows rows={2} />;
     }
     if (!pair) {
       return <p className="text-muted-fg text-sm">No exchange metadata for {symbol}.</p>;

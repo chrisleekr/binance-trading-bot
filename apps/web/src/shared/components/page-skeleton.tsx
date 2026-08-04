@@ -18,8 +18,16 @@ import { t } from '@/shared/lib/i18n';
  * the bars themselves are `aria-hidden`, and a live region per bar (or per
  * panel in a stack) would make a screen reader read "Loading" once for every
  * box on the page.
+ *
+ * Exported for the surfaces whose loaded body is too layout-specific for the
+ * shapes below and has to mirror its own markup, which still needs exactly one
+ * announcement wrapped around it.
  */
-function LoadingStatus({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
+export function LoadingStatus({
+  children,
+}: {
+  readonly children: React.ReactNode;
+}): React.JSX.Element {
   return (
     <div role="status" aria-live="polite">
       <span className="sr-only">{t('common.loading')}</span>
@@ -51,6 +59,23 @@ export function LoadingRows({ rows = 3 }: { readonly rows?: number }): React.JSX
   return (
     <LoadingStatus>
       <FieldRows rows={rows} />
+    </LoadingStatus>
+  );
+}
+
+/**
+ * One tall block sized by the caller, for surfaces whose loaded body is a
+ * single unbroken area rather than a list or a field stack — a chart canvas, a
+ * stats strip, a ladder. Field rows there would read as content that never
+ * arrives; a solid block of the finished height does not.
+ *
+ * The caller must pass an explicit height (`h-[300px]`, `h-48`, …): matching
+ * the loaded body is the whole point, and there is no sensible default for it.
+ */
+export function BlockSkeleton({ className }: { readonly className: string }): React.JSX.Element {
+  return (
+    <LoadingStatus>
+      <Skeleton className={className} />
     </LoadingStatus>
   );
 }

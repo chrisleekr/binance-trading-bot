@@ -15,6 +15,7 @@ import { useMemo, useState } from 'react';
 
 import { fetchSymbolOrderBook, symbolOrderBookQueryKey } from '@/features/symbol/api/symbol';
 import { groupingSteps, groupLevels } from '@/features/symbol/lib/order-book-group';
+import { TableSkeleton } from '@/shared/components/page-skeleton';
 import { formatAmount, formatPrice } from '@/shared/lib/format';
 
 import type { OrderBook, OrderBookLevel } from '@app/contracts';
@@ -265,13 +266,13 @@ export function SymbolOrderBookPanel({
       </div>
       {hasDepth && grouped && book.isSuccess ? (
         <Ladder book={grouped} lastPrice={lastPrice} spread={rawSpread(book.data)} />
+      ) : book.isLoading ? (
+        // The ladder is DISPLAY_LEVELS a side plus the spread row; half that in
+        // taller placeholder rows reserves roughly the box it will occupy.
+        <TableSkeleton rows={DISPLAY_LEVELS} />
       ) : (
         <p className="text-muted-fg text-sm">
-          {book.isLoading
-            ? 'Loading order book…'
-            : book.isError
-              ? 'Order book unavailable.'
-              : 'No depth.'}
+          {book.isError ? 'Order book unavailable.' : 'No depth.'}
         </p>
       )}
     </section>

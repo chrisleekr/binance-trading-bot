@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react';
 
 import type { ExchangeInfoSymbol } from '@app/contracts';
 
+import { TableSkeleton } from '@/shared/components/page-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -79,7 +80,9 @@ export function SymbolPicker({
             autoComplete="off"
             autoCapitalize="characters"
           />
-          {exchangeInfo.isLoading ? <p className="text-sm">Loading symbols…</p> : null}
+          {/* Matches the loaded list's `max-h-64` cap so the picker does not
+              grow under the operator's thumb when exchangeInfo lands. */}
+          {exchangeInfo.isLoading || exchangeInfo.isPaused ? <TableSkeleton rows={5} /> : null}
           {exchangeInfo.error ? (
             <Alert variant="danger">
               <AlertTitle>Failed to load symbols</AlertTitle>

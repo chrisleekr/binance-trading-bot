@@ -13,6 +13,7 @@ import { CostModelFields } from '@/shared/components/cost-model-fields';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { AutoForm } from '@/shared/forms';
+import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 import { SymbolPicker } from '@/features/backtest/components/symbol-picker';
 import { StrategyPreviewPanel } from '@/features/symbol/preview/strategy-preview-panel';
 import type { BacktestWorkbench, ParamState } from './use-backtest-workbench';
@@ -231,7 +232,9 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
               <AlertDescription>Reload the page or reopen this profile.</AlertDescription>
             </Alert>
           ) : profileLoading || strategiesLoading ? (
-            <p className="text-sm">Loading config…</p>
+            // Mirrors the generated backtest form: the window/cost panels above
+            // the strategy's own grouped config fields.
+            <PanelStackSkeleton shape={[3, 4, 5]} />
           ) : (
             <Alert variant="danger">
               <AlertTitle>Config form unavailable</AlertTitle>

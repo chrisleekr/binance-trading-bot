@@ -18,6 +18,7 @@ import {
   technicalsHealthQueryKey,
 } from '@/features/technicals/api/technicals';
 import { friendlyErrorLabel } from '@/features/technicals/lib/friendly-error-label';
+import { Skeleton } from '@/shared/components/ui/skeleton';
 import { humaniseAge } from '@/shared/lib/format-time';
 import type { TechnicalsFetchStatus } from '@app/contracts';
 
@@ -74,13 +75,16 @@ export function TechnicalsHealthPill({
     staleTime: POLL_MS,
   });
   if (q.isLoading) {
+    // Inline chrome, not a page-height placeholder, so it stays out of a live
+    // region: `role="status"` here would have a screen reader announce this
+    // poll on every refetch, on top of whatever the surrounding surface is
+    // already saying. The bar is `aria-hidden`, and `aria-label` on a plain
+    // span is not exposed (ARIA prohibits naming `role="generic"`), so the
+    // name has to be real text held off-screen.
     return (
-      <span
-        className="text-muted-fg inline-block min-w-[85px] text-xs"
-        aria-label="Technicals compute health loading"
-        data-testid={testId}
-      >
-        ● technicals …
+      <span className="inline-block min-w-[85px] align-middle" data-testid={testId}>
+        <span className="sr-only">Technicals compute health loading</span>
+        <Skeleton className="h-3 w-full" />
       </span>
     );
   }
