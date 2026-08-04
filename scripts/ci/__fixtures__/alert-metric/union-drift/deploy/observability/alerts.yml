@@ -1,7 +1,8 @@
 # Rejection fixture: the worker's `MetricName` union and its `CATALOG` keys
 # disagree, so the gate has to refuse the tree rather than pick a side. The two
-# are cross-checked because either one alone can drift: a name left in the union
-# after its catalogue entry goes reads as emitted when nothing writes it.
+# are cross-checked because TypeScript already couples them, so a disagreement
+# means one of the gate's two parsers regressed and the emitted set it built
+# cannot be trusted to say what is a phantom.
 #
 # These rules are here only so the gate reaches that check with a well-formed
 # file behind it. They are never resolved: the drift check exits before any expr
