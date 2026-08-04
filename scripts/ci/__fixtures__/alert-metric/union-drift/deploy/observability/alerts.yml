@@ -1,0 +1,83 @@
+# Rejection fixture: the worker's `MetricName` union and its `CATALOG` keys
+# disagree, so the gate has to refuse the tree rather than pick a side. The two
+# are cross-checked because TypeScript already couples them, so a disagreement
+# means one of the gate's two parsers regressed and the emitted set it built
+# cannot be trusted to say what is a phantom.
+#
+# These rules are here only so the gate reaches that check with a well-formed
+# file behind it. They are never resolved: the drift check exits before any expr
+# is read, so nothing below asserts anything about name resolution.
+
+groups:
+  - name: fixture.union-drift
+    interval: 30s
+    rules:
+      - alert: ScrapeDown
+        expr: up{job="worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Scrape down for 2m'
+
+      - alert: TickVolumeLow
+        expr: |
+          sum by (profileId) (increase(tick_latency_ms_count[10m])) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Tick rate collapsed on {{ $labels.profileId }}'
+
+      - alert: WeightHigh
+        expr: max by (profileId) (binance_api_weight) > 1000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Binance request weight > 1000/min'
+
+      - alert: WeightGrewSinceLastHour
+        expr: binance_api_weight - binance_api_weight offset 1h > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Weight climbing hour over hour'
+
+      - alert: QuotedScalarExpr
+        expr: 'decision_count > 0 and pino_dropped_logs_total == 0'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Deciding but dropping no logs'
+
+      - alert: NameMatcherExpr
+        # Quoted because a bare `{` opens a YAML flow mapping, so this is the
+        # only way an operator can actually write a `__name__` matcher here.
+        expr: '{__name__="worker_owned_accounts"} < 1'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'This pod owns no accounts'
+
+      - alert: GcSlow
+        expr: histogram_quantile(0.9, rate(nodejs_gc_duration_seconds_bucket[5m])) > 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'GC pauses above 1s at p90'
+
+      - alert: MemoryHigh
+        expr: process_resident_memory_bytes > 1073741824
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Resident memory above 1GiB'
+
+      - record: fixture:http_requests:rate5m
+        expr: sum by (route) (rate(http_requests_total[5m]))

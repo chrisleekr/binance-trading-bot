@@ -77,6 +77,66 @@ flowchart TD
     classDef wait fill:#ecf0f1,color:#2c3e50;
 ```
 
+## Alert rules
+
+`deploy/observability/alerts.yml` ships two Prometheus alerting rules. Load the file into your Prometheus stack; the Alertmanager, PagerDuty and Slack receiver wiring is yours to own.
+
+### Scrape config the rules assume
+
+Neither rule works against an arbitrary scrape setup. `WorkerDown` matches `up{job="worker"}`, and `job` is not a label the app emits — Prometheus stamps it from the `job_name` **you** choose, so the rule is inert if you name it anything else.
+
+`/metrics` is also not on the public port. Each service exposes it on a separate admin listener, and **at defaults those listeners are unreachable from any other container**: `ADMIN_HOST` and `WORKER_ADMIN_HOST` both default to `127.0.0.1`, which inside a container means that container's own loopback. A Prometheus container on the `internal` network gets connection-refused, and publishing the port does not help either — Docker forwards a published port to the container's IP, not to its loopback.
+
+Widen the bind, and scrape over the compose network:
+
+```bash
+# .env — required for Prometheus to reach either admin listener at all
+ADMIN_HOST=0.0.0.0
+WORKER_ADMIN_HOST=0.0.0.0
+```
+
+```yaml
+scrape_configs:
+  - job_name: 'worker' # WorkerDown matches this exact name
+    static_configs:
+      - targets: ['app:9101'] # WORKER_ADMIN_PORT
+  - job_name: 'api'
+    static_configs:
+      - targets: ['app:9100'] # ADMIN_PORT
+```
+
+Run Prometheus on the `internal` network so those hostnames resolve. In the default single-container `ROLE=all` deployment both listeners live in the same `app` container, which is why both targets share a hostname; in the split topology (`docker-compose.scale.yml`) point each job at its own service.
+
+!!! warning "Do not add 9100 or 9101 to `ports:`"
+
+    `/healthz`, `/readyz` and `/metrics` are **unauthenticated**, and `/metrics` carries per-profile operational detail. Widening the bind to `0.0.0.0` exposes them to the compose network, which is the point; publishing them puts them on your LAN. Keep them off `ports:` and let Prometheus reach them container-to-container. If you must expose them beyond the host — on Kubernetes, say — restrict the port with a NetworkPolicy: a Service is not a firewall.
+
+| Alert | Severity | Fires when |
+| --- | --- | --- |
+| `WorkerDown` | critical | No `/metrics` scrape from `job=worker` for 2 minutes. v1.0 is single-replica, so trading is halted until the worker recovers. |
+| `BinanceWeightExhausted` | critical | `binance_api_weight` stays above 1000 for 2 minutes. Binance bans above 1200, so this leaves headroom to reduce profile cadence or pause symbols first. |
+
+`BinanceWeightExhausted` is deliberately unaggregated. The weight header covers the whole API key, so every profile on an account samples the same account-wide number: summing would multiply it by the count of actively trading profiles. Each profile over the ceiling raises its own instance labelled with its `profileId` — group them in Alertmanager if the duplicates are noisy.
+
+!!! warning "`BinanceWeightExhausted` can stay firing after the weight comes down"
+
+    The underlying gauge is written per profile on the tick success path and is never removed, so a profile that stops ticking — disabled, disposed, or with every symbol paused — keeps exporting its last reading for the life of the worker process. If that reading was above the ceiling the alert stays open until the worker restarts. Treat a firing instance whose profile you have since disabled as stale and check the weight in the app before acting.
+
+    It is not fixable in the rule. Every tick failure path returns before the metric is recorded, so gating on tick activity would measure tick *success*: a Binance ban fails every request, the activity signal goes flat, and Prometheus would send a **resolved** notification in the middle of the ban. A page that falsely reports recovery is worse than one that sticks open. The fix belongs on the emitter, which needs a way to drop a metric child when a profile goes away (tracked in #777).
+
+### What is not covered
+
+Four rules that previously shipped read metrics this repo emits nowhere. They parsed cleanly and then evaluated empty forever, so they could never fire — they have been removed rather than left in place looking healthy. **These failure modes have no alert coverage today** and reach you only through the UI or `docker compose logs -f app`:
+
+- **Tick failure rate.** The worker counts throttled ticks but has no attempt or failure counter, so no error rate exists to alert on.
+- **Queue backlog.** BullMQ wait-queue depth is not exported.
+- **Postgres pool starvation.** The connection pool exports no idle/total gauges.
+- **Binance WebSocket reconnect storms.** Reconnects are logged, never counted.
+
+Each gap names its missing series and its tracking issue in the comments at the bottom of `alerts.yml`. A CI gate (`no-phantom-alert-metric.sh`) fails the build if a rule names a metric nothing emits, so a rule cannot go back to reading a series that was never written.
+
+**Metric names are checked; nothing else is.** The gate strips label matchers before reading a name, so `up{job="wrker"} == 0` — a one-letter typo in a label the gate never inspects — still parses clean, still evaluates empty forever, and still passes. Thresholds and `for:` windows are not checked either: a rule set to `> 100000` is as silent as one naming a phantom. After editing a rule, confirm it against live data (`promtool check rules` for syntax, then the Prometheus expression browser for a non-empty result) rather than trusting a green build.
+
 ## Common operator commands
 
 ```bash

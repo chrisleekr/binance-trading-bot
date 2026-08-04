@@ -183,6 +183,42 @@ describe('<MarketTrendCard>', () => {
     }
   });
 
+  // The countdown re-renders this card once a second. If that render rebuilds
+  // the card's subtree instead of updating it, ~300px leaves the dashboard
+  // scroller for a frame, the browser clamps `scrollTop` to the shorter
+  // content, and the height coming back does not restore it — an operator
+  // reading the bottom of the overview is dragged upward every second. Node
+  // identity across a tick is what proves the subtree survived.
+  it('keeps its DOM subtree across the once-a-second countdown re-render', async () => {
+    vi.useFakeTimers();
+    try {
+      const t0 = 1_700_000_000_000;
+      vi.setSystemTime(t0);
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => jsonResponse(freshTrend(t0 - 30_000))),
+      );
+      renderCard();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      const cardBefore = screen.getByTestId('market-trend-card');
+      const verdictBefore = screen.getByTestId('market-trend-verdict');
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+
+      // The countdown must actually have advanced, or identity holds vacuously.
+      expect(screen.getByTestId('market-trend-age')).toHaveTextContent('Next update in ~29s');
+      expect(screen.getByTestId('market-trend-card')).toBe(cardBefore);
+      expect(screen.getByTestId('market-trend-verdict')).toBe(verdictBefore);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('flips to Checking… exactly at the cron-period boundary', async () => {
     vi.useFakeTimers();
     try {

@@ -4,6 +4,7 @@ import { AlertTriangle, ShieldAlert } from 'lucide-react';
 
 import { cn } from '@/shared/lib/cn';
 import { PnlValue } from '@/shared/components/pnl-value';
+import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 import { RouteErrorCard } from '@/shared/components/route-error-card';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
@@ -77,10 +78,20 @@ export function DashboardOverview({ focusedProfileId }: { focusedProfileId: stri
   // Guard the first paint. Without it `data` is undefined during load, the
   // empty-state check below is skipped, and the full layout renders with
   // profiles=[] — a zeroed dashboard flashed before real numbers arrive.
+  //
+  // The placeholder carries the loaded view's scroller and padding, not just
+  // its own text: the shell drops <main>'s scroll on this route, so a loading
+  // branch that skips them leaves nothing scrollable under a thumb for the
+  // length of the fetch. Shape mirrors the real stack — KPI strip, equity,
+  // positions, symbol table.
   if (isLoading) {
     return (
-      <section className="space-y-6" aria-label={t('nav.home')}>
-        <p className="text-muted-fg text-sm">{t('home.loading')}</p>
+      <section
+        className="min-h-0 flex-1 overflow-y-auto p-4"
+        aria-label={t('nav.home')}
+        data-testid="dashboard-loading"
+      >
+        <PanelStackSkeleton shape={[2, 3, 5, 6]} />
       </section>
     );
   }

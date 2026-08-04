@@ -34,6 +34,7 @@ import {
 import { recommendationLabel } from '@/shared/lib/technicals-format';
 
 import { titleCase } from '@app/contracts';
+import { TableSkeleton } from '@/shared/components/page-skeleton';
 
 /**
  * Event kinds whose payload carries a single `symbol`. When an audit row
@@ -332,7 +333,7 @@ export function AuditLogPanel({
         </div>
       </div>
 
-      {list.isLoading ? <p className="text-muted-fg text-sm">Loading…</p> : null}
+      {list.isLoading ? <TableSkeleton /> : null}
 
       {list.error ? (
         <Alert variant="danger">

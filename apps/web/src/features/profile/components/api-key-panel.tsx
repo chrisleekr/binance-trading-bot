@@ -26,6 +26,7 @@ import { useTimezone } from '@/shared/context/timezone-context';
 import { ApiKeyGuidance } from '@/features/profile/components/api-key-guidance';
 import { apiKeyQueryKey, fetchApiKey, putApiKey } from '@/features/profile/api/api-keys';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 
 /**
  * Self-contained Binance API-key editor. Renders the load/error states, the
@@ -92,7 +93,7 @@ export function ApiKeyPanel(): React.JSX.Element {
       testId="api-key-panel"
     >
       <div className="space-y-4">
-        {apiKey.isLoading ? <p className="text-sm">Loading…</p> : null}
+        {apiKey.isLoading ? <LoadingRows /> : null}
 
         {apiKey.error ? (
           <Alert variant="danger">

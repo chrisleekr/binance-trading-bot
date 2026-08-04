@@ -71,7 +71,6 @@ const en: Readonly<Record<string, string>> = {
   'profile.switcher.all': 'All profiles',
   'profile.switcher.kill_switch': 'Kill switch active on at least one profile',
   'home.heading': 'Overview',
-  'home.loading': 'Loading dashboard…',
   'home.summary.unrealised': 'Unrealised P/L',
   'home.summary.practice': 'Testnet (practice)',
   'home.summary.positions': 'Open positions',

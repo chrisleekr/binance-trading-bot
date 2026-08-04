@@ -95,7 +95,18 @@ export function EquityAreaChart({
     void load()
       .then((mod) => {
         if (cancelled || !container) return;
-        const c = mod.createChart(container, { height, autoSize: true, ...CHART_LAYOUT });
+        // These default to on, which lets the canvas swallow the page's vertical
+        // scroll wherever it sits under the pointer or thumb. Both mouseWheel
+        // flags, not just the scale one: the wheel handler bails early only when
+        // both axes are opted out, so a trackpad's incidental horizontal delta
+        // still reached preventDefault.
+        const c = mod.createChart(container, {
+          height,
+          autoSize: true,
+          ...CHART_LAYOUT,
+          handleScroll: { vertTouchDrag: false, mouseWheel: false },
+          handleScale: { mouseWheel: false },
+        });
         chart = c;
         const series = c.addSeries(mod.AreaSeries, { lineColor, topColor, bottomColor });
         // Collapse to ascending-unique seconds (lightweight-charts rejects

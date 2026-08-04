@@ -1,0 +1,8 @@
+# A rules file with a group but no rule heads. Reaching the end of the scan
+# having found nothing to check is not a clean bill of health, it is a parser
+# that stopped recognising rules, so the gate fails rather than reporting OK.
+
+groups:
+  - name: fixture.no-rules
+    interval: 30s
+    rules:

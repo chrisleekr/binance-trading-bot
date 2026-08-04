@@ -72,7 +72,7 @@ Directory grouping (`packages/strategy/*`) is filesystem-only; **npm names stay 
 
 ## Linting
 
-**oxlint** is the single lint path (`.oxlintrc.json`, one whole-repo pass so `import/no-cycle` sees the full graph): `correctness` + `typescript`/`import` plugins, plus repo invariants via `overrides` — strategy/indicator **purity** (`no-restricted-globals`/`-imports`) and the **decimal.js boundary**. Invariants oxlint can't express are `scripts/ci/*.sh` gates run from `lint.sh`: `no-plugin-leak` (invariant 1), `no-arbitrary-color-token`, `no-phantom-env-var`, `no-invalid-mermaid`, `no-undeclared-workspace-import`. See `docs/contributing/coding-rules.md`.
+**oxlint** is the single lint path (`.oxlintrc.json`, one whole-repo pass so `import/no-cycle` sees the full graph): `correctness` + `typescript`/`import`/`oxc`/`react` plugins, plus repo invariants via `overrides` — strategy/indicator **purity** (`no-restricted-globals`/`-imports`) and the **decimal.js boundary**. `react` is on for `react/no-unstable-nested-components` (a component declared inside another's render body remounts its subtree every render, which clamps `scrollTop` on WebKit); enabling the plugin also arms every `react` **correctness** rule, so `react/exhaustive-deps` is explicitly `off` pending triage of its pre-existing violations. Invariants oxlint can't express are `scripts/ci/*.sh` gates run from `lint.sh`: `no-plugin-leak` (invariant 1), `no-arbitrary-color-token`, `no-phantom-env-var`, `no-invalid-mermaid`, `no-undeclared-workspace-import`, `no-dropped-lint-rule` (asserts the resolved oxlint config still arms the rules carrying an invariant). See `docs/contributing/coding-rules.md`.
 
 ## Quality gates (CI must enforce)
 

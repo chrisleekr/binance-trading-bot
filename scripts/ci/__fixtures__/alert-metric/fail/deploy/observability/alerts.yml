@@ -1,0 +1,95 @@
+# Known-bad fixture. Six failure shapes against the same catalogue the pass
+# fixture uses, each one a distinct way a phantom has slipped past a name check:
+#
+#   - a transposed-letter typo on a real histogram's derived series;
+#   - a name that PREFIXES a legal one, so the synthesised/default allowlists
+#     have to match exactly rather than by prefix;
+#   - `_sum` off a COUNTER, which Prometheus never derives (only histograms and
+#     summaries do), and whose parent already ends in `_count`;
+#   - a phantom hidden inside a fully quoted expr scalar, which a tokeniser that
+#     strips quoted runs first would erase to nothing;
+#   - a phantom named through a `__name__` matcher, which a tokeniser that strips
+#     label matchers first would erase before reading;
+#   - a non-metric `name:` literal that sits just after a spread-built
+#     constructor in the fixture's observability source, which a constructor scan
+#     bounded by a character count would wrongly register as declared.
+#
+# Every one of these is asserted by name in the self-test, because the gate has
+# several vacuity floors that also exit non-zero.
+
+groups:
+  - name: fixture.fail
+    interval: 30s
+    rules:
+      - alert: TypoedHistogram
+        expr: |
+          sum by (profileId) (increase(tick_latnecy_ms_count[10m])) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Tick rate collapsed'
+
+      - alert: PrefixOfSynthesised
+        expr: up_wrong == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Scrape down for 2m'
+
+      - alert: SuffixOffCounter
+        expr: decision_count_sum > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Decisions summed'
+
+      - alert: PhantomInQuotedScalar
+        expr: 'phantom_behind_quotes > 1000'
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Quoted scalar hiding a phantom'
+
+      - alert: PhantomInNameMatcher
+        expr: '{__name__="phantom_behind_name_matcher"} > 0'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Name matcher hiding a phantom'
+
+      - alert: AdoptedNonMetricLiteral
+        expr: not_a_metric_name > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Literal adopted from past a constructor'
+
+      - alert: NotRegisteredOnThisRuntime
+        # prom-client declares this default metric but skips registering it when
+        # v8.getHeapSpaceStatistics() is unimplemented, which is the case on Bun.
+        # Listing it in the default allowlist would bless a series that is never
+        # written, the same phantom the gate exists to catch.
+        expr: nodejs_heap_space_size_used_bytes > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Heap space metric that Bun never registers'
+
+      - alert: OperatorNamedMetric
+        # A metric literally named `sum`. Aggregation operators are always
+        # call-applied, so listing them as bare keywords buys nothing and
+        # silently blesses any real metric that shares the name. This rule fails
+        # the moment one is added back to the keyword set.
+        expr: sum > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Keyword set must not swallow a metric name'

@@ -58,6 +58,7 @@ import {
 } from '@/features/profile/api/archive';
 
 import type { ArchivePeriod, TradeArchiveResponse, UnreconstructableReason } from '@app/contracts';
+import { TableSkeleton } from '@/shared/components/page-skeleton';
 
 /** Plain-language reason a coin's closed P/L can't be reconstructed from Binance history. */
 function glossUnreconstructable(reason: UnreconstructableReason): string {
@@ -504,7 +505,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
         </section>
       ) : null}
 
-      {list.isLoading ? <p className="text-muted-fg text-sm">Loading…</p> : null}
+      {list.isLoading ? <TableSkeleton /> : null}
 
       {list.error ? (
         <Alert variant="danger">

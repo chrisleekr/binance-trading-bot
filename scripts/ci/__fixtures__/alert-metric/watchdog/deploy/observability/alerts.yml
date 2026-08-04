@@ -1,0 +1,26 @@
+# A dead-man's-switch watchdog names no metric by construction: it fires always,
+# so a silent Alertmanager pipeline is itself the signal. The per-expr floor
+# would reject it, so the author opts the rule out explicitly on the line above
+# the expr. The marker is per-rule and has to be typed, which keeps silence
+# failing by default: the `vacuous` fixture is this shape WITHOUT the marker and
+# is still rejected.
+
+groups:
+  - name: fixture.watchdog
+    interval: 30s
+    rules:
+      - alert: Watchdog
+        # names-no-metric: fires always so a silent Alertmanager pipeline shows up
+        expr: vector(1)
+        labels:
+          severity: none
+        annotations:
+          summary: 'Always firing, by design'
+
+      - alert: WeightHigh
+        expr: binance_api_weight > 1000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Binance request weight > 1000/min'

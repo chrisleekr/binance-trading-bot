@@ -67,6 +67,21 @@ beforeEach(() => {
 });
 
 describe('SymbolCandleChart overlay/candle effect split', () => {
+  it('leaves the page scroll alone: no touch-drag or wheel handling on the canvas', async () => {
+    render(<SymbolCandleChart candles={candlesA} overlays={{}} loadModule={loadStub} />);
+    await waitFor(() => expect(createChart).toHaveBeenCalledTimes(1));
+    // All three default to on. Left on, the canvas calls preventDefault on the
+    // gestures meant to scroll the page, and on a phone it is a large enough
+    // target that the page simply stops moving wherever a thumb lands.
+    expect(createChart).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        handleScroll: { vertTouchDrag: false, mouseWheel: false },
+        handleScale: { mouseWheel: false },
+      }),
+    );
+  });
+
   it('an overlay-only change repaints lines/markers without rebuilding the chart', async () => {
     const overlays1: ChartOverlays = {
       priceLines: [{ price: '49000.00', label: 'ENTRY', tone: 'entry' }],

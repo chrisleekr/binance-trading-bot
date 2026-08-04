@@ -1,0 +1,137 @@
+# Known-good fixture: every referenced name resolves, across every syntax the
+# gate has to understand. If any one of these regressed into a false positive the
+# gate would start rejecting legitimate rules, which is how a gate gets disabled.
+#
+# Covered here: Prometheus-synthesised `up`; a `_count` series derived from a
+# declared histogram; a `_bucket` off the one prom-client default that is a
+# histogram; a declared gauge; a prom-client constructor name; a default process
+# metric; an aggregation with a `by (…)` label list; an `offset` modifier; the
+# exponent, hex and `_`-separated float literals; a fully quoted expr scalar; a
+# `__name__` equality matcher; an inline expr and a block-scalar expr; and a
+# recording rule, whose head must be counted like an alert head or the
+# head-vs-expr assert misfires.
+
+groups:
+  - name: fixture.pass
+    interval: 30s
+    rules:
+      - alert: ScrapeDown
+        expr: up{job="worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Scrape down for 2m'
+
+      - alert: TickVolumeLow
+        expr: |
+          sum by (profileId) (increase(tick_latency_ms_count[10m])) < 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Tick rate collapsed on {{ $labels.profileId }}'
+
+      - alert: WeightHigh
+        expr: max by (profileId) (binance_api_weight) > 1000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Binance request weight > 1000/min'
+
+      - alert: WeightGrewSinceLastHour
+        # A compound duration: `1h30m` leaves `30m` behind if the offset strip
+        # matches only one unit, and the numeric strip cannot remove the `30`
+        # from it, so a bare `m` gets reported as a metric.
+        expr: binance_api_weight - binance_api_weight offset 1h30m > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          # A Go-template bullet inside a block scalar. It opens with `- {`,
+          # which is also how a flow-style rule entry opens, so a flow check
+          # that does not require a rule key breaks this legitimate rule.
+          description: |
+            Weight climbing on:
+            - {{ $labels.profileId }}
+            Check profile cadence.
+          summary: 'Weight climbing hour over hour'
+
+      - alert: QuotedScalarExpr
+        expr: 'decision_count > 0 and pino_dropped_logs_total == 0' # trailing YAML comment
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Deciding but dropping no logs'
+
+      - alert: HashInsideQuotes
+        # The `#` here is expression content, not a comment: unwrapping has to
+        # find the real closing quote before any comment strip runs.
+        expr: 'binance_api_weight{note="#1 profile"} > 1000'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Quoted hash stays content'
+
+      - alert: Atan2Operator
+        # atan2 is a BINARY operator, written between operands rather than
+        # call-applied, so it reaches the identifier pass as a bare token.
+        expr: binance_api_weight atan2 decision_count > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Binary word operator'
+
+      - expr: process_open_fds > 1000
+        # `expr:` leading the entry. Legal YAML, and the entry has to be counted
+        # from its dash rather than from whichever key happens to come first.
+        alert: ExprFirstOrdering
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Too many open descriptors'
+
+      - alert: NameMatcherExpr
+        # Quoted because a bare `{` opens a YAML flow mapping, so this is the
+        # only way an operator can actually write a `__name__` matcher here.
+        expr: '{__name__="worker_owned_accounts"} < 1'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'This pod owns no accounts'
+
+      - alert: NumericLiteralForms
+        # The float-literal forms beyond a plain decimal. Each leaves a bare
+        # identifier behind if the numeric strip does not know it: `1e6` reads
+        # as `e6`, `0x1f` as `x1f`, `1_000_000` as `_000_000`.
+        expr: binance_api_weight > 1e6 or binance_api_weight > 0x1f or decision_count > 1_000_000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Numeric literals stay literals'
+
+      - alert: GcSlow
+        expr: histogram_quantile(0.9, rate(nodejs_gc_duration_seconds_bucket[5m])) > 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'GC pauses above 1s at p90'
+
+      - alert: MemoryHigh
+        expr: process_resident_memory_bytes > 1073741824
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Resident memory above 1GiB'
+
+      - record: fixture:http_requests:rate5m
+        expr: sum by (route) (rate(http_requests_total[5m]))

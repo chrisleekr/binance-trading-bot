@@ -1,0 +1,17 @@
+# A `__name__` matcher whose operator is a regex rather than equality. The rule
+# may well be valid PromQL, but the gate cannot resolve `tick_.*` to a concrete
+# series to check it against the catalogue, and silently ignoring it would be a
+# hole the size of every metric name. It is a hard error telling the author to
+# name the metric directly.
+
+groups:
+  - name: fixture.name-regex
+    interval: 30s
+    rules:
+      - alert: RegexNameMatcher
+        expr: 'sum({__name__=~"tick_.*"}) > 0'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Anything tick-shaped'

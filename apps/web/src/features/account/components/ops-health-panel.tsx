@@ -11,6 +11,7 @@ import { Panel } from '@/shared/components/panel';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { formatLastTick } from '@/shared/lib/format-tick';
 import { cn } from '@/shared/lib/cn';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 
 const POLL_MS = 30_000;
 
@@ -39,7 +40,7 @@ export function OpsHealthPanel(): React.JSX.Element {
       }
     >
       <div className="space-y-3">
-        {q.isLoading ? <p className="text-muted-fg text-sm">Loading…</p> : null}
+        {q.isLoading ? <LoadingRows /> : null}
 
         {q.error ? (
           <Alert variant="danger">

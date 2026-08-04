@@ -15,6 +15,7 @@ import { ApiError } from '@/shared/lib/api';
 import { fetchProfile, patchProfile, profileQueryKey } from '@/features/profile/api/profile';
 
 import { PROFILE_NOTIFY_EVENT_CATALOG, type ProfileNotifyEvents } from '@app/contracts';
+import { LoadingRows } from '@/shared/components/page-skeleton';
 
 /**
  * The subscription section. Self-contained: owns the profile query (for the
@@ -51,7 +52,7 @@ export function EventSubscriptions({
       testId="event-subscriptions"
     >
       <div className="space-y-3">
-        {profile.isLoading ? <p className="text-muted-fg text-sm">Loading…</p> : null}
+        {profile.isLoading ? <LoadingRows /> : null}
 
         <ActionBanner banner={banner} />
 

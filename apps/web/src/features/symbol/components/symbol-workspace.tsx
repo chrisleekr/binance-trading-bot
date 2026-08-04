@@ -69,6 +69,7 @@ import type {
   SymbolLogEntry,
   SymbolStateResponse,
 } from '@app/contracts';
+import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 
 // Per-tab bodies are lazy so each tab's chunk (and its socket subscriptions,
 // for market) loads only when that tab first activates.
@@ -352,7 +353,7 @@ function SymbolWorkspaceInner({
           content flows at its own height. A bounded flex-1 box here would clip
           tall content. */}
       <div className="space-y-4 p-4">
-        <Suspense fallback={<p className="text-muted-fg text-sm">Loading…</p>}>
+        <Suspense fallback={<PanelStackSkeleton shape={[4, 3]} />}>
           {activeTab === 'trade' ? (
             <WorkspaceTradeTab
               profileId={profileId}

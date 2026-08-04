@@ -50,6 +50,7 @@ import {
 } from '@/features/symbol/preview/account-wire';
 import { fetchExchangeInfo } from '@/features/symbol/api/exchange-info';
 import { queryDefaults } from '@/shared/lib/query-client';
+import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 
 /**
  * Self-contained profile-config editor. Renders the load/error/ready states for
@@ -184,7 +185,9 @@ export function ProfileConfigPanel({
 
   return (
     <div className="space-y-6" data-testid="profile-config-panel">
-      {profile.isLoading ? <p className="text-muted-fg text-xs tracking-wide">Loading…</p> : null}
+      {/* Shape mirrors what lands here: strategy picker, diagnostics, then the
+          generated config form's groups. */}
+      {profile.isLoading ? <PanelStackSkeleton shape={[1, 3, 5, 4]} /> : null}
 
       {profile.error ? (
         <Alert variant="danger">

@@ -1,0 +1,26 @@
+# Vacuity fixture: both rules parse, but the second names no metric at all.
+#
+# The first rule is healthy on purpose. A global "did we extract any candidate?"
+# floor would be satisfied by it and let the second rule through, which is the
+# exact silent pass this gate exists to stop, so the floor has to be per-expr.
+
+groups:
+  - name: fixture.vacuous
+    interval: 30s
+    rules:
+      - alert: HealthyNeighbour
+        expr: binance_api_weight > 1000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'A rule that does name a metric'
+
+      - alert: AlwaysQuiet
+        expr: |
+          vector(0) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Never fires and names nothing'
