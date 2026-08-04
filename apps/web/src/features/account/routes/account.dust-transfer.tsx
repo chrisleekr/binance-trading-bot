@@ -146,7 +146,7 @@ function DustTransferPage(): React.JSX.Element {
 
       {/* Stands in for the eligible-assets panel: one checkbox row per
           dust-eligible balance, plus the convert action. */}
-      {list.isLoading ? (
+      {list.isLoading || list.isPaused ? (
         <Panel title={ELIGIBLE_PANEL_TITLE}>
           <LoadingRows rows={6} />
         </Panel>
@@ -160,7 +160,14 @@ function DustTransferPage(): React.JSX.Element {
         </Alert>
       ) : null}
 
-      {profileId !== null && !list.isLoading && eligible.length === 0 && !list.error ? (
+      {/* `isPaused` as well as `isLoading`: a first fetch queued behind an
+          offline network leaves `isLoading` false with no data, which would
+          otherwise read as a confirmed empty wallet. */}
+      {profileId !== null &&
+      !list.isLoading &&
+      !list.isPaused &&
+      eligible.length === 0 &&
+      !list.error ? (
         <div className="text-muted-fg space-y-1 text-sm">
           <p>No dust-eligible assets (≥ {DUST_THRESHOLD_BTC} BTC).</p>
           <p className="text-xs">

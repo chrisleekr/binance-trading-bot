@@ -82,7 +82,7 @@ export function SymbolPicker({
           />
           {/* Matches the loaded list's `max-h-64` cap so the picker does not
               grow under the operator's thumb when exchangeInfo lands. */}
-          {exchangeInfo.isLoading ? <TableSkeleton rows={5} /> : null}
+          {exchangeInfo.isLoading || exchangeInfo.isPaused ? <TableSkeleton rows={5} /> : null}
           {exchangeInfo.error ? (
             <Alert variant="danger">
               <AlertTitle>Failed to load symbols</AlertTitle>

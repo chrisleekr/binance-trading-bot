@@ -75,17 +75,15 @@ export function TechnicalsHealthPill({
     staleTime: POLL_MS,
   });
   if (q.isLoading) {
-    // Inline chrome, not a page-height placeholder, so it takes a static
-    // `aria-label` rather than a live region: `role="status"` here would have a
-    // screen reader announce this poll on every refetch, on top of whatever the
-    // surrounding surface is already saying. The label keeps the pill named —
-    // the bar itself is `aria-hidden`, so without it the pill would be silent.
+    // Inline chrome, not a page-height placeholder, so it stays out of a live
+    // region: `role="status"` here would have a screen reader announce this
+    // poll on every refetch, on top of whatever the surrounding surface is
+    // already saying. The bar is `aria-hidden`, and `aria-label` on a plain
+    // span is not exposed (ARIA prohibits naming `role="generic"`), so the
+    // name has to be real text held off-screen.
     return (
-      <span
-        className="inline-block min-w-[85px] align-middle"
-        aria-label="Technicals compute health loading"
-        data-testid={testId}
-      >
+      <span className="inline-block min-w-[85px] align-middle" data-testid={testId}>
+        <span className="sr-only">Technicals compute health loading</span>
         <Skeleton className="h-3 w-full" />
       </span>
     );

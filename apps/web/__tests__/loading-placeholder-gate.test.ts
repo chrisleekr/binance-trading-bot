@@ -37,8 +37,11 @@ const CONTROL_TAGS = /^(button|Button|option|summary|label|a)$/;
 // on a `Skeleton` suffix would report a branch that reserves full height.
 const SKELETON_TAG = /(Skeleton|LoadingRows)$/;
 
-// `.isLoading` / `.isPending` / `.isFetching` off a query object.
-const QUERY_FLAG = /^(isLoading|isPending|isFetching)$/;
+// `.isLoading` / `.isPending` / `.isFetching` / `.isPaused` off a query object.
+// `isPaused` earns its place because `isLoading` is false while a first fetch
+// is paused offline, so `isLoading || isPaused` is the correct guard — and
+// without it here that whole `||` stops classifying and the branch goes unseen.
+const QUERY_FLAG = /^(isLoading|isPending|isFetching|isPaused)$/;
 
 // A bare `loading` / `isSymbolsLoading` style local, OR a destructured query
 // flag. `isPending` and `isFetching` are idiomatic and do not end in "loading",
@@ -506,6 +509,23 @@ describe('loading placeholders carry page height', () => {
       }
     `;
     const result = scanSource('destructured.tsx', destructured);
+    expect(result.offenders.length).toBe(1);
+    expect(result.loadingBranches).toBe(1);
+  });
+
+  it('detector A still sees a branch guarded by `isLoading || isPaused`', () => {
+    // `isLoading` is false while a first fetch is paused offline, so that pair
+    // is the correct guard. `||` classifies only when BOTH sides are loading
+    // tests, so dropping `isPaused` from the flag set would make every branch
+    // written this way invisible — the strictest guard would be the least
+    // checked one.
+    const paused = `
+      export function Card() {
+        const q = useQuery(opts);
+        return <div>{q.isLoading || q.isPaused ? <p>Loading baseline…</p> : <Real />}</div>;
+      }
+    `;
+    const result = scanSource('paused.tsx', paused);
     expect(result.offenders.length).toBe(1);
     expect(result.loadingBranches).toBe(1);
   });

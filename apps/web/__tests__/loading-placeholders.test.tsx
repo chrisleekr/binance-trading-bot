@@ -570,8 +570,9 @@ describe('technicals health pill', () => {
     // announce the same load twice.
     const c = renderStalled(<TechnicalsHealthPill clock={() => 1_000} />);
     expectPendingHasHeight(c, { statuses: 0 });
-    // The bar is `aria-hidden`, so this label is the pill's ONLY accessible
-    // name — without it a screen reader reaches an unnamed empty span.
-    expect(within(c).getByLabelText('Technicals compute health loading')).toBeInTheDocument();
+    // The bar is `aria-hidden`, so this off-screen text is the pill's ONLY
+    // accessible name. It has to be real text, not `aria-label`: ARIA
+    // prohibits naming `role="generic"`, which is what a plain span exposes.
+    expect(within(c).getByText('Technicals compute health loading')).toHaveClass('sr-only');
   });
 });

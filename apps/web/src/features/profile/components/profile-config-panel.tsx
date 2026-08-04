@@ -261,7 +261,7 @@ export function ProfileConfigPanel({
                 </FormActions>
               </AutoForm>
             </FormEquityProvider>
-          ) : strategies.isLoading ? (
+          ) : strategies.isLoading || strategies.isPaused ? (
             // The generated config form is the tallest thing on this page; a
             // one-liner here collapsed it to nothing for the whole registry
             // fetch. Shape mirrors the form's grouped panels.

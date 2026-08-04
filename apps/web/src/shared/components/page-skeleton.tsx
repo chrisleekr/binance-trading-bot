@@ -18,8 +18,16 @@ import { t } from '@/shared/lib/i18n';
  * the bars themselves are `aria-hidden`, and a live region per bar (or per
  * panel in a stack) would make a screen reader read "Loading" once for every
  * box on the page.
+ *
+ * Exported for the surfaces whose loaded body is too layout-specific for the
+ * shapes below and has to mirror its own markup, which still needs exactly one
+ * announcement wrapped around it.
  */
-function LoadingStatus({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
+export function LoadingStatus({
+  children,
+}: {
+  readonly children: React.ReactNode;
+}): React.JSX.Element {
   return (
     <div role="status" aria-live="polite">
       <span className="sr-only">{t('common.loading')}</span>

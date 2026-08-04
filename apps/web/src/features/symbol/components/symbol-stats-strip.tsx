@@ -15,7 +15,8 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { symbolTickerQuery } from '@/features/symbol/api/symbol';
-import { BlockSkeleton } from '@/shared/components/page-skeleton';
+import { LoadingStatus } from '@/shared/components/page-skeleton';
+import { Skeleton } from '@/shared/components/ui/skeleton';
 import { formatPrice } from '@/shared/lib/format';
 import { useFlashOnChange, type FlashTone } from '@/shared/lib/use-flash-on-change';
 
@@ -59,6 +60,29 @@ function StatCell({
   );
 }
 
+// Shared by the loaded row and its placeholder. The strip wraps, so the two
+// must carry the identical container: same gaps, same padding, same wrap rule.
+const STATS_ROW_CLASS =
+  'border-border bg-bg-elevated flex flex-wrap items-center gap-x-6 gap-y-3 rounded-md border px-4 py-3';
+
+/** One placeholder stat cell: an `text-xs` label bar over a value bar. */
+function StatCellSkeleton({
+  width,
+  tall = false,
+}: {
+  readonly width: string;
+  readonly tall?: boolean;
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <Skeleton className={`h-4 ${width}`} />
+      {/* h-7 / h-5 are the `text-xl` and `text-sm` line boxes the real cells
+          occupy, so the placeholder row is the same height as the loaded one. */}
+      <Skeleton className={tall ? `h-7 ${width}` : `h-5 ${width}`} />
+    </div>
+  );
+}
+
 function StatsRow({ ticker }: { readonly ticker: Ticker24hr }): React.JSX.Element {
   const flash = useFlashOnChange(ticker.lastPrice);
   const changePct = toNum(ticker.priceChangePercent);
@@ -74,10 +98,7 @@ function StatsRow({ ticker }: { readonly ticker: Ticker24hr }): React.JSX.Elemen
   })();
 
   return (
-    <div
-      className="border-border bg-bg-elevated flex flex-wrap items-center gap-x-6 gap-y-3 rounded-md border px-4 py-3"
-      data-testid="symbol-stats-strip"
-    >
+    <div className={STATS_ROW_CLASS} data-testid="symbol-stats-strip">
       <div className="flex flex-col gap-0.5">
         <span className="text-muted-fg text-xs">Last price</span>
         <span
@@ -122,12 +143,23 @@ export function SymbolStatsStrip({
 
   if (ticker.isSuccess) return <StatsRow ticker={ticker.data} />;
 
-  if (ticker.isLoading) {
-    // The loaded strip is one bordered band of stat cells. A single block of
-    // the same height keeps the symbol header from collapsing under the
-    // operator's thumb while the ticker is in flight.
+  if (ticker.isLoading || ticker.isPaused) {
+    // Mirrors the loaded row rather than reserving a fixed height: the strip
+    // wraps, so six cells sit on one line on a desktop and on three at 375px,
+    // and any single height would be wrong at most widths. Same container and
+    // roughly the same cell widths means it wraps at the same viewport widths
+    // the loaded strip does, so the header holds still when the ticker lands.
     return (
-      <BlockSkeleton className="border-border bg-bg-elevated h-[4.25rem] w-full rounded-md border" />
+      <LoadingStatus>
+        <div className={STATS_ROW_CLASS}>
+          <StatCellSkeleton width="w-24" tall />
+          <StatCellSkeleton width="w-32" />
+          <StatCellSkeleton width="w-20" />
+          <StatCellSkeleton width="w-20" />
+          <StatCellSkeleton width="w-24" />
+          <StatCellSkeleton width="w-32" />
+        </div>
+      </LoadingStatus>
     );
   }
 

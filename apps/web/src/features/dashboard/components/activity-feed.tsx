@@ -117,7 +117,10 @@ export function ActivityFeed({ rows }: { rows: readonly DashboardAggregateRow[] 
       });
       return {
         items,
-        isLoading: queries.some((q) => q.isLoading),
+        // `isPaused` counts as loading: a first fetch queued behind an offline
+        // network leaves `isLoading` false with no data, and the feed would
+        // then render its empty state as if the account had no activity.
+        isLoading: queries.some((q) => q.isLoading || q.isPaused),
         isError: queries.length > 0 && queries.every((q) => q.isError),
         anyError: queries.some((q) => q.isError),
         failedProfiles,
@@ -144,7 +147,7 @@ export function ActivityFeed({ rows }: { rows: readonly DashboardAggregateRow[] 
         for (const entry of q.data?.activity ?? [])
           items.push({ kind: 'discovery', time: entry.time, profileName, entry });
       });
-      return { items, isLoading: queries.some((q) => q.isLoading) };
+      return { items, isLoading: queries.some((q) => q.isLoading || q.isPaused) };
     },
     [rows],
   );
@@ -164,7 +167,7 @@ export function ActivityFeed({ rows }: { rows: readonly DashboardAggregateRow[] 
         for (const entry of q.data?.items ?? [])
           items.push({ kind: 'error', time: entry.time, profileName, entry });
       });
-      return { items, isLoading: queries.some((q) => q.isLoading) };
+      return { items, isLoading: queries.some((q) => q.isLoading || q.isPaused) };
     },
     [rows],
   );
