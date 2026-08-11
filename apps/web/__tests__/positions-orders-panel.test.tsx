@@ -11,6 +11,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import { render, screen, within } from '@testing-library/react';
+import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const useSymbolRows = vi.fn();
@@ -49,7 +50,7 @@ const merged = (items: unknown[]) => ({
   isPartial: false,
 });
 
-function renderPanel(): void {
+async function renderPanel(): Promise<void> {
   const rootRoute = createRootRoute();
   const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -63,12 +64,15 @@ function renderPanel(): void {
   render(
     <RouterProvider router={router as unknown as Parameters<typeof RouterProvider>[0]['router']} />,
   );
+  await act(async () => {
+    await router.load();
+  });
 }
 
 afterEach(() => vi.clearAllMocks());
 
 describe('<PositionsOrdersPanel>', () => {
-  it('lists held positions with P/L and the actual resting orders', () => {
+  it('lists held positions with P/L and the actual resting orders', async () => {
     useSymbolRows.mockReturnValue(
       merged([
         row(
@@ -89,7 +93,7 @@ describe('<PositionsOrdersPanel>', () => {
         ),
       ]),
     );
-    renderPanel();
+    await renderPanel();
 
     const pos = screen.getByTestId('money-position-XPLUSDT');
     expect(pos).toHaveTextContent('169.8');
@@ -102,7 +106,7 @@ describe('<PositionsOrdersPanel>', () => {
     expect(order).toHaveTextContent('120');
   });
 
-  it('trims the order quantity to match the positions panel (no 8-decimal padding)', () => {
+  it('trims the order quantity to match the positions panel (no 8-decimal padding)', async () => {
     // Binance ships origQty zero-padded ("82.70000000"); render it trimmed via
     // formatAmount so it reads like the positions panel ("82.7"), not raw.
     useSymbolRows.mockReturnValue(
@@ -123,22 +127,22 @@ describe('<PositionsOrdersPanel>', () => {
         ),
       ]),
     );
-    renderPanel();
+    await renderPanel();
 
     const order = screen.getByTestId('money-order-o2');
     expect(order).toHaveTextContent('82.7');
     expect(order).not.toHaveTextContent('82.70000000');
   });
 
-  it('renders nothing when there are no positions and no orders', () => {
+  it('renders nothing when there are no positions and no orders', async () => {
     useSymbolRows.mockReturnValue(
       merged([row(sym({ symbol: 'ICPUSDT', currentPrice: '2.42' }))]), // flat, no orders
     );
-    renderPanel();
+    await renderPanel();
     expect(screen.queryByTestId('positions-orders-panel')).not.toBeInTheDocument();
   });
 
-  it('shows "None." per column for the mixed state (a resting order on a flat symbol)', () => {
+  it('shows "None." per column for the mixed state (a resting order on a flat symbol)', async () => {
     // A BUY that hasn't filled = an open order with no position. Positions
     // column is empty, orders column is not — covers both "None." branches.
     useSymbolRows.mockReturnValue(
@@ -159,7 +163,7 @@ describe('<PositionsOrdersPanel>', () => {
         ),
       ]),
     );
-    renderPanel();
+    await renderPanel();
 
     expect(within(screen.getByTestId('money-positions')).getByText('None.')).toBeInTheDocument();
     expect(screen.getByTestId('money-order-o9')).toHaveTextContent('ICPUSDT');

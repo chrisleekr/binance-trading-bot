@@ -7,8 +7,8 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import { render, screen } from '@testing-library/react';
-import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { act, type ReactNode } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppShell } from '@/app/app-shell';
 import { NAV_ITEMS } from '@/app/bottom-nav';
@@ -18,7 +18,7 @@ import { ProfileProvider } from '@/features/profile/lib/profile-context';
 // nav targets are declared as routes so `Link` resolves them without warning.
 // The StatusBar inside the shell polls /status via React Query, so a
 // QueryClientProvider is also required (the real app provides one at root).
-const renderShell = (children: ReactNode): void => {
+const renderShell = async (children: ReactNode): Promise<void> => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const rootRoute = createRootRoute({
     component: () => (
@@ -38,11 +38,25 @@ const renderShell = (children: ReactNode): void => {
     history: createMemoryHistory({ initialEntries: ['/'] }),
   });
   render(<RouterProvider router={router} />);
+  await act(async () => {
+    await router.load();
+  });
 };
 
 describe('<AppShell>', () => {
-  it('renders children, theme toggle, home wordmark, settings icon, nav, and switcher slot', () => {
-    renderShell(<p>page-content</p>);
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+      ),
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('renders children, theme toggle, home wordmark, settings icon, nav, and switcher slot', async () => {
+    await renderShell(<p>page-content</p>);
 
     expect(screen.getByText('page-content')).toBeInTheDocument();
     expect(
@@ -58,8 +72,8 @@ describe('<AppShell>', () => {
     expect(screen.getByTestId('profile-switcher-slot')).toBeInTheDocument();
   });
 
-  it('the main scroller carries overscroll containment', () => {
-    renderShell(<p />);
+  it('the main scroller carries overscroll containment', async () => {
+    await renderShell(<p />);
 
     // <main> is the app's only scroller. Without containment, a flick past its
     // end chains the scroll to the document, which on mobile drags the whole
@@ -69,8 +83,8 @@ describe('<AppShell>', () => {
     expect(main.className).toMatch(/overscroll-contain/);
   });
 
-  it('respects ≥ 44×44 px touch target on bottom nav links', () => {
-    renderShell(<p />);
+  it('respects ≥ 44×44 px touch target on bottom nav links', async () => {
+    await renderShell(<p />);
 
     // The mobile BottomNav is the "Primary" nav and the touch surface. The 44px
     // floor is a touch-input requirement; identify it by its h-16 chrome bar.

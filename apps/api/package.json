@@ -23,7 +23,7 @@
     "@app/strategy-core": "workspace:*",
     "@app/strategy-registry": "workspace:*",
     "@hono/swagger-ui": "~0.6.1",
-    "@hono/zod-openapi": "~1.5.2",
+    "@hono/zod-openapi": "1.5.1",
     "better-auth": "~1.6.26",
     "bullmq": "5.58.6",
     "drizzle-orm": "~0.45.2",

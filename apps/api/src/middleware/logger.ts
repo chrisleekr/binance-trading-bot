@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
-import { pino, type DestinationStream, type Logger } from 'pino';
+import pino, { type DestinationStream, type Logger } from 'pino';
 import type { Env } from 'types.js';
 
 export const createLogger = (opts: {

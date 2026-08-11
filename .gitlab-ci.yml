@@ -245,7 +245,7 @@ db-isolation:
 e2e:
   stage: test
   needs: []
-  image: mcr.microsoft.com/playwright:v1.59.1-noble
+  image: mcr.microsoft.com/playwright:v1.62.1-noble
   variables:
     BUN_INSTALL: /root/.bun
     BUN_VERSION: '1.3.14'
@@ -364,8 +364,4 @@ docker-build:
     # can read /proc/<pid>/cmdline on the runner.
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
   script:
-    - bash scripts/ci/docker-build.sh
-      --push
-      --registry "$CI_REGISTRY_IMAGE"
-      --platforms "$PLATFORMS"
-      $DOCKER_TAGS
+    - bash scripts/ci/docker-build.sh --push --registry "$CI_REGISTRY_IMAGE" --platforms "$PLATFORMS" $DOCKER_TAGS

@@ -19,14 +19,15 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { act } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppShell } from '@/app/app-shell';
 import { NAV_ITEMS } from '@/app/bottom-nav';
 import { ONBOARDING_STATUS_QUERY_KEY } from '@/features/auth/api/auth';
 import { ProfileProvider } from '@/features/profile/lib/profile-context';
 
-const renderShellWithDemo = (demoMode: boolean): void => {
+const renderShellWithDemo = async (demoMode: boolean): Promise<void> => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   qc.setQueryData(ONBOARDING_STATUS_QUERY_KEY, { masterExists: true, demoMode });
   const rootRoute = createRootRoute({
@@ -48,17 +49,31 @@ const renderShellWithDemo = (demoMode: boolean): void => {
     history: createMemoryHistory({ initialEntries: ['/'] }),
   });
   render(<RouterProvider router={router} />);
+  await act(async () => {
+    await router.load();
+  });
 };
 
 describe('<AppShell> — Live demo banner', () => {
-  it('renders a persistent "Live demo" banner and hides the Settings link when demoMode is true', () => {
-    renderShellWithDemo(true);
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+      ),
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('renders a persistent "Live demo" banner and hides the Settings link when demoMode is true', async () => {
+    await renderShellWithDemo(true);
     expect(screen.getByText(/live demo/i)).toBeInTheDocument();
     expect(screen.queryByTestId('header-account')).not.toBeInTheDocument();
   });
 
-  it('renders no banner and keeps the Settings link when demoMode is false', () => {
-    renderShellWithDemo(false);
+  it('renders no banner and keeps the Settings link when demoMode is false', async () => {
+    await renderShellWithDemo(false);
     expect(screen.queryByText(/live demo/i)).not.toBeInTheDocument();
     expect(screen.getByTestId('header-account')).toBeInTheDocument();
   });
