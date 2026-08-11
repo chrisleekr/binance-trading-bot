@@ -52,7 +52,7 @@ workflow:
     - if: $CI_COMMIT_TAG
 
 default:
-  image: oven/bun:1.3.12-alpine
+  image: oven/bun:1.3.14-alpine
   # Every job is interruptible so `workflow.auto_cancel.on_new_commit` above can
   # cancel superseded runs. docker-build overrides this (see its job) so a push
   # image build is never left half-done.
@@ -248,7 +248,7 @@ e2e:
   image: mcr.microsoft.com/playwright:v1.59.1-noble
   variables:
     BUN_INSTALL: /root/.bun
-    BUN_VERSION: '1.3.12'
+    BUN_VERSION: '1.3.14'
     # The MS Playwright image bundles browsers under /ms-playwright;
     # Playwright defaults to $HOME/.cache/ms-playwright which is empty
     # in this container. Pointing at the image's bundled set avoids

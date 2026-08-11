@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BUN_VERSION: 1.3.12
+  BUN_VERSION: 1.3.14
 
 # DAG, not a chain. Every test/check job is a root (no `needs:`) so it starts
 # immediately and runs concurrently; each re-bootstraps from the bun cache, so a
