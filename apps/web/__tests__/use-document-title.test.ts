@@ -83,7 +83,7 @@ describe('route staticData.title', () => {
 describe('every titled route resolves to real copy', () => {
   it('no route title resolves to an empty string or a raw i18n key', () => {
     let checked = 0;
-    for (const route of router.flatRoutes) {
+    for (const route of Object.values(router.routesById)) {
       const title = route.options.staticData?.title;
       if (title === undefined) continue;
       // Function titles need a param; a symbol satisfies both symbol routes and
@@ -98,7 +98,7 @@ describe('every titled route resolves to real copy', () => {
       ).toBe(false);
       checked += 1;
     }
-    // Guard the guard: an empty flatRoutes would make the loop vacuously pass.
+    // Guard the guard: an empty route collection would make the loop vacuously pass.
     // The nine i18n-backed leaf routes are the floor.
     expect(checked).toBeGreaterThanOrEqual(9);
   });

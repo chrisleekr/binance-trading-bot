@@ -16,6 +16,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import { render, screen, waitFor } from '@testing-library/react';
+import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createQueryClient } from '@/shared/lib/query-client';
@@ -88,19 +89,18 @@ describe('route pending screen', () => {
         />
       </QueryClientProvider>,
     );
+    await act(async () => {
+      await router.load();
+    });
 
-    await waitFor(() => expect(screen.getByTestId('login-marker')).toBeInTheDocument());
+    expect(screen.getByTestId('login-marker')).toBeInTheDocument();
 
     void router.navigate({ to: '/slow' });
 
-    // The outgoing route is hidden by React, not by the pending screen's
-    // stacking: each match renders inside a Suspense boundary that is reused
-    // across the transition, and re-suspending a populated boundary hides the
-    // committed nodes with `display: none !important`. That is what keeps the
-    // sign-in form off screen, so the pending screen does not have to cover the
-    // viewport to do its job.
+    // The router removes the outgoing match, so the pending screen does not
+    // have to cover the viewport to keep the sign-in form off screen.
     await waitFor(() => expect(screen.getByTestId('route-pending')).toBeInTheDocument());
-    expect(screen.getByTestId('login-marker')).not.toBeVisible();
+    expect(screen.queryByTestId('login-marker')).not.toBeInTheDocument();
 
     releaseLoader();
 

@@ -48,6 +48,11 @@
       "description": "BullMQ >= 5.58.7 rejects ':' in custom job ids. The worker's single-execution guarantee is jobId coalescing over colon-delimited keys (tick:<profileId>:<symbol>, backtest:<runId>), and the repo runs no distributed locks, so adopting a newer BullMQ means redesigning that key scheme first. Verified: 5.58.6 passes the worker integration suite, 5.58.7+ fails it.",
       "matchPackageNames": ["bullmq"],
       "allowedVersions": "<5.58.7"
+    },
+    {
+      "description": "@hono/zod-openapi 1.5.2 omits the zodModule import from its published declarations, which collapses schema inference to any.",
+      "matchPackageNames": ["@hono/zod-openapi"],
+      "allowedVersions": "!/^1\\.5\\.2$/"
     }
   ],
 
