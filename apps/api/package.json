@@ -22,20 +22,20 @@
     "@app/notify": "workspace:*",
     "@app/strategy-core": "workspace:*",
     "@app/strategy-registry": "workspace:*",
-    "@hono/swagger-ui": "~0.5.0",
-    "@hono/zod-openapi": "~1.3.0",
-    "better-auth": "~1.6.25",
+    "@hono/swagger-ui": "~0.6.1",
+    "@hono/zod-openapi": "1.5.1",
+    "better-auth": "~1.6.26",
     "bullmq": "5.58.6",
     "drizzle-orm": "~0.45.2",
-    "hono": "~4.12.34",
+    "hono": "~4.13.1",
     "ioredis": "~5.11.1",
-    "pg": "~8.13.0",
-    "pino": "~9.5.0",
+    "pg": "~8.22.0",
+    "pino": "~9.14.0",
     "zod": "~4.4.3",
     "@app/observability": "workspace:*"
   },
   "devDependencies": {
     "@app/testcontainers": "workspace:*",
-    "@types/pg": "~8.11.0"
+    "@types/pg": "~8.21.0"
   }
 }

@@ -15,6 +15,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import { render, screen } from '@testing-library/react';
+import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { profileQueryKey } from '@/features/profile/api/profile';
@@ -51,7 +52,7 @@ const row = (): DashboardAggregateResponse['profiles'][number] => ({
 
 const PROFILE_PATH = `/accounts/${ACCOUNT_ID}/profiles/${PID}`;
 
-const renderHeader = (): void => {
+const renderHeader = async (): Promise<void> => {
   const qc = createQueryClient();
   qc.setQueryData(['dashboard-aggregate', ACCOUNT_ID], { profiles: [row()] });
   qc.setQueryData(profileQueryKey(PID), { name: 'btc-real' });
@@ -109,11 +110,14 @@ const renderHeader = (): void => {
       />
     </QueryClientProvider>,
   );
+  await act(async () => {
+    await router.load();
+  });
 };
 
 describe('<ProfilePageHeader>', () => {
   it('Back links to the profile detail page with the accountId preserved', async () => {
-    renderHeader();
+    await renderHeader();
 
     // Back means "up one level", not "all the way home": from a profile
     // sub-page the parent is that profile, and the link must carry the account
@@ -123,7 +127,7 @@ describe('<ProfilePageHeader>', () => {
   });
 
   it('renders the title + profile name and the Manage trigger', async () => {
-    renderHeader();
+    await renderHeader();
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Strategy config');
     expect(screen.getByText('btc-real')).toBeInTheDocument();

@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  BUN_VERSION: 1.3.12
+  BUN_VERSION: 1.3.14
 
 # DAG, not a chain. Every test/check job is a root (no `needs:`) so it starts
 # immediately and runs concurrently; each re-bootstraps from the bun cache, so a
@@ -92,7 +92,6 @@ jobs:
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 5
 
-
     env:
       REDIS_TEST_URL: redis://localhost:6379
     steps:
@@ -150,14 +149,12 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres -d binance_trading_bot_test" --health-interval 5s --health-timeout 3s --health-retries 10
 
-
       redis:
         image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
-
 
     # The apps/api suites gate on DATABASE_TEST_URL, not DATABASE_URL; and the
     # `_test` suffix is required because setupApp TRUNCATEs the target.
@@ -203,14 +200,12 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres -d binance_trading_bot_test" --health-interval 5s --health-timeout 3s --health-retries 10
 
-
       redis:
         image: redis:8-alpine
         ports:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
-
 
     env:
       DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/binance_trading_bot_test
@@ -247,7 +242,6 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres -d binance_trading_bot_test" --health-interval 5s --health-timeout 3s --health-retries 10
 
-
     env:
       DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/binance_trading_bot_test
     steps:
@@ -272,7 +266,7 @@ jobs:
     name: e2e
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.59.1-noble
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
     steps:
       - uses: actions/checkout@v7
       # setup-bun unzips the release archive; the Playwright image ships no

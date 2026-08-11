@@ -20,6 +20,7 @@ import {
 } from '@tanstack/react-router';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createQueryClient } from '@/shared/lib/query-client';
@@ -118,10 +119,10 @@ const renderStalled = (ui: React.ReactNode, seed?: (client: QueryClient) => void
  * renders `<Link>` / calls `useNavigate`, which need router context to mount.
  * `extraPaths` register the link targets so hrefs resolve.
  */
-const renderStalledInRouter = (
+const renderStalledInRouter = async (
   component: () => React.JSX.Element,
   { path = '/', extraPaths = [] as readonly string[] } = {},
-): HTMLElement => {
+): Promise<HTMLElement> => {
   const queryClient = createQueryClient();
   const root = createRootRoute();
   const children = [
@@ -141,6 +142,9 @@ const renderStalledInRouter = (
       />
     </QueryClientProvider>,
   );
+  await act(async () => {
+    await router.load();
+  });
   return container;
 };
 
@@ -251,9 +255,9 @@ describe('symbol panels', () => {
     expectPendingHasHeight(c);
   });
 
-  it('SymbolTechnicalsPanel reserves the ratings table while it loads', () => {
+  it('SymbolTechnicalsPanel reserves the ratings table while it loads', async () => {
     // The heading and empty-state are `<Link>`s, so the panel needs a router.
-    const c = renderStalledInRouter(
+    const c = await renderStalledInRouter(
       () => <SymbolTechnicalsPanel profileId={PROFILE_ID} symbol={SYMBOL} clock={() => 1_000} />,
       {
         path: '/profiles/$profileId/symbols/$symbol',
@@ -403,15 +407,15 @@ describe('dashboard surfaces', () => {
     expectPendingHasHeight(c);
   });
 
-  it('SymbolTable reserves the row block while the per-profile fan-out loads', () => {
-    const c = renderStalledInRouter(() => <SymbolTable rows={[aggregateRow()]} />, {
+  it('SymbolTable reserves the row block while the per-profile fan-out loads', async () => {
+    const c = await renderStalledInRouter(() => <SymbolTable rows={[aggregateRow()]} />, {
       extraPaths: ['/accounts/$accountId/profiles/$profileId/symbols/$symbol'],
     });
     expectPendingHasHeight(c);
   });
 
-  it('SymbolRail reserves the rail rows while the fan-out loads', () => {
-    const c = renderStalledInRouter(
+  it('SymbolRail reserves the rail rows while the fan-out loads', async () => {
+    const c = await renderStalledInRouter(
       () => <SymbolRail rows={[aggregateRow()]} selected={`${PROFILE_ID}:${SYMBOL}`} />,
       { extraPaths: ['/accounts/$accountId/profiles/$profileId/symbols/$symbol'] },
     );
@@ -506,14 +510,14 @@ describe('backtest surfaces', () => {
     expectPendingHasHeight(c);
   });
 
-  it('ConfigureTab reserves the config form while the profile and registry load', () => {
+  it('ConfigureTab reserves the config form while the profile and registry load', async () => {
     // The workbench is a hook, so the tab is driven through a host that mounts
     // it; it calls `useNavigate`, hence the router.
     function Host(): React.JSX.Element {
       const wb = useBacktestWorkbench(PROFILE_ID, {});
       return <ConfigureTab wb={wb} />;
     }
-    const c = renderStalledInRouter(() => <Host />);
+    const c = await renderStalledInRouter(() => <Host />);
     expectPendingHasHeight(c, { statuses: 'at-least-one' });
   });
 });
