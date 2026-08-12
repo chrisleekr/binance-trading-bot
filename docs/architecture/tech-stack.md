@@ -63,7 +63,7 @@ The stack serves plain HTTP and **does not bundle a reverse proxy** — put TLS 
 | Tool | Version | Why it is here |
 | --- | --- | --- |
 | **Bun** | 1.3.x | Runtime, package manager, and test-adjacent tooling. One binary, no Node install. |
-| **TypeScript** | 7.0.x | Strict end to end. `bun run typecheck` builds every package with project references. |
+| **TypeScript** | 7.0.x | Strict end-to-end. `bun run typecheck` builds every package with project references. |
 | **Turborepo** | 2.x | Monorepo task graph and caching across `apps/*` and `packages/*`. |
 | **oxlint** | 1.77 | The single lint path. One whole-repo pass so cycle detection sees the full graph. |
 | **Vitest** | 4.x | Unit tests, with per-package coverage thresholds. |
