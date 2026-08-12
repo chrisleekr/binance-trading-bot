@@ -143,13 +143,12 @@ function TechnicalsAuditBlock({
   const tv = payload['technicals'];
   if (typeof tv !== 'object' || tv === null) return null;
   const forceSell = (tv as Record<string, unknown>)['forceSell'] as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
   if (!forceSell) return null;
   return (
     <div
       // A force-sell triggers a real MARKET SELL: a danger (red) accent.
-      className="border-danger border-l-2 pl-2 text-xs"
+      className="border-l-2 border-danger pl-2 text-xs"
       data-testid="audit-technicals"
     >
       {forceSell ? (
@@ -195,7 +194,7 @@ function AuditPayload({ payload }: { readonly payload: unknown }): React.JSX.Ele
   if (payload === undefined || payload === null) return null;
   if (typeof payload !== 'object' || Array.isArray(payload)) {
     return (
-      <p className="text-muted-fg break-all font-mono text-xs" data-testid="audit-payload">
+      <p className="font-mono text-xs break-all text-muted-fg" data-testid="audit-payload">
         {renderAuditValue(payload)}
       </p>
     );
@@ -210,8 +209,8 @@ function AuditPayload({ payload }: { readonly payload: unknown }): React.JSX.Ele
     <dl className="space-y-0.5 text-xs" data-testid="audit-payload">
       {entries.map(([key, value]) => (
         <div key={key}>
-          <dt className="text-muted-fg mr-3 inline-block w-32 align-top">{titleCase(key)}</dt>
-          <dd className="inline break-all font-mono">{renderAuditValue(value)}</dd>
+          <dt className="mr-3 inline-block w-32 align-top text-muted-fg">{titleCase(key)}</dt>
+          <dd className="inline font-mono break-all">{renderAuditValue(value)}</dd>
         </div>
       ))}
     </dl>
@@ -239,7 +238,7 @@ function RetentionFooter(): React.JSX.Element | null {
     // Surface the failure rather than silently dropping the footer — the
     // audit view is the operator's only "is retention healthy" view.
     return (
-      <p className="text-muted-fg pt-2 text-xs" data-testid="audit-retention-footer">
+      <p className="pt-2 text-xs text-muted-fg" data-testid="audit-retention-footer">
         Retention status unavailable
       </p>
     );
@@ -259,7 +258,7 @@ function RetentionFooter(): React.JSX.Element | null {
     return `${label}: ${r.deleted} pruned ${age} (retain ${r.retentionDays}d)`;
   };
   return (
-    <p className="text-muted-fg pt-2 text-xs" data-testid="audit-retention-footer">
+    <p className="pt-2 text-xs text-muted-fg" data-testid="audit-retention-footer">
       {describe('Audit', q.data.auditPrune)} · {describe('Action log', q.data.actionLogPrune)}
     </p>
   );
@@ -313,7 +312,7 @@ export function AuditLogPanel({
               filter (a partial audit trail would be misleading). Say so when a
               filter is active so the operator isn't surprised by the contents. */}
           {events.length > 0 ? (
-            <span className="text-muted-fg text-xs" data-testid="audit-export-note">
+            <span className="text-xs text-muted-fg" data-testid="audit-export-note">
               Exports the complete log, not the current filter.
             </span>
           ) : null}
@@ -345,11 +344,11 @@ export function AuditLogPanel({
       ) : null}
 
       {list.isSuccess && items.length === 0 ? (
-        <p className="text-muted-fg text-sm">No audit entries for this profile.</p>
+        <p className="text-sm text-muted-fg">No audit entries for this profile.</p>
       ) : null}
 
       {items.length > 0 ? (
-        <div className="border-border rounded-md border">
+        <div className="rounded-md border border-border">
           <Table data-testid="audit-list" className="text-xs">
             <TableHeader>
               <TableRow>
@@ -368,21 +367,21 @@ export function AuditLogPanel({
                     {/* UTC anchor plus the operator's configured zone, so the
                         same audit row reads identically across deployments
                         regardless of browser locale. */}
-                    <TableCell className="text-muted-fg w-44 whitespace-nowrap font-mono tabular-nums">
+                    <TableCell className="w-44 font-mono whitespace-nowrap text-muted-fg tabular-nums">
                       {formatInstant(item.createdAt, timeZone)}
                     </TableCell>
-                    <TableCell className="border-border space-y-1 border-b">
+                    <TableCell className="space-y-1 border-b border-border">
                       {symbol !== null ? (
                         <Link
                           to="/accounts/$accountId/profiles/$profileId/symbols/$symbol"
                           params={{ accountId, profileId, symbol }}
-                          className="text-fg font-medium underline-offset-2 hover:underline"
+                          className="font-medium text-fg underline-offset-2 hover:underline"
                           data-testid="audit-row-symbol-link"
                         >
                           {titleCase(item.event)} · {symbol}
                         </Link>
                       ) : (
-                        <span className="text-fg font-medium">{titleCase(item.event)}</span>
+                        <span className="font-medium text-fg">{titleCase(item.event)}</span>
                       )}
                       {typeof item.payload === 'object' && item.payload !== null ? (
                         <TechnicalsAuditBlock payload={item.payload as Record<string, unknown>} />
@@ -408,7 +407,7 @@ export function AuditLogPanel({
           >
             ‹ Prev
           </Button>
-          <span className="text-muted-fg font-mono text-xs tabular-nums">
+          <span className="font-mono text-xs text-muted-fg tabular-nums">
             Page {page.history.length + 1}
           </span>
           <Button
@@ -458,7 +457,7 @@ function AuditFilterControl({
             data-testid="audit-filter-popover-trigger"
             aria-haspopup="dialog"
             className={cn(
-              'border-border hover:text-fg inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs',
+              'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2.5 py-0.5 text-xs whitespace-nowrap hover:text-fg',
               anyActive ? 'bg-bg-elevated text-fg' : 'text-muted-fg',
             )}
           >
@@ -466,7 +465,7 @@ function AuditFilterControl({
             {anyActive ? (
               <span
                 aria-label={`${events.length} filter${events.length === 1 ? '' : 's'} active`}
-                className="bg-accent text-accent-fg inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-xs font-medium"
+                className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-xs font-medium text-accent-fg"
               >
                 {events.length}
               </span>
@@ -479,13 +478,13 @@ function AuditFilterControl({
           data-testid="audit-filter-popover-content"
         >
           <div className="flex items-center justify-between pb-2">
-            <span className="text-muted-fg text-xs">Filter events</span>
+            <span className="text-xs text-muted-fg">Filter events</span>
             <button
               type="button"
               onClick={onClear}
               disabled={!anyActive}
               data-testid="audit-filter-chip-clear-all"
-              className="text-muted-fg hover:text-fg text-xs underline disabled:cursor-not-allowed disabled:opacity-50"
+              className="text-xs text-muted-fg underline hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
             >
               Clear all
             </button>
@@ -493,21 +492,21 @@ function AuditFilterControl({
           <div className="max-h-80 space-y-3 overflow-y-auto">
             {EVENT_CATEGORIES.map((cat) => (
               <fieldset key={cat.label} className="space-y-1">
-                <legend className="text-muted-fg text-xs font-medium">{cat.label}</legend>
+                <legend className="text-xs font-medium text-muted-fg">{cat.label}</legend>
                 <div className="grid grid-cols-1 gap-1">
                   {cat.events.map((kind) => {
                     const active = events.includes(kind);
                     return (
                       <label
                         key={kind}
-                        className="hover:bg-bg-elevated flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs"
+                        className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-bg-elevated"
                       >
                         <input
                           type="checkbox"
                           checked={active}
                           onChange={() => onToggle(kind)}
                           data-testid={`audit-filter-checkbox-${kind}`}
-                          className="accent-accent size-3.5"
+                          className="size-3.5 accent-accent"
                         />
                         <span>{titleCase(kind)}</span>
                       </label>
@@ -533,7 +532,7 @@ function AuditFilterControl({
               : `audit-filter-chip-extra-${kind}`
           }
           aria-label={`Remove filter ${titleCase(kind)}`}
-          className="ring-fg/40 bg-accent text-accent-fg inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-transparent px-2.5 py-0.5 text-xs ring-1"
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-transparent bg-accent px-2.5 py-0.5 text-xs whitespace-nowrap text-accent-fg ring-1 ring-fg/40"
         >
           <span>{titleCase(kind)}</span>
           <span aria-hidden="true" className="text-accent-fg/80">

@@ -32,7 +32,7 @@ export function isGroupField(field: FormField): boolean {
  * line.
  */
 function FieldHelp({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <p className="text-muted-fg text-xs leading-relaxed">{children}</p>;
+  return <p className="text-xs leading-relaxed text-muted-fg">{children}</p>;
 }
 
 /**
@@ -83,9 +83,9 @@ export function AdvancedFold({
   return (
     <details
       open={defaultOpen}
-      className="border-border bg-surface-alt group mt-4 rounded-md border"
+      className="group mt-4 rounded-md border border-border bg-surface-alt"
     >
-      <summary className="text-muted-fg focus-visible:ring-focus flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-muted-fg focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none [&::-webkit-details-marker]:hidden">
         <span>
           Advanced settings <span className="tabular-nums">({fields.length})</span>
         </span>
@@ -94,7 +94,7 @@ export function AdvancedFold({
           aria-hidden="true"
         />
       </summary>
-      <div className="border-border border-t px-4 py-4">
+      <div className="border-t border-border px-4 py-4">
         <FieldCells fields={fields} renderChild={renderChild} />
       </div>
     </details>
@@ -145,7 +145,7 @@ export function FieldRenderer({
     if (ObjectWidget) {
       return (
         <div className="flex h-full flex-col gap-1.5">
-          <span className="text-fg text-sm font-medium">{field.label}</span>
+          <span className="text-sm font-medium text-fg">{field.label}</span>
           {field.description ? <FieldHelp>{field.description}</FieldHelp> : null}
           <div className="mt-auto">
             <ObjectWidget
@@ -183,8 +183,8 @@ export function FieldRenderer({
     }
 
     return (
-      <fieldset className="border-border bg-bg space-y-3 rounded-md border p-4">
-        <legend className="text-fg px-1 text-sm font-medium">{field.label}</legend>
+      <fieldset className="space-y-3 rounded-md border border-border bg-bg p-4">
+        <legend className="px-1 text-sm font-medium text-fg">{field.label}</legend>
         {field.description ? <FieldHelp>{field.description}</FieldHelp> : null}
         {body}
       </fieldset>
@@ -198,7 +198,7 @@ export function FieldRenderer({
   return (
     <div className="flex h-full flex-col gap-1.5">
       <div className="flex items-center gap-1">
-        <label htmlFor={field.path} className="text-fg text-sm font-medium">
+        <label htmlFor={field.path} className="text-sm font-medium text-fg">
           {field.label}
         </label>
         {field.required ? (
@@ -311,7 +311,7 @@ function DefaultEnumSelect({ field }: { field: FormField & { kind: 'enum' } }) {
       ref={f.ref}
       aria-invalid={fieldState.invalid || undefined}
       className={cn(
-        'rounded-xs border-border bg-surface-alt text-fg focus-visible:border-focus flex h-11 w-full border px-3 py-2 text-sm focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
+        'flex h-11 w-full rounded-xs border border-border bg-surface-alt px-3 py-2 text-sm text-fg focus-visible:border-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
       )}
     >
       <option value="" disabled>
@@ -425,7 +425,7 @@ function DefaultArrayRenderer({ field }: { field: FormField & { kind: 'array' } 
   const hintKey = pickRowLabelHintKey(field.element);
   return (
     <div className="space-y-3">
-      {fields.length === 0 ? <p className="text-muted-fg text-sm">No items.</p> : null}
+      {fields.length === 0 ? <p className="text-sm text-muted-fg">No items.</p> : null}
       {fields.map((row, index) => {
         const baseLabel = `${itemLabel} ${index + 1}`;
         const rowPath = `${field.path}.${index}`;
@@ -456,7 +456,7 @@ function DefaultArrayRenderer({ field }: { field: FormField & { kind: 'array' } 
               size="icon"
               aria-label={`Remove ${itemLabel} ${index + 1}`}
               onClick={() => remove(index)}
-              className="absolute right-1 top-1"
+              className="absolute top-1 right-1"
             >
               <Trash2 className="size-4" />
             </Button>
@@ -475,7 +475,7 @@ function FieldError({ name }: { name: string }) {
   const error = pickError(formState.errors, name);
   if (!error) return null;
   return (
-    <p role="alert" className="text-danger text-xs">
+    <p role="alert" className="text-xs text-danger">
       {error}
     </p>
   );

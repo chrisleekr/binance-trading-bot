@@ -41,7 +41,7 @@ function TradeRow({
         {trade.isBuyerMaker ? '▼' : '▲'} {formatPrice(trade.price)}
       </span>
       <span className="text-right font-mono">{formatAmount(trade.qty)}</span>
-      <span className="text-muted-fg text-right font-mono">
+      <span className="text-right font-mono text-muted-fg">
         {formatClock(trade.time, timeZone)}
       </span>
     </li>
@@ -77,7 +77,7 @@ export function SymbolRecentTradesPanel({
           {/* Fills the card: this panel shares a stretch-aligned grid row with
               the taller order book, so the list grows to that height and
               scrolls within it instead of leaving the card half-empty. */}
-          <div className="text-muted-fg grid grid-cols-3 gap-2 px-3 text-xs tracking-wide">
+          <div className="grid grid-cols-3 gap-2 px-3 text-xs tracking-wide text-muted-fg">
             <span>Price</span>
             <span className="text-right">Amount</span>
             <span className="text-right">Time</span>
@@ -85,7 +85,7 @@ export function SymbolRecentTradesPanel({
           {/* Mobile (single-column stack) has no taller sibling to fill, so a
               tighter cap keeps the tape from dominating the scroll; the wide
               cap only applies at xl where the order book sets the row height. */}
-          <ul className="divide-border max-h-72 min-h-0 flex-1 divide-y overflow-y-auto rounded-md border xl:max-h-[34rem]">
+          <ul className="max-h-72 min-h-0 flex-1 divide-y divide-border overflow-y-auto rounded-md border xl:max-h-[34rem]">
             {[...trades.data].reverse().map((trade) => (
               <TradeRow key={trade.id} trade={trade} timeZone={timeZone} />
             ))}
@@ -95,7 +95,7 @@ export function SymbolRecentTradesPanel({
         // Matches the loaded tape's `max-h-72` cap on the mobile stack.
         <TableSkeleton rows={7} />
       ) : (
-        <p className="text-muted-fg text-sm">
+        <p className="text-sm text-muted-fg">
           {trades.isError ? 'Recent trades unavailable.' : 'No recent trades.'}
         </p>
       )}

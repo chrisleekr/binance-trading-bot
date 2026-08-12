@@ -53,7 +53,7 @@ export const SheetContent = React.forwardRef<
       {children}
       <DialogPrimitive.Close
         aria-label="Close"
-        className="focus-visible:ring-accent absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-sm opacity-70 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2"
+        className="absolute top-2 right-2 inline-flex h-11 w-11 items-center justify-center rounded-sm opacity-70 hover:opacity-100 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
       >
         <X className="h-4 w-4" />
       </DialogPrimitive.Close>
@@ -80,7 +80,7 @@ export const SheetDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn('text-muted-fg text-sm', className)}
+    className={cn('text-sm text-muted-fg', className)}
     {...props}
   />
 ));

@@ -52,13 +52,13 @@ export function BacktestRecommendations({
     <section
       aria-labelledby="bt-recs-h"
       data-testid="backtest-recommendations"
-      className="border-border bg-bg-elevated space-y-3 rounded-md border p-3"
+      className="space-y-3 rounded-md border border-border bg-bg-elevated p-3"
     >
       <div className="space-y-1">
-        <h2 id="bt-recs-h" className="text-fg text-sm font-semibold">
+        <h2 id="bt-recs-h" className="text-sm font-semibold text-fg">
           Suggested changes to test
         </h2>
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           Pick the changes you want to try, then load them into the Setup form together. Nothing
           touches your live config and nothing runs until you click Run backtest. Each removes a
           constraint so you can measure its effect; they are not predictions of profit.
@@ -75,7 +75,7 @@ export function BacktestRecommendations({
                 aria-label={r.title}
                 onClick={() => toggle(r.id)}
                 data-testid={`backtest-rec-toggle-${r.id}`}
-                className={`focus-visible:ring-focus flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 ${
+                className={`flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none ${
                   isSelected ? 'border-accent bg-accent/10' : 'border-border bg-surface-alt'
                 }`}
               >
@@ -88,15 +88,15 @@ export function BacktestRecommendations({
                   {isSelected ? <Check className="h-3 w-3" /> : null}
                 </span>
                 <span className="space-y-1">
-                  <span className="text-fg block text-sm font-medium">{r.title}</span>
-                  <span className="text-muted-fg block text-xs leading-snug">{r.rationale}</span>
+                  <span className="block text-sm font-medium text-fg">{r.title}</span>
+                  <span className="block text-xs leading-snug text-muted-fg">{r.rationale}</span>
                 </span>
               </button>
             </li>
           );
         })}
       </ul>
-      <div className="border-border space-y-1.5 border-t pt-3">
+      <div className="space-y-1.5 border-t border-border pt-3">
         <Button
           type="button"
           variant="primary"
@@ -109,7 +109,7 @@ export function BacktestRecommendations({
             ? 'Select changes to load'
             : `Load ${chosen.length} change${chosen.length > 1 ? 's' : ''} into Setup`}
         </Button>
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           Loads into the Setup form for review. You run the backtest, and the new run must clear the
           out-of-sample gate before you can apply it to live.
         </p>

@@ -74,7 +74,7 @@ export function RiskPanel({ profileId }: { readonly profileId: string }): React.
     );
   }
   if (query.isError || !query.data) {
-    return <p className="text-down text-sm">Could not load risk controls.</p>;
+    return <p className="text-sm text-down">Could not load risk controls.</p>;
   }
 
   const { config, configInvalid, quoteAsset, status: live } = query.data;
@@ -98,7 +98,7 @@ export function RiskPanel({ profileId }: { readonly profileId: string }): React.
   return (
     <div className="space-y-6" data-testid="risk-panel">
       {configInvalid ? (
-        <p className="text-warning text-xs" data-testid="risk-config-invalid">
+        <p className="text-xs text-warning" data-testid="risk-config-invalid">
           Your saved risk settings could not be read and are shown as defaults. Re-save to fix.
         </p>
       ) : null}
@@ -125,7 +125,7 @@ export function RiskPanel({ profileId }: { readonly profileId: string }): React.
             </div>
             <div>
               <dt className="text-muted-fg">Daily loss limit</dt>
-              <dd className="text-fg font-medium" data-testid="risk-limit">
+              <dd className="font-medium text-fg" data-testid="risk-limit">
                 {live.limitQuote === null
                   ? 'Off'
                   : `${Number(live.limitQuote).toFixed(2)} ${quoteAsset}`}
@@ -133,7 +133,7 @@ export function RiskPanel({ profileId }: { readonly profileId: string }): React.
             </div>
           </dl>
           {live.halted ? (
-            <p className="text-down text-xs" data-testid="risk-paused-detail">
+            <p className="text-xs text-down" data-testid="risk-paused-detail">
               Daily loss limit hit — new buys are paused
               {resumeNote}. Open positions and their stops keep running.
             </p>
@@ -147,7 +147,7 @@ export function RiskPanel({ profileId }: { readonly profileId: string }): React.
             groupLooseFields={false}
           >
             <ActionBanner banner={banner} />
-            <FormActions className="border-border items-center gap-3 border-t pt-4">
+            <FormActions className="items-center gap-3 border-t border-border pt-4">
               <Button type="submit" variant="default" disabled={save.isPending}>
                 {save.isPending ? 'Saving…' : 'Save'}
               </Button>

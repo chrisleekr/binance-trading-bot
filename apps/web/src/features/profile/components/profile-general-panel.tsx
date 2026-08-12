@@ -183,8 +183,7 @@ function GeneralPanelBody({
     onError: (err: unknown) => {
       if (err instanceof ApiError && err.code === 'CONFLICT') {
         const d = err.details as
-          | { openOrderCount?: number; openPositionCount?: number }
-          | undefined;
+          { openOrderCount?: number; openPositionCount?: number } | undefined;
         setDeleteExposure({
           openOrderCount: d?.openOrderCount ?? 0,
           openPositionCount: d?.openPositionCount ?? 0,
@@ -226,7 +225,7 @@ function GeneralPanelBody({
               data-testid="profile-general-name-input"
               onChange={(e) => setDraftName(e.target.value)}
             />
-            {renameError ? <p className="text-danger text-xs">{renameError}</p> : null}
+            {renameError ? <p className="text-xs text-danger">{renameError}</p> : null}
           </div>
           <Button
             data-testid="profile-general-name-save"
@@ -254,7 +253,7 @@ function GeneralPanelBody({
               autoCapitalize="characters"
               onChange={(e) => setDraftQuote(e.target.value)}
             />
-            {quoteError ? <p className="text-danger text-xs">{quoteError}</p> : null}
+            {quoteError ? <p className="text-xs text-danger">{quoteError}</p> : null}
           </div>
           <Button
             data-testid="profile-general-quote-save"
@@ -421,7 +420,7 @@ function GeneralPanelBody({
                       onChange={(e) => setHandoffTargetId(e.target.value)}
                       data-testid="profile-general-delete-handoff-target"
                       aria-label={t('profile.controls.delete_handoff_label')}
-                      className="border-border bg-background ml-6 rounded-md border px-2 py-1"
+                      className="bg-background ml-6 rounded-md border border-border px-2 py-1"
                     >
                       <option value="">{t('profile.controls.delete_handoff_placeholder')}</option>
                       {handoffTargets.map((p) => (

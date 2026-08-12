@@ -84,8 +84,7 @@ export const assertPreviewTickAgreement = <
         (input.config as { candleInterval?: unknown } | undefined)?.candleInterval,
       );
       const byInterval = input.market.candlesByInterval as
-        | Record<string, readonly Candle[]>
-        | undefined;
+        Record<string, readonly Candle[]> | undefined;
       const candles = byInterval?.[interval];
       const filters = input.market.symbolInfo?.filters;
       const quoteAsset = input.market.symbolInfo?.quoteAsset;

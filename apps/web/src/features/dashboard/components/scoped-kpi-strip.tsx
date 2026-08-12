@@ -49,12 +49,12 @@ function KpiCell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-bg-elevated flex flex-col gap-1 p-3">
-      <dt className="text-muted-fg flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider">
+    <div className="flex flex-col gap-1 bg-bg-elevated p-3">
+      <dt className="flex items-center gap-1 text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
         {label}
         {now ? (
           <span
-            className="rounded-xs bg-border text-muted-fg px-1 text-[9px] font-medium normal-case tracking-normal"
+            className="rounded-xs bg-border px-1 text-[9px] font-medium tracking-normal text-muted-fg normal-case"
             data-testid={`scoped-kpi-${testId}-now`}
           >
             {t('home.scoped.now_tag')}
@@ -100,7 +100,7 @@ export function ScopedKpiStrip({ profileId }: { readonly profileId: string }): R
     >
       <h2
         id="scoped-kpi-heading"
-        className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider"
+        className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase"
       >
         {t('home.scoped.title')}
       </h2>
@@ -108,13 +108,13 @@ export function ScopedKpiStrip({ profileId }: { readonly profileId: string }): R
       {data ? (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider">
+            <h3 className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
               {t('home.scoped.discovery_title')}
             </h3>
             <PnlBasisToggle basis={basis} onBasisChange={setBasis} />
           </div>
           <dl
-            className="@3xl:grid-cols-4 border-border bg-border grid grid-cols-2 gap-px border"
+            className="grid grid-cols-2 gap-px border border-border bg-border @3xl:grid-cols-4"
             aria-label={t('home.scoped.discovery_title')}
           >
             <KpiCell label={t('home.scoped.deployed')} testId="deployed" now>
@@ -163,12 +163,12 @@ export function ScopedKpiStrip({ profileId }: { readonly profileId: string }): R
               className="space-y-2"
             >
               <div>
-                <h3 className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider">
+                <h3 className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
                   {t('home.scoped.by_source_title')}
                 </h3>
-                <p className="text-muted-fg text-xs">{t('home.scoped.by_source_desc')}</p>
+                <p className="text-xs text-muted-fg">{t('home.scoped.by_source_desc')}</p>
               </div>
-              <ul className="border-border bg-bg-elevated space-y-2 border p-3">
+              <ul className="space-y-2 border border-border bg-bg-elevated p-3">
                 {bySource.map((b) => (
                   <li
                     key={b.source}
@@ -176,7 +176,7 @@ export function ScopedKpiStrip({ profileId }: { readonly profileId: string }): R
                     data-testid={`scoped-source-${b.source}`}
                   >
                     <div className="flex items-center justify-between gap-3 text-xs">
-                      <span className="text-muted-fg min-w-0 flex-1 truncate">
+                      <span className="min-w-0 flex-1 truncate text-muted-fg">
                         {sourceLabel(b.source)}
                       </span>
                       <span className="w-24 text-right font-mono tabular-nums">

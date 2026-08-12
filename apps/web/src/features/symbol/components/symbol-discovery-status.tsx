@@ -83,10 +83,10 @@ export function SymbolDiscoveryStatus({
         >
           auto-discovered
         </Badge>
-        <h2 className="text-fg text-sm font-semibold">When this coin gets removed</h2>
+        <h2 className="text-sm font-semibold text-fg">When this coin gets removed</h2>
       </div>
-      <p className="text-fg text-sm">{headline}</p>
-      {rule ? <p className="text-muted-fg text-xs">{rule}</p> : null}
+      <p className="text-sm text-fg">{headline}</p>
+      {rule ? <p className="text-xs text-muted-fg">{rule}</p> : null}
     </Card>
   );
 }

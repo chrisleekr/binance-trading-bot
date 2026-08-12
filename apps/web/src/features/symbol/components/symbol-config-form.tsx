@@ -92,11 +92,11 @@ function OverrideSummary({ profileConfig }: { readonly profileConfig: Config }):
       }
     >
       {leaves.length === 0 ? (
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           Every field matches the profile config — this symbol inherits it.
         </p>
       ) : (
-        <ul className="divide-border divide-y text-sm">
+        <ul className="divide-y divide-border text-sm">
           {leaves.map((leaf) => (
             <li
               key={leaf.path}

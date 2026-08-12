@@ -47,12 +47,7 @@ export const buildRankContext = (
 
 /** The ticker-stage filter names (stages 1-6), in evaluation order. */
 export type TickerStageName =
-  | 'quote'
-  | 'blacklist'
-  | 'liquidity'
-  | 'activity'
-  | 'spread'
-  | 'changeBand';
+  'quote' | 'blacklist' | 'liquidity' | 'activity' | 'spread' | 'changeBand';
 
 /**
  * The ordered ticker-stage chain (stages 1-6) — the single source of truth for

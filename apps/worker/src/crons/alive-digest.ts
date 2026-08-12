@@ -109,7 +109,11 @@ export const createAliveDigest = (
     // Informational: an undelivered digest gets the dispatcher's warn log, not
     // a durable action_log row.
     await dispatchNotify(
-      { registry: deps.notifyRegistry, logger: deps.logger, ...(deps.liveDemo ? { liveDemo: true } : {}) },
+      {
+        registry: deps.notifyRegistry,
+        logger: deps.logger,
+        ...(deps.liveDemo ? { liveDemo: true } : {}),
+      },
       resolved,
       message,
     );

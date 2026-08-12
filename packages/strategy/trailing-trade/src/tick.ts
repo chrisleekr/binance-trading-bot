@@ -665,14 +665,12 @@ const buyAndSnapshotBranch: BranchHandler = (ctx) => {
     const cancelRestingEntryBuys = (): readonly Decision[] =>
       ctx.input.openOrders
         .filter((o) => o.symbol === market.symbol && o.side === 'BUY')
-        .map(
-          (o): Decision => ({
-            type: 'cancel-order',
-            orderId: o.orderId,
-            symbol: market.symbol,
-            reason: 'tt-regime-entry-block',
-          }),
-        );
+        .map((o): Decision => ({
+          type: 'cancel-order',
+          orderId: o.orderId,
+          symbol: market.symbol,
+          reason: 'tt-regime-entry-block',
+        }));
 
     // Require-uptrend gate (opt-in via onBull.requireEntry): open a fresh
     // position only on a confirmed daily bull. Independent of the bear block and
@@ -733,14 +731,12 @@ const buyAndSnapshotBranch: BranchHandler = (ctx) => {
           o.type === 'LIMIT' &&
           closedBarsSinceEntry(market, config.candleInterval, o.transactTimeMs) >= entryTimeoutBars,
       )
-      .map(
-        (o): Decision => ({
-          type: 'cancel-order',
-          orderId: o.orderId,
-          symbol: market.symbol,
-          reason: 'tt-entry-timeout',
-        }),
-      );
+      .map((o): Decision => ({
+        type: 'cancel-order',
+        orderId: o.orderId,
+        symbol: market.symbol,
+        reason: 'tt-entry-timeout',
+      }));
   }
 
   // Re-entry cooldown — suppress a fresh first entry while a prior force-sell's

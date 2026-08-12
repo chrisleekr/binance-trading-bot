@@ -121,12 +121,12 @@ export function StatusBar({ className }: { className?: string }) {
   return (
     <footer
       className={cn(
-        'border-border bg-bg text-muted-fg flex h-6 shrink-0 items-center justify-between gap-4 border-t px-4 text-xs',
+        'flex h-6 shrink-0 items-center justify-between gap-4 border-t border-border bg-bg px-4 text-xs text-muted-fg',
         className,
       )}
     >
       <span className="flex items-center gap-1.5">
-        <span className="bg-success inline-block h-1.5 w-1.5 rounded-full" aria-hidden />
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-success" aria-hidden />
         Signed in
       </span>
       <BuildStatus status={q.data} timeZone={timeZone} />

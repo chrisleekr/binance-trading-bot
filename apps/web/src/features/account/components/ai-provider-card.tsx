@@ -171,7 +171,7 @@ export function AiProviderCard(): React.JSX.Element {
                 onChange={(e) => setOpenaiBaseUrl(e.target.value)}
                 placeholder="http://host.docker.internal:11434/v1"
               />
-              <p className="text-muted-fg text-xs">
+              <p className="text-xs text-muted-fg">
                 For a local Ollama, use http://host.docker.internal:11434/v1
               </p>
             </div>

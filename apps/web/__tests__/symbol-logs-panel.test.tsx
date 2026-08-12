@@ -5,7 +5,7 @@
 //  4. "Load older" widens the window backwards.
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -248,9 +248,7 @@ describe('SymbolLogsPanel — render', () => {
     await waitFor(() =>
       expect(screen.getByTestId('symbol-logs-count')).toHaveTextContent('2 rows'),
     );
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('symbol-logs-load-older'));
-    });
+    await userEvent.click(screen.getByTestId('symbol-logs-load-older'));
     await waitFor(() =>
       expect(screen.getByTestId('symbol-logs-count')).toHaveTextContent('4 rows'),
     );

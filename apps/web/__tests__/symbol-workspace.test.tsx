@@ -11,7 +11,7 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -358,16 +358,20 @@ describe('symbol workspace route', () => {
 
     // Swap to B (remounts A's subtree away) then leave (unmounts B). Both are the
     // router pushes the switcher / close button would issue.
-    await router.navigate({
-      to: '/accounts/$accountId/profiles/$profileId/symbols/$symbol',
-      params: { accountId: ACCOUNT_ID, profileId: PROFILE_ID, symbol: 'ETHUSDT' },
+    await act(async () => {
+      await router.navigate({
+        to: '/accounts/$accountId/profiles/$profileId/symbols/$symbol',
+        params: { accountId: ACCOUNT_ID, profileId: PROFILE_ID, symbol: 'ETHUSDT' },
+      });
     });
     await waitFor(() => {
       expect(router.state.location.pathname).toBe(
         `/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}/symbols/ETHUSDT`,
       );
     });
-    await router.navigate({ to: '/' });
+    await act(async () => {
+      await router.navigate({ to: '/' });
+    });
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/');
     });
@@ -375,7 +379,9 @@ describe('symbol workspace route', () => {
     // Past the 200ms debounce window: a leaked A-side timer would fire here.
     vi.useFakeTimers();
     try {
-      vi.advanceTimersByTime(300);
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
     } finally {
       vi.useRealTimers();
     }

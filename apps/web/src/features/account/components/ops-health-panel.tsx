@@ -33,7 +33,7 @@ export function OpsHealthPanel(): React.JSX.Element {
       testId="ops-health-panel"
       actions={
         erroring > 0 ? (
-          <span className="text-danger text-xs font-semibold uppercase tracking-wider">
+          <span className="text-xs font-semibold tracking-wider text-danger uppercase">
             {erroring} failing
           </span>
         ) : null
@@ -52,14 +52,14 @@ export function OpsHealthPanel(): React.JSX.Element {
         ) : null}
 
         {q.data && crons.length === 0 ? (
-          <p className="text-muted-fg text-sm">
+          <p className="text-sm text-muted-fg">
             No job has reported yet. If the worker just started, this fills in within a minute; if
             it stays empty, the worker may be down.
           </p>
         ) : null}
 
         {crons.length > 0 ? (
-          <ul className="divide-border divide-y">
+          <ul className="divide-y divide-border">
             {crons.map((c) => (
               <li
                 key={c.name}
@@ -74,11 +74,11 @@ export function OpsHealthPanel(): React.JSX.Element {
                     )}
                     aria-hidden
                   />
-                  <span className="text-fg font-mono text-xs">{c.name}</span>
+                  <span className="font-mono text-xs text-fg">{c.name}</span>
                 </span>
-                <span className="text-muted-fg flex items-center gap-2 text-xs">
+                <span className="flex items-center gap-2 text-xs text-muted-fg">
                   {c.status === 'error' && c.error ? (
-                    <span className="text-danger max-w-[16rem] truncate" title={c.error}>
+                    <span className="max-w-[16rem] truncate text-danger" title={c.error}>
                       {c.error}
                     </span>
                   ) : null}

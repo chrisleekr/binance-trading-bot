@@ -136,7 +136,7 @@ export function BackupSettingsCard(): React.JSX.Element {
   if (loadError !== null) {
     return (
       <Panel title="Automatic backups">
-        <p className="text-danger text-sm">Could not load backup settings: {loadError}</p>
+        <p className="text-sm text-danger">Could not load backup settings: {loadError}</p>
       </Panel>
     );
   }
@@ -200,7 +200,7 @@ export function BackupSettingsCard(): React.JSX.Element {
               className="w-full"
             />
             {!intervalValid ? (
-              <p className="text-danger text-sm">
+              <p className="text-sm text-danger">
                 Enter a whole number of hours between {INTERVAL_MIN} and {INTERVAL_MAX}.
               </p>
             ) : null}
@@ -219,7 +219,7 @@ export function BackupSettingsCard(): React.JSX.Element {
               className="w-full"
             />
             {!retentionValid ? (
-              <p className="text-danger text-sm">
+              <p className="text-sm text-danger">
                 Enter a whole number between {RETENTION_MIN} and {RETENTION_MAX}. Older copies are
                 deleted once you have this many.
               </p>
@@ -238,14 +238,14 @@ export function BackupSettingsCard(): React.JSX.Element {
         </form>
 
         <div className="space-y-2">
-          <h3 className="text-fg text-sm font-semibold">Recent backups</h3>
+          <h3 className="text-sm font-semibold text-fg">Recent backups</h3>
           {status.recentBackups.length === 0 ? (
-            <p className="text-muted-fg text-sm">No backups yet.</p>
+            <p className="text-sm text-muted-fg">No backups yet.</p>
           ) : (
             // Only the 10 most recent; retention can keep far more on disk than
             // is useful to scan here. Sort by modified time so "most recent" holds
             // regardless of the order the API returns.
-            <ul className="divide-border border-border divide-y border-t">
+            <ul className="divide-y divide-border border-t border-border">
               {[...status.recentBackups]
                 .sort((a, b) => Date.parse(b.modifiedAt) - Date.parse(a.modifiedAt))
                 .slice(0, 10)
@@ -254,8 +254,8 @@ export function BackupSettingsCard(): React.JSX.Element {
                     key={file.name}
                     className="flex items-center justify-between gap-3 py-2 text-sm"
                   >
-                    <span className="text-fg min-w-0 truncate font-mono text-xs">{file.name}</span>
-                    <span className="text-muted-fg flex shrink-0 items-center gap-3 tabular-nums">
+                    <span className="min-w-0 truncate font-mono text-xs text-fg">{file.name}</span>
+                    <span className="flex shrink-0 items-center gap-3 text-muted-fg tabular-nums">
                       <span>{formatSize(file.sizeBytes)}</span>
                       <span>{humaniseAge(nowMs - Date.parse(file.modifiedAt))} ago</span>
                     </span>

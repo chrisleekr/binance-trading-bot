@@ -20,9 +20,7 @@ import {
  * the prior stamp so the re-add audit line can show how long it was missing.
  */
 export type DiscoveryAddOutcome =
-  | { outcome: 'created' }
-  | { outcome: 'existing' }
-  | { outcome: 'readded'; prevAddedAt: number };
+  { outcome: 'created' } | { outcome: 'existing' } | { outcome: 'readded'; prevAddedAt: number };
 
 /**
  * Apply a discovery ADD to storage: flip the symbol to `source='auto'`, stamp

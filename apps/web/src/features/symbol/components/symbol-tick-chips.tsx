@@ -32,8 +32,8 @@ export function SymbolTickChips({
   if (data === undefined) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="bg-surface-alt h-6 w-16 animate-pulse rounded-full" />
-        <span className="bg-surface-alt h-6 w-16 animate-pulse rounded-full" />
+        <span className="h-6 w-16 animate-pulse rounded-full bg-surface-alt" />
+        <span className="h-6 w-16 animate-pulse rounded-full bg-surface-alt" />
       </div>
     );
   }
@@ -66,7 +66,7 @@ export function SymbolTickChips({
           to="/accounts/$accountId/api-key"
           params={{ accountId }}
           aria-label={t('symbol.tick.configure_key.aria', { profileName: row.name })}
-          className="text-accent text-xs underline"
+          className="text-xs text-accent underline"
           data-testid="symbol-tick-chip-api-key-link"
         >
           {t('symbol.tick.configure_key')}
@@ -93,11 +93,11 @@ function TickChip({
 }): React.JSX.Element {
   return (
     <span
-      className="border-border bg-bg-elevated text-muted-fg inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-elevated px-2.5 py-1 text-xs text-muted-fg"
       data-testid={testId}
     >
       <span>{label}</span>
-      <span className="text-fg font-medium tabular-nums">{value}</span>
+      <span className="font-medium text-fg tabular-nums">{value}</span>
     </span>
   );
 }

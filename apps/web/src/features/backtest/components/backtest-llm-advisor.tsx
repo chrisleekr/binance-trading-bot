@@ -173,10 +173,10 @@ export function BacktestLlmAdvisor({
     <section
       aria-labelledby="bt-llm-h"
       data-testid="backtest-llm-advisor"
-      className="border-border bg-bg-elevated space-y-3 rounded-md border p-3"
+      className="space-y-3 rounded-md border border-border bg-bg-elevated p-3"
     >
       <div className="space-y-1">
-        <h2 id="bt-llm-h" className="text-fg flex items-center gap-1.5 text-sm font-semibold">
+        <h2 id="bt-llm-h" className="flex items-center gap-1.5 text-sm font-semibold text-fg">
           <Sparkles aria-hidden className="h-4 w-4" />
           Ask AI for config ideas
         </h2>
@@ -196,7 +196,7 @@ export function BacktestLlmAdvisor({
       </p>
       <p
         role="note"
-        className="border-warning/40 bg-bg-elevated rounded-md border px-2.5 py-1.5 text-xs"
+        className="rounded-md border border-warning/40 bg-bg-elevated px-2.5 py-1.5 text-xs"
       >
         Explore variants suggest higher-variance changes, including larger position sizing, which
         amplifies losses as well as gains. Treat every suggestion as a hypothesis to re-run, not a
@@ -245,31 +245,31 @@ export function BacktestLlmAdvisor({
       </div>
 
       {unavailable ? (
-        <p className="text-down text-xs" data-testid="backtest-llm-error">
+        <p className="text-xs text-down" data-testid="backtest-llm-error">
           {NOT_CONFIGURED_NOTE}
         </p>
       ) : startErrored ? (
-        <p className="text-down text-xs" data-testid="backtest-llm-error">
+        <p className="text-xs text-down" data-testid="backtest-llm-error">
           {errorMessage(advisor.start.error)}
         </p>
       ) : null}
 
       {manualOpen ? (
-        <div className="border-border space-y-2 border-t pt-3" data-testid="backtest-llm-manual">
-          <p className="text-muted-fg text-xs">
+        <div className="space-y-2 border-t border-border pt-3" data-testid="backtest-llm-manual">
+          <p className="text-xs text-muted-fg">
             Copy this prompt into your AI chat (e.g. <strong>claude.ai</strong>), then paste the
             reply below. Use this when you&rsquo;d rather not configure a server-side provider. The
             result is saved to this run like the others.
           </p>
           {promptMut.isError ? (
-            <p className="text-down text-xs">{errorMessage(promptMut.error)}</p>
+            <p className="text-xs text-down">{errorMessage(promptMut.error)}</p>
           ) : null}
           {promptMut.data ? (
             <>
               <div className="relative">
                 <pre
                   data-testid="backtest-llm-prompt"
-                  className="border-border bg-surface-alt max-h-48 overflow-auto whitespace-pre-wrap rounded-md border p-2 pr-16 text-[11px] leading-snug"
+                  className="max-h-48 overflow-auto rounded-md border border-border bg-surface-alt p-2 pr-16 text-[11px] leading-snug whitespace-pre-wrap"
                 >
                   {promptMut.data.prompt}
                 </pre>
@@ -277,7 +277,7 @@ export function BacktestLlmAdvisor({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="absolute right-1.5 top-1.5"
+                  className="absolute top-1.5 right-1.5"
                   onClick={copyPrompt}
                   data-testid="backtest-llm-copy"
                 >
@@ -291,10 +291,10 @@ export function BacktestLlmAdvisor({
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
                 placeholder="Paste the AI's reply here"
-                className="border-border bg-surface-alt focus-visible:ring-focus h-24 w-full rounded-md border p-2 text-xs focus-visible:outline-none focus-visible:ring-2"
+                className="h-24 w-full rounded-md border border-border bg-surface-alt p-2 text-xs focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
               />
               {parseMut.isError ? (
-                <p className="text-down text-xs" data-testid="backtest-llm-parse-error">
+                <p className="text-xs text-down" data-testid="backtest-llm-parse-error">
                   {errorMessage(parseMut.error)}
                 </p>
               ) : null}
@@ -314,10 +314,10 @@ export function BacktestLlmAdvisor({
       ) : null}
 
       {selectedVariant !== null && !manualOpen ? (
-        <div className="border-border space-y-3 border-t pt-3">
+        <div className="space-y-3 border-t border-border pt-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-muted-fg text-xs">
-              Variant: <span className="text-fg font-medium">{SLOT_LABEL[selectedVariant]}</span>
+            <span className="text-xs text-muted-fg">
+              Variant: <span className="font-medium text-fg">{SLOT_LABEL[selectedVariant]}</span>
             </span>
             {selectedVariant !== 'manual' ? (
               <Button
@@ -336,21 +336,21 @@ export function BacktestLlmAdvisor({
 
           {running ? (
             <div
-              className="text-muted-fg flex items-center gap-2 text-xs"
+              className="flex items-center gap-2 text-xs text-muted-fg"
               data-testid="backtest-llm-generating"
             >
               <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
               Generating suggestions… this runs in the background, so you can leave and come back.
             </div>
           ) : row?.status === 'error' ? (
-            <p className="text-down text-xs" data-testid="backtest-llm-error">
+            <p className="text-xs text-down" data-testid="backtest-llm-error">
               {row.errorReason === 'not-configured'
                 ? NOT_CONFIGURED_NOTE
                 : 'The AI couldn’t generate suggestions for this run. Try Regenerate.'}
             </p>
           ) : row?.status === 'done' ? (
             <>
-              <p className="text-muted-fg text-xs" data-testid="backtest-llm-summary">
+              <p className="text-xs text-muted-fg" data-testid="backtest-llm-summary">
                 {row.summary}
               </p>
               {suggestions.length > 0 ? (
@@ -366,7 +366,7 @@ export function BacktestLlmAdvisor({
                             aria-label={s.title}
                             onClick={() => toggle(s.id)}
                             data-testid={`backtest-llm-toggle-${s.id}`}
-                            className={`focus-visible:ring-focus flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 ${
+                            className={`flex w-full items-start gap-3 rounded-md border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none ${
                               isSelected
                                 ? 'border-accent bg-accent/10'
                                 : 'border-border bg-surface-alt'
@@ -383,12 +383,12 @@ export function BacktestLlmAdvisor({
                               {isSelected ? <Check className="h-3 w-3" /> : null}
                             </span>
                             <span className="space-y-1">
-                              <span className="text-fg block text-sm font-medium">{s.title}</span>
-                              <span className="text-muted-fg block text-xs leading-snug">
+                              <span className="block text-sm font-medium text-fg">{s.title}</span>
+                              <span className="block text-xs leading-snug text-muted-fg">
                                 {s.rationale}
                               </span>
                               {s.expectedEffect ? (
-                                <span className="text-muted-fg block text-xs leading-snug">
+                                <span className="block text-xs leading-snug text-muted-fg">
                                   Expected effect: {s.expectedEffect}
                                 </span>
                               ) : null}
@@ -403,7 +403,7 @@ export function BacktestLlmAdvisor({
                       );
                     })}
                   </ul>
-                  <div className="border-border space-y-1.5 border-t pt-3">
+                  <div className="space-y-1.5 border-t border-border pt-3">
                     <Button
                       type="button"
                       variant="primary"
@@ -416,7 +416,7 @@ export function BacktestLlmAdvisor({
                         ? 'Select changes to load'
                         : `Load ${chosen.length} change${chosen.length > 1 ? 's' : ''} into Setup`}
                     </Button>
-                    <p className="text-muted-fg text-xs">
+                    <p className="text-xs text-muted-fg">
                       Loads into the Setup form for review. You run the backtest, and the new run
                       must clear the out-of-sample gate before you can apply it to live.
                     </p>
@@ -426,10 +426,10 @@ export function BacktestLlmAdvisor({
 
               {dropped.length > 0 ? (
                 <div
-                  className="border-border space-y-2 border-t pt-3"
+                  className="space-y-2 border-t border-border pt-3"
                   data-testid="backtest-llm-dropped"
                 >
-                  <p className="text-warning text-xs font-medium">
+                  <p className="text-xs font-medium text-warning">
                     {dropped.length === 1
                       ? 'The AI proposed 1 change that doesn’t fit the strategy’s allowed settings, so it was skipped:'
                       : `The AI proposed ${dropped.length} changes that don’t fit the strategy’s allowed settings, so they were skipped:`}
@@ -439,10 +439,10 @@ export function BacktestLlmAdvisor({
                       <li
                         key={d.id}
                         data-testid={`backtest-llm-dropped-${d.id}`}
-                        className="border-border bg-surface-alt rounded-md border border-dashed p-3"
+                        className="rounded-md border border-dashed border-border bg-surface-alt p-3"
                       >
-                        <span className="text-muted-fg block text-sm font-medium">{d.title}</span>
-                        <span className="text-muted-fg block font-mono text-xs leading-snug">
+                        <span className="block text-sm font-medium text-muted-fg">{d.title}</span>
+                        <span className="block font-mono text-xs leading-snug text-muted-fg">
                           {d.reason}
                         </span>
                       </li>
@@ -452,7 +452,7 @@ export function BacktestLlmAdvisor({
               ) : null}
 
               {suggestions.length === 0 && dropped.length === 0 ? (
-                <p className="text-muted-fg text-xs">
+                <p className="text-xs text-muted-fg">
                   No config change suggested — the AI didn&rsquo;t find one likely to beat what you
                   have.
                 </p>

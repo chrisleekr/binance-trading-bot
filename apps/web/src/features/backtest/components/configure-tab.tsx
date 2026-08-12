@@ -67,12 +67,12 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
   } = wb.config;
 
   return (
-    <section id="bt-adjust-rerun" className="border-border bg-bg-elevated rounded-md border">
-      <div className="border-border border-b px-3 py-2">
-        <h2 className="text-fg text-sm font-semibold">
+    <section id="bt-adjust-rerun" className="rounded-md border border-border bg-bg-elevated">
+      <div className="border-b border-border px-3 py-2">
+        <h2 className="text-sm font-semibold text-fg">
           {activeRunId ? 'Adjust & re-run' : 'Configure a backtest'}
         </h2>
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           {activeRunId
             ? 'Change any setting below and run again. Your live config is unchanged until you apply a result.'
             : 'Set the window, costs, and strategy config, then run.'}
@@ -80,16 +80,16 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
       </div>
       <div className="space-y-4 p-3">
         {isBasket ? (
-          <p className="text-muted-fg text-sm" data-testid="backtest-basket-note">
+          <p className="text-sm text-muted-fg" data-testid="backtest-basket-note">
             This strategy trades a basket. Set the symbols and their weights under{' '}
-            <span className="text-fg font-medium">Strategy config</span> below; the backtest runs
+            <span className="font-medium text-fg">Strategy config</span> below; the backtest runs
             over all of them.
           </p>
         ) : (
           <SymbolPicker value={symbol} onChange={setSymbol} />
         )}
         <div className="space-y-1.5">
-          <span className="text-muted-fg text-xs">Quick window (ending now)</span>
+          <span className="text-xs text-muted-fg">Quick window (ending now)</span>
           <div className="flex flex-wrap gap-2">
             {WINDOW_PRESETS.map((w) => (
               <Button
@@ -133,14 +133,14 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
                 </option>
               ))}
             </select>
-            <p className="text-muted-fg text-xs">
+            <p className="text-xs text-muted-fg">
               Finer candles used to simulate price movement inside each strategy candle, for more
               realistic fills. Must be the same as or finer than your{' '}
               <span className="font-medium">Candle Interval</span> ({decisionInterval}), set in
               Strategy config below.
             </p>
             {detailIntervalTooCoarse && (
-              <p className="text-down text-xs">
+              <p className="text-xs text-down">
                 Detail interval must be the same as or finer than your Candle Interval (
                 {decisionInterval}).
               </p>
@@ -150,13 +150,13 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
 
         {/* Costs & realism are expert knobs set once; fold them away with a
             summary of the current values so nothing is hidden, just quieted. */}
-        <details className="border-border bg-surface-alt group rounded-md border">
-          <summary className="focus-visible:ring-focus flex cursor-pointer list-none flex-col gap-0.5 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 [&::-webkit-details-marker]:hidden">
-            <span className="text-fg flex items-center justify-between gap-2 text-sm font-medium">
+        <details className="group rounded-md border border-border bg-surface-alt">
+          <summary className="flex cursor-pointer list-none flex-col gap-0.5 px-3 py-2 focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center justify-between gap-2 text-sm font-medium text-fg">
               Advanced — fees, slippage &amp; realism
-              <ChevronDown className="text-muted-fg h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-fg transition-transform group-open:rotate-180" />
             </span>
-            <span className="text-muted-fg text-xs tabular-nums">{costSummary(params)}</span>
+            <span className="text-xs text-muted-fg tabular-nums">{costSummary(params)}</span>
           </summary>
           <div className="grid grid-cols-1 gap-4 p-3 pt-1 sm:grid-cols-2">
             <CostModelFields
@@ -168,11 +168,11 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
           </div>
         </details>
 
-        <div aria-labelledby="bt-config-h" className="border-border space-y-3 border-t pt-4">
-          <h3 id="bt-config-h" className="text-fg text-sm font-medium">
+        <div aria-labelledby="bt-config-h" className="space-y-3 border-t border-border pt-4">
+          <h3 id="bt-config-h" className="text-sm font-medium text-fg">
             Strategy config
           </h3>
-          <p className="text-muted-fg text-sm">
+          <p className="text-sm text-muted-fg">
             Prefilled from this profile's live config. Edit any field to test a different setup; the
             run uses these values, not the saved config.
           </p>
@@ -207,7 +207,7 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
                 </Button>
               </AutoForm>
               {configDrifted || runConfigSeed !== null ? (
-                <div className="border-border space-y-2 border-t pt-3">
+                <div className="space-y-2 border-t border-border pt-3">
                   <Button
                     type="button"
                     variant="outline"
@@ -218,7 +218,7 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
                   >
                     Reset to current live config
                   </Button>
-                  <p className="text-muted-fg text-xs">
+                  <p className="text-xs text-muted-fg">
                     {runConfigSeed !== null
                       ? 'This form is showing a loaded config (a past run or a suggested change). Reset to restore the profile’s saved live config.'
                       : 'Restores the profile’s saved live config, discarding your edits above.'}

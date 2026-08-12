@@ -78,7 +78,7 @@ export function CoinIcon({
     <span
       aria-hidden
       className={cn(
-        'bg-bg-elevated border-border text-muted-fg flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold',
+        'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border bg-bg-elevated text-[11px] font-semibold text-muted-fg',
         className,
       )}
       data-testid={testId}

@@ -99,19 +99,19 @@ export function BacktestApplyConfig({
     <div className="space-y-2">
       <ActionBanner banner={banner} />
       {leaves.length === 0 ? (
-        <p className="text-muted-fg text-sm">
+        <p className="text-sm text-muted-fg">
           This run's config matches the live config — nothing to apply.
         </p>
       ) : (
         <div className="space-y-1.5">
-          <p className="text-muted-fg text-xs">
+          <p className="text-xs text-muted-fg">
             This run tested {leaves.length} field{leaves.length === 1 ? '' : 's'} that differ from
             the live config.
           </p>
           <Button type="button" className="h-11 w-full" onClick={() => setOpen(true)}>
             Apply to live config
           </Button>
-          {warning ? <p className="text-warning text-xs">{warning}</p> : null}
+          {warning ? <p className="text-xs text-warning">{warning}</p> : null}
         </div>
       )}
 
@@ -125,9 +125,9 @@ export function BacktestApplyConfig({
             </DialogDescription>
           </DialogHeader>
           {warning ? (
-            <p className="bg-bg-elevated text-warning rounded-md p-2 text-xs">{warning}</p>
+            <p className="rounded-md bg-bg-elevated p-2 text-xs text-warning">{warning}</p>
           ) : null}
-          <ul className="divide-border max-h-64 divide-y overflow-y-auto text-sm">
+          <ul className="max-h-64 divide-y divide-border overflow-y-auto text-sm">
             {leaves.map((leaf) => (
               <li key={leaf.path} className="flex flex-col gap-0.5 py-2">
                 <span className="font-medium">{labelForPath(leaf.path)}</span>

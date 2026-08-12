@@ -32,7 +32,7 @@ export function BottomNav({
       // home indicator on devices that report a non-zero bottom inset.
       // The h-16 sets the bar's chrome height; the inset adds on below.
       className={cn(
-        'border-border bg-bg-elevated flex h-16 w-full items-stretch justify-around border-t pb-[env(safe-area-inset-bottom)]',
+        'flex h-16 w-full items-stretch justify-around border-t border-border bg-bg-elevated pb-[env(safe-area-inset-bottom)]',
         className,
       )}
     >
@@ -40,7 +40,7 @@ export function BottomNav({
         <Link
           key={to}
           to={to}
-          className="text-muted-fg hover:text-fg flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-1 border-t-2 border-transparent text-xs font-medium"
+          className="flex min-h-11 min-w-11 flex-1 flex-col items-center justify-center gap-1 border-t-2 border-transparent text-xs font-medium text-muted-fg hover:text-fg"
           activeProps={{ className: 'border-t-accent text-accent' }}
           activeOptions={{ exact: to === '/' }}
         >

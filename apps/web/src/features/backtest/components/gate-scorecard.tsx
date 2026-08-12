@@ -43,7 +43,7 @@ export function GateScorecard({
     <Card className="space-y-3 p-4" data-testid="gate-scorecard">
       <header className="flex items-baseline justify-between gap-3">
         <span className="flex items-center gap-1">
-          <h3 className="text-fg text-sm font-semibold">Live-gate quality check</h3>
+          <h3 className="text-sm font-semibold text-fg">Live-gate quality check</h3>
           <InfoHint label="Live-gate quality check">
             A sanity check that this config actually made money in the backtest before you risk real
             money. Advisory only — it never blocks you.
@@ -52,7 +52,7 @@ export function GateScorecard({
         <span
           data-testid="gate-scorecard-verdict"
           className={cn(
-            'text-xs font-semibold uppercase tracking-wider',
+            'text-xs font-semibold tracking-wider uppercase',
             passed ? 'text-success' : 'text-warning',
           )}
         >
@@ -69,20 +69,20 @@ export function GateScorecard({
           >
             <span className="flex items-center gap-2">
               {c.ok ? (
-                <Check className="text-success h-4 w-4" aria-hidden />
+                <Check className="h-4 w-4 text-success" aria-hidden />
               ) : (
-                <X className="text-warning h-4 w-4" aria-hidden />
+                <X className="h-4 w-4 text-warning" aria-hidden />
               )}
               <span className="text-fg capitalize">{c.label}</span>
             </span>
-            <span className="text-muted-fg font-mono text-xs">
+            <span className="font-mono text-xs text-muted-fg">
               {c.actual} <span className="opacity-60">(need {c.need})</span>
             </span>
           </li>
         ))}
       </ul>
 
-      <p className="text-muted-fg text-xs">
+      <p className="text-xs text-muted-fg">
         {passed
           ? 'These results clear the gate’s quality thresholds — a green light that this config is proven. Enabling live is never blocked by the gate; this is advisory.'
           : 'These results do not clear the gate’s quality thresholds. Enabling live is never blocked, but if you turn on “pause new buys when unproven” for this profile, a live config that stops passing has its new buys paused until a run clears the gate (open positions still sell). Tune the config and re-run.'}

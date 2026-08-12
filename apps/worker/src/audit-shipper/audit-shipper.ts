@@ -234,8 +234,7 @@ export const createAuditDrainer = (deps: AuditDrainerDeps): AuditDrainer => {
       probePipe.xinfo('GROUPS', stream);
     }
     const replies = (await probePipe.exec().catch(() => null)) as
-      | readonly [Error | null, unknown][]
-      | null;
+      readonly [Error | null, unknown][] | null;
     streams.forEach((stream, i) => {
       // Per-stream, so one stream's bad slot cannot cost the rest their gauges.
       try {

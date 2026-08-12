@@ -164,7 +164,7 @@ export function AutoForm<T extends FieldValues>({
           {banner ? (
             <div
               role="alert"
-              className="bg-danger/10 rounded-xs border-danger text-danger border p-3 text-sm"
+              className="rounded-xs border border-danger bg-danger/10 p-3 text-sm text-danger"
             >
               {banner}
             </div>

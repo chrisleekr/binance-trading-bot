@@ -180,7 +180,7 @@ function ChartPanel({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-fg text-sm font-semibold">Candle chart</h2>
+        <h2 className="text-sm font-semibold text-fg">Candle chart</h2>
         <ChartIntervalSelector value={interval} onChange={onIntervalChange} />
       </div>
       <ChartBody
@@ -242,7 +242,7 @@ function ChartBody({
       {!candles || candles.length === 0 ? (
         <p
           data-testid="symbol-chart-empty"
-          className="text-muted-fg pointer-events-none absolute inset-x-0 top-2 text-center text-xs"
+          className="pointer-events-none absolute inset-x-0 top-2 text-center text-xs text-muted-fg"
         >
           No candles in the last window.
         </p>

@@ -95,7 +95,7 @@ function Coin({ holding }: { holding: CoinHolding }) {
       className="flex items-center gap-1.5"
       data-testid={`topbar-ticker-coin-${holding.symbol}`}
     >
-      <span className={cn(VALUE, 'text-fg font-semibold')}>{holding.base}</span>
+      <span className={cn(VALUE, 'font-semibold text-fg')}>{holding.base}</span>
       <PnlValue value={holding.pnl} unit={holding.quote} className={VALUE} />
       {holding.pnlPercent !== '' && Number(holding.pnlPercent) !== 0 ? (
         <span className={cn(VALUE, PNL_TONE[pctSign])}>
@@ -193,7 +193,7 @@ function TickerMarquee({ metrics }: { metrics: TickerMetrics }) {
   }, [contentSig]);
 
   return (
-    <div ref={trackRef} className="animate-ticker flex shrink-0 items-center whitespace-nowrap">
+    <div ref={trackRef} className="flex shrink-0 animate-ticker items-center whitespace-nowrap">
       {Array.from({ length: TICKER_RUNS }, (_, i) => (
         <span
           key={i}
@@ -234,7 +234,7 @@ export function TopBarTickerBar() {
     <div
       data-testid="topbar-ticker-mobile"
       aria-label={t('topbar.ticker.label')}
-      className="border-border bg-bg-elevated flex items-center overflow-hidden border-b px-4 py-1.5 md:hidden"
+      className="flex items-center overflow-hidden border-b border-border bg-bg-elevated px-4 py-1.5 md:hidden"
     >
       <TickerMarquee metrics={metrics} />
     </div>

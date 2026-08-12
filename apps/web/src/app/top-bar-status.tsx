@@ -45,7 +45,7 @@ function HealthLed() {
     <span
       data-testid="topbar-health"
       className={cn(
-        'flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider',
+        'flex items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase',
         state.text,
       )}
     >

@@ -143,7 +143,7 @@ export function AmountOrPercentWidget({
 
   return (
     <div className="space-y-2" data-testid={`amount-or-percent-${name}`}>
-      <div className="border-border inline-flex rounded-md border p-0.5" role="group">
+      <div className="inline-flex rounded-md border border-border p-0.5" role="group">
         {options.map((opt) => (
           <button
             key={opt}
@@ -174,7 +174,7 @@ export function AmountOrPercentWidget({
               aria-invalid={percent.fieldState.invalid || undefined}
               className={cn('pr-9')}
             />
-            <span className="text-muted-fg pointer-events-none absolute right-3 text-sm">%</span>
+            <span className="pointer-events-none absolute right-3 text-sm text-muted-fg">%</span>
           </div>
           {renderPercentPreview ? (
             renderPercentPreview(storedFraction, equity)
@@ -182,7 +182,7 @@ export function AmountOrPercentWidget({
             <>
               {equityPreview ? (
                 <p
-                  className="text-fg text-xs font-medium"
+                  className="text-xs font-medium text-fg"
                   data-testid={`amount-or-percent-${name}-preview`}
                 >
                   ≈ {formatAmount(equityPreview.value)} {equityPreview.quoteAsset}
@@ -192,7 +192,7 @@ export function AmountOrPercentWidget({
           )}
           {overMaxPercent ? (
             <p
-              className="text-warning text-xs font-medium"
+              className="text-xs font-medium text-warning"
               data-testid={`amount-or-percent-${name}-over-max`}
             >
               Over 100% of the account. The most you can set is 100% — a higher value is rejected
@@ -200,7 +200,7 @@ export function AmountOrPercentWidget({
             </p>
           ) : null}
           {renderPercentPreview ? null : (
-            <p className="text-muted-fg text-xs">
+            <p className="text-xs text-muted-fg">
               % of account = your cash plus the value of coins you hold
               {equity ? ` (${formatAmount(equity.equityQuote)} ${equity.quoteAsset} now)` : ''}.
             </p>

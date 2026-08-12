@@ -105,7 +105,7 @@ export function SymbolDisableBanner({
             {release.isPending ? 'Resuming…' : 'Resume now'}
           </Button>
         </div>
-        {errMsg ? <div className="text-danger text-xs">⚠ {errMsg}</div> : null}
+        {errMsg ? <div className="text-xs text-danger">⚠ {errMsg}</div> : null}
       </AlertDescription>
     </Alert>
   );

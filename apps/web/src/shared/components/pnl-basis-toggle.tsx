@@ -16,7 +16,7 @@ export function PnlBasisToggle({
 }): React.JSX.Element {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-muted-fg text-xs">P/L</span>
+      <span className="text-xs text-muted-fg">P/L</span>
       <Tabs value={basis} onValueChange={(v) => onBasisChange(v as PnlBasis)}>
         <TabsList>
           <TabsTrigger value="net" data-testid="pnl-basis-net" title="Profit after Binance fees">

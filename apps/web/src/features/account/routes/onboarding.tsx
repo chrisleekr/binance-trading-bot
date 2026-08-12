@@ -75,10 +75,10 @@ function OnboardingPage() {
   };
 
   return (
-    <section className="border-border-strong bg-bg-elevated mx-auto w-full max-w-md space-y-6 rounded-md border p-8">
+    <section className="mx-auto w-full max-w-md space-y-6 rounded-md border border-border-strong bg-bg-elevated p-8">
       <header className="space-y-1 text-center">
-        <h1 className="text-fg text-2xl font-semibold">{t('onboarding.title')}</h1>
-        <p className="text-muted-fg text-sm">{t('onboarding.subtitle')}</p>
+        <h1 className="text-2xl font-semibold text-fg">{t('onboarding.title')}</h1>
+        <p className="text-sm text-muted-fg">{t('onboarding.subtitle')}</p>
       </header>
 
       <Alert variant="warning" data-testid="onboarding-warning">
@@ -103,7 +103,7 @@ function OnboardingPage() {
             aria-describedby={errors.email ? 'onboarding-email-error' : undefined}
           />
           {errors.email && (
-            <p id="onboarding-email-error" className="text-danger text-sm">
+            <p id="onboarding-email-error" className="text-sm text-danger">
               {errors.email}
             </p>
           )}
@@ -128,11 +128,11 @@ function OnboardingPage() {
             }
           />
           {errors.password ? (
-            <p id="onboarding-password-error" className="text-danger text-sm">
+            <p id="onboarding-password-error" className="text-sm text-danger">
               {errors.password}
             </p>
           ) : (
-            <p id="onboarding-password-help" className="text-muted-fg text-sm">
+            <p id="onboarding-password-help" className="text-sm text-muted-fg">
               {t('auth.field.password.help')}
             </p>
           )}

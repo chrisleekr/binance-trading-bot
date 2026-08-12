@@ -92,7 +92,7 @@ function BackupRestorePage(): React.JSX.Element {
 
       <Panel title="Download">
         <div className="space-y-3">
-          <p className="text-muted-fg text-sm">
+          <p className="text-sm text-muted-fg">
             Saves a single backup file with your entire setup — every profile, API key, strategy
             config, and trade history. Your browser downloads it directly.
           </p>
@@ -104,7 +104,7 @@ function BackupRestorePage(): React.JSX.Element {
 
       <Panel title="Restore">
         <div className="space-y-3">
-          <p className="text-muted-fg text-sm">
+          <p className="text-sm text-muted-fg">
             Replaces everything currently in the bot — all profiles, API keys, configs, and trade
             history — with the contents of the backup file you choose. This overwrites your current
             state and cannot be undone.
@@ -116,7 +116,7 @@ function BackupRestorePage(): React.JSX.Element {
               accept=".dump,.sql,application/octet-stream"
               aria-label="Backup archive file"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="text-muted-fg rounded-xs file:rounded-xs file:text-fg border-border bg-surface-alt file:border-border file:bg-bg-elevated focus-visible:ring-accent flex h-11 w-full items-center border px-3 py-2 text-sm file:mr-3 file:border file:px-3 file:py-1.5 file:text-sm focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-11 w-full items-center rounded-xs border border-border bg-surface-alt px-3 py-2 text-sm text-muted-fg file:mr-3 file:rounded-xs file:border file:border-border file:bg-bg-elevated file:px-3 file:py-1.5 file:text-sm file:text-fg focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             />
             <div className="space-y-1">
               <Label htmlFor="restore-confirm">

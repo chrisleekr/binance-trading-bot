@@ -71,7 +71,7 @@ export function RealisedPnlCard({
   return (
     <Card>
       <section aria-labelledby="realised-pnl-heading" className="space-y-3">
-        <h2 id="realised-pnl-heading" className="text-fg text-sm font-semibold">
+        <h2 id="realised-pnl-heading" className="text-sm font-semibold text-fg">
           Realised P/L
         </h2>
         <div className="flex flex-wrap gap-1" role="group" aria-label="Period">
@@ -96,7 +96,7 @@ export function RealisedPnlCard({
                 // Zero closed trades has no denominator — a "0 / 0.00%" readout
                 // reads as "broke even on N trades" rather than "no trades".
                 <span
-                  className="text-muted-fg text-3xl font-semibold tabular-nums"
+                  className="text-3xl font-semibold text-muted-fg tabular-nums"
                   data-testid="realised-total-profit"
                 >
                   —
@@ -117,7 +117,7 @@ export function RealisedPnlCard({
                 </>
               )}
             </div>
-            <p className="text-muted-fg text-sm" data-testid="realised-trade-count">
+            <p className="text-sm text-muted-fg" data-testid="realised-trade-count">
               {data.tradeCount === 0
                 ? `No closed trades · ${periodLabel(period, data.from, data.to, timeZone)}`
                 : `${data.tradeCount} closed trade${data.tradeCount === 1 ? '' : 's'} · ${periodLabel(period, data.from, data.to, timeZone)}`}
@@ -127,7 +127,7 @@ export function RealisedPnlCard({
           // The headline figure and the trade-count line under it.
           <LoadingRows rows={2} />
         ) : (
-          <p className="text-muted-fg text-sm">Realised P/L unavailable.</p>
+          <p className="text-sm text-muted-fg">Realised P/L unavailable.</p>
         )}
       </section>
     </Card>

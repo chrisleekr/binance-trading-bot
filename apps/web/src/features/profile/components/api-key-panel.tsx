@@ -108,24 +108,24 @@ export function ApiKeyPanel(): React.JSX.Element {
           <div className="space-y-3">
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <dt className="text-muted-fg text-xs">Label</dt>
+                <dt className="text-xs text-muted-fg">Label</dt>
                 <dd className="font-medium">{apiKey.data.label ?? '—'}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-muted-fg text-xs">Secret</dt>
+                <dt className="text-xs text-muted-fg">Secret</dt>
                 <dd className="font-mono">••••••••{apiKey.data.last4}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-muted-fg text-xs">Bound</dt>
+                <dt className="text-xs text-muted-fg">Bound</dt>
                 <dd>{formatInstant(apiKey.data.createdAt, timeZone)}</dd>
               </div>
               <div className="flex justify-between gap-2">
-                <dt className="text-muted-fg text-xs">Verification</dt>
+                <dt className="text-xs text-muted-fg">Verification</dt>
                 <dd className="text-right" data-testid="api-key-verification">
                   {apiKey.data.verificationStatus === 'ok' ? (
-                    <span className="text-success font-medium">Verified ✓</span>
+                    <span className="font-medium text-success">Verified ✓</span>
                   ) : apiKey.data.verificationStatus === 'failed' ? (
-                    <span className="text-destructive font-medium">
+                    <span className="font-medium text-destructive">
                       Failed
                       {apiKey.data.verificationError ? `: ${apiKey.data.verificationError}` : ''}
                     </span>

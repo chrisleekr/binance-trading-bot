@@ -303,7 +303,7 @@ export function ManualTradePanel({ profileId, symbol }: SymbolTradePanelsProps):
 
   return (
     <section className="space-y-3" data-testid="manual-trade-panel">
-      <h2 className="text-fg text-sm font-semibold">Manual trade</h2>
+      <h2 className="text-sm font-semibold text-fg">Manual trade</h2>
       <form className="space-y-3" onSubmit={onReview} aria-label="Manual trade form">
         {/* min-w-0 on each column lets the flex items shrink below their
             content width; w-full on the native selects then fits them to the
@@ -313,7 +313,7 @@ export function ManualTradePanel({ profileId, symbol }: SymbolTradePanelsProps):
             <span>Side</span>
             <select
               data-testid="manual-side"
-              className="border-border bg-surface-alt rounded-xs h-9 w-full min-w-0 border px-2 text-sm"
+              className="h-9 w-full min-w-0 rounded-xs border border-border bg-surface-alt px-2 text-sm"
               value={form.side}
               onChange={(e) => setForm({ ...form, side: e.target.value as ManualForm['side'] })}
             >
@@ -325,7 +325,7 @@ export function ManualTradePanel({ profileId, symbol }: SymbolTradePanelsProps):
             <span>Type</span>
             <select
               data-testid="manual-type"
-              className="border-border bg-surface-alt rounded-xs h-9 w-full min-w-0 border px-2 text-sm"
+              className="h-9 w-full min-w-0 rounded-xs border border-border bg-surface-alt px-2 text-sm"
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value as ManualType, price: '' })}
             >
@@ -338,7 +338,7 @@ export function ManualTradePanel({ profileId, symbol }: SymbolTradePanelsProps):
             <select
               data-testid="manual-sizing"
               title="Choose whether you enter how much cash to spend (quote, e.g. USDT) or how much coin to trade (quantity, e.g. BTC)."
-              className="border-border bg-surface-alt rounded-xs h-9 w-full min-w-0 border px-2 text-sm"
+              className="h-9 w-full min-w-0 rounded-xs border border-border bg-surface-alt px-2 text-sm"
               value={form.sizing}
               onChange={(e) => setForm({ ...form, sizing: e.target.value as ManualSizing })}
             >
@@ -351,7 +351,7 @@ export function ManualTradePanel({ profileId, symbol }: SymbolTradePanelsProps):
         <div className="space-y-1.5">
           <div className="flex items-baseline justify-between text-xs">
             <span>{form.sizing === 'quoteAmount' ? 'Quote amount' : 'Quantity'}</span>
-            <span className="text-muted-fg text-xs" data-testid="manual-avbl">
+            <span className="text-xs text-muted-fg" data-testid="manual-avbl">
               <abbr
                 title="Available balance — the free amount you can trade right now"
                 className="no-underline"
@@ -359,7 +359,7 @@ export function ManualTradePanel({ profileId, symbol }: SymbolTradePanelsProps):
                 Avbl
               </abbr>{' '}
               <span
-                className="text-fg font-mono"
+                className="font-mono text-fg"
                 title={`${formatBalance(availFree)}${availAsset ? ` ${availAsset}` : ''}`}
               >
                 {/* Cash (quote, BUY) reads as 2dp money; a base coin (SELL) keeps
@@ -402,7 +402,7 @@ export function ManualTradePanel({ profileId, symbol }: SymbolTradePanelsProps):
             ))}
           </div>
           {insufficientBalance && availAsset ? (
-            <p className="text-danger text-xs" data-testid="manual-insufficient">
+            <p className="text-xs text-danger" data-testid="manual-insufficient">
               Exceeds available {availAsset} balance.
             </p>
           ) : null}
@@ -451,7 +451,7 @@ export function ManualTradePanel({ profileId, symbol }: SymbolTradePanelsProps):
           </DialogHeader>
           <dl
             aria-label="Order summary"
-            className="border-border divide-border divide-y rounded-md border text-sm"
+            className="divide-y divide-border rounded-md border border-border text-sm"
             data-testid="manual-order-recap"
           >
             <div className="flex justify-between px-3 py-1.5">
@@ -474,7 +474,7 @@ export function ManualTradePanel({ profileId, symbol }: SymbolTradePanelsProps):
             </div>
           </dl>
           {form.type === 'MARKET' && refPrice <= 0 ? (
-            <p className="text-muted-fg text-xs">
+            <p className="text-xs text-muted-fg">
               Live price unavailable — the worker prices this MARKET order at fill.
             </p>
           ) : null}
@@ -580,8 +580,8 @@ export function ForceTriggerPanel({
 
   return (
     <section className="space-y-3" data-testid="force-trigger-panel">
-      <h2 className="text-fg text-sm font-semibold">Force trigger</h2>
-      <p className="text-muted-fg text-xs">
+      <h2 className="text-sm font-semibold text-fg">Force trigger</h2>
+      <p className="text-xs text-muted-fg">
         Runs the strategy&apos;s {canBuy && canSell ? 'buy or sell' : canBuy ? 'buy' : 'sell'} for{' '}
         {symbol} now, without waiting for its normal entry/exit conditions. Each opens a
         confirmation spelling out the exact effect before it fires.
@@ -618,7 +618,7 @@ export function ForceTriggerPanel({
         ) : null}
       </div>
       {canSell && sellBlockedFlat ? (
-        <p className="text-muted-fg text-xs" data-testid="force-sell-flat-note">
+        <p className="text-xs text-muted-fg" data-testid="force-sell-flat-note">
           No open position to sell.
         </p>
       ) : null}

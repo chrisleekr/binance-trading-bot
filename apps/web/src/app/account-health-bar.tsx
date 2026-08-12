@@ -33,7 +33,7 @@ function Chip({
     <span
       data-testid={testId}
       className={cn(
-        'flex shrink-0 items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider',
+        'flex shrink-0 items-center gap-1.5 text-[11px] font-semibold tracking-wider uppercase',
         text,
       )}
     >
@@ -70,7 +70,7 @@ export function AccountHealthBar(): React.JSX.Element | null {
   return (
     <div
       data-testid="account-health-bar"
-      className="border-border bg-bg-elevated flex h-7 shrink-0 items-center gap-3 overflow-x-auto border-b px-3"
+      className="flex h-7 shrink-0 items-center gap-3 overflow-x-auto border-b border-border bg-bg-elevated px-3"
     >
       {workerChip}
 
@@ -121,7 +121,7 @@ export function AccountHealthBar(): React.JSX.Element | null {
           className="ml-auto flex shrink-0 items-center gap-2"
           data-testid="account-health-today"
         >
-          <span className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider">
+          <span className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
             Today
           </span>
           {liveToday.map((t) => (

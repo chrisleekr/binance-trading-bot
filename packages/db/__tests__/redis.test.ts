@@ -1,7 +1,9 @@
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 import { describe, expect, it } from 'vitest';
 import {
+  accountPermissionsKey,
   auditStreamKey,
+  createBullMQConnection,
   dashboardAggregateCacheKey,
   EVENTS_CHANNEL_PATTERN,
   eventsChannelKey,
@@ -16,6 +18,24 @@ import {
   type ProfileKeyParts,
   type ProfileScope,
 } from '../src/redis.js';
+
+describe('createBullMQConnection', () => {
+  it('parses credentials, port, and database without exposing ioredis types', () => {
+    expect(
+      createBullMQConnection({
+        url: 'redis://worker:p%40ss%2Fword@redis.internal:6380/4',
+      }),
+    ).toEqual({
+      host: 'redis.internal',
+      port: 6380,
+      username: 'worker',
+      password: 'p@ss/word',
+      db: 4,
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+    });
+  });
+});
 
 const aliceScope: ProfileScope = {
   kind: 'profile',
@@ -133,6 +153,12 @@ describe('events / audit stream keys (cross-process worker↔api contract)', () 
   it('openOrdersKey is account-scoped (no profile segment): one order book per account', () => {
     expect(openOrdersKey(asAccountId('00000000-0000-0000-0000-0000000a0001'), 'BTCUSDT')).toBe(
       'tenant:00000000-0000-0000-0000-0000000a0001:open-orders:BTCUSDT',
+    );
+  });
+
+  it('accountPermissionsKey is account-scoped (no profile segment): permissions belong to the key pair', () => {
+    expect(accountPermissionsKey(asAccountId('00000000-0000-0000-0000-0000000a0001'))).toBe(
+      'tenant:00000000-0000-0000-0000-0000000a0001:account-permissions',
     );
   });
 });

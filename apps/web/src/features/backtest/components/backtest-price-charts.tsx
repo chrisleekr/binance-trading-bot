@@ -139,7 +139,7 @@ function SymbolPriceChart({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Candle interval">
-        <span className="text-muted-fg mr-1 text-xs">Interval</span>
+        <span className="mr-1 text-xs text-muted-fg">Interval</span>
         {BACKTEST_INTERVALS.map((iv) => (
           <button
             key={iv}
@@ -149,7 +149,7 @@ function SymbolPriceChart({
             className={cn(
               'rounded-xs border px-2 py-1 text-xs tabular-nums',
               iv === interval
-                ? 'bg-surface-alt text-fg border-primary'
+                ? 'border-primary bg-surface-alt text-fg'
                 : 'border-border text-muted-fg hover:text-fg',
             )}
           >
@@ -168,9 +168,9 @@ function SymbolPriceChart({
         // is asserted against CHART_HEIGHT in the tests so the two cannot drift.
         <BlockSkeleton className={`h-[300px] w-full rounded-md ${CHART_SM_HEIGHT_CLASS}`} />
       ) : candles.isError ? (
-        <p className="text-danger text-sm">Could not load candles for {symbol}.</p>
+        <p className="text-sm text-danger">Could not load candles for {symbol}.</p>
       ) : data.length === 0 ? (
-        <p className="text-muted-fg text-sm">No candles for this range.</p>
+        <p className="text-sm text-muted-fg">No candles for this range.</p>
       ) : (
         <>
           <SymbolCandleChart
@@ -180,7 +180,7 @@ function SymbolPriceChart({
             {...(loadModule ? { loadModule } : {})}
           />
           {data.length >= KLINE_PAGE_CAP && (
-            <p className="text-muted-fg text-xs">
+            <p className="text-xs text-muted-fg">
               Showing the first {KLINE_PAGE_CAP} {interval} candles from the run start. Pick a
               coarser interval to see the whole run; every trade is also in the fills table.
             </p>
@@ -211,9 +211,9 @@ export function BacktestPriceCharts({
   return (
     <section
       aria-labelledby="bt-price-h"
-      className="border-border bg-bg-elevated space-y-2 rounded-md border p-3"
+      className="space-y-2 rounded-md border border-border bg-bg-elevated p-3"
     >
-      <h2 id="bt-price-h" className="text-fg text-sm font-semibold">
+      <h2 id="bt-price-h" className="text-sm font-semibold text-fg">
         Price &amp; trades
       </h2>
       {symbols.length === 1 ? (

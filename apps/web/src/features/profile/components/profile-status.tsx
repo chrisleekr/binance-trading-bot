@@ -44,7 +44,7 @@ export function ProfileStatus({
       <span
         data-testid="profile-status-state"
         data-enabled={row.enabled}
-        className="text-fg border-border-strong inline-flex h-9 items-center gap-2 rounded-sm border px-3 text-xs font-semibold uppercase tracking-wide"
+        className="inline-flex h-9 items-center gap-2 rounded-sm border border-border-strong px-3 text-xs font-semibold tracking-wide text-fg uppercase"
       >
         <span
           aria-hidden
@@ -57,7 +57,7 @@ export function ProfileStatus({
           data-testid="profile-status-notifier-gap"
           title={t('profile.controls.notifier_gap')}
           aria-label={t('profile.controls.notifier_gap')}
-          className="bg-warning h-2 w-2 shrink-0 rounded-full"
+          className="h-2 w-2 shrink-0 rounded-full bg-warning"
         />
       ) : null}
     </div>

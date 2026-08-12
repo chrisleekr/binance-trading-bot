@@ -41,7 +41,7 @@ export function Panel({
   readonly summaryTestId?: string;
 }): React.JSX.Element {
   const box = cn('border border-border bg-bg-elevated', className);
-  const body = <div className="border-border border-t p-4">{children}</div>;
+  const body = <div className="border-t border-border p-4">{children}</div>;
 
   if (collapsible) {
     // A <summary> allows phrasing content only, so the title and description are
@@ -50,12 +50,12 @@ export function Panel({
       <details open={defaultOpen} className={cn('group', box)} data-testid={testId}>
         <summary
           data-testid={summaryTestId}
-          className="focus-visible:ring-focus flex cursor-pointer list-none items-start justify-between gap-2 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 [&::-webkit-details-marker]:hidden"
+          className="flex cursor-pointer list-none items-start justify-between gap-2 px-4 py-3 focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none [&::-webkit-details-marker]:hidden"
         >
           <span className="block min-w-0">
-            <span className="text-fg text-sm font-semibold">{title}</span>
+            <span className="text-sm font-semibold text-fg">{title}</span>
             {description ? (
-              <span className="text-muted-fg mt-0.5 block text-xs font-normal leading-relaxed">
+              <span className="mt-0.5 block text-xs leading-relaxed font-normal text-muted-fg">
                 {description}
               </span>
             ) : null}
@@ -63,7 +63,7 @@ export function Panel({
           <span className="flex shrink-0 items-center gap-2">
             {actions}
             <ChevronDown
-              className="text-muted-fg mt-0.5 h-4 w-4 transition-transform group-open:rotate-180"
+              className="mt-0.5 h-4 w-4 text-muted-fg transition-transform group-open:rotate-180"
               aria-hidden="true"
             />
           </span>
@@ -77,9 +77,9 @@ export function Panel({
     <section className={box} data-testid={testId}>
       <div className="flex items-start justify-between gap-2 px-4 py-3">
         <div className="min-w-0">
-          <h2 className="text-fg text-sm font-semibold">{title}</h2>
+          <h2 className="text-sm font-semibold text-fg">{title}</h2>
           {description ? (
-            <p className="text-muted-fg mt-0.5 text-xs leading-relaxed">{description}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-fg">{description}</p>
           ) : null}
         </div>
         {actions ? <div className="shrink-0">{actions}</div> : null}

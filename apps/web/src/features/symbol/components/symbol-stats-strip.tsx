@@ -54,7 +54,7 @@ function StatCell({
 }): React.JSX.Element {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-muted-fg text-xs">{label}</span>
+      <span className="text-xs text-muted-fg">{label}</span>
       <span className="font-mono text-sm font-medium tabular-nums">{children}</span>
     </div>
   );
@@ -100,7 +100,7 @@ function StatsRow({ ticker }: { readonly ticker: Ticker24hr }): React.JSX.Elemen
   return (
     <div className={STATS_ROW_CLASS} data-testid="symbol-stats-strip">
       <div className="flex flex-col gap-0.5">
-        <span className="text-muted-fg text-xs">Last price</span>
+        <span className="text-xs text-muted-fg">Last price</span>
         <span
           // duration-700 is the fade-out for the useFlashOnChange tint, kept
           // longer than FLASH_MS so the colour eases out after the tone clears.
@@ -165,7 +165,7 @@ export function SymbolStatsStrip({
 
   return (
     <div
-      className="border-border bg-bg-elevated text-muted-fg flex items-center rounded-md border px-4 py-3 text-sm"
+      className="flex items-center rounded-md border border-border bg-bg-elevated px-4 py-3 text-sm text-muted-fg"
       data-testid="symbol-stats-strip"
     >
       24h stats unavailable.

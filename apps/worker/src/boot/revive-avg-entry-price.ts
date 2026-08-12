@@ -34,10 +34,7 @@ import type { PositionStateAdapter } from '@app/strategy-core';
  *   after migration; defer to a future boot.
  */
 export type ReviveAction =
-  | 'no-op'
-  | 'revive-from-ledger'
-  | 'prune-phantom-ledger'
-  | 'skip-schema-version';
+  'no-op' | 'revive-from-ledger' | 'prune-phantom-ledger' | 'skip-schema-version';
 
 export interface ReviveInput {
   /** Current `state.avgEntryPrice` (Decimal-as-string), or null when unset. */

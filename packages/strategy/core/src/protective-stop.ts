@@ -96,9 +96,7 @@ export const armableBaseQuantity = (
 
 /** Why an open position has no exchange-side protective stop. One vocabulary, so every strategy's refusal glosses the same way. */
 export type ProtectiveStopBlockerReason =
-  | 'base-locked-by-foreign-order'
-  | 'base-below-exchange-minimum'
-  | 'base-short-of-tracked-position';
+  'base-locked-by-foreign-order' | 'base-below-exchange-minimum' | 'base-short-of-tracked-position';
 
 /** A refusal record persisted on strategy state: `{ reason, detail }`, read by the api projection and the web gloss. */
 export interface ProtectiveStopBlocker {

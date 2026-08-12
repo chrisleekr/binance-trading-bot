@@ -139,7 +139,7 @@ export function SideNav({
       data-testid="side-nav"
       data-collapsed={collapsed}
       className={cn(
-        'border-border bg-bg-elevated shrink-0 flex-col overflow-y-auto border-r',
+        'shrink-0 flex-col overflow-y-auto border-r border-border bg-bg-elevated',
         collapsed ? 'w-[52px]' : 'w-52',
         className,
       )}
@@ -162,7 +162,7 @@ export function SideNav({
               onSelect={() => focusProfile(p.profileId)}
               icon={
                 p.killSwitch ? (
-                  <ShieldAlert className="text-danger h-4 w-4 shrink-0" aria-hidden="true" />
+                  <ShieldAlert className="h-4 w-4 shrink-0 text-danger" aria-hidden="true" />
                 ) : (
                   <span
                     className={cn('mx-1 inline-block h-2 w-2 shrink-0 rounded-full', dot.cls)}
@@ -202,14 +202,14 @@ export function SideNav({
         </Section>
       )}
 
-      <div className="border-border mt-auto border-t py-2">
+      <div className="mt-auto border-t border-border py-2">
         <button
           type="button"
           onClick={toggle}
           aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
           data-testid="side-nav-toggle"
           className={cn(
-            'text-muted-fg hover:bg-surface-alt hover:text-fg flex min-h-11 w-full items-center gap-2.5 px-4 text-xs font-medium uppercase tracking-wider',
+            'flex min-h-11 w-full items-center gap-2.5 px-4 text-xs font-medium tracking-wider text-muted-fg uppercase hover:bg-surface-alt hover:text-fg',
             collapsed && 'justify-center px-0',
           )}
         >
@@ -237,10 +237,10 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <div className="border-border border-b py-2">
+    <div className="border-b border-border py-2">
       <div
         className={cn(
-          'text-muted-fg px-4 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em]',
+          'px-4 pb-1 text-[11px] font-semibold tracking-[0.14em] text-muted-fg uppercase',
           collapsed && 'sr-only',
         )}
       >
@@ -303,7 +303,7 @@ function NavLink({
       aria-label={label}
       activeOptions={{ exact: exact ?? false }}
       className={cn(
-        'text-muted-fg hover:bg-surface-alt hover:text-fg flex min-h-10 items-center gap-2.5 border-l-2 border-transparent px-3.5 text-sm',
+        'flex min-h-10 items-center gap-2.5 border-l-2 border-transparent px-3.5 text-sm text-muted-fg hover:bg-surface-alt hover:text-fg',
         collapsed && 'justify-center px-0',
       )}
       activeProps={{
@@ -350,10 +350,10 @@ function ProfileNavButton({
       aria-current={active ? 'true' : undefined}
       onClick={onSelect}
       className={cn(
-        'text-muted-fg hover:bg-surface-alt hover:text-fg flex min-h-10 w-full items-center gap-2.5 border-l-2 border-transparent px-3.5 text-left text-sm',
+        'flex min-h-10 w-full items-center gap-2.5 border-l-2 border-transparent px-3.5 text-left text-sm text-muted-fg hover:bg-surface-alt hover:text-fg',
         collapsed && 'justify-center px-0',
         active &&
-          'border-l-accent text-accent bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] font-medium',
+          'border-l-accent bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] font-medium text-accent',
       )}
     >
       {icon}

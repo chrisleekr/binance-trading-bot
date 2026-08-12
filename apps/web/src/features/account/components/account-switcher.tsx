@@ -63,7 +63,7 @@ export function AccountSwitcher() {
           aria-expanded={open}
           aria-label="Switch account"
           data-testid="account-switcher-trigger"
-          className="h-11 max-w-[14rem] justify-between gap-2 truncate text-sm font-medium normal-case tracking-normal"
+          className="h-11 max-w-[14rem] justify-between gap-2 truncate text-sm font-medium tracking-normal normal-case"
         >
           {/* No env badge here: the trigger is always on screen, and a
               permanent badge next to the trading status reads as an alert. It

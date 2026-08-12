@@ -54,8 +54,8 @@ export function SymbolReserveCard({
     <Card>
       <section className="space-y-4" data-testid="symbol-reserve-card">
         <div className="space-y-1">
-          <h2 className="text-fg text-sm font-semibold">Always hold</h2>
-          <p className="text-muted-fg text-sm">
+          <h2 className="text-sm font-semibold text-fg">Always hold</h2>
+          <p className="text-sm text-muted-fg">
             Keep a fixed amount of this coin the bot never sells. It trades only what you hold above
             this floor and never sells into it. Set at most what you already hold; leave blank and
             save to remove it.

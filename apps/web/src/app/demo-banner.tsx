@@ -12,7 +12,7 @@ export function DemoBanner() {
   return (
     <div
       data-testid="demo-banner"
-      className="bg-accent text-accent-fg flex h-8 shrink-0 items-center justify-center gap-2 px-4 text-center text-xs font-semibold uppercase tracking-wider"
+      className="flex h-8 shrink-0 items-center justify-center gap-2 bg-accent px-4 text-center text-xs font-semibold tracking-wider text-accent-fg uppercase"
     >
       <FlaskConical className="h-4 w-4 shrink-0" aria-hidden="true" />
       <span>{t('demo.banner')}</span>

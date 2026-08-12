@@ -76,7 +76,7 @@ export function SymbolTable({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2
           id="symbols-heading"
-          className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider"
+          className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase"
         >
           {t('home.symbols.title')}
         </h2>
@@ -106,9 +106,9 @@ export function SymbolTable({
         </div>
       </div>
 
-      <div className="@container border-border bg-bg-elevated border">
+      <div className="@container border border-border bg-bg-elevated">
         {merged.isError ? (
-          <p className="text-muted-fg px-4 py-6 text-sm">{t('home.symbols.error')}</p>
+          <p className="px-4 py-6 text-sm text-muted-fg">{t('home.symbols.error')}</p>
         ) : merged.isLoading ? (
           // The enclosing div already draws the table's box, so this fills it
           // with rows rather than nesting a second bordered frame.
@@ -116,21 +116,21 @@ export function SymbolTable({
             <LoadingRows rows={8} />
           </div>
         ) : merged.items.length === 0 ? (
-          <p className="text-muted-fg px-4 py-6 text-sm">{t('home.symbols.empty')}</p>
+          <p className="px-4 py-6 text-sm text-muted-fg">{t('home.symbols.empty')}</p>
         ) : visible.length === 0 ? (
-          <p className="text-muted-fg px-4 py-6 text-sm">{t('home.symbols.no_match')}</p>
+          <p className="px-4 py-6 text-sm text-muted-fg">{t('home.symbols.no_match')}</p>
         ) : (
           <>
             {merged.isPartial ? (
               <p
                 data-testid="symbol-table-partial"
-                className="border-border text-warning border-b px-4 py-2 text-xs"
+                className="border-b border-border px-4 py-2 text-xs text-warning"
               >
                 ⚠ {t('home.symbols.partial')}
               </p>
             ) : null}
             <GridHeader />
-            <ul className="divide-border divide-y">
+            <ul className="divide-y divide-border">
               {visible.map((r) => (
                 <SymbolListRow key={`${r.profileId}:${r.sym.symbol}`} row={r} />
               ))}
@@ -146,7 +146,7 @@ export function SymbolTable({
 function GridHeader() {
   const th = 'text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-fg';
   return (
-    <div aria-hidden="true" className={cn('border-border hidden border-b px-3 py-1.5', GRID_COLS)}>
+    <div aria-hidden="true" className={cn('hidden border-b border-border px-3 py-1.5', GRID_COLS)}>
       <span />
       <span className={th}>{t('home.symbols.col.symbol')}</span>
       <span className={th}>{t('home.symbols.col.status')}</span>
@@ -264,7 +264,7 @@ function SymbolListRow({ row }: { row: SymbolRow }) {
     <li
       data-testid={`symbol-row-${profileId}-${sym.symbol}`}
       className={cn(
-        'hover:bg-surface-alt relative flex items-center gap-3 px-3 py-2 even:bg-[color-mix(in_srgb,var(--surface-alt)_45%,transparent)]',
+        'relative flex items-center gap-3 px-3 py-2 even:bg-[color-mix(in_srgb,var(--surface-alt)_45%,transparent)] hover:bg-surface-alt',
         GRID_COLS,
       )}
     >
@@ -273,13 +273,13 @@ function SymbolListRow({ row }: { row: SymbolRow }) {
         title={dot.title}
         aria-hidden
       />
-      <div className="@3xl:contents min-w-0 flex-1">
+      <div className="min-w-0 flex-1 @3xl:contents">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Link
             to="/accounts/$accountId/profiles/$profileId/symbols/$symbol"
             params={{ accountId, profileId, symbol: sym.symbol }}
             data-testid={`symbol-link-${profileId}-${sym.symbol}`}
-            className="text-fg focus-visible:after:ring-focus truncate font-mono text-sm font-medium after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset"
+            className="truncate font-mono text-sm font-medium text-fg after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-focus focus-visible:after:ring-inset"
           >
             {sym.symbol}
           </Link>
@@ -304,14 +304,14 @@ function SymbolListRow({ row }: { row: SymbolRow }) {
           title={status.title}
           data-testid={`symbol-status-${profileId}-${sym.symbol}`}
           data-status={status.kind}
-          className="@3xl:inline-flex hidden"
+          className="hidden @3xl:inline-flex"
         >
           {status.label}
         </Badge>
         {/* Mobile meta line; at md+ the wrapper dissolves and each fact takes
             its own aligned column. The interpunct separators are mobile-only. */}
-        <p className="@3xl:contents text-muted-fg mt-0.5 truncate text-xs">
-          <span className="@3xl:mt-0 @3xl:text-xs @3xl:text-muted-fg truncate">{profileName}</span>
+        <p className="mt-0.5 truncate text-xs text-muted-fg @3xl:contents">
+          <span className="truncate @3xl:mt-0 @3xl:text-xs @3xl:text-muted-fg">{profileName}</span>
           <span aria-hidden="true" className="@3xl:hidden">
             {' · '}
           </span>
@@ -328,12 +328,12 @@ function SymbolListRow({ row }: { row: SymbolRow }) {
               <span aria-hidden="true" className="@3xl:hidden">
                 {' · '}
               </span>
-              <span className="@3xl:text-right @3xl:font-mono @3xl:text-xs @3xl:tabular-nums @3xl:text-fg">
+              <span className="@3xl:text-right @3xl:font-mono @3xl:text-xs @3xl:text-fg @3xl:tabular-nums">
                 {ordersLabel}
               </span>
             </>
           ) : (
-            <span className="@3xl:block @3xl:text-right @3xl:text-xs @3xl:text-muted-fg hidden">
+            <span className="hidden @3xl:block @3xl:text-right @3xl:text-xs @3xl:text-muted-fg">
               —
             </span>
           )}
@@ -350,14 +350,14 @@ function SymbolListRow({ row }: { row: SymbolRow }) {
           </span>
         </p>
       </div>
-      <div className="@3xl:contents shrink-0 text-right">
-        <div className="@3xl:text-right text-fg font-mono text-sm tabular-nums">
+      <div className="shrink-0 text-right @3xl:contents">
+        <div className="font-mono text-sm text-fg tabular-nums @3xl:text-right">
           {sym.currentPrice != null ? formatPrice(sym.currentPrice) : '—'}
         </div>
         <PnlValue
           value={pnlString(sym)}
           {...(held ? { unit: quote } : {})}
-          className="@3xl:text-right text-xs"
+          className="text-xs @3xl:text-right"
         />
       </div>
       {/* CONFIG opens the symbol-config drawer beside the workspace by setting
@@ -369,7 +369,7 @@ function SymbolListRow({ row }: { row: SymbolRow }) {
         asChild
         variant="outline"
         size="sm"
-        className="@3xl:inline-flex @3xl:justify-self-end relative z-10 hidden"
+        className="relative z-10 hidden @3xl:inline-flex @3xl:justify-self-end"
       >
         <Link
           to="/accounts/$accountId/profiles/$profileId/symbols/$symbol/config"

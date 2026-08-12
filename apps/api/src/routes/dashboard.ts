@@ -274,8 +274,7 @@ export const dashboardRouter = (di: DI): ApiHono => {
           benchmarkAsset: r.benchmarkAsset,
           benchmarkPriceQuote: r.benchmarkPriceQuote as DecimalString,
           benchmarkPrices: (r.benchmarkPrices ?? undefined) as
-            | Record<string, DecimalString>
-            | undefined,
+            Record<string, DecimalString> | undefined,
         })),
       },
       200,

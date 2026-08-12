@@ -104,7 +104,7 @@ export function AccountKillSwitch({
             <DialogTitle>{t('topbar.kill.title')}</DialogTitle>
             <DialogDescription>{t('topbar.kill.body')}</DialogDescription>
           </DialogHeader>
-          <ul className="divide-border border-border divide-y border">
+          <ul className="divide-y divide-border border border-border">
             {targets.map((p) => (
               <li
                 key={p.profileId}
@@ -118,7 +118,7 @@ export function AccountKillSwitch({
             ))}
           </ul>
           {failures.length > 0 ? (
-            <ul className="text-danger space-y-1 text-sm" data-testid="global-kill-errors">
+            <ul className="space-y-1 text-sm text-danger" data-testid="global-kill-errors">
               {failures.map((f) => (
                 <li key={f.profileId}>{t('topbar.kill.failed', { name: f.name })}</li>
               ))}

@@ -39,10 +39,10 @@ export function ResultsMetricsSection({
     <div className={enablementPolicy ? 'grid gap-4 lg:grid-cols-3' : ''}>
       <section
         aria-labelledby="bt-metrics-h"
-        className={`border-border bg-bg-elevated overflow-hidden rounded-md border ${enablementPolicy ? 'lg:col-span-2' : ''}`}
+        className={`overflow-hidden rounded-md border border-border bg-bg-elevated ${enablementPolicy ? 'lg:col-span-2' : ''}`}
       >
-        <div className="border-border flex items-center gap-1 border-b px-3 py-2">
-          <h2 id="bt-metrics-h" className="text-fg text-sm font-semibold">
+        <div className="flex items-center gap-1 border-b border-border px-3 py-2">
+          <h2 id="bt-metrics-h" className="text-sm font-semibold text-fg">
             Results
           </h2>
           <InfoHint label="Results">
@@ -51,7 +51,7 @@ export function ResultsMetricsSection({
           </InfoHint>
         </div>
         {/* The four decision-grade numbers, read first. */}
-        <div className="bg-border grid grid-cols-2 gap-px lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-px bg-border lg:grid-cols-4">
           <MetricCard
             prominent
             label="Total return"
@@ -83,12 +83,12 @@ export function ResultsMetricsSection({
           />
         </div>
         {/* The full metric set, shown in full — nothing folded away. */}
-        <div className="border-border border-t">
-          <p className="text-muted-fg border-border border-b px-3 py-2 text-xs">
+        <div className="border-t border-border">
+          <p className="border-b border-border px-3 py-2 text-xs text-muted-fg">
             Color shows the sign: <span className="text-up">green</span> is a positive number,{' '}
             <span className="text-down">red</span> is negative. Benchmarks are neutral context.
           </p>
-          <div className="bg-border grid grid-cols-2 gap-px sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-3 lg:grid-cols-4">
             <MetricCard
               label="Buy & hold"
               value={pct(m.marketChangePct)}

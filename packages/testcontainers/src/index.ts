@@ -25,7 +25,7 @@ import { RedisContainer, type StartedRedisContainer } from '@testcontainers/redi
  * the source of truth.
  */
 const POSTGRES_IMAGE =
-  'timescale/timescaledb@sha256:dfbf3c54f03e01d9a6fe7eeb736b513064a849606ca5acd7edcf51fdcab76a5e';
+  'timescale/timescaledb:latest-pg17@sha256:dfbf3c54f03e01d9a6fe7eeb736b513064a849606ca5acd7edcf51fdcab76a5e';
 const REDIS_IMAGE = 'redis@sha256:d146f83b1e0f02fc27c26a50cee39338c736674c5959db84363e6ae3cd9e02d2';
 
 /**

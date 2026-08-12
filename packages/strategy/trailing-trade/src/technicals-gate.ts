@@ -31,10 +31,7 @@ const ALWAYS_VETO: ReadonlySet<TVRecommendation> = new Set(['SELL', 'STRONG_SELL
  * the log contract — once dashboards key on them they are expensive to rename.
  */
 export type TVGateVeto =
-  | 'technicals-no-signal'
-  | 'technicals-stale'
-  | 'technicals-sell'
-  | 'technicals-disallowed';
+  'technicals-no-signal' | 'technicals-stale' | 'technicals-sell' | 'technicals-disallowed';
 
 /**
  * Per-interval evaluation summary surfaced on the gate result for audit-log

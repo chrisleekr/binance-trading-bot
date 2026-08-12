@@ -1,8 +1,10 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import * as ts from 'typescript';
-import { describe, expect, it, vi } from 'vitest';
+import * as ts from 'typescript/unstable/ast';
+import { createVirtualFileSystem, type FileSystem } from 'typescript/unstable/fs';
+import { API, type Snapshot } from 'typescript/unstable/sync';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
 // Filesystem-walking guard test: parsing ~190 TSX files with the compiler API
 // competes with the rest of the parallel web suite for CPU, so the walk gets
@@ -25,6 +27,73 @@ vi.setConfig({ testTimeout: 30_000 });
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC_ROOT = resolve(HERE, '..', 'src');
+const VIRTUAL_TSCONFIG = '/loading-gate/tsconfig.json';
+const VIRTUAL_SOURCE = '/loading-gate/input.tsx';
+
+const virtualFs: FileSystem = createVirtualFileSystem({
+  [VIRTUAL_TSCONFIG]: JSON.stringify({
+    compilerOptions: {
+      jsx: 'preserve',
+      noLib: true,
+    },
+    files: ['./input.tsx'],
+  }),
+  [VIRTUAL_SOURCE]: '',
+});
+
+const writeVirtualFile = virtualFs.writeFile;
+if (!writeVirtualFile) {
+  throw new Error('TypeScript 7 virtual filesystem is not writable');
+}
+
+const tsApi = new API({
+  cwd: '/',
+  fs: virtualFs,
+});
+
+let currentSnapshot: Snapshot | undefined;
+
+const parseSource = (fileLabel: string, text: string): ts.SourceFile => {
+  writeVirtualFile(VIRTUAL_SOURCE, text);
+
+  const nextSnapshot =
+    currentSnapshot === undefined
+      ? tsApi.updateSnapshot({
+          openProjects: [VIRTUAL_TSCONFIG],
+        })
+      : tsApi.updateSnapshot({
+          fileChanges: {
+            changed: [VIRTUAL_SOURCE],
+          },
+        });
+
+  currentSnapshot?.dispose();
+  currentSnapshot = nextSnapshot;
+
+  const project = nextSnapshot.getProject(VIRTUAL_TSCONFIG);
+  if (!project) {
+    throw new Error(`TypeScript 7 did not load ${VIRTUAL_TSCONFIG}`);
+  }
+
+  const diagnostics = project.program.getSyntacticDiagnostics(VIRTUAL_SOURCE);
+  if (diagnostics.length > 0) {
+    const first = diagnostics[0];
+    throw new Error(
+      `${fileLabel}: failed to parse (${diagnostics.length} error(s)): ${first?.text ?? 'unknown syntax error'}`,
+    );
+  }
+
+  const source = project.program.getSourceFile(VIRTUAL_SOURCE);
+  if (!source) {
+    throw new Error(`TypeScript 7 did not return ${fileLabel}`);
+  }
+
+  return source;
+};
+
+afterAll(() => {
+  tsApi.close();
+});
 
 // Interactive elements legitimately say "Loading…" inline while a fetch runs:
 // a button label is not a page-height placeholder, and swapping it for a
@@ -94,7 +163,7 @@ const isLoadingTCall = (node: ts.Node): boolean => {
   if (!ts.isCallExpression(node)) return false;
   if (!ts.isIdentifier(node.expression) || node.expression.text !== 't') return false;
   const [key] = node.arguments;
-  return key !== undefined && ts.isStringLiteralLike(key) && /\.loading$/.test(key.text);
+  return key !== undefined && ts.isStringLiteralLikeNode(key) && /\.loading$/.test(key.text);
 };
 
 /** Any `t(...)` lookup, used by Detector A's "this branch renders text" test. */
@@ -249,7 +318,7 @@ const HEIGHT_TOKEN = /(?:^|[^a-zA-Z0-9:_-])(h-|min-h-|aspect-|size-)/;
 const cnLiterals = (call: ts.CallExpression): string | undefined => {
   const parts: string[] = [];
   for (const arg of call.arguments) {
-    if (ts.isStringLiteralLike(arg)) {
+    if (ts.isStringLiteralLikeNode(arg)) {
       parts.push(arg.text);
       continue;
     }
@@ -272,7 +341,7 @@ const staticClassName = (attr: ts.JsxAttribute): string | undefined => {
   if (!ts.isJsxExpression(init) || init.expression === undefined) return undefined;
   const e = init.expression;
   // A template keeps its static segments in `getText`, which is all this needs.
-  if (ts.isStringLiteralLike(e) || ts.isTemplateExpression(e)) return e.getText();
+  if (ts.isStringLiteralLikeNode(e) || ts.isTemplateExpression(e)) return e.getText();
   if (ts.isCallExpression(e) && ts.isIdentifier(e.expression) && e.expression.text === 'cn')
     return cnLiterals(e);
   // Anything else — a forwarded `className` prop — is decided at the call site,
@@ -322,7 +391,7 @@ const inspectBranch = (branch: ts.Node): BranchVerdict => {
 
     let isText = false;
     if (ts.isJsxText(n) && n.text.trim().length > 0) isText = true;
-    else if (ts.isStringLiteralLike(n) && !isStructurallyExempt(n) && n.text.trim().length > 0)
+    else if (ts.isStringLiteralLikeNode(n) && !isStructurallyExempt(n) && n.text.trim().length > 0)
       isText = true;
     else if (isTCall(n) && !isStructurallyExempt(n)) isText = true;
 
@@ -342,17 +411,7 @@ interface ScanResult {
 }
 
 const scanSource = (fileLabel: string, text: string): ScanResult => {
-  const src = ts.createSourceFile(fileLabel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-
-  // `createSourceFile` error-recovers instead of throwing, so an unparseable
-  // file would yield a truncated tree, contribute nothing, and be reported as
-  // clean. `parseDiagnostics` is not on the public SourceFile type.
-  const diagnostics = (src as unknown as { parseDiagnostics?: readonly ts.Diagnostic[] })
-    .parseDiagnostics;
-  if (diagnostics !== undefined && diagnostics.length > 0) {
-    const first = ts.flattenDiagnosticMessageText(diagnostics[0]?.messageText, ' ');
-    throw new Error(`${fileLabel}: failed to parse (${diagnostics.length} error(s)): ${first}`);
-  }
+  const src = parseSource(fileLabel, text);
 
   const offenders: Offender[] = [];
   // Keyed on start POSITION, not line: two distinct offenders can share a line,
@@ -408,7 +467,7 @@ const scanSource = (fileLabel: string, text: string): ScanResult => {
       if (ts.isJsxText(c)) return isLoadingText(c.text);
       if (ts.isJsxExpression(c) && c.expression) {
         const e = c.expression;
-        if (ts.isStringLiteralLike(e)) return isLoadingText(e.text);
+        if (ts.isStringLiteralLikeNode(e)) return isLoadingText(e.text);
         return isLoadingTCall(e);
       }
       return false;
@@ -700,8 +759,7 @@ describe('loading placeholders carry page height', () => {
   });
 
   it('throws instead of reporting clean when a file cannot be parsed', () => {
-    // `createSourceFile` error-recovers rather than throwing, so a truncated
-    // tree would otherwise be scanned as an offender-free file.
+    // A truncated syntax tree would otherwise be scanned as offender-free.
     expect(() => scanSource('broken.tsx', 'export function A() { return <div>;')).toThrow(
       /failed to parse/,
     );

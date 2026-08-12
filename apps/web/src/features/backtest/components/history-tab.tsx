@@ -33,12 +33,12 @@ export function HistoryTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
   const totalPages = runsTotal === 0 ? 0 : Math.ceil(runsTotal / rowsPerPage);
 
   return (
-    <section aria-labelledby="bt-runs-h" className="border-border bg-bg-elevated rounded-md border">
-      <h2 id="bt-runs-h" className="border-border text-fg border-b px-3 py-2 text-sm font-semibold">
+    <section aria-labelledby="bt-runs-h" className="rounded-md border border-border bg-bg-elevated">
+      <h2 id="bt-runs-h" className="border-b border-border px-3 py-2 text-sm font-semibold text-fg">
         Past runs
       </h2>
       {runsQuery.data && (runItems.length > 0 || runFilter !== 'all' || runKind !== 'all') ? (
-        <div className="border-border flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
           <div className="flex flex-wrap items-center gap-3">
             <div
               className="flex items-center gap-1"
@@ -79,7 +79,7 @@ export function HistoryTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
               ))}
             </div>
           </div>
-          <label className="text-muted-fg flex items-center gap-1.5 text-xs">
+          <label className="flex items-center gap-1.5 text-xs text-muted-fg">
             Rows per page
             <select
               value={rowsPerPage}
@@ -87,7 +87,7 @@ export function HistoryTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
                 setRowsPerPage(Number(e.target.value));
                 setPage({ cursor: null, history: [] });
               }}
-              className="border-border bg-bg-elevated text-fg rounded-md border px-2 py-1 text-xs"
+              className="rounded-md border border-border bg-bg-elevated px-2 py-1 text-xs text-fg"
               data-testid="bt-runs-page-size"
             >
               {RUNS_PAGE_SIZES.map((n) => (
@@ -100,8 +100,8 @@ export function HistoryTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
         </div>
       ) : null}
       {selectedRunIds.size > 0 ? (
-        <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
-          <span className="text-muted-fg text-sm">{selectedRunIds.size} selected</span>
+        <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+          <span className="text-sm text-muted-fg">{selectedRunIds.size} selected</span>
           <Button
             type="button"
             variant="destructive"
@@ -115,14 +115,14 @@ export function HistoryTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
         </div>
       ) : null}
       {runsQuery.data && runItems.length === 0 ? (
-        <p className="text-muted-fg p-3 text-sm">
+        <p className="p-3 text-sm text-muted-fg">
           {runFilter === 'all' && runKind === 'all' ? 'No runs yet.' : 'No runs match this filter.'}
         </p>
       ) : (
         <PastRunsTable wb={wb} />
       )}
       {runItems.length > 0 ? (
-        <div className="border-border flex items-center justify-between border-t px-3 py-2">
+        <div className="flex items-center justify-between border-t border-border px-3 py-2">
           <Button
             type="button"
             variant="ghost"
@@ -138,7 +138,7 @@ export function HistoryTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
             ‹ Prev
           </Button>
           <span
-            className="text-muted-fg font-mono text-xs tabular-nums"
+            className="font-mono text-xs text-muted-fg tabular-nums"
             data-testid="bt-runs-pagination"
           >
             {runsTotal === 0

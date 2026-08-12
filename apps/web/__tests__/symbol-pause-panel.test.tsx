@@ -1,7 +1,7 @@
 // SymbolPausePanel — trigger opens a modal; reason gate, duration select, engage-disable mutation.
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -55,9 +55,7 @@ describe('SymbolPausePanel', () => {
     const { fetchMock } = await setUp();
     await userEvent.type(screen.getByTestId('pause-reason'), '  spread too wide  ');
     await userEvent.selectOptions(screen.getByTestId('pause-duration'), String(24 * 3600));
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('pause-submit'));
-    });
+    await userEvent.click(screen.getByTestId('pause-submit'));
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([input]) => String(input).includes('/disable'));
       expect(call).toBeTruthy();
@@ -81,9 +79,7 @@ describe('SymbolPausePanel', () => {
   it('fires a success toast after a successful pause', async () => {
     await setUp();
     await userEvent.type(screen.getByTestId('pause-reason'), 'manual review');
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('pause-submit'));
-    });
+    await userEvent.click(screen.getByTestId('pause-submit'));
     await waitFor(() => expect(success).toHaveBeenCalledWith('Symbol trading paused.'));
   });
 
@@ -96,9 +92,7 @@ describe('SymbolPausePanel', () => {
         }),
     );
     await userEvent.type(screen.getByTestId('pause-reason'), 'manual review');
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('pause-submit'));
-    });
+    await userEvent.click(screen.getByTestId('pause-submit'));
     await waitFor(() => expect(error).toHaveBeenCalled());
   });
 });

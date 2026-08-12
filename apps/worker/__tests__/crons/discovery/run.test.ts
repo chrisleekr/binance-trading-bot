@@ -100,8 +100,7 @@ const explainRowFor = (
   symbol: string,
 ): { symbol: string; disposition: string } | undefined => {
   const candidates = (port.persistExplain as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-    | ReadonlyArray<{ symbol: string; disposition: string }>
-    | undefined;
+    ReadonlyArray<{ symbol: string; disposition: string }> | undefined;
   return candidates?.find((c) => c.symbol === symbol);
 };
 

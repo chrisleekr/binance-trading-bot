@@ -8,12 +8,7 @@
 import type { WsEvent } from '@app/contracts';
 
 export type SocketStatus =
-  | 'connecting'
-  | 'open'
-  | 'reconnecting'
-  | 'offline'
-  | 'unauthenticated'
-  | 'closed';
+  'connecting' | 'open' | 'reconnecting' | 'offline' | 'unauthenticated' | 'closed';
 
 export interface SocketSnapshot {
   /** Coarse-grained status driving the live indicator. */

@@ -121,21 +121,21 @@ export function BacktestRoundTrips({
   return (
     <section
       aria-labelledby="bt-roundtrips-h"
-      className="border-border bg-bg-elevated space-y-3 rounded-md border p-3"
+      className="space-y-3 rounded-md border border-border bg-bg-elevated p-3"
       data-testid="backtest-round-trips"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="bt-roundtrips-h" className="text-fg text-sm font-semibold">
+        <h2 id="bt-roundtrips-h" className="text-sm font-semibold text-fg">
           Trades ({roundTrips.length})
         </h2>
-        <p className="text-muted-fg text-xs" data-testid="backtest-round-trips-summary">
+        <p className="text-xs text-muted-fg" data-testid="backtest-round-trips-summary">
           {formatPercent(winRatePct)} won · typically held{' '}
           {humaniseAge(hold.medianMs, { precision: 'tenths' })} · longest{' '}
           {humaniseAge(hold.maxMs, { precision: 'tenths' })}
         </p>
       </div>
 
-      <p className="text-muted-fg text-xs leading-tight">
+      <p className="text-xs leading-tight text-muted-fg">
         A trade is one buy-to-sell round-trip (a grid that buys several times before selling counts
         once). Use the exit-reason rollup to see which exits actually make money.
       </p>
@@ -143,7 +143,7 @@ export function BacktestRoundTrips({
       {/* Exit-reason rollup — the "which exit loses money" lens. */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm tabular-nums" data-testid="backtest-exit-reason-rollup">
-          <thead className="text-muted-fg text-left text-xs">
+          <thead className="text-left text-xs text-muted-fg">
             <tr>
               <th className="py-1 pr-3">Exit reason</th>
               <th className="py-1 pr-3">Trades</th>
@@ -154,7 +154,7 @@ export function BacktestRoundTrips({
           </thead>
           <tbody>
             {rollup.map((r) => (
-              <tr key={r.reason} className="border-border border-t">
+              <tr key={r.reason} className="border-t border-border">
                 <td className="py-1 pr-3">{r.reason}</td>
                 <td className="py-1 pr-3 font-mono">{r.trades}</td>
                 <td className="py-1 pr-3 font-mono">{formatPercent(r.winRatePct)}</td>
@@ -200,7 +200,7 @@ export function BacktestRoundTrips({
               </Button>
             ))}
           </div>
-          <label className="text-muted-fg flex items-center gap-1.5 text-xs">
+          <label className="flex items-center gap-1.5 text-xs text-muted-fg">
             Rows per page
             <select
               value={pageSize}
@@ -208,7 +208,7 @@ export function BacktestRoundTrips({
                 setPageSize(Number(e.target.value));
                 setPage(1);
               }}
-              className="border-border bg-bg-elevated text-fg rounded-md border px-2 py-1 text-xs"
+              className="rounded-md border border-border bg-bg-elevated px-2 py-1 text-xs text-fg"
               data-testid="bt-trades-page-size"
             >
               {PAGE_SIZES.map((n) => (
@@ -222,7 +222,7 @@ export function BacktestRoundTrips({
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm tabular-nums" data-testid="backtest-round-trips-table">
-            <thead className="text-muted-fg text-left text-xs">
+            <thead className="text-left text-xs text-muted-fg">
               <tr>
                 <th className="py-1 pr-3">Closed</th>
                 <th className="py-1 pr-3">Symbol</th>
@@ -237,7 +237,7 @@ export function BacktestRoundTrips({
             </thead>
             <tbody>
               {visible.map((rt, i) => (
-                <tr key={`${rt.closeTsMs}-${start + i}`} className="border-border border-t">
+                <tr key={`${rt.closeTsMs}-${start + i}`} className="border-t border-border">
                   <td className="py-1 pr-3">{formatInstant(rt.closeTsMs, timeZone)}</td>
                   <td className="py-1 pr-3">{rt.symbol}</td>
                   <td className="py-1 pr-3 font-mono">{formatPrice(rt.entryPrice)}</td>

@@ -48,3 +48,4 @@ bash "$(dirname "$0")/no-dropped-lint-rule.sh"
 # multi-file analysis builds one project-wide module graph for import/no-cycle,
 # rather than a per-package view blind to imports crossing package folders.
 bunx oxlint
+bunx prettier --check .

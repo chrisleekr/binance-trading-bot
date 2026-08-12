@@ -3,7 +3,7 @@
 // confirm DELETEs the symbol and calls onWiped.
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -67,9 +67,7 @@ describe('SymbolStopTrackingPanel', () => {
     await waitFor(() =>
       expect(screen.getByTestId('symbol-stop-tracking-confirm')).toBeInTheDocument(),
     );
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('symbol-stop-tracking-confirm'));
-    });
+    await userEvent.click(screen.getByTestId('symbol-stop-tracking-confirm'));
 
     await waitFor(() => expect(onWiped).toHaveBeenCalledTimes(1));
     expect(

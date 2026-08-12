@@ -70,7 +70,7 @@ export function percentConvertWidget(mode: PercentMode): Widget {
           aria-invalid={fieldState.invalid || undefined}
           className={cn('pr-9')}
         />
-        <span className="text-muted-fg pointer-events-none absolute right-3 text-sm">%</span>
+        <span className="pointer-events-none absolute right-3 text-sm text-muted-fg">%</span>
       </div>
     );
   };

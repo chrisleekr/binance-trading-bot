@@ -4,7 +4,6 @@ name: Operator Terminal
 description: >-
   Bauhaus-inspired dark trading terminal for a single solo operator. Near-black canvas with hairline 1px borders, square corners, and a single loud accent: amber yellow for selection, primary action, and active nav. Signal green = positive/go, signal red = negative/stop, orange = warning. Space Grotesk for UI text, JetBrains Mono for numbers. Dense on desktop with a collapsible left sidebar; still fully usable on a 375px phone via the bottom tab nav.
 
-
 colors:
   canvas: '#0e0e0e'
   surface: '#141414'

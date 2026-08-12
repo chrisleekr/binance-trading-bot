@@ -123,23 +123,23 @@ export function EquityPnlCard({ profileId }: { profileId: string }): React.JSX.E
   return (
     <section
       aria-labelledby="equity-pnl-h"
-      className="border-border bg-bg-elevated space-y-2 rounded-md border p-3"
+      className="space-y-2 rounded-md border border-border bg-bg-elevated p-3"
       data-testid="equity-pnl-card"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <h2
             id="equity-pnl-h"
-            className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider"
+            className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase"
           >
             Profit vs holding {holdLabel}
           </h2>
-          <label className="text-muted-fg flex items-center gap-1 text-xs">
+          <label className="flex items-center gap-1 text-xs text-muted-fg">
             <span className="sr-only">Benchmark</span>
             <select
               data-testid="equity-benchmark-mode"
               aria-label="Benchmark to compare against"
-              className="border-border bg-surface-alt rounded-xs focus-visible:border-focus focus-visible:ring-focus border px-1.5 py-0.5 text-xs focus-visible:outline-none focus-visible:ring-1"
+              className="rounded-xs border border-border bg-surface-alt px-1.5 py-0.5 text-xs focus-visible:border-focus focus-visible:ring-1 focus-visible:ring-focus focus-visible:outline-none"
               value={mode}
               disabled={setMode.isPending}
               onChange={(e) => setMode.mutate(BenchmarkMode.parse(e.target.value))}
@@ -168,18 +168,18 @@ export function EquityPnlCard({ profileId }: { profileId: string }): React.JSX.E
           </div>
         ) : null}
       </div>
-      <p className="text-muted-fg text-xs">
+      <p className="text-xs text-muted-fg">
         Change over this window: your net profit after fees (green), against what holding{' '}
         {holdLabel} with the capital you had deployed at the start of this window would have made
         (orange). Both start from zero on the left, so when green is above orange the bot is beating
         buy-and-hold here.
       </p>
       {isError ? (
-        <p className="text-down text-sm">Could not load the profit history.</p>
+        <p className="text-sm text-down">Could not load the profit history.</p>
       ) : isPending ? (
         <LoadingRows />
       ) : series.length === 0 ? (
-        <p className="text-muted-fg text-sm">
+        <p className="text-sm text-muted-fg">
           No profit history yet — the first point is recorded within 15 minutes of the worker
           running.
         </p>

@@ -38,7 +38,7 @@ export function ProfileManageCard({
     <div className="space-y-5" data-testid="profile-manage-card">
       {PROFILE_SECTIONS.map((g) => (
         <div key={g.group} className="space-y-2">
-          <h3 className="text-muted-fg text-xs font-semibold uppercase tracking-wide">{g.group}</h3>
+          <h3 className="text-xs font-semibold tracking-wide text-muted-fg uppercase">{g.group}</h3>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2">
             {g.items.map((it) => {
               const Icon = it.icon;

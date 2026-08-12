@@ -100,7 +100,7 @@ export function GridLadderPanel({
           {projection.length > 0 ? <GridProjection rows={projection} entryPrice={price} /> : null}
         </>
       ) : (
-        <p className="text-muted-fg text-sm">
+        <p className="text-sm text-muted-fg">
           No grid configured yet. Open Config above to set up a buy ladder.
         </p>
       )}
@@ -184,24 +184,24 @@ function GridProjection({
   const last = rows[rows.length - 1];
   return (
     <div className="space-y-1" data-testid="grid-projection">
-      <div className="text-muted-fg text-xs">
+      <div className="text-xs text-muted-fg">
         Projection — if a position opens at {formatAmount(entryPrice)} and every buy level fills
       </div>
-      <ul className="divide-border divide-y rounded-none border">
+      <ul className="divide-y divide-border rounded-none border">
         {rows.map((r) => (
           <li
             key={r.rung}
             className="flex items-baseline justify-between gap-2 px-3 py-1.5 text-xs"
           >
             <span className="font-semibold">#{r.rung + 1}</span>
-            <span className="text-muted-fg font-mono">
+            <span className="font-mono text-muted-fg">
               fill {formatAmount(r.fillPrice)} · spend {formatAmount(r.quoteSpent)}
             </span>
           </li>
         ))}
       </ul>
       {last ? (
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           All {rows.length} buy level{rows.length > 1 ? 's' : ''} filled → spent{' '}
           {formatAmount(last.cumQuote)}, average cost {formatAmount(last.avgCost)}
         </p>
@@ -236,9 +236,9 @@ function GridTable({
   const currentIdx = currentIndexFromGrid(rows);
   return (
     <div className="space-y-1">
-      <div className="text-muted-fg text-xs">{label}</div>
+      <div className="text-xs text-muted-fg">{label}</div>
       <ul
-        className="divide-border divide-y rounded-none border"
+        className="divide-y divide-border rounded-none border"
         data-testid={`grid-${label.toLowerCase().replace(/\s+/g, '-')}`}
       >
         {rows.map((row, i) => {
@@ -256,7 +256,7 @@ function GridTable({
                   {row.reached ? 'reached' : 'pending'}
                 </span>
               </div>
-              <div className="text-muted-fg flex flex-wrap gap-x-3 gap-y-0.5">
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-muted-fg">
                 {/* Rung 0 is the entry buy — its triggerPercentage has no
                     prior fill to compare against, so it is not shown. */}
                 <span>{i === 0 ? 'entry' : `trigger ${String(row.triggerPercentage ?? '—')}`}</span>

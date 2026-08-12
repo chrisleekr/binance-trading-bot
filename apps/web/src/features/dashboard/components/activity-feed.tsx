@@ -204,7 +204,7 @@ export function ActivityFeed({ rows }: { rows: readonly DashboardAggregateRow[] 
     <section aria-labelledby="activity-heading" data-testid="activity-feed" className="space-y-3">
       <h2
         id="activity-heading"
-        className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider"
+        className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase"
       >
         {t('home.activity.title')}
       </h2>
@@ -233,9 +233,9 @@ export function ActivityFeed({ rows }: { rows: readonly DashboardAggregateRow[] 
           );
         })}
       </div>
-      <div className="border-border bg-bg-elevated border">
+      <div className="border border-border bg-bg-elevated">
         {audit.isError ? (
-          <p className="text-muted-fg px-4 py-6 text-sm">{t('home.activity.error')}</p>
+          <p className="px-4 py-6 text-sm text-muted-fg">{t('home.activity.error')}</p>
         ) : isLoading ? (
           // The enclosing div already draws the feed's box; this fills it with
           // event rows rather than nesting a second bordered frame.
@@ -243,19 +243,19 @@ export function ActivityFeed({ rows }: { rows: readonly DashboardAggregateRow[] 
             <LoadingRows rows={6} />
           </div>
         ) : visible.length === 0 && !isPartial ? (
-          <p className="text-muted-fg px-4 py-6 text-sm">{t('home.activity.empty')}</p>
+          <p className="px-4 py-6 text-sm text-muted-fg">{t('home.activity.empty')}</p>
         ) : (
           <>
             {isPartial ? (
               <p
                 data-testid="activity-partial"
-                className="border-border text-warning border-b px-4 py-2 text-xs"
+                className="border-b border-border px-4 py-2 text-xs text-warning"
               >
                 ⚠ {t('home.activity.partial')}
                 {audit.failedProfiles.length > 0 ? ` (${audit.failedProfiles.join(', ')})` : ''}
               </p>
             ) : null}
-            <ul className="divide-border divide-y">
+            <ul className="divide-y divide-border">
               {visible.map((item, i) => (
                 <li
                   key={
@@ -292,7 +292,7 @@ export function ActivityFeed({ rows }: { rows: readonly DashboardAggregateRow[] 
                   </span>
                   <time
                     dateTime={item.time}
-                    className="text-muted-fg shrink-0 font-mono text-xs tabular-nums"
+                    className="shrink-0 font-mono text-xs text-muted-fg tabular-nums"
                   >
                     {formatLastTick(item.time)}
                   </time>
@@ -315,12 +315,12 @@ export function ActivityFeed({ rows }: { rows: readonly DashboardAggregateRow[] 
 function ErrorRow({ entry }: { entry: ActionLogEntry }) {
   const reason = readFailureReason(entry);
   return (
-    <span className="text-fg flex flex-col">
+    <span className="flex flex-col text-fg">
       <span>
         {entry.symbol ? <span className="font-mono">{entry.symbol} </span> : null}
         <span className="text-danger">{entry.msg}</span>
       </span>
-      {reason ? <span className="text-muted-fg text-xs">{reason}</span> : null}
+      {reason ? <span className="text-xs text-muted-fg">{reason}</span> : null}
     </span>
   );
 }

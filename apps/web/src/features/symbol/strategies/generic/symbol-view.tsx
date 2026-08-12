@@ -14,10 +14,10 @@ function GenericSignalPanel({ state }: StrategyViewProps): React.JSX.Element {
   const isHolding = lbp !== null;
   return (
     <section className="space-y-2" data-testid="symbol-signal-panel">
-      <h2 className="text-fg text-sm font-semibold">Signal</h2>
+      <h2 className="text-sm font-semibold text-fg">Signal</h2>
       {isHolding ? (
         <div
-          className="divide-border divide-y rounded-none border"
+          className="divide-y divide-border rounded-none border"
           data-testid="symbol-signal-generic-holding"
         >
           <div className="flex items-baseline justify-between gap-2 px-3 py-2 text-xs">
@@ -30,7 +30,7 @@ function GenericSignalPanel({ state }: StrategyViewProps): React.JSX.Element {
           </div>
         </div>
       ) : (
-        <p className="text-muted-fg text-xs" data-testid="symbol-signal-generic-flat">
+        <p className="text-xs text-muted-fg" data-testid="symbol-signal-generic-flat">
           Flat — no open position. This strategy has no grid view; open orders and balances are
           shown below.
         </p>

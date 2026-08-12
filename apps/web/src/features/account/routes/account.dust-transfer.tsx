@@ -133,7 +133,7 @@ function DustTransferPage(): React.JSX.Element {
     <Page>
       <PageHeader title="Dust transfer" back={<BackLink to="/account" />} />
 
-      <p className="text-muted-fg text-sm">
+      <p className="text-sm text-muted-fg">
         Convert leftover small balances ("dust") in your Binance spot wallet into BNB in one click.
         Only assets at or above Binance's {DUST_THRESHOLD_BTC} BTC minimum are eligible; BNB and BTC
         are excluded because they cannot be the source of a dust conversion. Binance allows one dust
@@ -141,7 +141,7 @@ function DustTransferPage(): React.JSX.Element {
       </p>
 
       {profileId === null ? (
-        <p className="text-muted-fg text-sm">No profile available. Create a profile first.</p>
+        <p className="text-sm text-muted-fg">No profile available. Create a profile first.</p>
       ) : null}
 
       {/* Stands in for the eligible-assets panel: one checkbox row per
@@ -168,7 +168,7 @@ function DustTransferPage(): React.JSX.Element {
       !list.isPaused &&
       eligible.length === 0 &&
       !list.error ? (
-        <div className="text-muted-fg space-y-1 text-sm">
+        <div className="space-y-1 text-sm text-muted-fg">
           <p>No dust-eligible assets (≥ {DUST_THRESHOLD_BTC} BTC).</p>
           <p className="text-xs">
             Binance allows dust conversion on live accounts only — testnet profiles always render
@@ -180,7 +180,7 @@ function DustTransferPage(): React.JSX.Element {
       {eligible.length > 0 ? (
         <Panel title={ELIGIBLE_PANEL_TITLE}>
           <form onSubmit={onSubmit} className="space-y-4">
-            <ul className="divide-border divide-y">
+            <ul className="divide-y divide-border">
               {eligible.map((asset) => {
                 const checked = selected.has(asset.asset);
                 return (
@@ -191,11 +191,11 @@ function DustTransferPage(): React.JSX.Element {
                         checked={checked}
                         onChange={() => toggle(asset.asset)}
                         aria-label={asset.asset}
-                        className="accent-accent size-4"
+                        className="size-4 accent-accent"
                       />
                       <span className="font-medium">{asset.asset}</span>
                     </label>
-                    <span className="text-muted-fg font-mono text-sm tabular-nums">
+                    <span className="font-mono text-sm text-muted-fg tabular-nums">
                       {asset.estimatedBTC} BTC
                     </span>
                   </li>
@@ -203,7 +203,7 @@ function DustTransferPage(): React.JSX.Element {
               })}
             </ul>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-fg text-xs">{selectedAssets.length} selected</span>
+              <span className="text-xs text-muted-fg">{selectedAssets.length} selected</span>
               <span className="font-mono tabular-nums">{previewBtc} BTC</span>
             </div>
             <ActionBanner banner={banner} />
@@ -221,7 +221,7 @@ function DustTransferPage(): React.JSX.Element {
 
       {profileId !== null && (history.data?.length ?? 0) > 0 ? (
         <Panel title="Recent conversions">
-          <ul className="divide-border divide-y">
+          <ul className="divide-y divide-border">
             {history.data?.map((row) => (
               <li key={row.id} className="space-y-1 py-2 text-sm">
                 <div className="flex items-center justify-between">
@@ -232,14 +232,14 @@ function DustTransferPage(): React.JSX.Element {
                         ? 'Converting…'
                         : 'Queued'}
                   </span>
-                  <span className="text-muted-fg text-xs tabular-nums">
+                  <span className="text-xs text-muted-fg tabular-nums">
                     {formatInstant(row.createdAt, timeZone)}
                   </span>
                 </div>
-                <div className="text-muted-fg text-xs">
+                <div className="text-xs text-muted-fg">
                   {(row.convertedAssets ?? row.requestedAssets).join(', ') || '—'}
                   {row.bnbReceived !== null ? (
-                    <span className="text-fg font-mono tabular-nums"> → {row.bnbReceived} BNB</span>
+                    <span className="font-mono text-fg tabular-nums"> → {row.bnbReceived} BNB</span>
                   ) : null}
                 </div>
               </li>

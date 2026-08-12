@@ -15,7 +15,7 @@ export const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn('border-border border-b', className)} {...props} />
+  <thead ref={ref} className={cn('border-b border-border', className)} {...props} />
 ));
 TableHeader.displayName = 'TableHeader';
 
@@ -32,7 +32,7 @@ export const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      'border-border hover:bg-bg-elevated data-[selected=true]:border-l-accent data-[selected=true]:bg-surface-alt border-b transition-colors even:bg-[color-mix(in_srgb,var(--surface-alt)_55%,transparent)] data-[selected=true]:border-l-2',
+      'border-b border-border transition-colors even:bg-[color-mix(in_srgb,var(--surface-alt)_55%,transparent)] hover:bg-bg-elevated data-[selected=true]:border-l-2 data-[selected=true]:border-l-accent data-[selected=true]:bg-surface-alt',
       className,
     )}
     {...props}
@@ -47,7 +47,7 @@ export const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      'text-muted-fg h-8 px-2 text-left align-middle text-[11px] font-semibold uppercase tracking-wider',
+      'h-8 px-2 text-left align-middle text-[11px] font-semibold tracking-wider text-muted-fg uppercase',
       className,
     )}
     {...props}

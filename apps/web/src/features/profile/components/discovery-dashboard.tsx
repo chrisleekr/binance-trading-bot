@@ -81,7 +81,7 @@ function Tile({
 }): React.JSX.Element {
   return (
     <div className="flex flex-col gap-0.5" data-testid={testId}>
-      <span className="text-muted-fg text-xs">{label}</span>
+      <span className="text-xs text-muted-fg">{label}</span>
       <span className={`font-mono text-lg font-semibold tabular-nums${tone ? ` ${tone}` : ''}`}>
         {value}
       </span>
@@ -183,13 +183,13 @@ function PositionStatus({
 }): React.JSX.Element {
   if (costBasis !== undefined) {
     return (
-      <span className="text-fg w-full text-xs" data-testid="position-status">
+      <span className="w-full text-xs text-fg" data-testid="position-status">
         ● holding · ≈ {fmtAmount(costBasis)} {quoteAsset} cost
       </span>
     );
   }
   return (
-    <span className="text-muted-fg w-full text-xs" data-testid="position-status">
+    <span className="w-full text-xs text-muted-fg" data-testid="position-status">
       ○ no position yet — waiting for the strategy&rsquo;s entry conditions (e.g. the buy gate)
     </span>
   );
@@ -262,9 +262,9 @@ function DiscoveryUniverse({
       testId="discovery-universe"
     >
       {universe.candidates.length === 0 ? (
-        <p className="text-muted-fg text-sm">No candidates in the last scan.</p>
+        <p className="text-sm text-muted-fg">No candidates in the last scan.</p>
       ) : (
-        <ul className="divide-border divide-y">
+        <ul className="divide-y divide-border">
           {universe.candidates.map((c) => {
             const passed = passedLine(c);
             const liveAuto = autoSet.has(c.symbol);
@@ -280,7 +280,7 @@ function DiscoveryUniverse({
               >
                 <span className="font-mono font-medium">{c.symbol}</span>
                 {c.gainerScore !== null ? (
-                  <span className="text-muted-fg font-mono text-xs tabular-nums">
+                  <span className="font-mono text-xs text-muted-fg tabular-nums">
                     {fmtSigned(c.gainerScore)}%
                   </span>
                 ) : null}
@@ -290,7 +290,7 @@ function DiscoveryUniverse({
                 >
                   {leftSet ? 'no longer auto' : DISPOSITION[c.disposition].label}
                 </Badge>
-                <span className="text-muted-fg w-full text-xs">
+                <span className="w-full text-xs text-muted-fg">
                   {leftSet
                     ? 'no longer in the auto-set (pinned, ejected, or removed); discovery is not managing it'
                     : reasonOf(c)}
@@ -302,10 +302,10 @@ function DiscoveryUniverse({
                   />
                 ) : null}
                 {passed ? (
-                  <span className="text-muted-fg w-full text-xs italic">{passed}</span>
+                  <span className="w-full text-xs text-muted-fg italic">{passed}</span>
                 ) : null}
                 {liveAuto && c.entryBlocker ? (
-                  <span className="text-muted-fg w-full text-xs">
+                  <span className="w-full text-xs text-muted-fg">
                     {glossEntryBlocker(c.entryBlocker)}
                   </span>
                 ) : null}
@@ -407,7 +407,7 @@ function DiscoveryActivity({
   const timeZone = useTimezone();
   return (
     <Panel title="Recent activity" testId="discovery-activity">
-      <ul className="divide-border divide-y">
+      <ul className="divide-y divide-border">
         {activity.map((e) => (
           <li
             key={`${e.time}-${e.symbol}-${e.action}`}
@@ -415,7 +415,7 @@ function DiscoveryActivity({
           >
             <Badge variant="outline">{e.action}</Badge>
             <span className="font-mono">{e.symbol}</span>
-            <time className="text-muted-fg ml-auto font-mono text-xs tabular-nums">
+            <time className="ml-auto font-mono text-xs text-muted-fg tabular-nums">
               {formatInstant(e.time, timeZone)}
             </time>
           </li>
@@ -492,7 +492,7 @@ function DiscoveryConfigEditor({
         groupLooseFields={false}
       >
         <ActionBanner banner={banner} />
-        <FormActions className="border-border items-center gap-3 border-t pt-4">
+        <FormActions className="items-center gap-3 border-t border-border pt-4">
           <Button type="submit" variant="default" disabled={save.isPending}>
             {save.isPending ? 'Saving…' : 'Save settings'}
           </Button>
@@ -551,11 +551,11 @@ function ManualSymbols({ profileId }: { readonly profileId: string }): React.JSX
       testId="manual-symbols"
     >
       {manual.length === 0 ? (
-        <p className="text-muted-fg text-sm" data-testid="manual-symbols-empty">
+        <p className="text-sm text-muted-fg" data-testid="manual-symbols-empty">
           No pinned symbols. Pin a coin from the live universe below, or add one from the dashboard.
         </p>
       ) : (
-        <ul className="divide-border divide-y">
+        <ul className="divide-y divide-border">
           {manual.map((s) => (
             <li
               key={s.symbol}
@@ -690,7 +690,7 @@ export function DiscoveryDashboard({
 
           {configInvalid ? (
             <p
-              className="rounded-xs border-down text-down border p-2 text-sm"
+              className="rounded-xs border border-down p-2 text-sm text-down"
               role="alert"
               data-testid="discovery-config-invalid"
             >
@@ -728,12 +728,12 @@ export function DiscoveryDashboard({
               testId="discovery-auto-count"
             />
           </div>
-          <p className="text-muted-fg -mt-2 text-xs">
+          <p className="-mt-2 text-xs text-muted-fg">
             Deployed and the cap are account-wide, across every profile.
           </p>
 
           {addedButWaiting ? (
-            <p className="text-muted-fg text-xs" role="status" data-testid="discovery-waiting-note">
+            <p className="text-xs text-muted-fg" role="status" data-testid="discovery-waiting-note">
               Holding {gauge.autoSymbolCount} auto symbol{gauge.autoSymbolCount === 1 ? '' : 's'},
               but none have entered a position yet. Discovery subscribes a coin; the strategy buys
               it only once its own entry conditions hold (e.g. the technicals buy gate). Open a
@@ -742,7 +742,7 @@ export function DiscoveryDashboard({
           ) : null}
 
           {config.enabled && gauge.autoSymbolCount === 0 ? (
-            <p className="text-muted-fg text-xs" data-testid="discovery-zero-note">
+            <p className="text-xs text-muted-fg" data-testid="discovery-zero-note">
               {data.universe
                 ? `Scanning every ${fmtPeriod(config.refreshPeriodMs)}. Nothing met the bar in the last scan (${formatClock(data.universe.computedAtMs, timeZone)}). That is normal when the market is flat.`
                 : `Scanning every ${fmtPeriod(config.refreshPeriodMs)}. First scan pending.`}

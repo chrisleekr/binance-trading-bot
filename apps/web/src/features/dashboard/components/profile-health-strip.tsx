@@ -67,7 +67,7 @@ export function ProfileHealthStrip({
 
   return (
     <section
-      className="border-border bg-bg-elevated overflow-hidden rounded-md border"
+      className="overflow-hidden rounded-md border border-border bg-bg-elevated"
       data-testid="profile-health-strip"
     >
       <button
@@ -75,7 +75,7 @@ export function ProfileHealthStrip({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         data-testid="profile-health-strip-toggle"
-        className="hover:bg-surface-alt focus-visible:ring-focus flex w-full items-center gap-2 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-surface-alt focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none focus-visible:ring-inset"
       >
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} aria-hidden />
         <span className="min-w-0 flex-1 truncate text-xs">
@@ -84,7 +84,7 @@ export function ProfileHealthStrip({
           </span>{' '}
           <span className="text-muted-fg">{body}</span>
         </span>
-        <span className="text-muted-fg flex shrink-0 items-center gap-1 text-xs">
+        <span className="flex shrink-0 items-center gap-1 text-xs text-muted-fg">
           {open ? 'Hide' : 'Details'}
           <ChevronDown
             className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`}
@@ -93,7 +93,7 @@ export function ProfileHealthStrip({
         </span>
       </button>
       {open ? (
-        <div className="border-border space-y-3 border-t p-3">
+        <div className="space-y-3 border-t border-border p-3">
           <LiveGateStatusCard profileId={profileId} />
           <LiveVsBacktestCard profileId={profileId} />
         </div>

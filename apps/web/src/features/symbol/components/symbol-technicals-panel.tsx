@@ -287,10 +287,10 @@ function Gauge({
   readonly testId: string;
 }): React.JSX.Element {
   return (
-    <div className="border-border flex flex-col items-center gap-1 rounded-md border p-3">
-      <span className="text-muted-fg text-xs">{label}</span>
+    <div className="flex flex-col items-center gap-1 rounded-md border border-border p-3">
+      <span className="text-xs text-muted-fg">{label}</span>
       {verdict == null ? (
-        <span className="text-muted-fg text-xs" data-testid={testId}>
+        <span className="text-xs text-muted-fg" data-testid={testId}>
           —
         </span>
       ) : (
@@ -324,13 +324,13 @@ function CollapsibleIndicators({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         data-testid="symbol-tv-indicators-toggle"
-        className="text-muted-fg hover:text-foreground inline-flex items-center gap-1 text-xs"
+        className="hover:text-foreground inline-flex items-center gap-1 text-xs text-muted-fg"
       >
         {open ? '▼' : '▶'} {open ? 'Hide' : 'Show'} indicators (32)
       </button>
       {open ? (
         <div className="space-y-2">
-          <p className="text-muted-fg text-xs">
+          <p className="text-xs text-muted-fg">
             These are the raw technical readings the Summary verdict above is built from — each name
             has a plain-language note beneath it.
           </p>
@@ -358,13 +358,13 @@ function IndicatorGroup<K extends string>({
 }): React.JSX.Element {
   return (
     <div className="space-y-1">
-      <h3 className="text-muted-fg text-xs">{heading}</h3>
+      <h3 className="text-xs text-muted-fg">{heading}</h3>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5">
         {labels.map(([key, label, gloss]) => (
           <div key={key} className="flex items-baseline justify-between gap-2 text-xs">
             <div className="min-w-0">
-              <dt className="text-muted-fg truncate">{label}</dt>
-              <p className="text-muted-fg/70 mt-0.5 text-xs">{gloss}</p>
+              <dt className="truncate text-muted-fg">{label}</dt>
+              <p className="mt-0.5 text-xs text-muted-fg/70">{gloss}</p>
             </div>
             <dd className="font-mono tabular-nums" data-testid={`tv-indicator-${key}`}>
               {formatIndicator(values[key])}
@@ -419,11 +419,11 @@ function IntervalSection({
     const lastFreshAgo =
       lastFreshAtMs !== null ? humaniseAge(nowMs - lastFreshAtMs, { suffix: ' ago' }) : null;
     return (
-      <div className="text-muted-fg space-y-1 text-xs" data-testid="symbol-tv-empty">
+      <div className="space-y-1 text-xs text-muted-fg" data-testid="symbol-tv-empty">
         <p>No signal yet for {symbol} at this interval.</p>
         {errorLabel ? (
           <p data-testid="symbol-tv-empty-health">
-            Compute reports: <span className="text-warning font-mono">{errorLabel}</span>
+            Compute reports: <span className="font-mono text-warning">{errorLabel}</span>
             {lastFreshAgo ? <> (last fresh {lastFreshAgo})</> : <> (no successful fetch yet)</>}.
             The panel will refresh once the next scheduled refresh succeeds.
           </p>
@@ -476,7 +476,7 @@ function IntervalSection({
           </span>
         ) : null}
       </div>
-      <p className="text-muted-fg text-xs">
+      <p className="text-xs text-muted-fg">
         Technical read-outs from recent candles — green leans bullish, red bearish. The buy gate
         uses these to block new buys until the verdicts you selected in this profile&apos;s config
         agree; it filters entries, it never forces a buy.
@@ -628,7 +628,7 @@ export function SymbolTechnicalsPanel({
        * wrapping the pill ran into the heading and the external link
        * dropped under it). */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <h2 className="text-fg text-sm font-semibold">
+        <h2 className="text-sm font-semibold text-fg">
           {/* Deep-link the heading to the profile config so an operator can
            * jump from a panel verdict to the Technicals gate settings in
            * one click, instead of going back → profile → config. Same
@@ -652,7 +652,7 @@ export function SymbolTechnicalsPanel({
             disabled={refreshing}
             aria-label="Refresh Technicals signal and compute-job health"
             title="Refresh now (otherwise the panel re-polls every 15s)"
-            className="text-muted-fg hover:text-foreground inline-flex items-center text-xs disabled:opacity-50"
+            className="hover:text-foreground inline-flex items-center text-xs text-muted-fg disabled:opacity-50"
             data-testid="symbol-tv-refresh"
           >
             <RefreshCw className={cn('size-3', refreshing && 'animate-spin')} aria-hidden />
@@ -661,7 +661,7 @@ export function SymbolTechnicalsPanel({
             href={`https://www.tradingview.com/symbols/${symbol}/technicals/?exchange=BINANCE`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-muted-fg hover:text-foreground inline-flex items-center gap-1 text-xs"
+            className="hover:text-foreground inline-flex items-center gap-1 text-xs text-muted-fg"
             data-testid="symbol-tv-external-link"
             title="Open TradingView's published Technical Ratings for this symbol so you can cross-check against the ratings we compute locally from Binance klines. Note: long moving averages (EMA/SMA 100 and 200) are computed over a recent-candle window, so their raw values can differ slightly from TradingView's full-history values — the buy/sell signal still matches in trending conditions."
           >
@@ -688,7 +688,7 @@ export function SymbolTechnicalsPanel({
           </AlertDescription>
         </Alert>
       ) : intervalRows.length === 0 ? (
-        <div className="text-muted-fg space-y-1 text-xs" data-testid="symbol-tv-empty">
+        <div className="space-y-1 text-xs text-muted-fg" data-testid="symbol-tv-empty">
           <p>No Technicals intervals configured.</p>
           <p>
             Add an interval in the{' '}
@@ -745,8 +745,8 @@ export function SymbolTechnicalsPanel({
                     className={cn(
                       'rounded-xs border px-2 py-0.5 text-xs font-medium transition-colors',
                       i === safeActiveIdx
-                        ? 'bg-accent border-transparent text-white'
-                        : 'text-muted-fg hover:bg-accent/10 border-border',
+                        ? 'border-transparent bg-accent text-white'
+                        : 'border-border text-muted-fg hover:bg-accent/10',
                     )}
                   >
                     <span>{row.interval}</span>

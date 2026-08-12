@@ -43,12 +43,12 @@ function FunnelStage({
   readonly passed: number;
 }): React.JSX.Element {
   return (
-    <div className="border-border bg-surface-alt rounded-md border p-2">
-      <div className="text-muted-fg text-[11px]">{label}</div>
-      <div className="text-fg font-mono text-sm tabular-nums">
-        {blocked.toLocaleString()} <span className="text-muted-fg text-[11px]">blocked</span>
+    <div className="rounded-md border border-border bg-surface-alt p-2">
+      <div className="text-[11px] text-muted-fg">{label}</div>
+      <div className="font-mono text-sm text-fg tabular-nums">
+        {blocked.toLocaleString()} <span className="text-[11px] text-muted-fg">blocked</span>
       </div>
-      <div className="text-muted-fg font-mono text-[11px] tabular-nums">
+      <div className="font-mono text-[11px] text-muted-fg tabular-nums">
         {passed.toLocaleString()} passed →
       </div>
     </div>
@@ -70,11 +70,11 @@ function BlockerAttributionLine({
   const attr = attributeBlocker(code, attribution, config);
   if (attr === null) return null;
   return (
-    <div className="text-muted-fg text-[11px]" data-testid={testId ?? `bt-why-attr-${code}`}>
+    <div className="text-[11px] text-muted-fg" data-testid={testId ?? `bt-why-attr-${code}`}>
       {attr.path ? (
         <>
           set by{' '}
-          <code className="text-fg bg-surface-alt rounded px-1 py-0.5 font-mono">{attr.path}</code>
+          <code className="rounded bg-surface-alt px-1 py-0.5 font-mono text-fg">{attr.path}</code>
           {attr.value !== null && <> = {attr.value}</>}
         </>
       ) : (
@@ -106,17 +106,17 @@ export function DecisionSummaryView({
   const dominant = top && top.pct >= 90 ? top : null;
   return (
     <div className="space-y-3" data-testid="bt-why-summary">
-      <p className="text-fg text-sm">
+      <p className="text-sm text-fg">
         {summary.bought > 0
           ? `${summary.bought.toLocaleString()} of ${summary.eligible.toLocaleString()} entry decisions became trades. Here's where the rest stopped:`
           : `None of the ${summary.eligible.toLocaleString()} entry decisions became a trade. Here's where each stopped:`}
       </p>
       {dominant && (
         <div
-          className="border-border bg-surface-alt space-y-1 rounded-md border p-2"
+          className="space-y-1 rounded-md border border-border bg-surface-alt p-2"
           data-testid="bt-why-dominant"
         >
-          <p className="text-fg text-sm">
+          <p className="text-sm text-fg">
             Almost every entry —{' '}
             <span className="font-medium">
               {dominant.count.toLocaleString()} of {summary.eligible.toLocaleString()} (
@@ -131,7 +131,7 @@ export function DecisionSummaryView({
             attribution={attribution}
             testId="bt-why-dominant-attr"
           />
-          <p className="text-muted-fg text-xs">{KIND_GUIDANCE[dominant.kind]}</p>
+          <p className="text-xs text-muted-fg">{KIND_GUIDANCE[dominant.kind]}</p>
         </div>
       )}
       {/* The 3-stage funnel and the choke line assume the clean rating →
@@ -158,10 +158,10 @@ export function DecisionSummaryView({
             />
           </div>
           {summary.indicatorChoke ? (
-            <p className="text-muted-fg text-xs" data-testid="bt-why-choke">
+            <p className="text-xs text-muted-fg" data-testid="bt-why-choke">
               Of the {summary.technicalsPassed.toLocaleString()} entries that passed the rating
               gate,{' '}
-              <span className="text-fg font-medium">
+              <span className="font-medium text-fg">
                 {summary.indicatorChoke.count.toLocaleString()} (
                 {summary.indicatorChoke.pctOfPassed}%)
               </span>{' '}
@@ -178,11 +178,11 @@ export function DecisionSummaryView({
               <span className="text-fg">
                 {b.label} <span className="text-muted-fg">· {BLOCKER_TAG[b.kind]}</span>
               </span>
-              <span className="text-muted-fg shrink-0 font-mono tabular-nums">
+              <span className="shrink-0 font-mono text-muted-fg tabular-nums">
                 {b.count.toLocaleString()} · {b.pct}%
               </span>
             </div>
-            <div className="bg-surface-alt h-1.5 w-full overflow-hidden rounded-full">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-alt">
               <div className={`h-full ${BLOCKER_TINT[b.kind]}`} style={{ width: `${b.pct}%` }} />
             </div>
             <BlockerAttributionLine code={b.code} config={config} attribution={attribution} />

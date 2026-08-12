@@ -93,7 +93,7 @@ export function TechnicalsHealthPill({
     const reason = friendlyErrorLabel(errMsg);
     return (
       <span
-        className="text-warning text-xs"
+        className="text-xs text-warning"
         title={`Health unavailable: ${errMsg}`}
         aria-label={`Technicals compute health unavailable: ${reason}`}
         data-testid={testId}
@@ -106,7 +106,7 @@ export function TechnicalsHealthPill({
   if (intervals.length === 0) {
     return (
       <span
-        className="text-warning text-xs"
+        className="text-xs text-warning"
         title="No recent compute batch — the cron may not be running."
         aria-label="Technicals compute silent — no recent batch; the cron may not be running"
         data-testid={testId}

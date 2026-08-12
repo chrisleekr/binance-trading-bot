@@ -587,11 +587,11 @@ function LadderRowView({
         <span className={toneClass[row.tone]} title={row.hint}>
           {row.label}
         </span>
-        {row.note ? <span className="text-muted-fg truncate">· {row.note}</span> : null}
+        {row.note ? <span className="truncate text-muted-fg">· {row.note}</span> : null}
       </span>
-      <span className="whitespace-nowrap font-mono">
+      <span className="font-mono whitespace-nowrap">
         <span title={formatAmount(row.price)}>{fmtPrice(row.price)}</span>
-        <span className="text-muted-fg ml-2">{fmtGap(row.gapPct)}</span>
+        <span className="ml-2 text-muted-fg">{fmtGap(row.gapPct)}</span>
       </span>
     </div>
   );
@@ -601,7 +601,7 @@ function LadderRowView({
 function CurrentRow({ current }: { readonly current: number }): React.JSX.Element {
   return (
     <div
-      className="bg-muted/40 flex items-baseline justify-between gap-2 px-3 py-1.5 text-xs font-medium"
+      className="flex items-baseline justify-between gap-2 bg-muted/40 px-3 py-1.5 text-xs font-medium"
       data-testid="exit-row-current"
     >
       <span className="text-fg">◀ Current price</span>
@@ -633,7 +633,7 @@ function ExitLadder({
   // Current sits below every level (e.g. price fell under the stop-loss line).
   if (current !== null && !currentPlaced)
     items.push(<CurrentRow key="__current" current={current} />);
-  return <div className="divide-border divide-y rounded-md border">{items}</div>;
+  return <div className="divide-y divide-border rounded-md border">{items}</div>;
 }
 
 // --- Regime-exit row ------------------------------------------------------
@@ -787,9 +787,9 @@ export function SymbolSignalPanel({
 
   return (
     <section className="space-y-2" data-testid="symbol-signal-panel">
-      <h2 className="text-fg text-sm font-semibold">Signal</h2>
+      <h2 className="text-sm font-semibold text-fg">Signal</h2>
       {view.kind === 'unavailable' ? (
-        <p className="text-muted-fg text-xs" data-testid="symbol-signal-unavailable">
+        <p className="text-xs text-muted-fg" data-testid="symbol-signal-unavailable">
           No signal — strategy state unavailable.
         </p>
       ) : view.kind === 'flat' ? (
@@ -833,7 +833,7 @@ function FlatView({
             Flat — no open position. Entry is a market buy once every condition holds:
           </p>
           <ul
-            className="divide-border divide-y rounded-md border"
+            className="divide-y divide-border rounded-md border"
             data-testid="symbol-signal-gates"
           >
             {/* `entryGates` emits at most one entry per knob, so each gate
@@ -863,7 +863,7 @@ function HoldingView({
   const bullHoldNote = bullHoldText(bullHold);
   return (
     <div className="space-y-2" data-testid="symbol-signal-table">
-      <div className="text-muted-fg flex items-baseline justify-between gap-2 px-1 text-xs">
+      <div className="flex items-baseline justify-between gap-2 px-1 text-xs text-muted-fg">
         <span>
           Avg entry{' '}
           <span className="font-mono" title={formatAmount(view.avgEntryPrice)}>
@@ -879,11 +879,11 @@ function HoldingView({
       <ExitLadder view={view} />
 
       {view.discoveryEntry ? (
-        <p className="text-muted-fg px-1 text-xs" data-testid="symbol-signal-discovery-note">
+        <p className="px-1 text-xs text-muted-fg" data-testid="symbol-signal-discovery-note">
           Single-entry discovery position — no grid re-buys (a discovery pick never averages down).
         </p>
       ) : view.nextBuy === null ? (
-        <p className="text-muted-fg px-1 text-xs">Highest buy level reached — no further adds.</p>
+        <p className="px-1 text-xs text-muted-fg">Highest buy level reached — no further adds.</p>
       ) : null}
 
       {view.discoveryTimeStop ? (
@@ -900,7 +900,7 @@ function HoldingView({
               {view.discoveryTimeStop.bars === 1 ? '' : 's'}
             </span>
           </div>
-          <p className="text-muted-fg mt-1 text-xs">
+          <p className="mt-1 text-xs text-muted-fg">
             Sells to cash after that many closed candles from entry if it has not already taken
             profit or hit its stop.
           </p>
@@ -921,7 +921,7 @@ function HoldingView({
               {view.timeStop.bars === 1 ? '' : 's'}
             </span>
           </div>
-          <p className="text-muted-fg mt-1 text-xs">
+          <p className="mt-1 text-xs text-muted-fg">
             Sells to cash after that many closed candles from entry if it never reached your sell
             trigger.
           </p>
@@ -930,7 +930,7 @@ function HoldingView({
 
       {view.forceSell ? (
         <div
-          className="divide-border divide-y rounded-md border"
+          className="divide-y divide-border rounded-md border"
           data-testid="symbol-signal-force-sell"
         >
           <div className="flex items-baseline justify-between gap-2 px-3 py-2 text-xs">
@@ -940,18 +940,18 @@ function HoldingView({
             >
               Technicals force-sell
             </span>
-            <span className="whitespace-nowrap font-mono">
+            <span className="font-mono whitespace-nowrap">
               <span title={formatAmount(view.forceSell.trigger.price)}>
                 {fmtPrice(view.forceSell.trigger.price)}
               </span>
-              <span className="text-muted-fg ml-2">{fmtGap(view.forceSell.trigger.gapPct)}</span>
+              <span className="ml-2 text-muted-fg">{fmtGap(view.forceSell.trigger.gapPct)}</span>
             </span>
           </div>
           <p
             className={
               view.forceSell.status.kind === 'would-fire'
-                ? 'text-down px-3 py-1.5 text-xs font-medium'
-                : 'text-muted-fg px-3 py-1.5 text-xs'
+                ? 'px-3 py-1.5 text-xs font-medium text-down'
+                : 'px-3 py-1.5 text-xs text-muted-fg'
             }
             data-testid="symbol-signal-force-sell-status"
             data-status={view.forceSell.status.kind}
@@ -963,7 +963,7 @@ function HoldingView({
 
       {view.pyramid ? (
         <div
-          className="divide-border divide-y rounded-md border"
+          className="divide-y divide-border rounded-md border"
           data-testid="symbol-signal-pyramid"
           data-add-count={view.pyramid.addCount}
         >
@@ -978,7 +978,7 @@ function HoldingView({
               {view.pyramid.addCount} of {view.pyramid.maxAdds} adds
             </span>
           </div>
-          <p className="text-muted-fg px-3 py-1.5 text-xs">
+          <p className="px-3 py-1.5 text-xs text-muted-fg">
             {view.pyramid.nextAdd ? (
               <>
                 Next add at{' '}

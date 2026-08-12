@@ -133,11 +133,7 @@ export interface Fill {
 }
 
 export type FillRejectReason =
-  | 'min-notional'
-  | 'step-size'
-  | 'insufficient-balance'
-  | 'liquidity'
-  | 'no-fill';
+  'min-notional' | 'step-size' | 'insufficient-balance' | 'liquidity' | 'no-fill';
 
 export type FillOutcome =
   | { readonly kind: 'filled'; readonly fills: readonly Fill[]; readonly latencyMs: number }

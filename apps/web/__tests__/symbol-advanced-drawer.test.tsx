@@ -2,7 +2,7 @@
 // cascade text, and onWiped callback.
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -87,9 +87,7 @@ describe('SymbolAdvancedDrawer', () => {
     await userEvent.click(screen.getByTestId('advanced-toggle'));
     await userEvent.click(screen.getByTestId('action-archive-grid'));
     await waitFor(() => expect(screen.getByText(/Archive grid trade/)).toBeInTheDocument());
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('advanced-confirm'));
-    });
+    await userEvent.click(screen.getByTestId('advanced-confirm'));
     await waitFor(() =>
       expect(toastSuccess).toHaveBeenCalledWith(expect.stringMatching(/Archive scheduled/)),
     );
@@ -117,9 +115,7 @@ describe('SymbolAdvancedDrawer', () => {
     expect(screen.getByText(/recorded average entry price/)).toBeInTheDocument();
     expect(screen.getByText(/override actions/)).toBeInTheDocument();
     expect(screen.getByText(/Live Binance orders are NOT cancelled/)).toBeInTheDocument();
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('advanced-confirm'));
-    });
+    await userEvent.click(screen.getByTestId('advanced-confirm'));
     await waitFor(() => expect(onWiped).toHaveBeenCalledTimes(1));
     expect(
       fetchMock.mock.calls.some(

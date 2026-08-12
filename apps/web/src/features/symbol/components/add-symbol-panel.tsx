@@ -187,11 +187,11 @@ export function AddSymbolPanel({ profileId }: { readonly profileId: string }): R
         {exchangeInfo.isLoading ? (
           // Reserve list height so the real rows don't shove layout when the
           // payload lands. Six rows ≈ the typical visible window on 375×667.
-          <ul className="divide-border border-border divide-y rounded-md border" aria-hidden="true">
+          <ul className="divide-y divide-border rounded-md border border-border" aria-hidden="true">
             {Array.from({ length: 6 }).map((_, i) => (
               <li key={i} className="flex min-h-11 items-center justify-between px-3 py-2">
-                <span className="bg-muted-fg/30 h-4 w-24 animate-pulse rounded-sm" />
-                <span className="bg-muted-fg/30 h-4 w-16 animate-pulse rounded-sm" />
+                <span className="h-4 w-24 animate-pulse rounded-sm bg-muted-fg/30" />
+                <span className="h-4 w-16 animate-pulse rounded-sm bg-muted-fg/30" />
               </li>
             ))}
           </ul>
@@ -207,7 +207,7 @@ export function AddSymbolPanel({ profileId }: { readonly profileId: string }): R
         ) : null}
 
         {exchangeInfo.isSuccess && filtered.length === 0 ? (
-          <p className="text-muted-fg text-sm">
+          <p className="text-sm text-muted-fg">
             No matching symbol. Check the spelling (e.g. BTC, ETH) or try a different pair — only
             pairs currently tradable on Binance appear here.
           </p>
@@ -215,7 +215,7 @@ export function AddSymbolPanel({ profileId }: { readonly profileId: string }): R
 
         {filtered.length > 0 ? (
           <ul
-            className="divide-border border-border max-h-96 divide-y overflow-y-auto rounded-md border"
+            className="max-h-96 divide-y divide-border overflow-y-auto rounded-md border border-border"
             data-testid="symbols-new-list"
           >
             {filtered.map((s) => {
@@ -231,11 +231,11 @@ export function AddSymbolPanel({ profileId }: { readonly profileId: string }): R
                         aria-label={s.symbol}
                         checked={checked}
                         onChange={() => setSelected(s.symbol)}
-                        className="accent-accent size-5 cursor-pointer"
+                        className="size-5 cursor-pointer accent-accent"
                       />
                       <span className="font-mono font-medium">{s.symbol}</span>
                     </span>
-                    <span className="text-muted-fg font-mono text-xs">
+                    <span className="font-mono text-xs text-muted-fg">
                       {s.baseAsset}/{s.quoteAsset}
                     </span>
                   </label>
@@ -247,7 +247,7 @@ export function AddSymbolPanel({ profileId }: { readonly profileId: string }): R
 
         <div className="space-y-1">
           <label htmlFor="add-symbol-entry-price" className="text-sm font-medium">
-            Average entry price <span className="text-muted-fg font-normal">(optional)</span>
+            Average entry price <span className="font-normal text-muted-fg">(optional)</span>
           </label>
           <Input
             id="add-symbol-entry-price"
@@ -258,7 +258,7 @@ export function AddSymbolPanel({ profileId }: { readonly profileId: string }): R
             autoComplete="off"
             data-testid="add-symbol-entry-price"
           />
-          <p className="text-muted-fg text-xs">
+          <p className="text-xs text-muted-fg">
             Already hold this coin? Enter your average buy price so the bot manages the position and
             can sell it. Leave blank to trade it fresh. The profile must be enabled so the bot can
             read your balance.

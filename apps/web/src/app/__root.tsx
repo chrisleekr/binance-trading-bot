@@ -67,7 +67,7 @@ function RootComponent() {
       <TimezoneProvider>
         <LiveProfileProvider>
           {isPublic ? (
-            <div className="bg-bg text-fg flex min-h-dvh flex-col items-center justify-center p-4">
+            <div className="flex min-h-dvh flex-col items-center justify-center bg-bg p-4 text-fg">
               <ErrorBoundary>
                 <Outlet />
               </ErrorBoundary>
@@ -109,11 +109,11 @@ function NotFoundComponent() {
   const router = useRouter();
   return (
     <section
-      className="border-border bg-bg-elevated mx-auto flex max-w-md flex-col items-center gap-3 rounded-md border p-6 text-center"
+      className="mx-auto flex max-w-md flex-col items-center gap-3 rounded-md border border-border bg-bg-elevated p-6 text-center"
       data-testid="not-found"
     >
       <h1 className="text-lg font-semibold">{t('notfound.title')}</h1>
-      <p className="text-muted-fg text-sm">{t('notfound.body')}</p>
+      <p className="text-sm text-muted-fg">{t('notfound.body')}</p>
       <Button onClick={() => router.history.push('/')}>{t('notfound.cta')}</Button>
     </section>
   );

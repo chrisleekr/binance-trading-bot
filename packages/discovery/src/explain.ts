@@ -23,14 +23,7 @@ import type { Candle } from '@app/strategy-core';
  * candidate's `passed` list is this sequence truncated at its first failure.
  */
 export type DiscoveryFilterName =
-  | 'quote'
-  | 'blacklist'
-  | 'liquidity'
-  | 'activity'
-  | 'spread'
-  | 'changeBand'
-  | 'age'
-  | 'trend';
+  'quote' | 'blacklist' | 'liquidity' | 'activity' | 'spread' | 'changeBand' | 'age' | 'trend';
 
 /**
  * A candidate blocked by account-level symbol exclusivity: a sibling profile on

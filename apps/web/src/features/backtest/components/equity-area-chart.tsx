@@ -130,7 +130,7 @@ export function EquityAreaChart({
   }, [points, height, lineColor, topColor, bottomColor, load]);
 
   if (error) {
-    return <p className="text-danger text-sm">{error}</p>;
+    return <p className="text-sm text-danger">{error}</p>;
   }
   return (
     <div

@@ -62,11 +62,11 @@ export function OpsNotifyCard(): React.JSX.Element {
                 <div className="min-w-0">
                   <Label
                     htmlFor={`ops-event-${meta.category}`}
-                    className="text-fg text-sm font-medium"
+                    className="text-sm font-medium text-fg"
                   >
                     {meta.label}
                   </Label>
-                  <p className="text-muted-fg text-xs">{meta.description}</p>
+                  <p className="text-xs text-muted-fg">{meta.description}</p>
                 </div>
                 <Switch
                   id={`ops-event-${meta.category}`}

@@ -111,11 +111,11 @@ function SymbolRow({ sym }: { sym: MarketTrendSymbol }) {
   const base = sym.symbol.replace(/USDT$/, '');
   return (
     <div
-      className="bg-bg-elevated flex items-center justify-between gap-2 p-3"
+      className="flex items-center justify-between gap-2 bg-bg-elevated p-3"
       data-testid={`market-trend-${sym.symbol}`}
     >
       <div className="flex items-center gap-2">
-        <span className="text-fg font-medium">{base}</span>
+        <span className="font-medium text-fg">{base}</span>
         <span
           className={`text-xs font-semibold ${meta.tone}`}
           data-testid={`market-trend-${sym.symbol}-regime`}
@@ -124,8 +124,8 @@ function SymbolRow({ sym }: { sym: MarketTrendSymbol }) {
         </span>
       </div>
       <div className="text-right">
-        <div className="text-fg font-mono text-sm tabular-nums">{formatPrice(sym.price)}</div>
-        <div className="text-muted-fg text-[11px] tabular-nums">{pctVsSma50(sym)}</div>
+        <div className="font-mono text-sm text-fg tabular-nums">{formatPrice(sym.price)}</div>
+        <div className="text-[11px] text-muted-fg tabular-nums">{pctVsSma50(sym)}</div>
       </div>
     </div>
   );
@@ -144,7 +144,7 @@ function BreadthRow({
   const tone = mostDown ? 'text-warning' : 'text-success';
   const barTone = mostDown ? 'bg-warning' : 'bg-success';
   return (
-    <div className="bg-bg-elevated flex flex-col gap-1 p-3" data-testid="market-trend-breadth">
+    <div className="flex flex-col gap-1 bg-bg-elevated p-3" data-testid="market-trend-breadth">
       <div className="flex items-center justify-between text-xs">
         <span className="text-muted-fg">Coins rising (24h)</span>
         <span className={`font-semibold tabular-nums ${tone}`}>
@@ -152,7 +152,7 @@ function BreadthRow({
         </span>
       </div>
       <div
-        className="bg-border h-1.5 w-full overflow-hidden rounded-full"
+        className="h-1.5 w-full overflow-hidden rounded-full bg-border"
         role="meter"
         aria-valuenow={Math.round(percentUp)}
         aria-valuemin={0}
@@ -183,7 +183,7 @@ function Shell({ children }: { children: React.ReactNode }): React.JSX.Element {
       aria-label="Market trend"
       data-testid="market-trend-card"
     >
-      <h2 className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider">
+      <h2 className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
         Market trend
       </h2>
       {children}
@@ -224,7 +224,7 @@ export function MarketTrendCard(): React.JSX.Element | null {
     return (
       <Shell>
         <p
-          className="text-muted-fg text-xs"
+          className="text-xs text-muted-fg"
           data-testid={q.error ? 'market-trend-error' : 'market-trend-warming'}
         >
           {q.error ? 'Market trend unavailable.' : 'Getting the latest market data…'}
@@ -237,7 +237,7 @@ export function MarketTrendCard(): React.JSX.Element | null {
 
   return (
     <Shell>
-      <div className="@md:grid-cols-2 border-border bg-border grid grid-cols-1 gap-px border">
+      <div className="grid grid-cols-1 gap-px border border-border bg-border @md:grid-cols-2">
         {trend.symbols.map((sym) => (
           <SymbolRow key={sym.symbol} sym={sym} />
         ))}
@@ -247,7 +247,7 @@ export function MarketTrendCard(): React.JSX.Element | null {
           total={trend.breadth.total}
         />
         <div
-          className="bg-bg-elevated text-fg flex items-center p-3 text-xs"
+          className="flex items-center bg-bg-elevated p-3 text-xs text-fg"
           data-testid="market-trend-verdict"
         >
           {verdict(trend.symbols, trend.breadth.percentUp)}
@@ -255,7 +255,7 @@ export function MarketTrendCard(): React.JSX.Element | null {
       </div>
       {freshness.warn ? (
         <p
-          className="text-warning text-[11px] font-medium"
+          className="text-[11px] font-medium text-warning"
           data-testid="market-trend-age"
           role="status"
         >
@@ -267,7 +267,7 @@ export function MarketTrendCard(): React.JSX.Element | null {
             The overall market mood. It&apos;s context, not a buy or sell signal — your bot still
             decides each coin on its own.
           </p>
-          <span className="text-muted-fg shrink-0 tabular-nums" data-testid="market-trend-age">
+          <span className="shrink-0 text-muted-fg tabular-nums" data-testid="market-trend-age">
             {freshness.text}
           </span>
         </div>

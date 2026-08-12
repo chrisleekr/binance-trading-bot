@@ -46,7 +46,7 @@ export function BackLink({ to, params, children = 'Back' }: BackLinkProps): Reac
   return (
     <Link
       {...target}
-      className="text-muted-fg hover:text-fg inline-flex items-center gap-0.5 text-sm"
+      className="inline-flex items-center gap-0.5 text-sm text-muted-fg hover:text-fg"
     >
       <ChevronLeft className="h-4 w-4" aria-hidden="true" />
       {children}
@@ -76,8 +76,8 @@ export function PageHeader({
       {back}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <h1 className="text-fg text-xl font-semibold">{title}</h1>
-          {meta ? <span className="text-muted-fg text-sm">{meta}</span> : null}
+          <h1 className="text-xl font-semibold text-fg">{title}</h1>
+          {meta ? <span className="text-sm text-muted-fg">{meta}</span> : null}
         </div>
         {/* ml-auto, not just justify-between: once the row wraps (narrow screen,
             long title) the actions land on their own line, where
@@ -85,7 +85,7 @@ export function PageHeader({
             left. ml-auto holds the right edge in both states. */}
         {actions ? <div className="ml-auto flex items-center gap-2">{actions}</div> : null}
       </div>
-      {description ? <p className="text-muted-fg text-sm">{description}</p> : null}
+      {description ? <p className="text-sm text-muted-fg">{description}</p> : null}
     </header>
   );
 }

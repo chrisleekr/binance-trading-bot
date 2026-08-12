@@ -28,9 +28,9 @@ export function DiagnosisSpine({
     <section
       aria-labelledby="bt-diagnosis-h"
       data-testid="bt-diagnosis-spine"
-      className="border-border bg-bg-elevated space-y-2 rounded-md border p-3"
+      className="space-y-2 rounded-md border border-border bg-bg-elevated p-3"
     >
-      <h2 id="bt-diagnosis-h" className="text-fg text-sm font-semibold">
+      <h2 id="bt-diagnosis-h" className="text-sm font-semibold text-fg">
         What the run proves
       </h2>
       <ul className="space-y-2">
@@ -39,18 +39,18 @@ export function DiagnosisSpine({
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-fg">
                 {item.title}{' '}
-                <span className="text-muted-fg text-xs">· {DIAGNOSIS_TAG[item.kind]}</span>
+                <span className="text-xs text-muted-fg">· {DIAGNOSIS_TAG[item.kind]}</span>
               </span>
               {item.count !== undefined ? (
-                <span className="text-muted-fg shrink-0 font-mono text-xs tabular-nums">
+                <span className="shrink-0 font-mono text-xs text-muted-fg tabular-nums">
                   {item.count.toLocaleString()}
                 </span>
               ) : null}
             </div>
             {item.lever?.path ? (
-              <div className="text-muted-fg text-[11px]">
+              <div className="text-[11px] text-muted-fg">
                 set by{' '}
-                <code className="text-fg bg-surface-alt rounded px-1 py-0.5 font-mono">
+                <code className="rounded bg-surface-alt px-1 py-0.5 font-mono text-fg">
                   {item.lever.path}
                 </code>
                 {item.lever.value !== null && <> = {item.lever.value}</>}
@@ -58,7 +58,7 @@ export function DiagnosisSpine({
               </div>
             ) : null}
             {item.detail && !item.lever?.path ? (
-              <div className="text-muted-fg text-[11px]">
+              <div className="text-[11px] text-muted-fg">
                 {item.detail}
                 {item.kind === 'none' && hasNextSteps ? (
                   <>
