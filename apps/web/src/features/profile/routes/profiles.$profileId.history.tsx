@@ -1,8 +1,13 @@
 // /profiles/$profileId/history — the profile's trade history, one page with
-// three tabs: Archive (closed-trade rollup + Binance backfill + P/L by exit),
-// Audit (the action log), and Activity (the merged event feed). This was the
-// HISTORY dock; it outgrew a 240px drawer, so it is its own page reached from
-// the profile MANAGE card, alongside Backtest.
+// four tabs: Archive (closed-trade rollup + Binance backfill + P/L by exit),
+// Audit (what the operator changed), Logs (what the bot did and why), and
+// Activity (the merged event feed). This was the HISTORY dock; it outgrew a
+// 240px drawer, so it is its own page reached from the profile MANAGE card,
+// alongside Backtest.
+//
+// Audit and Logs are different records and stay separate tabs: Audit answers
+// "who changed this", Logs answers "why did it act". Merging them would bury the
+// handful of operator actions under the worker's own volume.
 
 import { useQuery } from '@tanstack/react-query';
 import { createRoute, useNavigate } from '@tanstack/react-router';
@@ -21,9 +26,11 @@ import {
   initialAuditPage,
   type AuditPageState,
 } from '@/features/profile/components/audit-log-panel';
+import { LogViewerPanel } from '@/features/profile/components/log-viewer-panel';
+import { TickTracePanel } from '@/features/profile/components/tick-trace-panel';
 import { profileDetailRoute } from '@/features/profile/routes/profiles.$profileId';
 
-type Tab = 'archive' | 'audit' | 'activity';
+type Tab = 'archive' | 'audit' | 'logs' | 'activity';
 
 /**
  * `?section=` makes a tab linkable and reloadable. Named `section`, not `view`:
@@ -34,15 +41,17 @@ export interface HistorySearch {
   section?: Tab;
 }
 
-const TAB_IDS = ['archive', 'audit', 'activity'] as const;
+const TAB_IDS = ['archive', 'audit', 'logs', 'activity'] as const;
 const isTab = isOneOf(TAB_IDS);
 
 const TABS: readonly {
   id: Tab;
-  labelKey: 'history.tab.archive' | 'history.tab.audit' | 'history.tab.activity';
+  labelKey:
+    'history.tab.archive' | 'history.tab.audit' | 'history.tab.logs' | 'history.tab.activity';
 }[] = [
   { id: 'archive', labelKey: 'history.tab.archive' },
   { id: 'audit', labelKey: 'history.tab.audit' },
+  { id: 'logs', labelKey: 'history.tab.logs' },
   { id: 'activity', labelKey: 'history.tab.activity' },
 ];
 
@@ -83,6 +92,11 @@ function HistoryPage(): React.JSX.Element {
         <TradeArchivePanel profileId={profileId} />
       ) : tab === 'audit' ? (
         <HistoryAuditTab profileId={profileId} />
+      ) : tab === 'logs' ? (
+        <div className="space-y-4">
+          <LogViewerPanel profileId={profileId} />
+          <TickTracePanel profileId={profileId} symbol={null} />
+        </div>
       ) : (
         <ActivityFeed rows={rows} />
       )}

@@ -8,7 +8,7 @@ Work down this list:
 
 1. **Is the profile enabled?** A disabled profile makes no new decisions. Re-enable it in the dashboard.
 2. **Is the API key green?** On the account's API-keys page, the status must be healthy. If not, the key, its permissions, or its IP allow-list is the problem — revisit [Install → Create a Binance API key](../get-started/install.md#step-6-create-a-binance-api-key).
-3. **Are the buy conditions actually met?** "Doing nothing" is a valid, common decision. Open the action log (see [Dashboard](../user-guide/dashboard.md)) — it says what each tick decided and why.
+3. **Are the buy conditions actually met?** "Doing nothing" is a valid, common decision. Open the profile's [History → Logs](../user-guide/profile/history.md#logs) — it says what each tick decided and why, with the numbers it decided on. If the rows are too sparse to explain a specific tick, arm **Capture every tick** there and wait for it to happen again.
 4. **Is there budget and balance?** With no free funds to spend, the strategy waits.
 
 ```mermaid
@@ -47,7 +47,7 @@ Almost always one of:
 
 ## An order was rejected by Binance
 
-Binance rejects orders that break its rules — for example an amount below the minimum, or a price too far from the market. The action log shows Binance's exact reason. Adjust the profile's budget or step sizes in [Configure](../get-started/configure.md).
+Binance rejects orders that break its rules — for example an amount below the minimum, or a price too far from the market. The profile's [History → Logs](../user-guide/profile/history.md#logs) shows Binance's exact reason; expand **Context** on the row for the full rejection payload. Adjust the profile's budget or step sizes in [Configure](../get-started/configure.md).
 
 ## A save worked but warned "order sizing was not verified"
 

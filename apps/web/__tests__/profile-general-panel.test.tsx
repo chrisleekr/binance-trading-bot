@@ -3,7 +3,7 @@
 // its 409 force path. These behaviours moved here from the Manage card; the tests
 // moved with them. The embedded ApiKeyPanel has its own test and is stubbed out.
 
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import {
   createMemoryHistory,
   createRootRoute,
@@ -79,7 +79,7 @@ const withSibling = (agg: DashboardAggregateResponse): DashboardAggregateRespons
   ],
 });
 
-const setUp = (agg: DashboardAggregateResponse): void => {
+const setUp = (agg: DashboardAggregateResponse): QueryClient => {
   dashboardAggregate = agg;
   const qc = createQueryClient();
   qc.setQueryData(['dashboard-aggregate', ACCOUNT_ID], agg);
@@ -108,6 +108,20 @@ const setUp = (agg: DashboardAggregateResponse): void => {
       />
     </QueryClientProvider>,
   );
+  return qc;
+};
+
+const deferTargetedInvalidation = (queryClient: QueryClient) => {
+  let resolve!: () => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  const invalidate = vi
+    .spyOn(queryClient, 'invalidateQueries')
+    .mockImplementation((filters) => (filters?.queryKey ? promise : Promise.resolve()));
+  return { invalidate, resolve, reject };
 };
 
 describe('<ProfileGeneralPanel>', () => {
@@ -161,6 +175,67 @@ describe('<ProfileGeneralPanel>', () => {
 
     await waitFor(() => expect(patch).toHaveBeenCalledWith(PID, { quoteAsset: 'BTC' }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Saved.'));
+  });
+
+  it('toasts a successful rename before its targeted invalidation settles', async () => {
+    const patch = vi.spyOn(profilesMutations, 'patchProfile').mockResolvedValue({} as never);
+    vi.mocked(toast.success).mockClear();
+    const queryClient = setUp(aggregate({ name: 'btc-real' }));
+    const invalidation = deferTargetedInvalidation(queryClient);
+    await screen.findByTestId('profile-general-panel');
+
+    const input = screen.getByTestId('profile-general-name-input');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'btc-live');
+    const save = screen.getByTestId('profile-general-name-save');
+    await userEvent.click(save);
+
+    await waitFor(() =>
+      expect(invalidation.invalidate).toHaveBeenCalledWith({
+        queryKey: ['dashboard-aggregate', ACCOUNT_ID],
+      }),
+    );
+    try {
+      expect(toast.success).toHaveBeenCalledWith('Saved.');
+      expect(save).toBeDisabled();
+      expect(save).toHaveTextContent('Working…');
+      await userEvent.click(save);
+      expect(patch).toHaveBeenCalledTimes(1);
+    } finally {
+      queryClient.setQueryData(
+        ['dashboard-aggregate', ACCOUNT_ID],
+        aggregate({ name: 'btc-live' }),
+      );
+      invalidation.resolve();
+    }
+    await waitFor(() => expect(save).toHaveTextContent('Save'));
+    expect(save).toBeDisabled();
+  });
+
+  it('toasts an uppercased quote save before invalidation and keeps its rejection awaited', async () => {
+    const patch = vi.spyOn(profilesMutations, 'patchProfile').mockResolvedValue({} as never);
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(toast.success).mockClear();
+    const queryClient = setUp(aggregate({ quoteAsset: 'USDT' }));
+    const invalidation = deferTargetedInvalidation(queryClient);
+    await screen.findByTestId('profile-general-panel');
+
+    const input = screen.getByTestId('profile-general-quote-input');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'btc');
+    const save = screen.getByTestId('profile-general-quote-save');
+    await userEvent.click(save);
+
+    await waitFor(() => expect(patch).toHaveBeenCalledWith(PID, { quoteAsset: 'BTC' }));
+    await waitFor(() =>
+      expect(invalidation.invalidate).toHaveBeenCalledWith({
+        queryKey: profileApi.profileDashboardQueryKey(PID),
+      }),
+    );
+    expect(toast.success).toHaveBeenCalledWith('Saved.');
+    expect(save).toBeDisabled();
+    invalidation.reject(new Error('refresh failed'));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('refresh failed'));
   });
 
   it('renders no settings body until the aggregate row resolves', () => {

@@ -9,6 +9,11 @@ import type { Env } from 'types.js';
 // Write failure is logged at WARN and intentionally does not roll back the
 // user action because audit logging is best-effort and must not block request
 // success.
+//
+// A 4xx normally means the mutation never happened, so recording it would
+// invent history. `alreadyApplied` is the handler's declaration that it did
+// happen anyway — a partial success that still answers 4xx, where the rows are
+// already gone and this row is the only surviving trace of the change.
 export const audit =
   (di: DI): MiddlewareHandler<Env> =>
   async (c, next) => {
@@ -16,7 +21,7 @@ export const audit =
     const event = c.get('auditEvent');
     const userId = c.get('userId');
     if (!event || !userId) return;
-    if (c.res.status >= 400) return;
+    if (c.res.status >= 400 && !event.alreadyApplied) return;
     try {
       await repo.auditLogs.append(di.db, userId, {
         actor: 'user',

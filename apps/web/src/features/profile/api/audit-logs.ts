@@ -31,4 +31,4 @@ export const fetchProfileAuditLogs = (
  * `<a href>` click — apiFetch is wrong for binary/large payloads.
  */
 export const auditLogsExportUrl = (accountId: string, profileId: string): string =>
-  `/api/accounts/${encodeURIComponent(accountId)}/profiles/${encodeURIComponent(profileId)}/logs/export`;
+  `/api/accounts/${encodeURIComponent(accountId)}/profiles/${encodeURIComponent(profileId)}/audit-logs/export`;

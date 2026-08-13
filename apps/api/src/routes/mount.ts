@@ -27,6 +27,7 @@ import { marketTrendRouter } from './market-trend.js';
 import { backupRouter } from './backup.js';
 import { technicalsHealthRouter } from './technicals-health.js';
 import { retentionStatusRouter } from './retention-status.js';
+import { retentionConfigRouter } from './retention-config.js';
 import { profilesRouter } from './profiles.js';
 import { apiKeysRouter } from './api-keys.js';
 import { accountHealthRouter } from './account-health.js';
@@ -34,6 +35,7 @@ import { backtestsRouter } from './backtests.js';
 import { archiveRouter } from './archive.js';
 import { auditLogsRouter } from './audit-logs.js';
 import { actionLogsRouter } from './action-logs.js';
+import { profileLogsRouter } from './profile-logs.js';
 import { symbolsRouter } from './symbols.js';
 import { discoveryRouter } from './discovery.js';
 import { riskRouter } from './risk.js';
@@ -76,6 +78,7 @@ export const mountApiRouters = (app: ApiHono, di: DI): void => {
   app.route('/api', backupRouter(di));
   app.route('/api', technicalsHealthRouter(di));
   app.route('/api', retentionStatusRouter(di));
+  app.route('/api', retentionConfigRouter(di));
 
   // Account-scoped routers, nested under `/accounts/:accountId`.
   app.route(ACCOUNT_BASE, profilesRouter(di));
@@ -85,6 +88,7 @@ export const mountApiRouters = (app: ApiHono, di: DI): void => {
   app.route(ACCOUNT_BASE, archiveRouter(di));
   app.route(ACCOUNT_BASE, auditLogsRouter(di));
   app.route(ACCOUNT_BASE, actionLogsRouter(di));
+  app.route(ACCOUNT_BASE, profileLogsRouter(di));
   app.route(ACCOUNT_BASE, symbolsRouter(di));
   app.route(ACCOUNT_BASE, discoveryRouter(di));
   app.route(ACCOUNT_BASE, riskRouter(di));

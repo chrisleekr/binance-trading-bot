@@ -16,6 +16,7 @@
 // 9. Audit XADD (audit-shipping hook)
 // 10. Metrics
 
+import { randomUUID } from 'node:crypto';
 import type { Job } from 'bullmq';
 import type { Decision, TickOutput, TriggerEvent } from '@app/strategy-core';
 import { asAccountId, asProfileId, asUserId, type ManualOverridePayload } from '@app/contracts';
@@ -28,6 +29,7 @@ import { readRawSnapshot } from './snapshot-loader.js';
 import { buildOrderRearmKey, buildProfileTickMetaKey } from 'executor/redis-namespace.js';
 import type { AuditEntry } from 'audit-shipper/audit-shipper.js';
 import { mergeStrategyAudit } from './merge-strategy-audit.js';
+import { tickInputDigest } from './tick-input-digest.js';
 import { buildTickInput, type BuiltTick } from './build-tick-input.js';
 import { errorMessage } from '@app/core/error';
 import type { DecisionFailure, TickHandlerDeps, TickResult } from './tick-types.js';
@@ -521,15 +523,35 @@ export const createTickHandler = (
           }
         }
 
-        // Audit batch (06.09 hook). The audit payload carries operator-visible
-        // context for `/profiles/{id}/audit`. The strategy narrows its own
-        // `output.events` union into the block it wants audited — the worker
-        // never inspects the events. Most ticks emit nothing, so `extractAudit`
-        // returns `undefined` and the payload stays small.
+        // Audit batch. The payload is what the raw tick trace serves verbatim,
+        // and what lands in `action_logs.ctx` for every tick the drainer keeps —
+        // so it is the operator's only record of what a tick actually saw. The
+        // strategy narrows its own `output.events` union into the block it wants
+        // audited; the worker never inspects the events. Most ticks emit
+        // nothing, so `extractAudit` returns `undefined` and the payload stays
+        // small.
         const latencyMs = clock.nowMs() - startMs;
         const auditPayload: Record<string, unknown> = {
           enqueuedAtMs: data.enqueuedAtMs,
           eventPayload: data.payload,
+          // The inputs the decision was actually taken on. Without them a log
+          // row says WHAT the bot did but never why it sized or priced it that
+          // way, which is the question that sends an operator digging. Only the
+          // two assets this symbol trades are carried, not the whole wallet:
+          // every field here is paid for on every tick, in Redis memory.
+          input: tickInputDigest(tickInput),
+          // The strategy's own per-branch trace. It already goes to pino, where
+          // it is unsearchable per-tick after the fact; carrying it here is what
+          // lets a captured row explain the path the strategy took.
+          ...(output.logs.length > 0
+            ? {
+                strategyLogs: output.logs.map((l) => ({
+                  level: l.level,
+                  message: l.message,
+                  ...(l.context !== undefined ? { context: l.context } : {}),
+                })),
+              }
+            : {}),
           // True when THIS tick is itself the retry of an order an earlier tick could
           // not place. Without it a re-issued order reads as a fresh decision and the
           // operator cannot tell a retry storm from normal churn.
@@ -561,6 +583,11 @@ export const createTickHandler = (
         const auditEntry: AuditEntry = {
           accountId,
           profileId,
+          // Correlates the durable `action_logs` row with the raw stream entry
+          // it came from. (profile, symbol, time) does not: the drainer stamps
+          // whole batches inside one microsecond, so a row cannot be matched
+          // back to its trace on timestamp alone.
+          tickId: randomUUID(),
           ts: clock.nowMs(),
           symbol,
           event: data.event,

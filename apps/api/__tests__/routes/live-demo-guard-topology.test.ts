@@ -37,6 +37,7 @@ const DEMO_GUARD_CONTRACT = [
   'ALL /api/backup',
   'ALL /api/backup/config',
   'ALL /api/restore',
+  'PATCH /api/retention-config',
   'POST /api/accounts',
 ] as const;
 
@@ -75,6 +76,7 @@ const sensitiveRoute = (route: MountedRoute): boolean => {
     );
   if (sensitiveName) return true;
   if (route.path === '/api/accounts' && route.method === 'POST') return true;
+  if (route.path === '/api/retention-config' && route.method === 'PATCH') return true;
   return false;
 };
 

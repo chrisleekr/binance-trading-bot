@@ -13,8 +13,11 @@ describe('loadWorkerEnv', () => {
     expect(env.DATABASE_URL).toBe(REQUIRED_BASE.DATABASE_URL);
     expect(env.REDIS_URL).toBe(REQUIRED_BASE.REDIS_URL);
     expect(env.LOG_LEVEL).toBe('info');
-    expect(env.ACTION_LOG_RETENTION_DAYS).toBe(30);
-    expect(env.AUDIT_LOG_RETENTION_DAYS).toBe(90);
+    // The action-log and audit-log horizons are deliberately absent: they are
+    // operator-settable rows in `retention_config`, not env vars, so the crons
+    // read them per run rather than at boot.
+    expect(env.DISCOVERY_SNAPSHOT_RETENTION_DAYS).toBe(180);
+    expect(env.EQUITY_SNAPSHOT_RETENTION_DAYS).toBe(365);
     expect(env.WORKER_ADMIN_PORT).toBe(9101);
     expect(env.WORKER_ADMIN_HOST).toBe('127.0.0.1');
     expect(env.ROLE).toBe('all');
@@ -113,18 +116,18 @@ describe('loadWorkerEnv', () => {
   it('coerces decimal strings to ints for retention horizons', () => {
     const env = loadWorkerEnv({
       ...REQUIRED_BASE,
-      ACTION_LOG_RETENTION_DAYS: '14',
-      AUDIT_LOG_RETENTION_DAYS: '180',
+      DISCOVERY_SNAPSHOT_RETENTION_DAYS: '14',
+      EQUITY_SNAPSHOT_RETENTION_DAYS: '180',
     } as unknown as NodeJS.ProcessEnv);
-    expect(env.ACTION_LOG_RETENTION_DAYS).toBe(14);
-    expect(env.AUDIT_LOG_RETENTION_DAYS).toBe(180);
+    expect(env.DISCOVERY_SNAPSHOT_RETENTION_DAYS).toBe(14);
+    expect(env.EQUITY_SNAPSHOT_RETENTION_DAYS).toBe(180);
   });
 
   it('rejects non-numeric retention values loudly (operator typo trap)', () => {
     expect(() =>
       loadWorkerEnv({
         ...REQUIRED_BASE,
-        ACTION_LOG_RETENTION_DAYS: 'thirty',
+        DISCOVERY_SNAPSHOT_RETENTION_DAYS: 'thirty',
       } as unknown as NodeJS.ProcessEnv),
     ).toThrow(/Invalid worker environment/);
   });
@@ -133,15 +136,28 @@ describe('loadWorkerEnv', () => {
     expect(() =>
       loadWorkerEnv({
         ...REQUIRED_BASE,
-        AUDIT_LOG_RETENTION_DAYS: '0',
+        EQUITY_SNAPSHOT_RETENTION_DAYS: '0',
       } as unknown as NodeJS.ProcessEnv),
     ).toThrow(/Invalid worker environment/);
     expect(() =>
       loadWorkerEnv({
         ...REQUIRED_BASE,
-        AUDIT_LOG_RETENTION_DAYS: '-1',
+        EQUITY_SNAPSHOT_RETENTION_DAYS: '-1',
       } as unknown as NodeJS.ProcessEnv),
     ).toThrow(/Invalid worker environment/);
+  });
+
+  it('ignores a leftover ACTION_LOG_RETENTION_DAYS instead of honouring it', () => {
+    // A stale value in an operator's `.env` must not silently take effect: the
+    // horizon moved to `retention_config`, and a schema that still parsed this
+    // key would recreate the two-owners split the migration removed.
+    const env = loadWorkerEnv({
+      ...REQUIRED_BASE,
+      ACTION_LOG_RETENTION_DAYS: '3',
+      AUDIT_LOG_RETENTION_DAYS: '5',
+    } as unknown as NodeJS.ProcessEnv);
+    expect(env).not.toHaveProperty('ACTION_LOG_RETENTION_DAYS');
+    expect(env).not.toHaveProperty('AUDIT_LOG_RETENTION_DAYS');
   });
 
   it('throws when DATABASE_URL is missing (no silent localhost fallback)', () => {

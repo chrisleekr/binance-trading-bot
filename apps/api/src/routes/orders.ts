@@ -178,9 +178,12 @@ const ArchiveDeleteParam = z.object({
   archiveId: z.uuid(),
 });
 
+// `/audit-logs/export`, not `/logs/export`: this streams audit_logs, the record
+// of what the OPERATOR changed. `/logs/export` now belongs to the action-log
+// export, which is what an operator asking to "export the logs" means.
 const logsExportRoute = createRoute({
   method: 'get',
-  path: '/profiles/{profileId}/logs/export',
+  path: '/profiles/{profileId}/audit-logs/export',
   tags: ['orders'],
   request: { params: ProfileIdParam, query: ProfileLogsQ },
   responses: {

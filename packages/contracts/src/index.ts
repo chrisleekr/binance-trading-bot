@@ -45,6 +45,8 @@ export * from './form-builder.js';
 export * from './config-schema.js';
 export * from './config-doc.js';
 export * from './retention.js';
+export * from './retention-config.js';
+export * from './tick-trace.js';
 export * from './backtest.js';
 export * from './backtest-advisor.js';
 export * from './status.js';

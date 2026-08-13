@@ -2,9 +2,19 @@
 //
 // The audit stream carries ONE entry per tick per symbol, the vast majority of
 // which are noops (the strategy looked and did nothing). Persisting every one
-// would bury the activity feed, so only actionable entries become rows: a tick
-// that placed or cancelled an order, or one whose technicals gate fired (a
-// veto / force-sell context). Everything else stays in pino/Datadog only.
+// would bury the activity feed and cost gigabytes a month, so in steady state
+// only actionable entries become rows: a tick that placed or cancelled an
+// order, or one whose technicals gate fired (a veto / force-sell context).
+//
+// DEEP CAPTURE inverts that for one profile at a time. While the operator has
+// armed it, every tick of that profile becomes a row carrying the WHOLE audit
+// payload, which is what makes "why did nothing happen at 14:32" answerable
+// after the fact. It is bounded by its own expiry rather than by retention, so
+// the volume it costs is the volume the operator explicitly asked for.
+//
+// Either way a tick produces at most one row: under capture an actionable tick
+// keeps its info/warn level and summary line and merely gains the full context,
+// rather than being duplicated as a second debug row.
 
 import type { ActionLogInsert } from '@app/db';
 import type { AuditEntry } from './audit-shipper.js';
@@ -119,34 +129,88 @@ const summarise = (e: AuditEntry, results: readonly OrderResult[]): string => {
 };
 
 /**
- * Filter to actionable entries and shape each into an `action_logs` insert. Pure
- * so the drain policy is unit-testable without Redis or Postgres. Each row keeps
- * its own `profileId` (the drainer is cross-profile and has no single scope).
+ * One line for a captured tick that did nothing. `summarise` is written for
+ * ticks with an order outcome and degrades to "no order outcome recorded",
+ * which reads as a fault rather than as the normal case it is here. Naming the
+ * non-order decisions matters: a tick that emitted `set-kv` or `emit-event` did
+ * real work, and calling that "no action" sends triage the wrong way.
  */
-export const auditEntriesToActionLogs = (entries: readonly AuditEntry[]): ActionLogInsert[] => {
+const summariseQuiet = (e: AuditEntry): string => {
+  const kinds = e.decisionTypes.filter((t) => t !== 'noop');
+  return kinds.length > 0
+    ? `${e.symbol}: ${kinds.join(', ')}, no order action`
+    : `${e.symbol}: evaluated, no action`;
+};
+
+/**
+ * Fields every tick row carries, whatever the drain policy. `source` marks the
+ * row's writer so the Logs filter can separate tick rows from the entry-blocker
+ * transitions written elsewhere.
+ */
+const ctxEnvelope = (e: AuditEntry): Record<string, unknown> => ({
+  source: 'tick',
+  tickId: e.tickId,
+  event: e.event,
+  decisionTypes: e.decisionTypes,
+  clientOrderIds: e.clientOrderIds,
+  latencyMs: e.latencyMs,
+});
+
+/** Drain policy: which profile, if any, is currently under deep capture. */
+export interface DrainPolicy {
+  readonly debugCaptureProfileId: string | null;
+}
+
+const NO_CAPTURE: DrainPolicy = { debugCaptureProfileId: null };
+
+/**
+ * Shape drained entries into `action_logs` inserts, keeping the actionable ones
+ * always and every one for the profile under deep capture. Pure so the drain
+ * policy is unit-testable without Redis or Postgres. Each row keeps its own
+ * `profileId` (the drainer is cross-profile and has no single scope).
+ */
+export const auditEntriesToActionLogs = (
+  entries: readonly AuditEntry[],
+  policy: DrainPolicy = NO_CAPTURE,
+): ActionLogInsert[] => {
   const rows: ActionLogInsert[] = [];
   for (const e of entries) {
-    if (!isActionableAudit(e)) continue;
+    const captured = policy.debugCaptureProfileId === e.profileId;
+    const actionable = isActionableAudit(e);
+    if (!actionable && !captured) continue;
     const technicals = e.payload['technicals'];
     const results = readOrderResults(e);
     // Raise to `warn` when any order action failed so a wedged cancel-replace
     // chase stands out in the feed instead of reading as routine activity.
     const hadFailure = results.some((r) => ORDER_ACTIONS.has(r.type) && !r.ok);
+    // A captured tick that did nothing is `debug`, which keeps it out of the
+    // warn+error activity feed and gives the Logs tab a level to filter the
+    // quiet ticks away by. It does NOT hide them from the default Logs page —
+    // no level selected means no narrowing — which is the right default while
+    // capture is armed, since seeing those ticks is why it was armed.
+    const level = actionable ? (hadFailure ? 'warn' : 'info') : 'debug';
     rows.push({
+      id: e.tickId,
       time: new Date(e.ts),
       profileId: e.profileId,
       symbol: e.symbol,
-      level: hadFailure ? 'warn' : 'info',
-      msg: summarise(e, results),
+      level,
+      msg: actionable ? summarise(e, results) : summariseQuiet(e),
       ctx: {
-        event: e.event,
-        decisionTypes: e.decisionTypes,
-        // Per-decision outcomes (the executor's ok flags) so triage can see
-        // which decisions actually took effect, not just what was emitted.
-        results,
-        clientOrderIds: e.clientOrderIds,
-        latencyMs: e.latencyMs,
-        ...(technicals !== undefined ? { technicals } : {}),
+        ...ctxEnvelope(e),
+        // Captured rows carry the whole payload, spread last so a payload key
+        // that collides with an envelope field wins — the raw entry is the more
+        // faithful answer to "what did this tick see". Nothing is redacted
+        // because nothing credential-equivalent is allowed into an audit payload
+        // in the first place, and this ctx renders in the UI and leaves the box
+        // in exports.
+        //
+        // Steady-state rows carry only the per-decision outcomes (the executor's
+        // ok flags), so triage can see which decisions actually took effect, not
+        // just what was emitted.
+        ...(captured
+          ? e.payload
+          : { results, ...(technicals !== undefined ? { technicals } : {}) }),
       },
     });
   }

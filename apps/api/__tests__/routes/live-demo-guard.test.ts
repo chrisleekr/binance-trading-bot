@@ -1,15 +1,12 @@
-// Criterion 2 + 5b: the requireNotDemo() deny-list and the onboarding-status
-// demoMode field, both driven by the LIVE_DEMO deployment flag.
+// The requireNotDemo() deny-list and onboarding-status demoMode field are both
+// driven by the LIVE_DEMO deployment flag.
 //
-// The guard is a blocklist-completeness gate: every credential / destructive /
-// notifier-target route must 403 under LIVE_DEMO so a sensitive route added
-// later cannot silently become public. One assertion per locked (method, path).
+// The guard covers credential, notifier, backup/restore, account-creation and
+// retention-change routes. Trading remains interactive on testnet. One
+// assertion samples each locked surface at request level.
 //
-// The guard is expected to read `di.env.LIVE_DEMO` at request time; the fixture
-// mutates that field on the shared di object the routers close over.
-//
-// RED: no guard exists yet, so every locked route answers its normal status
-// (200 / 422 / 401), not 403; and onboarding-status omits demoMode.
+// The guard reads `di.env.LIVE_DEMO` at request time; the fixture mutates that
+// field on the shared di object the routers close over.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
@@ -80,20 +77,22 @@ describeIfInfra('requireNotDemo deny-list under LIVE_DEMO', () => {
   it('accounts POST /accounts (create) is locked', async () => {
     await expect403('/api/accounts', 'POST', '{}');
   });
+  it('retention-config PATCH /retention-config is locked', async () => {
+    await expect403('/api/retention-config', 'PATCH', '{"actionLogDays":1}');
+  });
   it('auth POST /change-password is locked', async () => {
     await expect403('/api/auth/change-password', 'POST', '{}');
   });
   it('auth POST /sign-out is locked', async () => {
     await expect403('/api/auth/sign-out', 'POST');
   });
-  // F5: Better Auth's native /sign-up/email bypasses the onboarding-closed gate.
+  // Better Auth's native endpoint bypasses the onboarding-closed gate.
   it('auth POST /sign-up/email is locked', async () => {
     await expect403('/api/auth/sign-up/email', 'POST', '{}');
   });
 
-  // F1+F2: the per-provider notifier surface leaks the seeded webhook url/chatId
-  // (readable via GET config), lets a visitor overwrite/toggle it, and can fire
-  // the operator's real webhook via test-fire. One 403 assertion per route.
+  // The provider surface reads and writes secrets and can fire the configured
+  // webhook. One 403 assertion samples each operation.
   const np = (): string => `/api/accounts/${acc()}/profiles/${prof()}/notify-providers/webhook`;
   it('notify-provider GET :name is locked', async () => {
     await expect403(np(), 'GET');

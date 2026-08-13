@@ -27,6 +27,7 @@ import * as profileStateHistory from './profile-state-history.js';
 import * as profileSymbols from './profile-symbols.js';
 import * as profilesMod from './profiles.js';
 import * as resultLedger from './result-ledger.js';
+import * as retentionConfig from './retention-config.js';
 import * as symbolStatesMod from './symbol-states.js';
 import * as tradeArchive from './trade-archive.js';
 import * as users from './users.js';
@@ -55,6 +56,7 @@ export {
   profileStateHistory,
   profileSymbols,
   resultLedger,
+  retentionConfig,
   tradeArchive,
   users,
 };
@@ -150,9 +152,12 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
     ]),
     actionLogs: bindModule(scope, actionLogs, [
       'listRecent',
+      'listPage',
+      'listLoggedSymbols',
       'listForSymbolRange',
       'listForProfileRange',
       'listErrorsForProfile',
+      'listConditionEdges',
       'append',
     ]),
     appliedFills: bindModule(scope, appliedFills),
