@@ -136,6 +136,7 @@ nav:
       - Production deploy: operations/deploy.md
       - Kill switch: operations/kill-switch.md
       - Environment variables: operations/env-vars.md
+      - Metrics reference: operations/metrics.md
       - Troubleshooting: operations/troubleshooting.md
   - Contributing:
       - Overview: contributing/index.md
@@ -145,6 +146,7 @@ nav:
           - Account isolation: architecture/account-isolation.md
           - Worker pipeline: architecture/worker-pipeline.md
           - Database: architecture/database.md
+          - Conditions & diagnosis: architecture/observability-conditions.md
           - Auth: architecture/auth.md
       - Extending:
           - Strategy plugin contract: architecture/extensibility.md

@@ -40,6 +40,7 @@ import type { LiveExecutor } from 'executor/live-executor.js';
 import type { FillAdopter } from 'executor/fill-adopter.js';
 import type { FillBackfiller } from 'executor/fill-backfiller.js';
 import type { AuditDrainer } from 'audit-shipper/audit-shipper.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 import { loadWorkerEnv, type WorkerEnv } from 'env.js';
 import type { Component } from 'lib/component.js';
 
@@ -122,6 +123,14 @@ export interface BootContext {
    * `index.ts` passes this into `startAdminServer`.
    */
   readonly metricsRegistry: MetricsRegistry;
+  /**
+   * The catalogue-typed sink over {@link BootContext.metricsRegistry}. Exposed
+   * alongside the registry because a caller that only holds the registry has to
+   * build its own adapter to emit anything, and a second adapter means a second
+   * lazy-registration cache: the same metric registered twice on one registry
+   * throws, and a `forget` issued against the wrong cache silently does nothing.
+   */
+  readonly metrics: MetricsSink;
   /**
    * Fleet subscription-ownership manager. index.ts start()s it after
    * markReady() (so this pod is ready before it can own an account) and
@@ -304,6 +313,7 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     notifierGapThrottle,
     enqueueSymbolReconcile,
     resolveBinanceFull,
+    metrics,
   });
 
   const { auditShipper, auditDrainerRedis, auditDrainer } = buildAudit({
@@ -440,6 +450,7 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     auditDrainerRedis,
     evictProfileContext: profileContextCache.evictProfile,
     metricsRegistry,
+    metrics,
     subscriptionOwnership,
     enabledSetReconciler,
     listActive: () => profileManager.listActive(),

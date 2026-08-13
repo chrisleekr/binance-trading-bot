@@ -1,0 +1,6 @@
+groups:
+  - name: fixture.nameless-selector
+    rules:
+      - alert: NamelessSelector
+        expr: sum(binance_api_weight) + count({accountId="unknown"}) > 0
+        for: 2m

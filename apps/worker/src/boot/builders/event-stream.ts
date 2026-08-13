@@ -45,6 +45,8 @@ export interface EventStreamDeps {
   readonly accountSnapshotStore: AccountSnapshotStore;
   readonly notifierGapThrottle: NotifierGapThrottle;
   readonly enqueueSymbolReconcile: StatePersistence['enqueueSymbolReconcile'];
+  /** Same sink the tick and commit paths hold, so the stream's own series land on one registry. */
+  readonly metrics: StatePersistence['metrics'];
   readonly resolveBinanceFull: ResolveBinanceFull;
 }
 
@@ -67,6 +69,7 @@ export const buildEventStream = ({
   notifierGapThrottle,
   enqueueSymbolReconcile,
   resolveBinanceFull,
+  metrics,
 }: EventStreamDeps): EventStream => {
   const eventRouter = createEventRouter({
     tickQueue: queueSet.queues.tick,
@@ -164,6 +167,9 @@ export const buildEventStream = ({
     // before keys are saved during onboarding. Shares one findById + ownership
     // check with cold-load via `resolveBinanceFull`.
     resolveCredentials: resolveBinanceFull,
+    // Counts each socket close. A flapping stream is otherwise invisible: the
+    // pool reconnects, profiles keep ticking, and the only trace is a log line.
+    metrics,
   });
 
   return { eventRouter, userStreamPool };

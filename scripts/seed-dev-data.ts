@@ -26,6 +26,8 @@
 //
 // Run: `bun run seed:dev`
 
+import { writeFile } from 'node:fs/promises';
+
 import { createAuth } from '@app/api';
 import {
   asAccountId,
@@ -39,6 +41,7 @@ import {
 import { resolveGitSha } from '@app/core/git-sha';
 import {
   accountRepo,
+  assertTestDatabaseUrl,
   createDb,
   createPool,
   createRedis,
@@ -80,6 +83,7 @@ const OPERATOR_PASSWORD = process.env['SEED_OPERATOR_PASSWORD'] ?? 'docs-screens
  * would have it act on holdings and prices that do not exist.
  */
 const DOCS_STACK = process.env['SEED_DOCS_STACK'] === '1';
+const APP_E2E = process.env['SEED_APP_E2E'] === '1';
 
 // Plausible reference prices per base asset, so dummy numbers read sanely and
 // the pool doubles as the distinct-base allocation order.
@@ -288,6 +292,11 @@ interface Operator {
  */
 async function ensureOperator(db: Database): Promise<Operator> {
   const existing = await repo.users.count(db);
+  // Adopting an existing operator would seed the journey against whatever state
+  // that operator already has, so the app-e2e lane demands a database it owns.
+  if (APP_E2E && existing !== 0) {
+    throw new Error('SEED_APP_E2E requires an empty database and refuses an existing operator');
+  }
   if (existing >= 1) {
     const [row] = await db.select().from(schema.users).limit(1);
     if (!row) throw new Error('user count > 0 but no row returned');
@@ -819,6 +828,7 @@ async function seedActionLogs(db: Database, seeded: readonly SeededProfile[]): P
 
 /** Local-only DB host, unless the operator explicitly opts out. */
 function assertSafeTarget(connectionString: string): void {
+  if (APP_E2E) return;
   if (process.env['SEED_ALLOW_REMOTE'] === '1') return;
   const host = (() => {
     try {
@@ -846,12 +856,18 @@ async function main(): Promise<void> {
     console.error('[seed] DATABASE_URL is not set');
     process.exit(1);
   }
+  if (APP_E2E) {
+    assertTestDatabaseUrl(connectionString);
+    if (!process.env['SEED_MANIFEST_PATH']) {
+      throw new Error('SEED_MANIFEST_PATH is required when SEED_APP_E2E=1');
+    }
+  }
   assertSafeTarget(connectionString);
   console.log(`[seed] target: ${connectionString.replace(/:[^:@/]+@/, ':***@')}`);
 
   // Before anything price-derived: entry prices, order prices, wallet balances
   // and the market-trend card all key off this table.
-  await resolveRefPrices();
+  if (!APP_E2E) await resolveRefPrices();
 
   const pool = createPool({ kind: 'admin', connectionString });
   const db = createDb(pool);
@@ -891,6 +907,30 @@ async function main(): Promise<void> {
       // would pick it up on its next reconfigure and start trading coins they
       // never chose.
       await ensureProfiles(db, op);
+    }
+
+    if (APP_E2E) {
+      const account = await accountRepo(db, op.operatorId, op.accountId);
+      const profiles = await account.profiles.listForAccount();
+      const first = profiles[0];
+      if (!first) throw new Error('app-e2e seed produced no profile');
+      for (const profile of profiles) {
+        const scoped = await profileRepo(db, op.operatorId, op.accountId, asProfileId(profile.id));
+        await scoped.profile.setEnabled(false);
+      }
+      // Shell-sourceable so the harness can export these straight into
+      // Playwright's environment, the same channel the Binance fixture uses.
+      await writeFile(
+        process.env['SEED_MANIFEST_PATH']!,
+        [
+          `export E2E_USER_EMAIL=${JSON.stringify(OPERATOR_EMAIL)}`,
+          `export E2E_USER_PASSWORD=${JSON.stringify(OPERATOR_PASSWORD)}`,
+          `export E2E_ACCOUNT_ID=${JSON.stringify(op.accountId)}`,
+          `export E2E_PROFILE_ID=${JSON.stringify(first.id)}`,
+          '',
+        ].join('\n'),
+      );
+      return;
     }
 
     // Every profile's plugin, resolved BEFORE the loop below starts deleting

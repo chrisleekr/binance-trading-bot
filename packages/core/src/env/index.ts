@@ -8,3 +8,8 @@ export {
   type PgSslMode,
 } from './schema.js';
 export { ENV_CATALOGUE, type EnvConsumer, type EnvVar } from './catalogue.js';
+// Only the three functions the generator shell calls. The rule lists and
+// predicates are exported from `./contract.js` for its own unit tests, which
+// import the module directly: re-exporting them here would publish a surface
+// nothing outside the package reads.
+export { buildEnvContract, renderEnvContract, envContractErrors } from './contract.js';

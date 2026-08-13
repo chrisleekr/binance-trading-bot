@@ -1,0 +1,13 @@
+{
+  "name": "app-e2e boot klines",
+  "request": {
+    "method": "GET",
+    "path": "/api/v3/klines",
+    "matchQuery": "any"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "content-type": "application/json" },
+    "body": []
+  }
+}

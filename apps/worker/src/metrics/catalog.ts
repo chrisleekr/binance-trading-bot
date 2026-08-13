@@ -61,12 +61,20 @@ const AUDIT_BATCH_BUCKETS = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 500
  */
 export type MetricName =
   | 'tick_latency_ms'
+  | 'tick_total'
+  | 'tick_failures_total'
   | 'decision_count'
+  | 'bullmq_queue_wait_jobs'
+  | 'pg_pool_idle'
+  | 'pg_pool_total'
+  | 'pg_pool_waiting'
+  | 'binance_ws_disconnects_total'
   | 'tick_throttled_kill_switch'
   | 'tick_throttled_symbol_pause'
   | 'tick_throttled_override_claim'
   | 'tick_throttled_redis_unavailable'
   | 'binance_api_weight'
+  | 'order_budget_deferred'
   | 'state_commit_persist_error'
   | 'state_commit_persist_timeout'
   | 'state_commit_cas_miss'
@@ -75,7 +83,13 @@ export type MetricName =
   | 'state_commit_latch_merge_error'
   | 'audit_batch_size'
   | 'audit_stream_length'
-  | 'audit_consumer_lag';
+  | 'audit_consumer_lag'
+  | 'audit_consumer_pending'
+  | 'audit_consumer_lag_unknown'
+  | 'audit_entries_reclaimed'
+  | 'audit_read_no_body'
+  | 'audit_entries_stuck'
+  | 'audit_poison_entries_dropped';
 
 /**
  * The spec behind each name. Exhaustive by construction: a name in the union with
@@ -94,10 +108,64 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     labelNames: ['profileId', 'symbol'],
     buckets: LATENCY_MS_BUCKETS,
   },
+  // The denominator every tick-health ratio needs. `tick_latency_ms` is observed
+  // on the success path only, so a worker whose ticks all throw reports no
+  // latency and no failures: it reads as idle, which is indistinguishable from
+  // healthy. This one moves on every path — success, throttled skip, throw.
+  tick_total: {
+    kind: 'counter',
+    help: 'Tick handler invocations, counted on every outcome: completed, throttled and thrown alike.',
+    labelNames: ['profileId', 'symbol'],
+  },
+  // The numerator. Deliberately NOT incremented on a throttled skip: a paused
+  // symbol or an engaged kill-switch is the operator's own instruction, and
+  // counting it would hold a failure-ratio alert on for as long as the pause.
+  tick_failures_total: {
+    kind: 'counter',
+    help: 'Tick handler invocations that threw. Throttled skips are not failures and are excluded.',
+    labelNames: ['profileId', 'symbol'],
+  },
   decision_count: {
     kind: 'counter',
     help: 'Strategy decisions emitted, accumulated across ticks.',
     labelNames: ['profileId', 'symbol'],
+  },
+  // Runtime pressure. Queue backlog and pool exhaustion both present as "ticks
+  // are late" and need opposite responses, so each carries its own series.
+  // Labelled by queue: a stuck pipeline queue and a stuck tick queue mean
+  // different things, and one unlabelled number can say neither.
+  bullmq_queue_wait_jobs: {
+    kind: 'gauge',
+    help: 'Jobs waiting in this BullMQ queue, sampled on the runtime-gauge interval.',
+    labelNames: ['queue'],
+  },
+  // The pool is process-wide, so these carry no labels; adding one would stamp
+  // every series 'unknown' and invent a dimension the metric does not have.
+  // `waiting` is the one that means trouble — clients blocked with no connection
+  // to hand them — while idle/total is the context that says whether the pool is
+  // small or simply busy.
+  pg_pool_idle: {
+    kind: 'gauge',
+    help: 'Postgres pool connections currently idle.',
+    labelNames: [],
+  },
+  pg_pool_total: {
+    kind: 'gauge',
+    help: 'Postgres pool connections currently open, idle and in use together.',
+    labelNames: [],
+  },
+  pg_pool_waiting: {
+    kind: 'gauge',
+    help: 'Callers queued for a Postgres connection because the pool had none free.',
+    labelNames: [],
+  },
+  // A flapping user-data stream is invisible from outside: the pool reconnects,
+  // profiles keep ticking, and the only trace is a log line. Per account,
+  // because the remedy (re-issuing that account's key) is per account.
+  binance_ws_disconnects_total: {
+    kind: 'counter',
+    help: 'User-data stream sockets closed for this account, counted once per close. A watchdog reconnect closes the stale socket itself, so it registers as the one disconnect it is.',
+    labelNames: ['accountId'],
   },
   tick_throttled_kill_switch: {
     kind: 'counter',
@@ -127,6 +195,16 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     kind: 'gauge',
     help: 'Binance used request weight in the last 1m window, as reported on the tick response.',
     labelNames: ['profileId'],
+  },
+  // A deferred reprice leaves no order at Binance and raises no operator alert,
+  // so this counter is its only numeric trace — the audit row records it, but
+  // one row per tick is not something an operator watches. Without this counter
+  // a saturated order budget is indistinguishable from a market that simply
+  // stopped moving.
+  order_budget_deferred: {
+    kind: 'counter',
+    help: 'Order batches skipped for this tick because the account had no Binance ORDERS headroom.',
+    labelNames: ['profileId', 'symbol'],
   },
   state_commit_persist_error: {
     kind: 'counter',
@@ -177,13 +255,72 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     help: 'Current XLEN of an audit stream, including entries already consumed.',
     labelNames: ['stream'],
   },
-  // Not written on every pass: a failed GROUPS probe and a null lag both skip
-  // the record, and a gauge keeps its last value, so a flat line here is not
-  // evidence of health — read it alongside the drainer warn logs.
+  // The drainer probes on every pass, but three outcomes still leave the gauge
+  // unrefreshed: a failed GROUPS probe, an absent consumer group, and a null lag.
+  // A gauge keeps its last value, so none of them is visible on this series. The
+  // companion counter below carries all three, which is what lets an alert
+  // distinguish a genuinely flat backlog from one nothing has measured since the
+  // last healthy pass.
   audit_consumer_lag: {
     kind: 'gauge',
-    help: 'Entries on this audit stream the drainer consumer group has not yet read. Not refreshed on a pass whose lag probe failed or reported null.',
+    help: 'Entries on this audit stream the drainer consumer group has not yet read. Not refreshed on a pass whose probe failed, whose consumer group was absent, or whose lag came back null.',
     labelNames: ['stream'],
+  },
+  // Lag alone cannot see a Postgres stall. Reading keeps succeeding through one,
+  // so lag stays near zero while every unpersisted batch piles up here unacked.
+  // Alert on both, or the drainer looks caught up while it persists nothing.
+  //
+  // Falls back on its own once the backend recovers, because the reclaim path
+  // claims abandoned entries off the pending list and acks them. Alert on its
+  // growth rather than its value anyway: recovery is bounded by the min-idle
+  // window and the batch size, so the reading trails the incident by passes.
+  audit_consumer_pending: {
+    kind: 'gauge',
+    help: 'Entries on this audit stream delivered to the drainer but not yet acknowledged. Climbs when persistence fails while Redis stays healthy, and falls back over later passes once the reclaim path re-claims and persists them. A small flat residue can remain: an entry that cannot be written and has no successfully written sibling is never discarded.',
+    labelNames: ['stream'],
+  },
+  audit_consumer_lag_unknown: {
+    kind: 'counter',
+    help: 'Drain passes that could not put a number on this stream backlog. cause=probe-failed means the XINFO GROUPS probe errored; cause=trimmed-past-group means Redis reported trimming dropped entries the group never read; cause=group-missing means the reply carried no such consumer group, so nothing is draining the stream.',
+    labelNames: ['stream', 'cause'],
+  },
+  // The recovery counterpart to audit_consumer_pending: the gauge says how much
+  // is stranded, this says how much is coming back. A pending reading that falls
+  // while this stays flat is trimming, not recovery.
+  audit_entries_reclaimed: {
+    kind: 'counter',
+    help: 'Audit entries claimed back off this stream drainer group pending list and persisted, after an earlier pass failed to persist them.',
+    labelNames: ['stream'],
+  },
+  // The first sighting of a body-less entry, which the drop counter below cannot
+  // report: retirement needs a delivery count, that count is a property of the
+  // pending list, and the entry only reaches the pending list after this read.
+  // The gap between the two is at least the delivery ceiling in reclaim passes
+  // and a 60s min-idle window apiece, so without this series the condition is
+  // several minutes old before anything says it started.
+  audit_read_no_body: {
+    kind: 'counter',
+    help: 'Entries a live XREADGROUP read off this audit stream whose fields carry no usable body. This worker never XADDs an entry without one, so a rise means something else is writing to audit:*. Nothing is discarded here: the entry stays in the pending list, and the reclaim path retires it onto audit_poison_entries_dropped{cause="no-body"} only once repeated deliveries put it past the ceiling. Seeded at zero per stream so a first-ever sighting is a rise increase() can see.',
+    labelNames: ['stream'],
+  },
+  // The one reclaim outcome no other series can show. A persist failure leaves
+  // the reclaim counter flat, the drop counter flat, and audit_consumer_pending
+  // merely holding a floor, which is indistinguishable from a batch legitimately
+  // in flight. Counted per pass rather than per entry lifetime, so it is the
+  // repetition over a window that names an entry stuck.
+  audit_entries_stuck: {
+    kind: 'counter',
+    help: "Entries the reclaim claimed off this stream's drainer-group pending list and then neither persisted nor retired, so they stay pending and will be claimed again next pass. Seeded at zero per stream so a first-ever occurrence is a rise increase() can see.",
+    labelNames: ['stream'],
+  },
+  // The only trace a deliberately discarded audit row leaves. Every discard route
+  // must land here, or a drop reads as recovery on both backlog gauges. Seeded at
+  // zero per stream and cause so a first-ever drop is a rise increase() can see
+  // rather than a series that appears already at its final value.
+  audit_poison_entries_dropped: {
+    kind: 'counter',
+    help: 'Audit entries acknowledged away without ever being written. cause=rejected means all three of: the entry had been redelivered past the delivery ceiling, the solo re-persist the bisect isolated it to failed with a row-deterministic error, and a sibling row was written to Postgres in the same pass, capped at 8 per stream per pass so a systematic rejection cannot destroy a whole backlog in one go; cause=corrupt-json means the entry body would not parse, or parsed without the fields action_logs needs, so no backend could ever accept it; cause=no-body means the reclaim kept claiming an entry whose fields carry no body at all until it passed the delivery ceiling. A rejected or corrupt-json drop is an action_logs row that will never exist; a no-body drop most likely is not, because no body ever reached the drainer to become one.',
+    labelNames: ['stream', 'cause'],
   },
 };
 
@@ -195,4 +332,14 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
  */
 export interface MetricsSink {
   record(name: MetricName, value: number, tags?: Readonly<Record<string, string>>): void;
+  /**
+   * Retire one label-set of a metric, so the series leaves the next scrape.
+   *
+   * Required, not optional: a per-profile or per-symbol child outlives the
+   * subject that owned it, and prom-client keeps exporting its last value
+   * forever. A stopped profile therefore reports a live-looking reading and any
+   * alert over that series can never resolve. An optional method would be
+   * omitted by exactly the alternative sink that most needs to implement it.
+   */
+  forget(name: MetricName, tags?: Readonly<Record<string, string>>): void;
 }

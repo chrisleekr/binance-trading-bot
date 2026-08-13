@@ -1,0 +1,5 @@
+groups:
+  - name: fixture.secondary
+    rules:
+      - alert: SecondaryValid
+        expr: up == 0

@@ -1,0 +1,6 @@
+groups:
+  - name: fixture.backtick-invalid
+    rules:
+      - alert: BacktickInvalidMatcher
+        expr: sum(binance_api_weight) + count({__name__=`binance_api_weight`,accountId=`missing-label`}) > 0
+        for: 2m

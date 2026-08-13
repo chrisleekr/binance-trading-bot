@@ -7,6 +7,7 @@ Runbooks for running the bot in production: deploying, stopping it fast, tuning 
 | [Production deploy](deploy.md) | Run the production overlay, TLS, migrations, and day-to-day commands. |
 | [Kill switch](kill-switch.md) | Stop new trading immediately — at coin, profile, or account scope. |
 | [Environment variables](env-vars.md) | Configure the process-level `.env` (ports, database, retention). |
+| [Metrics reference](metrics.md) | Look up any series the worker exports, and what the shipped alert rules read. |
 | [Troubleshooting](troubleshooting.md) | Diagnose common symptoms and follow step-by-step playbooks. |
 
 New to the bot? Start with [Get started](../get-started/index.md); this section assumes a running deployment.

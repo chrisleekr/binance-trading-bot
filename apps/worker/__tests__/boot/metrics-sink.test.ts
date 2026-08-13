@@ -197,4 +197,65 @@ describe('createWorkerMetricsSink', () => {
     // Backlog is a level: a counter would hide the drain by reporting 507.
     expect(body).toMatch(/audit_consumer_lag\{[^}]*stream="audit:acct1"[^}]*\}\s+7/);
   });
+
+  it('records audit_consumer_pending as a per-stream gauge taking the latest value', async () => {
+    const { registry, sink } = setUp();
+    sink.record('audit_consumer_pending', 40, { stream: 'audit:acct1' });
+    sink.record('audit_consumer_pending', 12_345, { stream: 'audit:acct1' });
+    const body = await registry.metrics();
+    // Gauge because each record is an absolute reading of the pending-entries
+    // list, not an increment: a counter would add the readings and report 12385.
+    // Note it returns to zero only over several passes: the reclaim path waits
+    // out a min-idle window and claims one batch per stream per pass, which is
+    // why the alert reads its growth rather than thresholding its value.
+    expect(body).toMatch(/# TYPE audit_consumer_pending gauge/);
+    expect(body).toMatch(/audit_consumer_pending\{[^}]*stream="audit:acct1"[^}]*\}\s+12345/);
+  });
+
+  it('forgets a per-profile child so the series leaves the scrape', async () => {
+    // A gauge child outlives the profile that owned it: prom-client keeps
+    // exporting the last value forever, so a disabled profile still reports a
+    // live-looking weight and any alert reading it can never resolve.
+    const { registry, sink } = setUp();
+    sink.record('binance_api_weight', 240, { profileId: 'p1' });
+    sink.record('binance_api_weight', 10, { profileId: 'p2' });
+    sink.forget('binance_api_weight', { profileId: 'p1' });
+    const body = await registry.metrics();
+    expect(body).not.toMatch(/binance_api_weight\{[^}]*profileId="p1"/);
+    // Only the named child goes: forgetting one profile must not blind the rest.
+    expect(body).toMatch(/binance_api_weight\{[^}]*profileId="p2"[^}]*\}\s+10/);
+  });
+
+  it('no-ops on forgetting a metric that was never recorded, without registering it', async () => {
+    // `forget` runs on teardown paths that cannot know what a profile ever
+    // emitted. Registering the metric to remove a child from it would turn the
+    // cleanup into the thing that creates the series.
+    const { registry, sink } = setUp();
+    expect(() =>
+      sink.forget('tick_latency_ms', { profileId: 'p1', symbol: 'BTCUSDT' }),
+    ).not.toThrow();
+    const body = await registry.metrics();
+    expect(body).not.toContain('tick_latency_ms');
+  });
+
+  it('records audit_consumer_lag_unknown as an accumulating per-stream, per-cause counter', async () => {
+    const { registry, sink } = setUp();
+    sink.record('audit_consumer_lag_unknown', 1, {
+      stream: 'audit:acct1',
+      cause: 'probe-failed',
+    });
+    sink.record('audit_consumer_lag_unknown', 1, {
+      stream: 'audit:acct1',
+      cause: 'probe-failed',
+    });
+    const body = await registry.metrics();
+    // Counter, not gauge: the alert reads increase() over a window, which needs
+    // a monotonic series. A gauge would sit at 1 and make repeated failures
+    // indistinguishable from a single one.
+    expect(body).toMatch(/# TYPE audit_consumer_lag_unknown counter/);
+    expect(body).toMatch(/audit_consumer_lag_unknown\{[^}]*stream="audit:acct1"[^}]*\}\s+2/);
+    // `cause` separates a transport error from reported data loss. Undeclared it
+    // would be dropped from the series, collapsing the two into one number.
+    expect(body).toMatch(/audit_consumer_lag_unknown\{[^}]*cause="probe-failed"[^}]*\}\s+2/);
+  });
 });

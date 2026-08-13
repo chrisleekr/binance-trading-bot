@@ -267,9 +267,7 @@ describe('ManualTradePanel — interactions', () => {
 
     await waitFor(() => expect(screen.getByText(/Confirm manual order/)).toBeInTheDocument());
 
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('manual-confirm'));
-    });
+    await userEvent.click(screen.getByTestId('manual-confirm'));
 
     // The 202 is not the outcome, only the schedule — the toast says so and the
     // panel then polls for what actually happened.
@@ -370,9 +368,7 @@ describe('ManualTradePanel — interactions', () => {
     await userEvent.type(screen.getByTestId('manual-amount'), '100');
     await userEvent.click(screen.getByTestId('manual-review'));
     await waitFor(() => expect(screen.getByText(/Confirm manual order/)).toBeInTheDocument());
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('manual-confirm'));
-    });
+    await userEvent.click(screen.getByTestId('manual-confirm'));
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/bad amount/)),
     );
@@ -392,9 +388,7 @@ describe('ForceTriggerPanel — interactions', () => {
       expect(screen.getByText(/regardless of the Technicals gate/)).toBeInTheDocument(),
     );
 
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('force-confirm'));
-    });
+    await userEvent.click(screen.getByTestId('force-confirm'));
     await waitFor(() =>
       expect(toastSuccess).toHaveBeenCalledWith(expect.stringMatching(/Force buy scheduled/)),
     );
@@ -436,9 +430,7 @@ describe('ForceTriggerPanel — interactions', () => {
     });
 
     await userEvent.click(screen.getByTestId('force-sell'));
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('force-confirm'));
-    });
+    await userEvent.click(screen.getByTestId('force-confirm'));
 
     await waitFor(() =>
       expect(toastSuccess).toHaveBeenCalledWith(expect.stringMatching(/Force sell scheduled/)),
@@ -471,7 +463,12 @@ describe('ForceTriggerPanel — interactions', () => {
     expect(
       fetchMock.mock.calls.filter(([input]) => String(input).includes('/trigger-buy')),
     ).toHaveLength(1);
-    resolver(json({ scheduledAt: '2026-05-10T12:00:00.000Z', overrideActionId: ACTION_ID }));
+    await act(async () => {
+      resolver(json({ scheduledAt: '2026-05-10T12:00:00.000Z', overrideActionId: ACTION_ID }));
+    });
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith(expect.stringMatching(/Force buy scheduled/)),
+    );
   });
 
   it('Force sell modal calls /trigger-sell', async () => {
@@ -484,9 +481,7 @@ describe('ForceTriggerPanel — interactions', () => {
     await userEvent.click(screen.getByTestId('force-sell'));
     await waitFor(() => expect(screen.getByText(/a notification is sent/)).toBeInTheDocument());
 
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('force-confirm'));
-    });
+    await userEvent.click(screen.getByTestId('force-confirm'));
     await waitFor(() =>
       expect(toastSuccess).toHaveBeenCalledWith(expect.stringMatching(/Force sell scheduled/)),
     );

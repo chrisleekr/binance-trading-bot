@@ -20,10 +20,13 @@ import { accountScopeRoute } from '@/features/account/routes/account-scope';
 import { discoveryDashboardQueryKey } from '@/features/profile/api/discovery';
 import { rootRoute } from '@/app/__root';
 
+import { pendingFetchForPaths } from './helpers/pending-fetch';
+
 import type { DashboardAggregateResponse, DiscoveryDashboardResponse } from '@app/contracts';
 
 const PID = '00000000-0000-4000-8000-0000000000a1';
 const ACCOUNT_ID = '00000000-0000-4000-8000-0000000000ac';
+const DISCOVERY_SCOREBOARD_PATH = `/api/accounts/${ACCOUNT_ID}/profiles/${PID}/discovery-scoreboard`;
 const TEST_ACCOUNT = {
   id: ACCOUNT_ID,
   name: 'Main',
@@ -199,8 +202,8 @@ const setUp = (scope: string, opts: { seedScoreboard?: boolean } = {}): void => 
 
 describe('Home KPI surface — scoped vs unscoped', () => {
   beforeEach(() => {
+    vi.stubGlobal('fetch', pendingFetchForPaths(DISCOVERY_SCOREBOARD_PATH));
     window.localStorage.clear();
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
   afterEach(() => {
     window.localStorage.clear();
@@ -256,10 +259,7 @@ describe('Home KPI surface — scoped vs unscoped', () => {
   it('omits the by-source band when the scoreboard has no per-source slices', async () => {
     // A scoreboard payload that predates bySource (or a never-traded window) must
     // not crash or render an empty band.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => new Promise<Response>(() => undefined)),
-    );
+    vi.stubGlobal('fetch', pendingFetchForPaths(DISCOVERY_SCOREBOARD_PATH));
     try {
       setUp(PID, { seedScoreboard: false });
       await screen.findByTestId('scoped-kpi-strip');
@@ -286,10 +286,7 @@ describe('Home KPI surface — scoped vs unscoped', () => {
     // Never-resolving fetch so the unseeded scoreboard query stays pending; the
     // dashboard + closed-trades reads remain cache-served, so the gauge cards
     // still render their "now" values.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => new Promise<Response>(() => undefined)),
-    );
+    vi.stubGlobal('fetch', pendingFetchForPaths(DISCOVERY_SCOREBOARD_PATH));
     try {
       setUp(PID, { seedScoreboard: false });
       await screen.findByTestId('scoped-kpi-strip');

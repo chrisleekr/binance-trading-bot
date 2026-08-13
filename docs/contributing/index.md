@@ -35,7 +35,7 @@ Read the engineering charter in `AGENTS.md` at the repo root before your first p
 
 ## Run the docs site locally
 
-The documentation you're reading is built with MkDocs. Requires `uv` (Python 3.13):
+The documentation you're reading is built with MkDocs. Requires `uv` (Python 3.14.7 or newer):
 
 ```bash
 uv sync --group docs

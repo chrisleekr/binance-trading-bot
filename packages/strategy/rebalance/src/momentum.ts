@@ -18,7 +18,7 @@ export const momentumScore = (
   if (window.length <= lookbackCandles) return null;
   const last = window[window.length - 1];
   const past = window[window.length - 1 - lookbackCandles];
-  /* v8 ignore start -- length > lookbackCandles guarantees both indices are in range; the guard only satisfies noUncheckedIndexedAccess. */
+  /* v8 ignore start -- reason: length > lookbackCandles guarantees both indices are in range; the guard only satisfies noUncheckedIndexedAccess */
   if (last === undefined || past === undefined) return null;
   /* v8 ignore stop */
   let lastClose: Decimal;

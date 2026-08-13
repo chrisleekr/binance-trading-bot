@@ -1,6 +1,7 @@
 # Public "Live demo" override. Layer on the base to run a single ROLE=all box in
-# demo mode — no login, credential/destructive routes locked, notifier dispatch
-# suppressed, boot refuses a live-mode account:
+# demo mode, with no login; explicit sensitive routes locked; notifier dispatch
+# suppressed; and boot refused for a live-mode account. Interactive trading
+# remains available on Binance testnet:
 #
 #   docker compose -f deploy/compose/docker-compose.yml \
 #     -f deploy/compose/docker-compose.demo.yml up
@@ -10,9 +11,10 @@
 # key pair (seeded via a pg_restore of a golden snapshot at deploy — a deploy
 # secret, never committed), so visitors place real testnet orders with fake
 # money. "No sensitive info exposed" holds by construction: only a testnet key is
-# ever present and the credential/destructive routes are off.
+# ever present and credential, notifier, backup/restore, account-creation,
+# retention-change, and diagnosis-start routes are off.
 #
-# Ops steps that are NOT code (tracked on the issue as an operator checklist):
+# Operator deployment checklist:
 #   - Seed the golden testnet snapshot (account + profiles + symbols + history).
 #   - Add app/proxy rate limiting on the public endpoint (no login = no throttle).
 #   - Nightly reset job that re-restores the snapshot (calls restore logic

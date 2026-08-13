@@ -24,6 +24,7 @@ import { Decimal } from '@app/money';
 import type { Clock, StrategyRegistry } from '@app/strategy-core';
 import type { LiveExecutor } from 'executor/live-executor.js';
 import type { ChainByKey } from 'lib/chain-by-key.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 import { reserveAdjustedBalance } from 'lib/reserve.js';
 import type { StatePort } from 'state/state-port.js';
 import { mutateSymbolState, type MutateSymbolStateDeps } from 'state/version-aware-mutate.js';
@@ -92,6 +93,10 @@ export interface PipelineWorkerDeps {
   // this converges it promptly instead of waiting for ownership's own interval
   // (#579). Optional: tests that don't exercise stream ownership omit it.
   readonly reconcileOwnership?: () => Promise<void>;
+  // Retires the profile's own metric children on teardown. Optional like every
+  // other sink injection point, so a stub deps object stays a no-op rather than
+  // a throw.
+  readonly metrics?: MetricsSink;
 }
 
 /**
@@ -580,6 +585,12 @@ const handleUnsubscribe = async (
     return;
   }
   await deps.profileManager.disable(ids.profileId);
+  // Retire the profile's own gauge child. prom-client exports a child's last
+  // value until it is removed, so a torn-down profile would keep reporting a
+  // plausible weight reading and any alert over it could never resolve. Both
+  // teardown routes reach this function, so the disposal path is covered by the
+  // same line rather than by a second call that could drift from it.
+  deps.metrics?.forget('binance_api_weight', { profileId: ids.profileId });
   // Drop the profile's cached tick context on teardown so a stale entry can
   // never outlive an active subscription (symmetric with the subscribe path).
   deps.evictProfileContext?.(ids.profileId);

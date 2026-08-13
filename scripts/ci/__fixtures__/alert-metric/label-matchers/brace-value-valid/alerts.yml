@@ -1,0 +1,9 @@
+"groups":
+  - name: fixture.brace-value-valid
+    rules:
+      - alert: BraceValueDirectMatcher
+        expr: binance_api_weight{profileId=~"p{2}"} > 1000
+        for: 2m
+      - alert: BraceValueNameMatcher
+        expr: '{__name__="binance_api_weight",profileId=~"p{2}"} > 1000'
+        for: 2m

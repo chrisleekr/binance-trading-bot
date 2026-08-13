@@ -1,21 +1,18 @@
 // Playwright config for the operator-facing end-to-end suite.
 //
-// The full acceptance list in #49 calls for 27 canonical scenarios on
-// chromium/firefox/webkit at two viewports (iPhone SE 375x667 and a
-// 1280x720 laptop). This config declares the projects + reporter
-// scaffold plus the gated `globalSetup` / `globalTeardown` that spin
-// the docker compose stack when `E2E_FULL_STACK=1` is set; the 27
-// scenarios themselves land in follow-up MRs against this scaffold.
+// The four projects prove browser startup without requiring the application
+// stack. Full-stack journeys are re-derived after a hermetic harness exists.
 
 import { defineConfig, devices, type PlaywrightTestConfig } from '@playwright/test';
 
 // Matches global-setup's default: the E2E_FULL_STACK compose stack publishes
 // web on the 5xxxx local-override port, not the native dev 5173.
-const BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:55173';
+const BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:53000';
 const IS_CI = process.env['CI'] !== undefined && process.env['CI'] !== '';
 
 const config: PlaywrightTestConfig = defineConfig({
   testDir: './tests',
+  testIgnore: 'app-p0.spec.ts',
   // Gated on `E2E_FULL_STACK=1` inside the modules themselves so the
   // default playwright-image CI run (no docker daemon) keeps the data:
   // URL smoke working without orchestrating compose. When the gate is
@@ -38,7 +35,11 @@ const config: PlaywrightTestConfig = defineConfig({
   // in parallel — `undefined` is excluded by exactOptionalPropertyTypes
   // so we go with a generous 4 to match the project list size.
   workers: IS_CI ? 4 : 1,
-  reporter: IS_CI ? [['list'], ['junit', { outputFile: 'test-results/junit.xml' }]] : 'list',
+  reporter: [
+    ['list'],
+    ['json', { outputFile: 'test-results/results.json' }],
+    ['junit', { outputFile: 'test-results/junit.xml' }],
+  ],
   use: {
     baseURL: BASE_URL,
     // Capture artefacts only on failure so a passing CI run doesn't

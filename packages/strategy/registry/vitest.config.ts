@@ -1,1 +1,3 @@
-export { default } from '../../config/vitest.config.js';
+import { defineProject } from '../../config/vitest/index.js';
+
+export default defineProject({ packageName: '@app/strategy-registry' });

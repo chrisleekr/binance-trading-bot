@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadEnv } from '../src/env.js';
+import { loadEnv, publicListenerHostname } from '../src/env.js';
 
 describe('@app/api env', () => {
   it('parses a valid env block', () => {
@@ -109,5 +109,16 @@ describe('@app/api env', () => {
         ADMIN_HOST: '',
       }),
     ).toThrow(/ADMIN_HOST/);
+  });
+});
+
+describe('public listener binding', () => {
+  it('binds loopback only for the explicit app-e2e test runtime', () => {
+    expect(publicListenerHostname({ NODE_ENV: 'test', APP_E2E: '1' })).toBe('127.0.0.1');
+  });
+
+  it('preserves Bun default binding outside the explicit app-e2e test runtime', () => {
+    expect(publicListenerHostname({ NODE_ENV: 'test' })).toBeUndefined();
+    expect(publicListenerHostname({ NODE_ENV: 'production', APP_E2E: '1' })).toBeUndefined();
   });
 });

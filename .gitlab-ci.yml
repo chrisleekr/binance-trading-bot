@@ -153,6 +153,10 @@ unit:
   variables:
     REDIS_TEST_URL: redis://redis:6379
   script: bash scripts/ci/test-unit.sh
+  artifacts:
+    paths:
+      - '**/coverage/unit/**'
+    expire_in: 7 days
 
 # Strategy golden-fixture replay. Runs the synthesised set on every push;
 # diff = 0 is required to merge.
@@ -187,6 +191,10 @@ integration:
     # See db-isolation below: timescaledb-tune aborts Postgres init on this runner.
     NO_TS_TUNE: '1'
   script: bash scripts/ci/test-integration.sh
+  artifacts:
+    paths:
+      - '**/coverage/integration/**'
+    expire_in: 7 days
 
 # apps/worker integration suites against real Postgres + Redis service
 # containers. Kept separate from `integration` (apps/api) because both TRUNCATE
@@ -217,6 +225,10 @@ worker-integration:
     # See db-isolation below: timescaledb-tune aborts Postgres init on this runner.
     NO_TS_TUNE: '1'
   script: bash scripts/ci/test-worker-integration.sh
+  artifacts:
+    paths:
+      - '**/coverage/worker-integration/**'
+    expire_in: 7 days
 
 # packages/db isolation + projection tests against a real Postgres. The service
 # creates the test DB as POSTGRES_DB, so DATABASE_TEST_URL points straight at it
@@ -231,7 +243,14 @@ db-isolation:
     - !reference [default, before_script]
     - apk add --no-cache nodejs
   services:
-    - name: timescale/timescaledb:latest-pg17
+    # Pinned to the TimescaleDB version the deployed database runs, unlike the
+    # other jobs' moving `latest-pg17`. This job replays migrations, and the
+    # hypertable root-heap behaviour they have to survive is version-specific:
+    # through 2.27.x a row inserted while `timescaledb.restoring` is on stays in
+    # the parent heap, from 2.28.0 it is discarded. A migration suite pointed at
+    # `latest` validates a database nobody runs and cannot build that fixture at
+    # all. Bump this when the deployed version moves, not before.
+    - name: timescale/timescaledb:2.27.1-pg17@sha256:6e4b469dee0395a8a6d8c818384b0226a749997a29a312f314413f98e4161f82
       alias: postgres
   variables:
     POSTGRES_DB: binance_trading_bot_test
@@ -245,13 +264,17 @@ db-isolation:
     # tests. GitLab passes job variables to service containers.
     NO_TS_TUNE: '1'
   script: bash scripts/ci/test-db-isolation.sh
+  artifacts:
+    paths:
+      - '**/coverage/db-isolation/**'
+    expire_in: 7 days
 
 # Pinned to the Playwright image whose version matches the @app/e2e
 # package; bumping the package's playwright version requires bumping
 # this image tag in lockstep so browser and runtime stay aligned.
 # The image is debian/ubuntu-based and ships node + browsers but not
 # Bun, so we install Bun and then run the same bootstrap.
-e2e:
+browser-bootstrap:
   stage: test
   needs: []
   image: mcr.microsoft.com/playwright:v1.62.1-noble
@@ -287,6 +310,78 @@ e2e:
     - export PATH="$BUN_INSTALL/bin:$PATH"
     - bash scripts/ci/test-e2e.sh
 
+# Required application gate: one hermetic sign-in + profile-dashboard journey
+# against a real ROLE=all stack. Same Playwright image as `browser-bootstrap`
+# (browser binaries and the @app/e2e playwright version move in lockstep), plus
+# the same moving service tags every other stack job uses. Only `db-isolation`
+# pins a TimescaleDB version, and only because its root-heap fixture cannot be
+# built on a newer server; this job just applies migrations, so pinning here
+# would fork the database under test away from the rest of CI for no gain.
+app-e2e:
+  stage: test
+  needs: []
+  image: mcr.microsoft.com/playwright:v1.62.1-noble
+  services:
+    - name: timescale/timescaledb:latest-pg17
+      alias: postgres
+    - name: redis:8-alpine
+      alias: redis
+  variables:
+    BUN_INSTALL: /root/.bun
+    BUN_VERSION: '1.3.14'
+    PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    POSTGRES_DB: binance_trading_bot_test
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    # See db-isolation above: timescaledb-tune aborts Postgres init on this runner.
+    NO_TS_TUNE: '1'
+    DATABASE_TEST_URL: postgres://postgres:postgres@postgres:5432/binance_trading_bot_test
+    REDIS_TEST_URL: redis://redis:6379
+  cache:
+    # Same glibc-scoped slot as browser-bootstrap; see its cache comment.
+    # No `.turbo/`: test-app-e2e.sh drives the stack directly, not through turbo.
+    key:
+      files:
+        - bun.lock
+      prefix: bun-ubuntu
+    paths:
+      - .bun-install-cache/
+      - node_modules/
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends curl unzip
+    # Same install as browser-bootstrap; see its Bun pin comment.
+    - curl -fsSL https://bun.sh/install | bash -s "bun-v$BUN_VERSION"
+    - export PATH="$BUN_INSTALL/bin:$PATH"
+    - bash scripts/ci/bootstrap.sh
+  script:
+    - export PATH="$BUN_INSTALL/bin:$PATH"
+    - bash scripts/ci/test-app-e2e.sh
+  # The only lane that can fail on real application behaviour, and its stack is
+  # torn down with the job. Without the trace/video/screenshot the config already
+  # captures on failure, a red run leaves nothing to diagnose from.
+  artifacts:
+    when: on_failure
+    paths:
+      - e2e/test-results/
+    expire_in: 7 days
+
+coverage-merge:
+  stage: build
+  needs:
+    - job: unit
+      artifacts: true
+    - job: integration
+      artifacts: true
+    - job: worker-integration
+      artifacts: true
+    - job: db-isolation
+      artifacts: true
+  script: bash scripts/ci/merge-coverage.sh
+  artifacts:
+    paths:
+      - coverage/lcov.info
+    expire_in: 30 days
+
 # Build + push the app images to the GitLab Container Registry on every
 # push. main/tag pipelines emit the slugified ref tag (`:main` /
 # `:<tag-slug>`). Feature-branch pipelines emit a single rolling `:dev` tag
@@ -314,7 +409,9 @@ docker-build:
     - integration
     - worker-integration
     - db-isolation
-    - e2e
+    - browser-bootstrap
+    - app-e2e
+    - coverage-merge
   # A push image build must run to completion, not be cancelled mid-push by a
   # newer commit (overrides `default.interruptible`).
   interruptible: false

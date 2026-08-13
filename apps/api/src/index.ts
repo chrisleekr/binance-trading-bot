@@ -6,7 +6,7 @@ import { repo } from '@app/db';
 import { createApp } from './app.js';
 import { createAuth } from './auth.js';
 import { assertLiveDemoInvariant, createDI } from './di.js';
-import { loadEnv, type Env } from './env.js';
+import { loadEnv, publicListenerHostname, type Env } from './env.js';
 import { startWsRegistry, type WsRegistry } from './ws/registry.js';
 import { installGracefulShutdown } from '@app/core/shutdown';
 
@@ -28,8 +28,10 @@ export const boot = async (env: Env): Promise<ApiHandle> => {
   if (env.LIVE_DEMO) di.demoOperatorId = await repo.users.findSingleId(di.db);
   const { app, health, websocket } = createApp(di);
 
+  const hostname = publicListenerHostname();
   const server = Bun.serve({
     port: env.PORT,
+    ...(hostname ? { hostname } : {}),
     // Keep-alive sockets sit idle between the SPA's requests. Bun's short default
     // HTTP idleTimeout closes those mid-flight, surfacing as `ECONNRESET`/"socket
     // hang up". 120s (matching the websocket idleTimeout) is a deliberate

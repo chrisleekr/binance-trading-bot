@@ -1,0 +1,11 @@
+groups:
+  - name: fixture.matcher-valid
+    rules:
+      - alert: CatalogueLabels
+        expr: binance_api_weight{profileId="p-1",service="worker",job="worker",instance="worker:9101"} > 1000
+      - alert: ConstructorAndGlobalLabels
+        expr: http_requests_total{method="GET",route="/api/status",status="200",service="api"} > 0
+      - alert: DerivedHistogramLabels
+        expr: tick_latency_ms_bucket{profileId="p-1",symbol="BTCUSDT",le="250",service="worker"} > 0
+      - alert: DefaultMetricLabels
+        expr: nodejs_version_info{version="v1",major="1",minor="0",patch="0",service="worker"} == 1

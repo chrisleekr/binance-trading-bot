@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+if [ "${1:-}" = '-m' ]; then
+  echo 'unsupported-fixture-arch'
+else
+  echo 'Linux'
+fi

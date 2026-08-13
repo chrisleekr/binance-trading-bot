@@ -38,6 +38,11 @@ import { ENV_CATALOGUE, type EnvVar } from '@app/core/env';
 import { buildStrategyRegistry } from '@app/strategy-registry';
 import { buildNotifyRegistry } from '@app/notify';
 
+// Relative, not `@app/worker`: the worker is an app, not a linked workspace
+// package, so there is nothing under root `node_modules/@app/` to resolve. The
+// catalogue is a leaf that imports nothing, so pulling it in costs no runtime.
+import { CATALOG } from '../../apps/worker/src/metrics/catalog.js';
+
 import { discoveryNotes } from './config-notes/discovery.js';
 import { momentumNotes } from './config-notes/momentum.js';
 import { notifierNotes } from './config-notes/notifiers.js';
@@ -70,6 +75,37 @@ const ENV_HEAD =
   '| Variable | What it is | Values | Default | When to set it | What to expect |\n' +
   '| --- | --- | --- | --- | --- | --- |\n';
 
+type DefaultClaim = Pick<EnvVar, 'shippedDefault'>;
+
+export const shippedDefaultGaps = (
+  exampleText: string,
+  catalogue: Readonly<Record<string, DefaultClaim>>,
+): string[] => {
+  const example = new Map<string, string>();
+  for (const line of exampleText.split(/\r?\n/)) {
+    const match = /^([A-Z][A-Z0-9_]*)=(.*)$/.exec(line);
+    if (match) example.set(match[1], match[2]);
+  }
+
+  const claims = Object.entries(catalogue).filter(
+    ([, entry]) => entry.shippedDefault !== undefined,
+  );
+  if (claims.length === 0) return ['env: zero shipped-default claims found in ENV_CATALOGUE'];
+
+  const gaps: string[] = [];
+  for (const [name, entry] of claims) {
+    const shipped = example.get(name);
+    if (shipped === undefined) {
+      gaps.push(`env: \`${name}\` claims a shipped default but is absent from .env.example`);
+    } else if (shipped !== entry.shippedDefault) {
+      gaps.push(
+        `env: \`${name}\` expects .env.example default \`${entry.shippedDefault}\` but it ships \`${shipped}\``,
+      );
+    }
+  }
+  return gaps;
+};
+
 /**
  * Render the env-var reference from the catalogue, one table per group in
  * catalogue order. The default column shows `_required_` for a variable with no
@@ -96,6 +132,32 @@ const renderEnv = (): string => {
     out += '\n\n';
   }
   return out;
+};
+
+const METRICS_HEAD = '| Metric | Kind | Labels | What it measures |\n| --- | --- | --- | --- |\n';
+
+/**
+ * Render the worker metric reference straight from the closed catalogue.
+ *
+ * Generated rather than hand-written for the same reason as the config tables:
+ * the sink drops any name the catalogue does not register, so a hand-kept page
+ * can promise a series that never reaches Prometheus. Sorted by name because the
+ * source order is the union's, which groups by subsystem and reads as arbitrary
+ * to someone looking one metric up.
+ *
+ * `help` is the same string the /metrics endpoint exports, so the page and the
+ * scrape cannot disagree about what a series means.
+ */
+const renderMetrics = (): string => {
+  const rows = Object.entries(CATALOG)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, spec]) => {
+      const labels =
+        spec.labelNames.length === 0 ? '—' : spec.labelNames.map((l) => `\`${l}\``).join(', ');
+      return `| \`${name}\` | ${spec.kind} | ${labels} | ${cell(spec.help)} |`;
+    })
+    .join('\n');
+  return `${BANNER}\n\n${METRICS_HEAD}${rows}\n`;
 };
 
 /**
@@ -144,9 +206,11 @@ const envGaps = (repoRoot: string): string[] => {
   }
 
   const examplePath = join(repoRoot, '.env.example');
+  const exampleText = readFileSync(examplePath, 'utf8');
+  gaps.push(...shippedDefaultGaps(exampleText, ENV_CATALOGUE));
   const declared = [
     ...new Set(
-      readFileSync(examplePath, 'utf8')
+      exampleText
         .split(/\r?\n/)
         .map((l) => /^([A-Z][A-Z0-9_]*)=/.exec(l)?.[1])
         .filter((k): k is string => k !== undefined),
@@ -223,6 +287,11 @@ const main = (): void => {
   gaps.push(...envGaps(repoRoot));
   partials['env.md'] = renderEnv();
 
+  // Worker metrics: the catalogue is its own completeness proof, so there is no
+  // notes map to check. A metric with no `help` cannot exist — MetricSpec makes
+  // it required — which is the same guarantee the note gaps enforce above.
+  partials['metrics.md'] = renderMetrics();
+
   if (gaps.length > 0) {
     console.error('config-table notes are incomplete:\n');
     for (const g of gaps) console.error(`  ${g}`);
@@ -234,10 +303,11 @@ const main = (): void => {
     process.exit(1);
   }
 
-  // Vacuity guard: 3 shipped strategies + risk + discovery + notifiers + env.
-  // Grows as strategies are added; a count below this means a schema import or
-  // registry regression, and a drift gate that generates nothing must fail.
-  const FLOOR = 7;
+  // Vacuity guard: 3 shipped strategies + risk + discovery + notifiers + env +
+  // metrics. Grows as strategies are added; a count below this means a schema
+  // import or registry regression, and a drift gate that generates nothing must
+  // fail.
+  const FLOOR = 8;
   if (Object.keys(partials).length < FLOOR) {
     console.error(
       `generated only ${Object.keys(partials).length} partial(s), expected >= ${FLOOR} — schema import or registry regression.`,

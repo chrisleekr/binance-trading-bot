@@ -1,8 +1,5 @@
-// Foundation smoke. Runs without the docker compose stack so this MR
-// can land before #48's testcontainers wiring is in place. The next 26
-// canonical scenarios (onboarding, profile create, manual order, ...
-// see #49 AC) live in follow-up files that depend on `globalSetup`
-// spinning the real stack.
+// This smoke proves each configured browser starts without the application
+// stack. Full-stack journeys wait for a hermetic harness.
 
 import { expect, test } from '@playwright/test';
 

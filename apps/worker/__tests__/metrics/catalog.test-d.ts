@@ -63,3 +63,5 @@ metrics!.record(someString, 1);
 metrics?.record('tick_latency_ms', 42, { profileId: 'p1', symbol: 'BTCUSDT' });
 metrics?.record('audit_batch_size', 3);
 sink.record('audit_consumer_lag', 7, { stream: 'audit:a:b:stream' });
+sink.record('audit_consumer_pending', 12, { stream: 'audit:a:b:stream' });
+sink.record('audit_consumer_lag_unknown', 1, { stream: 'audit:a:b:stream', cause: 'probe-failed' });

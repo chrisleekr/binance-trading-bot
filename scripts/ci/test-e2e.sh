@@ -2,7 +2,7 @@
 set -euo pipefail
 # shellcheck source=_common.sh
 source "$(dirname "$0")/_common.sh"
-ci::start test-e2e
+ci::start browser-bootstrap
 
 # Browsers ship pre-installed in the mcr.microsoft.com/playwright image at
 # /ms-playwright; the e2e job in .gitlab-ci.yml sets
@@ -18,3 +18,5 @@ ci::start test-e2e
 REPO_ROOT="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 
 (cd "$REPO_ROOT/e2e" && bun x playwright test)
+bun "$REPO_ROOT/scripts/ci/check-playwright-honesty.ts" \
+  --mode=browser-bootstrap --strict-projects < "$REPO_ROOT/e2e/test-results/results.json"

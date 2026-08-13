@@ -6,7 +6,8 @@
 # wiring is operator-owned (see docs/operations/deploy.md, "Alert rules").
 #
 # Read the "no alert coverage today" block at the bottom before you rely on
-# this file: it lists the failure modes these rules do NOT watch.
+# this file: it names the two failure modes these rules still do NOT watch,
+# and why each is waiting on a series rather than on a threshold.
 #
 # Every name an `expr:` reads has to resolve: either a series this repo emits,
 # or one of the few Prometheus-generated series the gate allowlists by exact
@@ -21,8 +22,8 @@
 # Severity convention:
 #   - critical: pages immediately (worker is offline, Binance weight
 #     exhausted).
-#   - warning: investigate within the working day. No shipped rule sits at
-#     this level today; the convention stands for rules an operator adds.
+#   - warning: investigate within the working day (audit drain falling
+#     behind). Degraded observability, not halted trading.
 #
 # Lint: `bash scripts/ci/promtool-lint.sh` (CI runs this on every push).
 
@@ -65,26 +66,29 @@ groups:
         # ceiling becomes its own alert instance carrying that label, and
         # Alertmanager `group_by` collapses the duplicates.
         #
-        # KNOWN HAZARD, no in-repo fix today: this alert can stay firing
-        # after the condition clears. `binance_api_weight` is a prom-client
-        # gauge child written per profile on the tick success path, and
-        # nothing ever removes it, so prom-client keeps exporting that
-        # profile's last sample for the life of the process. A profile that
-        # stops ticking (disabled, disposed, every symbol paused) freezes its
-        # gauge at whatever it last read, and if that was above the ceiling
-        # the page stays open until the worker restarts. Treat a firing
-        # instance whose profile you have since disabled as stale, and check
-        # the weight in the UI before acting on it.
+        # The gauge child is retired emitter-side: the teardown path calls
+        # `forget` on the metrics sink when a profile is disabled or disposed,
+        # so the series stops being exported and goes stale rather than
+        # freezing at whatever that profile last read. A profile parked above
+        # the ceiling no longer holds this page open until the worker restarts.
         #
-        # Do NOT try to fix this by ANDing in a tick-activity series. Every
-        # tick failure path returns or throws before the metric is recorded,
-        # so tick activity measures tick SUCCESS: a Binance ban fails every
-        # REST call, the activity series goes flat, and the guard would send
-        # a RESOLVED notification in the middle of the ban. A page that
-        # falsely reports recovery is worse than one that sticks. The real
-        # fix is emitter-side, removing the gauge child when a profile is
-        # disabled or disposed, which needs a `forget()` on MetricsSink that
-        # does not exist yet. Tracked in #777.
+        # One stale-child route survives, and the runbook names it: the gauge
+        # is written only on a tick that reaches Binance, so a profile that
+        # stays enabled while every symbol is paused, or under the kill switch,
+        # never reaches teardown and keeps exporting its last reading. That is
+        # what the description below recommends, so a page answered by pausing
+        # symbols stays open until the worker restarts.
+        #
+        # Still NO activity series ANDed in, which would close exactly that
+        # gap. `tick_total` now counts every tick — completed, throttled and
+        # thrown alike — so it would be an honest attempt counter, unlike the
+        # success-path metric the original note warned against. It stays out
+        # because it is unsafe in the other direction: disabling a profile
+        # stops its ticks being enqueued at all, so the guard goes flat exactly
+        # when an operator responds to this page, and a rule that resolves
+        # itself on the mitigation rather than on the condition reports a
+        # recovery that has not happened. A page that lingers after a correct
+        # mitigation is the cheaper failure.
         expr: binance_api_weight > 1000
         for: 2m
         labels:
@@ -92,30 +96,351 @@ groups:
         annotations:
           summary: 'Binance request weight > 1000/min'
           description: 'Trading load exceeds the Binance weight budget on profile {{ $labels.profileId }}. Reduce profile cadence or pause symbols.'
+
+      - alert: AuditDrainerBacklog
+        # The audit drainer probes each stream's consumer group with XINFO
+        # GROUPS on every pass and records two of its numbers. Audit loss is
+        # observational, not a trading-correctness problem, which is why this
+        # is warning rather than critical.
+        #
+        # THREE disjuncts because the three failure modes move different
+        # series, and the first two are not even the same SHAPE of query.
+        #
+        # `audit_consumer_pending` is what a Postgres outage moves. Redis
+        # `lag` counts entries never DELIVERED to the group; entries delivered
+        # but not acknowledged are counted by `pending` instead. During a
+        # Postgres stall the drainer keeps reading fine, so delivery keeps
+        # pace and lag sits near zero, while every batch it fails to persist
+        # is left unacked and piles up in the pending-entries list. A rule
+        # over lag alone would sit green through exactly the incident this
+        # alert is named for.
+        #
+        # It is read as GROWTH, not as a level, because a non-zero pending list
+        # is normal operation. Every in-flight batch sits there between the read
+        # and the ACK, and a failed batch is deliberately left pending until it
+        # has been idle long enough for a later pass to XCLAIM it back, so a
+        # healthy drainer under load does not read zero. A `> N` threshold would
+        # have to clear that working level, which varies per stream with the
+        # tick rate. `delta` asks the question that has a false answer once the
+        # incident ends: is the unacked pile still growing? Recovery answers no
+        # as soon as the reclaim starts persisting, while the level is still
+        # high — which is the point, since the level falls only over later
+        # passes bounded by the min-idle window and the batch size.
+        #
+        # One residue does NOT fall back on its own: an entry that cannot be
+        # persisted and has no successfully WRITTEN sibling beside it is never
+        # dropped (the drainer will not call a row poison until some sibling row
+        # actually reached Postgres, since a noop entry writes nothing and would
+        # otherwise "prove" health while the backend is down), so it holds a
+        # small floor. That is a FLAT series, whose delta is zero, so it cannot
+        # hold this alert open.
+        #
+        # `audit_consumer_lag` covers the opposite shape: the drainer stops
+        # reading (loop wedged, Redis slow) and entries queue up undelivered.
+        # This one IS a level, because lag falls back on its own once reading
+        # resumes. It inherits the stale-child hazard described on
+        # BinanceWeightExhausted above: the gauge is written per stream and
+        # never removed, so a stream that stops being probed (profile disabled
+        # or disposed) freezes at its last sample and can hold this disjunct
+        # true until the worker restarts. The `delta` disjunct is immune to
+        # that by construction, since a frozen series has a delta of zero.
+        #
+        # `audit_consumer_lag_unknown` covers the passes that ran but measured
+        # nothing. Both gauges are last-value-wins, so a probe that errors or a
+        # missing consumer group leaves the last healthy number standing and
+        # the gauge disjuncts stay quiet through the whole incident. The
+        # counter increments on exactly those passes, so `increase(...) > 0`
+        # fires on the ABSENCE of a measurement, which no gauge can express.
+        # It does NOT cover a pass that never happened: a drain loop that dies
+        # or hangs writes nothing at all, and no series here goes stale-empty
+        # to reveal it. WorkerDown catches the whole process dying; a wedged
+        # loop inside a live worker has no coverage today.
+        #
+        # `trimmed-past-group` is excluded here and has its own rule below: it
+        # self-heals in minutes, so a 10m `for` would never see it.
+        #
+        # Both ranges are deliberately SHORTER than the 10m `for`. An idle pass
+        # costs a 1s XREADGROUP BLOCK plus a 250ms sleep, so a sustained
+        # incident keeps the disjunct true across the whole `for` window. A
+        # single transient blip leaves its range before the `for` completes, so
+        # no page is raised. A range longer than the `for` would invert this and
+        # alert on every one-off blip.
+        #
+        # The pending range is the wider of the two because `for` requires the
+        # expression true at EVERY evaluation, and pending only moves when audit
+        # entries arrive. On a stream with few active symbols the series is a
+        # staircase with flat treads: too narrow a range reads a tread as
+        # recovery and resets the `for`. 8m tolerates a gap of up to 8 minutes
+        # between entries and still clears a one-off blip inside the 10m hold.
+        expr: delta(audit_consumer_pending[8m]) > 0 or audit_consumer_lag > 10000 or increase(audit_consumer_lag_unknown{cause!="trimmed-past-group"}[5m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        # No `{{ $labels.cause }}` here: `cause` exists only on the series the
+        # third disjunct reads, so on a plain backlog breach it would render
+        # empty. The instances are told apart by the labels Alertmanager
+        # already shows, not by interpolating one that may not be there.
+        annotations:
+          summary: 'Audit drainer behind on {{ $labels.stream }}'
+          description: 'For 10 minutes the audit drainer has been falling further behind on stream {{ $labels.stream }}, or its backlog could not be measured at all. Check Postgres reachability and the worker logs. Entries the drainer read but could not persist are retried by a later pass (XPENDING IDLE + XCLAIM) once the backend recovers, so a backlog alone is not yet loss; undelivered entries ARE lost once the stream reaches its approximate 100000-entry cap (XADD MAXLEN ~), which is what a growing backlog eventually causes. An instance carrying a `cause` label is the unmeasurable case: probe-failed is a Redis transport error, group-missing means nothing is draining the stream at all.'
+
+      - alert: AuditEntriesTrimmedBeforeDelivery
+        # Separate from AuditDrainerBacklog because this is the one cause that
+        # reports loss which has ALREADY happened, and it clears itself before
+        # a 10m `for` could ever complete.
+        #
+        # A null `lag` from XINFO GROUPS means Redis cannot count the distance
+        # from the group's last-delivered-id to the stream's tail, which
+        # happens when MAXLEN trimming deleted entries the group had not yet
+        # read: those audit rows are gone and will never reach `action_logs`.
+        # Redis recomputes lag as soon as the group delivers the stream's last
+        # entry, so the condition typically disappears within minutes of the
+        # drainer catching up. Folded into the 10m rule it would be invisible.
+        #
+        # `for: 1m` is three evaluations at the 30s group interval, and it does
+        # NOT debounce a single occurrence: the 5m range holds increase() above
+        # zero for about five minutes after one increment, which outlasts the
+        # hold. One trimming pass therefore pages, deliberately. Unlike a
+        # backlog this is loss that has already happened and waiting cannot
+        # recover it. The short `for` guards only against a scrape artefact.
+        #
+        # The counter is seeded to zero on the first probe of each stream. A
+        # prom-client child does not exist until its first write, so without the
+        # seed a first incident appears as a series already at its final value,
+        # which increase() reads as no change and this rule never sees.
+        expr: increase(audit_consumer_lag_unknown{cause="trimmed-past-group"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Audit entries trimmed before the drainer read them on {{ $labels.stream }}'
+          description: 'Stream {{ $labels.stream }} was trimmed at its approximate 100000-entry cap (XADD MAXLEN ~, so the exact drop point varies) and lost entries the drainer had not yet delivered, so those audit rows are lost for good. Unlike a backlog this is not recoverable by waiting. Find out why the drainer fell far enough behind to be trimmed past, and check Postgres reachability and worker logs for the window that preceded it.'
+
+      - alert: AuditPoisonEntryDropped
+        # An audit row the drainer deliberately discarded, which no other series
+        # here can show: the entry leaves the pending list exactly as if it had
+        # been persisted, so both backlog gauges read it as recovery.
+        #
+        # The drainer reclaims entries an earlier pass failed to persist, and
+        # BISECTS the failed batch, within a per-stream statement budget, until
+        # each unwritable row sits alone in a statement of its own, so the healthy
+        # rows beside it are written in the same pass. Whatever the budget stopped
+        # it reaching keeps its place in the pending list and is logged at warn as
+        # `audit reclaim search stopped early`. A row that fails that SOLO
+        # statement with a
+        # row-deterministic SQLSTATE (class 22 or 23) WHILE a sibling entry is
+        # WRITTEN against the same backend in the same pass, and that has itself
+        # been redelivered past the delivery ceiling, is unpersistable on its own
+        # merits, not a casualty of an outage, so it is acknowledged away rather
+        # than left to fail every batch it joins forever. Transient classes (08,
+        # 40, 53, 57) never qualify: they reject one statement and accept the
+        # next, which looks identical on timing alone. The ceiling is the third
+        # test because the bisect reaches entries on their first redelivery, and
+        # one rejection is not evidence enough to destroy one of those. The trade
+        # is deliberate — one row lost instead of a stream that never drains
+        # again — but it is still loss, and it is silent by construction. One
+        # pass discards at most 8 rows per stream: more than that at once is a
+        # systematic rejection rather than a scattering of bad rows, so the
+        # remainder is held back and logged at error instead of destroyed.
+        #
+        # cause="corrupt-json" is the second route onto this counter: a body that
+        # will not parse, or that parses without the fields action_logs needs,
+        # can never be written by any backend, so it is acked on sight. Both
+        # routes destroy an audit row, so both must be visible here.
+        #
+        # Pages on a single occurrence for the same reason as the trimming rule
+        # above: `for: 1m` is three evaluations at the 30s group interval, and
+        # the 5m range holds increase() above zero well past that hold, so the
+        # short `for` guards only against a scrape artefact. Waiting cannot
+        # recover the row.
+        #
+        # The counter is seeded to zero on the first reclaim pass of each
+        # stream. A prom-client child does not exist until its first write, so
+        # without the seed a first drop appears as a series already at its final
+        # value, which increase() reads as no change and this rule never sees.
+        expr: increase(audit_poison_entries_dropped[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Audit entry dropped as unpersistable on {{ $labels.stream }}'
+          description: 'The audit drainer discarded an entry on stream {{ $labels.stream }} (cause={{ $labels.cause }}). Under rejected or corrupt-json that action_logs row will never exist and no other series shows it. A no-body drop most likely never carried a row to lose, but it is the one cause whose reply shape this drainer cannot explain, so treat that as unconfirmed. Every drop logs a message containing "dropping", so that is the string to search the worker logs for (corrupt-json logs at warn, the other two at error). cause=rejected means Postgres refused the row itself with a row-deterministic SQLSTATE while a sibling entry was successfully written in the same pass, i.e. a bad row rather than a bad backend: its line carries the entry id and the database error. Repeated rejected drops on one stream point at a schema or constraint mismatch between what the tick writes and what action_logs accepts. cause=corrupt-json means the entry body would not parse, or parsed without the fields action_logs needs, which points at a writer other than this worker putting bytes on the stream. cause=no-body means the reclaim kept getting an entry back with no body field at all until it passed the delivery ceiling: this worker never XADDs an entry without a body, so check whether anything else writes to audit:* before assuming the drainer lost data. Its line carries the entry id and the delivery count, and no database error, because nothing was ever sent to Postgres.'
+
+      - alert: AuditEntryReadWithoutBody
+        # The FIRST sighting of an entry this drainer did not write. The rule
+        # above cannot report it: retirement onto cause="no-body" is weighed on a
+        # delivery count, that count is a property of the pending list, and the
+        # entry only reaches the pending list after the read that fires this. The
+        # two are therefore separated by at least AUDIT_RECLAIM_DELIVERY_CEILING
+        # reclaim passes with a 60s min-idle floor apiece, so a drop alert names
+        # the stream but never says how long the condition had been running.
+        #
+        # Deliberately NOT diagnostic-only. The whole defect this rule closes is
+        # one of latency: the condition was already observable and reached the
+        # operator minutes late. A counter with no rule relocates that wait from
+        # the alert to whenever somebody next opens a dashboard, which is the
+        # repo's own "a counter nothing alerts on is not a signal" failure.
+        #
+        # Expected to sit at exactly zero forever: the shipper always XADDs a
+        # `body` field, so any rise is another writer on audit:* or a Redis reply
+        # shape this drainer does not understand. Nothing is destroyed at this
+        # point, which is why it is a warning and not a page.
+        #
+        # A single entry can raise this AND, several minutes later, the drop rule
+        # above. That is two notifications for one entry on purpose: the first
+        # says the condition started, the second says the entry was given up on.
+        #
+        # The counter is seeded to zero on the first pass of each stream. A
+        # prom-client child does not exist until its first write, so without the
+        # seed a first sighting appears as a series already at its final value,
+        # which increase() reads as no change and this rule never sees.
+        expr: increase(audit_read_no_body[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Audit entry read with no body on {{ $labels.stream }}'
+          description: 'A live XREADGROUP on stream {{ $labels.stream }} returned an entry whose fields carry no usable body. This worker never XADDs an audit entry without a body, so something else is writing to audit:*, or Redis answered in a shape this drainer does not model. Nothing has been lost yet: the entry stays in the drainer group pending list, and only if it keeps coming back with no body past the delivery ceiling is it acknowledged away and counted on audit_poison_entries_dropped{cause="no-body"} — expect AuditPoisonEntryDropped for the same stream some minutes later if the condition persists. Each sighting logs a warn containing "read an entry with no body" carrying the stream and the entry id, so search the worker logs for that string, then run `redis-cli --no-raw XRANGE` for that id on that stream to see what was actually written. Use --no-raw: redis-cli defaults to raw output whenever stdout is not a tty, which would pass an unknown writer''s bytes through to your terminal unescaped. Check anything with write access to the Redis instance before assuming the drainer is at fault.'
+      - alert: AuditEntriesStuck
+        # An entry the reclaim claims on every pass and then neither writes nor
+        # retires. No other series here can show it: the reclaim counter only
+        # moves on a persist, the drop counter only on a discard, and
+        # audit_consumer_pending merely holds a floor, which reads exactly like
+        # a batch legitimately in flight. The operator sees a healthy-looking
+        # drainer holding an audit row it will never ship.
+        #
+        # The range is deliberately SHORTER than the `for`, the same shape as
+        # AuditDrainerBacklog. A pass strands entries whenever a persist fails,
+        # so a Postgres blip increments this counter once and stops; that
+        # increment leaves the 5m range before the 10m hold completes and no
+        # page is raised. A genuinely stuck entry is re-claimed and re-counted
+        # on every pass, so the range never empties and the `for` completes.
+        # AuditDrainerBacklog owns the transient case.
+        #
+        # The counter is seeded to zero on the first pass of each stream. A
+        # prom-client child does not exist until its first write, so without the
+        # seed a first occurrence appears as a series already at its final value,
+        # which increase() reads as no change and this rule never sees.
+        expr: increase(audit_entries_stuck[5m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Audit entries stuck in the drainer pending list on {{ $labels.stream }}'
+          description: 'For 10 minutes the reclaim on stream {{ $labels.stream }} has been claiming the same entries back and neither persisting nor retiring them, so those audit rows are not in action_logs and no pass is making progress on them. Nothing has been destroyed yet, but the entries are lost once the stream reaches its approximate 100000-entry cap. Check Postgres reachability first. If Postgres is healthy, look for `audit reclaim persist failed` and `audit reclaim search stopped early` in the worker logs: the second carries a `reason`, where probe-budget means one pass could not search the whole backlog and no-proven-write means nothing at all reached the database during the pass.'
+
+  - name: binance-trading-bot.infra
+    interval: 30s
+    rules:
+      - alert: HighTickFailureRate
+        # A RATIO, not a raw failure count: tick volume scales with the number
+        # of active profiles and symbols, so any absolute threshold is wrong for
+        # every deployment but the one it was tuned on. `tick_total` counts
+        # completed, throttled and thrown ticks alike, so the denominator does
+        # not shrink when the failures arrive.
+        #
+        # Aggregated across profiles because this asks whether trading as a
+        # whole is degraded. One symbol failing every tick on a busy worker is a
+        # small ratio and rightly does not page; the per-profile detail is in
+        # the logs and the UI.
+        #
+        # 5% over 10 minutes. Ticks retry, so a single failed tick is not an
+        # incident; a twentieth of them failing for ten minutes is a systematic
+        # fault (Binance rejecting, the database refusing writes) rather than
+        # noise. The range matches the `for` here because both halves of the
+        # ratio are rate()s over the same window: a shorter range would let the
+        # ratio swing on one late scrape.
+        expr: sum(rate(tick_failures_total[10m])) / sum(rate(tick_total[10m])) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Over 5% of ticks failing for 10m'
+          description: 'More than one tick in twenty has thrown for ten minutes. Every failure is retried and then DLQ-routed, so strategy decisions are being missed on whichever symbols are affected. Check the worker logs for the thrown error and the Binance and Postgres reachability behind it.'
+
+      - alert: QueueBacklog
+        # Depth, not age: BullMQ exposes a waiting count per queue, and a job
+        # that has been waiting a long time is only visible through the depth it
+        # helps hold up. Labelled per queue because a stuck pipeline queue and a
+        # stuck tick queue are different incidents with different responses.
+        #
+        # 1000 waiting for 5 minutes. v1.0 runs a single worker replica, so a
+        # backlog cannot be absorbed by scaling out on its own, and a queue this
+        # deep for this long means the consumer is not keeping up rather than
+        # that a burst arrived. Sampled once a minute by the worker itself, so
+        # the 5m hold is five samples, not a continuous reading.
+        expr: bullmq_queue_wait_jobs > 1000
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Queue {{ $labels.queue }} backed up over 1000 jobs'
+          description: 'Queue {{ $labels.queue }} has held more than 1000 waiting jobs for five minutes. v1.0 is single-replica, so this is the consumer falling behind rather than a scheduling blip. Check the worker logs for slow or failing jobs on this queue, and DBPoolStarved and HighTickFailureRate for the cause.'
+
+      - alert: DBPoolStarved
+        # `pg_pool_waiting` counts requests queued for a connection, which is
+        # starvation stated directly: nothing waits on a pool with a connection
+        # to give. Any waiter at all is already the condition, hence `> 0`.
+        #
+        # The idle/total ratio this rule originally wanted is NOT used, for two
+        # reasons. An idle pool reads 0/0 and the ratio is NaN, which no
+        # threshold can classify. And a small pool that is fully busy but
+        # keeping up reads the same as one that is starving, so the ratio pages
+        # on healthy load. The 5m hold is what separates a burst from
+        # starvation: samples are taken once a minute, so this is five
+        # consecutive minutes with someone waiting.
+        expr: pg_pool_waiting > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Postgres pool has queued waiters for 5m'
+          description: 'Something has been waiting for a Postgres connection for five minutes straight, so every database-touching path is serialised behind the pool. Compare pg_pool_idle against pg_pool_total to see whether the pool is simply too small for the active profile count, or whether connections are being held by slow queries.'
+
+      - alert: WSDisconnectsHigh
+        # Counted at socket CLOSE, once per account, so a flapping stream shows
+        # up here even though the pool reconnects it and profiles keep ticking.
+        # Without this the only trace is a log line.
+        #
+        # Drops we asked for are not counted: disabling a profile and shutting the
+        # worker down both close sockets, and one account can hold enough profiles
+        # to clear the threshold on teardown alone, so a deploy would page by
+        # itself.
+        #
+        # Grouped BY account, not summed across them. The pool opens one socket per
+        # profile but the remedy is per account — re-issue that account's key, check
+        # its egress — and a global sum can name neither the account at fault nor the
+        # one merely contributing. It also adds unrelated accounts' routine
+        # reconnects together into a page about nothing. The trade is a fleet-wide
+        # blip spread thinly enough to stay under five per account, which no longer
+        # fires here; WorkerDown covers the case where that blip takes the process.
+        #
+        # Read as a rate over 15 minutes rather than as a level: one reconnect is
+        # routine (Binance cycles a connection every 24h, and any network blip does
+        # the same), while five in a quarter of an hour is a stream that cannot stay
+        # up. Warning, not critical: the pool reconnects on its own, so this is
+        # degraded freshness of account and order updates, not halted trading.
+        expr: sum by (accountId) (increase(binance_ws_disconnects_total[15m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Binance user-data stream reconnecting repeatedly on account {{ $labels.accountId }}'
+          description: "More than five unrequested Binance websocket closes in fifteen minutes on account {{ $labels.accountId }}. The pool reconnects each time, but balance and order updates are stale for the gap and the worker falls back on REST reconciliation. Check that account's network egress and the worker logs for the close reason and code."
 # NO ALERT COVERAGE TODAY.
 #
-# Four rules were removed because the series each one read is emitted
-# nowhere in this repo, so each evaluated empty forever and could never
-# fire. Removing them costs no coverage; it stops the file implying
-# coverage that never existed. Until the metric named beside each one is
-# emitted, that failure mode reaches the operator only through the UI or
-# the container logs, never through a page.
+# Two gaps, both for want of a series rather than for want of a threshold.
+# Each reaches the operator only through the UI or the container logs, never
+# through a page:
 #
-#   - HighTickFailureRate wanted `tick_failures_total` / `tick_total`. The
-#     worker counts throttled ticks (`tick_throttled_*`) but has no attempt
-#     or failure counter, so no tick error rate is derivable. Tracked in
-#     #773.
-#   - QueueBacklog wanted `bullmq_queue_wait_jobs`. Nothing exports BullMQ
-#     queue depth. Tracked in #774.
-#   - DBPoolStarved wanted `pg_pool_idle` / `pg_pool_total`. The pg pool
-#     exports no gauges. Tracked in #775.
-#   - WSDisconnectsHigh wanted `binance_ws_disconnects_total`. Binance WS
-#     reconnects are logged, never counted. Tracked in #776.
-#
-# Technicals alerts were removed earlier for a different reason: the
-# FastAPI scanner that emitted `technicals_breaker_state`,
-# `technicals_last_success_timestamp_seconds` and `technicals_cache_*` was
-# replaced by in-process compute (`apps/worker/src/crons/technicals-compute.ts`
-# plus `packages/indicators/rating`). Its replacement writes a fetch-status
-# receipt to the `technicals:compute:status:<interval>` Redis key, which a
-# future rule can read once a metric exports it.
+#   - Technicals staleness. The FastAPI scanner that emitted
+#     `technicals_breaker_state`, `technicals_last_success_timestamp_seconds`
+#     and `technicals_cache_*` was replaced by in-process compute
+#     (`apps/worker/src/crons/technicals-compute.ts` plus
+#     `packages/indicators/rating`), and its replacement writes a fetch-status
+#     receipt to the `technicals:compute:status:<interval>` Redis key instead.
+#     A rule can read it once a metric exports it.
+#   - A wedged audit drain loop inside a live worker. A loop that dies or hangs
+#     writes no series at all, and none of the audit rules above goes
+#     stale-empty to reveal the absence; see the AuditDrainerBacklog comment.
+#     WorkerDown covers only the whole process dying.

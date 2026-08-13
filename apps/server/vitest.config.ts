@@ -1,1 +1,3 @@
-export { default } from '../../packages/config/vitest.config.js';
+import { defineProject } from '../../packages/config/vitest/index.js';
+
+export default defineProject({ packageName: '@app/server' });

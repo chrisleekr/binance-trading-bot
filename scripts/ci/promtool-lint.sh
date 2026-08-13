@@ -1,17 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Lint the Prometheus alert rules with promtool. promtool is part of
-# the Prometheus distribution; we cache it under .ci-cache/ so the
-# script is fast on warm runs and works without re-downloading on
-# every CI invocation.
+# Lint the Prometheus alert rules with promtool. Cache the matching Prometheus
+# binary under node_modules so warm runs do not download it again.
 #
-# Skips with a non-fatal warning when promtool is unavailable AND the
-# fetch is blocked (offline runner). The rule file's correctness is
-# still verified by Prometheus on first load when the operator
-# deploys; this script is the early-warning gate, not the only check.
+# A missing rules set or unavailable validator fails the gate. A green result
+# must mean promtool inspected every discovered Prometheus rules file.
 # shellcheck source=_common.sh
 source "$(dirname "$0")/_common.sh"
 ci::start promtool-lint
+script_dir="$(cd -- "$(dirname -- "$0")" && pwd)"
 
 PROMTOOL_VERSION="${PROMTOOL_VERSION:-3.4.1}"
 # Cache under node_modules/.cache so we don't have to touch .gitignore;
@@ -19,11 +16,15 @@ PROMTOOL_VERSION="${PROMTOOL_VERSION:-3.4.1}"
 # operator nukes node_modules.
 CACHE_DIR="node_modules/.cache/promtool-${PROMTOOL_VERSION}"
 PROMTOOL_BIN="${CACHE_DIR}/promtool"
-RULES_FILE="deploy/observability/alerts.yml"
-
-if [[ ! -f "$RULES_FILE" ]]; then
-  echo "promtool-lint: ${RULES_FILE} not found; nothing to check."
-  exit 0
+root="${GUARD_ROOT:-$PWD}"
+cd "$root"
+RULE_FILES=()
+while IFS= read -r file; do
+  [[ "$file" == RULE$'\t'* ]] && RULE_FILES+=("${file#RULE$'\t'}")
+done < <(GUARD_ROOT="$root" bash "$script_dir/discover-prometheus-rules.sh")
+if [[ "${#RULE_FILES[@]}" -eq 0 ]]; then
+  echo 'promtool-lint: rules discovery returned zero files.' >&2
+  exit 1
 fi
 
 # 1) Use a system-installed promtool if present.
@@ -36,16 +37,32 @@ elif [[ ! -x "$PROMTOOL_BIN" ]]; then
   case "$arch" in
     x86_64|amd64) arch=amd64 ;;
     aarch64|arm64) arch=arm64 ;;
-    *) echo "promtool-lint: unsupported arch ${arch}; skipping." >&2; exit 0 ;;
+    *) echo "promtool-lint: unsupported arch ${arch}; cannot validate rules." >&2; exit 1 ;;
   esac
-  url="https://github.com/prometheus/prometheus/releases/download/v${PROMTOOL_VERSION}/prometheus-${PROMTOOL_VERSION}.${os}-${arch}.tar.gz"
+  release="prometheus-${PROMTOOL_VERSION}.${os}-${arch}"
+  url="https://github.com/prometheus/prometheus/releases/download/v${PROMTOOL_VERSION}/${release}.tar.gz"
   mkdir -p "$CACHE_DIR"
-  if ! curl -fsSL --connect-timeout 5 -o "${CACHE_DIR}/prom.tgz" "$url"; then
-    echo "promtool-lint: cannot reach ${url}; skipping (offline runner). Install promtool locally to enforce." >&2
-    exit 0
+  # Two fetchers because the lanes disagree: the GitHub lane runs on ubuntu and
+  # has curl, the GitLab lane runs oven/bun:*-alpine, which ships BusyBox wget
+  # and no curl at all. Assuming curl made this gate fail closed on every GitLab
+  # run. Whichever exists is tried, and an available fetcher that fails falls
+  # through to the other before the gate gives up.
+  if command -v curl >/dev/null 2>&1 &&
+    curl -fsSL --connect-timeout 5 -o "${CACHE_DIR}/prom.tgz" "$url"; then
+    :
+  elif command -v wget >/dev/null 2>&1 &&
+    wget -q --timeout=20 -O "${CACHE_DIR}/prom.tgz" "$url"; then
+    :
+  else
+    echo "promtool-lint: cannot reach ${url}; install promtool locally to validate rules." >&2
+    exit 1
   fi
-  tar -xzf "${CACHE_DIR}/prom.tgz" -C "$CACHE_DIR" --strip-components=1
+  # Extract only promtool. The tarball also carries the ~150 MB prometheus
+  # server binary, which nothing here runs, and CACHE_DIR lives under
+  # node_modules — a path the GitLab `lint` job uploads into the shared bun
+  # cache that every other job then pulls.
+  tar -xzf "${CACHE_DIR}/prom.tgz" -C "$CACHE_DIR" --strip-components=1 "${release}/promtool"
   rm -f "${CACHE_DIR}/prom.tgz"
 fi
 
-"$PROMTOOL_BIN" check rules "$RULES_FILE"
+"$PROMTOOL_BIN" check rules "${RULE_FILES[@]}"

@@ -26,7 +26,6 @@ import { router as appRouter } from '@/router';
 
 describe('route pending screen', () => {
   beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.stubGlobal(
       'fetch',
       vi.fn(
@@ -95,14 +94,20 @@ describe('route pending screen', () => {
 
     expect(screen.getByTestId('login-marker')).toBeInTheDocument();
 
-    void router.navigate({ to: '/slow' });
+    let navigation: ReturnType<typeof router.navigate>;
+    act(() => {
+      navigation = router.navigate({ to: '/slow' });
+    });
 
-    // The router removes the outgoing match, so the pending screen does not
+    // The router hides the outgoing match, so the pending screen does not
     // have to cover the viewport to keep the sign-in form off screen.
     await waitFor(() => expect(screen.getByTestId('route-pending')).toBeInTheDocument());
-    expect(screen.queryByTestId('login-marker')).not.toBeInTheDocument();
+    expect(screen.getByTestId('login-marker')).not.toBeVisible();
 
-    releaseLoader();
+    await act(async () => {
+      releaseLoader();
+      await navigation;
+    });
 
     await waitFor(() => expect(screen.getByTestId('slow-content')).toBeInTheDocument());
     expect(screen.queryByTestId('route-pending')).not.toBeInTheDocument();

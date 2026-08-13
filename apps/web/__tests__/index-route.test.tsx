@@ -15,9 +15,12 @@ import { accountScopeRoute } from '@/features/account/routes/account-scope';
 import { formatLastTick } from '@/shared/lib/format-tick';
 import { rootRoute } from '@/app/__root';
 
+import { pendingFetchForPaths } from './helpers/pending-fetch';
+
 import { asDecimalString, type DashboardAggregateResponse } from '@app/contracts';
 
 const ACCOUNT_ID = '00000000-0000-4000-8000-0000000000ac';
+const DASHBOARD_AGGREGATE_PATH = `/api/accounts/${ACCOUNT_ID}/dashboard-aggregate`;
 const TEST_ACCOUNT = {
   id: ACCOUNT_ID,
   name: 'Main',
@@ -128,8 +131,8 @@ const setUp = (
 
 describe('Home route /', () => {
   beforeEach(() => {
+    vi.stubGlobal('fetch', pendingFetchForPaths(DASHBOARD_AGGREGATE_PATH));
     window.localStorage.clear();
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
   afterEach(() => {
     window.localStorage.clear();
@@ -141,10 +144,7 @@ describe('Home route /', () => {
     // to carry the scroller and enough height itself. Without that there is
     // nothing under a thumb to drag for the length of the fetch and the app
     // reads as frozen on a phone.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => new Promise<Response>(() => undefined)),
-    );
+    vi.stubGlobal('fetch', pendingFetchForPaths(DASHBOARD_AGGREGATE_PATH));
     setUp(undefined);
     const loading = await screen.findByTestId('dashboard-loading');
     expect(loading.className).toContain('overflow-y-auto');
