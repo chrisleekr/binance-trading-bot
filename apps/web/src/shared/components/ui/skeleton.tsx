@@ -17,7 +17,7 @@ export function Skeleton({ className }: { readonly className?: string }): React.
       aria-hidden="true"
       // Stable hook so tests can count bars without walking wrapper nesting.
       data-skeleton-bar=""
-      className={cn('bg-skeleton animate-pulse motion-reduce:animate-none', className)}
+      className={cn('animate-pulse bg-skeleton motion-reduce:animate-none', className)}
     />
   );
 }

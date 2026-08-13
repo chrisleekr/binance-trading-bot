@@ -67,10 +67,7 @@ export const computeFirstBuyQuantity = (
  * config + market state and cannot encounter these.
  */
 export type ManualOrderSkipReason =
-  | FirstBuySkipReason
-  | 'missing-amount'
-  | 'missing-price'
-  | 'unsupported-type';
+  FirstBuySkipReason | 'missing-amount' | 'missing-price' | 'unsupported-type';
 
 /**
  * Resolve the base-asset quantity for an operator-pushed manual order

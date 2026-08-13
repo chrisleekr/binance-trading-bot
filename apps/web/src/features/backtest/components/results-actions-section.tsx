@@ -13,7 +13,7 @@ export function ResultsActionsSection({
   if (!recommendations && !actions) return null;
   return (
     <section aria-labelledby="bt-next-h" className="space-y-4">
-      <h2 id="bt-next-h" className="text-fg text-sm font-semibold">
+      <h2 id="bt-next-h" className="text-sm font-semibold text-fg">
         What next?
       </h2>
       {recommendations}

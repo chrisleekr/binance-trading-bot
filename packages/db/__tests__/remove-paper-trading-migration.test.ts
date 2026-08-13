@@ -21,7 +21,8 @@ import { migrate } from '../src/migrate.js';
 // on it so the partial-migration sequence starts from an empty schema). Skipped
 // in the no-Docker unit lane.
 
-const HAS_INFRA = process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['DATABASE_TEST_URL']);
+const HAS_INFRA =
+  process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['DATABASE_TEST_URL']);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = resolve(HERE, '..', 'migrations');

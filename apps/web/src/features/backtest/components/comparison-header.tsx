@@ -76,10 +76,10 @@ export function ComparisonHeader({
     <section
       aria-label="Compare against another run"
       data-testid="backtest-compare"
-      className="border-border bg-bg-elevated space-y-2 rounded-md border p-3"
+      className="space-y-2 rounded-md border border-border bg-bg-elevated p-3"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-muted-fg text-xs font-semibold">Compare vs</span>
+        <span className="text-xs font-semibold text-muted-fg">Compare vs</span>
         {options.map((o) => (
           <button
             key={o.key}
@@ -96,10 +96,10 @@ export function ComparisonHeader({
         ))}
       </div>
       {comparable ? (
-        <div data-testid="backtest-compare-deltas" className="bg-border grid grid-cols-3 gap-px">
+        <div data-testid="backtest-compare-deltas" className="grid grid-cols-3 gap-px bg-border">
           {deltas.map((d) => (
             <div key={d.label} className="bg-bg-elevated p-2">
-              <div className="text-muted-fg text-[11px]">{d.label}</div>
+              <div className="text-[11px] text-muted-fg">{d.label}</div>
               <div className={`font-mono text-sm tabular-nums ${toneClass(tone(d.value))}`}>
                 {formatPercent(d.value, { sign: true })}
               </div>
@@ -107,7 +107,7 @@ export function ComparisonHeader({
           ))}
         </div>
       ) : (
-        <p className="text-muted-fg text-xs" data-testid="backtest-compare-incomparable">
+        <p className="text-xs text-muted-fg" data-testid="backtest-compare-incomparable">
           Not comparable — different market window.
         </p>
       )}

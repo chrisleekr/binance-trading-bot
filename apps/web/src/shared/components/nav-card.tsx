@@ -23,13 +23,13 @@ export function NavCard({
     <Link
       to={to}
       {...(params ? { params } : {})}
-      className="border-border bg-bg-elevated hover:border-accent flex items-center justify-between gap-3 rounded-md border p-3"
+      className="flex items-center justify-between gap-3 rounded-md border border-border bg-bg-elevated p-3 hover:border-accent"
     >
       <span className="flex flex-col gap-0.5">
-        <span className="text-fg text-sm font-medium">{title}</span>
-        <span className="text-muted-fg text-sm">{description}</span>
+        <span className="text-sm font-medium text-fg">{title}</span>
+        <span className="text-sm text-muted-fg">{description}</span>
       </span>
-      <ChevronRight className="text-muted-fg size-5 shrink-0" aria-hidden="true" />
+      <ChevronRight className="size-5 shrink-0 text-muted-fg" aria-hidden="true" />
     </Link>
   );
 }

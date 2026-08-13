@@ -86,14 +86,14 @@ export function ProfileSwitcher() {
           data-testid="profile-switcher-trigger"
           // normal-case + text-sm: the trigger shows an operator-named profile,
           // not a static label — the terminal uppercase would distort it.
-          className="h-11 max-w-[16rem] justify-between gap-2 truncate text-sm font-medium normal-case tracking-normal"
+          className="h-11 max-w-[16rem] justify-between gap-2 truncate text-sm font-medium tracking-normal normal-case"
         >
           <span className="flex min-w-0 items-center gap-2">
             {killSwitchActive && (
               <ShieldAlert
                 aria-hidden="true"
                 data-testid="profile-switcher-killswitch"
-                className="text-danger h-4 w-4 shrink-0"
+                className="h-4 w-4 shrink-0 text-danger"
               />
             )}
             <span className="truncate">{triggerLabel}</span>
@@ -130,7 +130,7 @@ export function ProfileSwitcher() {
                   )}
                 >
                   {p.killSwitch && (
-                    <ShieldAlert className="text-danger h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-danger" aria-hidden="true" />
                   )}
                   <span className="truncate">{p.name}</span>
                 </CommandItem>

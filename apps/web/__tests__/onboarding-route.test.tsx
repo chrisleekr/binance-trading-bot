@@ -5,9 +5,9 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createQueryClient } from '@/shared/lib/query-client';
 import { onboardingRoute } from '@/features/account/routes/onboarding';
@@ -54,9 +54,6 @@ const setUp = (responder: (url: string, init?: RequestInit) => Response | Promis
 };
 
 describe('OnboardingPage', () => {
-  beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-  });
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -125,7 +122,7 @@ describe('OnboardingPage', () => {
     const inFlight = new Promise<Response>((resolve) => {
       resolveResponse = resolve;
     });
-    const { fetchMock } = setUp(() => inFlight);
+    const { fetchMock, router } = setUp(() => inFlight);
     const user = userEvent.setup();
     const emailInput = await screen.findByLabelText(/email/i);
     await user.type(emailInput, 'op@example.com');
@@ -143,7 +140,10 @@ describe('OnboardingPage', () => {
     await user.click(submit);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    resolveResponse?.(json({}, 200));
+    await act(async () => {
+      resolveResponse?.(json({}, 200));
+    });
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'));
   });
 
   it('on 403 ONBOARDING_CLOSED, flips masterExists and redirects to /login', async () => {

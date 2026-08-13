@@ -25,7 +25,7 @@
 services:
   postgres:
     # Pinned: timescale/timescaledb:latest-pg17 @ 2026-05-10
-    image: timescale/timescaledb@sha256:dfbf3c54f03e01d9a6fe7eeb736b513064a849606ca5acd7edcf51fdcab76a5e
+    image: timescale/timescaledb:latest-pg17@sha256:dfbf3c54f03e01d9a6fe7eeb736b513064a849606ca5acd7edcf51fdcab76a5e
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-binance_trading_bot}

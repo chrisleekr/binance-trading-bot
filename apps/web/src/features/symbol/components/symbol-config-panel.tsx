@@ -167,7 +167,7 @@ export function SymbolConfigPanel({
 
       {ready && descriptor !== undefined ? (
         <>
-          <p className="text-muted-fg text-sm">
+          <p className="text-sm text-muted-fg">
             Fields below start at the profile config. Saved changes override the profile config for
             this symbol only; the candle interval cannot be overridden per symbol.
           </p>
@@ -206,7 +206,7 @@ export function SymbolConfigPanel({
               form is tall; pin Save/Reset to the bottom so the primary action
               is always one tap away instead of 20+ screens down. Save submits
               the AutoForm via its `form` attribute (it sits outside the form). */}
-          <div className="border-border bg-bg-elevated sticky bottom-0 z-10 flex items-center justify-between gap-2 border-t pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
+          <div className="sticky bottom-0 z-10 flex items-center justify-between gap-2 border-t border-border bg-bg-elevated pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             <Button
               type="button"
               variant="outline"

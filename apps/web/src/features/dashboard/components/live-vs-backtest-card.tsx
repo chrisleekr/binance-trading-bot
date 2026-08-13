@@ -71,10 +71,10 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
   return (
     <section
       aria-labelledby="live-scorecard-h"
-      className="border-border bg-bg-elevated space-y-2 rounded-md border p-3"
+      className="space-y-2 rounded-md border border-border bg-bg-elevated p-3"
       data-testid="live-vs-backtest-card"
     >
-      <h2 id="live-scorecard-h" className="text-fg text-sm font-semibold">
+      <h2 id="live-scorecard-h" className="text-sm font-semibold text-fg">
         Live vs backtest
       </h2>
 
@@ -93,12 +93,12 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
       ) : null}
 
       {bucket.tradeCount === 0 ? (
-        <p className="text-muted-fg text-sm">
+        <p className="text-sm text-muted-fg">
           No closed trades yet. Win rate, profit factor, and drawdown appear once the bot has
           completed a few round-trips.
         </p>
       ) : (
-        <div className="bg-border grid grid-cols-2 gap-px sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">
           <Stat label="Win rate" value={liveWin === null ? '—' : formatPercent(liveWin)} />
           <Stat
             label="Profit factor"
@@ -119,17 +119,17 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
       )}
 
       {baselineId === null ? (
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           Pin a finished backtest as this profile's baseline (from the Backtest screen) to check
           whether your live edge still matches it.
         </p>
       ) : baseline.data?.result ? (
-        <div className="border-border space-y-1 border-t pt-2">
-          <p className="text-muted-fg text-xs">
+        <div className="space-y-1 border-t border-border pt-2">
+          <p className="text-xs text-muted-fg">
             vs pinned backtest — win rate and profit factor compare directly (scale-independent);
             absolute P&amp;L is not compared because the capital differs.
           </p>
-          <div className="bg-border grid grid-cols-2 gap-px">
+          <div className="grid grid-cols-2 gap-px bg-border">
             <Stat
               label="Win rate (bt → live)"
               value={`${btWin === null ? '—' : formatPercent(btWin)} → ${liveWin === null ? '—' : formatPercent(liveWin)}`}
@@ -141,9 +141,9 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
         </div>
       ) : baseline.isError ? (
         // A failed read must not sit on a pulsing skeleton forever — surface it.
-        <p className="text-muted-fg text-xs">Couldn't load the pinned backtest baseline.</p>
+        <p className="text-xs text-muted-fg">Couldn't load the pinned backtest baseline.</p>
       ) : baseline.isLoading || baseline.isPaused ? (
-        <div className="border-border space-y-1 border-t pt-2">
+        <div className="space-y-1 border-t border-border pt-2">
           {/* The note plus the two side-by-side comparison stats. */}
           <LoadingRows rows={2} />
         </div>
@@ -151,7 +151,7 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
         // Pinned, fetched, but carrying no result: the run is still queued or
         // running, or it errored. Terminal for this render — a skeleton here
         // would claim data is arriving when nothing is in flight.
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           The pinned backtest has no result yet — it is still running, or the run failed.
         </p>
       )}
@@ -174,14 +174,14 @@ function Stat({
 }): React.JSX.Element {
   return (
     <div className="bg-bg-elevated p-2">
-      <div className="text-muted-fg text-xs">{label}</div>
-      <div className="text-fg font-mono text-sm font-medium tabular-nums">
+      <div className="text-xs text-muted-fg">{label}</div>
+      <div className="font-mono text-sm font-medium text-fg tabular-nums">
         {value}
         {delta !== undefined ? (
           <span className={`ml-1 text-xs ${deltaUp ? 'text-up' : 'text-down'}`}>({delta})</span>
         ) : null}
       </div>
-      {hint ? <div className="text-muted-fg mt-0.5 text-[11px] leading-tight">{hint}</div> : null}
+      {hint ? <div className="mt-0.5 text-[11px] leading-tight text-muted-fg">{hint}</div> : null}
     </div>
   );
 }

@@ -98,7 +98,7 @@ export function Step2Strategy({
           ) : (
             <ul
               aria-invalid={!!pickError}
-              className={`space-y-2 ${pickError ? 'rounded-xs border-danger border p-2' : ''}`}
+              className={`space-y-2 ${pickError ? 'rounded-xs border border-danger p-2' : ''}`}
               data-testid="wizard-strategy-list"
             >
               {strategies.map((s) => {
@@ -107,8 +107,8 @@ export function Step2Strategy({
                 return (
                   <li key={`${s.name}@${s.version}`}>
                     <label
-                      className={`rounded-xs flex cursor-pointer items-start gap-3 border p-3 ${
-                        picked ? 'bg-accent/5 border-accent' : 'border-border'
+                      className={`flex cursor-pointer items-start gap-3 rounded-xs border p-3 ${
+                        picked ? 'border-accent bg-accent/5' : 'border-border'
                       }`}
                     >
                       <input
@@ -126,7 +126,7 @@ export function Step2Strategy({
                             {t('wizard.step2.version', { version: s.version })}
                           </Badge>
                         </span>
-                        <span className="text-muted-fg text-xs">{s.description}</span>
+                        <span className="text-xs text-muted-fg">{s.description}</span>
                       </span>
                     </label>
                   </li>
@@ -136,7 +136,7 @@ export function Step2Strategy({
           )}
 
           {pickError ? (
-            <p role="alert" className="text-danger text-xs">
+            <p role="alert" className="text-xs text-danger">
               {pickError}
             </p>
           ) : null}

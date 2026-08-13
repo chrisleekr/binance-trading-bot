@@ -92,7 +92,7 @@ function BalanceRow({
           <span className="font-medium" title={balance.asset}>
             {balance.asset}
           </span>
-          <span className="text-muted-fg truncate text-xs" title={balance.asset}>
+          <span className="truncate text-xs text-muted-fg" title={balance.asset}>
             {assetName(balance.asset)}
           </span>
         </div>
@@ -101,15 +101,15 @@ function BalanceRow({
         <span>
           {formatBalanceAmount(balance.free)} <span className="text-muted-fg">free</span>
         </span>
-        <span className="text-muted-fg text-xs">{formatBalanceAmount(balance.locked)} locked</span>
+        <span className="text-xs text-muted-fg">{formatBalanceAmount(balance.locked)} locked</span>
         {value != null ? (
-          <span className="text-muted-fg text-xs" data-testid={`balance-value-${balance.asset}`}>
+          <span className="text-xs text-muted-fg" data-testid={`balance-value-${balance.asset}`}>
             ≈ {formatUsd(value)} {quoteAsset}
           </span>
         ) : null}
         {position ? (
           <>
-            <span className="text-muted-fg text-xs">
+            <span className="text-xs text-muted-fg">
               Avg {formatPrice(position.avgEntryPrice ?? '0')} {quoteAsset}
             </span>
             <span className="text-xs" data-testid={`balance-pnl-${balance.asset}`}>
@@ -210,10 +210,10 @@ export function AccountBalancesPanel({
       data-testid="account-balances-panel"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="balances-heading" className="text-fg text-sm font-semibold">
+        <h2 id="balances-heading" className="text-sm font-semibold text-fg">
           Balances
         </h2>
-        <p className="text-muted-fg text-sm">
+        <p className="text-sm text-muted-fg">
           Est. value{' '}
           <span className="font-mono" data-testid="balance-est-value">
             ≈ {formatUsd(estimatedValue)} {quoteAsset}
@@ -242,7 +242,7 @@ export function AccountBalancesPanel({
         <select
           aria-label="Sort balances"
           data-testid="balance-sort"
-          className="rounded-xs border-border bg-surface-alt h-9 border px-2 text-sm"
+          className="h-9 rounded-xs border border-border bg-surface-alt px-2 text-sm"
           value={sort}
           onChange={(e) => setSort(e.target.value as SortKey)}
         >
@@ -251,21 +251,21 @@ export function AccountBalancesPanel({
         </select>
         <div className="flex items-center gap-2">
           <Switch id="hide-zero" checked={hideZero} onCheckedChange={setHideZero} />
-          <Label htmlFor="hide-zero" className="text-muted-fg text-sm">
+          <Label htmlFor="hide-zero" className="text-sm text-muted-fg">
             Hide zero balances
           </Label>
         </div>
       </div>
 
       {balances.length === 0 ? (
-        <p className="text-muted-fg text-sm">No balances — the account snapshot is empty.</p>
+        <p className="text-sm text-muted-fg">No balances — the account snapshot is empty.</p>
       ) : visible.length === 0 ? (
-        <p className="text-muted-fg text-sm">No assets match.</p>
+        <p className="text-sm text-muted-fg">No assets match.</p>
       ) : (
         <>
           {visible.length <= VIRTUALIZE_THRESHOLD ? (
             <ul
-              className="divide-border max-h-80 divide-y overflow-y-auto rounded-md border"
+              className="max-h-80 divide-y divide-border overflow-y-auto rounded-md border"
               data-testid="balances-list"
             >
               {visible.map((b) => (
@@ -284,7 +284,7 @@ export function AccountBalancesPanel({
               positionByAsset={positionByAsset}
             />
           )}
-          <p className="text-muted-fg text-xs" data-testid="balance-count">
+          <p className="text-xs text-muted-fg" data-testid="balance-count">
             Showing {visible.length} of {balances.length} asset{balances.length === 1 ? '' : 's'}
             {hideZero && balances.length - visible.length > 0 ? (
               <>
@@ -336,7 +336,7 @@ function VirtualisedBalanceList({
       ref={parentRef}
       role="region"
       aria-label="Asset balances"
-      className="border-border max-h-80 overflow-y-auto rounded-md border"
+      className="max-h-80 overflow-y-auto rounded-md border border-border"
       data-testid="balances-list-scroll"
     >
       <ul

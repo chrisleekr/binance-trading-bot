@@ -18,7 +18,7 @@ export function ChartIntervalSelector({
     <div
       role="group"
       aria-label="Chart interval"
-      className="border-border bg-bg-elevated inline-flex gap-0.5 rounded-md border p-0.5"
+      className="inline-flex gap-0.5 rounded-md border border-border bg-bg-elevated p-0.5"
     >
       {CANDLE_INTERVALS.map((interval) => {
         const active = interval === value;
@@ -29,7 +29,7 @@ export function ChartIntervalSelector({
             aria-pressed={active}
             onClick={() => onChange(interval)}
             className={cn(
-              'focus-visible:ring-focus rounded px-2.5 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2',
+              'rounded px-2.5 py-2 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none',
               active ? 'bg-accent text-accent-fg' : 'text-muted-fg hover:text-fg',
             )}
           >

@@ -45,10 +45,10 @@ export function ResultsChartsSection({
     <div className="grid gap-4 lg:grid-cols-2">
       <section
         aria-labelledby="bt-equity-h"
-        className="border-border bg-bg-elevated space-y-2 rounded-md border p-3"
+        className="space-y-2 rounded-md border border-border bg-bg-elevated p-3"
       >
         <div className="flex items-center gap-1">
-          <h2 id="bt-equity-h" className="text-fg text-sm font-semibold">
+          <h2 id="bt-equity-h" className="text-sm font-semibold text-fg">
             Equity curve
           </h2>
           <InfoHint label="Equity curve">
@@ -67,10 +67,10 @@ export function ResultsChartsSection({
       </section>
       <section
         aria-labelledby="bt-dd-h"
-        className="border-border bg-bg-elevated space-y-2 rounded-md border p-3"
+        className="space-y-2 rounded-md border border-border bg-bg-elevated p-3"
       >
         <div className="flex items-center gap-1">
-          <h2 id="bt-dd-h" className="text-fg text-sm font-semibold">
+          <h2 id="bt-dd-h" className="text-sm font-semibold text-fg">
             Drawdown
           </h2>
           <InfoHint label="Drawdown">

@@ -42,9 +42,7 @@ e2e/
       "content-type": "application/json",
       "x-mbx-used-weight-1m": "20",
     },
-    "body": {
-      /* exact response body */
-    },
+    "body": {/* exact response body */},
   },
 }
 ```

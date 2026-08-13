@@ -54,10 +54,10 @@ export function SymbolRail({
     <aside
       data-testid="symbol-rail"
       aria-label={t('home.symbols.title')}
-      className="border-border bg-bg-elevated hidden w-64 shrink-0 flex-col border-r md:flex"
+      className="hidden w-64 shrink-0 flex-col border-r border-border bg-bg-elevated md:flex"
     >
-      <div className="border-border shrink-0 space-y-2 border-b p-3">
-        <h2 className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider">
+      <div className="shrink-0 space-y-2 border-b border-border p-3">
+        <h2 className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
           {t('home.symbols.title')}
         </h2>
         {merged.items.length > 0 ? (
@@ -75,7 +75,7 @@ export function SymbolRail({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {merged.isError ? (
-          <p className="text-muted-fg px-3 py-4 text-xs">{t('home.symbols.error')}</p>
+          <p className="px-3 py-4 text-xs text-muted-fg">{t('home.symbols.error')}</p>
         ) : merged.isLoading ? (
           // The rail's own scroller needs range of its own while the
           // per-profile fan-out is in flight, not a single line at the top.
@@ -83,13 +83,13 @@ export function SymbolRail({
             <LoadingRows rows={8} />
           </div>
         ) : visible.length === 0 ? (
-          <p className="text-muted-fg px-3 py-4 text-xs">
+          <p className="px-3 py-4 text-xs text-muted-fg">
             {merged.items.length === 0 ? t('home.symbols.empty') : t('home.symbols.no_match')}
           </p>
         ) : (
-          <ul className="divide-border divide-y">
+          <ul className="divide-y divide-border">
             {merged.isPartial ? (
-              <li data-testid="symbol-rail-partial" className="text-warning px-3 py-2 text-xs">
+              <li data-testid="symbol-rail-partial" className="px-3 py-2 text-xs text-warning">
                 ⚠ {t('home.symbols.partial')}
               </li>
             ) : null}
@@ -140,18 +140,18 @@ function RailRow({
         data-testid={`symbol-rail-row-${row.profileId}-${sym.symbol}`}
         title={status.kind === 'blocked' ? status.title : undefined}
         className={cn(
-          'hover:bg-surface-alt focus-visible:ring-focus flex w-full flex-col gap-1 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset',
-          selected && 'border-accent bg-surface-alt border-l-2',
+          'flex w-full flex-col gap-1 px-3 py-2 text-left hover:bg-surface-alt focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none focus-visible:ring-inset',
+          selected && 'border-l-2 border-accent bg-surface-alt',
         )}
       >
         <div className="flex items-center gap-2">
           <span className={cn('h-2 w-2 shrink-0 rounded-full', dot)} aria-hidden />
-          <span className="text-fg truncate font-mono text-sm font-medium">{sym.symbol}</span>
+          <span className="truncate font-mono text-sm font-medium text-fg">{sym.symbol}</span>
           <Badge variant={status.variant} data-status={status.kind} className="ml-auto shrink-0">
             {status.label}
           </Badge>
         </div>
-        <div className="text-muted-fg flex items-center justify-between pl-4 text-xs">
+        <div className="flex items-center justify-between pl-4 text-xs text-muted-fg">
           <span className="truncate">{row.profileName}</span>
           <span className="shrink-0 font-mono tabular-nums">
             {sym.currentPrice != null ? `${formatPrice(sym.currentPrice)} ${quote}` : '—'}

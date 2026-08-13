@@ -48,10 +48,10 @@ export function ResultsTablesSection({
       {result.regimeBreakdown.length > 0 && (
         <section
           aria-labelledby="bt-regime-h"
-          className="border-border bg-bg-elevated space-y-2 rounded-md border p-3"
+          className="space-y-2 rounded-md border border-border bg-bg-elevated p-3"
         >
           <div className="flex items-center gap-1">
-            <h2 id="bt-regime-h" className="text-fg text-sm font-semibold">
+            <h2 id="bt-regime-h" className="text-sm font-semibold text-fg">
               Performance by market regime
             </h2>
             <InfoHint label="Performance by market regime">
@@ -59,7 +59,7 @@ export function ResultsTablesSection({
               wins while the market rises, it may just be riding the market, not adding an edge.
             </InfoHint>
           </div>
-          <p className="text-muted-fg text-xs">
+          <p className="text-xs text-muted-fg">
             How the strategy did while the market ({result.params.symbols[0]} vs its 50-day average)
             was trending up, chopping sideways, or trending down. &ldquo;Alpha vs hold&rdquo; is the
             return beyond simply holding through that regime — if the only positive alpha is in the
@@ -67,7 +67,7 @@ export function ResultsTablesSection({
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm tabular-nums" data-testid="backtest-regime-table">
-              <thead className="text-muted-fg text-left text-xs">
+              <thead className="text-left text-xs text-muted-fg">
                 <tr>
                   <th className="py-1 pr-3">Regime</th>
                   <th className="py-1 pr-3">Return</th>
@@ -80,7 +80,7 @@ export function ResultsTablesSection({
               </thead>
               <tbody>
                 {result.regimeBreakdown.map((r) => (
-                  <tr key={r.regime} className="border-border border-t">
+                  <tr key={r.regime} className="border-t border-border">
                     <td className="py-1 pr-3">{regimeLabel(r.regime)}</td>
                     <td className={`py-1 pr-3 font-mono ${toneClass(tone(r.returnPct))}`}>
                       {pct(r.returnPct)}
@@ -102,11 +102,11 @@ export function ResultsTablesSection({
 
       <section
         aria-labelledby="bt-oos-h"
-        className="border-border bg-bg-elevated space-y-2 rounded-md border p-3"
+        className="space-y-2 rounded-md border border-border bg-bg-elevated p-3"
         data-testid="backtest-oos"
       >
         <div className="flex items-center gap-1">
-          <h2 id="bt-oos-h" className="text-fg text-sm font-semibold">
+          <h2 id="bt-oos-h" className="text-sm font-semibold text-fg">
             Out-of-sample check
             {result.outOfSample ? ` · recent ${oosPctLabel(result.outOfSample.fraction)}` : ''}
           </h2>
@@ -115,20 +115,20 @@ export function ResultsTablesSection({
             still shows here; an over-fitted one falls apart.
           </InfoHint>
         </div>
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           The same metrics over only the most-recent slice of the window — the part you did not tune
           against. A real edge holds up here; a curve-fit one looks strong over the full run but
           weak out-of-sample.
         </p>
         {result.outOfSample ? (
           <>
-            <p className="text-muted-fg text-xs">
+            <p className="text-xs text-muted-fg">
               Holdout window: {formatInstant(result.outOfSample.fromMs, timeZone)} →{' '}
               {formatInstant(result.outOfSample.toMs, timeZone)}
             </p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm tabular-nums" data-testid="backtest-oos-table">
-                <thead className="text-muted-fg text-left text-xs">
+                <thead className="text-left text-xs text-muted-fg">
                   <tr>
                     <th className="py-1 pr-3">Return</th>
                     <th className="py-1 pr-3">Buy &amp; hold</th>
@@ -139,7 +139,7 @@ export function ResultsTablesSection({
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-border border-t">
+                  <tr className="border-t border-border">
                     <td
                       className={`py-1 pr-3 font-mono ${toneClass(tone(result.outOfSample.returnPct))}`}
                     >
@@ -162,7 +162,7 @@ export function ResultsTablesSection({
             </div>
           </>
         ) : (
-          <p className="text-muted-fg text-xs">
+          <p className="text-xs text-muted-fg">
             This run is too short to carve a holdout — widen the backtest window to get an
             out-of-sample read.
           </p>
@@ -173,10 +173,10 @@ export function ResultsTablesSection({
         result.decisionBreakdown.logs.length > 0) && (
         <section
           aria-labelledby="bt-why-h"
-          className="border-border bg-bg-elevated space-y-2 rounded-md border p-3"
+          className="space-y-2 rounded-md border border-border bg-bg-elevated p-3"
         >
           <div className="flex items-center gap-1">
-            <h2 id="bt-why-h" className="text-fg text-sm font-semibold">
+            <h2 id="bt-why-h" className="text-sm font-semibold text-fg">
               Why it traded (or didn&apos;t)
             </h2>
             <InfoHint label="Why it traded or didn't">
@@ -191,7 +191,7 @@ export function ResultsTablesSection({
               attribution={reasonAttribution}
             />
           ) : (
-            <p className="text-muted-fg text-xs">
+            <p className="text-xs text-muted-fg">
               Per-tick decision counts the strategy emitted across the run — buys placed, buys
               skipped, and gate vetoes by reason. A near-zero trade count with many vetoes means the
               entry gate, not the sell/grid settings, is the dominant lever.
@@ -200,13 +200,13 @@ export function ResultsTablesSection({
           {/* The raw per-tick counters, collapsed by default — verification
               detail beneath the plain-language summary, not primary reading. */}
           <details className="group space-y-2">
-            <summary className="text-muted-fg hover:text-fg cursor-pointer text-xs font-medium">
+            <summary className="cursor-pointer text-xs font-medium text-muted-fg hover:text-fg">
               Show raw per-tick counts
             </summary>
             {result.decisionBreakdown.metrics.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm tabular-nums">
-                  <thead className="text-muted-fg text-left text-xs">
+                  <thead className="text-left text-xs text-muted-fg">
                     <tr>
                       <th className="py-1 pr-3">Outcome</th>
                       <th className="py-1 pr-3">Detail</th>
@@ -215,9 +215,9 @@ export function ResultsTablesSection({
                   </thead>
                   <tbody>
                     {result.decisionBreakdown.metrics.map((m, i) => (
-                      <tr key={`why-m-${m.name}-${i}`} className="border-border border-t">
+                      <tr key={`why-m-${m.name}-${i}`} className="border-t border-border">
                         <td className="py-1 pr-3">{m.name}</td>
-                        <td className="text-muted-fg py-1 pr-3">{formatTags(m.tags)}</td>
+                        <td className="py-1 pr-3 text-muted-fg">{formatTags(m.tags)}</td>
                         <td className="py-1 pr-3 font-mono">{m.count}</td>
                       </tr>
                     ))}
@@ -228,7 +228,7 @@ export function ResultsTablesSection({
             {result.decisionBreakdown.logs.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm tabular-nums">
-                  <thead className="text-muted-fg text-left text-xs">
+                  <thead className="text-left text-xs text-muted-fg">
                     <tr>
                       <th className="py-1 pr-3">Event</th>
                       <th className="py-1 pr-3">Reason</th>
@@ -237,7 +237,7 @@ export function ResultsTablesSection({
                   </thead>
                   <tbody>
                     {result.decisionBreakdown.logs.map((l, i) => (
-                      <tr key={`why-l-${l.message}-${i}`} className="border-border border-t">
+                      <tr key={`why-l-${l.message}-${i}`} className="border-t border-border">
                         <td className="py-1 pr-3">{l.message}</td>
                         <td className="py-1 pr-3">{l.reason ?? '—'}</td>
                         <td className="py-1 pr-3 font-mono">{l.count}</td>
@@ -258,14 +258,14 @@ export function ResultsTablesSection({
       {result.perSymbol.length > 1 && (
         <section
           aria-labelledby="bt-persymbol-h"
-          className="border-border bg-bg-elevated space-y-2 rounded-md border p-3"
+          className="space-y-2 rounded-md border border-border bg-bg-elevated p-3"
         >
-          <h2 id="bt-persymbol-h" className="text-fg text-sm font-semibold">
+          <h2 id="bt-persymbol-h" className="text-sm font-semibold text-fg">
             Per symbol
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm tabular-nums">
-              <thead className="text-muted-fg text-left text-xs">
+              <thead className="text-left text-xs text-muted-fg">
                 <tr>
                   <th className="py-1 pr-3">Symbol</th>
                   <th className="py-1 pr-3">Trades</th>
@@ -274,7 +274,7 @@ export function ResultsTablesSection({
               </thead>
               <tbody>
                 {result.perSymbol.map((s) => (
-                  <tr key={s.symbol} className="border-border border-t">
+                  <tr key={s.symbol} className="border-t border-border">
                     <td className="py-1 pr-3">{s.symbol}</td>
                     <td className="py-1 pr-3 font-mono">{s.tradeCount}</td>
                     <td className="py-1 pr-3 font-mono">{formatMoneyAmount(s.pnlQuote)}</td>

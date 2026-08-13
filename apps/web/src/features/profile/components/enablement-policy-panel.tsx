@@ -51,7 +51,7 @@ function NumberField({
         value={Number.isFinite(value) ? value : ''}
         onChange={(e) => onChange(e.target.value === '' ? Number.NaN : Number(e.target.value))}
       />
-      <p className="text-muted-fg text-xs">{hint}</p>
+      <p className="text-xs text-muted-fg">{hint}</p>
     </div>
   );
 }
@@ -138,7 +138,7 @@ export function EnablementPolicyPanel({
           <div className="flex items-center justify-between gap-3">
             <div>
               <Label htmlFor="gate-enabled">Show the backtest quality check</Label>
-              <p className="text-muted-fg text-xs">
+              <p className="text-xs text-muted-fg">
                 Off = skip this check entirely. Going live is never blocked either way; this only
                 decides whether the check is evaluated and shown.
               </p>
@@ -191,7 +191,7 @@ export function EnablementPolicyPanel({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <Label htmlFor="gate-oos">Require out-of-sample validation</Label>
-                <p className="text-muted-fg text-xs">
+                <p className="text-xs text-muted-fg">
                   The edge must also clear the profit-factor and alpha bars in the most-recent 30%
                   of the backtest — the slice you didn&apos;t tune against. The real defence against
                   curve-fitting a single window.
@@ -224,7 +224,7 @@ export function EnablementPolicyPanel({
           <div className="space-y-2">
             <div>
               <Label>Edge-decay monitor (while live)</Label>
-              <p className="text-muted-fg text-xs">
+              <p className="text-xs text-muted-fg">
                 The bars above gate going live; this keeps watching afterwards. It compares the
                 profile&apos;s live profit factor against its pinned backtest baseline. Off = no
                 watch; Warn = flag it on the dashboard and send a heads-up notification. The bot

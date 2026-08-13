@@ -221,9 +221,7 @@ export const buildPersistence = (
       row.status === 'REJECTED' ||
       row.status === 'EXPIRED';
     const raw = row.raw as
-      | { transactTime?: unknown; updateTime?: unknown; time?: unknown }
-      | null
-      | undefined;
+      { transactTime?: unknown; updateTime?: unknown; time?: unknown } | null | undefined;
     const epochMs = (v: unknown): number | null =>
       typeof v === 'number' && Number.isFinite(v) ? v : null;
     const exchangeTimeMs =

@@ -20,7 +20,7 @@ export function RollupStatsLine({ bucket }: { bucket: RollupStatsBucket }): Reac
   const payoff = payoffRatio(bucket);
   const exp = expectancy(bucket);
   return (
-    <span className="text-muted-fg text-[11px] tabular-nums">
+    <span className="text-[11px] text-muted-fg tabular-nums">
       {bucket.tradeCount} trade{bucket.tradeCount === 1 ? '' : 's'} · {winPct(bucket)}% win · PF{' '}
       {pf === null ? '∞' : pf}
       {payoff !== null ? ` · payoff ${payoff.toFixed(2)}` : ''}

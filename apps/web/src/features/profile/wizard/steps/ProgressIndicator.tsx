@@ -14,7 +14,7 @@ export function ProgressIndicator({
     <div className="space-y-2" aria-label={t('wizard.progress.label')}>
       <p
         id="wizard-step-label"
-        className="text-muted-fg text-xs tracking-wide"
+        className="text-xs tracking-wide text-muted-fg"
         data-testid="wizard-step-label"
       >
         {t('wizard.progress.step', { current, total })}
@@ -25,10 +25,10 @@ export function ProgressIndicator({
         aria-valuemin={1}
         aria-valuemax={total}
         aria-valuenow={current}
-        className="bg-bg-elevated h-1.5 overflow-hidden rounded-md"
+        className="h-1.5 overflow-hidden rounded-md bg-bg-elevated"
       >
         <div
-          className="bg-accent h-full transition-all"
+          className="h-full bg-accent transition-all"
           style={{ width: `${Math.round((current / total) * 100)}%` }}
         />
       </div>

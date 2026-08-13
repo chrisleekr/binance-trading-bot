@@ -89,9 +89,9 @@ type Bound<F> = F extends (scope: ProfileScope, ...rest: infer R) => infer Ret
  * are excluded from the public surface.
  */
 type ScopeBound<M> = {
-  [K in keyof M as M[K] extends (scope: ProfileScope, ...rest: never[]) => unknown
-    ? K
-    : never]: Bound<M[K]>;
+  [
+    K in keyof M as M[K] extends (scope: ProfileScope, ...rest: never[]) => unknown ? K : never
+  ]: Bound<M[K]>;
 };
 
 /**
@@ -294,9 +294,9 @@ type AccountBound<F> = F extends (scope: AccountScope, ...rest: infer R) => infe
  * `accounts.create` / `accounts.listForOwner`, `profiles.insert`) are excluded.
  */
 type AccountScopeBound<M> = {
-  [K in keyof M as M[K] extends (scope: AccountScope, ...rest: never[]) => unknown
-    ? K
-    : never]: AccountBound<M[K]>;
+  [
+    K in keyof M as M[K] extends (scope: AccountScope, ...rest: never[]) => unknown ? K : never
+  ]: AccountBound<M[K]>;
 };
 
 /** {@link bindModule} for the account tier. */

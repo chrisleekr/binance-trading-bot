@@ -122,8 +122,8 @@ export function BacktestResults({
 
       {/* Methodology caveat — always true, so it reads as a quiet footnote, not a
           second loud warning competing with the run's actual verdict above. */}
-      <p className="text-muted-fg text-xs leading-relaxed">
-        <span className="text-fg font-medium">Backtests overstate live performance</span> — fills
+      <p className="text-xs leading-relaxed text-muted-fg">
+        <span className="font-medium text-fg">Backtests overstate live performance</span> — fills
         are idealized (limit orders fill at the order price, market at the candle open), the
         intra-candle price path is unknown, and infinite liquidity at the fill price is assumed.
         Slippage and fees are modeled but latency and order-book depth are not. Past performance

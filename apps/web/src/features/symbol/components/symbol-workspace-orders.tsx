@@ -65,15 +65,15 @@ function OpenOrdersPanel({
   if (orders.length === 0) {
     return (
       <section className="space-y-2">
-        <h2 className="text-fg text-sm font-semibold">Open orders</h2>
-        <p className="text-muted-fg text-sm">No open orders.</p>
+        <h2 className="text-sm font-semibold text-fg">Open orders</h2>
+        <p className="text-sm text-muted-fg">No open orders.</p>
       </section>
     );
   }
   return (
     <section className="space-y-2" data-testid="open-orders-panel">
-      <h2 className="text-fg text-sm font-semibold">Open orders</h2>
-      <ul className="divide-border divide-y rounded-md border">
+      <h2 className="text-sm font-semibold text-fg">Open orders</h2>
+      <ul className="divide-y divide-border rounded-md border">
         {orders.map((order) => (
           <li
             key={order.id}
@@ -82,7 +82,7 @@ function OpenOrdersPanel({
           >
             <div className="flex items-baseline justify-between gap-2">
               <span
-                className={order.side === 'BUY' ? 'text-up font-medium' : 'text-down font-medium'}
+                className={order.side === 'BUY' ? 'font-medium text-up' : 'font-medium text-down'}
               >
                 {order.side}
               </span>
@@ -90,7 +90,7 @@ function OpenOrdersPanel({
                 {order.status}
               </Badge>
             </div>
-            <div className="text-muted-fg flex justify-between">
+            <div className="flex justify-between text-muted-fg">
               <span>qty {formatAmount(orderQty(order))}</span>
               <span>@ {formatPrice(orderPrice(order))}</span>
             </div>

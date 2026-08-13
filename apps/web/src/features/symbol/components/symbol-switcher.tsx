@@ -41,7 +41,7 @@ export function SymbolSwitcher({
     <select
       aria-label="Switch symbol"
       data-testid="symbol-switcher"
-      className="border-border bg-bg h-11 rounded-md border px-2 text-sm font-medium"
+      className="h-11 rounded-md border border-border bg-bg px-2 text-sm font-medium"
       value={symbol}
       onChange={(e) => {
         const next = e.target.value;

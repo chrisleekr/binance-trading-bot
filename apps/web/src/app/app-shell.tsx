@@ -60,12 +60,12 @@ export function AppShell({
     // fixed nav. Clipping at the shell costs nothing (the bubble is opacity:0)
     // and real overlays portal to document.body, outside the shell, so they
     // are unaffected.
-    <div className="bg-bg text-fg relative flex h-svh flex-col overflow-hidden">
+    <div className="relative flex h-svh flex-col overflow-hidden bg-bg text-fg">
       {demoMode && <DemoBanner />}
       {/* Full-width terminal top bar: accent wordmark block, then the profile
           switcher, with the account/theme controls on the right. The 2px
           accent bottom rule is the v2 signature (see DESIGN.md). */}
-      <header className="border-accent bg-bg-elevated flex h-12 shrink-0 items-center gap-3 border-b-2 pr-4">
+      <header className="flex h-12 shrink-0 items-center gap-3 border-b-2 border-accent bg-bg-elevated pr-4">
         {/* Wordmark doubles as the Home link — no separate Home nav item. Fixed
             to the expanded sidebar width (w-52) so the gold block and the
             sidebar below it read as one aligned left column. (Collapsed-rail
@@ -73,7 +73,7 @@ export function AppShell({
             that must line up.) */}
         <Link
           to="/"
-          className="bg-accent text-accent-fg flex h-full shrink-0 items-center px-4 text-xs font-bold uppercase tracking-[0.12em] md:w-52"
+          className="flex h-full shrink-0 items-center bg-accent px-4 text-xs font-bold tracking-[0.12em] text-accent-fg uppercase md:w-52"
         >
           {t('app.title')}
         </Link>

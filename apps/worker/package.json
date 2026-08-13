@@ -30,9 +30,9 @@
     "@app/strategy-registry": "workspace:*",
     "@app/strategy-trailing-trade": "workspace:*",
     "bullmq": "5.58.6",
-    "ioredis": "~5.11.1",
+    "ioredis": "~6.0.0",
     "pg": "~8.22.0",
-    "pino": "~9.14.0",
+    "pino": "~10.3.1",
     "ws": "~8.21.3",
     "zod": "~4.4.3",
     "@app/observability": "workspace:*"

@@ -43,13 +43,13 @@ export function BacktestFills({ trades, timeZone }: BacktestFillsProps): React.J
   return (
     <section
       aria-labelledby="bt-trades-h"
-      className="border-border bg-bg-elevated space-y-2 rounded-md border p-3"
+      className="space-y-2 rounded-md border border-border bg-bg-elevated p-3"
     >
-      <h2 id="bt-trades-h" className="text-fg text-sm font-semibold">
+      <h2 id="bt-trades-h" className="text-sm font-semibold text-fg">
         Fills ({trades.length})
       </h2>
       {trades.length === 0 ? (
-        <p className="text-muted-fg text-sm">No fills.</p>
+        <p className="text-sm text-muted-fg">No fills.</p>
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -76,7 +76,7 @@ export function BacktestFills({ trades, timeZone }: BacktestFillsProps): React.J
                 </Button>
               ))}
             </div>
-            <label className="text-muted-fg flex items-center gap-1.5 text-xs">
+            <label className="flex items-center gap-1.5 text-xs text-muted-fg">
               Rows per page
               <select
                 value={pageSize}
@@ -84,7 +84,7 @@ export function BacktestFills({ trades, timeZone }: BacktestFillsProps): React.J
                   setPageSize(Number(e.target.value));
                   setPage(1);
                 }}
-                className="border-border bg-bg-elevated text-fg rounded-md border px-2 py-1 text-xs"
+                className="rounded-md border border-border bg-bg-elevated px-2 py-1 text-xs text-fg"
                 data-testid="bt-fills-page-size"
               >
                 {PAGE_SIZES.map((n) => (
@@ -98,7 +98,7 @@ export function BacktestFills({ trades, timeZone }: BacktestFillsProps): React.J
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm tabular-nums" data-testid="backtest-fills-table">
-              <thead className="text-muted-fg text-left text-xs">
+              <thead className="text-left text-xs text-muted-fg">
                 <tr>
                   <th className="py-1 pr-3">Time</th>
                   <th className="py-1 pr-3">Symbol</th>
@@ -111,7 +111,7 @@ export function BacktestFills({ trades, timeZone }: BacktestFillsProps): React.J
               </thead>
               <tbody>
                 {visible.map((t, i) => (
-                  <tr key={`${t.tsMs}-${start + i}`} className="border-border border-t">
+                  <tr key={`${t.tsMs}-${start + i}`} className="border-t border-border">
                     <td className="py-1 pr-3">{formatInstant(t.tsMs, timeZone)}</td>
                     <td className="py-1 pr-3">{t.symbol}</td>
                     <td className={`py-1 pr-3 ${t.side === 'BUY' ? 'text-up' : 'text-down'}`}>

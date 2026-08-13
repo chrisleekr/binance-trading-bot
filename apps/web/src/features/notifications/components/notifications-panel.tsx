@@ -213,7 +213,7 @@ function ProviderEditor({
 
   const enabledControl = (
     <div className="flex items-center gap-2">
-      <Label htmlFor={`enabled-${provider.name}`} className="text-fg text-sm font-medium">
+      <Label htmlFor={`enabled-${provider.name}`} className="text-sm font-medium text-fg">
         Enabled
       </Label>
       <Switch
@@ -225,7 +225,7 @@ function ProviderEditor({
         disabled={!hasSavedRow || toggleEnabled.isPending}
         data-testid={`enabled-${provider.name}`}
       />
-      {!hasSavedRow ? <span className="text-muted-fg text-xs">Save a config to enable</span> : null}
+      {!hasSavedRow ? <span className="text-xs text-muted-fg">Save a config to enable</span> : null}
     </div>
   );
 
@@ -260,11 +260,11 @@ function ProviderEditor({
                   <div key={field} className="space-y-1">
                     <Label
                       htmlFor={`secret-${provider.name}-${field}`}
-                      className="text-fg flex items-center gap-1 text-sm font-medium"
+                      className="flex items-center gap-1 text-sm font-medium text-fg"
                     >
                       {titleCase(field)}
                       {hasSavedRow ? (
-                        <span className="text-muted-fg font-normal">
+                        <span className="font-normal text-muted-fg">
                           (leave blank to keep current value)
                         </span>
                       ) : requiredSecret ? (
@@ -272,10 +272,10 @@ function ProviderEditor({
                           *
                         </span>
                       ) : (
-                        <span className="text-muted-fg font-normal">(optional)</span>
+                        <span className="font-normal text-muted-fg">(optional)</span>
                       )}
                     </Label>
-                    {description ? <p className="text-muted-fg text-xs">{description}</p> : null}
+                    {description ? <p className="text-xs text-muted-fg">{description}</p> : null}
                     <Input
                       id={`secret-${provider.name}-${field}`}
                       data-testid={`secret-${provider.name}-${field}`}
@@ -357,7 +357,7 @@ export function NotificationsPanel({
       ) : null}
 
       {list.data && list.data.length === 0 ? (
-        <p className="text-muted-fg text-sm">
+        <p className="text-sm text-muted-fg">
           No notifiers registered. The build links Slack, Telegram, and Webhook by default — check
           the api boot wiring.
         </p>

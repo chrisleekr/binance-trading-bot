@@ -57,7 +57,9 @@ describe('momentumAttributeOrder', () => {
       entryClientOrderId(PROFILE, SYMBOL, candleMs),
       exitClientOrderId(PROFILE, SYMBOL, candleMs),
     ]) {
-      expect(momentumAttributeOrder({ clientOrderId: id, profileId: PROFILE, symbol: SYMBOL })).toBeNull();
+      expect(
+        momentumAttributeOrder({ clientOrderId: id, profileId: PROFILE, symbol: SYMBOL }),
+      ).toBeNull();
     }
   });
 

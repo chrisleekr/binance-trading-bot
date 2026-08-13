@@ -213,20 +213,20 @@ function SummaryBand({ rows }: { rows: readonly DashboardAggregateRow[] }) {
     // section heading aligns this band's box with the Market trend box beside it
     // (both sit below an uppercase label).
     <section className="@container space-y-2" aria-label={t('home.stats.title')}>
-      <h2 className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider">
+      <h2 className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
         {t('home.stats.title')}
       </h2>
       {/* 1px-gap grid: the border colour shows through the gaps, so the strip
           reads as one bordered terminal band with hairline dividers (borders
           over whitespace), not three floating cards. */}
       <dl
-        className="@2xl:grid-cols-3 border-border bg-border grid grid-cols-2 gap-px border"
+        className="grid grid-cols-2 gap-px border border-border bg-border @2xl:grid-cols-3"
         data-testid="dashboard-order-stats"
       >
         {/* The P/L hero spans the full row on phones and one column on desktop,
             leaving positions + open-orders to fill the remaining pair. */}
-        <div className="@2xl:col-span-1 bg-bg-elevated col-span-2 flex flex-col gap-1 p-3">
-          <dt className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider">
+        <div className="col-span-2 flex flex-col gap-1 bg-bg-elevated p-3 @2xl:col-span-1">
+          <dt className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
             {t('home.summary.unrealised')}
           </dt>
           <dd
@@ -237,7 +237,7 @@ function SummaryBand({ rows }: { rows: readonly DashboardAggregateRow[] }) {
           </dd>
           {practicePnl.length > 0 ? (
             <dd
-              className="text-muted-fg font-mono text-xs tabular-nums"
+              className="font-mono text-xs text-muted-fg tabular-nums"
               data-testid="dashboard-stat-unrealised-practice"
             >
               <span className="font-sans">{t('home.summary.practice')} </span>
@@ -269,8 +269,8 @@ function Stat({
   className?: string;
 }) {
   return (
-    <div className={cn('bg-bg-elevated flex flex-col gap-1 p-3', className)}>
-      <dt className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider">{label}</dt>
+    <div className={cn('flex flex-col gap-1 bg-bg-elevated p-3', className)}>
+      <dt className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">{label}</dt>
       <dd
         className="font-mono text-xl font-semibold tabular-nums"
         data-testid={`dashboard-stat-${testId}`}
@@ -288,7 +288,7 @@ function QuotePnlList({ items }: { items: readonly QuotePnl[] }) {
     <>
       {items.map((q, i) => (
         <span key={q.quote}>
-          {i > 0 ? <span className="text-muted-fg text-base"> · </span> : null}
+          {i > 0 ? <span className="text-base text-muted-fg"> · </span> : null}
           <PnlValue value={q.pnl} unit={q.quote} />
         </span>
       ))}
@@ -301,12 +301,12 @@ function ProfilesPanel({ rows }: { rows: readonly DashboardAggregateRow[] }) {
     <section aria-labelledby="profiles-heading" className="space-y-3">
       <h2
         id="profiles-heading"
-        className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider"
+        className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase"
       >
         {t('home.profiles.title')}
       </h2>
       <ul
-        className="divide-border border-border bg-bg-elevated divide-y border"
+        className="divide-y divide-border border border-border bg-bg-elevated"
         data-testid="profile-cards"
       >
         {rows.map((row) => (
@@ -325,11 +325,11 @@ function EmptyState() {
   const accountId = useActiveAccountId() ?? '';
   return (
     <section
-      className="border-border bg-bg-elevated mx-auto flex max-w-md flex-col items-center gap-3 border p-6 text-center"
+      className="mx-auto flex max-w-md flex-col items-center gap-3 border border-border bg-bg-elevated p-6 text-center"
       data-testid="home-empty"
     >
       <h2 className="text-lg font-semibold">{t('home.empty.title')}</h2>
-      <p className="text-muted-fg text-sm">{t('home.empty.body')}</p>
+      <p className="text-sm text-muted-fg">{t('home.empty.body')}</p>
       <Button
         variant="primary"
         onClick={() => {
@@ -375,7 +375,7 @@ function AwaitingTickHint({ row }: { row: DashboardAggregateRow }) {
     <p
       data-testid={`profile-card-${row.profileId}-awaiting-hint`}
       data-variant={variant}
-      className="border-border text-muted-fg border-t px-4 py-2 text-xs"
+      className="border-t border-border px-4 py-2 text-xs text-muted-fg"
     >
       {t('home.card.last_tick.awaiting')}
       {' · '}
@@ -422,7 +422,7 @@ function ProfileRow({ row }: { row: DashboardAggregateRow }) {
               ? 'ticking'
               : 'idle'
       }`}
-      className="hover:bg-surface-alt focus-visible:ring-focus flex w-full items-center gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+      className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-alt focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none focus-visible:ring-inset"
     >
       <span
         className={cn('h-2 w-2 shrink-0 rounded-full', healthTone(row))}
@@ -431,7 +431,7 @@ function ProfileRow({ row }: { row: DashboardAggregateRow }) {
       />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-fg truncate font-medium">{row.name}</span>
+          <span className="truncate font-medium text-fg">{row.name}</span>
           <Badge
             variant={row.enabled ? 'secondary' : 'outline'}
             data-testid={`profile-card-${row.profileId}-state`}
@@ -449,7 +449,7 @@ function ProfileRow({ row }: { row: DashboardAggregateRow }) {
             <Badge
               variant="outline"
               data-testid={`profile-card-${row.profileId}-killswitch`}
-              className="border-danger text-danger gap-1"
+              className="gap-1 border-danger text-danger"
             >
               <ShieldAlert className="h-3 w-3" aria-hidden="true" />
               {t('home.card.kill_switch')}
@@ -469,7 +469,7 @@ function ProfileRow({ row }: { row: DashboardAggregateRow }) {
             </Badge>
           )}
         </div>
-        <p className="text-muted-fg mt-0.5 truncate text-xs">
+        <p className="mt-0.5 truncate text-xs text-muted-fg">
           {formatLastTick(row.lastTickAt)} · {formatTickLatency(row.lastTickLatencyMs)} ·{' '}
           {row.openPositionCount} pos · {row.openOrderCount} orders
         </p>

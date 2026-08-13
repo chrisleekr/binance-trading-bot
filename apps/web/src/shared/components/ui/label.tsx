@@ -13,7 +13,7 @@ export const Label = React.forwardRef<
     // below its label instead of sitting crammed inline beside it; matches how
     // block <Input> fields already stack. Flex-col label usages override this via
     // tailwind-merge, and native checkbox/radio <label>s do not use this component.
-    className={cn('block text-sm font-medium leading-none', className)}
+    className={cn('block text-sm leading-none font-medium', className)}
     {...props}
   />
 ));

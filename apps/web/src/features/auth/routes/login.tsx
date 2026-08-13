@@ -103,10 +103,10 @@ function LoginPage() {
   const inputsDisabled = submitting || !!rateLimit;
 
   return (
-    <section className="border-border-strong bg-bg-elevated mx-auto w-full max-w-md space-y-6 rounded-md border p-8">
+    <section className="mx-auto w-full max-w-md space-y-6 rounded-md border border-border-strong bg-bg-elevated p-8">
       <header className="space-y-1 text-center">
-        <h1 className="text-fg text-2xl font-semibold">{t('login.title')}</h1>
-        <p className="text-muted-fg text-sm">{t('login.subtitle')}</p>
+        <h1 className="text-2xl font-semibold text-fg">{t('login.title')}</h1>
+        <p className="text-sm text-muted-fg">{t('login.subtitle')}</p>
       </header>
 
       {search.reason === 'expired' && !rateLimit && (
@@ -139,7 +139,7 @@ function LoginPage() {
             aria-describedby={errors.email ? 'login-email-error' : undefined}
           />
           {errors.email && (
-            <p id="login-email-error" className="text-danger text-sm">
+            <p id="login-email-error" className="text-sm text-danger">
               {errors.email}
             </p>
           )}
@@ -161,7 +161,7 @@ function LoginPage() {
             aria-describedby={errors.password ? 'login-password-error' : undefined}
           />
           {errors.password && (
-            <p id="login-password-error" className="text-danger text-sm">
+            <p id="login-password-error" className="text-sm text-danger">
               {errors.password}
             </p>
           )}

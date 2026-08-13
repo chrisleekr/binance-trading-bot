@@ -73,7 +73,7 @@ export function RowActions({ actions, label, testId }: RowActionsProps): ReactEl
               {a.label}
             </span>
             {a.disabled && a.disabledReason ? (
-              <span className="text-muted-fg text-[11px] normal-case">{a.disabledReason}</span>
+              <span className="text-[11px] text-muted-fg normal-case">{a.disabledReason}</span>
             ) : null}
           </DropdownMenuItem>
         ))}

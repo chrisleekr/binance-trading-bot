@@ -1,5 +1,5 @@
 import type { AccountId, ProfileId } from '@app/contracts';
-import { Redis, type RedisOptions } from 'ioredis';
+import { Redis } from 'ioredis';
 
 // =============================================================================
 // Scopes
@@ -76,6 +76,19 @@ export const dashboardAggregateCacheKey = (accountId: AccountId): string =>
  */
 export const openOrdersKey = (accountId: AccountId, symbol: string): string =>
   `tenant:${accountId}:open-orders:${symbol}`;
+
+/**
+ * Account-scoped (no profile) cache of the permission tags Binance reports for
+ * the account's key pair, as a JSON string array. Permissions belong to the key
+ * pair, which is the account, so every profile shares one entry.
+ *
+ * Deliberately TTL-less. Readers treat an absent list as "unknown" and fail
+ * open, so an expiring key would silently restore the exact behaviour this
+ * cache exists to prevent. Every `/account` fetch overwrites it, and the
+ * account-snapshot safety cron guarantees a periodic fetch.
+ */
+export const accountPermissionsKey = (accountId: AccountId): string =>
+  `tenant:${accountId}:account-permissions`;
 
 // =============================================================================
 // Events / audit stream key catalogue (cross-process: worker writes, api reads)
@@ -317,9 +330,8 @@ export interface GlobalRedisOps {
   ): Promise<'OK' | null>;
 }
 
-export const createRedis = (urlOrOptions: string | RedisOptions): ScopedRedis => {
-  const redis =
-    typeof urlOrOptions === 'string' ? new Redis(urlOrOptions) : new Redis(urlOrOptions);
+export const createRedis = (url: string): ScopedRedis => {
+  const redis = new Redis(url);
 
   const forProfile = (scope: RedisProfileScope): ProfileRedisOps => {
     const prefix = profilePrefix(scope);
@@ -385,7 +397,19 @@ export interface BullMQConnectionOptions {
   url: string;
 }
 
-export const createBullMQConnection = (opts: BullMQConnectionOptions): RedisOptions => ({
+interface BullMQRedisConnection {
+  readonly host: string;
+  readonly port: number;
+  readonly username?: string;
+  readonly password?: string;
+  readonly db?: number;
+  readonly maxRetriesPerRequest: null;
+  readonly enableReadyCheck: false;
+}
+
+type ParsedRedisUrl = Omit<BullMQRedisConnection, 'maxRetriesPerRequest' | 'enableReadyCheck'>;
+
+export const createBullMQConnection = (opts: BullMQConnectionOptions): BullMQRedisConnection => ({
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
   // ioredis accepts the URL via the `Redis` constructor, but BullMQ wants
@@ -394,19 +418,15 @@ export const createBullMQConnection = (opts: BullMQConnectionOptions): RedisOpti
   ...parseRedisUrl(opts.url),
 });
 
-const parseRedisUrl = (
-  url: string,
-): Pick<RedisOptions, 'host' | 'port' | 'password' | 'username' | 'db'> => {
-  const u = new URL(url);
-  const out: Pick<RedisOptions, 'host' | 'port' | 'password' | 'username' | 'db'> = {
-    host: u.hostname,
-    port: u.port ? Number(u.port) : 6379,
+const parseRedisUrl = (url: string): ParsedRedisUrl => {
+  const parsed = new URL(url);
+  const db = parsed.pathname.length > 1 ? Number.parseInt(parsed.pathname.slice(1), 10) : NaN;
+
+  return {
+    host: parsed.hostname,
+    port: parsed.port ? Number(parsed.port) : 6379,
+    ...(parsed.username ? { username: decodeURIComponent(parsed.username) } : {}),
+    ...(parsed.password ? { password: decodeURIComponent(parsed.password) } : {}),
+    ...(Number.isFinite(db) ? { db } : {}),
   };
-  if (u.username) out.username = decodeURIComponent(u.username);
-  if (u.password) out.password = decodeURIComponent(u.password);
-  if (u.pathname && u.pathname.length > 1) {
-    const dbNum = Number.parseInt(u.pathname.slice(1), 10);
-    if (Number.isFinite(dbNum)) out.db = dbNum;
-  }
-  return out;
 };

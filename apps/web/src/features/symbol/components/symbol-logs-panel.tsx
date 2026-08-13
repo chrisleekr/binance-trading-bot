@@ -230,21 +230,21 @@ export function SymbolLogsPanel({
       <header className="flex items-baseline justify-between">
         <h2 className="text-sm font-semibold">Action logs</h2>
         {rows.length > 0 ? (
-          <span className="text-muted-fg text-xs" data-testid="symbol-logs-count">
+          <span className="text-xs text-muted-fg" data-testid="symbol-logs-count">
             {rows.length} row{rows.length === 1 ? '' : 's'}
           </span>
         ) : null}
       </header>
 
       {rows.length === 0 ? (
-        <p className="text-muted-fg text-sm" data-testid="symbol-logs-empty">
+        <p className="text-sm text-muted-fg" data-testid="symbol-logs-empty">
           No log entries in the last 24 hours.
         </p>
       ) : (
         <div
           ref={parentRef}
           data-testid="symbol-logs-scroll"
-          className="border-border h-72 overflow-y-auto rounded-md border"
+          className="h-72 overflow-y-auto rounded-md border border-border"
         >
           <ul
             className="relative w-full"
@@ -259,14 +259,14 @@ export function SymbolLogsPanel({
                   key={vi.key}
                   data-index={vi.index}
                   data-testid={`symbol-logs-row-${vi.index}`}
-                  className="border-border absolute left-0 top-0 w-full border-b px-3 py-2 text-xs"
+                  className="absolute top-0 left-0 w-full border-b border-border px-3 py-2 text-xs"
                   style={{
                     height: `${vi.size}px`,
                     transform: `translateY(${vi.start}px)`,
                   }}
                 >
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-muted-fg font-mono">{row.time}</span>
+                    <span className="font-mono text-muted-fg">{row.time}</span>
                     <span className="font-medium">{row.level}</span>
                   </div>
                   <div className="truncate" title={row.msg}>
@@ -291,7 +291,7 @@ export function SymbolLogsPanel({
           {loadingOlder ? 'Loading older…' : 'Load older'}
         </Button>
         {rows.length >= SYMBOL_LOGS_RING_CAP ? (
-          <span className="text-muted-fg text-xs">cap {SYMBOL_LOGS_RING_CAP}</span>
+          <span className="text-xs text-muted-fg">cap {SYMBOL_LOGS_RING_CAP}</span>
         ) : null}
       </div>
 

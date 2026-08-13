@@ -6,11 +6,7 @@
 import type { AdvisorVariant } from '@app/contracts';
 
 export type TickEvent =
-  | 'mini-ticker'
-  | 'kline-close'
-  | 'execution-report'
-  | 'balance-update'
-  | 'resync';
+  'mini-ticker' | 'kline-close' | 'execution-report' | 'balance-update' | 'resync';
 
 export interface TickJobData {
   readonly userId: string;

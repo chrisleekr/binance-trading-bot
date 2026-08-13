@@ -175,7 +175,7 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
             {quoteOptions.length > 0 ? (
               <select
                 id="bulk-quote"
-                className="rounded-xs border-border bg-surface-alt h-11 w-full border px-3 text-sm"
+                className="h-11 w-full rounded-xs border border-border bg-surface-alt px-3 text-sm"
                 value={form.quote}
                 onChange={(e) => setForm((f) => ({ ...f, quote: e.target.value }))}
                 required
@@ -203,7 +203,7 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
             <Label htmlFor="bulk-side">Side</Label>
             <select
               id="bulk-side"
-              className="rounded-xs border-border bg-surface-alt h-11 w-full border px-3 text-sm"
+              className="h-11 w-full rounded-xs border border-border bg-surface-alt px-3 text-sm"
               value={form.side}
               onChange={(e) => setForm((f) => ({ ...f, side: e.target.value as 'buy' | 'sell' }))}
             >
@@ -215,7 +215,7 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
             <Label htmlFor="bulk-mode">Amount type</Label>
             <select
               id="bulk-mode"
-              className="rounded-xs border-border bg-surface-alt h-11 w-full border px-3 text-sm"
+              className="h-11 w-full rounded-xs border border-border bg-surface-alt px-3 text-sm"
               value={form.mode}
               onChange={(e) =>
                 setForm((f) => ({
@@ -238,7 +238,7 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
               required
             />
           </div>
-          <p id="bulk-submit-hint" className="text-muted-fg text-xs">
+          <p id="bulk-submit-hint" className="text-xs text-muted-fg">
             Enter an amount above to enable review.
           </p>
           <Button

@@ -1,7 +1,7 @@
 // SymbolDisableBanner — TTL countdown, Resume mutation, error handling.
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -90,9 +90,7 @@ describe('SymbolDisableBanner', () => {
       if (url.includes('/disable')) return new Response(null, { status: 204 });
       throw new Error(`unexpected ${url}`);
     });
-    await act(async () => {
-      await userEvent.click(screen.getByTestId('symbol-disable-resume'));
-    });
+    await userEvent.click(screen.getByTestId('symbol-disable-resume'));
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([input]) => String(input).includes('/disable'));
       expect(call).toBeTruthy();

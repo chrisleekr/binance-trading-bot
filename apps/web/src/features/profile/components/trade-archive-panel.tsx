@@ -240,7 +240,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex items-center gap-3">
-          <span className="text-muted-fg text-xs">Period</span>
+          <span className="text-xs text-muted-fg">Period</span>
           <Tabs value={period} onValueChange={(v) => onPeriodChange(v as ArchivePeriod)}>
             <TabsList>
               {PERIODS.map((p) => (
@@ -298,12 +298,12 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
           dropped. */}
       {unreconstructableVisible.length > 0 || unreconstructableHidden.length > 0 ? (
         <div
-          className="border-border space-y-2 rounded-md border p-3"
+          className="space-y-2 rounded-md border border-border p-3"
           data-testid="archive-unreconstructable-note"
         >
           {unreconstructableVisible.length > 0 ? (
             <>
-              <p className="text-muted-fg text-xs">
+              <p className="text-xs text-muted-fg">
                 {unreconstructableVisible.length} coin
                 {unreconstructableVisible.length === 1 ? ' has' : 's have'} fills with no
                 reconstructable closed profit/loss — there is no complete buy → sell cycle to
@@ -319,7 +319,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                     <Badge variant="secondary" className="shrink-0">
                       {u.symbol}
                     </Badge>
-                    <span className="text-muted-fg flex-1">{glossUnreconstructable(u.reason)}</span>
+                    <span className="flex-1 text-muted-fg">{glossUnreconstructable(u.reason)}</span>
                     <button
                       type="button"
                       onClick={() => dismiss.mutate({ symbol: u.symbol, dismissed: true })}
@@ -327,7 +327,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                       aria-label={`Hide ${u.symbol}`}
                       title="Hide"
                       data-testid={`unreconstructable-hide-${u.symbol}`}
-                      className="text-muted-fg hover:text-fg focus-visible:ring-focus shrink-0 px-1 focus-visible:outline-none focus-visible:ring-2"
+                      className="shrink-0 px-1 text-muted-fg hover:text-fg focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
                     >
                       ✕
                     </button>
@@ -343,7 +343,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                 type="button"
                 onClick={() => setShowHidden((s) => !s)}
                 data-testid="unreconstructable-show-hidden"
-                className="text-muted-fg hover:text-fg focus-visible:ring-focus text-xs focus-visible:outline-none focus-visible:ring-2"
+                className="text-xs text-muted-fg hover:text-fg focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
               >
                 {showHidden ? '▾ Hidden' : '▸ Show hidden'} ({unreconstructableHidden.length})
               </button>
@@ -358,7 +358,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                       <Badge variant="outline" className="shrink-0">
                         {u.symbol}
                       </Badge>
-                      <span className="text-muted-fg flex-1">
+                      <span className="flex-1 text-muted-fg">
                         {glossUnreconstructable(u.reason)}
                       </span>
                       <button
@@ -368,7 +368,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                         aria-label={`Show ${u.symbol} again`}
                         title="Show again"
                         data-testid={`unreconstructable-unhide-${u.symbol}`}
-                        className="text-muted-fg hover:text-fg focus-visible:ring-focus shrink-0 px-1 focus-visible:outline-none focus-visible:ring-2"
+                        className="shrink-0 px-1 text-muted-fg hover:text-fg focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
                       >
                         ↺
                       </button>
@@ -383,8 +383,8 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
 
       {/* Fallback for a coin traded entirely outside the bot: it has no
           `applied_fills` row, so it never appears in the nudge list above. */}
-      <details className="border-border rounded-md border p-3" data-testid="backfill-advanced">
-        <summary className="text-fg cursor-pointer text-sm font-medium">
+      <details className="rounded-md border border-border p-3" data-testid="backfill-advanced">
+        <summary className="cursor-pointer text-sm font-medium text-fg">
           Recover a specific coin
         </summary>
         <form
@@ -395,7 +395,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
             if (symbol.length > 0 && !backfill.isPending) backfill.mutate(symbol);
           }}
         >
-          <p className="text-muted-fg text-xs">
+          <p className="text-xs text-muted-fg">
             Rebuilds completed trades from your Binance trade history for one coin not in the list
             above. Safe to re-run. The coin need not still be active.
           </p>
@@ -423,13 +423,13 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
 
       {byIntent.length > 0 ? (
         <section
-          className="border-border space-y-2 rounded-md border p-3"
+          className="space-y-2 rounded-md border border-border p-3"
           data-testid="archive-by-intent"
           aria-label="Profit and loss by exit reason"
         >
           <div>
-            <p className="text-fg text-sm font-medium">P/L by exit reason</p>
-            <p className="text-muted-fg text-xs">
+            <p className="text-sm font-medium text-fg">P/L by exit reason</p>
+            <p className="text-xs text-muted-fg">
               How every trade in this period closed, grouped by why it sold. Win%, PF (profit
               factor), and expectancy are all net of Binance fees — above PF 1 and positive
               expectancy makes money after costs. Share is the bucket's portion of all closing P/L
@@ -444,7 +444,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                 data-testid={`archive-intent-${b.quoteAsset}-${b.intent}`}
               >
                 <div className="flex items-center justify-between gap-3 text-xs">
-                  <span className="text-muted-fg min-w-0 flex-1 truncate">
+                  <span className="min-w-0 flex-1 truncate text-muted-fg">
                     {glossExitIntent(b.intent)}
                   </span>
                   <span className="w-24 text-right font-mono tabular-nums">
@@ -456,7 +456,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <RollupStatsLine bucket={b} />
-                  <span className="text-muted-fg text-[11px] tabular-nums">
+                  <span className="text-[11px] text-muted-fg tabular-nums">
                     {intentShare(byIntent, b)}% of P/L
                   </span>
                 </div>
@@ -468,13 +468,13 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
 
       {bySource.length > 0 ? (
         <section
-          className="border-border space-y-2 rounded-md border p-3"
+          className="space-y-2 rounded-md border border-border p-3"
           data-testid="archive-by-source"
           aria-label="Profit and loss by source"
         >
           <div>
-            <p className="text-fg text-sm font-medium">P/L by source</p>
-            <p className="text-muted-fg text-xs">
+            <p className="text-sm font-medium text-fg">P/L by source</p>
+            <p className="text-xs text-muted-fg">
               Discovery (coins the bot auto-found) vs manual (coins you pinned) — which one is the
               edge and which is the drag. P/L follows the Net/Gross toggle; win%, PF, and expectancy
               are always net of fees.
@@ -488,7 +488,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                 data-testid={`archive-source-${b.quoteAsset}-${b.source}`}
               >
                 <div className="flex items-center justify-between gap-3 text-xs">
-                  <span className="text-muted-fg min-w-0 flex-1 truncate">
+                  <span className="min-w-0 flex-1 truncate text-muted-fg">
                     {sourceLabel(b.source)}
                   </span>
                   <span className="w-24 text-right font-mono tabular-nums">
@@ -517,11 +517,11 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
       ) : null}
 
       {list.isSuccess && items.length === 0 ? (
-        <p className="text-muted-fg text-sm">No archive entries for this period.</p>
+        <p className="text-sm text-muted-fg">No archive entries for this period.</p>
       ) : null}
 
       {items.length > 0 ? (
-        <div className="border-border rounded-md border">
+        <div className="rounded-md border border-border">
           <Table data-testid="archive-list" className="text-xs">
             <TableHeader>
               <TableRow>
@@ -536,7 +536,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                     Fees
                     {/* Always-visible gloss: a hover title is invisible on touch
                         screens, so the explanation must render inline too. */}
-                    <span className="text-muted-fg block text-[11px] font-normal">
+                    <span className="block text-[11px] font-normal text-muted-fg">
                       commission paid to Binance
                     </span>
                   </div>
@@ -548,7 +548,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
             <TableBody>
               {items.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell className="text-fg font-medium">{row.symbol}</TableCell>
+                  <TableCell className="font-medium text-fg">{row.symbol}</TableCell>
                   <TableCell>
                     <Badge
                       variant={row.exitIntent === 'grid-stop-loss' ? 'danger' : 'secondary'}
@@ -558,13 +558,13 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                       {exitIntentLabel(row.exitIntent)}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-muted-fg text-right font-mono tabular-nums">
+                  <TableCell className="text-right font-mono text-muted-fg tabular-nums">
                     {row.totalBuyQuote}
-                    <span className="text-muted-fg ml-1">{row.quoteAsset}</span>
+                    <span className="ml-1 text-muted-fg">{row.quoteAsset}</span>
                   </TableCell>
-                  <TableCell className="text-muted-fg text-right font-mono tabular-nums">
+                  <TableCell className="text-right font-mono text-muted-fg tabular-nums">
                     {row.totalSellQuote}
-                    <span className="text-muted-fg ml-1">{row.quoteAsset}</span>
+                    <span className="ml-1 text-muted-fg">{row.quoteAsset}</span>
                   </TableCell>
                   <TableCell
                     className="text-right font-mono tabular-nums"
@@ -580,7 +580,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                     <span className="text-muted-fg">%</span>
                   </TableCell>
                   <TableCell
-                    className="text-muted-fg text-right font-mono tabular-nums"
+                    className="text-right font-mono text-muted-fg tabular-nums"
                     data-testid={`archive-fees-${row.id}`}
                   >
                     {Object.keys(row.fees).length === 0
@@ -591,7 +591,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                           </div>
                         ))}
                   </TableCell>
-                  <TableCell className="text-muted-fg whitespace-nowrap text-right font-mono tabular-nums">
+                  <TableCell className="text-right font-mono whitespace-nowrap text-muted-fg tabular-nums">
                     {formatInstant(row.archivedAt, timeZone)}
                   </TableCell>
                   <TableCell className="text-right">
@@ -630,7 +630,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
           >
             ‹ Prev
           </Button>
-          <span className="text-muted-fg font-mono text-xs tabular-nums">
+          <span className="font-mono text-xs text-muted-fg tabular-nums">
             Page {page.history.length + 1}
           </span>
           <Button

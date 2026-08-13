@@ -155,7 +155,7 @@ function SettingsPage(): React.JSX.Element {
               value={timezone}
               disabled={tzSubmitting}
               onChange={(e) => void onChangeTimezone(e.target.value)}
-              className="border-border bg-bg-elevated text-fg w-full rounded-md border px-3 py-2 text-sm sm:w-72"
+              className="w-full rounded-md border border-border bg-bg-elevated px-3 py-2 text-sm text-fg sm:w-72"
             >
               {TIMEZONE_OPTIONS.map((zone) => (
                 <option key={zone} value={zone}>
@@ -196,7 +196,7 @@ function SettingsPage(): React.JSX.Element {
               autoComplete="current-password"
             />
             {errors.oldPassword ? (
-              <p className="text-danger text-sm">{errors.oldPassword}</p>
+              <p className="text-sm text-danger">{errors.oldPassword}</p>
             ) : null}
           </div>
           <div className="space-y-1">
@@ -209,7 +209,7 @@ function SettingsPage(): React.JSX.Element {
               autoComplete="new-password"
             />
             {errors.newPassword ? (
-              <p className="text-danger text-sm">{errors.newPassword}</p>
+              <p className="text-sm text-danger">{errors.newPassword}</p>
             ) : null}
           </div>
           <div className="space-y-1">
@@ -221,7 +221,7 @@ function SettingsPage(): React.JSX.Element {
               onChange={(e) => setConfirm(e.target.value)}
               autoComplete="new-password"
             />
-            {errors.confirm ? <p className="text-danger text-sm">{errors.confirm}</p> : null}
+            {errors.confirm ? <p className="text-sm text-danger">{errors.confirm}</p> : null}
           </div>
           <ActionBanner banner={pwBanner} />
           <Button

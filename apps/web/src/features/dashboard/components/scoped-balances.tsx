@@ -27,7 +27,7 @@ export function ScopedBalances({ profileId }: { readonly profileId: string }): R
     <section aria-label={t('home.balances.title')} data-testid="scoped-balances">
       {dashboard.isError ? (
         // A failed read must not sit on "Loading…" forever — surface it.
-        <p className="text-danger text-sm" data-testid="scoped-balances-error">
+        <p className="text-sm text-danger" data-testid="scoped-balances-error">
           {t('home.balances.error')}
         </p>
       ) : dashboard.data ? (

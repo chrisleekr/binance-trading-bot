@@ -73,10 +73,10 @@ function LevelRow({
       >
         {formatPrice(entry.level.price)}
       </span>
-      <span className="text-muted-fg relative text-right font-mono">
+      <span className="relative text-right font-mono text-muted-fg">
         {formatAmount(entry.level.qty)}
       </span>
-      <span data-testid="depth-total" className="text-muted-fg relative text-right font-mono">
+      <span data-testid="depth-total" className="relative text-right font-mono text-muted-fg">
         {formatAmount(entry.cumulative)}
       </span>
     </li>
@@ -122,8 +122,8 @@ function Ladder({
   const bidLabel = Math.round(bidPct);
 
   return (
-    <div className="border-border rounded-md border" data-testid="order-book-ladder">
-      <div className="text-muted-fg grid grid-cols-3 gap-2 px-3 py-1 text-xs">
+    <div className="rounded-md border border-border" data-testid="order-book-ladder">
+      <div className="grid grid-cols-3 gap-2 px-3 py-1 text-xs text-muted-fg">
         <span>Price</span>
         <span className="text-right">Amount</span>
         <span className="text-right">Total</span>
@@ -131,7 +131,7 @@ function Ladder({
       {/* Side label, not colour alone, so a colour-blind operator can tell sells
           from buys; doubles as an inline gloss for ask/bid. */}
       <div
-        className="text-down/80 px-3 py-0.5 text-xs font-medium"
+        className="px-3 py-0.5 text-xs font-medium text-down/80"
         data-testid="order-book-asks-label"
       >
         Asks · sell orders
@@ -146,7 +146,7 @@ function Ladder({
           the number an operator scans the book for. Spread stays as secondary
           context. Falls back to a spread-only row when no price is known. */}
       <div
-        className="border-border flex items-baseline justify-between gap-2 border-y px-3 py-1.5"
+        className="flex items-baseline justify-between gap-2 border-y border-border px-3 py-1.5"
         data-testid="order-book-spread"
       >
         {lastPrice !== null ? (
@@ -154,7 +154,7 @@ function Ladder({
             {formatPrice(lastPrice)}
           </span>
         ) : null}
-        <span className="text-muted-fg ml-auto text-xs">
+        <span className="ml-auto text-xs text-muted-fg">
           <abbr
             title="Spread — the gap between the lowest sell price and the highest buy price. A smaller spread means a more liquid, cheaper-to-trade market."
             className="no-underline"
@@ -165,7 +165,7 @@ function Ladder({
         </span>
       </div>
       <div
-        className="text-up/80 px-3 py-0.5 text-xs font-medium"
+        className="px-3 py-0.5 text-xs font-medium text-up/80"
         data-testid="order-book-bids-label"
       >
         Bids · buy orders
@@ -178,10 +178,10 @@ function Ladder({
       {/* Binance's buy/sell ratio: the bid share of the displayed depth as a
           split bar, so the operator reads the book's lean at a glance. */}
       <div
-        className="border-border flex items-center gap-2 border-t px-3 py-1.5 text-xs tabular-nums"
+        className="flex items-center gap-2 border-t border-border px-3 py-1.5 text-xs tabular-nums"
         data-testid="order-book-ratio"
       >
-        <span className="text-up font-mono font-medium">B {bidLabel}%</span>
+        <span className="font-mono font-medium text-up">B {bidLabel}%</span>
         <div
           aria-hidden
           className="flex h-1.5 flex-1 overflow-hidden rounded-none"
@@ -194,7 +194,7 @@ function Ladder({
             }}
           />
         </div>
-        <span className="text-down font-mono font-medium">{100 - bidLabel}% S</span>
+        <span className="font-mono font-medium text-down">{100 - bidLabel}% S</span>
       </div>
     </div>
   );
@@ -245,13 +245,13 @@ export function SymbolOrderBookPanel({
   return (
     <section className="space-y-2" data-testid="symbol-order-book-panel">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-fg text-sm font-semibold">Order book</h2>
+        <h2 className="text-sm font-semibold text-fg">Order book</h2>
         {hasDepth && steps.length > 0 ? (
-          <label className="text-muted-fg flex items-center gap-1 text-xs">
+          <label className="flex items-center gap-1 text-xs text-muted-fg">
             Group
             <select
               data-testid="order-book-group"
-              className="border-border bg-surface-alt rounded-xs border px-1 py-0.5 text-xs"
+              className="rounded-xs border border-border bg-surface-alt px-1 py-0.5 text-xs"
               value={String(effectiveStep)}
               onChange={(e) => setStep(Number(e.target.value))}
             >
@@ -271,7 +271,7 @@ export function SymbolOrderBookPanel({
         // taller placeholder rows reserves roughly the box it will occupy.
         <TableSkeleton rows={DISPLAY_LEVELS} />
       ) : (
-        <p className="text-muted-fg text-sm">
+        <p className="text-sm text-muted-fg">
           {book.isError ? 'Order book unavailable.' : 'No depth.'}
         </p>
       )}

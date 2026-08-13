@@ -23,8 +23,8 @@ export function MetricCard({
 }: MetricCardProps): React.JSX.Element {
   const toneClass = tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : 'text-fg';
   return (
-    <div className={`border-border bg-bg-elevated border ${prominent ? 'p-4' : 'p-3'}`}>
-      <div className="text-muted-fg flex items-center gap-1 text-xs">
+    <div className={`border border-border bg-bg-elevated ${prominent ? 'p-4' : 'p-3'}`}>
+      <div className="flex items-center gap-1 text-xs text-muted-fg">
         {label}
         {info ? <InfoHint label={label}>{info}</InfoHint> : null}
       </div>
@@ -33,7 +33,7 @@ export function MetricCard({
       >
         {value}
       </div>
-      {hint ? <div className="text-muted-fg mt-0.5 text-[11px] leading-tight">{hint}</div> : null}
+      {hint ? <div className="mt-0.5 text-[11px] leading-tight text-muted-fg">{hint}</div> : null}
     </div>
   );
 }

@@ -49,11 +49,11 @@ export function Step1Name({ state, dispatch }: StepProps): ReactNode {
               aria-invalid={nameError !== null}
               autoFocus
             />
-            <p id="profile-name-help" className="text-muted-fg text-xs">
+            <p id="profile-name-help" className="text-xs text-muted-fg">
               {t('wizard.step1.field.name.help')}
             </p>
             {nameError ? (
-              <p role="alert" className="text-danger text-xs">
+              <p role="alert" className="text-xs text-danger">
                 {nameError}
               </p>
             ) : null}

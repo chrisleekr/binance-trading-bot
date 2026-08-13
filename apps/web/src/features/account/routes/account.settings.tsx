@@ -138,12 +138,12 @@ function AccountSettingsPage(): React.JSX.Element {
       <Panel title="Binance environment">
         <div className="space-y-2" data-testid="account-binance-mode">
           <Badge variant={isTestnet ? 'outline' : 'danger'}>{isTestnet ? 'Testnet' : 'Live'}</Badge>
-          <p className="text-muted-fg text-sm">
+          <p className="text-sm text-muted-fg">
             {isTestnet
               ? 'Testnet is Binance’s practice exchange: the prices are real, the money is practice money. Nothing here can gain or lose you anything.'
               : 'Live is the real exchange. Orders placed here spend real money.'}
           </p>
-          <p className="text-muted-fg text-sm">
+          <p className="text-sm text-muted-fg">
             The environment is fixed by the API key pair this account holds. To trade the other one,
             add another account.
           </p>
@@ -189,7 +189,7 @@ function AccountSettingsPage(): React.JSX.Element {
           data-testid="account-delete"
           disabled={remove.isPending}
           onClick={() => remove.mutate()}
-          className="text-danger w-full sm:w-56"
+          className="w-full text-danger sm:w-56"
         >
           Delete account
         </Button>

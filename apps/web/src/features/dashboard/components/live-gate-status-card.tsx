@@ -64,10 +64,10 @@ export function LiveGateStatusCard({
   return (
     <section
       aria-labelledby="live-gate-h"
-      className="border-border bg-bg-elevated space-y-1 rounded-md border p-3"
+      className="space-y-1 rounded-md border border-border bg-bg-elevated p-3"
       data-testid="live-gate-status-card"
     >
-      <h2 id="live-gate-h" className="text-fg text-sm font-semibold">
+      <h2 id="live-gate-h" className="text-sm font-semibold text-fg">
         Live gate
       </h2>
       <p

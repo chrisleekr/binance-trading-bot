@@ -26,13 +26,13 @@ export function InfoHint({
         type="button"
         aria-label={`What is ${label}?`}
         className={cn(
-          'text-muted-fg hover:text-fg focus-visible:ring-focus inline-flex size-4 shrink-0 items-center justify-center rounded-full align-middle focus-visible:outline-none focus-visible:ring-2',
+          'inline-flex size-4 shrink-0 items-center justify-center rounded-full align-middle text-muted-fg hover:text-fg focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none',
           className,
         )}
       >
         <Info className="size-3.5" aria-hidden />
       </PopoverTrigger>
-      <PopoverContent className="text-fg w-64 text-xs leading-relaxed" side="top">
+      <PopoverContent className="w-64 text-xs leading-relaxed text-fg" side="top">
         {children}
       </PopoverContent>
     </Popover>

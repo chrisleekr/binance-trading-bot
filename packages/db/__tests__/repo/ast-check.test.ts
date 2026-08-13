@@ -1,8 +1,11 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import * as ts from 'typescript';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+import { collectRepoFiles, createRepoAstReader } from './_exported-fns.js';
+
+const repoAst = createRepoAstReader();
+
+afterAll(() => {
+  repoAst.close();
+});
 
 // Filesystem-walking guard test: generous headroom so CI coverage +
 // parallel-suite contention on the fs walk cannot trip the test-level timeout.
@@ -37,13 +40,17 @@ vi.setConfig({ testTimeout: 30_000 });
 // path relative to the repo dir (POSIX separators), e.g. `profiles.ts` or
 // `projections/profile-aggregate.ts`.
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO_DIR = resolve(HERE, '..', '..', 'src', 'repo');
-
 // Modules with no scoped query functions: the connection-type module, the
 // scope primitive itself (`scopeAccount`/`scopeProfile` are the scope
-// *constructors*, so they take the raw ids by definition), and the barrels.
-const META_MODULES = new Set(['_db.ts', '_scoped.ts', 'index.ts', 'projections/index.ts']);
+// *constructors*, so they take the raw ids by definition), the binder (generic
+// over any module, so it takes a scope but issues no query), and the barrels.
+const META_MODULES = new Set([
+  '_bind.ts',
+  '_db.ts',
+  '_scoped.ts',
+  'index.ts',
+  'projections/index.ts',
+]);
 
 // Whole modules backed by tables with no account_id / profile_id column.
 const GLOBAL_REPO_MODULES = new Set(['candles.ts']);
@@ -134,11 +141,20 @@ const GLOBAL_FUNCTIONS = new Set([
   // Global singleton: account-level ops notification toggles, not account-scoped.
   'ops-notify-config.ts:get',
   'ops-notify-config.ts:setEvents',
+  // Global singleton: log retention horizons apply to every account's rows in one
+  // cross-tenant sweep, so scoping the config to an account would let one
+  // account's setting silently govern another's data.
+  'retention-config.ts:get',
+  'retention-config.ts:update',
   // Account-level ops alerts fan out to the union of every configured notifier;
   // they have no owning profile, so this read is cross-tenant by design.
   'profile-notifiers.ts:listAllEnabled',
   // Worker `action-log-prune` cron — cross-tenant retention sweep.
   'action-logs.ts:pruneOlderThan',
+  // Same cron's second rule. The cap is applied per profile, but the sweep
+  // itself spans every tenant and runs with no caller to prove ownership; the
+  // profile id is an iteration cursor over the deployment, not a scope.
+  'action-logs.ts:pruneBeyondRowCap',
   // Worker audit drainer — bulk append already-attributed rows across profiles
   // (each row carries its own profileId from the audit stream).
   'action-logs.ts:insertMany',
@@ -150,6 +166,9 @@ const GLOBAL_FUNCTIONS = new Set([
   'equity-snapshots.ts:pruneOlderThan',
   // Worker-boot crash-only rehydration loads every enabled profile.
   'profiles.ts:listAllEnabled',
+  // The action-log cron's row cap walks every profile in the deployment,
+  // disabled ones included: their old rows still count against growth.
+  'profiles.ts:listAllIds',
   // onboarding-status reads "does any user exist"; an owner would be circular.
   'users.ts:count',
   // LIVE_DEMO resolves the sole operator id to inject; the id is the *result*,
@@ -192,6 +211,7 @@ const EXEMPT_FUNCTIONS = new Set([
   'projections/orders-view.ts:orderToResponse',
   // Pure readers of the opaque strategy-state blob; take `state`, no DB / scope.
   'projections/orders-view.ts:readEntryBlocker',
+  'projections/orders-view.ts:readExitBlocker',
   'projections/orders-view.ts:readProtectiveStopBlocker',
   // Write-side cache buster: takes a raw redis del-port + `accountId` (and an
   // optional profileId), no Database / scope. It only deletes cache keys derived
@@ -201,85 +221,13 @@ const EXEMPT_FUNCTIONS = new Set([
   // Pure string builder for the reserved recovery-row intent; takes an intent and
   // a Binance order id, no DB / scope.
   'orders.ts:untrackedIntent',
+  // Pure snapshot-row → diagnosis-input mapper; takes already-read rows, no
+  // DB / scope. The read that produced them is scoped by its own caller.
+  'projections/diagnosis-view.ts:toDiagnosisSnapshots',
 ]);
 
-interface ExportedFn {
-  key: string;
-  name: string;
-  paramNames: string[];
-  paramTypes: string[];
-}
-
-// Collects every exported function in a repo module — both
-// `export [async] function name(...)` declarations and
-// `export const name = [async] (...) => ...` arrow / function-expression
-// consts. Covering both shapes keeps the scope contract un-bypassable: a
-// future query written as an exported arrow cannot slip past the check.
-const collectExportedFns = (absPath: string, relKey: string): ExportedFn[] => {
-  const src = ts.createSourceFile(
-    absPath,
-    readFileSync(absPath, 'utf8'),
-    ts.ScriptTarget.ESNext,
-    true,
-    ts.ScriptKind.TS,
-  );
-
-  const out: ExportedFn[] = [];
-  const push = (name: string, params: ts.NodeArray<ts.ParameterDeclaration>): void => {
-    out.push({
-      key: relKey,
-      name,
-      paramNames: params.map((p) => (ts.isIdentifier(p.name) ? p.name.text : '<destructured>')),
-      paramTypes: params.map((p) => (p.type ? p.type.getText(src) : '<no-type>')),
-    });
-  };
-
-  src.forEachChild((node) => {
-    if (ts.isFunctionDeclaration(node)) {
-      const isExported = (ts.getModifiers(node) ?? []).some(
-        (m) => m.kind === ts.SyntaxKind.ExportKeyword,
-      );
-      if (isExported && node.name) push(node.name.text, node.parameters);
-      return;
-    }
-    if (ts.isVariableStatement(node)) {
-      const isExported = (ts.getModifiers(node) ?? []).some(
-        (m) => m.kind === ts.SyntaxKind.ExportKeyword,
-      );
-      if (!isExported) return;
-      for (const decl of node.declarationList.declarations) {
-        const init = decl.initializer;
-        if (
-          ts.isIdentifier(decl.name) &&
-          init &&
-          (ts.isArrowFunction(init) || ts.isFunctionExpression(init))
-        ) {
-          push(decl.name.text, init.parameters);
-        }
-      }
-    }
-  });
-  return out;
-};
-
-// Every `.ts` file under REPO_DIR, recursively, keyed by its POSIX-relative
-// path. Recursion is mandatory: `repo/projections/*.ts` carries scoped
-// functions too, and a non-recursive scan would leave them un-guarded.
-const collectRepoFiles = (dir: string, prefix = ''): { relKey: string; absPath: string }[] => {
-  const out: { relKey: string; absPath: string }[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const relKey = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) {
-      out.push(...collectRepoFiles(join(dir, entry.name), relKey));
-    } else if (entry.name.endsWith('.ts')) {
-      out.push({ relKey, absPath: join(dir, entry.name) });
-    }
-  }
-  return out;
-};
-
 describe('repo layer scope-parameter enforcement', () => {
-  const files = collectRepoFiles(REPO_DIR).filter((f) => !META_MODULES.has(f.relKey));
+  const files = collectRepoFiles().filter((f) => !META_MODULES.has(f.relKey));
 
   it('finds the repo modules, including the projections subtree', () => {
     expect(files.length).toBeGreaterThan(0);
@@ -293,7 +241,7 @@ describe('repo layer scope-parameter enforcement', () => {
       // A file may legitimately export zero functions (e.g. a port that is
       // only a TypeScript interface); the suite-level check above guards
       // against the walk silently collecting nothing.
-      for (const fn of collectExportedFns(absPath, relKey)) {
+      for (const fn of repoAst.collectExportedFns(absPath)) {
         const key = `${relKey}:${fn.name}`;
         if (EXEMPT_FUNCTIONS.has(key)) continue;
 

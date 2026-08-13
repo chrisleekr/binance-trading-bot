@@ -61,10 +61,10 @@ export function EventSubscriptions({
             {PROFILE_NOTIFY_EVENT_CATALOG.map((meta) => (
               <li key={meta.category} className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <Label htmlFor={`event-${meta.category}`} className="text-fg text-sm font-medium">
+                  <Label htmlFor={`event-${meta.category}`} className="text-sm font-medium text-fg">
                     {meta.label}
                   </Label>
-                  <p className="text-muted-fg text-xs">{meta.description}</p>
+                  <p className="text-xs text-muted-fg">{meta.description}</p>
                 </div>
                 <Switch
                   id={`event-${meta.category}`}

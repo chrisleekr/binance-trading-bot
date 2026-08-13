@@ -157,8 +157,7 @@ describe('OrphanOrdersPage', () => {
 
   it('shows the empty state when nothing is orphaned', async () => {
     setUp((url) => {
-      if (url.endsWith('/orphan-orders'))
-        return json({ computedAtMs: null, orphans: [] });
+      if (url.endsWith('/orphan-orders')) return json({ computedAtMs: null, orphans: [] });
       return json({}, 404);
     });
     expect(await screen.findByText(/No orphan orders/i)).toBeInTheDocument();

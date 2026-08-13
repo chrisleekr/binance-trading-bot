@@ -119,7 +119,7 @@ export function SymbolPausePanel({
             <Label htmlFor="pause-duration">Duration</Label>
             <select
               id="pause-duration"
-              className="border-border bg-bg h-11 w-full rounded-md border px-3 text-sm"
+              className="h-11 w-full rounded-md border border-border bg-bg px-3 text-sm"
               value={ttl}
               onChange={(e) => setTtl(Number(e.target.value))}
               data-testid="pause-duration"
@@ -154,7 +154,7 @@ export function SymbolPausePanel({
           {trimmedReason === '' ? (
             <p
               id="pause-reason-required"
-              className="text-muted-fg text-right text-xs"
+              className="text-right text-xs text-muted-fg"
               data-testid="pause-reason-required"
             >
               Enter a reason to enable.

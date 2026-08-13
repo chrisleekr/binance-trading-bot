@@ -32,10 +32,10 @@ export function PastRunsTable({ wb }: { wb: BacktestWorkbench }): React.JSX.Elem
     <div>
       {/* Header: the select-all checkbox always renders (bulk-delete affordance);
           the column labels show only at sm+, where the rows read as a table. */}
-      <div className="border-border text-muted-fg flex items-center gap-3 border-b px-3 py-2 text-xs">
+      <div className="flex items-center gap-3 border-b border-border px-3 py-2 text-xs text-muted-fg">
         <input
           type="checkbox"
-          className="accent-accent size-3.5 shrink-0 align-middle"
+          className="size-3.5 shrink-0 align-middle accent-accent"
           aria-label="Select all deletable runs on this page"
           data-testid="backtest-select-all"
           disabled={deletableIds.length === 0}
@@ -108,13 +108,13 @@ export function PastRunsTable({ wb }: { wb: BacktestWorkbench }): React.JSX.Elem
             <li
               key={r.runId}
               data-selected={r.runId === activeRunId}
-              className="border-border data-[selected=true]:bg-surface-alt flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-2 last:border-b-0"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-2 last:border-b-0 data-[selected=true]:bg-surface-alt"
             >
               <div className="w-4 shrink-0">
                 {selectable ? (
                   <input
                     type="checkbox"
-                    className="accent-accent size-3.5 align-middle"
+                    className="size-3.5 align-middle accent-accent"
                     aria-label={`Select ${r.symbols.join(', ')} run`}
                     data-testid={`backtest-select-${r.runId}`}
                     checked={selectedRunIds.has(r.runId)}
@@ -130,7 +130,7 @@ export function PastRunsTable({ wb }: { wb: BacktestWorkbench }): React.JSX.Elem
                 ) : null}
               </div>
               <div className="flex-1 basis-32 font-medium">{r.symbols.join(', ')}</div>
-              <div className="text-muted-fg basis-full text-xs tabular-nums sm:flex-1 sm:basis-auto">
+              <div className="basis-full text-xs text-muted-fg tabular-nums sm:flex-1 sm:basis-auto">
                 {formatDate(r.fromMs, timeZone)} → {formatDate(r.toMs, timeZone)}
               </div>
               <div
@@ -164,7 +164,7 @@ export function PastRunsTable({ wb }: { wb: BacktestWorkbench }): React.JSX.Elem
                   aria-label={`Load ${r.symbols.join(', ')} run`}
                   aria-current={r.runId === activeRunId}
                   data-testid={`backtest-load-${r.runId}`}
-                  className="text-accent focus-visible:ring-focus rounded-xs inline-flex items-center gap-1 px-2 py-1 text-sm font-medium hover:underline focus-visible:outline-none focus-visible:ring-2"
+                  className="inline-flex items-center gap-1 rounded-xs px-2 py-1 text-sm font-medium text-accent hover:underline focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
                 >
                   Load →
                 </button>

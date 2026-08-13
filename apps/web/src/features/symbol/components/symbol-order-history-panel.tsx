@@ -82,13 +82,13 @@ function OrderRow({
       className="grid grid-cols-5 gap-2 px-3 py-1 text-sm tabular-nums sm:grid-cols-6"
       data-testid={`order-history-row-${order.id}`}
     >
-      <span className="text-muted-fg font-mono">{formatInstant(order.createdAt, timeZone)}</span>
+      <span className="font-mono text-muted-fg">{formatInstant(order.createdAt, timeZone)}</span>
       <span className={`font-medium ${sideColor}`} data-testid={`order-history-side-${order.id}`}>
         {order.side}
         {/* Narrow-viewport fallback: keeps the original "BUY · grid-buy"
             single-line readout. The literal `·` text (not just CSS spacing)
             stops a screen reader from concatenating to `BUYgrid-buy`. */}
-        <span className="text-muted-fg font-normal sm:hidden"> · {chip.label}</span>
+        <span className="font-normal text-muted-fg sm:hidden"> · {chip.label}</span>
       </span>
       <Badge
         variant={chip.variant}
@@ -142,9 +142,9 @@ export function SymbolOrderHistoryPanel({
         // Below sm the table reflows to fit the 375px viewport (invariant #3);
         // from sm up it keeps a comfortable min width and scrolls horizontally
         // within the card so the columns stay legible.
-        <div className="border-border overflow-x-auto rounded-md border">
+        <div className="overflow-x-auto rounded-md border border-border">
           <div className="sm:min-w-[30rem] md:min-w-[36rem]">
-            <div className="text-muted-fg grid grid-cols-5 gap-2 px-3 py-1 text-xs tracking-wide sm:grid-cols-6">
+            <div className="grid grid-cols-5 gap-2 px-3 py-1 text-xs tracking-wide text-muted-fg sm:grid-cols-6">
               <span>Time</span>
               <span>Side</span>
               <span className="hidden sm:inline">Source</span>
@@ -152,7 +152,7 @@ export function SymbolOrderHistoryPanel({
               <span className="text-right">Amount</span>
               <span className="text-right">Status</span>
             </div>
-            <ul className="divide-border max-h-80 divide-y overflow-y-auto border-t">
+            <ul className="max-h-80 divide-y divide-border overflow-y-auto border-t">
               {orders.data.items.map((order) => (
                 <OrderRow key={order.id} order={order} timeZone={timeZone} />
               ))}
@@ -164,7 +164,7 @@ export function SymbolOrderHistoryPanel({
         // under the operator's thumb when the rows arrive.
         <TableSkeleton rows={7} />
       ) : (
-        <p className="text-muted-fg text-sm">
+        <p className="text-sm text-muted-fg">
           {orders.isError
             ? 'Order history unavailable.'
             : 'No orders yet for this symbol. If you expected some, check whether trading is paused (banner above) or the strategy is still waiting for entry conditions.'}

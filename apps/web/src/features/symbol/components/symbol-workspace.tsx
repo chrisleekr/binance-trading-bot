@@ -320,7 +320,7 @@ function SymbolWorkspaceInner({
       />
 
       <nav
-        className="border-border bg-border flex shrink-0 gap-px border-b"
+        className="flex shrink-0 gap-px border-b border-border bg-border"
         aria-label="Workspace sections"
       >
         {TABS.map((tab) => {
@@ -339,7 +339,7 @@ function SymbolWorkspaceInner({
                 })
               }
               className={cn(
-                'focus-visible:ring-focus flex-1 px-3 py-2 text-xs font-semibold uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset',
+                'flex-1 px-3 py-2 text-xs font-semibold tracking-wider uppercase focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none focus-visible:ring-inset',
                 active ? 'bg-bg text-fg' : 'bg-bg-elevated text-muted-fg hover:text-fg',
               )}
             >
@@ -474,14 +474,14 @@ function WorkspaceHeader({
   const symbols = dashboard.data?.symbols ?? [];
   const switcherShown = symbols.length >= 2 && symbols.some((s) => s.symbol === symbol);
   return (
-    <header className="border-border bg-bg-elevated shrink-0 space-y-3 border-b p-4">
+    <header className="shrink-0 space-y-3 border-b border-border bg-bg-elevated p-4">
       {/* Back, not a close X: the workspace is a page under a profile, not a
           modal over the overview. The X dropped the operator at the account
           root, losing the profile they were working in. */}
       <BackLink to="/accounts/$accountId/profiles/$profileId" params={{ accountId, profileId }} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className={switcherShown ? 'sr-only' : 'text-fg text-xl font-semibold'}>{symbol}</h1>
+          <h1 className={switcherShown ? 'sr-only' : 'text-xl font-semibold text-fg'}>{symbol}</h1>
           <SymbolSwitcher profileId={profileId} symbol={symbol} />
         </div>
         <nav className="flex flex-wrap items-center gap-1">

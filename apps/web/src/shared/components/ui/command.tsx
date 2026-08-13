@@ -11,7 +11,7 @@ export const Command = React.forwardRef<
   <CommandPrimitive
     ref={ref}
     className={cn(
-      'bg-bg-elevated text-fg flex h-full w-full flex-col overflow-hidden rounded-md',
+      'flex h-full w-full flex-col overflow-hidden rounded-md bg-bg-elevated text-fg',
       className,
     )}
     {...props}
@@ -23,12 +23,12 @@ export const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
 >(({ className, ...props }, ref) => (
-  <div className="border-border flex items-center border-b px-3" cmdk-input-wrapper="">
+  <div className="flex items-center border-b border-border px-3" cmdk-input-wrapper="">
     <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        'placeholder:text-muted-fg flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none',
+        'flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-fg',
         className,
       )}
       {...props}
@@ -43,7 +43,7 @@ export const CommandList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.List
     ref={ref}
-    className={cn('max-h-72 overflow-y-auto overflow-x-hidden', className)}
+    className={cn('max-h-72 overflow-x-hidden overflow-y-auto', className)}
     {...props}
   />
 ));
@@ -72,7 +72,7 @@ export const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      'data-[selected=true]:bg-bg relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none',
+      'relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-none select-none data-[selected=true]:bg-bg',
       className,
     )}
     {...props}

@@ -36,13 +36,13 @@ export function TechnicalsIntervalRowsWidget({ name, fieldDef, renderChild }: Wi
   return (
     <div className="space-y-3">
       {gateOff ? (
-        <p className="text-warning text-xs" data-testid="tv-rows-master-off">
+        <p className="text-xs text-warning" data-testid="tv-rows-master-off">
           The Technicals gate is off (see Force Buy Override → Apply Technicals gate). Rows below
           are kept but inactive.
         </p>
       ) : null}
       {fields.length === 0 ? (
-        <p className="text-muted-fg text-sm">
+        <p className="text-sm text-muted-fg">
           No intervals — Technicals is opted out for this profile.
         </p>
       ) : null}
@@ -80,7 +80,7 @@ export function TechnicalsIntervalRowsWidget({ name, fieldDef, renderChild }: Wi
         >
           <Plus className="size-4" /> Add
         </Button>
-        <span className="text-muted-fg text-xs" data-testid="tv-rows-count" aria-live="polite">
+        <span className="text-xs text-muted-fg" data-testid="tv-rows-count" aria-live="polite">
           {fields.length} of {MAX_TECHNICALS_INTERVALS} intervals
         </span>
       </div>
@@ -130,8 +130,8 @@ function IntervalRow({
     .filter((f): f is FormField => f !== undefined);
 
   return (
-    <fieldset className="border-border bg-bg-elevated relative space-y-3 rounded-md border p-3 pr-12">
-      <legend className="text-fg px-1 text-sm font-medium">{label}</legend>
+    <fieldset className="relative space-y-3 rounded-md border border-border bg-bg-elevated p-3 pr-12">
+      <legend className="px-1 text-sm font-medium text-fg">{label}</legend>
       {/* renderChild is always injected when FieldRenderer renders this widget
           (both its widget dispatch sites pass it); the guard is defensive for a
           widget rendered outside FieldRenderer, where the interval select simply
@@ -163,7 +163,7 @@ function IntervalRow({
         size="icon"
         aria-label={`Remove Interval ${index + 1}`}
         onClick={onRemove}
-        className="absolute right-1 top-1"
+        className="absolute top-1 right-1"
       >
         <Trash2 className="size-4" />
       </Button>
@@ -195,8 +195,8 @@ function ToggleGroup({
   if (fields.length === 0) return null;
   return (
     <div className="space-y-1.5">
-      <div className="text-muted-fg text-xs font-semibold">{heading}</div>
-      <p className="text-muted-fg text-xs">{description}</p>
+      <div className="text-xs font-semibold text-muted-fg">{heading}</div>
+      <p className="text-xs text-muted-fg">{description}</p>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {fields.map((f) => (
           <ToggleCell
@@ -233,7 +233,7 @@ function ToggleCell({
   return (
     <label
       htmlFor={reindexed.path}
-      className="rounded-xs border-border bg-surface-alt hover:border-border-strong flex cursor-pointer items-center gap-2 border px-2 py-1.5 text-sm"
+      className="flex cursor-pointer items-center gap-2 rounded-xs border border-border bg-surface-alt px-2 py-1.5 text-sm hover:border-border-strong"
       title={reindexed.description ?? ''}
       data-testid={testId}
     >
@@ -259,10 +259,10 @@ function AdvisoryToggle({ rowPath, index }: { readonly rowPath: string; readonly
   const id = `${rowPath}.mode`;
   return (
     <div className="space-y-1.5">
-      <div className="text-muted-fg text-xs font-semibold">Mode</div>
+      <div className="text-xs font-semibold text-muted-fg">Mode</div>
       <label
         htmlFor={id}
-        className="rounded-xs border-border bg-surface-alt hover:border-border-strong flex cursor-pointer items-center gap-2 border px-2 py-1.5 text-sm"
+        className="flex cursor-pointer items-center gap-2 rounded-xs border border-border bg-surface-alt px-2 py-1.5 text-sm hover:border-border-strong"
         title="Advisory rows record their verdict in the audit log but never veto the buy gate."
         data-testid={`tv-row-${index}-mode`}
       >
@@ -307,19 +307,19 @@ function RowActivityNote({ name }: { readonly name: string }) {
   if (!buy && !sell) {
     if (advisory) {
       return (
-        <p className="text-muted-fg mt-1 text-xs" data-testid={`tv-row-activity-${name}`}>
+        <p className="mt-1 text-xs text-muted-fg" data-testid={`tv-row-activity-${name}`}>
           Advisory row with no triggers — verdict still recorded for audit visibility.
         </p>
       );
     }
     return (
-      <p className="text-warning mt-1 text-xs" data-testid={`tv-row-activity-${name}`}>
+      <p className="mt-1 text-xs text-warning" data-testid={`tv-row-activity-${name}`}>
         This interval contributes nothing — enable at least one buy or sell toggle, or remove it.
       </p>
     );
   }
   return (
-    <p className="text-muted-fg mt-1 text-xs" data-testid={`tv-row-activity-${name}`}>
+    <p className="mt-1 text-xs text-muted-fg" data-testid={`tv-row-activity-${name}`}>
       {buy ? 'Buy-gate only — no force-sell trigger.' : 'Force-sell only — does not gate buys.'}
     </p>
   );

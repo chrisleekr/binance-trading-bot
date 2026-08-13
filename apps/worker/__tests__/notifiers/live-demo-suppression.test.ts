@@ -50,7 +50,12 @@ const P = 'p1' as never;
 const registryWith = (send: ReturnType<typeof vi.fn>): NotifyProviderRegistry =>
   ({ get: (name: string) => (name === 'slack' ? { name: 'slack', send } : undefined) }) as never;
 
-const slackRow = { provider: 'slack', config: { channel: '#a' }, secrets: { url: 'u' }, enabled: true };
+const slackRow = {
+  provider: 'slack',
+  config: { channel: '#a' },
+  secrets: { url: 'u' },
+  enabled: true,
+};
 
 beforeEach(() => {
   h.findById.mockReset();
@@ -185,7 +190,12 @@ describe('emergencyNotify under LIVE_DEMO', () => {
         recordNotifierGap,
       },
     }) as never;
-  const args = { severity: 'error', topic: 'binance-emergency', title: 'Order failed', body: 'x' } as never;
+  const args = {
+    severity: 'error',
+    topic: 'binance-emergency',
+    title: 'Order failed',
+    body: 'x',
+  } as never;
 
   it('control: dispatches the emergency alert when liveDemo is off', async () => {
     const send = vi.fn(async () => undefined);

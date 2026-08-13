@@ -22,7 +22,12 @@ const USER = 'u1' as unknown as UserId;
 const ACCOUNT = 'a1' as unknown as AccountId;
 const PROFILE = 'p1' as unknown as ProfileId;
 
-const fakeLogger = { warn: vi.fn(), info: vi.fn(), debug: vi.fn(), error: vi.fn() } as unknown as Logger;
+const fakeLogger = {
+  warn: vi.fn(),
+  info: vi.fn(),
+  debug: vi.fn(),
+  error: vi.fn(),
+} as unknown as Logger;
 
 const deps = (allow: boolean) => ({
   db: {} as never,

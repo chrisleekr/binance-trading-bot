@@ -34,7 +34,7 @@ export function PnlValue({
     <span className={cn('font-mono', PNL_TONE[signOf(value)], className)} data-testid={testId}>
       {value != null ? formatSignedAmount(value) : '—'}
       {value != null && unit ? (
-        <span className="text-muted-fg ml-1 font-mono text-xs">{unit}</span>
+        <span className="ml-1 font-mono text-xs text-muted-fg">{unit}</span>
       ) : null}
     </span>
   );

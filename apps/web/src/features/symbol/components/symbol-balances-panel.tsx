@@ -56,13 +56,13 @@ function BalanceRow({
     >
       <div className="flex flex-col">
         <span className="text-sm font-medium">{balance.asset}</span>
-        <span className="text-muted-fg text-xs tracking-wide">{role}</span>
+        <span className="text-xs tracking-wide text-muted-fg">{role}</span>
       </div>
       <div className="flex flex-col items-end tabular-nums">
         <span className="text-sm font-medium" data-testid={`balance-free-${balance.asset}`}>
           {format(balance.free)}
         </span>
-        <span className="text-muted-fg text-xs">{format(balance.locked)} locked</span>
+        <span className="text-xs text-muted-fg">{format(balance.locked)} locked</span>
       </div>
     </div>
   );
@@ -98,12 +98,12 @@ export function SymbolBalancesPanel({
   const body = ((): React.JSX.Element => {
     if (dashboard.isError) {
       return (
-        <p className="text-muted-fg text-sm">Balances unavailable — could not load the account.</p>
+        <p className="text-sm text-muted-fg">Balances unavailable — could not load the account.</p>
       );
     }
     if (exchangeInfo.isError) {
       return (
-        <p className="text-muted-fg text-sm">
+        <p className="text-sm text-muted-fg">
           Balances unavailable — could not load exchange metadata.
         </p>
       );
@@ -113,7 +113,7 @@ export function SymbolBalancesPanel({
       return <LoadingRows rows={2} />;
     }
     if (!pair) {
-      return <p className="text-muted-fg text-sm">No exchange metadata for {symbol}.</p>;
+      return <p className="text-sm text-muted-fg">No exchange metadata for {symbol}.</p>;
     }
     const balances = dashboard.data?.balances ?? [];
     return (
@@ -126,7 +126,7 @@ export function SymbolBalancesPanel({
           balance={balanceFor(balances, pair.baseAsset)}
           format={formatBalanceAmount}
         />
-        <div className="border-border border-t" />
+        <div className="border-t border-border" />
         <BalanceRow
           role="Quote"
           balance={balanceFor(balances, pair.quoteAsset)}

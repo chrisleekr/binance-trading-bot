@@ -42,7 +42,11 @@ describeIfInfra('requireNotDemo deny-list under LIVE_DEMO', () => {
   const acc = (): string => fx.alice.accountId;
   const prof = (): string => fx.alice.profileId;
   const expect403 = async (path: string, method: string, body?: string): Promise<void> => {
-    const res = await fx.app.request(path, { method, headers: headers(), ...(body ? { body } : {}) });
+    const res = await fx.app.request(path, {
+      method,
+      headers: headers(),
+      ...(body ? { body } : {}),
+    });
     expect(res.status).toBe(403);
   };
 

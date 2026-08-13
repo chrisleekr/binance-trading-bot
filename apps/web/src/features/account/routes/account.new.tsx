@@ -66,7 +66,7 @@ function AccountNewPage(): ReactNode {
                 autoFocus
               />
               {nameError ? (
-                <p role="alert" className="text-danger text-xs">
+                <p role="alert" className="text-xs text-danger">
                   {nameError}
                 </p>
               ) : null}
@@ -91,7 +91,7 @@ function AccountNewPage(): ReactNode {
             </fieldset>
 
             {create.isError ? (
-              <p role="alert" className="text-danger text-xs" data-testid="account-new-error">
+              <p role="alert" className="text-xs text-danger" data-testid="account-new-error">
                 {errorMessage(create.error)}
               </p>
             ) : null}
@@ -120,7 +120,7 @@ function ModeOption({
   help: string;
 }): ReactNode {
   return (
-    <label className="rounded-xs border-border flex cursor-pointer items-start gap-3 border p-3">
+    <label className="flex cursor-pointer items-start gap-3 rounded-xs border border-border p-3">
       <input
         type="radio"
         name="binance-mode"
@@ -132,7 +132,7 @@ function ModeOption({
       />
       <span className="flex flex-col gap-0.5">
         <span className="text-sm font-medium">{label}</span>
-        <span className="text-muted-fg text-xs">{help}</span>
+        <span className="text-xs text-muted-fg">{help}</span>
       </span>
     </label>
   );

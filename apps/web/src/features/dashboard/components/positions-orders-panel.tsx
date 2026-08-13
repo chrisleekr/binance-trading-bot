@@ -40,17 +40,17 @@ export function PositionsOrdersPanel({
     >
       <h2
         id="money-now-heading"
-        className="text-muted-fg text-[11px] font-semibold uppercase tracking-wider"
+        className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase"
       >
         Your money now
       </h2>
       {/* 1px-gap grid so the border shows through as hairline dividers (the v2
           band treatment), one column on a phone, two on sm+. */}
-      <div className="border-border bg-border grid gap-px border sm:grid-cols-2">
-        <div className="bg-bg-elevated space-y-1.5 p-3" data-testid="money-positions">
-          <p className="text-muted-fg text-xs">Open positions ({positions.length})</p>
+      <div className="grid gap-px border border-border bg-border sm:grid-cols-2">
+        <div className="space-y-1.5 bg-bg-elevated p-3" data-testid="money-positions">
+          <p className="text-xs text-muted-fg">Open positions ({positions.length})</p>
           {positions.length === 0 ? (
-            <p className="text-muted-fg text-xs">None.</p>
+            <p className="text-xs text-muted-fg">None.</p>
           ) : (
             <ul className="space-y-1">
               {positions.map((r) => {
@@ -64,11 +64,11 @@ export function PositionsOrdersPanel({
                     <Link
                       to="/accounts/$accountId/profiles/$profileId/symbols/$symbol"
                       params={{ accountId, profileId: r.profileId, symbol: r.sym.symbol }}
-                      className="text-fg hover:text-accent shrink-0 font-mono font-medium"
+                      className="shrink-0 font-mono font-medium text-fg hover:text-accent"
                     >
                       {r.sym.symbol}
                     </Link>
-                    <span className="text-muted-fg flex-1 truncate font-mono tabular-nums">
+                    <span className="flex-1 truncate font-mono text-muted-fg tabular-nums">
                       {formatAmount(r.sym.quantity ?? '0')} @{' '}
                       {formatPrice(r.sym.avgEntryPrice ?? '0')}
                     </span>
@@ -84,10 +84,10 @@ export function PositionsOrdersPanel({
           )}
         </div>
 
-        <div className="bg-bg-elevated space-y-1.5 p-3" data-testid="money-orders">
-          <p className="text-muted-fg text-xs">Open orders ({orders.length})</p>
+        <div className="space-y-1.5 bg-bg-elevated p-3" data-testid="money-orders">
+          <p className="text-xs text-muted-fg">Open orders ({orders.length})</p>
           {orders.length === 0 ? (
-            <p className="text-muted-fg text-xs">None.</p>
+            <p className="text-xs text-muted-fg">None.</p>
           ) : (
             <ul className="space-y-1">
               {orders.map(({ profileId, symbol, order }) => (
@@ -100,7 +100,7 @@ export function PositionsOrdersPanel({
                     to="/accounts/$accountId/profiles/$profileId/symbols/$symbol"
                     params={{ accountId, profileId, symbol }}
                     search={{ tab: 'orders' }}
-                    className="text-fg hover:text-accent shrink-0 font-mono font-medium"
+                    className="shrink-0 font-mono font-medium text-fg hover:text-accent"
                   >
                     {symbol}
                   </Link>
@@ -113,8 +113,8 @@ export function PositionsOrdersPanel({
                       most one per intent, so a take-profit sell and a protective
                       stop coexist. Without the intent both render as a bare
                       "SELL" and read as a duplicate bug. */}
-                  <span className="text-muted-fg shrink-0 font-mono">{order.intent}</span>
-                  <span className="text-muted-fg flex-1 truncate text-right font-mono tabular-nums">
+                  <span className="shrink-0 font-mono text-muted-fg">{order.intent}</span>
+                  <span className="flex-1 truncate text-right font-mono text-muted-fg tabular-nums">
                     {formatAmount(orderQty(order))} @ {orderDisplayPrice(order)}
                   </span>
                 </li>

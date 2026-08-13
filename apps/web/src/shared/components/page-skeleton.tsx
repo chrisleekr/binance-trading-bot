@@ -86,12 +86,12 @@ export function BlockSkeleton({ className }: { readonly className: string }): Re
  */
 function PanelSkeleton({ rows }: { readonly rows: number }): React.JSX.Element {
   return (
-    <section className="border-border bg-bg-elevated border">
+    <section className="border border-border bg-bg-elevated">
       <div className="space-y-2 px-4 py-3">
         <Skeleton className="h-4 w-40 max-w-full" />
         <Skeleton className="h-3 w-64 max-w-full" />
       </div>
-      <div className="border-border border-t p-4">
+      <div className="border-t border-border p-4">
         <FieldRows rows={rows} />
       </div>
     </section>
@@ -106,8 +106,8 @@ function PanelSkeleton({ rows }: { readonly rows: number }): React.JSX.Element {
 export function TableSkeleton({ rows = 8 }: { readonly rows?: number }): React.JSX.Element {
   return (
     <LoadingStatus>
-      <div className="border-border rounded-md border">
-        <div className="border-border flex items-center gap-4 border-b px-3 py-2">
+      <div className="rounded-md border border-border">
+        <div className="flex items-center gap-4 border-b border-border px-3 py-2">
           <Skeleton className="h-3 w-20 shrink-0" />
           <Skeleton className="h-3 flex-1" />
           <Skeleton className="h-3 w-16 shrink-0" />
@@ -115,7 +115,7 @@ export function TableSkeleton({ rows = 8 }: { readonly rows?: number }): React.J
         {Array.from({ length: rows }, (_, i) => (
           <div
             key={i}
-            className="border-border flex items-center gap-4 border-b px-3 py-3 last:border-b-0"
+            className="flex items-center gap-4 border-b border-border px-3 py-3 last:border-b-0"
           >
             <Skeleton className="h-3 w-24 shrink-0" />
             <Skeleton className="h-3 flex-1" />

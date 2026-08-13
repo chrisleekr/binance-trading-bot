@@ -465,13 +465,13 @@ export function SymbolCandleChart({
     <section
       aria-label="Candle chart"
       data-testid="symbol-candle-chart"
-      className="border-border bg-bg-elevated relative rounded-md border"
+      className="relative rounded-md border border-border bg-bg-elevated"
     >
       {legend ? (
         <div
           aria-hidden
           data-testid="chart-ohlc-legend"
-          className="pointer-events-none absolute left-3 top-2 z-10 flex flex-wrap gap-x-3 font-mono text-xs tabular-nums"
+          className="pointer-events-none absolute top-2 left-3 z-10 flex flex-wrap gap-x-3 font-mono text-xs tabular-nums"
         >
           {(
             [
@@ -499,7 +499,7 @@ export function SymbolCandleChart({
         className="h-[300px] w-full sm:h-[var(--chart-h)]"
       />
       {error ? (
-        <p role="alert" className="text-danger px-3 py-2 text-sm">
+        <p role="alert" className="px-3 py-2 text-sm text-danger">
           {error}
         </p>
       ) : null}

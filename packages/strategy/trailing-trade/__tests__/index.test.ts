@@ -222,8 +222,7 @@ describe('@app/strategy-trailing-trade migrateState', () => {
       autoTriggerBuyAtMs: null,
     };
     const migrated = trailingTrade.migrateState?.({ fromVersion: '1.0.0', state: legacy }) as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     // 1.0.0 → 1.1.0 is the intermediate hop the runner loops through on
     // its way to 2.0.0; the schemaVersion stamp is what the runner reads
     // to dispatch the next branch. The carried field keeps its legacy key.
@@ -248,8 +247,7 @@ describe('@app/strategy-trailing-trade migrateState', () => {
       autoTriggerBuyAtMs: null,
     };
     const migrated = trailingTrade.migrateState?.({ fromVersion: '1.1.0', state: legacy }) as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     expect(migrated?.['schemaVersion']).toBe('2.0.0');
     expect(migrated?.['avgEntryPrice']).toBeNull();
     expect(migrated?.['heldQuantity']).toBeNull();

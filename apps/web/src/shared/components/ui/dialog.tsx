@@ -31,7 +31,7 @@ export const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         // v2 modal: 2px accent frame + hard offset shadow (the system's only shadow).
-        'rounded-xs shadow-offset border-accent bg-bg-elevated fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 border-2 p-6',
+        'fixed top-1/2 left-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xs border-2 border-accent bg-bg-elevated p-6 shadow-offset',
         className,
       )}
       {...props}
@@ -39,7 +39,7 @@ export const DialogContent = React.forwardRef<
       {children}
       <DialogPrimitive.Close
         aria-label="Close"
-        className="focus-visible:ring-accent absolute right-2 top-2 inline-flex h-11 w-11 items-center justify-center rounded-sm opacity-70 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2"
+        className="absolute top-2 right-2 inline-flex h-11 w-11 items-center justify-center rounded-sm opacity-70 hover:opacity-100 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
       >
         <X className="h-4 w-4" />
       </DialogPrimitive.Close>
@@ -58,7 +58,7 @@ export const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn('text-lg font-semibold leading-none', className)}
+    className={cn('text-lg leading-none font-semibold', className)}
     {...props}
   />
 ));
@@ -70,7 +70,7 @@ export const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn('text-muted-fg text-sm', className)}
+    className={cn('text-sm text-muted-fg', className)}
     {...props}
   />
 ));

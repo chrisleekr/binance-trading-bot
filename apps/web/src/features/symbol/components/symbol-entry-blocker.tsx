@@ -16,8 +16,8 @@ export function SymbolEntryBlocker({
   if (!entryBlocker) return null;
   return (
     <Card data-testid="symbol-entry-blocker" className="space-y-1">
-      <h2 className="text-fg text-sm font-semibold">Not buying right now</h2>
-      <p className="text-muted-fg text-sm">{glossEntryBlocker(entryBlocker)}</p>
+      <h2 className="text-sm font-semibold text-fg">Not buying right now</h2>
+      <p className="text-sm text-muted-fg">{glossEntryBlocker(entryBlocker)}</p>
     </Card>
   );
 }

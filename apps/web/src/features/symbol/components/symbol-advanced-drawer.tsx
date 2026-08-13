@@ -33,13 +33,7 @@ import {
 import { asDecimalString } from '@app/contracts';
 
 type Action =
-  | null
-  | 'archive-grid'
-  | 'reset-grid'
-  | 'reset-config'
-  | 'set-lbp'
-  | 'delete-lbp'
-  | 'wipe';
+  null | 'archive-grid' | 'reset-grid' | 'reset-config' | 'set-lbp' | 'delete-lbp' | 'wipe';
 
 interface AdvancedDrawerProps {
   readonly profileId: string;
@@ -159,7 +153,7 @@ export function SymbolAdvancedDrawer({
     <section className="space-y-2" data-testid="symbol-advanced-drawer">
       <button
         type="button"
-        className="text-muted-fg focus-visible:ring-focus text-xs underline focus-visible:outline-none focus-visible:ring-2"
+        className="text-xs text-muted-fg underline focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
         onClick={() => setOpen((o) => !o)}
         data-testid="advanced-toggle"
         aria-expanded={open}

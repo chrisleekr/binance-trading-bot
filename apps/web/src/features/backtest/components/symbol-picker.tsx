@@ -92,22 +92,22 @@ export function SymbolPicker({
             </Alert>
           ) : null}
           {exchangeInfo.isSuccess && filtered.length === 0 ? (
-            <p className="text-muted-fg text-sm">No matching symbol.</p>
+            <p className="text-sm text-muted-fg">No matching symbol.</p>
           ) : null}
           {filtered.length > 0 ? (
             <ul
-              className="divide-border max-h-64 divide-y overflow-y-auto rounded-lg border"
+              className="max-h-64 divide-y divide-border overflow-y-auto rounded-lg border"
               data-testid="bt-symbol-list"
             >
               {filtered.map((s) => (
                 <li key={s.symbol}>
                   <button
                     type="button"
-                    className="hover:bg-surface-alt flex w-full items-center justify-between px-3 py-2 text-left"
+                    className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-surface-alt"
                     onClick={() => pick(s.symbol)}
                   >
                     <span className="font-mono font-medium">{s.symbol}</span>
-                    <span className="text-muted-fg text-xs">
+                    <span className="text-xs text-muted-fg">
                       {s.baseAsset}/{s.quoteAsset}
                     </span>
                   </button>

@@ -63,9 +63,9 @@ The stack serves plain HTTP and **does not bundle a reverse proxy** — put TLS 
 | Tool | Version | Why it is here |
 | --- | --- | --- |
 | **Bun** | 1.3.x | Runtime, package manager, and test-adjacent tooling. One binary, no Node install. |
-| **TypeScript** | 6.x | Strict end to end. `bun run typecheck` builds every package with project references. |
+| **TypeScript** | 7.0.x | Strict end-to-end. `bun run typecheck` builds every package with project references. |
 | **Turborepo** | 2.x | Monorepo task graph and caching across `apps/*` and `packages/*`. |
-| **oxlint** | 1.73 | The single lint path. One whole-repo pass so cycle detection sees the full graph. |
+| **oxlint** | 1.77 | The single lint path. One whole-repo pass so cycle detection sees the full graph. |
 | **Vitest** | 4.x | Unit tests, with per-package coverage thresholds. |
 | **Playwright** | — | End-to-end tests and the docs screenshot capture. |
 
@@ -73,16 +73,16 @@ The stack serves plain HTTP and **does not bundle a reverse proxy** — put TLS 
 
 | Library | Version | Why it is here |
 | --- | --- | --- |
-| **Hono** | 4.12.x | HTTP framework for the api. |
-| **`@hono/zod-openapi`** | 1.3.x | Routes declare Zod schemas; the OpenAPI spec and Swagger UI at `/docs` are generated from them. |
+| **Hono** | 4.13.x | HTTP framework for the api. |
+| **`@hono/zod-openapi`** | 1.5.1 | Routes declare Zod schemas; the OpenAPI spec and Swagger UI at `/docs` are generated from them. |
 | **Drizzle ORM** | 0.45.x | Typed queries. Migrations are **hand-authored SQL**, applied by a checksum-tracked runner. |
-| **pg** | 8.13.x | Postgres driver. |
-| **ioredis** | 5.11.x | Redis client, configured with `maxRetriesPerRequest: null` for BullMQ. |
+| **pg** | 8.22.x | Postgres driver. |
+| **ioredis** | 6.0.x | Redis client, configured with `maxRetriesPerRequest: null` for BullMQ. |
 | **BullMQ** | 5.58.6, pinned exactly | Job queues: ticks, crons, backtest replays. Not a range: 5.58.7 rejects `:` in a custom job id, which is what the coalescing keys are built from. See [Worker pipeline](worker-pipeline.md). |
 | **Better Auth** | 1.6.x | Session auth. No email, no SMTP, no 2FA — one master account. |
 | **decimal.js** | 10.6.x | **All money math.** Every price, quantity, balance, and P/L is a `Decimal` end to end; `number` is only for counters and timestamps. |
 | **Zod** | 4.4.x | The contract layer: config schemas, API payloads, and the generated config docs all come from these. |
-| **pino** | 9.5.x | Structured logging. |
+| **pino** | 10.3.x | Structured logging. |
 | **ws** | 8.21.x | Binance WebSocket streams. |
 
 ### Frontend
@@ -90,13 +90,13 @@ The stack serves plain HTTP and **does not bundle a reverse proxy** — put TLS 
 | Library                | Version | Why it is here                                               |
 | ---------------------- | ------- | ------------------------------------------------------------ |
 | **React**              | 19.x    | UI.                                                          |
-| **Vite**               | 7.x     | Build and dev server. Optionally emits a PWA (`VITE_PWA=1`). |
-| **TanStack Router**    | 1.92.x  | Type-safe routing; every surface is a real route.            |
-| **TanStack Query**     | 5.62.x  | Server-state cache and polling.                              |
+| **Vite**               | 8.2.x   | Build and dev server. Optionally emits a PWA (`VITE_PWA=1`). |
+| **TanStack Router**    | 1.170.x | Type-safe routing; every surface is a real route.            |
+| **TanStack Query**     | 5.101.x | Server-state cache and polling.                              |
 | **Tailwind CSS**       | 4.x     | Styling, via semantic colour tokens rather than raw colours. |
 | **shadcn/ui**          | —       | Component primitives, vendored into the repo.                |
 | **lightweight-charts** | 5.x     | Financial charts (candles).                                  |
-| **Recharts**           | 3.8.x   | Non-financial charts (equity curves, distributions).         |
+| **Recharts**           | 3.10.x  | Non-financial charts (equity curves, distributions).         |
 
 The web app carries **no `decimal.js`**. Money arrives from the api as pre-formatted strings, so summation always happens server-side.
 

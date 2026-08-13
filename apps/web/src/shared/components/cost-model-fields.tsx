@@ -46,7 +46,7 @@ export function CostModelFields({
           onChange={onChange('initialQuoteBalance')}
           autoComplete="off"
         />
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           Quote currency (e.g. USDT) the simulated run starts with.
         </p>
       </div>
@@ -59,7 +59,7 @@ export function CostModelFields({
           onChange={onChange('slippageBps')}
           autoComplete="off"
         />
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           Price slippage per fill, in basis points (1 bps = 0.01%). 5 means each fill is 0.05% worse
           than the quoted price.
         </p>
@@ -73,7 +73,7 @@ export function CostModelFields({
           onChange={onChange('makerBps')}
           autoComplete="off"
         />
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           Fee on orders that add liquidity (resting limit orders), in basis points (1 bps = 0.01%).
           10 = 0.10%.
         </p>
@@ -87,7 +87,7 @@ export function CostModelFields({
           onChange={onChange('takerBps')}
           autoComplete="off"
         />
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           Fee on orders that take liquidity (market orders), in basis points (1 bps = 0.01%). 10 =
           0.10%.
         </p>
@@ -103,7 +103,7 @@ export function CostModelFields({
               onChange={realism.onChange('spreadBps')}
               autoComplete="off"
             />
-            <p className="text-muted-fg text-xs">
+            <p className="text-xs text-muted-fg">
               Bid/ask spread charged on every fill, in basis points (1 bps = 0.01%). Makes even
               limit-order fills realistic instead of free. 5 = 0.05%.
             </p>
@@ -117,7 +117,7 @@ export function CostModelFields({
               onChange={realism.onChange('volumeCapPct')}
               autoComplete="off"
             />
-            <p className="text-muted-fg text-xs">
+            <p className="text-xs text-muted-fg">
               Most of a candle's traded volume one order may take. Caps fills on thin candles so a
               large order can't fill instantly. Leave blank to disable.
             </p>

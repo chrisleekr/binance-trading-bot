@@ -20,7 +20,7 @@ function Cell({
 }): React.JSX.Element {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-muted-fg text-xs">{label}</span>
+      <span className="text-xs text-muted-fg">{label}</span>
       <span className="font-mono text-sm font-medium tabular-nums">{children}</span>
     </div>
   );
@@ -47,7 +47,7 @@ export function SymbolPositionStrip({
 
   return (
     <div
-      className="border-border bg-bg-elevated flex flex-wrap items-center gap-x-6 gap-y-3 rounded-md border px-4 py-3"
+      className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-md border border-border bg-bg-elevated px-4 py-3"
       data-testid="symbol-position-strip"
     >
       <Cell label="Position">

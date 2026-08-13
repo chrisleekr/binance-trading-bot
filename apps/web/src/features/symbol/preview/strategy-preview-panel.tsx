@@ -54,7 +54,7 @@ const columnsFor = (rows: readonly PreviewRow[]): SectionColumns => ({
 function RowNote({ row }: { readonly row: PreviewRow }): React.JSX.Element | null {
   if (row.skip == null && row.note == null) return null;
   return (
-    <div className="text-muted-fg mt-0.5 text-xs">
+    <div className="mt-0.5 text-xs text-muted-fg">
       {row.skip != null ? (
         <span className="text-warning" data-testid="preview-row-skip">
           Skipped — {row.skip}
@@ -82,7 +82,7 @@ function PreviewSection({
           scrolls horizontally on a 375px viewport. */}
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
-          <tbody className="divide-border divide-y">
+          <tbody className="divide-y divide-border">
             {rows.map((row, i) => {
               const pct = offsetPct(row.price, currentPrice);
               return (
@@ -92,7 +92,7 @@ function PreviewSection({
                       {row.label ?? humanizeCode(row.code)}
                     </span>
                     {row.trigger ? (
-                      <span className="text-accent ml-1.5 text-[0.65rem] uppercase tracking-wide">
+                      <span className="ml-1.5 text-[0.65rem] tracking-wide text-accent uppercase">
                         now
                       </span>
                     ) : null}
@@ -102,23 +102,23 @@ function PreviewSection({
                     <td className="py-1.5 pr-3 font-medium">{row.symbol ?? '—'}</td>
                   ) : null}
                   {cols.price ? (
-                    <td className="whitespace-nowrap py-1.5 pr-3 text-right font-mono">
+                    <td className="py-1.5 pr-3 text-right font-mono whitespace-nowrap">
                       {row.price != null ? formatPrice(row.price) : '—'}
-                      {pct != null ? <span className="text-muted-fg ml-1.5">{pct}</span> : null}
+                      {pct != null ? <span className="ml-1.5 text-muted-fg">{pct}</span> : null}
                     </td>
                   ) : null}
                   {cols.qty ? (
-                    <td className="whitespace-nowrap py-1.5 pr-3 text-right font-mono">
+                    <td className="py-1.5 pr-3 text-right font-mono whitespace-nowrap">
                       {row.quantity != null ? formatAmount(row.quantity) : '—'}
                     </td>
                   ) : null}
                   {cols.weight ? (
-                    <td className="whitespace-nowrap py-1.5 pr-3 text-right font-mono">
+                    <td className="py-1.5 pr-3 text-right font-mono whitespace-nowrap">
                       {row.weight != null ? formatPercent(Number(row.weight) * 100) : '—'}
                     </td>
                   ) : null}
                   {cols.drift ? (
-                    <td className="text-muted-fg whitespace-nowrap py-1.5 text-right font-mono">
+                    <td className="py-1.5 text-right font-mono whitespace-nowrap text-muted-fg">
                       {row.drift != null ? `±${formatPercent(Number(row.drift) * 100)}` : '—'}
                     </td>
                   ) : null}
@@ -150,15 +150,15 @@ export function PreviewModelView({
   return (
     <div className="space-y-4" data-testid="strategy-preview-panel">
       <div>
-        <h2 className="text-fg text-sm font-semibold">Preview</h2>
-        <p className="text-muted-fg text-xs">
+        <h2 className="text-sm font-semibold text-fg">Preview</h2>
+        <p className="text-xs text-muted-fg">
           Live projection from your unsaved edits. Display only — the bot re-derives every level at
           decision time.
         </p>
       </div>
 
       {error != null ? (
-        <p className="text-danger text-xs" data-testid="strategy-preview-error">
+        <p className="text-xs text-danger" data-testid="strategy-preview-error">
           Couldn't load the preview.
         </p>
       ) : model.sections.length > 0 ? (
@@ -175,7 +175,7 @@ export function PreviewModelView({
         // typically the entry ladder and the exit levels.
         <PanelStackSkeleton shape={[4, 3]} />
       ) : (
-        <p className="text-muted-fg text-xs" data-testid="strategy-preview-empty">
+        <p className="text-xs text-muted-fg" data-testid="strategy-preview-empty">
           Nothing to project yet — set the config and a reference price to see where this strategy
           would act.
         </p>

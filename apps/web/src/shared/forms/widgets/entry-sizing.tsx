@@ -44,7 +44,7 @@ export function EntrySizingWidget({ name, fieldDef }: WidgetProps): React.JSX.El
 
   if (gridActive) {
     return (
-      <p className="text-muted-fg text-xs" data-testid={`entry-sizing-grid-note-${name}`}>
+      <p className="text-xs text-muted-fg" data-testid={`entry-sizing-grid-note-${name}`}>
         Each grid level sizes its own buy, so entry sizing is not used here. Clear all grid levels
         to size a single entry instead.
       </p>
@@ -56,7 +56,7 @@ export function EntrySizingWidget({ name, fieldDef }: WidgetProps): React.JSX.El
   const renderPercentPreview = (fraction: number, equity: FormEquity | null): React.ReactNode => {
     if (!equity || !Number.isFinite(fraction) || fraction <= 0 || equity.equityQuote <= 0) {
       return (
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           Percent of equity to risk per trade, sized against your stop-loss.
         </p>
       );
@@ -68,7 +68,7 @@ export function EntrySizingWidget({ name, fieldDef }: WidgetProps): React.JSX.El
     const hasStop = sellEnabled === true && Number.isFinite(stopNum) && stopNum > 0 && stopNum < 1;
     if (!hasStop) {
       return (
-        <p className="text-muted-fg text-xs" data-testid={`entry-risk-preview-${name}`}>
+        <p className="text-xs text-muted-fg" data-testid={`entry-risk-preview-${name}`}>
           No active stop-loss, so this just spends ≈ {formatAmount(risk)} {equity.quoteAsset} on the
           entry. Set and enable a stop-loss to size by risk.
         </p>
@@ -81,7 +81,7 @@ export function EntrySizingWidget({ name, fieldDef }: WidgetProps): React.JSX.El
     // "up to" because the worker also clamps to free cash, which this preview
     // cannot see (FormEquity exposes equity, not the free-cash split).
     return (
-      <p className="text-fg text-xs font-medium" data-testid={`entry-risk-preview-${name}`}>
+      <p className="text-xs font-medium text-fg" data-testid={`entry-risk-preview-${name}`}>
         Risking ≈ {formatAmount(risk)} {equity.quoteAsset} per trade · position up to ≈{' '}
         {formatAmount(position)} {equity.quoteAsset}
         {capped ? ' (capped at half your equity)' : ''}, subject to available cash.

@@ -212,7 +212,7 @@ export function ProfileConfigPanel({
                 const next = e.currentTarget.value;
                 if (next !== currentKey) setPendingStrategy(next);
               }}
-              className="rounded-xs border-border bg-surface-alt text-fg focus-visible:border-focus h-11 w-full border px-3 py-2 text-sm focus-visible:outline-none"
+              className="h-11 w-full rounded-xs border border-border bg-surface-alt px-3 py-2 text-sm text-fg focus-visible:border-focus focus-visible:outline-none"
             >
               {(strategies.data ?? []).map((s) => (
                 <option key={`${s.name}@${s.version}`} value={`${s.name}@${s.version}`}>
@@ -254,7 +254,7 @@ export function ProfileConfigPanel({
                 }
               >
                 <ForceSellGuardNudge />
-                <FormActions className="border-border border-t pt-4">
+                <FormActions className="border-t border-border pt-4">
                   <Button type="submit" variant="default" disabled={save.isPending}>
                     {save.isPending ? 'Saving…' : 'Save'}
                   </Button>

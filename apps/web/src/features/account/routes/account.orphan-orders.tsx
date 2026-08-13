@@ -90,7 +90,7 @@ function OrphanOrdersPage(): React.JSX.Element {
   return (
     <Page>
       <PageHeader title="Orphan orders" back={<BackLink to="/account" />} />
-      <p className="text-muted-fg text-sm">
+      <p className="text-sm text-muted-fg">
         Orders open on Binance that the bot isn&rsquo;t tracking (&ldquo;orphans&rdquo;) — one it
         placed but lost track of, one you placed by hand, or one left behind when a coin stopped
         trading. An order the bot recognises can be handed back to the profile that placed it; one
@@ -111,32 +111,32 @@ function OrphanOrdersPage(): React.JSX.Element {
       <ActionBanner banner={banner} />
 
       {!query.isLoading && !query.error ? (
-        <p className="text-muted-fg text-xs">
+        <p className="text-xs text-muted-fg">
           {lastChecked(query.data?.computedAtMs ?? null, timeZone)}
         </p>
       ) : null}
 
       {!query.isLoading && !query.error && orphans.length === 0 ? (
-        <p className="text-muted-fg text-sm">
+        <p className="text-sm text-muted-fg">
           No orphan orders — every order open on Binance is already tracked by the bot.
         </p>
       ) : null}
 
       {orphans.length > 0 ? (
         <Panel title="Orders to adopt">
-          <ul className="divide-border divide-y">
+          <ul className="divide-y divide-border">
             {orphans.map((o) => {
               const k = rowKey(o);
               return (
                 <li key={k} className="space-y-3 py-4" data-testid={`orphan-${k}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-0.5">
-                      <p className="text-fg font-medium">{o.symbol}</p>
+                      <p className="font-medium text-fg">{o.symbol}</p>
                       <p className="text-xs">
                         <span className={o.side === 'BUY' ? 'text-success' : 'text-danger'}>
                           {o.side}
                         </span>{' '}
-                        <span className="text-muted-fg font-mono tabular-nums">
+                        <span className="font-mono text-muted-fg tabular-nums">
                           {formatAmount(o.origQty)} @ {formatPrice(o.price)}
                         </span>
                       </p>
@@ -151,7 +151,7 @@ function OrphanOrdersPage(): React.JSX.Element {
                       >
                         {o.mode === 'live' ? 'Live' : 'Testnet'}
                       </span>
-                      <span className="text-muted-fg text-xs">{o.status}</span>
+                      <span className="text-xs text-muted-fg">{o.status}</span>
                     </div>
                   </div>
                   {o.ownerProfileId === null && isRestingSell(o) ? (
@@ -161,7 +161,7 @@ function OrphanOrdersPage(): React.JSX.Element {
                     // locked and the true owner cannot fund a protective stop for it.
                     // The api refuses this too (409); saying so here means the
                     // operator never has to hit the error to find out.
-                    <p className="text-danger text-xs">
+                    <p className="text-xs text-danger">
                       This sell order is holding your coins on Binance, so a profile that adopted it
                       could not place a protective stop for them. Cancel it on Binance first, then
                       adopt the position.
@@ -171,15 +171,15 @@ function OrphanOrdersPage(): React.JSX.Element {
                     // only safe home for a lost order is the profile that placed
                     // it, and no profile here can prove it did. Say what the two
                     // real options are.
-                    <p className="text-muted-fg text-xs">
+                    <p className="text-xs text-muted-fg">
                       No profile on this account placed this order, so the bot cannot take it over —
                       it would have no idea what the order is for. Either cancel it on Binance, or
                       leave it alone if you meant to place it.
                     </p>
                   ) : (
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-muted-fg min-w-0 flex-1 text-xs">
-                        Placed by <span className="text-fg font-medium">{o.ownerProfileName}</span>{' '}
+                      <p className="min-w-0 flex-1 text-xs text-muted-fg">
+                        Placed by <span className="font-medium text-fg">{o.ownerProfileName}</span>{' '}
                         — hand it back and the bot resumes managing it.
                       </p>
                       <Button variant="default" onClick={() => setConfirming(o)}>

@@ -142,7 +142,8 @@ unit:
   # which Bun does not implement. `bun run` delegates the vitest bin to `node`
   # when it is on PATH; without node here vitest aborts with "Coverage APIs are
   # not supported" (the GitHub runner already ships node, so this only affects
-  # the bun-alpine image). Scoped to this job — no other job collects coverage.
+  # the bun-alpine image). Every bun-alpine job that collects coverage installs
+  # Node in its own before_script.
   before_script:
     - !reference [default, before_script]
     - apk add --no-cache nodejs
@@ -168,6 +169,10 @@ test-replay:
 integration:
   stage: test
   needs: []
+  # Vitest v8 coverage needs Node's inspector API, which Bun does not expose.
+  before_script:
+    - !reference [default, before_script]
+    - apk add --no-cache nodejs
   services:
     - name: timescale/timescaledb:latest-pg17
       alias: postgres
@@ -192,8 +197,7 @@ worker-integration:
   stage: test
   needs: []
   # nodejs on top of the default before_script (same as the `unit` job):
-  # `test-worker-integration.sh` runs vitest via `bun run`, which delegates the
-  # vitest bin to `node` when it is on PATH. The tick-and-audit suite mocks
+  # The Vitest binary delegates to `node` when it is on PATH. The tick-and-audit suite mocks
   # Binance with nock, whose fetch interception throws under the bun-alpine
   # runtime; running vitest under node avoids it.
   before_script:
@@ -221,6 +225,11 @@ worker-integration:
 db-isolation:
   stage: test
   needs: []
+  # TypeScript 7's synchronous project API reads Node's private stdio pipe
+  # handles. Bun does not expose those handles, so run Vitest under Node.
+  before_script:
+    - !reference [default, before_script]
+    - apk add --no-cache nodejs
   services:
     - name: timescale/timescaledb:latest-pg17
       alias: postgres
@@ -309,9 +318,9 @@ docker-build:
   # A push image build must run to completion, not be cancelled mid-push by a
   # newer commit (overrides `default.interruptible`).
   interruptible: false
-  image: docker:27-cli
+  image: docker:28-cli
   services:
-    - docker:27-dind
+    - docker:28-dind
   variables:
     DOCKER_HOST: tcp://docker:2376
     DOCKER_TLS_CERTDIR: /certs
