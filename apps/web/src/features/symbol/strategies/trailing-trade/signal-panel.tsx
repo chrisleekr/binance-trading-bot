@@ -194,17 +194,15 @@ function entryGates(
 }
 
 /**
- * Build the force-sell-on-Technicals view, or null when the rule has nothing
- * to do for this profile. The trigger price formula is `avgEntryPrice *
- * sell.triggerPercentage` — identical to the strategy's
- * `technicalsForceSellTriggerPriceOf` (which is the same expression the
- * regular sell-arm uses). The status branches mirror
- * `evaluateTechnicalsForceSell`'s guards so the operator's readout and the
- * worker's decision can never diverge for a fixed input.
+ * Builds the Technicals force-sell status for a held position.
  *
- * `signals` carries the per-interval signals + the freshness window when the
- * caller has them (the query lands a moment after the panel mounts); when
- * absent we can still answer the three signal-independent branches.
+ * @param config - Strategy configuration containing Technicals sell rules
+ * @param lbp - Average entry price
+ * @param current - Current market price, if available
+ * @param sellTrigger - Configured force-sell price multiplier
+ * @param signals - Latest Technicals signals and freshness settings
+ * @param nowMs - Current time used to assess signal freshness
+ * @returns The force-sell view, or `null` when no Technicals sell rule is configured
  */
 function forceSellViewOf(
   config: Record<string, unknown>,
@@ -266,14 +264,15 @@ function forceSellViewOf(
 }
 
 /**
- * Replay the trailing-trade thresholds for one symbol into the panel's view.
+ * Builds the signal-panel view for a symbol's current strategy state.
  *
- * `exitBlocker` is the projection field of the same name, the worker's own "why
- * this position did not sell" record. Its `hasDownsideExit` flag is read
- * straight through rather than re-derived from config: a second implementation
- * of "is anything configured below the entry" could disagree with the ladder the
- * worker actually runs, and the whole point of the warning is that it is true.
- * `null` means no record, which renders as neither warning nor reassurance.
+ * @param strategy - The strategy configuration and state
+ * @param holding - The symbol's average entry price
+ * @param currentPrice - The current market price
+ * @param exitBlocker - The worker's recorded downside-exit status
+ * @param signals - Current Technicals signals used for force-sell status
+ * @param nowMs - Timestamp used to determine signal freshness
+ * @returns The signal view for an unavailable, flat, or held position
  */
 export function deriveSignal(
   strategy: SymbolStateResponse['strategy'],
@@ -640,6 +639,13 @@ function nearestExitKey(rows: readonly LadderRow[]): string | null {
   return best?.key ?? null;
 }
 
+/**
+ * Renders an exit-ladder row with its price, gap, status, and relevant marker.
+ *
+ * @param row - The exit-ladder row to display
+ * @param isNearest - Whether the row is nearest to the current price
+ * @returns The rendered exit-ladder row
+ */
 function LadderRowView({
   row,
   isNearest,
@@ -797,9 +803,14 @@ const bullHoldToneClass: Record<'good' | 'muted', string> = {
 };
 
 /**
- * Renders the derived signal. Flat profiles get the entry-gate explainer (plus
- * a regime-block notice when bearish); held positions get the exit map plus the
- * Technicals and regime exits.
+ * Renders entry conditions for flat positions and exit conditions for held positions, including configured regime and Technicals signals.
+ *
+ * @param profileId - The profile identifier used to load market data
+ * @param symbol - The symbol whose signal is displayed
+ * @param strategy - The strategy configuration and state
+ * @param holding - The average entry price for the position
+ * @param currentPrice - The current market price
+ * @param exitBlocker - The worker-recorded downside-exit status
  */
 export function SymbolSignalPanel({
   profileId,
@@ -933,6 +944,15 @@ function FlatView({
   );
 }
 
+/**
+ * Renders the signal panel for a held position, including exit levels, add conditions, and applicable
+ * time-stop, regime, and bull-hold status.
+ *
+ * @param view - Derived holding-position signal data.
+ * @param regime - Current regime-exit status.
+ * @param bullHold - Current bull-hold status.
+ * @returns The rendered holding-position signal view.
+ */
 function HoldingView({
   view,
   regime,
