@@ -114,7 +114,7 @@ const buildCrons = (overrides?: Partial<Record<string, Partial<CronDef>>>): read
         logger: silentLogger,
         redis: stubRedis(),
         resolveLimits: async () => ({ retentionDays: 30, maxRows: 200_000 }),
-        pruneByAge: vi.fn(async () => 0),
+        pruneByAge: vi.fn(async () => ({ chunksDropped: 0, rowsDeleted: 0 })),
         listProfileIds: async () => [],
         pruneByRowCap: vi.fn(async () => 0),
       }),
@@ -395,7 +395,9 @@ describe('registerCrons', () => {
   });
 
   it('action-log-prune worker invokes both injected pruners', async () => {
-    const pruneByAge = vi.fn(async () => 7);
+    // The age sweep returns both counts; a bare number leaves the handler's
+    // receipt reading `undefined` and the fixture no longer models the port.
+    const pruneByAge = vi.fn(async () => ({ chunksDropped: 1, rowsDeleted: 7 }));
     const pruneByRowCap = vi.fn(async () => 2);
     const crons = buildCrons({
       'action-log-prune': {

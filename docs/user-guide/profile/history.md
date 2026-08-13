@@ -41,7 +41,7 @@ Why the bot acted, or why it did not. Each row is one thing the worker decided, 
 
 - **Copy** on a row copies that one row as JSON.
 - **Copy page** copies every row currently on screen.
-- **Export NDJSON** downloads every row matching the **current filter** — not just the page, and not the unfiltered log. One JSON object per line, with the full context intact.
+- **Export NDJSON** downloads every row matching the **current filter** — not just the page, and not the unfiltered log. One JSON object per line, with the full context intact. One export stops at 500,000 rows; if there were more, the last line is `{"truncated":true,...}` instead of a log row. A capture window can pass that, so check the last line before treating a file as the whole record, and narrow the time range if it is there.
 
 **Capture every tick.** By default the bot logs when something changes. When that is not enough, pick a duration (`15m`, `1h`, `4h`, `24h`) and press **Capture every tick**: every tick of this profile is written as a `debug` row until the window lapses on its own. It is a large amount of data, so the window is always bounded, and only one profile can be captured at a time — if another one is armed, the panel says so rather than silently taking over.
 

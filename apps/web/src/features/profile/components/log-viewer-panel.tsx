@@ -22,7 +22,7 @@ import { Input } from '@/shared/components/ui/input';
 import { TableSkeleton } from '@/shared/components/page-skeleton';
 import { cn } from '@/shared/lib/cn';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
-import { formatInstant } from '@/shared/lib/format-time';
+import { formatClock, formatInstant } from '@/shared/lib/format-time';
 import { useTimezone } from '@/shared/context/timezone-context';
 import {
   emptyLogFilter,
@@ -158,6 +158,10 @@ function LogRow({
  */
 function DeepCaptureControl({ profileId }: { readonly profileId: string }): React.JSX.Element {
   const qc = useQueryClient();
+  // The deadline reads as a wall clock the operator compares against their own,
+  // so it follows the configured zone like every other timestamp on the page.
+  // The browser's zone would silently disagree with the log rows beside it.
+  const timeZone = useTimezone();
   const [minutes, setMinutes] = useState(60);
   const [busy, setBusy] = useState(false);
   const config = useQuery({
@@ -186,9 +190,7 @@ function DeepCaptureControl({ profileId }: { readonly profileId: string }): Reac
   if (armedHere) {
     return (
       <div className="flex items-center gap-2" data-testid="deep-capture-armed">
-        <Badge variant="warning">
-          Capturing until {new Date(capture.until).toLocaleTimeString()}
-        </Badge>
+        <Badge variant="warning">Capturing until {formatClock(capture.until, timeZone)}</Badge>
         <Button
           type="button"
           variant="ghost"

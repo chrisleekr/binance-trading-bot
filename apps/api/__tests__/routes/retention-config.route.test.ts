@@ -151,7 +151,11 @@ describeIfInfra('/api/retention-config', () => {
     // Nothing runs at expiry, so the read is what has to treat a past deadline
     // as off. A UI that still showed it armed would be claiming rows are being
     // written at full fidelity when they are not.
-    await patch({ debugCapture: { profileId: fx.alice.profileId, minutes: 1 } });
+    // Asserted, not fire-and-forget: a PATCH that failed would leave capture
+    // disarmed and the assertion below would still pass, testing nothing.
+    expect(
+      (await patch({ debugCapture: { profileId: fx.alice.profileId, minutes: 1 } })).status,
+    ).toBe(200);
     await fx.di.pool.query(
       `update retention_config set debug_capture_until = now() - interval '1 second'`,
     );

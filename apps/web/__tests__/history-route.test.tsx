@@ -1,6 +1,6 @@
-// HistoryPage — the per-profile History page (archive · audit · logs · activity).
-// Replaced the HISTORY dock. Asserts the page chrome and tab switching; the
-// individual panels have their own tests.
+// Scope: the page chrome and tab switching only. Each panel owns its own tests,
+// so asserting panel content here would duplicate them and make a panel change
+// fail in two places.
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import {

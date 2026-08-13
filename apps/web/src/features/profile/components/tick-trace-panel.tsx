@@ -136,16 +136,21 @@ export function TickTracePanel({
           </ul>
         ) : null}
 
-        {open && oldest !== null ? (
+        {/* The two controls are gated apart. Sharing one `oldest !== null` gate
+            strands the operator: walk back to a window with nothing older and
+            the whole block disappears, taking the way back to newest with it. */}
+        {open && (oldest !== null || before !== null) ? (
           <div className="flex items-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => setBefore(oldest)}
-              className="text-xs text-muted-fg underline hover:text-fg"
-              data-testid="tick-trace-older"
-            >
-              Load older
-            </button>
+            {oldest !== null ? (
+              <button
+                type="button"
+                onClick={() => setBefore(oldest)}
+                className="text-xs text-muted-fg underline hover:text-fg"
+                data-testid="tick-trace-older"
+              >
+                Load older
+              </button>
+            ) : null}
             {before !== null ? (
               <button
                 type="button"
