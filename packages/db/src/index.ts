@@ -18,6 +18,9 @@ export type { BacktestAdvisorResultRow } from './schema/backtest-advisor-result.
 export type { LedgerEntry, LedgerWindow } from './repo/result-ledger.js';
 export type { ReapExpiredResult } from './repo/override-actions.js';
 export type { ActionLogInsert, ActionLogRow } from './schema/action-logs.js';
+// The subject sentinel every reader of `condition_states` needs to tell a
+// profile-level row from a symbol row.
+export { PROFILE_SUBJECT } from './repo/condition-states.js';
 export {
   FLEET_COUNT_KEY,
   MEMBER_KEY_PREFIX,

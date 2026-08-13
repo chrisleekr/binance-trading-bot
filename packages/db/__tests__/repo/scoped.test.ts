@@ -1,80 +1,132 @@
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '../../src/repo/_db.js';
+import type { AccountScope, ProfileScope } from '../../src/repo/_scoped.js';
 import {
+  accountRepoFromScope,
   ProfileNotOwnedError,
   profileRepo,
   profileRepoFromScope,
   scopeProfile,
 } from '../../src/repo/index.js';
+import { createRepoAstReader } from './_exported-fns.js';
 import { setupFixture, TEST_DB_URL, type IsolationFixture } from '../isolation/_helpers.js';
 
-// Non-DB unit tests for the binding shape. The runtime object built by
-// `profileRepoFromScope` must match the public `ProfileRepo` type exactly
-// so untyped / reflective callers can't reach user-scoped functions on a
-// profile-scoped surface (e.g. `auditLogs.append` was a real footgun that
-// finding #1 caught — append has `Function.length === 3`, so a naive
-// length-based filter would bind it with the profileId in the input slot).
+const repoAst = createRepoAstReader();
+
+afterAll(() => {
+  repoAst.close();
+});
+
+// Non-DB unit tests for the binding shape. The runtime objects built by
+// `profileRepoFromScope` / `accountRepoFromScope` must carry exactly the
+// module's scope-first exports for their tier — no fewer (a name the `only`
+// list forgets is `undefined` at call time while still typechecking, which is
+// the `storeProgress` class of bug) and no more (a two-arg bind over
+// a module that also exports db-first globals binds those with the scope landing
+// in the `db` parameter slot).
+//
+// The expectations are DERIVED from the module sources, never spelled out here:
+// a hardcoded name list is the `only` list a second time, so it would agree with
+// the bug rather than catch it.
+
+// Namespace on the bound surface → the repo module it is bound from. A namespace
+// with no entry fails the mapping test rather than being skipped, because a
+// silently unmapped namespace is exactly the unchecked surface this guards.
+const PROFILE_NAMESPACE_MODULES: Readonly<Record<string, string>> = {
+  profile: 'profiles.ts',
+  actionLogs: 'action-logs.ts',
+  appliedFills: 'applied-fills.ts',
+  auditLogs: 'audit-logs.ts',
+  backtestAdvisorResults: 'backtest-advisor-results.ts',
+  backtestRuns: 'backtest-runs.ts',
+  conditionStates: 'condition-states.ts',
+  discoveryUniverseSnapshots: 'discovery-universe-snapshots.ts',
+  equitySnapshots: 'equity-snapshots.ts',
+  avgEntryPrices: 'avg-entry-prices.ts',
+  manualOrders: 'manual-orders.ts',
+  orders: 'orders.ts',
+  overrideActions: 'override-actions.ts',
+  profileKv: 'profile-kv.ts',
+  profileNotifiers: 'profile-notifiers.ts',
+  profileStateHistory: 'profile-state-history.ts',
+  profileSymbols: 'profile-symbols.ts',
+  resultLedger: 'result-ledger.ts',
+  symbolStates: 'symbol-states.ts',
+  tradeArchive: 'trade-archive.ts',
+};
+
+const ACCOUNT_NAMESPACE_MODULES: Readonly<Record<string, string>> = {
+  account: 'accounts.ts',
+  apiKeys: 'api-keys.ts',
+  orders: 'orders.ts',
+  overrideActions: 'override-actions.ts',
+  profiles: 'profiles.ts',
+};
+
+const profileStub = {
+  db: { __stub: 'db' } as unknown as Database,
+  operatorId: asUserId('00000000-0000-0000-0000-0000000a0001'),
+  accountId: asAccountId('00000000-0000-0000-0000-0000000ac001'),
+  profileId: asProfileId('00000000-0000-0000-0000-0000000a1001'),
+} as unknown as ProfileScope;
+
+const accountStub = {
+  db: { __stub: 'db' } as unknown as Database,
+  operatorId: asUserId('00000000-0000-0000-0000-0000000a0001'),
+  accountId: asAccountId('00000000-0000-0000-0000-0000000ac001'),
+} as unknown as AccountScope;
+
+/** The bound namespaces, minus the `scope` field the surfaces also carry. */
+const boundNamespaces = (surface: Record<string, unknown>): [string, string[]][] =>
+  Object.entries(surface)
+    .filter(([name]) => name !== 'scope')
+    .map(([name, ns]) => [name, Object.keys(ns as object).sort()]);
+
 describe('profileRepoFromScope (binding shape)', () => {
-  const stub: { scope: Parameters<typeof profileRepoFromScope>[0] } = {
-    scope: {
-      db: { __stub: 'db' } as unknown as Database,
-      operatorId: asUserId('00000000-0000-0000-0000-0000000a0001'),
-      accountId: asAccountId('00000000-0000-0000-0000-0000000ac001'),
-      profileId: asProfileId('00000000-0000-0000-0000-0000000a1001'),
-    },
-  };
+  const surface = profileRepoFromScope(profileStub) as unknown as Record<string, unknown>;
 
-  it('exposes exactly the profile-scoped methods on `profile`', () => {
-    const p = profileRepoFromScope(stub.scope);
-    expect(Object.keys(p.profile).sort()).toEqual(
-      [
-        'commitState',
-        'deleteById',
-        'findById',
-        'setDiscoveryConfig',
-        'setRiskConfig',
-        'setEnabled',
-        'switchStrategy',
-        'update',
-      ].sort(),
-    );
+  it('maps every bound namespace to a repo module', () => {
+    const unmapped = boundNamespaces(surface)
+      .map(([name]) => name)
+      .filter((name) => !(name in PROFILE_NAMESPACE_MODULES));
+    expect(unmapped, 'add these to PROFILE_NAMESPACE_MODULES so they are checked').toEqual([]);
+    // Vacuity guard: an empty walk would make every derived check below pass.
+    expect(boundNamespaces(surface).length).toBe(Object.keys(PROFILE_NAMESPACE_MODULES).length);
   });
 
-  it('exposes only the profile-scoped funcs on `auditLogs` (filters out user-scoped funcs)', () => {
-    const p = profileRepoFromScope(stub.scope);
-    expect(Object.keys(p.auditLogs).sort()).toEqual(['listAllForProfile', 'listForProfile']);
-  });
-
-  it('binds the ProfileScope on a pure-shape module', () => {
-    const p = profileRepoFromScope(stub.scope);
-    // Sanity: a pure-shape namespace carries every exported function. The full
-    // surface check is the type system; here we lock the names so a future
-    // export drift is caught. (api-keys moved to the account scope, so it is no
-    // longer on the profile-scoped surface — see AccountRepo.)
-    expect(Object.keys(p.resultLedger).sort()).toEqual(['listForMarket', 'upsert']);
-  });
-
-  it('keeps the user-scoped findOwningSiblingByBase off the profile-scoped surface', () => {
-    const p = profileRepoFromScope(stub.scope);
-    // `findOwningSiblingByBase(db, userId, ...)` spans an account's profiles, so
-    // it must not be reachable on the single-profile bound surface (it would be
-    // mis-bound with the scope in the `db` slot).
-    expect(Object.keys(p.profileSymbols).sort()).toEqual([
-      'findForSymbol',
-      'listForProfile',
-      'recordFlatten',
-      'remove',
-      'removeAutoIfFlat',
-      'setReserve',
-      'setSource',
-      'upsert',
-    ]);
-  });
+  for (const [namespace, moduleFile] of Object.entries(PROFILE_NAMESPACE_MODULES)) {
+    it(`${namespace} binds exactly ${moduleFile}'s ProfileScope-first exports`, () => {
+      const bound = Object.keys((surface[namespace] ?? {}) as object).sort();
+      expect(bound).toEqual(repoAst.scopeFirstExportNames(moduleFile, 'ProfileScope'));
+    });
+  }
 
   it('exposes the same scope object that was passed in', () => {
-    const p = profileRepoFromScope(stub.scope);
-    expect(p.scope).toBe(stub.scope);
+    expect(profileRepoFromScope(profileStub).scope).toBe(profileStub);
+  });
+});
+
+describe('accountRepoFromScope (binding shape)', () => {
+  const surface = accountRepoFromScope(accountStub) as unknown as Record<string, unknown>;
+
+  it('maps every bound namespace to a repo module', () => {
+    const unmapped = boundNamespaces(surface)
+      .map(([name]) => name)
+      .filter((name) => !(name in ACCOUNT_NAMESPACE_MODULES));
+    expect(unmapped, 'add these to ACCOUNT_NAMESPACE_MODULES so they are checked').toEqual([]);
+    expect(boundNamespaces(surface).length).toBe(Object.keys(ACCOUNT_NAMESPACE_MODULES).length);
+  });
+
+  for (const [namespace, moduleFile] of Object.entries(ACCOUNT_NAMESPACE_MODULES)) {
+    it(`${namespace} binds exactly ${moduleFile}'s AccountScope-first exports`, () => {
+      const bound = Object.keys((surface[namespace] ?? {}) as object).sort();
+      expect(bound).toEqual(repoAst.scopeFirstExportNames(moduleFile, 'AccountScope'));
+    });
+  }
+
+  it('exposes the same scope object that was passed in', () => {
+    expect(accountRepoFromScope(accountStub).scope).toBe(accountStub);
   });
 });
 

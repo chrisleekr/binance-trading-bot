@@ -1,5 +1,6 @@
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
 import type { Database } from './_db.js';
+import { bindAccountModule, bindModule, type AccountScopeBound, type ScopeBound } from './_bind.js';
 import { scopeAccount, scopeProfile, type AccountScope, type ProfileScope } from './_scoped.js';
 
 import * as accountsMod from './accounts.js';
@@ -12,6 +13,7 @@ import * as backtestAdvisorResults from './backtest-advisor-results.js';
 import * as backtestRuns from './backtest-runs.js';
 import * as backupConfig from './backup-config.js';
 import * as candles from './candles.js';
+import * as conditionStates from './condition-states.js';
 import * as discoveryUniverseSnapshots from './discovery-universe-snapshots.js';
 import * as equitySnapshots from './equity-snapshots.js';
 import * as avgEntryPrices from './avg-entry-prices.js';
@@ -40,6 +42,7 @@ export {
   backtestRuns,
   backupConfig,
   candles,
+  conditionStates,
   discoveryUniverseSnapshots,
   equitySnapshots,
   avgEntryPrices,
@@ -74,52 +77,6 @@ export {
 } from './_scoped.js';
 
 /**
- * Strips the leading `scope: ProfileScope` from a scoped repo function so
- * a bound method reads `p.orders.insert(row)` instead of
- * `orders.insert(scope, row)`.
- */
-type Bound<F> = F extends (scope: ProfileScope, ...rest: infer R) => infer Ret
-  ? (...args: R) => Ret
-  : never;
-
-/**
- * Selects the account-scoped functions of a module — those whose first
- * parameter is a {@link ProfileScope} — and binds each to a `scope`. A
- * module's user-scoped / global functions (first parameter `Database`)
- * are excluded from the public surface.
- */
-type ScopeBound<M> = {
-  [
-    K in keyof M as M[K] extends (scope: ProfileScope, ...rest: never[]) => unknown ? K : never
-  ]: Bound<M[K]>;
-};
-
-/**
- * Binds a repo module's account-scoped functions to `scope`.
- *
- * For a pure module — every function account-scoped — call with two args.
- * For a mixed module (one that also exports user-scoped / global
- * functions, e.g. `profiles`, `auditLogs`, `actionLogs`), pass `only` with
- * the account-scoped function names so the user-scoped / global ones stay
- * off the runtime surface, keeping it identical to the `ScopeBound<M>`
- * type. A function key in `only` that does not exist would not typecheck.
- */
-const bindModule = <M extends Record<string, unknown>>(
-  scope: ProfileScope,
-  mod: M,
-  only?: readonly (keyof M & string)[],
-): ScopeBound<M> => {
-  const out: Record<string, unknown> = {};
-  const names = only ?? Object.keys(mod);
-  for (const name of names) {
-    const fn = mod[name];
-    if (typeof fn !== 'function') continue;
-    out[name] = (...args: unknown[]) => (fn as (...a: unknown[]) => unknown)(scope, ...args);
-  }
-  return out as ScopeBound<M>;
-};
-
-/**
  * Per-request profile-scoped surface. Each bound method delegates to the
  * matching scoped repo function with the `ProfileScope` already threaded
  * in, so route handlers and the worker stop passing it by hand. Construct
@@ -138,6 +95,7 @@ export interface ProfileRepo {
   readonly auditLogs: ScopeBound<typeof auditLogs>;
   readonly backtestAdvisorResults: ScopeBound<typeof backtestAdvisorResults>;
   readonly backtestRuns: ScopeBound<typeof backtestRuns>;
+  readonly conditionStates: ScopeBound<typeof conditionStates>;
   readonly discoveryUniverseSnapshots: ScopeBound<typeof discoveryUniverseSnapshots>;
   readonly equitySnapshots: ScopeBound<typeof equitySnapshots>;
   readonly avgEntryPrices: ScopeBound<typeof avgEntryPrices>;
@@ -200,7 +158,7 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
     appliedFills: bindModule(scope, appliedFills),
     auditLogs: bindModule(scope, auditLogs, ['listForProfile', 'listAllForProfile']),
     // `only` excludes the GLOBAL `failStaleRunning` (db-first, cross-profile
-    // boot sweep) from the bound surface, keeping it identical to ScopeBound<M>.
+    // boot sweep) from the bound surface.
     backtestAdvisorResults: bindModule(scope, backtestAdvisorResults, [
       'listForRun',
       'getVariant',
@@ -208,16 +166,40 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
       'completeVariant',
       'upsertManual',
     ]),
-    backtestRuns: bindModule(scope, backtestRuns),
+    // `only` excludes the GLOBAL `failById` / `listNonTerminalOlderThan` (worker
+    // recovery + the cross-profile backtest sweep).
+    backtestRuns: bindModule(scope, backtestRuns, [
+      'create',
+      'findDoneBySignature',
+      'get',
+      'recentDone',
+      'list',
+      'count',
+      'markRunning',
+      'updateProgress',
+      'complete',
+      'markCancelled',
+      'deleteById',
+      'fail',
+    ]),
+    conditionStates: bindModule(scope, conditionStates),
     // `only` excludes the GLOBAL `pruneOlderThan` (db-first retention sweep)
-    // from the bound surface, keeping the runtime object identical to ScopeBound<M>.
+    // from the bound surface.
     discoveryUniverseSnapshots: bindModule(scope, discoveryUniverseSnapshots, [
       'record',
       'listForProfile',
     ]),
     // `only` excludes the GLOBAL `pruneOlderThan` retention sweep.
     equitySnapshots: bindModule(scope, equitySnapshots, ['record', 'listForProfileInRange']),
-    avgEntryPrices: bindModule(scope, avgEntryPrices),
+    // `only` excludes the ACCOUNT-ID-scoped `sumDeployedQuoteForAccount`, which
+    // spans an account's profiles for the cross-profile exposure cap.
+    avgEntryPrices: bindModule(scope, avgEntryPrices, [
+      'findBySymbol',
+      'findBySymbols',
+      'listForProfile',
+      'upsert',
+      'remove',
+    ]),
     manualOrders: bindModule(scope, manualOrders),
     // `only` excludes the GLOBAL `listLiveBinanceOrderIdsByAccount` /
     // `listLiveDetached` (db-first sweeps) and the five ACCOUNT-scoped
@@ -244,8 +226,7 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
       'findById',
     ]),
     // `only` excludes the ACCOUNT-LEVEL `reapExpiredForAccount` (one statement
-    // for the whole sweep) from the profile surface, keeping the runtime object
-    // identical to ScopeBound<M>.
+    // for the whole sweep) from the profile surface.
     overrideActions: bindModule(scope, overrideActions, [
       'listPending',
       'listDustTransferHistory',
@@ -261,7 +242,15 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
       'deletePendingForSymbol',
     ]),
     profileKv: bindModule(scope, profileKv),
-    profileNotifiers: bindModule(scope, profileNotifiers),
+    // `only` excludes the GLOBAL `listAllEnabled` and the ACCOUNT-ID-scoped
+    // `listEnabledForAccount` — both fan ops alerts out beyond one profile.
+    profileNotifiers: bindModule(scope, profileNotifiers, [
+      'listForProfile',
+      'findByProvider',
+      'insert',
+      'setEnabled',
+      'upsertByProvider',
+    ]),
     profileStateHistory: bindModule(scope, profileStateHistory),
     profileSymbols: bindModule(scope, profileSymbols, [
       'listForProfile',
@@ -272,48 +261,13 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
       'setReserve',
       'recordFlatten',
       'removeAutoIfFlat',
+      'profileManagesBase',
     ]),
-    // Pure module (every fn is scope-first) → two-arg bind, no `only`, like
-    // backtestRuns. A method missing from the bound surface despite typechecking
-    // is the storeProgress class of bug, so keep this in lockstep with the module.
     resultLedger: bindModule(scope, resultLedger),
     symbolStates: bindModule(scope, symbolStatesMod),
     tradeArchive: bindModule(scope, tradeArchive),
   };
 }
-
-/** {@link Bound} for the account tier: strips a leading `scope: AccountScope`. */
-type AccountBound<F> = F extends (scope: AccountScope, ...rest: infer R) => infer Ret
-  ? (...args: R) => Ret
-  : never;
-
-/**
- * Selects a module's account-scoped functions — those whose first parameter is
- * an {@link AccountScope} — and binds each to a `scope`. A module's
- * operator-scoped / global functions (first parameter `Database`, e.g.
- * `accounts.create` / `accounts.listForOwner`, `profiles.insert`) are excluded.
- */
-type AccountScopeBound<M> = {
-  [
-    K in keyof M as M[K] extends (scope: AccountScope, ...rest: never[]) => unknown ? K : never
-  ]: AccountBound<M[K]>;
-};
-
-/** {@link bindModule} for the account tier. */
-const bindAccountModule = <M extends Record<string, unknown>>(
-  scope: AccountScope,
-  mod: M,
-  only?: readonly (keyof M & string)[],
-): AccountScopeBound<M> => {
-  const out: Record<string, unknown> = {};
-  const names = only ?? Object.keys(mod);
-  for (const name of names) {
-    const fn = mod[name];
-    if (typeof fn !== 'function') continue;
-    out[name] = (...args: unknown[]) => (fn as (...a: unknown[]) => unknown)(scope, ...args);
-  }
-  return out as AccountScopeBound<M>;
-};
 
 /**
  * Per-request account-scoped surface: account CRUD, api-key management, and
@@ -350,10 +304,17 @@ export async function accountRepo(
 export function accountRepoFromScope(scope: AccountScope): AccountRepo {
   return {
     scope,
-    // `only` excludes the operator-scoped `create` / `listForOwner` (Database-
-    // first) from the bound surface, keeping it identical to AccountScopeBound<M>.
+    // `only` excludes the operator-scoped `create` / `listForOwner`
+    // (Database-first) from the bound surface.
     account: bindAccountModule(scope, accountsMod, ['get', 'update', 'deleteById']),
-    apiKeys: bindAccountModule(scope, apiKeys),
+    // `only` excludes the ACCOUNT-ID-scoped `findByAccountId` (worker path, no
+    // scope in hand) and the OPERATOR-scoped `accountIdsWithKeyForOwner`.
+    apiKeys: bindAccountModule(scope, apiKeys, [
+      'findForAccount',
+      'upsert',
+      'setVerification',
+      'removeForAccount',
+    ]),
     // Order reconciliation is account-domain: a Binance order id is unique per
     // account, the user-data stream is per account, and a DETACHED order
     // (profile_id NULL) is reachable only by account. `only` binds those five;
