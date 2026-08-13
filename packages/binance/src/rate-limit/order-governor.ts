@@ -99,6 +99,21 @@ export interface OrderRateGovernor {
    * Unknown `windowMs` is ignored — an inert governor has nothing to reconcile.
    */
   observe(windowMs: number, used: number): void;
+  /**
+   * Adopt a new set of ORDERS windows IN PLACE, keeping the rolling tally of
+   * every window whose length survives.
+   *
+   * In place rather than by rebuilding the governor, because a governor is
+   * memoised per account and handed to REST clients by reference: a replacement
+   * would reach neither an already-built client nor the orders already counted.
+   * A fresh instance also starts empty, and a TIGHTENED ceiling arriving with an
+   * empty tally is exactly when a burst gets admitted over the new allowance,
+   * the `-1015` this whole mechanism exists to avoid.
+   *
+   * Windows absent from `next` are dropped; new lengths start empty. Throws on
+   * a malformed set without applying any of it.
+   */
+  reconfigure(next: readonly OrderRateWindow[]): void;
   /** Current rolling count in the given window; 0 for an unknown window. */
   used(windowMs: number): number;
   /** Post-haircut admission ceiling for the window; Infinity when unknown. */
@@ -251,19 +266,34 @@ export const createOrderRateGovernor = (opts: OrderRateGovernorOptions): OrderRa
   const sleep = opts.sleep ?? _defaultSleep;
 
   const windows = new Map<number, WindowState>();
-  for (const w of opts.windows) {
-    if (!Number.isFinite(w.windowMs) || w.windowMs <= 0) {
-      throw new Error(`OrderRateGovernor: windowMs must be positive, got ${String(w.windowMs)}`);
+
+  // Rebuilds the window set, carrying each surviving window's tally across.
+  // Validation runs before anything is written so a malformed set leaves the
+  // governor on its previous windows rather than half-applied.
+  const applyWindows = (next: readonly OrderRateWindow[]): void => {
+    for (const w of next) {
+      if (!Number.isFinite(w.windowMs) || w.windowMs <= 0) {
+        throw new Error(`OrderRateGovernor: windowMs must be positive, got ${String(w.windowMs)}`);
+      }
+      if (!Number.isFinite(w.limit) || w.limit <= 0) {
+        throw new Error(`OrderRateGovernor: limit must be positive, got ${String(w.limit)}`);
+      }
     }
-    if (!Number.isFinite(w.limit) || w.limit <= 0) {
-      throw new Error(`OrderRateGovernor: limit must be positive, got ${String(w.limit)}`);
+    const previous = new Map(windows);
+    windows.clear();
+    for (const w of next) {
+      // Floor, so the haircut can never round a small limit UP past the real one.
+      // A limit small enough to floor to 0 would deadlock every reservation, so
+      // it clamps to 1, still below the real limit, and still forward progress.
+      const ceiling = Math.max(1, Math.floor(w.limit * utilisation));
+      // Keyed on window LENGTH, so a tally only carries across when the same
+      // span is still being metered. A 10s history says nothing about a 1d
+      // window, and a genuinely new span has no history to inherit.
+      const records = previous.get(w.windowMs)?.records ?? [];
+      windows.set(w.windowMs, { windowMs: w.windowMs, ceiling, records });
     }
-    // Floor, so the haircut can never round a small limit UP past the real one.
-    // A limit small enough to floor to 0 would deadlock every reservation, so
-    // it clamps to 1 — still below the real limit, and still forward progress.
-    const ceiling = Math.max(1, Math.floor(w.limit * utilisation));
-    windows.set(w.windowMs, { windowMs: w.windowMs, ceiling, records: [] });
-  }
+  };
+  applyWindows(opts.windows);
 
   const usedIn = (w: WindowState, now: number): number => {
     const horizon = now - w.windowMs;
@@ -308,6 +338,8 @@ export const createOrderRateGovernor = (opts: OrderRateGovernorOptions): OrderRa
       return w === undefined ? 0 : usedIn(w, clock.nowMs());
     },
     ceiling: (windowMs) => windows.get(windowMs)?.ceiling ?? Number.POSITIVE_INFINITY,
+
+    reconfigure: applyWindows,
 
     observe: (windowMs, used) => {
       const w = windows.get(windowMs);

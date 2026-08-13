@@ -81,11 +81,11 @@ describe('resolveBinanceEndpoints', () => {
     expect(() =>
       resolveBinanceEndpoints({ ...OVERRIDES, BINANCE_MARKET_WS_URL: 'wss://127.0.0.1:4010' }),
     ).toThrow(/must use ws:/);
-    // The REST scheme is pinned the same way, and rejecting the MORE secure
-    // scheme is the surprising half: the check is not about transport security
-    // on loopback, it is that every override must be one exact recognised shape.
-    // Widening it to "http or https" is the plausible edit, and it is the first
-    // step toward accepting a scheme whose host resolution differs.
+    // The REST scheme is pinned the same way the WS one is, and rejecting the
+    // MORE secure scheme is the surprising half. The check is an allow-list of
+    // one exact shape per key, not a security judgement about loopback: the
+    // app-e2e fixture serves plain HTTP, so an accepted `https` override would
+    // surface as a TLS handshake failure mid-run instead of at config time.
     expect(() =>
       resolveBinanceEndpoints({ ...OVERRIDES, BINANCE_REST_URL: 'https://127.0.0.1:4010' }),
     ).toThrow(/must use http:/);

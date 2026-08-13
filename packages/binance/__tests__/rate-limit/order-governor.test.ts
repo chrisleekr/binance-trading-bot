@@ -475,4 +475,67 @@ describe('createOrderRateGovernor', () => {
       expect(g.used(TEN_S)).toBe(0);
     });
   });
+
+  describe('reconfigure', () => {
+    it('adopts the new ceiling while keeping the surviving window’s tally', async () => {
+      const clock = fakeClock();
+      const g = createOrderRateGovernor({ windows: liveWindows, clock });
+      await g.reserve(30);
+      expect(g.ceiling(TEN_S)).toBe(80);
+
+      g.reconfigure([{ windowMs: TEN_S, limit: 50 }]);
+
+      // The 30 already on the wire still count. A rebuilt governor would report
+      // 0 here and admit 40 more against a ceiling that just dropped to 40.
+      expect(g.ceiling(TEN_S)).toBe(40);
+      expect(g.used(TEN_S)).toBe(30);
+      expect(g.hasHeadroom(10)).toBe(true);
+      expect(g.hasHeadroom(11)).toBe(false);
+    });
+
+    it('ages a carried-over tally out on the NEW window length', () => {
+      const clock = fakeClock();
+      const g = createOrderRateGovernor({ windows: liveWindows, clock });
+      g.observe(TEN_S, 5);
+
+      g.reconfigure([{ windowMs: TEN_S, limit: 100 }]);
+      clock.advance(TEN_S + 1);
+      expect(g.used(TEN_S)).toBe(0);
+    });
+
+    it('starts a window length that did not exist before at zero', async () => {
+      const g = createOrderRateGovernor({ windows: liveWindows, clock: fakeClock() });
+      await g.reserve(4);
+
+      // 60s was never metered, so there is no history it could inherit. Carrying
+      // the 10s tally across would charge a longer window for orders it never saw.
+      g.reconfigure([{ windowMs: 60_000, limit: 500 }]);
+      expect(g.used(60_000)).toBe(0);
+    });
+
+    it('drops a window the new set omits', async () => {
+      const g = createOrderRateGovernor({ windows: liveWindows, clock: fakeClock() });
+      await g.reserve(4);
+
+      g.reconfigure([{ windowMs: TEN_S, limit: 100 }]);
+      // An unmetered window reports no ceiling, so it can never be the blocker.
+      expect(g.ceiling(ONE_D)).toBe(Number.POSITIVE_INFINITY);
+      expect(g.used(ONE_D)).toBe(0);
+    });
+
+    it.each([
+      ['a non-positive windowMs', { windowMs: 0, limit: 100 }, /windowMs/i],
+      ['a non-positive limit', { windowMs: TEN_S, limit: 0 }, /limit/i],
+    ])('rejects %s without applying any of the set', async (_label, bad, pattern) => {
+      const g = createOrderRateGovernor({ windows: liveWindows, clock: fakeClock() });
+      await g.reserve(4);
+
+      // The good row is FIRST, so a validate-as-you-write implementation would
+      // have already replaced the 10s window before reaching the bad one. The
+      // governor must stay on its previous set instead of half-applied.
+      expect(() => g.reconfigure([{ windowMs: TEN_S, limit: 50 }, { ...bad }])).toThrow(pattern);
+      expect(g.ceiling(TEN_S)).toBe(80);
+      expect(g.used(TEN_S)).toBe(4);
+    });
+  });
 });
