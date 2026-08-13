@@ -36,6 +36,7 @@
 
 import type { Logger } from 'pino';
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
+import type { MetricsSink } from 'metrics/catalog.js';
 import type { BinanceWs, BinanceWsFactory } from 'market-data/binance-ws.js';
 import {
   type BinanceMode,
@@ -86,6 +87,8 @@ export interface UserStreamDeps {
    * tests. Production defaults to `Date.now`.
    */
   readonly nowMs?: () => number;
+  /** Records stream disconnects. Optional like every sink seam; absent is a no-op. */
+  readonly metrics?: MetricsSink;
   /**
    * Per-connection heartbeat cadence. Each open socket pings Binance ws-api
    * at this interval; the matching response advances `lastMessageMs`. Must
@@ -176,6 +179,17 @@ interface ConnectionState {
   pingSeq: number;
   /** Periodic heartbeat timer; cleared on close/reconnect. */
   heartbeatTimer: ReturnType<typeof setInterval> | null;
+  /**
+   * Set before we close this socket ourselves, so its own `onClose` knows the
+   * drop was deliberate and leaves the disconnect counter alone.
+   *
+   * Per connection rather than per profile: `ws.close()` fires `onClose` on a
+   * later turn, so a profile closed and reopened in between would have its
+   * intent re-armed by the reopen, and the stale socket's late close would read
+   * as a drop. `reconnect` deliberately leaves this false — the watchdog closing
+   * a socket it no longer trusts IS the disconnect worth counting.
+   */
+  closedByUs: boolean;
 }
 
 const DEFAULT_WATCHDOG_INTERVAL_MS = 60_000;
@@ -336,6 +350,23 @@ export const createUserStreamPool = (deps: UserStreamDeps): UserStreamPool => {
     state.ws.onError((err) => deps.logger.warn({ profileId, err: err }, 'user-stream WS error'));
     state.ws.onClose(() => {
       deps.logger.warn({ profileId }, 'user-stream WS closed');
+      // Counted here and nowhere else. The watchdog's reconnect closes the stale
+      // socket itself, so this handler already sees that drop; counting at the
+      // reconnect too would report two disconnects per flap and make any rate
+      // threshold fire at half the intended flap rate. Per account, because a
+      // key re-issue is what fixes a flapping stream and keys are per account.
+      //
+      // Only drops we did not ask for. `close`, `closeAll`, the orphan drop and
+      // the scheduled stream-silence reconnect stamp the socket before closing
+      // it; the idle-socket reconnect does not, so a teardown that followed a
+      // socket going unresponsive still counts. Ungated, disabling profiles or
+      // shutting the worker down emits one count per profile against a threshold
+      // summed across accounts, and a routine deploy pages as a flapping stream.
+      // The inverse costs an undercount only when a genuine drop races an
+      // operator's disable, on a profile that is going away regardless.
+      if (!state.closedByUs) {
+        deps.metrics?.record('binance_ws_disconnects_total', 1, { accountId: state.accountId });
+      }
       // Stop the heartbeat unconditionally — even if this onClose
       // belongs to a stale socket replaced by a newer connection, the
       // stale state's timer is per-connection and safe to clear.
@@ -381,6 +412,7 @@ export const createUserStreamPool = (deps: UserStreamDeps): UserStreamPool => {
       lastAccountEventMs: nowMs(),
       pingSeq: 0,
       heartbeatTimer: null,
+      closedByUs: false,
     };
     conns.set(profileId, state);
     wireWs(state, profileId);
@@ -392,15 +424,27 @@ export const createUserStreamPool = (deps: UserStreamDeps): UserStreamPool => {
   // teardown ordering — stop heartbeat, drop from `conns`, close, reopen, resync
   // — exists once. The reopen reseeds both liveness clocks, which is what makes a
   // repeated trip impossible until the next full idle window elapses.
+  //
+  // `scheduled` separates the two callers for the disconnect counter, which means
+  // closes nobody asked for. A socket that stopped answering pings is a fault and
+  // its teardown is the symptom, so that path counts. Account-stream silence is
+  // not: this file's own contract says a quiet wallet is the normal state, so that
+  // reconnect is a verification the pool schedules against a socket it has no
+  // evidence against. Counting it would put one increment per profile on the
+  // account's series every idle window, and an account holding six untraded
+  // profiles would clear the five-in-fifteen-minutes threshold overnight, on a
+  // stream that never dropped.
   const reconnect = async (
     state: ConnectionState,
     operatorId: UserId,
     accountId: AccountId,
     profileId: ProfileId,
+    scheduled = false,
   ): Promise<void> => {
     const stale = state.ws;
     stopHeartbeat(state);
     conns.delete(profileId);
+    if (scheduled) state.closedByUs = true;
     try {
       stale.close();
     } catch (err) {
@@ -430,6 +474,7 @@ export const createUserStreamPool = (deps: UserStreamDeps): UserStreamPool => {
           const orphan = conns.get(profileId);
           if (orphan) {
             conns.delete(profileId);
+            orphan.closedByUs = true;
             orphan.ws.close();
           }
           return;
@@ -447,6 +492,7 @@ export const createUserStreamPool = (deps: UserStreamDeps): UserStreamPool => {
       if (!state) return;
       stopHeartbeat(state);
       conns.delete(profileId);
+      state.closedByUs = true;
       state.ws.close();
     },
     async closeAll() {
@@ -538,7 +584,7 @@ export const createUserStreamPool = (deps: UserStreamDeps): UserStreamPool => {
           { profileId, accountAgeMs, accountEventIdleMs },
           'user-stream watchdog: no account event for the idle window, reconnecting to verify the stream',
         );
-        await reconnect(state, operatorId, accountId, profileId);
+        await reconnect(state, operatorId, accountId, profileId, true);
         try {
           await deps.onStreamSilent?.(operatorId, accountId, profileId, accountAgeMs);
         } catch (err) {

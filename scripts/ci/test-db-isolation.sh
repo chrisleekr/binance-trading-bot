@@ -7,6 +7,7 @@ set -euo pipefail
 # shellcheck source=_common.sh
 source "$(dirname "$0")/_common.sh"
 ci::start test-db-isolation
+export COVERAGE_LANE=db-isolation
 
 # Wait for Postgres to accept queries. GitLab's TCP port check races the
 # service's init, so the job can start before the server is really up. Poll a
@@ -32,4 +33,4 @@ ci::start test-db-isolation
   process.exit(1);
 ' )
 
-bunx turbo test --filter '@app/db'
+bunx turbo test --filter '@app/db' -- --coverage

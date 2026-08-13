@@ -1,0 +1,227 @@
+[
+  {
+    "env": "AUTH_SECRET",
+    "group": "Required",
+    "kind": "secret"
+  },
+  {
+    "env": "WEB_ORIGIN",
+    "group": "Required",
+    "kind": "config"
+  },
+  {
+    "env": "DATABASE_URL",
+    "group": "Required",
+    "kind": "secret"
+  },
+  {
+    "env": "REDIS_URL",
+    "group": "Required",
+    "kind": "secret"
+  },
+  {
+    "env": "POSTGRES_PASSWORD",
+    "group": "Required",
+    "kind": "secret"
+  },
+  {
+    "env": "NODE_ENV",
+    "group": "Runtime",
+    "kind": "config"
+  },
+  {
+    "env": "LOG_LEVEL",
+    "group": "Runtime",
+    "kind": "config"
+  },
+  {
+    "env": "ROLE",
+    "group": "Runtime",
+    "kind": "config"
+  },
+  {
+    "env": "LIVE_DEMO",
+    "group": "Runtime",
+    "kind": "config"
+  },
+  {
+    "env": "PUBLIC_WEB_URL",
+    "group": "Runtime",
+    "kind": "config"
+  },
+  {
+    "env": "PORT",
+    "group": "HTTP and admin ports",
+    "kind": "config"
+  },
+  {
+    "env": "ADMIN_PORT",
+    "group": "HTTP and admin ports",
+    "kind": "config"
+  },
+  {
+    "env": "ADMIN_HOST",
+    "group": "HTTP and admin ports",
+    "kind": "config"
+  },
+  {
+    "env": "WORKER_ADMIN_PORT",
+    "group": "HTTP and admin ports",
+    "kind": "config"
+  },
+  {
+    "env": "WORKER_ADMIN_HOST",
+    "group": "HTTP and admin ports",
+    "kind": "config"
+  },
+  {
+    "env": "APP_HTTP_PORT",
+    "group": "HTTP and admin ports",
+    "kind": "config"
+  },
+  {
+    "env": "POSTGRES_DB",
+    "group": "Database",
+    "kind": "config"
+  },
+  {
+    "env": "POSTGRES_USER",
+    "group": "Database",
+    "kind": "config"
+  },
+  {
+    "env": "PGSSLMODE",
+    "group": "Database",
+    "kind": "config"
+  },
+  {
+    "env": "API_DB_POOL_MAX",
+    "group": "Database",
+    "kind": "config"
+  },
+  {
+    "env": "WORKER_DB_POOL_MAX",
+    "group": "Database",
+    "kind": "config"
+  },
+  {
+    "env": "ADMIN_DB_POOL_MAX",
+    "group": "Database",
+    "kind": "config"
+  },
+  {
+    "env": "ACTION_LOG_RETENTION_DAYS",
+    "group": "Retention (days before pruning)",
+    "kind": "config"
+  },
+  {
+    "env": "AUDIT_LOG_RETENTION_DAYS",
+    "group": "Retention (days before pruning)",
+    "kind": "config"
+  },
+  {
+    "env": "DISCOVERY_SNAPSHOT_RETENTION_DAYS",
+    "group": "Retention (days before pruning)",
+    "kind": "config"
+  },
+  {
+    "env": "EQUITY_SNAPSHOT_RETENTION_DAYS",
+    "group": "Retention (days before pruning)",
+    "kind": "config"
+  },
+  {
+    "env": "BACKTEST_CONCURRENCY",
+    "group": "Worker tuning",
+    "kind": "config"
+  },
+  {
+    "env": "STUDY_CPU_SHARE",
+    "group": "Worker tuning",
+    "kind": "config"
+  },
+  {
+    "env": "TICK_CONCURRENCY",
+    "group": "Worker tuning",
+    "kind": "config"
+  },
+  {
+    "env": "KLINE_CONCURRENCY",
+    "group": "Worker tuning",
+    "kind": "config"
+  },
+  {
+    "env": "TICK_PERSIST_TIMEOUT_MS",
+    "group": "Worker tuning",
+    "kind": "config"
+  },
+  {
+    "env": "WORKER_FRAME_TRACE",
+    "group": "Worker tuning",
+    "kind": "config"
+  },
+  {
+    "env": "WORKER_FRAME_TRACE_FILE",
+    "group": "Worker tuning",
+    "kind": "config"
+  },
+  {
+    "env": "WORKER_REPLICAS",
+    "group": "Worker tuning",
+    "kind": "config"
+  },
+  {
+    "env": "OTEL_SERVICE_NAME",
+    "group": "Observability (OpenTelemetry)",
+    "kind": "config"
+  },
+  {
+    "env": "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "group": "Observability (OpenTelemetry)",
+    "kind": "config"
+  },
+  {
+    "env": "OTEL_EXPORTER_OTLP_HEADERS",
+    "group": "Observability (OpenTelemetry)",
+    "kind": "secret"
+  },
+  {
+    "env": "OTEL_EXPORTER_OTLP_TIMEOUT",
+    "group": "Observability (OpenTelemetry)",
+    "kind": "config"
+  },
+  {
+    "env": "DEPLOY_ENV",
+    "group": "Observability (OpenTelemetry)",
+    "kind": "config"
+  },
+  {
+    "env": "IMAGE_TAG",
+    "group": "Build and deploy",
+    "kind": "config"
+  },
+  {
+    "env": "BACKUP_DIR",
+    "group": "Build and deploy",
+    "kind": "config"
+  },
+  {
+    "env": "GIT_SHA",
+    "group": "Build and deploy",
+    "kind": "config"
+  },
+  {
+    "env": "WEB_DIST_DIR",
+    "group": "Build and deploy",
+    "kind": "config"
+  },
+  {
+    "env": "VITE_API_BASE_URL",
+    "group": "Web build (build-time only)",
+    "kind": "config"
+  },
+  {
+    "env": "VITE_PWA",
+    "group": "Web build (build-time only)",
+    "kind": "config"
+  }
+]

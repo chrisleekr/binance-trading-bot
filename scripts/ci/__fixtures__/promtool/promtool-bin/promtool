@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"${PROMTOOL_CALL_LOG:?}"
+exit 0

@@ -12,6 +12,7 @@ Deterministic Binance REST + WS conversations used by integration and e2e suites
 | `order-status` | REST | `GET /api/v3/order` | Same LIMIT BUY queried later, now `FILLED`. |
 | `execution-report-filled` | WS | `executionReport` | 3 frames: `NEW` → `PARTIALLY_FILLED` → `FILLED`. |
 | `account-update` | WS | `outboundAccountPosition` + `balanceUpdate` | Post-fill balance snapshot then a `balanceUpdate` notice. |
+| `app-e2e-boot` | REST | klines + 24-hour ticker | Deterministic responses requested while the hermetic app boots. |
 
 ## Directory layout
 
@@ -74,6 +75,16 @@ try {
 ```
 
 For scenarios with WS frames, point the system under test at `handle.wsUrl` (a `ws://127.0.0.1:<ephemeral>` URL). Each new WebSocket connection re-runs the full frame sequence.
+
+## Network fixture server
+
+`server.ts` serves the same REST fixture files to the real app process. Its CLI requires `BINANCE_FIXTURE_MANIFEST_PATH` and `BINANCE_FIXTURE_UNMATCHED_PATH`, and writes the first as shell `export` lines for `BINANCE_REST_URL`, `BINANCE_MARKET_WS_URL`, and `BINANCE_USER_WS_URL` on distinct loopback endpoints. The app-e2e harness is the intended CLI caller and sources that file directly.
+
+REST requests match method and path exactly. An object `matchQuery` is a required partial query match; `"any"` accepts changing signed parameters.
+
+The server answers no WebSocket. The P0 journey seeds every profile disabled, so the worker subscribes to no symbol and opens no account stream, and neither the market nor the user stream is ever reached. The stream URLs are still published because the app's endpoint override is all-or-nothing, and an upgrade attempt against them is refused. It is not a protocol harness either: it does not police RPC shapes or signature parameters.
+
+What it does assert is coverage. A REST request no fixture answers gets a 501, a stream upgrade gets its socket destroyed, and both append a line to `BINANCE_FIXTURE_UNMATCHED_PATH` as they happen, which the harness fails the lane on. Appending beats writing the set on shutdown: the harness kills this process, so a verdict held in memory would go missing exactly when the lane must fail. REST is recorded because the app can swallow a 501 into a degraded-but-passing journey; upgrades are recorded because a stub ack would hide the day the app starts streaming here. REST records carry the method and path with query credentials redacted.
 
 ### Interception surface
 

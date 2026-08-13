@@ -15,8 +15,24 @@ import { profileDetailRoute } from '@/features/profile/routes/profiles.$profileI
 import { symbolDetailRoute } from '@/features/symbol/routes/profiles.$profileId.symbols.$symbol';
 import { rootRoute } from '@/app/__root';
 
+import { pendingFetchForPaths } from './helpers/pending-fetch';
+
 const ACCOUNT_ID = '00000000-0000-4000-8000-0000000000ac';
 const PROFILE_ID = '11111111-1111-4111-8111-111111111111';
+const PROFILE_PATH = `/api/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}`;
+const SYMBOL_PATH = `${PROFILE_PATH}/symbols/BTCUSDT`;
+const BACKGROUND_PATHS = [
+  `/api/accounts/${ACCOUNT_ID}/dashboard-aggregate`,
+  `${PROFILE_PATH}/dashboard`,
+  `${PROFILE_PATH}/technicals/recommendations`,
+  `${SYMBOL_PATH}/state`,
+  `${SYMBOL_PATH}/ticker`,
+  `${SYMBOL_PATH}/candles`,
+  `${SYMBOL_PATH}/depth`,
+  `${SYMBOL_PATH}/trades`,
+  `${SYMBOL_PATH}/orders`,
+  `${SYMBOL_PATH}/logs`,
+] as const;
 const TEST_ACCOUNT = {
   id: ACCOUNT_ID,
   name: 'Main',
@@ -53,10 +69,8 @@ function mountAt(path: string): void {
 
 describe('document.title via the real router', () => {
   beforeEach(() => {
+    vi.stubGlobal('fetch', pendingFetchForPaths(...BACKGROUND_PATHS));
     window.localStorage.clear();
-    // The symbol workspace fires unseeded queries that reject under jsdom; the
-    // title effect runs in __root regardless, so swallow the console noise.
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
   });
   afterEach(() => {
     window.localStorage.clear();

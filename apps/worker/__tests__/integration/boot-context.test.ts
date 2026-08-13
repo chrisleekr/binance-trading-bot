@@ -45,6 +45,7 @@ const EXPECTED_FIELDS = [
   'liveExecutor',
   'logger',
   'marketDataPort',
+  'metrics',
   'metricsRegistry',
   'notifierGapThrottle',
   'notifyEvent',

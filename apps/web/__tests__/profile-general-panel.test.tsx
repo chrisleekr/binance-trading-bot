@@ -62,6 +62,7 @@ const aggregate = (
 });
 
 const SIBLING_PID = '00000000-0000-4000-8000-0000000000c2';
+let dashboardAggregate = aggregate({});
 
 // Adds a second profile under the same account so the delete dialog has a
 // handoff target to offer. The sibling itself carries no exposure.
@@ -79,6 +80,7 @@ const withSibling = (agg: DashboardAggregateResponse): DashboardAggregateRespons
 });
 
 const setUp = (agg: DashboardAggregateResponse): void => {
+  dashboardAggregate = agg;
   const qc = createQueryClient();
   qc.setQueryData(['dashboard-aggregate', ACCOUNT_ID], agg);
   const root = createRootRoute({
@@ -110,7 +112,20 @@ const setUp = (agg: DashboardAggregateResponse): void => {
 
 describe('<ProfileGeneralPanel>', () => {
   beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    dashboardAggregate = { profiles: [] };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/dashboard-aggregate')) {
+          return new Response(JSON.stringify(dashboardAggregate), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        throw new Error(`unexpected profile-general-panel request: ${url}`);
+      }),
+    );
   });
   afterEach(() => vi.restoreAllMocks());
 

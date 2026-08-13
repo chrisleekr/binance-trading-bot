@@ -136,6 +136,7 @@ nav:
       - Production deploy: operations/deploy.md
       - Kill switch: operations/kill-switch.md
       - Environment variables: operations/env-vars.md
+      - Metrics reference: operations/metrics.md
       - Troubleshooting: operations/troubleshooting.md
   - Contributing:
       - Overview: contributing/index.md

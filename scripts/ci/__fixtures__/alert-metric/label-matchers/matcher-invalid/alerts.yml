@@ -1,0 +1,6 @@
+groups:
+  - name: fixture.matcher-invalid
+    rules:
+      - alert: InvalidWeightMatcher
+        expr: binance_api_weight{accountId="missing-label"} > 1000
+        for: 2m

@@ -3,7 +3,7 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createQueryClient } from '../src/shared/lib/query-client.js';
 import {
@@ -11,6 +11,8 @@ import {
   SymbolSignalPanel,
 } from '../src/features/symbol/strategies/trailing-trade/signal-panel.js';
 import { symbolCandleBucketMs, symbolCandlesQueryKey } from '../src/features/symbol/api/symbol.js';
+
+import { pendingFetchForPaths } from './helpers/pending-fetch';
 
 import type { CandleList, SymbolStateResponse, TechnicalsResponse } from '@app/contracts';
 
@@ -52,6 +54,9 @@ const pyramidConfig = (maxAdds = 3, stepPercentage = '0.05'): unknown => ({
 
 const PROFILE_ID = '4d2f9f4a-1c9c-4e5f-9a1d-3b6f7c8e0a2c';
 const SYMBOL = 'BTCUSDT';
+const ACCOUNT_ID = '00000000-0000-4000-8000-0000000000ac';
+const TECHNICALS_PATH = `/api/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}/technicals/recommendations`;
+const CANDLES_PATH = `/api/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}/symbols/${SYMBOL}/candles`;
 
 const renderPanel = (props: {
   strategy: SymbolStateResponse['strategy'];
@@ -85,6 +90,10 @@ const renderPanel = (props: {
     </QueryClientProvider>,
   );
 };
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', pendingFetchForPaths(TECHNICALS_PATH, CANDLES_PATH));
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();

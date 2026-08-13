@@ -1,57 +1,159 @@
+import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
-import { PER_PACKAGE_THRESHOLDS } from '../vitest/index.js';
-import strategyCore from '../../strategy/core/vitest.config.ts';
-import strategyTrailingTrade from '../../strategy/trailing-trade/vitest.config.ts';
-import strategyMomentum from '../../strategy/momentum/vitest.config.ts';
-import strategyRebalance from '../../strategy/rebalance/vitest.config.ts';
-import strategyBacktest from '../../strategy/backtest/vitest.config.ts';
-import indicators from '../../indicators/vitest.config.ts';
-import discovery from '../../discovery/vitest.config.ts';
-import binance from '../../binance/vitest.config.ts';
-import llm from '../../llm/vitest.config.ts';
-import web from '../../../apps/web/vitest.config.ts';
+import { COVERAGE_POLICY, PER_PACKAGE_THRESHOLDS } from '../vitest/index.js';
 
-// Every package listed in PER_PACKAGE_THRESHOLDS must ACTUALLY inject those
-// thresholds through its own vitest.config — by passing `packageName` to
-// defineProject, or (for a custom config like web's) by sourcing
-// `coverageThresholdsFor`. A package listed in the map but whose config does
-// not wire the thresholds is a DEAD entry: the gate silently never fires (#488
-// — db/api/worker/web/contracts were all inert this way). Importing each
-// resolved config and asserting its `coverage.thresholds` match is the only way
-// to prove the entry is live. Adding a package to the map forces a new import
-// here, which forces wiring its config.
-interface ConfigShape {
-  test?: { coverage?: { thresholds?: unknown } };
-}
-const CONFIGS: Record<string, ConfigShape> = {
-  '@app/strategy-core': strategyCore,
-  '@app/strategy-trailing-trade': strategyTrailingTrade,
-  '@app/strategy-momentum': strategyMomentum,
-  '@app/strategy-rebalance': strategyRebalance,
-  '@app/strategy-backtest': strategyBacktest,
-  '@app/indicators': indicators,
-  '@app/discovery': discovery,
-  '@app/binance': binance,
-  '@app/llm': llm,
-  '@app/web': web,
+const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const COVERAGE_LANES = ['unit', 'integration', 'worker-integration', 'db-isolation'] as const;
+const COVERAGE_LANE_SET: ReadonlySet<string> = new Set(COVERAGE_LANES);
+type CoverageLane = (typeof COVERAGE_LANES)[number];
+type Thresholds = { readonly lines: number; readonly branches: number };
+
+// These reviewed floors are independent of the runtime policy so lowering the
+// policy cannot silently lower its own test expectation.
+const APPROVED_FLOORS = {
+  '@app/api': { lines: 78, branches: 73 },
+  '@app/server': { lines: 17, branches: 12 },
+  '@app/web': { lines: 80, branches: 70 },
+  '@app/worker': { lines: 87, branches: 81 },
+  '@app/binance': { lines: 100, branches: 100, exact: true },
+  '@app/contracts': { lines: 97, branches: 89 },
+  '@app/core': { lines: 94, branches: 92 },
+  '@app/db': { lines: 80, branches: 71 },
+  '@app/discovery': { lines: 100, branches: 100, exact: true },
+  '@app/indicators': { lines: 100, branches: 100, exact: true },
+  '@app/llm': { lines: 80, branches: 82 },
+  '@app/money': { lines: 100, branches: 100, exact: true },
+  '@app/notify': { lines: 100, branches: 97 },
+  '@app/observability': { lines: 82, branches: 56 },
+  '@app/strategy-backtest': { lines: 98, branches: 85 },
+  '@app/strategy-core': { lines: 100, branches: 100, exact: true },
+  '@app/strategy-momentum': { lines: 100, branches: 100, exact: true },
+  '@app/strategy-rebalance': { lines: 100, branches: 100, exact: true },
+  '@app/strategy-registry': { lines: 100, branches: 100, exact: true },
+  '@app/strategy-trailing-trade': { lines: 100, branches: 100, exact: true },
+} as const;
+
+const CONFIG_PATHS: Record<keyof typeof APPROVED_FLOORS, string> = {
+  '@app/api': 'apps/api/vitest.config.ts',
+  '@app/server': 'apps/server/vitest.config.ts',
+  '@app/web': 'apps/web/vitest.config.ts',
+  '@app/worker': 'apps/worker/vitest.config.ts',
+  '@app/binance': 'packages/binance/vitest.config.ts',
+  '@app/contracts': 'packages/contracts/vitest.config.ts',
+  '@app/core': 'packages/core/vitest.config.ts',
+  '@app/db': 'packages/db/vitest.config.ts',
+  '@app/discovery': 'packages/discovery/vitest.config.ts',
+  '@app/indicators': 'packages/indicators/vitest.config.ts',
+  '@app/llm': 'packages/llm/vitest.config.ts',
+  '@app/money': 'packages/money/vitest.config.ts',
+  '@app/notify': 'packages/notify/vitest.config.ts',
+  '@app/observability': 'packages/observability/vitest.config.ts',
+  '@app/strategy-backtest': 'packages/strategy/backtest/vitest.config.ts',
+  '@app/strategy-core': 'packages/strategy/core/vitest.config.ts',
+  '@app/strategy-momentum': 'packages/strategy/momentum/vitest.config.ts',
+  '@app/strategy-rebalance': 'packages/strategy/rebalance/vitest.config.ts',
+  '@app/strategy-registry': 'packages/strategy/registry/vitest.config.ts',
+  '@app/strategy-trailing-trade': 'packages/strategy/trailing-trade/vitest.config.ts',
 };
 
-describe('PER_PACKAGE_THRESHOLDS entries are all live (#488)', () => {
-  for (const [pkg, expected] of Object.entries(PER_PACKAGE_THRESHOLDS)) {
-    it(`${pkg} actually wires its configured coverage thresholds`, () => {
-      const config = CONFIGS[pkg];
-      expect(config, `no config imported for ${pkg} — add it to CONFIGS`).toBeDefined();
-      expect(config?.test?.coverage?.thresholds).toEqual(expected);
-    });
-  }
+const configModules = Object.fromEntries(
+  Object.entries(CONFIG_PATHS).map(([packageName, path]) => [
+    packageName,
+    pathToFileURL(join(REPO_ROOT, path)).href,
+  ]),
+);
+const snapshots = new Map<CoverageLane | 'absent', Record<string, Thresholds | null>>();
 
-  it('CONFIGS holds no orphan — every imported config is a registered threshold package', () => {
-    for (const pkg of Object.keys(CONFIGS)) {
-      expect(
-        PER_PACKAGE_THRESHOLDS,
-        `${pkg} is in CONFIGS but not PER_PACKAGE_THRESHOLDS`,
-      ).toHaveProperty(pkg);
+const loadThresholdSnapshot = (
+  lane: CoverageLane | undefined,
+): Record<string, Thresholds | null> => {
+  const key = lane ?? 'absent';
+  const cached = snapshots.get(key);
+  if (cached) return cached;
+
+  const env = { ...process.env, CONFIG_MODULES: JSON.stringify(configModules) };
+  if (lane) env['COVERAGE_LANE'] = lane;
+  else delete env['COVERAGE_LANE'];
+  const script = `
+    const modules = JSON.parse(process.env.CONFIG_MODULES);
+    const result = {};
+    await Promise.all(Object.entries(modules).map(async ([packageName, url]) => {
+      const config = (await import(url)).default;
+      result[packageName] = config.test?.coverage?.thresholds ?? null;
+    }));
+    console.log("CONFIG_THRESHOLDS=" + JSON.stringify(result));
+  `;
+  const loaded = spawnSync('bun', ['-e', script], { cwd: REPO_ROOT, env, encoding: 'utf8' });
+  expect(loaded.status, loaded.stderr).toBe(0);
+  const marker = loaded.stdout.split('\n').find((line) => line.startsWith('CONFIG_THRESHOLDS='));
+  expect(marker, loaded.stdout).toBeDefined();
+  const snapshot = JSON.parse(marker!.slice('CONFIG_THRESHOLDS='.length)) as Record<
+    string,
+    Thresholds | null
+  >;
+  snapshots.set(key, snapshot);
+  return snapshot;
+};
+
+describe('approved coverage floors', () => {
+  it('accounts independently for every non-exempt package', () => {
+    expect(Object.keys(PER_PACKAGE_THRESHOLDS).sort()).toEqual(Object.keys(APPROVED_FLOORS).sort());
+
+    // The lane-binding test below only loads the lanes this file knows about, so
+    // a package pointed at a mistyped or new lane would be gated by nothing and
+    // still read as covered.
+    for (const [packageName, entry] of Object.entries(COVERAGE_POLICY)) {
+      if (!('lane' in entry)) continue;
+      expect(COVERAGE_LANE_SET.has(entry.lane), `${packageName} coverage lane`).toBe(true);
     }
+
+    for (const [packageName, floor] of Object.entries(APPROVED_FLOORS)) {
+      const actual = PER_PACKAGE_THRESHOLDS[packageName]!;
+      if ('exact' in floor) {
+        expect(actual, packageName).toEqual({ lines: floor.lines, branches: floor.branches });
+      } else {
+        expect(actual.lines, `${packageName} line floor`).toBeGreaterThanOrEqual(floor.lines);
+        expect(actual.branches, `${packageName} branch floor`).toBeGreaterThanOrEqual(
+          floor.branches,
+        );
+      }
+    }
+  });
+
+  it('does not treat partial testcontainers coverage as a complete-suite floor', () => {
+    expect(COVERAGE_POLICY['@app/testcontainers']).toMatchObject({
+      exemption: expect.stringContaining('Docker provisioning tests are skipped'),
+    });
+    expect(PER_PACKAGE_THRESHOLDS).not.toHaveProperty('@app/testcontainers');
+  });
+});
+
+describe('coverage threshold lane binding', () => {
+  it.each([undefined, ...COVERAGE_LANES] as const)(
+    'injects each threshold only for its complete-suite lane: %s',
+    (lane) => {
+      const effectiveLane = lane ?? 'unit';
+      const snapshot = loadThresholdSnapshot(lane);
+      for (const [packageName, expected] of Object.entries(PER_PACKAGE_THRESHOLDS)) {
+        const entry = COVERAGE_POLICY[packageName];
+        const shouldGate = entry && 'lane' in entry && entry.lane === effectiveLane;
+        expect(snapshot[packageName], `${packageName} with ${lane ?? 'absent'} lane`).toEqual(
+          shouldGate ? expected : null,
+        );
+      }
+    },
+  );
+
+  it('treats an absent lane as unit and leaves infrastructure thresholds omitted', () => {
+    const snapshot = loadThresholdSnapshot(undefined);
+
+    expect(snapshot['@app/api']).toBeNull();
+    expect(snapshot['@app/db']).toBeNull();
+    expect(snapshot['@app/worker']).toBeNull();
+    expect(snapshot['@app/web']).toEqual(APPROVED_FLOORS['@app/web']);
   });
 });

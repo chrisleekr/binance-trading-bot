@@ -1,0 +1,5 @@
+groups:
+  - name: fixture.quoted-key
+    rules:
+      - 'alert': HiddenQuotedRule
+        'expr': phantom_metric > 0

@@ -52,10 +52,20 @@ root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 GUARD_ROOT="${GUARD_ROOT:-$root}"
 cd "$root"
 
-GUARD_ROOT="$GUARD_ROOT" bun -e '
+RULE_DISCOVERY="$(GUARD_ROOT="$GUARD_ROOT" bash "$(dirname "$0")/discover-prometheus-rules.sh")"
+
+GUARD_ROOT="$GUARD_ROOT" RULE_DISCOVERY="$RULE_DISCOVERY" bun -e '
 const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
+const discovery = { ruleFiles: [], nonRuleFiles: [] };
+for (const line of process.env.RULE_DISCOVERY.split(/\r?\n/)) {
+  if (line === "") continue;
+  const [kind, file] = line.split("\t");
+  if (kind === "RULE") discovery.ruleFiles.push(file);
+  else if (kind === "NON_RULE") discovery.nonRuleFiles.push(file);
+  else throw new Error("invalid Prometheus rules discovery record: " + line);
+}
 
 const fail = (msg) => { console.error(msg); process.exit(1); };
 
@@ -76,27 +86,34 @@ const unionNames = new Set([...unionBody.matchAll(/\x27([A-Za-z_:][A-Za-z0-9_:]*
 
 // CATALOG entries: 2-space keys are entries, 4-space fields are the spec, so the
 // indent alone separates them without needing a brace-depth parser.
-const catalogKinds = new Map();
+const catalogSpecs = new Map();
 {
   const lines = catalogSrc.split(/\r?\n/);
   let inside = false;
   let key = null;
+  let kind = null;
+  let labels = [];
+  const commit = () => {
+    if (key !== null && kind !== null) catalogSpecs.set(key, { kind, labels: new Set(labels) });
+  };
   for (const line of lines) {
     if (!inside) { inside = /^export const CATALOG\b/.test(line); continue; }
-    if (/^\};/.test(line)) break;
+    if (/^\};/.test(line)) { commit(); break; }
     const entry = line.match(/^ {2}([A-Za-z_][A-Za-z0-9_]*):\s*\{/);
-    if (entry) { key = entry[1]; continue; }
-    const kind = line.match(/^ {4}kind:\s*\x27([a-z]+)\x27/);
-    if (kind && key) { catalogKinds.set(key, kind[1]); key = null; }
+    if (entry) { commit(); key = entry[1]; kind = null; labels = []; continue; }
+    const kindMatch = line.match(/^ {4}kind:\s*\x27([a-z]+)\x27/);
+    if (kindMatch && key) kind = kindMatch[1];
+    const labelMatch = line.match(/^ {4}labelNames:\s*\[([^\]]*)\]/);
+    if (labelMatch && key) labels = [...labelMatch[1].matchAll(/[\x27"]([A-Za-z_][A-Za-z0-9_]*)[\x27"]/g)].map((m) => m[1]);
   }
 }
 
-if (unionNames.size === 0 || catalogKinds.size === 0) {
+if (unionNames.size === 0 || catalogSpecs.size === 0) {
   fail("zero metric names parsed from the worker catalogue — catalogue parser regression in this gate.");
 }
 
-const onlyUnion = [...unionNames].filter((n) => !catalogKinds.has(n));
-const onlyCatalog = [...catalogKinds.keys()].filter((n) => !unionNames.has(n));
+const onlyUnion = [...unionNames].filter((n) => !catalogSpecs.has(n));
+const onlyCatalog = [...catalogSpecs.keys()].filter((n) => !unionNames.has(n));
 if (onlyUnion.length > 0 || onlyCatalog.length > 0) {
   fail(
     "MetricName union and CATALOG keys disagree — parser regression in this gate (TypeScript already couples them):\n" +
@@ -136,15 +153,22 @@ for (const file of files) {
     const rest = src.slice(m.index);
     const close = rest.search(/\}\s*\)/);
     if (close === -1) continue;
-    const named = rest.slice(0, close).match(/\bname:\s*[\x27"]([A-Za-z_:][A-Za-z0-9_:]*)[\x27"]/);
-    if (named) constructed.set(named[1], CTOR_KIND[m[1]]);
+    const body = rest.slice(0, close);
+    const named = body.match(/\bname:\s*[\x27"]([A-Za-z_:][A-Za-z0-9_:]*)[\x27"]/);
+    if (named) {
+      const labelList = body.match(/\blabelNames:\s*\[([^\]]*)\]/);
+      const labels = labelList === null
+        ? []
+        : [...labelList[1].matchAll(/[\x27"]([A-Za-z_][A-Za-z0-9_]*)[\x27"]/g)].map((label) => label[1]);
+      constructed.set(named[1], { kind: CTOR_KIND[m[1]], labels: new Set(labels) });
+    }
   }
 }
 if (constructed.size === 0) {
   fail("zero prom-client metric constructors found under apps/ or packages/ — scan-path regression in this gate.");
 }
 
-const declared = new Map([...catalogKinds, ...constructed]);
+const declared = new Map([...catalogSpecs, ...constructed]);
 
 // Series no repo code declares. Exact match only: a prefix rule would silently
 // bless `up_wrong` and every typo that happens to start with a real name.
@@ -199,27 +223,53 @@ const DEFAULT_METRICS = new Set([
 // one whose _bucket/_sum/_count are real series. Kept separate from the name set
 // above so no kind is claimed for a metric whose constructor was not checked.
 const DEFAULT_METRIC_KINDS = new Map([["nodejs_gc_duration_seconds", "histogram"]]);
+const DEFAULT_METRIC_LABELS = new Map([
+  ["nodejs_active_resources", new Set(["type"])],
+  ["nodejs_active_handles", new Set(["type"])],
+  ["nodejs_active_requests", new Set(["type"])],
+  ["nodejs_version_info", new Set(["version", "major", "minor", "patch"])],
+  ["nodejs_gc_duration_seconds", new Set(["kind"])],
+]);
+const REGISTRY_LABELS = new Set(["service", "version"]);
+const SCRAPE_LABELS = new Set(["job", "instance"]);
+const labelsWithRuntimeContext = (labels = []) =>
+  new Set([...labels, ...REGISTRY_LABELS, ...SCRAPE_LABELS]);
 
 // ---------------------------------------------------------------------------
 // Referenced set: expr values in the shipped alert rules.
 // ---------------------------------------------------------------------------
-const alertsPath = path.join(root, "deploy/observability/alerts.yml");
-if (!fs.existsSync(alertsPath)) fail("deploy/observability/alerts.yml not found — rules path regression in this gate.");
-const alertLines = fs.readFileSync(alertsPath, "utf8").split(/\r?\n/);
+for (const file of discovery.nonRuleFiles) {
+  console.log("classified non-rule YAML: " + file);
+}
+const ruleSources = discovery.ruleFiles.map((file) => ({
+  file,
+  lines: fs.readFileSync(path.join(root, file), "utf8").split(/\r?\n/),
+}));
 
-// A flow-style rule entry matches no block-style key pattern while still being a
-// rule, so it would be skipped in silence with the counts still balanced. Reject
-// the shape. The match requires a rule KEY inside the braces: a bare `- {` also
-// begins an ordinary Go-template bullet (`- {{ $labels.profileId }}`) inside an
-// annotation, which is legitimate and must not be mistaken for a rule.
-const flow = alertLines.findIndex(
-  (l) => /^\s*-\s*\{\s*(?:alert|record|expr)\s*:/.test(l) || /^\s*rules:\s*\[\s*\{/.test(l),
-);
-if (flow >= 0) {
-  fail(
-    "flow-style rule entry at deploy/observability/alerts.yml:" + (flow + 1) +
-      " — this gate parses block style only. Write the rule as indented `- alert:` / `expr:` keys.",
+// Reject YAML shapes this deliberately small block parser cannot read.
+// `(?!\{)` preserves Go-template bullets such as `- {{ $labels.profileId }}`.
+for (const source of ruleSources) {
+  const flow = source.lines.findIndex(
+    (line) => /^\s*-\s*\{(?!\{)/.test(line) || /^\s*rules\s*:\s*\[\s*\{/.test(line),
   );
+  if (flow >= 0) {
+    fail(
+      "flow-style rule entry at " + source.file + ":" + (flow + 1) +
+        " — this gate parses block style only. Write the rule as indented `- alert:` / `expr:` keys.",
+    );
+  }
+}
+
+for (const source of ruleSources) {
+  const quotedKey = source.lines.findIndex((line) =>
+    /^\s*(?:-\s*)?(?:"|\x27)(?:alert|record|expr)(?:"|\x27)\s*:/.test(line),
+  );
+  if (quotedKey >= 0) {
+    fail(
+      "quoted rule key at " + source.file + ":" + (quotedKey + 1) +
+        " — this gate parses plain alert, record and expr keys only.",
+    );
+  }
 }
 
 // A plain YAML scalar ends at an unquoted " #"; a quoted or block scalar does not.
@@ -247,7 +297,7 @@ const closingQuote = (s, q) => {
 // A quoted `expr:` scalar would be erased whole by the quote strip in the
 // tokeniser, contributing no candidates. Unwrap it here so the PromQL inside is
 // tokenised like any other expression.
-const unwrapScalar = (s, lineNo) => {
+const unwrapScalar = (s, file, lineNo) => {
   const q = s[0];
   // \x22 is a double quote: only an apostrophe would end the bash argument, but
   // both quote characters are escaped here so the two branches read alike.
@@ -255,14 +305,14 @@ const unwrapScalar = (s, lineNo) => {
   const close = closingQuote(s, q);
   if (close === -1) {
     fail(
-      "unterminated quoted expr scalar at deploy/observability/alerts.yml:" + lineNo +
+      "unterminated quoted expr scalar at " + file + ":" + lineNo +
         " — this gate reads single-line quoted or block scalars only.",
     );
   }
   const tail = s.slice(close + 1).trim();
   if (tail !== "" && !tail.startsWith("#")) {
     fail(
-      "unexpected content after the closing quote of the expr scalar at deploy/observability/alerts.yml:" +
+      "unexpected content after the closing quote of the expr scalar at " + file + ":" +
         lineNo + " — only a trailing YAML comment may follow it.",
     );
   }
@@ -277,20 +327,25 @@ const unwrapScalar = (s, lineNo) => {
 // block-scalar annotation containing `expr:` or `alert:` from being read as one.
 const ENTRY_START = /^(\s*)-\s*(?:alert|record|expr)\s*:/;
 const entries = [];
-for (let i = 0; i < alertLines.length; i++) {
-  const start = ENTRY_START.exec(alertLines[i]);
-  if (!start) continue;
-  const dashCol = start[1].length;
-  let j = i + 1;
-  for (; j < alertLines.length; j++) {
-    if (alertLines[j].trim() === "") continue;
-    if (alertLines[j].match(/^\s*/)[0].length <= dashCol) break;
+for (const source of ruleSources) {
+  let sourceEntries = 0;
+  for (let i = 0; i < source.lines.length; i++) {
+    const start = ENTRY_START.exec(source.lines[i]);
+    if (!start) continue;
+    const dashCol = start[1].length;
+    let j = i + 1;
+    for (; j < source.lines.length; j++) {
+      if (source.lines[j].trim() === "") continue;
+      if (source.lines[j].match(/^\s*/)[0].length <= dashCol) break;
+    }
+    entries.push({ file: source.file, first: i, lines: source.lines.slice(i, j), sourceLines: source.lines });
+    sourceEntries++;
+    i = j - 1;
   }
-  entries.push({ first: i, lines: alertLines.slice(i, j) });
-  i = j - 1;
+  if (sourceEntries === 0) fail("zero alert rules parsed from " + source.file + " — rules parser regression in this gate.");
 }
 
-if (entries.length === 0) fail("zero alert rules parsed from deploy/observability/alerts.yml — rules parser regression in this gate.");
+if (entries.length === 0) fail("zero alert rules parsed from discovered rules files — rules parser regression in this gate.");
 
 const exprs = [];
 const missingExpr = [];
@@ -314,7 +369,7 @@ for (const entry of entries) {
     if (expr !== null) continue;
     exprLine = entry.first + k;
     const inline = key[2].trim();
-    if (!/^[|>]/.test(inline)) { expr = unwrapScalar(inline, exprLine + 1); continue; }
+    if (!/^[|>]/.test(inline)) { expr = unwrapScalar(inline, entry.file, exprLine + 1); continue; }
     // Block scalar: the value is every following line indented past the key column.
     const buf = [];
     for (let b = k + 1; b < lines.length; b++) {
@@ -325,11 +380,11 @@ for (const entry of entries) {
     expr = buf.join(" ");
   }
 
-  if (expr === null) { missingExpr.push(rule); continue; }
-  exprs.push({ rule, expr, exprLine });
+  if (expr === null) { missingExpr.push(rule + " at " + entry.file); continue; }
+  exprs.push({ file: entry.file, rule, expr, exprLine, sourceLines: entry.sourceLines });
 }
 
-if (exprs.length === 0) fail("zero expr values parsed from deploy/observability/alerts.yml — expr parser regression in this gate.");
+if (exprs.length === 0) fail("zero expr values parsed from discovered rules files — expr parser regression in this gate.");
 if (missingExpr.length > 0) {
   fail(
     "rule entries with no expr key: " + missingExpr.join(", ") +
@@ -363,13 +418,67 @@ const PROMQL_KEYWORDS = new Set([
 // silence still fails; the author writes the marker on the line above `expr:`.
 const OPT_OUT = /^\s*#\s*names-no-metric:\s*\S/;
 
-// `{__name__="x"}` selects metric x exactly as a bare `x` does, so the name has
-// to be read before the brace strip removes it.
-const NAME_MATCHER = /__name__\s*(=~|!~|!=|=)\s*("(?:[^"\\]|\\.)*"|\x27[^\x27]*\x27)/g;
+// `{__name__="x"}` selects metric x exactly as a bare name does, so resolve that
+// identity independently from an optional name before the opening brace.
+const NAME_MATCHER = /__name__\s*(=~|!~|!=|=)\s*("(?:[^"\\]|\\.)*"|\x27[^\x27]*\x27|`[^`]*`)/g;
+const LABEL_MATCHER = /([A-Za-z_][A-Za-z0-9_]*)\s*(?:=~|!~|!=|=)\s*(?:"(?:[^"\\]|\\.)*"|\x27[^\x27]*\x27|`[^`]*`)/g;
+
+// PromQL matcher values may contain braces. Locate selector boundaries while
+// respecting quoted and escaped content so every matcher stays associated with
+// its metric.
+const scanSelectors = (expr) => {
+  const result = [];
+  let quote = null;
+  for (let i = 0; i < expr.length; i++) {
+    const char = expr[i];
+    if (quote !== null) {
+      if (char === "\\") i++;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "\x22" || char === "\x27" || char === "`") {
+      quote = char;
+      continue;
+    }
+    if (char !== "{") continue;
+
+    let close = -1;
+    let innerQuote = null;
+    for (let j = i + 1; j < expr.length; j++) {
+      const inner = expr[j];
+      if (innerQuote !== null) {
+        if (inner === "\\") j++;
+        else if (inner === innerQuote) innerQuote = null;
+        continue;
+      }
+      if (inner === "\x22" || inner === "\x27" || inner === "`") {
+        innerQuote = inner;
+      } else if (inner === "{") {
+        fail("nested unquoted `{` in PromQL selector for expression: " + expr);
+      } else if (inner === "}") {
+        close = j;
+        break;
+      }
+    }
+    if (close === -1) fail("unterminated PromQL selector in expression: " + expr);
+
+    let metricEnd = i;
+    while (metricEnd > 0 && /\s/.test(expr[metricEnd - 1])) metricEnd--;
+    let metricStart = metricEnd;
+    while (metricStart > 0 && /[A-Za-z0-9_:]/.test(expr[metricStart - 1])) metricStart--;
+    const candidate = expr.slice(metricStart, metricEnd);
+    const metric = /^[A-Za-z_:][A-Za-z0-9_:]*$/.test(candidate) ? candidate : null;
+    result.push({ metric, body: expr.slice(i + 1, close), open: i, close });
+    i = close;
+  }
+  return result;
+};
 
 const candidates = [];
-for (const { rule, expr, exprLine } of exprs) {
+const selectors = [];
+for (const { file, rule, expr, exprLine, sourceLines } of exprs) {
   const found = [];
+  const parsedSelectors = scanSelectors(expr);
 
   for (const m of expr.matchAll(NAME_MATCHER)) {
     if (m[1] !== "=") {
@@ -381,9 +490,35 @@ for (const { rule, expr, exprLine } of exprs) {
     found.push(m[2].slice(1, -1));
   }
 
-  const stripped = expr
+  for (const selector of parsedSelectors) {
+    let metric = selector.metric;
+    const keys = [];
+    for (const matcher of selector.body.matchAll(LABEL_MATCHER)) {
+      if (matcher[1] === "__name__") {
+        const exactName = /__name__\s*=\s*(?:"([^"\\]*)"|\x27([^\x27]*)\x27|`([^`]*)`)/.exec(matcher[0]);
+        if (metric === null && exactName !== null) metric = exactName[1] ?? exactName[2] ?? exactName[3];
+      } else {
+        keys.push(matcher[1]);
+      }
+    }
+    if (metric === null && keys.length > 0) {
+      fail(
+        "selector with label keys has no exact metric name at " + file + " rule " + rule +
+          ": " + keys.join(", "),
+      );
+    }
+    if (metric !== null && keys.length > 0) selectors.push({ file, rule, metric, keys });
+  }
+
+  let selectorFree = expr;
+  for (const selector of [...parsedSelectors].reverse()) {
+    selectorFree =
+      selectorFree.slice(0, selector.open) +
+      " ".repeat(selector.close - selector.open + 1) +
+      selectorFree.slice(selector.close + 1);
+  }
+  const stripped = selectorFree
     .replace(/\x27[^\x27]*\x27|"(?:[^"\\]|\\.)*"|`[^`]*`/g, " ") // quoted label values
-    .replace(/\{[^}]*\}/g, " ") // label matchers
     .replace(/\[[^\]]*\]/g, " ") // range and subquery selectors
     // Grouping and vector-matching label lists sit in round brackets, which are
     // never stripped, so their labels would otherwise read as metric names.
@@ -417,14 +552,14 @@ for (const { rule, expr, exprLine } of exprs) {
   // Per-expr, not global: a global count lets one healthy rule mask a sibling
   // whose expression was parsed down to nothing, which is the exact silent pass
   // this gate exists to stop. A watchdog opts out by saying so above its expr.
-  if (found.length === 0 && !OPT_OUT.test(alertLines[exprLine - 1] ?? "")) {
+  if (found.length === 0 && !OPT_OUT.test(sourceLines[exprLine - 1] ?? "")) {
     fail(
       "expr for rule " + rule + " names no metric — expr tokeniser regression in this gate, or a rule that " +
         "watches nothing and can never fire. A rule that names none on purpose (a vector(1) watchdog) " +
         "declares it with a `# names-no-metric: <reason>` comment on the line above its expr.",
     );
   }
-  for (const name of found) candidates.push({ rule, name });
+  for (const name of found) candidates.push({ file, rule, name });
 }
 
 // ---------------------------------------------------------------------------
@@ -434,7 +569,7 @@ for (const { rule, expr, exprLine } of exprs) {
 // counter or gauge named `foo` gives no `foo_sum`, so a typo like `decision_count`
 // -> `decision_count_sum` must still be reported.
 const DERIVED_SUFFIXES = { histogram: new Set(["count", "sum", "bucket"]), summary: new Set(["count", "sum"]) };
-const kindOf = (name) => declared.get(name) ?? DEFAULT_METRIC_KINDS.get(name);
+const kindOf = (name) => declared.get(name)?.kind ?? DEFAULT_METRIC_KINDS.get(name);
 
 const isEmitted = (name) => {
   if (declared.has(name) || PROM_SYNTHESISED.has(name) || DEFAULT_METRICS.has(name)) return true;
@@ -446,12 +581,12 @@ const isEmitted = (name) => {
 
 const seen = new Set();
 const phantoms = [];
-for (const { rule, name } of candidates) {
+for (const { file, rule, name } of candidates) {
   if (isEmitted(name)) continue;
   const dedupe = rule + " " + name;
   if (seen.has(dedupe)) continue;
   seen.add(dedupe);
-  phantoms.push("  " + name + " (rule " + rule + ")");
+  phantoms.push("  " + name + " (rule " + rule + ") at " + file);
 }
 
 if (phantoms.length > 0) {
@@ -461,6 +596,40 @@ if (phantoms.length > 0) {
   console.error("For each: emit the metric (catalogue entry or prom-client constructor), correct the");
   console.error("name to one that is emitted, or delete the rule. A rule over a series nothing writes");
   console.error("evaluates empty forever, so it can never fire and never errors.");
+  process.exit(1);
+}
+
+const labelsFor = (name) => {
+  const direct = declared.get(name);
+  if (direct !== undefined) return labelsWithRuntimeContext(direct.labels);
+  if (PROM_SYNTHESISED.has(name)) return new Set(SCRAPE_LABELS);
+  if (DEFAULT_METRICS.has(name)) {
+    return labelsWithRuntimeContext(DEFAULT_METRIC_LABELS.get(name));
+  }
+  const derived = name.match(/^(.+)_(count|sum|bucket)$/);
+  if (derived === null) return null;
+  const parent = labelsFor(derived[1]);
+  if (parent === null) return null;
+  if (derived[2] === "bucket") parent.add("le");
+  return parent;
+};
+
+const invalidMatchers = [];
+for (const { file, rule, metric, keys } of selectors) {
+  if (!isEmitted(metric)) continue;
+  const allowed = labelsFor(metric);
+  if (allowed === null) continue;
+  for (const key of keys) {
+    if (!allowed.has(key)) invalidMatchers.push({ file, rule, metric, key });
+  }
+}
+if (invalidMatchers.length > 0) {
+  console.error("Alert rules use matcher keys their metric does not emit:");
+  for (const item of invalidMatchers) {
+    console.error(
+      "  " + item.file + " rule " + item.rule + " metric " + item.metric + " key " + item.key,
+    );
+  }
   process.exit(1);
 }
 

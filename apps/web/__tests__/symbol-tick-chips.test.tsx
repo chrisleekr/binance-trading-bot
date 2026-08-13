@@ -21,12 +21,15 @@ import { createQueryClient } from '@/shared/lib/query-client';
 import { rootRoute } from '@/app/__root';
 import { SymbolTickChips } from '@/features/symbol/components/symbol-tick-chips';
 
+import { pendingFetchForPaths } from './helpers/pending-fetch';
+
 import type { DashboardAggregateResponse } from '@app/contracts';
 
 const PROFILE_ID = '11111111-1111-4111-8111-111111111111';
 // Matches the global test-setup default active account; the chips read the
 // aggregate keyed by it and build the account-level api-key link from it.
 const ACCOUNT_ID = '00000000-0000-4000-8000-0000000000ac';
+const DASHBOARD_AGGREGATE_PATH = `/api/accounts/${ACCOUNT_ID}/dashboard-aggregate`;
 
 const row = (
   overrides: Partial<DashboardAggregateResponse['profiles'][number]>,
@@ -85,6 +88,7 @@ const setUp = (data: DashboardAggregateResponse | undefined): void => {
 const NOW = new Date('2026-05-18T00:00:00.000Z');
 
 beforeEach(() => {
+  vi.stubGlobal('fetch', pendingFetchForPaths(DASHBOARD_AGGREGATE_PATH));
   // Only fake `Date`, not setTimeout/queueMicrotask — TanStack Router's
   // loader resolution needs real microtask scheduling. `toFake: ['Date']`
   // pins Date.now()/new Date() so formatLastTick tier boundaries are exact.

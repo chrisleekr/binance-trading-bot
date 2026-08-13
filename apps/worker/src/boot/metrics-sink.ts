@@ -27,22 +27,11 @@ type LabeledCounter = Counter<string>;
 type LabeledGauge = Gauge<string>;
 type LabeledHistogram = Histogram<string>;
 
-type CatalogMetric =
-  | {
-      readonly kind: 'counter';
-      readonly metric: LabeledCounter;
-      readonly labelNames: readonly string[];
-    }
-  | {
-      readonly kind: 'gauge';
-      readonly metric: LabeledGauge;
-      readonly labelNames: readonly string[];
-    }
-  | {
-      readonly kind: 'histogram';
-      readonly metric: LabeledHistogram;
-      readonly labelNames: readonly string[];
-    };
+type CatalogMetric = { readonly labelNames: readonly string[] } & (
+  | { readonly kind: 'counter'; readonly metric: LabeledCounter }
+  | { readonly kind: 'gauge'; readonly metric: LabeledGauge }
+  | { readonly kind: 'histogram'; readonly metric: LabeledHistogram }
+);
 
 /**
  * Builds a {@link MetricsSink} backed by `registry`'s prom-client registry.
@@ -55,18 +44,18 @@ export const createWorkerMetricsSink = (registry: MetricsRegistry): MetricsSink 
   const cache = new Map<string, CatalogMetric>();
 
   const build = (name: string, spec: MetricSpec): CatalogMetric => {
-    const labelNames = [...spec.labelNames];
-    const base = { name, help: spec.help, labelNames, registers: [promRegistry] };
+    const labelNames = spec.labelNames;
+    const base = { name, help: spec.help, labelNames: [...labelNames], registers: [promRegistry] };
     switch (spec.kind) {
       case 'counter':
-        return { kind: 'counter', metric: new Counter(base), labelNames: spec.labelNames };
+        return { kind: 'counter', metric: new Counter(base), labelNames };
       case 'gauge':
-        return { kind: 'gauge', metric: new Gauge(base), labelNames: spec.labelNames };
+        return { kind: 'gauge', metric: new Gauge(base), labelNames };
       case 'histogram':
         return {
           kind: 'histogram',
           metric: new Histogram({ ...base, buckets: [...(spec.buckets ?? LATENCY_MS_BUCKETS)] }),
-          labelNames: spec.labelNames,
+          labelNames,
         };
     }
   };
@@ -105,6 +94,17 @@ export const createWorkerMetricsSink = (registry: MetricsRegistry): MetricsSink 
           entry.metric.labels(...labels).observe(value);
           return;
       }
+    },
+    // Reads the cache directly instead of going through `ensure()`. A teardown
+    // path cannot know what the subject it is retiring ever emitted, so
+    // registering the metric in order to remove a child from it would make the
+    // cleanup the thing that creates the series — and leave an empty one behind.
+    forget(name, tags) {
+      const entry = cache.get(name);
+      if (!entry) return;
+      // Same positional order and 'unknown' default as `record`, or a child
+      // recorded with a partial tag set could never be addressed to remove it.
+      entry.metric.remove(...entry.labelNames.map((key) => tags?.[key] ?? 'unknown'));
     },
   };
 };

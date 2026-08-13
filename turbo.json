@@ -21,7 +21,9 @@
     },
     "test": {
       "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/config/vitest/**"],
       "env": [
+        "COVERAGE_LANE",
         "DATABASE_TEST_URL",
         "REDIS_TEST_URL",
         "TESTCONTAINERS",

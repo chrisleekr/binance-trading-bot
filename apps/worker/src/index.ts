@@ -22,6 +22,7 @@ import type { Job } from 'bullmq';
 import { buildBootContext, type BootEnv } from './boot/boot-context.js';
 import { primeBeforeTicks } from './boot/prime-before-ticks.js';
 import { startWorkerHeartbeat } from './boot/worker-heartbeat.js';
+import { startRuntimeGauges } from './boot/runtime-gauges.js';
 import { createMemberRegistry, workerMemberId } from './boot/member-registry.js';
 import { runHeldQuantityReconciliation } from './boot/reconcile-held-quantity.js';
 import { runStaleOrderReaper } from './boot/reap-stale-orders.js';
@@ -114,6 +115,12 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
     metrics: ctx.metricsRegistry,
   });
   await memberRegistry.start();
+
+  // Queue depth and pool saturation, sampled in-process. Pushed onto the
+  // heartbeat timers so one shutdown clear disposes every periodic sampler.
+  heartbeatTimers.push(
+    ...(await startRuntimeGauges({ queues: queueSet.queues, pool, metrics: ctx.metrics, logger })),
+  );
 
   if (runsLive) await registerCrons({ queueSet, logger, redis, crons: buildCrons(ctx) });
 
@@ -237,6 +244,9 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
       // so the account's user-data stream opens/closes now instead of waiting
       // for ownership's own interval (profileManager no longer opens it). #579.
       reconcileOwnership: () => ctx.subscriptionOwnership.reconcile(),
+      // Retires the profile's own metric children when a teardown lands, so a
+      // stopped profile stops exporting a live-looking reading.
+      metrics: ctx.metrics,
     });
 
     // Consumer for the deferred position-repair jobs the decision handlers and

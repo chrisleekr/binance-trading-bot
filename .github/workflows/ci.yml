@@ -111,6 +111,11 @@ jobs:
           restore-keys: turbo-unit-
       - run: bash scripts/ci/bootstrap.sh
       - run: bash scripts/ci/test-unit.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-unit
+          path: '**/coverage/unit/**'
+          if-no-files-found: error
 
   replay:
     name: replay
@@ -178,6 +183,11 @@ jobs:
           restore-keys: turbo-integration-
       - run: bash scripts/ci/bootstrap.sh
       - run: bash scripts/ci/test-integration.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-integration
+          path: '**/coverage/integration/**'
+          if-no-files-found: error
 
   # apps/worker integration suites against real Postgres + Redis service
   # containers. Kept separate from `integration` (apps/api) because both
@@ -222,6 +232,11 @@ jobs:
           restore-keys: bun-${{ runner.os }}-
       - run: bash scripts/ci/bootstrap.sh
       - run: bash scripts/ci/test-worker-integration.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-worker-integration
+          path: '**/coverage/worker-integration/**'
+          if-no-files-found: error
 
   # packages/db isolation + projection tests against a real Postgres. The service
   # creates the test DB as POSTGRES_DB, so DATABASE_TEST_URL points straight at
@@ -261,9 +276,14 @@ jobs:
           restore-keys: turbo-db-isolation-
       - run: bash scripts/ci/bootstrap.sh
       - run: bash scripts/ci/test-db-isolation.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-db-isolation
+          path: '**/coverage/db-isolation/**'
+          if-no-files-found: error
 
-  e2e:
-    name: e2e
+  browser-bootstrap:
+    name: browser-bootstrap
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
@@ -292,10 +312,90 @@ jobs:
         env:
           HOME: /root
 
+  # Required application gate: one hermetic sign-in + profile-dashboard journey
+  # against a real ROLE=all stack. Same Playwright image as browser-bootstrap so
+  # browsers stay in lockstep, and the same moving service tags as the other
+  # stack jobs — only db-isolation pins a TimescaleDB version, for a root-heap
+  # fixture this job does not build.
+  app-e2e:
+    name: app-e2e
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg17
+        env:
+          POSTGRES_DB: binance_trading_bot_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          NO_TS_TUNE: '1'
+        options: >-
+          --health-cmd "pg_isready -U postgres -d binance_trading_bot_test" --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:8-alpine
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_TEST_URL: postgres://postgres:postgres@postgres:5432/binance_trading_bot_test
+      REDIS_TEST_URL: redis://redis:6379
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      HOME: /root
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install unzip
+        run: apt-get update && apt-get install -y --no-install-recommends unzip
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bash scripts/ci/bootstrap.sh
+      - run: bash scripts/ci/test-app-e2e.sh
+      # The stack is torn down with the job, so the trace/video/screenshot the
+      # Playwright config captures on failure is the only diagnosis material.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: app-e2e-results
+          path: e2e/test-results/
+          if-no-files-found: ignore
+
+  coverage-merge:
+    name: coverage-merge
+    needs: [unit, integration, worker-integration, db-isolation]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: coverage-*
+          path: .
+          merge-multiple: true
+      - run: bash scripts/ci/merge-coverage.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: error
+
   docker-build:
     name: docker-build
     # Fan-in gate: only build the image once every test/check is green.
-    needs: [lint, typecheck, unit, replay, integration, worker-integration, db-isolation, e2e]
+    needs:
+      [
+        lint,
+        typecheck,
+        unit,
+        replay,
+        integration,
+        worker-integration,
+        db-isolation,
+        browser-bootstrap,
+        app-e2e,
+        coverage-merge,
+      ]
     runs-on: ubuntu-24.04
     env:
       # Push the rolling dev image only from the default branch of this repo.

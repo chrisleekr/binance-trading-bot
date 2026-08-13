@@ -9,12 +9,12 @@ set -euo pipefail
 # green over 255 unrun tests. Both names are declared in turbo.json's `test.env`;
 # turbo's strict envMode strips anything undeclared before vitest ever sees it.
 #
-# No Docker-in-Docker here, so TESTCONTAINERS stays unset and the container-
-# provisioning path stays dormant: the service containers are the stack. The
-# wrapper is exercised end-to-end in local dev, where Docker is on PATH.
+# No Docker-in-Docker here, so TESTCONTAINERS stays unset and the wrapper verifies
+# that it reuses the service-container endpoints supplied by this lane.
 # shellcheck source=_common.sh
 source "$(dirname "$0")/_common.sh"
 ci::start test-integration
+export COVERAGE_LANE=integration
 
 # Wait for Postgres to accept queries. GitLab's TCP port check races the
 # service's init, so the job can start before the server is really up. Poll a
@@ -40,4 +40,4 @@ ci::start test-integration
   process.exit(1);
 ' )
 
-TESTCONTAINERS_CONTENTION_CHECK=1 bunx turbo test --filter '@app/testcontainers' --filter '@app/api'
+TESTCONTAINERS_CONTENTION_CHECK=1 bunx turbo test --filter '@app/testcontainers' --filter '@app/api' -- --coverage

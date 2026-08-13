@@ -1,0 +1,6 @@
+groups:
+  - name: fixture.brace-value-invalid
+    rules:
+      - alert: BraceValueInvalidMatcher
+        expr: binance_api_weight{profileId=~"p{2}",accountId="x"} > 1000
+        for: 2m

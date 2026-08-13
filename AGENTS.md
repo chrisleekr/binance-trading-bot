@@ -63,26 +63,30 @@ Directory grouping (`packages/strategy/*`) is filesystem-only; **npm names stay 
 | `bun run dev` | Boot api+web+worker via turbo. |
 | `bun run lint` | oxlint + invariant gates + prettier. Must be clean. |
 | `bun run typecheck` | `tsc --noEmit -b` across all packages. Must be clean. |
-| `bun run test` | Vitest. Per-package thresholds in `PER_PACKAGE_THRESHOLDS` (100% on strategy plugins / indicators / discovery / binance). |
+| `bun run test` | Vitest. Per-workspace thresholds are enforced in the complete-suite coverage lane assigned by `COVERAGE_POLICY`. |
 | `bun run test:e2e` | Playwright e2e. |
 | `bun run db:migrate` | Apply hand-authored SQL migrations (checksum-tracked runner). |
 | `bun run db:generate` | Not used — repo hand-authors `NNNN_*.sql`. |
 | `bun run setup` | First-time bootstrap: `.env` from `.env.example` + migrate. |
+| `bun run docs:install` | `uv sync --group docs`. Once, before any other `docs:*` command. |
+| `bun run docs:build` | `docs:gen --check` + `uv run mkdocs build --strict`. The docs gate. |
 | `docker compose up` | Local stack: postgres, redis, one `ROLE=all` app. |
+
+Docs build in a **uv-managed Python env** (`pyproject.toml`, `[dependency-groups] docs`), never against whatever `mkdocs` happens to be on `PATH`. Run a bare `mkdocs build --strict` and it picks up an unrelated interpreter and dies on `The "<plugin>" plugin is not installed` — that message means the wrong environment, not a broken config, so installing the named plugin by hand is the wrong repair. Go through `bun run docs:build` / `docs:serve`, which invoke mkdocs under `uv run`; `bun run docs:install` (`uv sync --group docs`) creates that env first.
 
 ## Linting
 
-**oxlint** is the single lint path (`.oxlintrc.json`, one whole-repo pass so `import/no-cycle` sees the full graph): `correctness` + `typescript`/`import`/`oxc`/`react` plugins, plus repo invariants via `overrides` — strategy/indicator **purity** (`no-restricted-globals`/`-imports`) and the **decimal.js boundary**. `react` is on for `react/no-unstable-nested-components` (a component declared inside another's render body remounts its subtree every render, which clamps `scrollTop` on WebKit); enabling the plugin also arms every `react` **correctness** rule, so `react/exhaustive-deps` is explicitly `off` pending triage of its pre-existing violations. Invariants oxlint can't express are `scripts/ci/*.sh` gates run from `lint.sh`: `no-plugin-leak` (invariant 1), `no-arbitrary-color-token`, `no-phantom-env-var`, `no-invalid-mermaid`, `no-undeclared-workspace-import`, `no-dropped-lint-rule` (asserts the resolved oxlint config still arms the rules carrying an invariant). See `docs/contributing/coding-rules.md`.
+**oxlint** is the single lint path (`.oxlintrc.json`, one whole-repo pass so `import/no-cycle` sees the full graph): `correctness` + `typescript`/`import`/`oxc`/`react` plugins, plus repo invariants via `overrides` — strategy/indicator **purity** (`no-restricted-globals`/`-imports`) and the **decimal.js boundary**. `react` is on for `react/no-unstable-nested-components` (a component declared inside another's render body remounts its subtree every render, which clamps `scrollTop` on WebKit); enabling the plugin also arms every `react` **correctness** rule, so `react/exhaustive-deps` is explicitly `off` pending triage of its pre-existing violations. Invariants oxlint can't express are `scripts/ci/*.sh` gates run from `lint.sh`: `no-plugin-leak` (invariant 1), `no-arbitrary-color-token`, `no-phantom-env-var`, `no-invalid-mermaid`, `no-undeclared-workspace-import`, `no-wider-metrics-sink` (only `apps/worker/src/metrics/catalog.ts` may declare the metrics sink; a second one typed `name: string` type-checks and escapes the catalogue), `no-dropped-lint-rule` (asserts the resolved oxlint config still arms the rules carrying an invariant). See `docs/contributing/coding-rules.md`.
 
 ## Quality gates (CI must enforce)
 
 1. Lint clean.
 2. Typecheck clean.
-3. Docs updated when behaviour changes — every claim traces to a source, not memory. Machine-enforced: `mkdocs build --strict`, `docs:gen --check` (config tables + env-var reference), `no-invalid-mermaid.sh`, `no-stale-migration-doc.sh`; narrative accuracy stays a review gate. See `docs/contributing/coding-rules.md#documentation-accuracy`.
-4. Unit coverage thresholds met (`packages/config/vitest/index.js`).
+3. Docs updated when behaviour changes — every claim traces to a source, not memory. Machine-enforced: `bun run docs:build` (`docs:gen --check` for config tables + env-var reference, then `uv run mkdocs build --strict`), `no-invalid-mermaid.sh`, `no-stale-migration-doc.sh`; narrative accuracy stays a review gate. See `docs/contributing/coding-rules.md#documentation-accuracy`.
+4. Per-workspace complete-suite coverage thresholds met (`packages/config/vitest/coverage-policy.js`).
 5. Strategy golden-fixture replay diff = 0.
-6. Playwright e2e green on critical-path flows.
-7. `docker compose build` succeeds for every app.
+6. Playwright lanes green. `browser-bootstrap` proves the four configured browser projects start and reports every skipped app execution with its reason; it does not claim critical-path app coverage. `app-e2e` boots a hermetic ROLE=all stack against a loopback Binance fixture and runs the P0 journey in all four projects; it fails on any skip and on any Binance traffic the fixture does not answer.
+7. `bun run compose:build` succeeds for every app.
 8. Migrations: hand-authored `NNNN_*.sql` applied in order by the checksum-tracked runner (`packages/db/src/migrate.ts`, tracked in `_app_migrations`); the `packages/db` suite runs `migrate()` against real Postgres.
 9. JSDoc quality is a review gate, not a lint gate: no name-restatements, no blank blocks.
 

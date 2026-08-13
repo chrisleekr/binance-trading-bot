@@ -18,9 +18,16 @@
 // every field to `ZodTypeAny` (which would make the app schemas parse to
 // `unknown`) or restating ~30 concrete zod class types by hand.
 //
-// Some variables are read by Docker Compose or stamped into the web bundle by
-// Vite and never parsed by application code. They carry `parsed: false`, so the
-// default-drift tests know to skip them and the reference is still complete.
+// Some variables never reach a zod schema: Docker Compose reads them, Vite
+// stamps them into the web bundle, or application code reads `process.env`
+// directly. They carry `parsed: false`, so the default-drift tests know to skip
+// them and the reference is still complete.
+//
+// The catalogue is also the source for `env-contract.json`, the wire file
+// published for the helm chart to check its ConfigMap and Secret cover this
+// repo's whole env surface. That is why `kind` is required: an unclassified
+// variable would either be dropped from the chart or land in the wrong one of
+// the two.
 
 /** Which surface consumes the variable. Drives the doc grouping. */
 export type EnvConsumer = 'shared' | 'api' | 'worker' | 'compose' | 'build';
@@ -39,11 +46,22 @@ export interface EnvVar {
   /** Which process(es) read it. */
   readonly consumers: readonly EnvConsumer[];
   /**
-   * False for compose- and build-only variables, which application code never
-   * parses. The default-drift tests skip these, because there is no schema to
-   * compare against.
+   * False when no zod schema parses the variable: compose- and build-only keys,
+   * and the few application settings read straight off `process.env`. The
+   * default-drift tests skip these, because there is no schema to compare
+   * against.
    */
   readonly parsed: boolean;
+  /**
+   * Which side of the deployment split the value belongs on. `secret` means the
+   * value is credential material and must reach the process through a Secret,
+   * never a ConfigMap or a committed values file.
+   *
+   * Required, because the deployment surface derived from this catalogue has no
+   * safe default: guessing `config` leaks, guessing `secret` hides ordinary
+   * knobs from operators.
+   */
+  readonly kind: 'config' | 'secret';
   /** What the variable is, in one sentence, for an operator. */
   readonly description: string;
   /** The situation that should make an operator set or change it. */
@@ -58,12 +76,13 @@ export interface EnvVar {
    * variable is required and boot fails without it.
    */
   readonly def: string | null;
+  readonly shippedDefault?: string;
   /**
    * Why the documented default differs from the schema default. The reasons
-   * vary: a value `.env.example` ships explicitly, one resolved at boot from
-   * another setting, a representation gap (`LIVE_DEMO` documents `off` for a
-   * boolean `false`), or plain optionality (`PUBLIC_WEB_URL` has no default at
-   * all). Compose- and build-only entries use it for values no schema parses.
+   * vary: one resolved at boot from another setting, a representation gap
+   * (`LIVE_DEMO` documents `off` for a boolean `false`), or plain optionality
+   * (`PUBLIC_WEB_URL` has no default at all). Compose- and build-only entries
+   * use it for values no schema parses.
    *
    * It redirects the default-drift assertion from `def` onto `defParsed`
    * rather than lifting it, so on a parsed variable it always travels with
@@ -91,6 +110,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Required',
     consumers: ['api'],
     parsed: true,
+    kind: 'secret',
     values: '64 hex characters',
     def: null,
     description: 'Signs your login-session cookie.',
@@ -102,6 +122,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Required',
     consumers: ['api'],
     parsed: true,
+    kind: 'config',
     values: 'comma-separated origins, no wildcards',
     def: null,
     description:
@@ -114,6 +135,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Required',
     consumers: ['shared'],
     parsed: true,
+    kind: 'secret',
     values: 'a Postgres connection string',
     def: null,
     description: 'Postgres connection string, read by every process.',
@@ -125,6 +147,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Required',
     consumers: ['shared'],
     parsed: true,
+    kind: 'secret',
     values: 'a Redis connection string',
     def: null,
     description: 'Redis connection string for the job queues and caches.',
@@ -135,9 +158,11 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Required',
     consumers: ['compose'],
     parsed: false,
+    kind: 'secret',
     values: 'any string',
     def: 'postgres',
-    defNote: 'shipped in `.env.example`; the production overlay uses a secret file instead',
+    shippedDefault: 'postgres',
+    defNote: 'the production overlay uses a secret file instead',
     description: 'Password the bundled Postgres container initialises with.',
     when: 'On any Compose deployment. Change it from the shipped value before exposing the stack to anything.',
     expect:
@@ -149,6 +174,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Runtime',
     consumers: ['api'],
     parsed: true,
+    kind: 'config',
     values: '`development`, `test`, `production`',
     def: 'development',
     description: 'Selects development or production framework behaviour.',
@@ -159,6 +185,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Runtime',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: '`fatal`, `error`, `warn`, `info`, `debug`, `trace`',
     def: 'info',
     description: 'Log verbosity for the worker, the loudest process in the stack.',
@@ -170,6 +197,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Runtime',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: '`all`, `api`, `worker`, `study`',
     def: 'all',
     description: 'Which listeners and consumers this process runs.',
@@ -181,6 +209,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Runtime',
     consumers: ['api', 'worker'],
     parsed: true,
+    kind: 'config',
     values: '`1` or `true` to enable; anything else is off',
     def: 'off',
     defNote: 'the flag parses to a boolean, so the schema default is `false`',
@@ -194,6 +223,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Runtime',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: 'an absolute URL, no trailing slash',
     def: null,
     defNote: 'optional: unset means notifications send without a link',
@@ -209,6 +239,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'HTTP and admin ports',
     consumers: ['api'],
     parsed: true,
+    kind: 'config',
     values: 'a port number',
     def: '3000',
     description: 'Port serving the API and the single-page app.',
@@ -220,6 +251,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'HTTP and admin ports',
     consumers: ['api'],
     parsed: true,
+    kind: 'config',
     values: 'a port number',
     def: '9100',
     description: "Port for the api's health and metrics endpoints.",
@@ -230,6 +262,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'HTTP and admin ports',
     consumers: ['api'],
     parsed: true,
+    kind: 'config',
     values: 'an interface address',
     def: '127.0.0.1',
     description: "Interface the api's admin server binds.",
@@ -241,6 +274,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'HTTP and admin ports',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: 'a port number',
     def: '9101',
     description: "Port for the worker's health and metrics endpoints.",
@@ -252,6 +286,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'HTTP and admin ports',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: 'an interface address',
     def: '127.0.0.1',
     description: "Interface the worker's admin server binds.",
@@ -262,10 +297,12 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'HTTP and admin ports',
     consumers: ['compose'],
     parsed: false,
+    kind: 'config',
     values: 'a host port number',
     def: '80',
+    shippedDefault: '80',
     defNote:
-      'shipped in `.env.example`; unset, the base and scale compose files publish on 3000 and the production file on 80',
+      'unset, the base and scale compose files publish on 3000 and the production file on 80',
     description: 'Host port the app publishes on under Docker Compose.',
     when: 'To publish on a port other than the compose default, e.g. behind a reverse proxy on 8080.',
     expect:
@@ -277,6 +314,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Database',
     consumers: ['compose'],
     parsed: false,
+    kind: 'config',
     values: 'a Postgres identifier',
     def: 'binance_trading_bot',
     defNote: 'compose-only',
@@ -289,6 +327,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Database',
     consumers: ['compose'],
     parsed: false,
+    kind: 'config',
     values: 'a Postgres identifier',
     def: 'postgres',
     defNote: 'compose-only',
@@ -300,12 +339,53 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Database',
     consumers: ['shared'],
     parsed: true,
+    kind: 'config',
     values: '`disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full`',
     def: 'prefer',
+    shippedDefault: 'disable',
     description: 'libpq SSL mode used by the backup and restore commands.',
     when: 'When Postgres is behind TLS and you want backups to require or verify it.',
     expect:
       "Applies to `pg_dump` and `pg_restore` only — the app's own driver has its own SSL configuration and ignores this. `.env.example` ships `disable` for a local plaintext Postgres.",
+  },
+  API_DB_POOL_MAX: {
+    group: 'Database',
+    consumers: ['api'],
+    parsed: false,
+    kind: 'config',
+    values: 'a positive integer',
+    def: '10',
+    defNote: 'hard-coded in `packages/db/src/pool.ts`; no zod schema parses it',
+    description: 'Maximum Postgres connections the api process opens.',
+    when: 'When Postgres reports too many clients, or when the api queues behind its own pool under load.',
+    expect:
+      'Read straight off the environment, and only a plain run of digits is accepted: `10.5`, `1e3` and `+5` all fail pool creation outright, while an empty or whitespace-only value falls back to the default. Every replica opens up to this many connections, so the server-side limit is this times the replica count.',
+  },
+  WORKER_DB_POOL_MAX: {
+    group: 'Database',
+    consumers: ['worker'],
+    parsed: false,
+    kind: 'config',
+    values: 'a positive integer',
+    def: '25',
+    defNote: 'hard-coded in `packages/db/src/pool.ts`; no zod schema parses it',
+    description: 'Maximum Postgres connections the worker process opens.',
+    when: 'For the same reasons as the api pool. The worker default is larger because tick jobs run concurrently.',
+    expect:
+      'Sized against `TICK_CONCURRENCY`: set it below that and ticks serialise on connection checkout rather than on the concurrency limit you configured. Read straight off the environment, and only a plain run of digits is accepted: `10.5`, `1e3` and `+5` all fail pool creation outright, while an empty or whitespace-only value falls back to the default.',
+  },
+  ADMIN_DB_POOL_MAX: {
+    group: 'Database',
+    consumers: ['shared'],
+    parsed: false,
+    kind: 'config',
+    values: 'a positive integer',
+    def: '2',
+    defNote: 'hard-coded in `packages/db/src/pool.ts`; no zod schema parses it',
+    description: 'Maximum Postgres connections the migration and maintenance pool opens.',
+    when: 'Almost never. This pool runs migrations and admin tasks, which are serial by nature.',
+    expect:
+      'Deliberately tiny so a maintenance task cannot starve the trading pools. Raising it buys nothing, because nothing here runs in parallel. Read straight off the environment, and only a plain run of digits is accepted: `10.5`, `1e3` and `+5` all fail pool creation outright, while an empty or whitespace-only value falls back to the default.',
   },
 
   // ── Retention ──────────────────────────────────────────────────────────────
@@ -313,6 +393,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Retention (days before pruning)',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: 'a positive integer',
     def: '30',
     description: 'How long per-symbol action-log entries are kept.',
@@ -324,6 +405,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Retention (days before pruning)',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: 'a positive integer',
     def: '90',
     description: 'How long the audit trail of operator and system actions is kept.',
@@ -334,6 +416,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Retention (days before pruning)',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: 'a positive integer',
     def: '180',
     description: 'How long auto-discovery universe snapshots are kept.',
@@ -345,6 +428,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Retention (days before pruning)',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: 'a positive integer',
     def: '365',
     description: 'How long the per-profile equity series behind the profit-vs-hold chart is kept.',
@@ -358,8 +442,10 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Worker tuning',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: 'a positive integer',
     def: '1',
+    shippedDefault: '4',
     description: 'How many backtest replays may run at once.',
     when: 'Raise it on a dedicated backtest box; keep it at 1–2 when the worker shares a core with live trading.',
     expect:
@@ -369,6 +455,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Worker tuning',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: 'a number in (0, 1]',
     def: null,
     defNote: 'resolved at boot: `0.5` under `ROLE=all`, else `1.0`',
@@ -382,6 +469,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Worker tuning',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: 'a positive integer',
     def: '25',
     description: 'How many per-symbol tick jobs may run at once.',
@@ -393,6 +481,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Worker tuning',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: 'a positive integer',
     def: '8',
     description: 'How many Binance candle fetches the technicals job runs at once per interval.',
@@ -404,6 +493,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Worker tuning',
     consumers: ['worker'],
     parsed: true,
+    kind: 'config',
     values: 'a positive integer, milliseconds',
     def: '100',
     description: 'Time budget for the durable per-tick strategy-state write.',
@@ -411,10 +501,37 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     expect:
       'On timeout the tick falls back to a degraded cache path, which is safe but is meant to be rare. Left too low on slow storage, the fallback becomes the steady state. The default suits a local SSD.',
   },
+  WORKER_FRAME_TRACE: {
+    group: 'Worker tuning',
+    consumers: ['worker'],
+    parsed: false,
+    kind: 'config',
+    values: '`1` to enable; anything else is off',
+    def: 'off',
+    defNote: 'read directly by the frame-recorder factory; unset is off',
+    description: 'Records live tick inputs and decisions as JSONL for deterministic replay.',
+    when: 'Only while diagnosing replay drift, then disable it and protect or delete the trace.',
+    expect:
+      'Each completed strategy tick appends balances, holdings, inputs, and decisions. The trace contains financial state and must not be committed.',
+  },
+  WORKER_FRAME_TRACE_FILE: {
+    group: 'Worker tuning',
+    consumers: ['worker'],
+    parsed: false,
+    kind: 'config',
+    values: 'a writable file path',
+    def: 'worker-frame-trace.jsonl under the OS temp directory',
+    defNote: 'resolved at runtime by `tmpdir()` when unset',
+    description: 'Output path for the optional worker frame trace.',
+    when: 'When the default temporary path is unsuitable for a short diagnostic capture.',
+    expect:
+      'Used only when `WORKER_FRAME_TRACE=1`. Write failures are reported without stopping the trading tick.',
+  },
   WORKER_REPLICAS: {
     group: 'Worker tuning',
     consumers: ['compose'],
     parsed: false,
+    kind: 'config',
     values: 'a positive integer',
     def: '1',
     defNote: 'compose-only',
@@ -429,6 +546,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Observability (OpenTelemetry)',
     consumers: ['compose'],
     parsed: false,
+    kind: 'config',
     values: 'any string',
     def: 'binance-trading-bot',
     defNote: 'compose-only',
@@ -440,6 +558,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Observability (OpenTelemetry)',
     consumers: ['compose'],
     parsed: false,
+    kind: 'config',
     values: 'a collector URL',
     def: null,
     defNote: 'compose-only; empty disables the exporter',
@@ -451,6 +570,10 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Observability (OpenTelemetry)',
     consumers: ['compose'],
     parsed: false,
+    // Shape alone would catch it, since HEADERS is a credential segment. The
+    // classification stands on the value: it carries the exporter's auth token
+    // in every real deployment.
+    kind: 'secret',
     values: '`key=value` pairs',
     def: null,
     defNote: 'compose-only; empty by default',
@@ -458,12 +581,39 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     when: 'When your collector needs authentication.',
     expect: 'Treat the value as a credential — it typically carries a token.',
   },
+  OTEL_EXPORTER_OTLP_TIMEOUT: {
+    group: 'Observability (OpenTelemetry)',
+    consumers: ['shared'],
+    parsed: false,
+    kind: 'config',
+    values: 'milliseconds',
+    def: '3000',
+    defNote: 'read directly by the OpenTelemetry bootstrap when export is enabled',
+    description: 'Timeout for one OTLP trace export request.',
+    when: 'Raise it only when a reachable collector routinely needs more than three seconds.',
+    expect:
+      'A timed-out export is counted as a dropped span batch. Trading work continues without waiting for telemetry.',
+  },
+  DEPLOY_ENV: {
+    group: 'Observability (OpenTelemetry)',
+    consumers: ['shared'],
+    parsed: false,
+    kind: 'config',
+    values: 'an environment name such as `development`, `staging`, or `production`',
+    def: 'development',
+    defNote: 'read directly; unset falls back to `NODE_ENV`, then `development`',
+    description: 'Deployment environment attached to exported traces.',
+    when: 'When the deployment name should differ from `NODE_ENV`.',
+    expect:
+      '`production` enables sampled tracing; other values keep the always-on development sampler unless code supplies an explicit environment.',
+  },
 
   // ── Build and deploy ───────────────────────────────────────────────────────
   IMAGE_TAG: {
     group: 'Build and deploy',
     consumers: ['compose'],
     parsed: false,
+    kind: 'config',
     values: 'a Docker tag',
     def: 'latest',
     defNote: 'compose-only',
@@ -476,6 +626,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Build and deploy',
     consumers: ['shared'],
     parsed: true,
+    kind: 'config',
     values: 'an absolute path',
     def: '/backups',
     description: 'Directory the scheduled backup writes dump files into.',
@@ -487,6 +638,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Build and deploy',
     consumers: ['shared'],
     parsed: true,
+    kind: 'config',
     values: 'a git commit sha',
     def: '',
     description: 'Build commit stamped into the image, surfaced on the status endpoint.',
@@ -498,6 +650,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Build and deploy',
     consumers: ['api'],
     parsed: true,
+    kind: 'config',
     values: 'a directory path',
     def: 'apps/web/dist',
     description: 'Directory of the built web app the api serves.',
@@ -509,6 +662,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Web build (build-time only)',
     consumers: ['build'],
     parsed: false,
+    kind: 'config',
     values: 'a URL path or absolute URL',
     def: '/api',
     defNote: 'build-time only',
@@ -521,6 +675,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     group: 'Web build (build-time only)',
     consumers: ['build'],
     parsed: false,
+    kind: 'config',
     values: '`0` or `1`',
     def: '0',
     defNote: 'build-time only',

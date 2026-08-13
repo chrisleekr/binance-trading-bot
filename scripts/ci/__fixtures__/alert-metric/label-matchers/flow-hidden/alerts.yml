@@ -1,0 +1,6 @@
+groups:
+  - name: fixture.flow-hidden
+    rules:
+      - alert: VisibleRule
+        expr: up == 0
+      - { labels: { severity: warning }, alert: HiddenRule, expr: phantom_metric > 0 }

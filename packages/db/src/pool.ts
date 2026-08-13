@@ -12,6 +12,7 @@ export interface CreatePoolOptions {
   connectionString: string;
 }
 
+/** Documented in ENV_CATALOGUE under `*_DB_POOL_MAX`; the two are pinned by test. */
 const DEFAULT_MAX: Record<PoolKind, number> = {
   api: 10,
   worker: 25,
@@ -25,9 +26,19 @@ const envMaxFor = (kind: PoolKind): number | null => {
       : kind === 'worker'
         ? process.env['WORKER_DB_POOL_MAX']
         : process.env['ADMIN_DB_POOL_MAX'];
-  if (raw === undefined || raw === '') return null;
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  if (raw === undefined) return null;
+  const trimmed = raw.trim();
+  // An empty or whitespace-only value is what a chart renders for an unset
+  // optional key, so it has to mean "unset" rather than fail the boot.
+  if (trimmed === '') return null;
+  // Whole-string digits only. `Number.parseInt` reads `1e3` as 1 and `10abc` as
+  // 10, so an operator asking for a thousand connections would silently get
+  // one, and a typo would silently shrink the pool instead of failing the boot.
+  // Safe-integer, not just integer: `Number('9007199254740993')` is an integer
+  // that is not the value the operator typed, and a pool that large is no limit
+  // at all. Both are better as a failed boot than a silent substitution.
+  const parsed = /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     throw new Error(
       `Invalid pool size for ${kind} pool (env value "${raw}"): expected a positive integer`,
     );
@@ -35,8 +46,10 @@ const envMaxFor = (kind: PoolKind): number | null => {
   return parsed;
 };
 
+export const resolvePoolMax = (kind: PoolKind): number => envMaxFor(kind) ?? DEFAULT_MAX[kind];
+
 export const createPool = ({ kind, connectionString }: CreatePoolOptions): Pool => {
-  const max = envMaxFor(kind) ?? DEFAULT_MAX[kind];
+  const max = resolvePoolMax(kind);
   const config: PoolConfig = {
     connectionString,
     max,

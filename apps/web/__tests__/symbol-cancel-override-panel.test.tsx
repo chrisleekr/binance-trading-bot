@@ -121,9 +121,7 @@ const openDialog = async (): Promise<HTMLElement> => {
 
 const openAndConfirm = async (): Promise<void> => {
   const confirm = await openDialog();
-  await act(async () => {
-    await userEvent.click(confirm);
-  });
+  await userEvent.click(confirm);
 };
 
 beforeEach(() => {

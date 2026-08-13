@@ -51,10 +51,12 @@ export interface Env {
   WEB_DIST_DIR: string;
   /**
    * Public "Live demo" mode. When true, the api injects the sole demo operator
-   * id for every anonymous request (no login), locks the credential/destructive
-   * routes behind `requireNotDemo`, and refuses to boot if any account is on the
-   * live Binance environment. A separate deployment concern; the operator's real
-   * instance always leaves this false. See `docs/architecture/auth.md`.
+   * id for every anonymous request (no login), locks credential, notifier,
+   * backup/restore, account-creation, retention-change, and diagnosis-start routes behind
+   * `requireNotDemo`, and refuses to boot if any account is live. Trading
+   * remains interactive on Binance testnet. A separate deployment concern; the
+   * operator's real instance always leaves this false. See
+   * `docs/architecture/auth.md`.
    */
   LIVE_DEMO: boolean;
 }
@@ -98,3 +100,6 @@ const EnvSchema = z
 
 export const loadEnv = (raw: NodeJS.ProcessEnv = process.env): Env =>
   parseEnvOrThrow(EnvSchema, raw, 'api');
+
+export const publicListenerHostname = (raw: NodeJS.ProcessEnv = process.env): string | undefined =>
+  raw['NODE_ENV'] === 'test' && raw['APP_E2E'] === '1' ? '127.0.0.1' : undefined;

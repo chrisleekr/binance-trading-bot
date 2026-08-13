@@ -1,0 +1,5 @@
+groups:
+  - name: fixture.primary-valid
+    rules:
+      - alert: PrimaryValid
+        expr: binance_api_weight{profileId="p-1"} > 1000

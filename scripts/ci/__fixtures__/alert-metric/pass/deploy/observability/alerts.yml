@@ -69,7 +69,7 @@ groups:
       - alert: HashInsideQuotes
         # The `#` here is expression content, not a comment: unwrapping has to
         # find the real closing quote before any comment strip runs.
-        expr: 'binance_api_weight{note="#1 profile"} > 1000'
+        expr: 'binance_api_weight{profileId="#1 profile"} > 1000'
         for: 5m
         labels:
           severity: warning

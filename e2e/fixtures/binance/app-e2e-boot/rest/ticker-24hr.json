@@ -1,0 +1,16 @@
+{
+  "name": "app-e2e boot all-symbol tickers",
+  "request": {
+    "method": "GET",
+    "path": "/api/v3/ticker/24hr",
+    "matchQuery": "any"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "content-type": "application/json" },
+    "body": [
+      { "symbol": "BTCUSDT", "priceChangePercent": "1.0", "lastPrice": "30000.00" },
+      { "symbol": "ETHUSDT", "priceChangePercent": "-1.0", "lastPrice": "2000.00" }
+    ]
+  }
+}
