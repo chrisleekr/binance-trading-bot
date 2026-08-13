@@ -40,7 +40,14 @@ const assertLoopbackUrl = (key: (typeof OVERRIDE_KEYS)[number], raw: string): st
   if (!['127.0.0.1', '[::1]'].includes(url.hostname)) {
     throw new Error(`${key} must target loopback in app-e2e`);
   }
-  return raw.replace(/\/+$/, '');
+  // Scanned rather than `raw.replace(/\/+$/, '')`: that pattern re-tries from
+  // every start position across a long run of slashes, so it is quadratic in the
+  // length of a value this function takes from the environment.
+  let end = raw.length;
+  while (end > 0 && raw[end - 1] === '/') {
+    end -= 1;
+  }
+  return raw.slice(0, end);
 };
 
 /**
