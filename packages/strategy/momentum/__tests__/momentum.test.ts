@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Decimal } from '@app/money';
-import { assertDeterministic, mergeConfig } from '@app/strategy-core';
+import { assertDeterministic, decOrNull, mergeConfig } from '@app/strategy-core';
 import type { Candle, OpenOrder, ProfileSnapshot, SymbolInfo, TickInput } from '@app/strategy-core';
 
 import {
@@ -24,6 +24,7 @@ import {
   protectiveStopCancelDecisions,
 } from '../src/protective-stop.js';
 import { protectiveStopClientOrderId } from '../src/client-order-id.js';
+import { resolveStopLevel } from '../src/stop-level.js';
 
 const FILTERS: SymbolInfo['filters'] = {
   minNotional: '10',
@@ -90,6 +91,9 @@ interface InputOpts {
   readonly readable?: boolean;
   readonly deployedQuoteAcrossProfiles?: string;
   readonly override?: MomentumBundle['override'];
+  // The 1m window the worker feeds for every symbol regardless of
+  // `candleInterval`. Only the profit trail reads it.
+  readonly oneMinute?: readonly Candle[];
 }
 
 const mkInput = (opts: InputOpts): TickInput<MomentumConfig, MomentumState, MomentumBundle> => ({
@@ -102,7 +106,10 @@ const mkInput = (opts: InputOpts): TickInput<MomentumConfig, MomentumState, Mome
   market: {
     symbol: 'BTCUSDT',
     currentPrice: opts.currentPrice,
-    candlesByInterval: { '1h': opts.closes },
+    candlesByInterval: {
+      '1h': opts.closes,
+      ...(opts.oneMinute === undefined ? {} : { '1m': opts.oneMinute }),
+    },
     symbolInfo: opts.filters ? { ...SYMBOL_INFO, filters: opts.filters } : SYMBOL_INFO,
     indicatorsByInterval: {},
   },
@@ -123,6 +130,7 @@ const longState = (over: Partial<MomentumState> = {}): MomentumState => ({
   schemaVersion: MOMENTUM_STATE_SCHEMA_VERSION,
   entryPrice: '100',
   highSinceEntry: '100',
+  profitHigh: null,
   heldQuantity: '1',
   lastEntryCandleMs: null,
   ...over,
@@ -138,11 +146,33 @@ const FLAT_SERIES = ['10', '10', '10', '10']; // no cross either way
 const LAST_CLOSE_MS = 4 * 3_600_000;
 
 /**
+ * Arm against the level the tick would have resolved from `high`. The arm takes a
+ * resolved stop rather than a high-water mark, so the wrapper runs the SAME
+ * resolver the tick does: the ATR, fixed-fallback and unusable-retrace cases
+ * below keep exercising the real level math instead of a hand-written number.
+ */
+const armOut = (
+  input: TickInput<MomentumConfig, MomentumState, MomentumBundle>,
+  state: MomentumState,
+  high: Decimal,
+): ReturnType<typeof evaluateProtectiveStopArm> =>
+  evaluateProtectiveStopArm(
+    input,
+    state,
+    resolveStopLevel(
+      input.config,
+      new Decimal(state.entryPrice ?? '0'),
+      high,
+      decOrNull(state.profitHigh),
+      (input.market.candlesByInterval[input.config.candleInterval] ?? []).filter((c) => c.isClosed),
+    ).stop,
+  );
+
+/**
  * The arm evaluator returns decisions AND (when it refuses) a blocker. Most cases
  * below assert only the decisions; the blocker cases call the evaluator directly.
  */
-const armDecisions = (...args: Parameters<typeof evaluateProtectiveStopArm>): Decision[] =>
-  evaluateProtectiveStopArm(...args).decisions;
+const armDecisions = (...args: Parameters<typeof armOut>): Decision[] => armOut(...args).decisions;
 
 describe('momentum.tick — entry', () => {
   it('enters long on an EMA cross-up', () => {
@@ -162,10 +192,16 @@ describe('momentum.tick — entry', () => {
       schemaVersion: MOMENTUM_STATE_SCHEMA_VERSION,
       entryPrice: '14',
       highSinceEntry: '14',
+      // Unarmed at entry by definition; seeded on the first held tick that sees
+      // a bucket-end 1m close.
+      profitHigh: null,
       heldQuantity: '10.000',
       // Stamped with the closing candle that carried the cross, so the same
       // cross cannot open a second position after this one closes.
       lastEntryCandleMs: CROSS_UP.length * 3_600_000,
+      // No 1m window in this input, so the trail has no epoch to fold from.
+      // Covered against a real window below.
+      profitTrailSinceMs: null,
       // A fired entry clears any prior suppression breadcrumb.
       entryBlocker: null,
       protectiveStopBlocker: null,
@@ -466,8 +502,11 @@ describe('momentum.tick — exit', () => {
       schemaVersion: MOMENTUM_STATE_SCHEMA_VERSION,
       entryPrice: null,
       highSinceEntry: null,
+      profitHigh: null,
       heldQuantity: null,
       lastEntryCandleMs: null,
+      // The epoch belongs to the position just closed; a re-entry stamps its own.
+      profitTrailSinceMs: null,
       // An exit is not an entry suppression, so the field stays clear.
       entryBlocker: null,
       // Flat: nothing to protect, so no stop can be blocked.
@@ -1021,7 +1060,10 @@ describe('protective stop — evaluateProtectiveStopArm', () => {
     );
     expect(out).toHaveLength(2);
     expect(out[0]).toMatchObject({ type: 'cancel-order', orderId: 555, symbol: 'BTCUSDT' });
-    expect(out[1]?.type).toBe('place-order');
+    // Deferrable ONLY here: the order being replaced keeps resting until the
+    // cancel above lands, so the executor may shed the pair on an exhausted
+    // order budget. The first-arm case above pins the absence of the flag.
+    expect(out[1]).toMatchObject({ type: 'place-order', intent: { deferrable: true } });
   });
 
   it('leaves a resting stop whose stopPrice reads back unparseable', () => {
@@ -1243,7 +1285,19 @@ describe('momentumPositionAdapter', () => {
     ).toBeNull();
   });
 
-  it('applies a buy fill, resetting the high-water mark', () => {
+  it('applies a buy fill, resetting both marks but KEEPING the entry stamp', () => {
+    // `profitTrailSinceMs` clears: it is the epoch bounding which 1m closes may
+    // ratchet the profit trail, and it belongs to the entry this fill replaced.
+    // Carried forward it would admit closes from before the new cost basis and
+    // seed the mark with a peak this position never held. The adapter has no
+    // candle window to derive a fresh one, so the next held tick establishes it.
+    //
+    // `lastEntryCandleMs` SURVIVES, for the same reason the empty-fill case
+    // below keeps it: it is the one-entry-per-cross guard, and this adapter runs
+    // for the profile's own strategy entries as well as adopted ones. Clearing
+    // it would erase the stamp the placing tick just wrote and let the same
+    // cross re-enter after a stop-out. A stale stamp can only ever suppress an
+    // entry on a candle already past, which is the safe direction.
     expect(
       momentumPositionAdapter.applyFill(body({ lastEntryCandleMs: LAST_CLOSE_MS }), {
         kind: 'buy',
@@ -1253,8 +1307,10 @@ describe('momentumPositionAdapter', () => {
     ).toEqual({
       schemaVersion: MOMENTUM_STATE_SCHEMA_VERSION,
       lastEntryCandleMs: LAST_CLOSE_MS,
+      profitTrailSinceMs: null,
       entryPrice: '50',
       highSinceEntry: null,
+      profitHigh: null,
       heldQuantity: '2',
     });
   });
@@ -1276,8 +1332,10 @@ describe('momentumPositionAdapter', () => {
     ).toEqual({
       schemaVersion: MOMENTUM_STATE_SCHEMA_VERSION,
       lastEntryCandleMs: LAST_CLOSE_MS,
+      profitTrailSinceMs: null,
       entryPrice: null,
       highSinceEntry: null,
+      profitHigh: null,
       heldQuantity: null,
     });
   });
@@ -1309,7 +1367,12 @@ describe('momentumPositionAdapter', () => {
       body({ entryPrice: '42' }),
     );
     expect(momentumPositionAdapter.clearPosition(body())).toEqual(
-      body({ entryPrice: null, highSinceEntry: null }),
+      body({
+        entryPrice: null,
+        highSinceEntry: null,
+        profitHigh: null,
+        profitTrailSinceMs: null,
+      }),
     );
   });
 });
@@ -1417,8 +1480,69 @@ describe('schema', () => {
     expect(cfg({ protectiveStop: {} }).protectiveStop).toEqual({
       enabled: false,
       limitOffsetPercentage: '0.98',
+      minRearmDriftPct: '0.001',
     });
     expect(cfg().protectiveStop).toBeUndefined();
+  });
+
+  it('defaults the profit trail off, with a trail narrower than its activation', () => {
+    expect(cfg().profitTrail).toBeUndefined();
+    expect(cfg({ profitTrail: {} }).profitTrail).toEqual({
+      enabled: false,
+      activationPct: '0.05',
+      trailPct: '0.03',
+      ratchetMinutes: 5,
+    });
+  });
+
+  it('rejects a profit trail that would arm at or below the entry price', () => {
+    // The bound is trail < act / (1 + act), not trail < act: the pullback is
+    // taken off the arming price entry * (1 + act), so it costs more than the
+    // activation gained. At act 0.05 that boundary is 0.047619…, and 0.048
+    // arms at 100 * 1.05 * 0.952 = 99.96 — under entry. Pinned because the
+    // naive comparison passes every other test: the Decimal.max floor in
+    // stop-level pins such a stop AT entry, so it books a break-even gross
+    // sale instead of an obvious failure.
+    expect(() => cfg({ profitTrail: { activationPct: '0.05', trailPct: '0.05' } })).toThrow();
+    expect(() => cfg({ profitTrail: { activationPct: '0.05', trailPct: '0.08' } })).toThrow();
+    expect(() => cfg({ profitTrail: { activationPct: '0.05', trailPct: '0.048' } })).toThrow();
+    expect(
+      cfg({ profitTrail: { activationPct: '0.05', trailPct: '0.047' } }).profitTrail?.trailPct,
+    ).toBe('0.047');
+  });
+
+  it('bounds ratchetMinutes to a whole number of minutes in [1, 60]', () => {
+    expect(() => cfg({ profitTrail: { ratchetMinutes: 0 } })).toThrow();
+    expect(() => cfg({ profitTrail: { ratchetMinutes: 61 } })).toThrow();
+    expect(() => cfg({ profitTrail: { ratchetMinutes: 1.5 } })).toThrow();
+    expect(cfg({ profitTrail: { ratchetMinutes: 60 } }).profitTrail?.ratchetMinutes).toBe(60);
+  });
+
+  it('accepts a per-symbol profitTrail override', () => {
+    expect(
+      MomentumOverrideConfigSchema.parse({ profitTrail: { enabled: true } }).profitTrail,
+    ).toEqual({ enabled: true, activationPct: '0.05', trailPct: '0.03', ratchetMinutes: 5 });
+  });
+
+  it('bounds minRearmDriftPct to a fraction in (0, 1)', () => {
+    expect(() => cfg({ protectiveStop: { minRearmDriftPct: '0' } })).toThrow();
+    expect(() => cfg({ protectiveStop: { minRearmDriftPct: '1' } })).toThrow();
+    expect(cfg({ protectiveStop: { minRearmDriftPct: '0.01' } }).protectiveStop).toMatchObject({
+      minRearmDriftPct: '0.01',
+    });
+  });
+
+  it('revives a stored state written before profitHigh existed', () => {
+    const parsed = MomentumStateSchema.parse({
+      schemaVersion: MOMENTUM_STATE_SCHEMA_VERSION,
+      entryPrice: '10',
+      highSinceEntry: '11',
+      heldQuantity: '1',
+    });
+    // `.default(null)` is what keeps MOMENTUM_STATE_SCHEMA_VERSION where it is:
+    // without it the revive fails and every live row needs a migrateState hop.
+    expect(parsed.profitHigh).toBeNull();
+    expect(parsed.schemaVersion).toBe(MOMENTUM_STATE_SCHEMA_VERSION);
   });
 
   it('enables the protective stop in the seeded default config', () => {
@@ -2093,7 +2217,7 @@ describe('protective stop — a foreign resting SELL holding the base', () => {
   });
 
   it('refuses to place the stop, and neither cancels the foreign order nor blocks entries', () => {
-    const out = evaluateProtectiveStopArm(
+    const out = armOut(
       armInput({ openOrders: [FOREIGN], balances: NO_FREE_BASE }),
       longState(),
       HIGH,
@@ -2116,7 +2240,7 @@ describe('protective stop — a foreign resting SELL holding the base', () => {
   // pre-flight fails open on the same input and is the backstop. An absent line in
   // a READABLE map is a different claim (a hard zero) and is covered separately.
   it('an UNREADABLE wallet still arms the stop — refusing needs proof', () => {
-    const out = evaluateProtectiveStopArm(
+    const out = armOut(
       armInput({ openOrders: [FOREIGN], balances: {}, readable: false }),
       longState(),
       HIGH,
@@ -2128,7 +2252,7 @@ describe('protective stop — a foreign resting SELL holding the base', () => {
   // Two momentum profiles on one symbol each see the other's stop as foreign. The
   // refusal must not deadlock them: while the wallet can fund both stops, both arm.
   it('still arms when the free base covers the stop despite a foreign resting SELL', () => {
-    const out = evaluateProtectiveStopArm(
+    const out = armOut(
       armInput({
         openOrders: [FOREIGN],
         balances: {
@@ -2147,7 +2271,7 @@ describe('protective stop — a foreign resting SELL holding the base', () => {
   // Our OWN resting stop locks the base too, but we cancel it in the same batch,
   // which frees it before the replacement is sent — no refusal is owed there.
   it('re-prices our own resting stop even with zero free base', () => {
-    const out = evaluateProtectiveStopArm(
+    const out = armOut(
       armInput({
         openOrders: [psOrder({ stopPrice: '80.00' })],
         balances: NO_FREE_BASE,
@@ -2193,7 +2317,7 @@ describe('protective stop — a foreign order locking PART of the base (#613)', 
 
   it('arms on the FREE remainder instead of protecting nothing', () => {
     // Live shape: held 0.3526, free 0.3441, the ghost locks 0.0085 (2.4%).
-    const out = evaluateProtectiveStopArm(
+    const out = armOut(
       armInput({
         openOrders: [GHOST],
         balances: {
@@ -2216,7 +2340,7 @@ describe('protective stop — a foreign order locking PART of the base (#613)', 
   // Regression lock on the EXISTING stand-down: with nothing usable free there is
   // no partial stop to arm, so refusing (and saying why) stays correct.
   it('stands down with a blocker when the free remainder is zero', () => {
-    const out = evaluateProtectiveStopArm(
+    const out = armOut(
       armInput({
         openOrders: [psOrder({ orderId: 999, clientOrderId: 'legacy-deleted-profile-stop' })],
         balances: {
@@ -2240,7 +2364,7 @@ describe('protective stop — a foreign order locking PART of the base (#613)', 
   it('blocks (and keeps the resting stop) when the free base is below the exchange minimum', () => {
     // Our own stop rests on a dust 0.001 and the wallet holds nothing else, so the
     // most we could re-commit is 0.001 — below minNotional at stop 95.
-    const out = evaluateProtectiveStopArm(
+    const out = armOut(
       armInput({
         openOrders: [psOrder({ origQty: '0.001' })],
         balances: {
@@ -2259,7 +2383,7 @@ describe('protective stop — a foreign order locking PART of the base (#613)', 
   });
 
   it('blocks with base-short-of-tracked-position when no base is free at all', () => {
-    const out = evaluateProtectiveStopArm(
+    const out = armOut(
       armInput({
         balances: {
           USDT: QUOTE_BALANCE,
@@ -2275,7 +2399,7 @@ describe('protective stop — a foreign order locking PART of the base (#613)', 
 
   it('stands down with a blocker when the free remainder is below minNotional', () => {
     // free 0.05 × stop 95 = 4.75 < minNotional 10 ⇒ no armable partial stop.
-    const out = evaluateProtectiveStopArm(
+    const out = armOut(
       armInput({
         openOrders: [GHOST],
         balances: {
@@ -2297,7 +2421,7 @@ describe('protective stop — quantity drift on the resting stop (#613)', () => 
     // has cleared, so the desired quantity is the full 1.000. The trigger is
     // UNCHANGED (95.00), so the price-drift band does not fire — and quantity is
     // never compared, leaving 90% of the position unprotected forever.
-    const out = evaluateProtectiveStopArm(
+    const out = armOut(
       armInput({
         openOrders: [psOrder({ origQty: '0.100', stopPrice: '95.00' })],
         balances: {
@@ -2322,11 +2446,7 @@ describe('protective stop — quantity drift on the resting stop (#613)', () => 
 // quantity there is an unfundable order, rejected -2010 on every tick.
 describe('protective stop — unknown wallet vs known-zero base', () => {
   it('refuses to arm when the base line is absent from a populated map', () => {
-    const out = evaluateProtectiveStopArm(
-      armInput({ balances: { USDT: QUOTE_BALANCE } }),
-      longState(),
-      HIGH,
-    );
+    const out = armOut(armInput({ balances: { USDT: QUOTE_BALANCE } }), longState(), HIGH);
     expect(out.decisions).toEqual([]);
     expect(out.blocker?.reason).toBe('base-short-of-tracked-position');
   });
@@ -2335,7 +2455,7 @@ describe('protective stop — unknown wallet vs known-zero base', () => {
     // The account snapshot outranks the TTL-cached openOrders view: base locked by
     // a live stop would show as a PRESENT line with locked>0, so an absent line
     // means that stop already filled. Arming its quantity is an unfundable order.
-    const out = evaluateProtectiveStopArm(
+    const out = armOut(
       armInput({ openOrders: [psOrder()], balances: { USDT: QUOTE_BALANCE } }),
       longState(),
       HIGH,
@@ -2345,11 +2465,7 @@ describe('protective stop — unknown wallet vs known-zero base', () => {
   });
 
   it('still fails OPEN on the tracked position when the snapshot is unreadable', () => {
-    const out = evaluateProtectiveStopArm(
-      armInput({ balances: {}, readable: false }),
-      longState(),
-      HIGH,
-    );
+    const out = armOut(armInput({ balances: {}, readable: false }), longState(), HIGH);
     expect(out.blocker).toBeNull();
     expect(out.decisions).toEqual([
       {
@@ -2372,7 +2488,7 @@ describe('protective stop — unknown wallet vs known-zero base', () => {
   });
 
   it('arms the free remainder when the base line is present but short', () => {
-    const out = evaluateProtectiveStopArm(
+    const out = armOut(
       armInput({
         balances: {
           USDT: QUOTE_BALANCE,
@@ -2385,5 +2501,228 @@ describe('protective stop — unknown wallet vs known-zero base', () => {
     expect(out.decisions[0]).toMatchObject({
       params: { type: 'STOP_LOSS_LIMIT', quantity: '0.400' },
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Profit-side ratchet, end to end through tick()
+// ---------------------------------------------------------------------------
+
+const MINUTE = 60_000;
+
+/** 1m candles from `startMs`, one per minute, all closed. */
+const min1 = (startMs: number, closes: readonly string[]): Candle[] =>
+  closes.map((c, i) => ({
+    openTimeMs: startMs + i * MINUTE,
+    closeTimeMs: startMs + (i + 1) * MINUTE,
+    open: c,
+    high: c,
+    low: c,
+    close: c,
+    volume: '1',
+    isClosed: true,
+  }));
+
+// Trading-interval candles flat at the entry price: no EMA cross either way, so
+// the only thing that can move is the trail. The hard leg sits at 100 * 0.95 = 95.
+const HOLD_SERIES = mkCandles(['100', '100', '100', '100']);
+
+const PROFIT_CFG = cfg({
+  protectiveStop: { enabled: true },
+  profitTrail: { enabled: true, activationPct: '0.05', trailPct: '0.03', ratchetMinutes: 5 },
+});
+
+// Five 1m closes ending on the 5m grid at 130 -> profitHigh 130, armed (>= 105),
+// profit stop 130 * 0.97 = 126.10, well above the hard leg's 95.
+const RUN_TO_130 = min1(0, ['110', '115', '120', '125', '130']);
+
+// Epoch 0: the position opened before the first candle of every 1m window
+// below, so the whole window is eligible to fold. Without it the guard reads the
+// absent field as "epoch unknown" and folds nothing.
+const heldLong = () => longState({ lastEntryCandleMs: 0, profitTrailSinceMs: 0 });
+
+describe('momentum.tick — profit trail', () => {
+  it('exits on the profit leg at a price the hard leg would have held through', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: HOLD_SERIES,
+        currentPrice: '125',
+        state: heldLong(),
+        config: PROFIT_CFG,
+        oneMinute: RUN_TO_130,
+      }),
+    );
+    expect(new Decimal('125').gt('95')).toBe(true);
+    expect(out.decisions.at(-1)).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'SELL', reason: 'exit' },
+      params: { type: 'MARKET' },
+    });
+    expect(out.metrics[0]).toMatchObject({
+      name: 'momentum.exit',
+      tags: { reason: 'trailing-stop' },
+    });
+    expect(out.nextState.profitHigh).toBeNull();
+  });
+
+  it('persists the mark and mirrors the profit leg in the resting stop while holding', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: HOLD_SERIES,
+        currentPrice: '128',
+        state: heldLong(),
+        config: PROFIT_CFG,
+        oneMinute: RUN_TO_130,
+        balances: ARM_BALANCES,
+      }),
+    );
+    expect(out.nextState.profitHigh).toBe('130');
+    const place = out.decisions[0];
+    expect(place).toMatchObject({
+      type: 'place-order',
+      intent: { reason: 'protective-stop' },
+      params: { type: 'STOP_LOSS_LIMIT', stopPrice: '126.10' },
+    });
+    // A FIRST arm, so it must not be sheddable: nothing is resting behind it.
+    if (place?.type !== 'place-order') throw new Error('expected place-order');
+    expect(place.intent.deferrable).toBeUndefined();
+  });
+
+  it('establishes the epoch when the state carries none, folding nothing on that tick', () => {
+    // An ADOPTED entry (the fill adapter has no candle window to derive an epoch
+    // from) and a wallet-reconciled position both arrive with a null epoch.
+    // Without establishing one the mark would stay pinned at the entry price for
+    // the life of the position and the leg would never arm at all.
+    const out = momentum.tick(
+      mkInput({
+        closes: HOLD_SERIES,
+        currentPrice: '128',
+        state: longState({ lastEntryCandleMs: 0, profitTrailSinceMs: null }),
+        config: PROFIT_CFG,
+        oneMinute: RUN_TO_130,
+        balances: ARM_BALANCES,
+      }),
+    );
+    // The newest closed 1m close in the window — the same anchor an entry tick
+    // would have stamped.
+    expect(out.nextState.profitTrailSinceMs).toBe(5 * MINUTE);
+    // Every candle in this window opened BEFORE that epoch, so none is eligible:
+    // establishing it late can only ever fold fewer closes, never seed the mark
+    // with the 130 peak this position may not have held.
+    expect(out.nextState.profitHigh).toBe('100');
+    expect(out.decisions[0]).toMatchObject({ params: { stopPrice: '95.00' } });
+  });
+
+  it('arms on the tick after the epoch is established, from candles that follow it', () => {
+    const first = momentum.tick(
+      mkInput({
+        closes: HOLD_SERIES,
+        currentPrice: '128',
+        state: longState({ lastEntryCandleMs: 0, profitTrailSinceMs: null }),
+        config: PROFIT_CFG,
+        oneMinute: RUN_TO_130,
+        balances: ARM_BALANCES,
+      }),
+    );
+    // Feed the persisted epoch back with a window that CONTINUES past it, which
+    // is what the next real tick sees. The adopted position costs the profit leg
+    // one tick, not the whole position.
+    const out = momentum.tick(
+      mkInput({
+        closes: HOLD_SERIES,
+        currentPrice: '128',
+        state: first.nextState,
+        config: PROFIT_CFG,
+        oneMinute: min1(5 * MINUTE, ['131', '132', '133', '134', '135']),
+        balances: ARM_BALANCES,
+      }),
+    );
+    // The leg is live: it folded to 135, putting the profit stop at 135 * 0.97 =
+    // 130.95, and 128 is through it. With the epoch left null the mark would
+    // still be pinned at the entry price, the profit stop would sit at 97, and
+    // this tick would have held — which is the whole defect.
+    expect(out.decisions.at(-1)).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'SELL', reason: 'exit' },
+      params: { type: 'MARKET' },
+    });
+    expect(out.metrics[0]).toMatchObject({
+      name: 'momentum.exit',
+      tags: { reason: 'trailing-stop' },
+    });
+  });
+
+  it('leaves the position untouched while the mark is below the activation threshold', () => {
+    // Bucket-end close 104 < 100 * 1.05, so the hard leg's 95 still rules and a
+    // price of 100 is nowhere near it.
+    const out = momentum.tick(
+      mkInput({
+        closes: HOLD_SERIES,
+        currentPrice: '100',
+        state: heldLong(),
+        config: PROFIT_CFG,
+        oneMinute: min1(0, ['101', '102', '103', '104', '104']),
+        balances: ARM_BALANCES,
+      }),
+    );
+    expect(out.nextState.profitHigh).toBe('104');
+    expect(out.decisions[0]).toMatchObject({ params: { stopPrice: '95.00' } });
+  });
+
+  it('is inert while the trail is off, mark included', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: HOLD_SERIES,
+        currentPrice: '125',
+        state: heldLong(),
+        config: PS_CFG,
+        oneMinute: RUN_TO_130,
+        balances: ARM_BALANCES,
+      }),
+    );
+    expect(out.nextState.profitHigh).toBeNull();
+    expect(out.decisions[0]).toMatchObject({ params: { stopPrice: '95.00' } });
+  });
+
+  it('spends at most 60 / ratchetMinutes placements per hour of rising price', () => {
+    // The Layer-1 order-budget claim, as a gate rather than a paragraph: the
+    // resting stop cannot be rewritten more often than the ratchet advances the
+    // level, no matter how many times the strategy is ticked in between.
+    const closes = Array.from({ length: 60 }, (_, i) => new Decimal(110).plus(i).toString());
+    const window = min1(0, closes);
+    let state = heldLong();
+    let resting: OpenOrder | null = null;
+    let placements = 0;
+
+    for (let minute = 0; minute < 60; minute += 1) {
+      const out = momentum.tick(
+        mkInput({
+          closes: HOLD_SERIES,
+          // Stay well above the trail so the run never exits: the test measures
+          // re-arm spend, not exit timing.
+          currentPrice: new Decimal(200).plus(minute).toString(),
+          state,
+          config: PROFIT_CFG,
+          oneMinute: window.slice(0, minute + 1),
+          openOrders: resting === null ? [] : [resting],
+          balances: ARM_BALANCES,
+        }),
+      );
+      state = out.nextState;
+      for (const d of out.decisions) {
+        if (d.type !== 'place-order' || d.params.type !== 'STOP_LOSS_LIMIT') continue;
+        placements += 1;
+        resting = psOrder({
+          stopPrice: d.params.stopPrice,
+          price: d.params.price,
+          origQty: d.params.quantity,
+        });
+      }
+    }
+
+    // The first arm lands on the hard leg before the trail has any mark, then
+    // one re-price per 5m bucket end — 12 of them in the hour.
+    expect(placements).toBe(13);
+    expect(placements).toBeLessThanOrEqual(1 + 60 / 5);
   });
 });

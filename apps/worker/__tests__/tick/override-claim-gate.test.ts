@@ -271,7 +271,7 @@ const run = async (opts: RunOpts = {}): Promise<RunResult> => {
     marketDataPort,
     resolveProfile: async () => profile,
     auditShipper: { publish },
-    metrics: { record },
+    metrics: { record, forget: vi.fn() },
     claimOverrideAction,
     findActiveOverride,
     settleOverrideAction,

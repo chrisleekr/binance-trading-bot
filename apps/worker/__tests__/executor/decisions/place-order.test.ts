@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { pino } from 'pino';
 import type { Redis } from 'ioredis';
-import { BinanceApiError, type BinanceRestClient } from '@app/binance';
+import { BinanceApiError, OrderBudgetUnavailableError, type BinanceRestClient } from '@app/binance';
 import type { NotifyProviderRegistry, AnyNotifyProvider } from '@app/notify';
 import type { Decision, ExecutorContext } from '@app/strategy-core';
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
@@ -1159,6 +1159,62 @@ describe('placeOrderHandler — a placement whose response was lost', () => {
     };
     return { deps, slept };
   };
+
+  it('an exhausted ORDERS budget is a pre-call refusal, never an ambiguity probe', async () => {
+    // The governor refuses BEFORE the request is signed, so no order can exist.
+    // The `getOrder` assertion is the real subject: it fails the moment the
+    // generic transport branch wins the ordering, which would probe Binance for
+    // an order that was never sent and resolve it as `ambiguous` — the one
+    // verdict that is deliberately never retried.
+    const clock = mkClock(SENT_AT);
+    const binance = fakeBinance({
+      placeOrder: vi.fn(() => Promise.reject(new OrderBudgetUnavailableError(86_400_000, 90_000))),
+      getOrder: vi.fn(async () => probedOrder()),
+    });
+    const { deps } = buildTimedDeps(buildBindings({ binance }), clock);
+
+    const out = await placeOrderHandler(deps, CTX, PLACE);
+
+    expect(out.ok).toBe(false);
+    if (out.ok === false) {
+      expect(out.phase).toBe('pre-call');
+      // Retryable: the window decays, so the next tick re-emits the intent.
+      expect(out.retryable).toBe(true);
+      expect(out.reason).toContain('order-budget-exhausted');
+      // PLACE is not deferrable — an entry that never went out leaves the
+      // operator with a trade they think they have, so it must still alert.
+      expect(out.deferred).toBeUndefined();
+    }
+    expect(binance.getOrder).not.toHaveBeenCalled();
+  });
+
+  it('a DEFERRABLE order refused by the budget is marked deferred, so it alerts no differently than a shed', async () => {
+    // The executor peeks at the budget before the batch and sheds silently when
+    // it is empty. This is the same condition reached the other way: the peek
+    // passed, a sibling profile on the same account took the slot, and the
+    // reservation gave up. Identical cause, identical operator impact — so if
+    // this arrives unmarked, the suppression the shed exists for turns into a
+    // coin flip on thread timing.
+    const clock = mkClock(SENT_AT);
+    const binance = fakeBinance({
+      placeOrder: vi.fn(() => Promise.reject(new OrderBudgetUnavailableError(10_000, 61_000))),
+    });
+    const { deps } = buildTimedDeps(buildBindings({ binance }), clock);
+
+    const out = await placeOrderHandler(deps, CTX, {
+      ...PLACE,
+      intent: { ...PLACE.intent, deferrable: true },
+    });
+
+    expect(out.ok).toBe(false);
+    if (out.ok === false) {
+      expect(out.deferred).toBe(true);
+      // Still a failure, not a success: state stays un-advanced so the next
+      // tick re-emits the intent.
+      expect(out.retryable).toBe(true);
+      expect(out.phase).toBe('pre-call');
+    }
+  });
 
   it('probe finds THIS attempt’s order: records it with the REAL orderId and its REAL status, and refuses to re-issue', async () => {
     const clock = mkClock(SENT_AT);

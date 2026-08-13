@@ -16,9 +16,9 @@ import type {
   StrategyRegistry,
 } from '@app/strategy-core';
 import type { NotifyProviderRegistry } from '@app/notify';
-import type { AccountId, ProfileId, UserId } from '@app/contracts';
+import { asProfileId, asUserId, type AccountId, type ProfileId, type UserId } from '@app/contracts';
 import type { ProfileScope } from '@app/db';
-import { type BinanceMode, type BinanceRestClient } from '@app/binance';
+import { type BinanceMode, type BinanceRestClient, type OrderRateGovernor } from '@app/binance';
 
 import { createCancelLedger } from 'executor/cancel-ledger.js';
 import { createPlacementDedup, type PlacementDedup } from 'executor/placement-dedup.js';
@@ -34,6 +34,7 @@ import { emitEventHandler } from 'executor/decisions/emit-event.js';
 import { placeOrderHandler } from 'executor/decisions/place-order.js';
 import { setKvHandler } from 'executor/decisions/set-kv.js';
 import type { DecisionDeps } from 'executor/decisions/_types.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 import type { ProfilePersistence } from 'profile-bindings/persistence.js';
 import type { ProfileResolved } from 'profile-bindings/resolved-config.js';
 
@@ -46,6 +47,12 @@ export interface ProfileExecutorBindings extends ProfileResolved {
   readonly mode: BinanceMode;
   readonly binance: BinanceRestClient;
   readonly persistence: ProfilePersistence;
+  /**
+   * The account's ORDERS budget, the same one `binance` charges. Read here only
+   * to PEEK before a tick's order flow; absent when boot supplied no governor,
+   * in which case nothing is ever deferred.
+   */
+  readonly orderGovernor?: OrderRateGovernor;
 }
 
 export interface LiveExecutorDeps {
@@ -97,6 +104,12 @@ export interface LiveExecutorDeps {
    * executor without a queue.
    */
   readonly enqueueSymbolReconcile?: DecisionDeps['enqueueSymbolReconcile'];
+  /**
+   * Records a deferred order batch. A shed leaves no order, no failure and no
+   * audit row, so this counter is its only numeric trace — without it a
+   * saturated order budget looks identical to a quiet market.
+   */
+  readonly metrics?: MetricsSink;
 }
 
 export interface AppliedDecision {
@@ -172,6 +185,29 @@ const SKIPPED: DecisionResult = {
   phase: 'pre-call',
   reason: 'skipped: an earlier order in this tick failed',
 };
+
+/**
+ * Result stamped on the order decisions of a batch the account's Binance order
+ * budget had no room for.
+ *
+ * `pre-call` + `retryable` for the same reason as {@link SKIPPED}: nothing was
+ * transmitted, and the budget is exactly the kind of condition that clears. The
+ * strategy re-emits the batch next tick because its state never advanced, so
+ * the deferral self-heals without any retry bookkeeping here.
+ */
+const DEFERRED: DecisionResult = {
+  ok: false,
+  retryable: true,
+  phase: 'pre-call',
+  // Withheld by admission control, not a failure. Without this the operator's
+  // order-failed alert fires on every shed — which is the feature's designed
+  // steady state under load, and precisely when a noisy channel is most costly.
+  deferred: true,
+  reason: 'deferred: no Binance order-rate headroom; the resting order still protects the position',
+};
+
+/** The decisions that reach the exchange as orders. */
+const isOrder = (d: Decision): boolean => d.type === 'place-order' || d.type === 'cancel-order';
 
 export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
   const baseDeps = {
@@ -328,9 +364,56 @@ export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
         throw new MultiPlacementError(ctx.profileId, placements);
       }
 
+      // A deferrable placement is a REPRICE of something already resting, so it
+      // is worth skipping but never worth waiting for. Waiting would hold this
+      // (profile, symbol)'s chain lock and delay the next tick's exit check —
+      // strictly worse than a late reprice. The one-placement rule enforced just
+      // above is what makes shedding the WHOLE batch safe: a batch can never mix
+      // a deferrable reprice with an exit.
+      //
+      // The shed takes the batch's CANCELS with it (see `isOrder`) even though a
+      // cancel spends no budget. A reprice is the pair [cancel the resting stop,
+      // place the new one]; letting the cancel through while dropping the
+      // placement would retire a live protective order and leave the position
+      // naked. Shedding both keeps the pair atomic.
+      // A PEEK, never a reservation: the charge happens once, inside the REST
+      // client, when an order actually goes out.
+      const placement = decisions.find((d) => d.type === 'place-order');
+      let deferred = false;
+      if (placement?.intent.deferrable === true) {
+        // Memoised, so the handlers below reuse this resolve rather than paying
+        // a second one.
+        const bindings = await decisionDeps.resolveProfile(
+          asUserId(ctx.userId),
+          asProfileId(ctx.profileId),
+        );
+        // One, because only PLACEMENTS spend the ORDERS budget — Binance's
+        // unfilled order count is unchanged by the paired cancel — and the
+        // one-placement rule above caps the batch at exactly one.
+        deferred = bindings?.orderGovernor?.hasHeadroom(1) === false;
+      }
+      if (deferred && placement) {
+        const symbol = placement.intent.symbol;
+        deps.metrics?.record('order_budget_deferred', 1, { profileId: ctx.profileId, symbol });
+        deps.logger.warn(
+          { profileId: ctx.profileId, symbol },
+          'executor: order-rate budget exhausted — deferring a reprice to the next tick',
+        );
+      }
+
       const out: AppliedDecision[] = [];
       let broken = false;
       for (const d of decisions) {
+        // Only the ORDER decisions are budget-bound; a KV write or event in the
+        // same batch is unaffected and still runs.
+        // Cancels are shed with the placement even though they cost no ORDERS
+        // budget: the only deferrable placement is a stop reprice, and its
+        // paired cancel would otherwise retire the resting stop and leave the
+        // position naked. That pairing is what makes shedding the pair atomic.
+        if (deferred && isOrder(d)) {
+          out.push({ decision: d, result: DEFERRED });
+          continue;
+        }
         if (broken) {
           // Record the un-attempted decisions instead of dropping them. The audit
           // payload and the override attribution both read this array, and a

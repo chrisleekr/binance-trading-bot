@@ -234,6 +234,41 @@ describe('momentumPreviewLevels — defensive / branch coverage', () => {
     expect(row(model, 'trail')?.price).toBe('9.5');
   });
 
+  it('projects the profit leg once the persisted mark has armed it', () => {
+    // The preview has no 1m window and must not re-ratchet: it reports the mark
+    // the tick persisted. profitHigh 200 -> 200 * 0.97 = 194, above the hard
+    // leg's 120 * 0.95 = 114, so both rows move to the number the worker acts on.
+    const config = cfg({
+      profitTrail: { enabled: true, activationPct: '0.05', trailPct: '0.03' },
+    });
+    const model = momentumPreviewLevels(
+      input(config, { state: held({ profitHigh: '200' }), entryPrice: '100' }),
+    );
+    expect(row(model, 'trail')?.price).toBe('194');
+    expect(row(model, 'protective-stop')?.price).toBe('194');
+  });
+
+  it('keeps the hard leg while the persisted mark is below activation', () => {
+    const config = cfg({
+      profitTrail: { enabled: true, activationPct: '0.05', trailPct: '0.03' },
+    });
+    const model = momentumPreviewLevels(
+      input(config, { state: held({ profitHigh: '104' }), entryPrice: '100' }),
+    );
+    expect(row(model, 'trail')?.price).toBe('114');
+  });
+
+  it('ignores a stale mark while flat — the profit leg is position-only', () => {
+    const config = cfg({
+      entryMarginPct: '0',
+      profitTrail: { enabled: true, activationPct: '0.05', trailPct: '0.03' },
+    });
+    // Flat: the trail projects off the entry band (10 -> 9.5). The state still
+    // carries a mark of 200; honouring it would show 194.
+    const model = momentumPreviewLevels(input(config, { state: held({ entryPrice: null }) }));
+    expect(row(model, 'trail')?.price).toBe('9.5');
+  });
+
   it('omits the trail and protective-stop rows when trailingStopPct is out of range', () => {
     const model = momentumPreviewLevels(input({ ...cfg(), trailingStopPct: '1.5' }));
     expect(row(model, 'trail')).toBeUndefined();

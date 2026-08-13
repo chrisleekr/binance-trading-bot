@@ -55,6 +55,9 @@ describe('clearedSellPosition', () => {
     // The stop-arm blocker is position-scoped: a closed position has nothing left
     // to protect, so the "unprotected" warning must not outlive it.
     protectiveStopBlocker: null,
+    // Same scoping for the exit blocker: "why didn't it sell" is meaningless once
+    // there is nothing held, and a stale reason would misreport the next entry.
+    exitBlocker: null,
   });
 
   it('matches the armed sell-reset literal byte-for-byte (timed exit)', () => {

@@ -1,17 +1,19 @@
 // A (profile, symbol) whose Binance mode no longer lists the symbol (delisted, or
-// admitted to the wrong mode) throws at the tick assembler — `symbolInfoCache.get`
-// runs its inline refresh, the refresh RESOLVES, and the symbol key is still absent.
-// Today that bare throw walks past the handler's self-heal catch and dead-letters,
-// every tick, forever. The fix makes the confirmed-absent throw a typed
-// `SymbolDelistedError` and gives the handler a branch (beside the RedisUnavailable
-// skip) that SELF-HEALS: reap the auto-added binding when it is flat, tell the
-// operator once (throttled), and return a graceful skip instead of rethrowing.
+// admitted to the wrong mode) throws a `SymbolDelistedError` from the first
+// `symbolInfoCache.get` on the tick path — the cache runs its inline refresh, the
+// refresh RESOLVES, and the symbol key is still absent. A bare throw would walk
+// past the handler's self-heal catch and dead-letter, every tick, forever. The
+// typed error instead reaches a branch (beside the RedisUnavailable skip) that
+// SELF-HEALS: reap the auto-added binding when it is flat, tell the operator once
+// (throttled), and return a graceful skip instead of rethrowing.
 //
-// These tests assume that fix. They drive the REAL `createSymbolInfoCache` to the
-// confirmed-absent path so the error they raise IS the production
-// `SymbolDelistedError` once it exists (no import of the not-yet-defined class), and
-// inject the three new optional deps (`reapAutoIfFlat`, `appendActionLog`,
-// `delistThrottle`) so the reap/alert/throttle behaviour is asserted directly.
+// These tests drive the REAL `createSymbolInfoCache` to the confirmed-absent path,
+// so the error they raise IS the production one rather than a look-alike, and
+// inject the optional deps (`reapAutoIfFlat`, `appendActionLog`, `delistThrottle`)
+// so the reap/alert/throttle behaviour is asserted directly. Which call site takes
+// that first cache read is deliberately not pinned: the tradability pre-check now
+// reads ahead of the assembler and lets this error through untouched, and either
+// origin must land on the same self-heal.
 
 import { describe, expect, it, vi } from 'vitest';
 import pino from 'pino';
@@ -258,6 +260,11 @@ describe('tick handler — a confirmed-absent symbol self-heals instead of dead-
     // A removal the operator should see, at info — once, not per tick.
     expect(h.infoLogs()).toHaveLength(1);
     expect(h.warnLogs()).toHaveLength(0);
+    // Two self-heals now share one reap-and-record trunk, so the cause is the
+    // only thing keeping their operator records apart.
+    expect((h.infoLogs()[0]?.[1] as { ctx?: { source?: string } })?.ctx).toMatchObject({
+      source: 'symbol-delisted',
+    });
   });
 
   it('C3: held is NOT removed and the warn alert is DEDUPED — two ticks (throttle [true,false]) warn once', async () => {

@@ -574,6 +574,11 @@ describe('trailingTrade tick — regime exit (cash rotation)', () => {
       }),
     );
     expect(out.decisions.every((d) => d.type !== 'place-order')).toBe(true);
+    // The record must say the position is TRAPPED, not that it is waiting on a
+    // rung. The ladder ran first and left its own mild reason behind; without an
+    // overwrite here that reason is what the operator reads, and a regime exit
+    // that cannot be placed is the loudest thing this surface has to report.
+    expect(out.nextState.exitBlocker?.reason).toBe('exit-unsellable');
   });
 
   it('suppresses a fresh entry while the regime is confirmed bear (non-grid)', () => {

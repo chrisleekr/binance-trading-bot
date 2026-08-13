@@ -16,7 +16,9 @@
 
 import { describe, expect, it } from 'vitest';
 import { TTConfigSchema, TTStateSchema } from '@app/strategy-trailing-trade';
+import { ttPreviewLevels } from '@app/strategy-trailing-trade/preview';
 
+import { deriveChartLines } from '../src/features/symbol/preview/preview-chart-lines.js';
 import { deriveSignal } from '../src/features/symbol/strategies/trailing-trade/signal-panel.js';
 
 import type { SymbolStateResponse } from '@app/contracts';
@@ -65,6 +67,27 @@ describe('TT mirror ↔ strategy schema field-name parity', () => {
     expect(TTConfigSchema.shape.sell.shape).toHaveProperty('discoveryTimeStopBars');
     // The time-stop row labels the bars with the trading interval.
     expect(TTConfigSchema.shape).toHaveProperty('candleInterval');
+  });
+
+  it('the three trail-configuration fields the mirror reads still exist', () => {
+    // The panel names the sell arm as the next gate only when one of these is
+    // on, the same three reads as sell-gate.ts `trailConfigured`. A rename would
+    // otherwise make the panel claim (or drop) a gate the worker disagrees with.
+    // Parsed rather than shape-walked: two of the three sit under optional
+    // nested objects whose defaults only materialise on parse.
+    const cfg = TTConfigSchema.parse({
+      symbol: 'BTCUSDT',
+      candleInterval: '1h',
+      buy: {
+        enabled: true,
+        entrySizing: { mode: 'fixed', amount: '15' },
+        avgEntryPriceRemoveThreshold: '0',
+      },
+      sell: { enabled: true, stopLossPercentage: '0.97', triggerPercentage: '1.05' },
+    });
+    expect(cfg.sell).toHaveProperty('trailingStopPercentage');
+    expect(cfg.sell).toHaveProperty('atrTrailing.enabled');
+    expect(cfg.regime).toHaveProperty('onBull.hold.enabled');
   });
 });
 
@@ -122,5 +145,60 @@ describe('TT mirror price-threshold parity (Number space)', () => {
     expect(view.sellArm?.price).toBeCloseTo(100 * 1.05, 8); // triggerPercentage
     expect(view.stopLoss?.price).toBeCloseTo(100 * 0.97, 8); // stopLossPercentage
     expect(view.trailingStop?.price).toBeCloseTo(110 * 0.98, 8); // highSinceBuy * trailingStop
+  });
+});
+
+// The chart draws from `ttPreviewLevels` and the Signal panel from `deriveSignal`
+// — two independent readings of one state. When they disagree the operator sees a
+// price line the panel says does not exist, and reads a level price crossed as an
+// exit the bot ignored. One shared state table drives both readings so the
+// disagreement fails here instead of on the chart.
+describe('chart ↔ Signal panel parity on the trailing-stop level', () => {
+  const ENTRY = '100';
+  const CURRENT = '105';
+
+  const previewInput = (state: Record<string, unknown>) =>
+    ({
+      config: baseConfig,
+      state,
+      entryPrice: ENTRY,
+      currentPrice: CURRENT,
+    }) as never;
+
+  const chartDrawsTrail = (state: Record<string, unknown>): boolean =>
+    deriveChartLines(ttPreviewLevels(previewInput(state))).some((l) => l.label === 'Trailing stop');
+
+  const panelShowsTrail = (state: Record<string, unknown>, holding: string | null): boolean => {
+    const view = deriveSignal(
+      strategyOf(baseConfig, state),
+      holding === null ? null : holdingOf(holding),
+      CURRENT,
+    );
+    return view.kind === 'holding' && view.trailingStop !== null;
+  };
+
+  const CASES = [
+    { name: 'flat', state: {}, holding: null, trailIsReal: false },
+    {
+      name: 'held, trail unarmed (price never reached the sell arm)',
+      state: { currentGridTradeIndex: 0, avgEntryPrice: ENTRY, highSinceBuy: null },
+      holding: ENTRY,
+      trailIsReal: false,
+    },
+    {
+      name: 'held, trail armed',
+      state: { currentGridTradeIndex: 0, avgEntryPrice: ENTRY, highSinceBuy: '110' },
+      holding: ENTRY,
+      trailIsReal: true,
+    },
+  ] as const;
+
+  it.each(CASES)('$name', ({ state, holding, trailIsReal }) => {
+    const chart = chartDrawsTrail({ ...state });
+    const panel = panelShowsTrail({ ...state }, holding);
+    // Both must match each other AND the truth: agreeing on a wrong answer is
+    // still a lie to the operator.
+    expect(panel).toBe(trailIsReal);
+    expect(chart).toBe(trailIsReal);
   });
 });

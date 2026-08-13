@@ -40,7 +40,7 @@ describe('redisUnavailableSkip', () => {
   const PID = asProfileId('00000000-0000-0000-0000-000000000002');
   const ctx = { profileId: PID, symbol: 'BTCUSDT', latencyMs: 12 };
   const makeDeps = () => ({
-    metrics: { record: vi.fn() },
+    metrics: { record: vi.fn(), forget: vi.fn() },
     logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
   });
 

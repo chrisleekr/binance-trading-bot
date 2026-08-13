@@ -15,7 +15,7 @@ import type {
 import { coerceInt } from './config-coerce.js';
 import type { MomentumConfig, MomentumState } from './schema.js';
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
-import { atrTrailingStopPrice } from './trailing-stop.js';
+import { resolveStopLevel } from './stop-level.js';
 import { resolveEntryBudget } from './sizing.js';
 import { computeEntryQuantity } from './quantity.js';
 
@@ -103,15 +103,19 @@ export const momentumPreviewLevels = (
     input.state === null ? null : decOrNull(input.state.highSinceEntry ?? input.entryPrice);
   const refHigh = flat ? band : (heldHigh ?? band);
 
-  // ATR chandelier when enabled and computable, else the fixed retrace — the
-  // same resolution the tick and protective stop use, so the preview projects
-  // the level that will actually arm.
-  const trailPct = decOrNull((config as { trailingStopPct?: unknown }).trailingStopPct);
-  const stopBase =
-    atrTrailingStopPrice(config, candles, refHigh) ??
-    (trailPct !== null && trailPct.gt(0) && trailPct.lt(1)
-      ? refHigh.mul(new Decimal(1).minus(trailPct))
-      : null);
+  // One resolver for all three consumers — the in-process trail, the resting
+  // protective stop, and this projection — so they cannot report different
+  // numbers. The profit leg is position-only: it reads the mark the tick
+  // PERSISTED rather than re-ratcheting it, because a preview carries no 1m
+  // window and inventing one would show a level the worker never acted on.
+  const heldEntry = decOrNull(input.state?.entryPrice ?? input.entryPrice);
+  const stopBase = resolveStopLevel(
+    config,
+    heldEntry ?? refHigh,
+    refHigh,
+    flat ? null : decOrNull(input.state?.profitHigh),
+    candles,
+  ).stop;
 
   const entryRows: PreviewRow[] = [buildEntryRow(input, bandStr)];
   if (stopBase !== null) {

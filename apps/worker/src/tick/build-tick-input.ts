@@ -26,6 +26,7 @@ import type {
 import { resolveCandleWindow } from '@app/strategy-core';
 import type {
   AccountId,
+  Condition,
   ManualOverridePayload,
   ProfileId,
   TechnicalsBundleConfig,
@@ -192,25 +193,34 @@ export type BuiltTick =
 const OPEN_ORDERS_CACHE_TTL_S = OPEN_ORDERS_TTL_S;
 
 /**
- * Read a strategy state's `entryBlocker.reason` defensively. The assembler is
- * strategy-agnostic, so it cannot import a strategy's state type; it reads the
- * well-known `entryBlocker` convention ({ reason, detail? } | null) off the raw
- * state object and ignores any state that does not adopt it. Returns the reason
- * code, or null when there is no blocker (or the field is absent / malformed).
+ * A strategy's structured "why didn't it act" record, as the assembler sees it.
+ * The assembler is strategy-agnostic, so it cannot import a strategy's state
+ * type; it reads the well-known convention ({ reason, changeKey?, detail? } |
+ * null) off the raw state object and ignores any state that does not adopt it.
  */
-interface EntryBlockerShape {
+interface BlockerShape {
   readonly reason: string;
+  /**
+   * Identity of "the same blocker as last tick". A strategy that carries a
+   * live price in `detail` sets this to the reason plus the THRESHOLD, so a
+   * steady block records once instead of once per tick. Absent ⇒ the reason is
+   * the identity, which is what a strategy without volatile detail wants.
+   */
+  readonly changeKey?: string;
   readonly detail?: Readonly<Record<string, unknown>>;
 }
-const readEntryBlocker = (state: unknown): EntryBlockerShape | null => {
+
+const readStateBlocker = (state: unknown, field: string): BlockerShape | null => {
   if (typeof state !== 'object' || state === null) return null;
-  const raw = (state as Record<string, unknown>)['entryBlocker'];
+  const raw = (state as Record<string, unknown>)[field];
   if (typeof raw !== 'object' || raw === null) return null;
   const reason = (raw as Record<string, unknown>)['reason'];
   if (typeof reason !== 'string') return null;
+  const changeKey = (raw as Record<string, unknown>)['changeKey'];
   const detail = (raw as Record<string, unknown>)['detail'];
   return {
     reason,
+    ...(typeof changeKey === 'string' ? { changeKey } : {}),
     ...(typeof detail === 'object' && detail !== null
       ? { detail: detail as Readonly<Record<string, unknown>> }
       : {}),
@@ -218,14 +228,56 @@ const readEntryBlocker = (state: unknown): EntryBlockerShape | null => {
 };
 
 /**
- * Wrap a {@link StateLoad}'s `commit` so an entry-blocker change (the strategy's
- * structured "why no buy this tick" reason) writes ONE action_log on transition.
- * Per-tick gate vetoes used to spam an action_log every tick; here only a CHANGE
- * of reason is recorded, so a steady "waiting for a dip" state logs once, not
- * 86k/day. Best-effort: the append is swallowed so it never throws into the tick
- * path — the state commit must still succeed even if the audit write fails.
+ * The state fields the assembler audits into conditions. Naming the field and
+ * its condition side by side keeps this strategy-agnostic: a strategy opts in by
+ * adopting the convention on that field, and nothing here knows which strategy
+ * did. The messages are what the operator reads in the activity feed, so they
+ * say what is happening in plain language, not what the field is called.
  */
-const wrapCommitWithEntryBlockerAudit = (
+const AUDITED_BLOCKERS = [
+  {
+    field: 'entryBlocker',
+    condition: 'entry-blocked',
+    resolved: (symbol: string) => `${symbol}: entry no longer blocked`,
+    open: (symbol: string, reason: string) => `${symbol}: not buying (${reason})`,
+  },
+  {
+    field: 'exitBlocker',
+    condition: 'exit-blocked',
+    resolved: (symbol: string) => `${symbol}: exit no longer blocked`,
+    open: (symbol: string, reason: string) => `${symbol}: holding (${reason})`,
+  },
+] as const satisfies readonly {
+  readonly field: string;
+  readonly condition: Condition;
+  readonly resolved: (symbol: string) => string;
+  readonly open: (symbol: string, reason: string) => string;
+}[];
+
+/**
+ * Wrap a {@link StateLoad}'s `commit` so every audited blocker change is
+ * recorded as a CONDITION: durable current state plus one log edge, via the
+ * shared writer every subsystem uses.
+ *
+ * Only a CHANGE is written, so a steady "waiting for a dip" logs once rather
+ * than the 86k rows/day per-tick vetoes used to produce. That dedup is
+ * `recordCondition`'s, decided against the stored row itself. A per-process
+ * memo of the last identity written would spare the read, but it would also
+ * outlive the row: unbinding a symbol now tears its conditions down, and a memo
+ * still holding that identity would suppress the rewrite when the symbol is
+ * bound again — the diagnosis would report nothing blocking a symbol that is
+ * blocked, which is the failure this whole surface exists to prevent. The read
+ * it costs is a primary-key point lookup.
+ *
+ * Recording state as well as an edge is what makes "blocked for 19 days"
+ * answerable: the edge that opened a long-running span is pruned long before the
+ * operator asks, but `condition_states.since` is never swept.
+ *
+ * Failures are swallowed so they never throw into the tick path. The next tick
+ * re-reads the row and rewrites, so a lost write costs one tick of staleness and
+ * needs no retry bookkeeping.
+ */
+const wrapCommitWithBlockerAudit = (
   load: StateLoad,
   ctx: {
     readonly scope: ProfileScope;
@@ -235,35 +287,29 @@ const wrapCommitWithEntryBlockerAudit = (
     readonly logger: Logger;
   },
 ): StateLoad['commit'] => {
-  const prevReason = readEntryBlocker(load.state)?.reason ?? null;
   return async (nextState, timeoutMs) => {
     await load.commit(nextState, timeoutMs);
-    const next = readEntryBlocker(nextState);
-    const nextReason = next?.reason ?? null;
-    if (nextReason === prevReason) return;
-    try {
-      await profileRepoFromScope(ctx.scope).actionLogs.append({
-        time: new Date(ctx.clock.nowMs()),
-        symbol: ctx.symbol,
-        level: 'info',
-        msg:
-          nextReason === null
-            ? `${ctx.symbol}: entry no longer blocked`
-            : `${ctx.symbol}: not buying (${nextReason})`,
-        ctx:
-          next === null
-            ? { source: 'entry-blocker', reason: null, previousReason: prevReason }
-            : {
-                source: 'entry-blocker',
-                reason: next.reason,
-                ...(next.detail ? { detail: next.detail } : {}),
-              },
-      });
-    } catch (err) {
-      ctx.logger.warn(
-        { profileId: ctx.profileId, symbol: ctx.symbol, err: err },
-        'entry-blocker action_log append failed (state already committed)',
-      );
+    for (const audited of AUDITED_BLOCKERS) {
+      const next = readStateBlocker(nextState, audited.field);
+      try {
+        await profileRepoFromScope(ctx.scope).conditionStates.recordCondition({
+          condition: audited.condition,
+          symbol: ctx.symbol,
+          code: next?.reason ?? null,
+          // Withhold the key and the writer would compare codes only, drop a
+          // moved threshold as a no-op, and leave `detail` on the level the
+          // position first waited at.
+          ...(next?.changeKey ? { changeKey: next.changeKey } : {}),
+          ...(next?.detail ? { detail: next.detail } : {}),
+          now: new Date(ctx.clock.nowMs()),
+          msg: next === null ? audited.resolved(ctx.symbol) : audited.open(ctx.symbol, next.reason),
+        });
+      } catch (err) {
+        ctx.logger.warn(
+          { profileId: ctx.profileId, symbol: ctx.symbol, condition: audited.condition, err },
+          'blocker condition write failed (state already committed); retrying next tick',
+        );
+      }
     }
   };
 };
@@ -299,7 +345,7 @@ const loadOpenOrdersFresh = async (
     );
   } catch (err) {
     deps.logger.warn(
-      { profileId, symbol, err: err },
+      { profileId, symbol, err },
       'tick: open-orders write-through failed (next tick will REST again)',
     );
   }
@@ -412,7 +458,7 @@ export const buildTickInput = async (
       );
     } catch (err) {
       deps.logger.error(
-        { profileId, symbol, toVersion: strategy.version, err: err },
+        { profileId, symbol, toVersion: strategy.version, err },
         'state migration failed, DLQ + state untouched',
       );
       throw err;
@@ -483,7 +529,7 @@ export const buildTickInput = async (
   if (bundleSettled.status === 'rejected') throw bundleSettled.reason;
 
   const finalState: unknown = stateSettled.value.state;
-  const commit: StateLoad['commit'] = wrapCommitWithEntryBlockerAudit(stateSettled.value, {
+  const commit: StateLoad['commit'] = wrapCommitWithBlockerAudit(stateSettled.value, {
     scope: profile.scope,
     symbol,
     profileId,

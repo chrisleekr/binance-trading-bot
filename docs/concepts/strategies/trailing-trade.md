@@ -165,6 +165,7 @@ Per (profile, symbol), between ticks (`TTStateSchema`, schema version `2.0.0`):
 | `breakEvenArmed` | Whether the break-even floor is armed for this position. |
 | `forceSellCooldownUntilMs`, `lastLossExitAt` | Cooldown clocks; survive a position close. |
 | `entryBlocker` | Structured "why no buy this tick" reason the dashboard renders. |
+| `exitBlocker` | Structured "why no exit this tick" reason for a HELD position, with the rung's threshold; cleared to `null` when the position closes or an exit is emitted. |
 | `protectiveStopBlocker` | Why a held position currently has no exchange-side stop. |
 
 ## Internals

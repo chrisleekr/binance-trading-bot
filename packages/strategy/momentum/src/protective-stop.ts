@@ -2,6 +2,7 @@ import { Decimal, roundToTick } from '@app/money';
 import {
   evaluateProtectiveStopArm as coreEvaluateProtectiveStopArm,
   findRestingProtectiveStop as coreFindRestingProtectiveStop,
+  decOrNull,
   ownRestingSellBase,
   parseFilters,
 } from '@app/strategy-core';
@@ -15,7 +16,6 @@ import type {
 } from '@app/strategy-core';
 
 import { protectiveStopClientOrderId } from './client-order-id.js';
-import { atrTrailingStopPrice } from './trailing-stop.js';
 import type { MomentumBundle, MomentumConfig, MomentumState } from './schema.js';
 
 type MomentumInput = TickInput<MomentumConfig, MomentumState, MomentumBundle>;
@@ -57,34 +57,23 @@ export { findForeignRestingSell } from '@app/strategy-core';
 export type { ProtectiveStopArm } from '@app/strategy-core';
 
 /**
- * The level the resting stop must sit at: the SAME one the in-process trail uses
- * — the ATR chandelier when `atrTrailingStop` is enabled and computable, else
- * `effectiveHigh × (1 - trailingStopPct)` — so the resting order is a faithful
- * backstop, not a second, looser stop. Null when there is nothing to protect
- * (flat, no tracked quantity) or an input does not parse. This level formula is
- * the one genuine per-strategy seam the shared arm cannot own.
+ * Round the caller's resolved trail level onto the symbol's tick grid and derive
+ * the limit price, or null when there is nothing to protect (flat, no tracked
+ * quantity) or an input does not parse.
+ *
+ * The level itself is NOT recomputed here. It arrives from the same
+ * `resolveStopLevel` call the in-process trail tested, which is what makes the
+ * resting order a faithful backstop rather than a second, quietly different stop
+ * — a property that used to rest on two copies of a formula staying in step.
  */
 const computeProtectiveStopLevel = (
   input: MomentumInput,
   state: MomentumState,
-  effectiveHigh: Decimal,
+  rawStop: Decimal,
 ): ProtectiveStopLevel | null => {
   if (state.entryPrice === null) return null;
   const held = state.heldQuantity === null ? null : safeDecimal(state.heldQuantity);
   if (held === null || held.lte(0)) return null;
-
-  const closed = (input.market.candlesByInterval[input.config.candleInterval] ?? []).filter(
-    (c) => c.isClosed,
-  );
-  const atrStop = atrTrailingStopPrice(input.config, closed, effectiveHigh);
-  let rawStop: Decimal;
-  if (atrStop !== null) {
-    rawStop = atrStop;
-  } else {
-    const trailPct = safeDecimal(input.config.trailingStopPct);
-    if (trailPct === null || trailPct.lte(0) || trailPct.gte(1)) return null;
-    rawStop = effectiveHigh.mul(new Decimal(1).minus(trailPct));
-  }
 
   const tick = safeDecimal(input.market.symbolInfo.filters.tickSize);
   const filters = parseFilters(input.market.symbolInfo.filters);
@@ -104,13 +93,23 @@ const computeProtectiveStopLevel = (
   return { stop, limit, held, filters, tick };
 };
 
-const placeDecision = (input: MomentumInput, desired: DesiredProtectiveStop): Decision => ({
+const placeDecision = (
+  input: MomentumInput,
+  desired: DesiredProtectiveStop,
+  rearm: boolean,
+): Decision => ({
   type: 'place-order',
   intent: {
     symbol: input.market.symbol,
     side: 'SELL',
     reason: 'protective-stop',
     clientOrderId: protectiveStopClientOrderId(input.profile.id, input.market.symbol),
+    // A re-price only: the stop it replaces keeps resting until the paired cancel
+    // lands, so the executor may skip the pair when the account's order budget is
+    // exhausted and try again next tick. The first arm carries no such fallback
+    // and must never be skipped. Omitted rather than `false` so a first arm
+    // serialises exactly as it did before the flag existed.
+    ...(rearm ? { deferrable: true } : {}),
   },
   params: {
     type: 'STOP_LOSS_LIMIT',
@@ -153,7 +152,7 @@ export const protectiveStopCancelDecisions = (input: MomentumInput): Decision[] 
 export const evaluateProtectiveStopArm = (
   input: MomentumInput,
   state: MomentumState,
-  effectiveHigh: Decimal,
+  rawStop: Decimal | null,
 ): ProtectiveStopArm => {
   const symbol = input.market.symbol;
   const ourId = protectiveStopClientOrderId(input.profile.id, symbol);
@@ -161,15 +160,23 @@ export const evaluateProtectiveStopArm = (
   // live worker does not schema-parse): undefined ⇒ disabled. The level is
   // computed only when enabled, mirroring the pre-refactor short-circuit.
   const enabled = input.config.protectiveStop?.enabled === true;
+  const rawBand = decOrNull(input.config.protectiveStop?.minRearmDriftPct);
+  const driftBand = rawBand !== null && rawBand.gt(0) && rawBand.lt(1) ? rawBand : null;
   return coreEvaluateProtectiveStopArm({
     input,
     enabled,
-    level: enabled ? computeProtectiveStopLevel(input, state, effectiveHigh) : null,
+    // A null level is "no usable trail this tick", which the shared arm answers
+    // by retracting a resting stop rather than leaving a mismatched one.
+    level: enabled && rawStop !== null ? computeProtectiveStopLevel(input, state, rawStop) : null,
     // Credit back the base our OWN resting stop locks: we cancel it in the same
     // batch that replaces it, so that base is ours to re-commit.
     reclaimableBase: ownRestingSellBase(input.openOrders, ourId, symbol),
     ourClientOrderId: ourId,
-    buildPlace: (desired) => placeDecision(input, desired),
+    // Operator-settable, because the profit trail can advance the level every few
+    // minutes and this band is what decides how much of that reaches Binance as
+    // orders. Absent / unparseable falls back to the shared default.
+    ...(driftBand === null ? {} : { minStopDrift: driftBand }),
+    buildPlace: (desired, rearm) => placeDecision(input, desired, rearm),
     buildCancel: (resting) => cancelDecision(resting, symbol),
   });
 };

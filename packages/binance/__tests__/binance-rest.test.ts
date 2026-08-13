@@ -7,6 +7,9 @@ import {
   BinanceApiError,
   BinanceNonJsonBodyError,
   createBinanceRest,
+  createOrderRateGovernor,
+  OrderBudgetUnavailableError,
+  parseOrderRateLimits,
   readSignedCallTiming,
   type CreateBinanceRestOptions,
 } from '../src/index.js';
@@ -24,6 +27,7 @@ interface RecordedCall {
   headers: Headers;
   body: string | undefined;
   signal: AbortSignal | null | undefined;
+  redirect: RequestRedirect | undefined;
 }
 
 function jsonResponse(body: unknown, init: { status?: number; weight?: string } = {}): Response {
@@ -44,7 +48,7 @@ function makeFetchSpy(...responses: Response[]): {
     const method = (init?.method ?? 'GET') as string;
     const headers = new Headers(init?.headers ?? {});
     const body = typeof init?.body === 'string' ? init.body : undefined;
-    calls.push({ url, method, headers, body, signal: init?.signal });
+    calls.push({ url, method, headers, body, signal: init?.signal, redirect: init?.redirect });
     const r = responses[i++];
     if (!r) throw new Error(`fetch spy out of programmed responses (call ${i})`);
     return r;
@@ -484,6 +488,26 @@ describe('createBinanceRest — request shape', () => {
     expect(signedCalls.length).toBeGreaterThan(1);
   });
 
+  it('refuses to follow a redirect on every call, keyed or not', async () => {
+    // Pinned because `redirect` reads as an incidental option. On the signed
+    // call a followed redirect would replay `X-MBX-APIKEY` to whatever host the
+    // hop names; on the unsigned time call it would let that host set the
+    // offset added to every later signed timestamp.
+    const spy = makeFetchSpy(
+      jsonResponse({ code: -1021, msg: 'outside recvWindow' }, { status: 400 }),
+      jsonResponse({ serverTime: fixedClock.nowMs() }),
+      jsonResponse({ balances: [], canTrade: true }),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+
+    await expect(client.getAccount()).resolves.toBeDefined();
+
+    expect(spy.calls.length).toBeGreaterThan(1);
+    for (const call of spy.calls) {
+      expect(call.redirect).toBe('error');
+    }
+  });
+
   it('applies the synced offset to the retried signed timestamp', async () => {
     // serverTime is 5s ahead of the fixed local clock; with localBefore ===
     // localAfter (the clock is fixed) the midpoint is the local instant, so
@@ -692,6 +716,170 @@ describe('createBinanceRest — weight header parsing', () => {
     // Header was present but unparseable → weightUsed1m stays undefined
     // (the `Number.isFinite` false arm).
     expect(client.ctx().weightUsed1m).toBeUndefined();
+  });
+});
+
+describe('createBinanceRest — ORDERS governor', () => {
+  const TEN_S = 10_000;
+  const ONE_D = 86_400_000;
+  const orderLimits = parseOrderRateLimits([
+    { rateLimitType: 'REQUEST_WEIGHT', interval: 'MINUTE', intervalNum: 1, limit: 6000 },
+    { rateLimitType: 'ORDERS', interval: 'SECOND', intervalNum: 10, limit: 100 },
+    { rateLimitType: 'ORDERS', interval: 'DAY', intervalNum: 1, limit: 200000 },
+  ]);
+
+  const orderResponse = (body: unknown, counts: Record<string, string> = {}): Response => {
+    const headers = new Headers({ 'content-type': 'application/json' });
+    for (const [k, v] of Object.entries(counts)) headers.set(k, v);
+    return new Response(JSON.stringify(body), { status: 200, headers });
+  };
+
+  it('charges one order for a placement, and nothing for a cancel or a read', async () => {
+    const orderGovernor = createOrderRateGovernor(orderLimits);
+    const spy = makeFetchSpy(
+      orderResponse({ orderId: 1, clientOrderId: 'c-1', status: 'NEW' }),
+      orderResponse({ orderId: 1, status: 'CANCELED' }),
+      orderResponse([]),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch, orderGovernor }));
+
+    await client.placeOrder({
+      symbol: 'BTCUSDT',
+      side: 'SELL',
+      type: 'MARKET',
+      quantity: '0.001',
+      newClientOrderId: 'c-1',
+    });
+    // Binance's ORDERS budget is an UNFILLED ORDER COUNT, so a cancel spends
+    // nothing — only the placement does. A weighted read is metered against
+    // REQUEST_WEIGHT, not ORDERS.
+    await client.cancelOrder({ symbol: 'BTCUSDT', orderId: 1 });
+    await client.getKlines({ symbol: 'BTCUSDT', interval: '1m', limit: 1 });
+
+    expect(orderGovernor.used(TEN_S)).toBe(1);
+    expect(orderGovernor.used(ONE_D)).toBe(1);
+  });
+
+  it('reconciles up to the count Binance reports, catching orders placed elsewhere', async () => {
+    const orderGovernor = createOrderRateGovernor(orderLimits);
+    const spy = makeFetchSpy(
+      orderResponse(
+        { orderId: 1, clientOrderId: 'c-1', status: 'NEW' },
+        { 'x-mbx-order-count-10s': '37', 'x-mbx-order-count-1d': '900' },
+      ),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch, orderGovernor }));
+
+    await client.placeOrder({
+      symbol: 'BTCUSDT',
+      side: 'SELL',
+      type: 'MARKET',
+      quantity: '0.001',
+      newClientOrderId: 'c-1',
+    });
+
+    // Our local tally was 1; Binance's is authoritative and higher.
+    expect(orderGovernor.used(TEN_S)).toBe(37);
+    expect(orderGovernor.used(ONE_D)).toBe(900);
+  });
+
+  it('ignores an unparseable order-count header rather than zeroing the tally', async () => {
+    const orderGovernor = createOrderRateGovernor(orderLimits);
+    const spy = makeFetchSpy(
+      orderResponse(
+        { orderId: 1, clientOrderId: 'c-1', status: 'NEW' },
+        { 'x-mbx-order-count-10s': 'not-a-number' },
+      ),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch, orderGovernor }));
+
+    await client.placeOrder({
+      symbol: 'BTCUSDT',
+      side: 'SELL',
+      type: 'MARKET',
+      quantity: '0.001',
+      newClientOrderId: 'c-1',
+    });
+
+    expect(orderGovernor.used(TEN_S)).toBe(1);
+  });
+
+  it('blocks a placement until the window rolls rather than letting Binance reject it', async () => {
+    let now = 1_700_000_000_000;
+    const clock = { nowMs: () => now };
+    const orderGovernor = createOrderRateGovernor({
+      // ceiling = floor(1 * 0.8) clamped to 1, so the second order must wait.
+      windows: [{ windowMs: TEN_S, limit: 1 }],
+      clock,
+      sleep: async (ms) => {
+        now += ms;
+        return Promise.resolve();
+      },
+    });
+    const spy = makeFetchSpy(
+      orderResponse({ orderId: 1, clientOrderId: 'c-1', status: 'NEW' }),
+      orderResponse({ orderId: 2, clientOrderId: 'c-2', status: 'NEW' }),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch, orderGovernor, clock }));
+    const place = (id: string): Promise<unknown> =>
+      client.placeOrder({
+        symbol: 'BTCUSDT',
+        side: 'SELL',
+        type: 'MARKET',
+        quantity: '0.001',
+        newClientOrderId: id,
+      });
+
+    await place('c-1');
+    const startedAt = now;
+    await place('c-2');
+
+    // Deferred, never dropped: both orders reached Binance.
+    expect(spy.calls).toHaveLength(2);
+    expect(now - startedAt).toBe(TEN_S);
+  });
+
+  it('refuses at the ORDERS gate without spending the shared per-IP weight budget', async () => {
+    // The reservation order is load-bearing and invisible to every other test
+    // in this block, none of which configures a weight governor at all. Both
+    // governors are consume-and-decay with no refund, and only this one can
+    // refuse; charged the other way round, a placement that never leaves the
+    // process still bills the per-IP bucket EVERY account on this host shares,
+    // throttling all of them until it decays.
+    const orderGovernor = createOrderRateGovernor({
+      // Ceiling 1 on the DAY row: clearing it would take hours, far past
+      // MAX_RESERVE_WAIT_MS, so the second placement refuses instead of parking.
+      windows: [{ windowMs: ONE_D, limit: 1 }],
+      clock: fixedClock,
+      sleep: (ms: number) => Promise.reject(new Error(`unexpected sleep ${ms}`)),
+    });
+    let weightReserved = 0;
+    const weightGovernor = {
+      reserve: async () => {
+        weightReserved += 1;
+      },
+      release: () => undefined,
+    } as unknown as CreateBinanceRestOptions['weightGovernor'];
+    const spy = makeFetchSpy(orderResponse({ orderId: 1, clientOrderId: 'c-1', status: 'NEW' }));
+    const client = createBinanceRest(
+      options({ fetchImpl: spy.fetch, orderGovernor, weightGovernor, clock: fixedClock }),
+    );
+    const place = (id: string): Promise<unknown> =>
+      client.placeOrder({
+        symbol: 'BTCUSDT',
+        side: 'SELL',
+        type: 'MARKET',
+        quantity: '0.001',
+        newClientOrderId: id,
+      });
+
+    await place('c-1');
+    expect(weightReserved).toBe(1);
+
+    await expect(place('c-2')).rejects.toBeInstanceOf(OrderBudgetUnavailableError);
+    // The refusal cost nothing shared: no second weight charge, no second call.
+    expect(weightReserved).toBe(1);
+    expect(spy.calls).toHaveLength(1);
   });
 });
 

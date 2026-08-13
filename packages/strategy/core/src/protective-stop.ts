@@ -148,7 +148,8 @@ export const classifyProtectiveStopRefusal = (params: {
 // Re-place the resting stop only when the recomputed trigger has moved by at
 // least this fraction of itself (0.1%). Without the band a sub-tick wobble in
 // the entry price / high-water mark would cancel + re-place every tick, churning
-// exchange weight for no protection change.
+// exchange weight for no protection change. The DEFAULT: a plugin whose trail
+// advances intraday may widen it to bound how many orders that costs.
 const MIN_STOP_DRIFT = new Decimal('0.001');
 
 // Same idea for the sized quantity (1%). A resting stop armed while a foreign
@@ -176,11 +177,12 @@ export const protectiveStopNeedsRearm = (
   resting: OpenOrder,
   desiredStopPrice: string,
   desiredQuantity: string,
+  minStopDrift: Decimal = MIN_STOP_DRIFT,
 ): boolean => {
   const restingStop = safeDecimal(resting.stopPrice);
   if (restingStop === null) return false;
   const desiredStop = new Decimal(desiredStopPrice);
-  if (restingStop.minus(desiredStop).abs().gte(desiredStop.mul(MIN_STOP_DRIFT))) return true;
+  if (restingStop.minus(desiredStop).abs().gte(desiredStop.mul(minStopDrift))) return true;
 
   const orig = safeDecimal(resting.origQty);
   if (orig === null) return false;
@@ -250,8 +252,22 @@ export interface ProtectiveStopArmParams<C, S, B extends Readonly<Record<string,
   readonly level: ProtectiveStopLevel | null;
   readonly reclaimableBase: Decimal;
   readonly ourClientOrderId: string;
-  readonly buildPlace: (desired: DesiredProtectiveStop) => Decision;
+  /**
+   * `rearm` is true when a stop of ours is already resting and this placement
+   * only re-prices it. It exists so a plugin can mark the replacement
+   * `deferrable`: the old stop stays live until the cancel lands, so skipping the
+   * pair costs a stale trigger, not protection. A FIRST arm is never deferrable —
+   * nothing is resting behind it.
+   */
+  readonly buildPlace: (desired: DesiredProtectiveStop, rearm: boolean) => Decision;
   readonly buildCancel: (resting: OpenOrder) => Decision;
+  /**
+   * Trigger-drift band for the re-arm, as a fraction of the desired trigger.
+   * Defaults to 0.1%. A plugin whose level advances intraday exposes this to the
+   * operator, because it is the only knob that bounds order spend in a market
+   * that keeps grinding one way.
+   */
+  readonly minStopDrift?: Decimal;
 }
 
 /**
@@ -338,13 +354,16 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
     price: toFixedStep(limit, tick),
     quantity: sized.quantity,
   };
-  const place = buildPlace(desired);
+  // Resolved before `buildPlace` so the plugin is told whether this placement is
+  // a first arm or a re-price of a live stop.
   const resting = findRestingProtectiveStop(input.openOrders, ourClientOrderId);
-  if (resting === undefined) return { decisions: [place], blocker: null };
-  if (!protectiveStopNeedsRearm(resting, desired.stopPrice, desired.quantity)) {
+  if (resting === undefined) return { decisions: [buildPlace(desired, false)], blocker: null };
+  if (
+    !protectiveStopNeedsRearm(resting, desired.stopPrice, desired.quantity, params.minStopDrift)
+  ) {
     return { decisions: [], blocker: null };
   }
   // Our own stop is cancelled in the same batch, so the base it locks is released
   // before the replacement is sent: no funding check is owed here.
-  return { decisions: [buildCancel(resting), place], blocker: null };
+  return { decisions: [buildCancel(resting), buildPlace(desired, true)], blocker: null };
 };

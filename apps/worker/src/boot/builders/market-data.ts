@@ -11,6 +11,8 @@ import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
 
 import {
+  BINANCE_HOSTS,
+  BINANCE_WS_HOSTS,
   createKlineFetcher,
   createRedisWeightGovernor,
   createWsFactory,
@@ -61,7 +63,7 @@ export const buildMarketData = ({ env, redis, logger }: MarketDataDeps): MarketD
   // see only the port surface. The REST cold-load path uses the public
   // `/api/v3/klines` endpoint (unsigned) and reserves its flat weight (2).
   const klineFetcher: KlineFetcher = createKlineFetcher({
-    wsUrl: env.binanceWsUrl ?? 'wss://stream.binance.com:9443/stream',
+    wsUrl: env.binanceWsUrl ?? BINANCE_WS_HOSTS.live,
     wsFactory,
     // Strict decode + open-bar drop is shared with technicals-compute via
     // @app/binance. No reserveWeight here: createKlineFetcher reserves the
@@ -69,7 +71,7 @@ export const buildMarketData = ({ env, redis, logger }: MarketDataDeps): MarketD
     // would double-count the per-IP budget).
     fetchRestKlines: (symbol, interval, limit) =>
       fetchClosedKlines(
-        { baseUrl: 'https://api.binance.com', symbol, interval, limit },
+        { baseUrl: BINANCE_HOSTS.live, symbol, interval, limit },
         {
           fetch,
           nowMs: () => Date.now(),

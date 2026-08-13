@@ -16,7 +16,7 @@ import type { Logger } from 'pino';
 import { MarketTrendSchema } from '@app/contracts';
 import { sleep } from '@app/core/sleep';
 import { GLOBAL_KEYS } from '@app/db';
-import { createBinanceRest, fetchClosedKlines } from '@app/binance';
+import { BINANCE_HOSTS, createBinanceRest, fetchClosedKlines } from '@app/binance';
 import type { Candle } from '@app/strategy-core';
 import type { BootContext } from 'boot/boot-context.js';
 
@@ -25,7 +25,7 @@ import { QUEUE_NAMES } from 'queues/queue-names.js';
 import { classifyTrend, computeBreadth, type BreadthTicker } from './market-trend.js';
 
 /** Public Binance REST host — unauthenticated klines. */
-const KLINES_BASE_URL = 'https://api.binance.com';
+const KLINES_BASE_URL = BINANCE_HOSTS.live;
 /** Daily candles per proxy symbol. 210 clears the 150-bar slow-EMA warmup. */
 const KLINE_LIMIT = 210;
 /**

@@ -6,7 +6,13 @@ import { roundTripFeeFraction } from '../fees.js';
 import { protectiveStopClientOrderId } from '../client-order-id.js';
 import { buildSellDecision } from '../decisions.js';
 import { computeSellQuantity, type SellSkipReason } from '../quantity.js';
-import type { TTAtrTrailing, TTBundle, TTConfig, TTState } from '../schema.js';
+import type { ExitBlocker, TTAtrTrailing, TTBundle, TTConfig, TTState } from '../schema.js';
+import {
+  hasDownsideExitConfigured,
+  noExitCandidates,
+  resolveExitBlocker,
+  type ExitCandidates,
+} from '../exit-blocker.js';
 import { classifyRegime } from './regime.js';
 import { parseDecimal, safeDecimal } from './safe-decimal.js';
 
@@ -130,15 +136,37 @@ export interface SellGateEmit {
 export interface SellGateBumpHigh {
   readonly kind: 'bump-high';
   readonly state: TTState;
+  /** Why no exit fired this tick. Null only until {@link evaluateSellGate} resolves it. */
+  readonly blocker: ExitBlocker | null;
 }
 export interface SellGateSkip {
   readonly kind: 'skip';
   readonly log: LogEntry;
+  /** Sizing rejection that turned a firing rung into a skip, else null (a parse failure). */
+  readonly skipReason: SellSkipReason | null;
+  /**
+   * Config field whose stored value would not parse, absent on every other skip.
+   * Carried out so the blocker can name the dead rung: without it the corrupt
+   * field sets no candidate and the resolver falls through to
+   * `no-exit-configured`, which contradicts the `hasDownsideExit: true` it
+   * reports on the same record.
+   */
+  readonly configInvalidField?: string;
+  readonly blocker: ExitBlocker | null;
 }
 export interface SellGateNoop {
   readonly kind: 'noop';
+  readonly blocker: ExitBlocker | null;
 }
 export type SellGateResult = SellGateEmit | SellGateBumpHigh | SellGateSkip | SellGateNoop;
+
+/**
+ * What {@link sellEmissionOrSkip} can return. It declines only for a SIZING
+ * reason, so its skip always names one, and a caller reading that reason needs
+ * no guard for a case that cannot occur.
+ */
+export type SellEmissionResult =
+  SellGateEmit | (SellGateSkip & { readonly skipReason: SellSkipReason });
 
 /**
  * Parse a Decimal config field, or return the standard parse-failed skip whose
@@ -159,6 +187,9 @@ const parseFieldOrSkip = (
     ok: false,
     skip: {
       kind: 'skip',
+      skipReason: null,
+      configInvalidField: field,
+      blocker: null,
       log: log('warn', 'tt-sell-gate-parse-failed', { field, value, err: parsed.err }),
     },
   };
@@ -178,9 +209,10 @@ const parseFieldOrSkip = (
  * The trigger and the trailing-stop both update / read `highSinceBuy`
  * on `nextState`; the caller takes a new state with the bumped high.
  */
-export const evaluateSellGate = (
+const runSellLadder = (
   input: TickInput<TTConfig, TTState, TTBundle>,
   state: TTState,
+  cand: ExitCandidates,
 ): SellGateResult => {
   // Preconditions enforced upstream:
   //   - config.sell.enabled
@@ -190,15 +222,26 @@ export const evaluateSellGate = (
   // crashing the tick, with a typed log so the worker logger surfaces
   // the misconfiguration to operators.
   const lbpStr = state.avgEntryPrice;
-  if (lbpStr === null) return { kind: 'noop' };
+  if (lbpStr === null) return { kind: 'noop', blocker: null };
   const priceStr = input.market.currentPrice;
   const stopLossStr = input.config.sell.stopLossPercentage;
   const triggerStr = input.config.sell.triggerPercentage;
   const trailingStr = input.config.sell.trailingStopPercentage;
+  // Is there a trailing exit to arm at all? Read off the config (not the live
+  // regime verdict) so the answer is stable tick to tick: with no trail
+  // configured, reaching the sell arm sets a high-water mark that nothing
+  // consumes, and naming that arm as the gate would promise an exit that does
+  // not exist.
+  const trailConfigured =
+    (typeof trailingStr === 'string' && trailingStr !== '' && trailingStr !== '0') ||
+    input.config.sell.atrTrailing?.enabled === true ||
+    input.config.regime?.onBull?.hold?.enabled === true;
   const lbpParse = parseDecimal(lbpStr);
   if (!lbpParse.ok) {
     return {
       kind: 'skip',
+      skipReason: null,
+      blocker: null,
       log: log('warn', 'tt-sell-gate-parse-failed', {
         err: lbpParse.err,
         avgEntryPrice: lbpStr,
@@ -210,6 +253,8 @@ export const evaluateSellGate = (
   if (!priceParse.ok) {
     return {
       kind: 'skip',
+      skipReason: null,
+      blocker: null,
       log: log('warn', 'tt-sell-gate-parse-failed', {
         err: priceParse.err,
         avgEntryPrice: lbpStr,
@@ -219,7 +264,7 @@ export const evaluateSellGate = (
   }
   const lbp = lbpParse.value;
   const price = priceParse.value;
-  if (lbp.lte(0) || price.lte(0)) return { kind: 'noop' };
+  if (lbp.lte(0) || price.lte(0)) return { kind: 'noop', blocker: null };
 
   // High-water ratchet reference: the closed-candle close, not the (possibly
   // live) `currentPrice`, so an intra-candle wick can't inflate `highSinceBuy`.
@@ -234,14 +279,18 @@ export const evaluateSellGate = (
     const stopLossParse = parseFieldOrSkip(stopLossStr, 'stopLossPercentage');
     if (!stopLossParse.ok) return stopLossParse.skip;
     const stopLoss = stopLossParse.value;
-    if (stopLoss.gt(0) && stopLoss.lte(1) && price.lte(lbp.times(stopLoss))) {
-      return sellEmissionOrSkip(
-        input,
-        state,
-        'grid-stop-loss',
-        'tt-stop-loss',
-        `stop-${state.avgEntryPrice}`,
-      );
+    if (stopLoss.gt(0) && stopLoss.lte(1)) {
+      const stopPrice = lbp.times(stopLoss);
+      if (price.lte(stopPrice)) {
+        return sellEmissionOrSkip(
+          input,
+          state,
+          'grid-stop-loss',
+          'tt-stop-loss',
+          `stop-${state.avgEntryPrice}`,
+        );
+      }
+      cand.stopLoss = { stopPrice };
     }
   }
 
@@ -264,31 +313,44 @@ export const evaluateSellGate = (
     const floorParse = parseFieldOrSkip(breakEven.floorPercentage, 'breakEven.floorPercentage');
     if (!floorParse.ok) return floorParse.skip;
     const floor = floorParse.value;
+    // `floor.gte(1)` re-enforces the schema's never-below-entry bound at runtime
+    // (the worker ticks RAW config), and is hoisted so the arming tick below can
+    // name the floor it just installed without recomputing the level.
+    const floorPrice = floor.gte(1) ? lbp.times(floor) : null;
     if (state.breakEvenArmed === true) {
       // Armed: exit on a live retrace to the floor, but only while the profit
       // trail has not taken over. Above the floor (or trail armed) ⇒ fall
-      // through to the trail paths below. `floor.gte(1)` re-enforces the schema's
-      // never-below-entry bound at runtime: the worker ticks RAW config (no schema
-      // parse), so a corrupted sub-1 floor must not market-sell at a LOSS under the
-      // break-even label — cutting a loss is the hard stop-loss's job. Mirrors the
-      // stopLoss / trailing guards, which likewise re-check their bounds here.
-      if (state.highSinceBuy === null && floor.gte(1) && price.lte(lbp.times(floor))) {
-        return sellEmissionOrSkip(
-          input,
-          state,
-          'break-even-stop',
-          'tt-break-even-stop',
-          `break-even-${state.avgEntryPrice}`,
-        );
+      // through to the trail paths below. A corrupted sub-1 floor must not
+      // market-sell at a LOSS under the break-even label — cutting a loss is the
+      // hard stop-loss's job. Mirrors the stopLoss / trailing guards, which
+      // likewise re-check their bounds here.
+      if (state.highSinceBuy === null && floorPrice !== null) {
+        if (price.lte(floorPrice)) {
+          return sellEmissionOrSkip(
+            input,
+            state,
+            'break-even-stop',
+            'tt-break-even-stop',
+            `break-even-${state.avgEntryPrice}`,
+          );
+        }
+        cand.breakEvenFloor = { floorPrice };
       }
     } else {
       const armParse = parseFieldOrSkip(breakEven.armAtPercentage, 'breakEven.armAtPercentage');
       if (!armParse.ok) return armParse.skip;
       const armAt = armParse.value;
-      if (armAt.gt(1) && ratchetPrice.gte(lbp.times(armAt))) {
+      const beArmPrice = armAt.gt(1) ? lbp.times(armAt) : null;
+      if (beArmPrice !== null && !ratchetPrice.gte(beArmPrice)) {
+        cand.breakEvenArm = { armPrice: beArmPrice };
+      }
+      if (beArmPrice !== null && ratchetPrice.gte(beArmPrice)) {
         // Arm the sticky flag via the bump-high carrier (persist new state, no
         // sell); the caller continues and the regime exit still evaluates.
-        return { kind: 'bump-high', state: { ...state, breakEvenArmed: true } };
+        // The floor becomes the live protective rung from this tick on, so name
+        // it rather than the lower rung the ladder happened to record first.
+        if (floorPrice !== null) cand.breakEvenFloor = { floorPrice };
+        return { kind: 'bump-high', blocker: null, state: { ...state, breakEvenArmed: true } };
       }
     }
   }
@@ -313,8 +375,10 @@ export const evaluateSellGate = (
       // Ratchet on the closed-candle close so a live wick can't bump the high.
       if (state.highSinceBuy === null || ratchetPrice.gt(prevHigh)) {
         const newHigh = Decimal.max(prevHigh, ratchetPrice);
+        cand.trailHighRaised = { high: newHigh };
         return {
           kind: 'bump-high',
+          blocker: null,
           state: { ...state, highSinceBuy: newHigh.toString() },
         };
       }
@@ -343,13 +407,23 @@ export const evaluateSellGate = (
     );
     // The arm condition stays on the live price so a fast spike arms the trail
     // immediately; only the high-water VALUE ratchets on the closed-candle close.
-    if (trigger.gt(1) && price.gte(lbp.times(effTrigger))) {
+    const armPrice = lbp.times(effTrigger);
+    if (trigger.gt(1) && state.highSinceBuy === null && price.lt(armPrice) && trailConfigured) {
+      // The trail is the exit this position is waiting on and it does not exist
+      // yet: `highSinceBuy` is what every trailing branch below is gated on, and
+      // only this arm sets it. Recorded with the arm price so the operator reads
+      // one number instead of inferring it from a percentage.
+      cand.awaitingArm = { armPrice };
+    }
+    if (trigger.gt(1) && price.gte(armPrice)) {
       // Trigger threshold met: bump high-water mark if the closed-candle close
       // is a new high (or set the initial high).
       const prevHigh = state.highSinceBuy === null ? null : safeDecimal(state.highSinceBuy);
       if (prevHigh === null || ratchetPrice.gt(prevHigh)) {
+        cand.trailHighRaised = { high: ratchetPrice };
         return {
           kind: 'bump-high',
+          blocker: null,
           state: { ...state, highSinceBuy: ratchetPrice.toString() },
         };
       }
@@ -378,8 +452,11 @@ export const evaluateSellGate = (
     if (high !== null && atrValue !== null) {
       const mult = selectTrailMultiplier(atrCfg, bullMult);
       if (mult === null) {
+        cand.configInvalid = { field: 'atrTrailing.multiplier' };
         return {
           kind: 'skip',
+          skipReason: null,
+          blocker: null,
           log: log('warn', 'tt-sell-gate-parse-failed', {
             field: 'atrTrailing.multiplier',
             value: atrCfg.multiplier,
@@ -393,6 +470,7 @@ export const evaluateSellGate = (
       // position is never silently left with no trailing protection. For a
       // positive stop the ATR branch owns the trail (fire or noop).
       if (stopLevel.gt(0)) {
+        if (!price.lte(stopLevel)) cand.armedTrail = { source: 'atr', trailPrice: stopLevel, high };
         if (price.lte(stopLevel)) {
           return sellEmissionOrSkip(
             input,
@@ -405,7 +483,7 @@ export const evaluateSellGate = (
             bullMult !== null ? { trail: 'atr-bull', atrMultiplier: mult.toFixed() } : undefined,
           );
         }
-        return { kind: 'noop' };
+        return { kind: 'noop', blocker: null };
       }
     }
     // high parse failure, ATR unavailable, or a degenerate non-positive ATR
@@ -425,8 +503,11 @@ export const evaluateSellGate = (
   ) {
     const high = safeDecimal(state.highSinceBuy);
     if (high === null) {
+      cand.configInvalid = { field: 'highSinceBuy' };
       return {
         kind: 'skip',
+        skipReason: null,
+        blocker: null,
         log: log('warn', 'tt-sell-gate-parse-failed', {
           field: 'highSinceBuy',
           value: state.highSinceBuy,
@@ -436,14 +517,18 @@ export const evaluateSellGate = (
     const trailingParse = parseFieldOrSkip(trailingStr, 'trailingStopPercentage');
     if (!trailingParse.ok) return trailingParse.skip;
     const trailing = trailingParse.value;
-    if (trailing.gt(0) && trailing.lte(1) && price.lte(high.times(trailing))) {
-      return sellEmissionOrSkip(
-        input,
-        state,
-        'grid-sell',
-        'tt-trailing-stop',
-        `trail-${state.highSinceBuy}`,
-      );
+    if (trailing.gt(0) && trailing.lte(1)) {
+      const trailPrice = high.times(trailing);
+      if (price.lte(trailPrice)) {
+        return sellEmissionOrSkip(
+          input,
+          state,
+          'grid-sell',
+          'tt-trailing-stop',
+          `trail-${state.highSinceBuy}`,
+        );
+      }
+      cand.armedTrail = { source: 'fixed', trailPrice, high };
     }
   }
 
@@ -470,6 +555,7 @@ export const evaluateSellGate = (
         `time-stop-${state.entryAtMs}`,
       );
     }
+    cand.timeStop = { closedBars: closed, requiredBars: input.config.sell.discoveryTimeStopBars };
   }
 
   // General time-stop (opt-in): cut a NON-discovery position that "went nowhere".
@@ -498,9 +584,45 @@ export const evaluateSellGate = (
         `time-stop-${state.entryAtMs}`,
       );
     }
+    cand.timeStop = { closedBars: closed, requiredBars: timeStopBars };
   }
 
-  return { kind: 'noop' };
+  return { kind: 'noop', blocker: null };
+};
+
+/**
+ * Evaluate the sell ladder and, when nothing fired, say WHY: the rung the
+ * position stopped at plus the threshold that rung compared against. The blocker
+ * is assembled from the ladder's own locals rather than recomputed, so the
+ * recorded threshold is by construction the one the worker traded on.
+ *
+ * `emit` carries no blocker — the position is closing, so nothing is blocked.
+ */
+export const evaluateSellGate = (
+  input: TickInput<TTConfig, TTState, TTBundle>,
+  state: TTState,
+): SellGateResult => {
+  const cand = noExitCandidates();
+  const result = runSellLadder(input, state, cand);
+  if (result.kind === 'emit') return result;
+  if (result.kind === 'skip' && result.skipReason !== null) {
+    cand.unsellable = { skip: result.skipReason };
+  }
+  if (result.kind === 'skip' && result.configInvalidField !== undefined) {
+    cand.configInvalid = { field: result.configInvalidField };
+  }
+  return {
+    ...result,
+    blocker: resolveExitBlocker({
+      ...cand,
+      // The caller only runs the ladder on an enabled sell side with no open
+      // SELL; it owns those two reasons itself.
+      sellDisabled: false,
+      openSellOrder: false,
+      currentPrice: safeDecimal(input.market.currentPrice),
+      hasDownsideExit: hasDownsideExitConfigured(input.config, state.discoveryEntry === true),
+    }),
+  };
 };
 
 /**
@@ -611,7 +733,7 @@ export const sellEmissionOrSkip = (
   // default-path log object stays byte-identical (golden-replay diff = 0); only
   // the bull-hold trail passes it.
   extraLog?: Readonly<Record<string, unknown>>,
-): SellGateResult => {
+): SellEmissionResult => {
   const baseAsset = input.market.symbolInfo.baseAsset;
   // A closing batch cancels the bot's own resting protective stop before the
   // market sell, so the base that stop locks is reclaimable for sizing here —
@@ -653,6 +775,8 @@ export const sellEmissionOrSkip = (
   // but no action required. See #265.
   return {
     kind: 'skip',
+    skipReason,
+    blocker: null,
     log: log(sellSkipLogLevel(skipReason), `${messagePrefix}-skipped`, {
       symbol: input.market.symbol,
       reason: skipReason,

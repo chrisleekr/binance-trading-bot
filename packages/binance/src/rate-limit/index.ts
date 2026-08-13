@@ -5,6 +5,18 @@ export {
 } from './weight-governor.js';
 
 export {
+  createOrderRateGovernor,
+  parseOrderRateLimits,
+  MAX_RESERVE_WAIT_MS,
+  OrderBudgetUnavailableError,
+  type OrderRateGovernor,
+  type OrderRateGovernorOptions,
+  type OrderRateWindow,
+  type ParsedOrderRateLimits,
+  type RawRateLimit,
+} from './order-governor.js';
+
+export {
   createRedisWeightGovernor,
   RedisUnavailableError,
   type GovernorLogger,

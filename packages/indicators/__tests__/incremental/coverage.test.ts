@@ -196,6 +196,17 @@ describe('incremental — flat-series numeric edges', () => {
     expect(v.lower.equals(v.middle)).toBe(true);
   });
 
+  it('Bollinger clamps Decimal precision loss for near-identical closes', () => {
+    const ind = incrementalBollinger(2);
+    const first = candle(1);
+    const second = { ...candle(1), close: '1.0000000000000000001' };
+    const v = ind.currentValue(ind.initFromWindow([first, second]));
+
+    expect(v.middle.isFinite()).toBe(true);
+    expect(v.upper.equals(v.middle)).toBe(true);
+    expect(v.lower.equals(v.middle)).toBe(true);
+  });
+
   it('Stochastic over a flat series yields %K = 50 and trims kRing to smoothK', () => {
     const ind = incrementalStochastic(5, 3);
     let state = ind.initFromWindow(flat(7));

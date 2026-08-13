@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { trailingTrade } from '../src/index.js';
+import { EXIT_BLOCKER_REASONS, trailingTrade } from '../src/index.js';
 
 // The reason-code → config-path attribution moves from apps/web's hardcoded
 // CONFIG_ATTRIBUTION into the strategy plugin, so the web names the levers off
@@ -32,8 +32,49 @@ describe('trailingTrade.reasonAttribution', () => {
         'tt_regime_exit_entry_block',
         'tt_regime_filter_veto',
         'tt_risk_cap_veto',
+        // Exit rungs: the "held, and did not sell" half of the same table.
+        'sell-disabled',
+        'exit-order-open',
+        'exit-unsellable',
+        'exit-config-invalid',
+        'trail-high-raised',
+        'atr-trail-above-price',
+        'trail-above-price',
+        'awaiting-sell-arm',
+        'break-even-floor-not-hit',
+        'break-even-not-armed',
+        'stop-loss-not-hit',
+        'time-stop-pending',
+        'no-exit-configured',
       ].sort(),
     );
+  });
+
+  it('explains every exit rung the state schema can record', () => {
+    // A rung with no entry renders as a bare code in the UI, which is exactly
+    // the unreadable exit side this table exists to fix.
+    for (const reason of EXIT_BLOCKER_REASONS) {
+      const a = trailingTrade.reasonAttribution?.[reason];
+      expect(a?.gloss, reason).toBeDefined();
+      expect(a?.kind, reason).toBeDefined();
+    }
+  });
+
+  it('points the unarmed-trail rung at the sell trigger, not the trailing stop', () => {
+    // The reported defect: the operator was told a trailing stop existed while
+    // the position had never reached the arm, so the lever to change is the arm.
+    const a = trailingTrade.reasonAttribution?.['awaiting-sell-arm'];
+    expect(a?.paths).toEqual(['sell.triggerPercentage']);
+    expect(a?.note).toContain('does not exist until');
+  });
+
+  it('names the missing-downside-exit rung after the levers that would add one', () => {
+    const a = trailingTrade.reasonAttribution?.['no-exit-configured'];
+    expect(a?.paths).toEqual([
+      'sell.stopLossPercentage',
+      'sell.breakEven.enabled',
+      'sell.atrTrailing.enabled',
+    ]);
   });
 
   it('carries the plain-language gloss + kind that the web funnel used to hardcode', () => {

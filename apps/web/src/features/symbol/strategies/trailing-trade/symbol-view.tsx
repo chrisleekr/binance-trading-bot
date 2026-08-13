@@ -17,6 +17,7 @@ export const trailingTradeView: StrategyView = {
       strategy={state.strategy}
       holding={state.avgEntryPrice}
       currentPrice={currentPrice}
+      exitBlocker={state.exitBlocker}
     />
   ),
   SidePanel: ({ state, currentPrice }: StrategyViewProps) => (

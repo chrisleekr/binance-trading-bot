@@ -194,6 +194,19 @@ describe('protectiveStopNeedsRearm', () => {
     );
   });
 
+  it('honours a caller-supplied drift band in both directions', () => {
+    // 96.00 vs 96.50 is 0.52%: past the 0.1% default, inside a 1% band. The band
+    // is the only knob bounding order spend for a level that advances intraday,
+    // so a plugin must be able to widen or tighten it.
+    expect(protectiveStopNeedsRearm(order({ stopPrice: '96.00' }), '96.50', '2')).toBe(true);
+    expect(
+      protectiveStopNeedsRearm(order({ stopPrice: '96.00' }), '96.50', '2', new Decimal('0.01')),
+    ).toBe(false);
+    expect(
+      protectiveStopNeedsRearm(order({ stopPrice: '96.00' }), '96.05', '2', new Decimal('0.0001')),
+    ).toBe(true);
+  });
+
   it('leaves an order whose stopPrice or origQty reads back unparseable (no churn)', () => {
     expect(protectiveStopNeedsRearm(order({ stopPrice: undefined }), '96.00', '2')).toBe(false);
     expect(protectiveStopNeedsRearm(order({ stopPrice: 'x' }), '96.00', '2')).toBe(false);

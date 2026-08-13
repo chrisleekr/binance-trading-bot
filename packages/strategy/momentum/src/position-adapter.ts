@@ -40,13 +40,29 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
     if (body === null) return null;
     switch (fill.kind) {
       case 'buy':
-        // New entry / add: set entry price + held qty and reset the trailing
-        // high-water mark so a fresh trailing cycle starts.
+        // New entry / add: set entry price + held qty and reset BOTH high-water
+        // marks so a fresh trailing cycle starts on each leg.
+        //
+        // `profitTrailSinceMs` clears with them. It is the epoch bounding which
+        // 1m closes may ratchet the profit trail, and it belongs to the entry
+        // this fill just replaced. Carried forward it would admit closes from
+        // before the new cost basis, seeding the mark with a peak this position
+        // never held and arming the trail into an immediate sell. The adapter
+        // sees no candle window to derive a fresh one, so it clears the field and
+        // the next held tick establishes it.
+        //
+        // `lastEntryCandleMs` deliberately survives. It is the one-entry-per-cross
+        // guard, and this adapter runs for the profile's OWN strategy entries as
+        // well as adopted ones, so clearing it would erase the stamp the placing
+        // tick just wrote and let the same cross re-enter after a stop-out. A
+        // stale stamp only ever suppresses an entry on a candle already past.
         return {
           ...(body as unknown as MomentumState),
           entryPrice: fill.avgEntryPrice,
           heldQuantity: fill.heldQuantity,
           highSinceEntry: null,
+          profitHigh: null,
+          profitTrailSinceMs: null,
         };
       case 'sell-reduce':
         // Partial exit: lower held qty only; entry / high-water stay intact.
@@ -66,6 +82,8 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
           entryPrice: null,
           heldQuantity: null,
           highSinceEntry: null,
+          profitHigh: null,
+          profitTrailSinceMs: null,
         };
       }
     }
@@ -86,9 +104,15 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
   clearPosition(state): MomentumState | null {
     const body = asCurrentBody(state);
     if (body === null) return null;
-    // Clear entry price + trailing high-water mark together; held qty is pinned
+    // Clear entry price + both high-water marks together; held qty is pinned
     // to wallet truth separately by the held-quantity reconciler. Momentum has
     // no grid, so the `resetGridIndex` option is inert here — ignored.
-    return { ...(body as unknown as MomentumState), entryPrice: null, highSinceEntry: null };
+    return {
+      ...(body as unknown as MomentumState),
+      entryPrice: null,
+      highSinceEntry: null,
+      profitHigh: null,
+      profitTrailSinceMs: null,
+    };
   },
 };

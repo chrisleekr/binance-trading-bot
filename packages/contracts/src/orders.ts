@@ -105,6 +105,16 @@ export const SymbolStateResponse = z.object({
    * payloads written before the field existed decodable.
    */
   protectiveStopBlocker: EntryBlockerResponse.default(null),
+  /**
+   * Why a HELD position did NOT exit on the last tick, or null when nothing is
+   * held. Same shape as {@link EntryBlockerResponse}, read from the same
+   * persisted strategy state, and the exit-side mirror of `entryBlocker`: it
+   * names the rung the position is waiting on and carries that rung's threshold
+   * in `detail`, so "it reached my stop and did nothing" is answerable from the
+   * record instead of by re-deriving levels in the client. `.default(null)`
+   * keeps payloads written before the field existed decodable.
+   */
+  exitBlocker: EntryBlockerResponse.default(null),
 });
 /** TS type derived from {@link SymbolStateResponse} so consumers don't re-run z.infer at every call site. */
 export type SymbolStateResponse = z.infer<typeof SymbolStateResponse>;

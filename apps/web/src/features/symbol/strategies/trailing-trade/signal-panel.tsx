@@ -109,14 +109,26 @@ type SignalView =
       readonly timeStop: { readonly bars: number; readonly interval: string } | null;
       readonly sellArm: PriceTarget | null;
       readonly trailingStop: PriceTarget | null;
-      /** True once price has reached the sell arm (highSinceBuy >= sell-arm price): the trailing stop is then an active exit, not a pending one. */
+      /** True once the position has a running high (`highSinceBuy`): the trailing stop is then an active exit, not a pending one. Unarmed, NO trailing exit exists at any price. */
       readonly trailingArmed: boolean;
+      /** True when some trail exists for the sell arm to arm: a fixed retrace
+       * percentage, the ATR trail, or the bull hold. False means reaching the
+       * sell arm sets a high-water mark that nothing consumes, so the arm is not
+       * a gate on any exit. */
+      readonly trailConfigured: boolean;
       readonly stopLoss: PriceTarget | null;
       /** Break-even stop, when enabled. `stage: 'arm'` is the level price must
        * rise to (on a closed candle) to arm the floor; `stage: 'floor'` is the
        * armed near-entry exit, shown only while the profit trail has not taken
        * over. Null when disabled, or armed but superseded by the trail. */
       readonly breakEven: { readonly stage: 'arm' | 'floor'; readonly target: PriceTarget } | null;
+      /**
+       * True when the worker recorded that NOTHING configured would exit this
+       * position below the entry: it can only close at a profit or by hand.
+       * False when it recorded an exit; null when it recorded nothing either
+       * way, which must not render as reassurance.
+       */
+      readonly noDownsideExit: boolean | null;
       /** Present when any configured Technicals interval has at least one of
        * `whenSell` / `whenStrongSell` / `whenNeutral` enabled — i.e. when the
        * force-sell-on-Technicals rule has anything to do for this profile. */
@@ -253,10 +265,21 @@ function forceSellViewOf(
   return { trigger, status: { kind: 'waiting-signal', intervals } };
 }
 
+/**
+ * Replay the trailing-trade thresholds for one symbol into the panel's view.
+ *
+ * `exitBlocker` is the projection field of the same name, the worker's own "why
+ * this position did not sell" record. Its `hasDownsideExit` flag is read
+ * straight through rather than re-derived from config: a second implementation
+ * of "is anything configured below the entry" could disagree with the ladder the
+ * worker actually runs, and the whole point of the warning is that it is true.
+ * `null` means no record, which renders as neither warning nor reassurance.
+ */
 export function deriveSignal(
   strategy: SymbolStateResponse['strategy'],
   holding: SymbolStateResponse['avgEntryPrice'],
   currentPrice: string | null,
+  exitBlocker: SymbolStateResponse['exitBlocker'] = null,
   signals?: TechnicalsResponse,
   nowMs: number = Date.now(),
 ): SignalView {
@@ -333,11 +356,22 @@ export function deriveSignal(
     generalTimeStopBars > 0
       ? { bars: generalTimeStopBars, interval: candleInterval }
       : null;
-  // Armed once the high water mark has reached the sell-arm price: the worker
-  // only honours the trailing stop after the arm, so the panel labels it as a
-  // live exit vs a pending one.
-  const trailingArmed =
-    highSinceBuy !== null && sellArm !== null ? highSinceBuy >= sellArm.price : false;
+  // Armed exactly when the worker has a running high to trail from: the sell
+  // gate's trailing branches are gated on `highSinceBuy !== null` and nothing
+  // else, and only the arm paths ever set it. Re-deriving the arm from the
+  // sell-arm price instead would call an ATR `fromEntry` trail (armed at entry,
+  // below the sell arm) unarmed while the worker was already trailing it.
+  const trailingArmed = highSinceBuy !== null;
+
+  // Is there a trail for the sell arm to arm at all? Mirrors the same three
+  // config reads in sell-gate.ts: with none of them on, reaching the arm sets a
+  // high-water mark nothing consumes, so naming the arm as the gate would
+  // promise an exit that does not exist. Read off config, not the live regime
+  // verdict, so the answer is stable tick to tick.
+  const trailConfigured =
+    (trailingPct !== null && trailingPct > 0) ||
+    asRecord(sell?.['atrTrailing'])?.['enabled'] === true ||
+    asRecord(asRecord(asRecord(config['regime'])?.['onBull'])?.['hold'])?.['enabled'] === true;
 
   // Break-even stop mirror: arms once a closed candle confirms a gain of
   // armAtPercentage, then a fall to floorPercentage (>= entry) sells near flat —
@@ -356,6 +390,9 @@ export function deriveSignal(
       breakEven = { stage: 'arm', target: target(lbp * beArmPct, current) };
     }
   }
+
+  const hasDownsideExit = exitBlocker?.detail?.['hasDownsideExit'];
+  const noDownsideExit = typeof hasDownsideExit === 'boolean' ? !hasDownsideExit : null;
 
   const forceSell = forceSellViewOf(config, lbp, current, sellTrigger, signals, nowMs);
 
@@ -387,8 +424,10 @@ export function deriveSignal(
     sellArm,
     trailingStop,
     trailingArmed,
+    trailConfigured,
     stopLoss,
     breakEven,
+    noDownsideExit,
     forceSell,
     pyramid,
   };
@@ -477,6 +516,13 @@ interface LadderRow {
   readonly sells: boolean;
   /** Short status suffix, e.g. armed / not-yet-armed for the trailing stop. */
   readonly note?: string;
+  /**
+   * True for the one row the position is actually waiting on when no profit exit
+   * exists yet. Distinct from `sells`: reaching this price arms an exit rather
+   * than firing one, so it is never a candidate for the nearest-exit flag, but it
+   * is what the operator must watch.
+   */
+  readonly nextGate?: boolean;
 }
 
 const toneClass: Record<RowTone, string> = {
@@ -490,27 +536,46 @@ const toneClass: Record<RowTone, string> = {
 function ladderRows(view: Extract<SignalView, { kind: 'holding' }>): readonly LadderRow[] {
   const rows: LadderRow[] = [];
   if (view.sellArm) {
+    // Unarmed, this is the only thing standing between the position and any
+    // profit exit — nothing below it can fire, so it is named as the gate rather
+    // than left as one more level in the list. With no trail configured there is
+    // nothing to arm, and calling it the gate would promise an exit that does
+    // not exist, the same phantom promise as drawing a trailing line with no
+    // trail. The worker refuses to name the arm on that config too.
+    const pending = !view.trailingArmed && view.trailConfigured;
     rows.push({
       key: 'sell-arm',
       label: 'Sell arm',
-      hint: 'Price rises to here → the trailing stop arms (profit-taking begins).',
+      hint: !view.trailConfigured
+        ? 'Your sell trigger level. No trailing stop is configured, so reaching it starts no profit exit.'
+        : pending
+          ? 'Price rises to here → the trailing stop arms (profit-taking begins). Until it does there is no trailing exit at any price.'
+          : 'Price rises to here → the trailing stop arms (profit-taking begins).',
       price: view.sellArm.price,
       gapPct: view.sellArm.gapPct,
       tone: 'arm',
       sells: false,
-      note: view.trailingArmed ? 'armed' : 'not yet armed',
+      ...(pending ? { nextGate: true } : {}),
+      note: !view.trailConfigured
+        ? 'no trailing stop configured — reaching this arms nothing'
+        : pending
+          ? 'next gate — no trailing exit until price reaches here'
+          : 'armed',
     });
   }
+  // A trailing level exists only once armed (both are `highSinceBuy !== null`),
+  // so the row is unconditionally a live exit — an unarmed trail has no price to
+  // show and is covered by the sell-arm gate row above.
   if (view.trailingStop) {
     rows.push({
       key: 'trailing',
       label: 'Trailing stop',
-      hint: 'Once armed, a fall to this retrace level → market sell in profit.',
+      hint: 'A fall to this retrace level → market sell in profit.',
       price: view.trailingStop.price,
       gapPct: view.trailingStop.gapPct,
       tone: 'profit',
-      sells: view.trailingArmed,
-      note: view.trailingArmed ? 'active exit' : 'arms after sell arm',
+      sells: true,
+      note: 'active exit',
     });
   }
   if (view.stopLoss) {
@@ -577,11 +642,16 @@ function LadderRowView({
       className="flex items-baseline justify-between gap-2 px-3 py-2 text-xs"
       data-testid={`exit-row-${row.key}`}
       data-nearest={isNearest ? 'true' : undefined}
+      data-next-gate={row.nextGate === true ? 'true' : undefined}
     >
       <span className="flex min-w-0 items-baseline gap-1.5">
         {isNearest ? (
           <span className="text-warning" aria-hidden title="Nearest exit">
             ⚡
+          </span>
+        ) : row.nextGate === true ? (
+          <span className="text-warning" aria-hidden title="Next exit gate">
+            ⚑
           </span>
         ) : null}
         <span className={toneClass[row.tone]} title={row.hint}>
@@ -727,12 +797,15 @@ export function SymbolSignalPanel({
   strategy,
   holding,
   currentPrice,
+  exitBlocker,
 }: {
   readonly profileId: string;
   readonly symbol: string;
   readonly strategy: SymbolStateResponse['strategy'];
   readonly holding: SymbolStateResponse['avgEntryPrice'];
   readonly currentPrice: string | null;
+  /** The projection's worker-written exit record; see {@link deriveSignal}. */
+  readonly exitBlocker: SymbolStateResponse['exitBlocker'];
 }): React.JSX.Element {
   // Skip the technicals query entirely when no sell-side toggle is configured —
   // the force-sell row will not render, so the data is dead weight. Cache key
@@ -783,7 +856,7 @@ export function SymbolSignalPanel({
     [config, dailyCandles.data],
   );
 
-  const view = deriveSignal(strategy, holding, currentPrice, signalsForSymbol);
+  const view = deriveSignal(strategy, holding, currentPrice, exitBlocker, signalsForSymbol);
 
   return (
     <section className="space-y-2" data-testid="symbol-signal-panel">
@@ -877,6 +950,14 @@ function HoldingView({
       </div>
 
       <ExitLadder view={view} />
+
+      {view.noDownsideExit === true ? (
+        <p className="px-1 text-xs text-warning" data-testid="symbol-signal-no-downside-exit">
+          No exit below your entry. Nothing on this ladder sells at a loss, so a fall is held until
+          you act — switch on a stop-loss, a break-even stop or a time-stop if that is not what you
+          want.
+        </p>
+      ) : null}
 
       {view.discoveryEntry ? (
         <p className="px-1 text-xs text-muted-fg" data-testid="symbol-signal-discovery-note">

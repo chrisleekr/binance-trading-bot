@@ -53,6 +53,8 @@ type OrderFailure = {
   readonly retryable: boolean;
   readonly phase: 'pre-call' | 'rejected' | 'ambiguous' | 'accepted';
   readonly reason: string;
+  /** Withheld by the order-rate governor rather than attempted and failed. */
+  readonly deferred?: true;
 };
 type OrderResult = { readonly ok: true } | OrderFailure;
 
@@ -466,6 +468,26 @@ describe('tick handler — the operator is told the order failed', () => {
   it('stays quiet when every order lands', async () => {
     const { notifyOrderFailed } = await run({ orderResult: { ok: true } });
     expect(notifyOrderFailed).not.toHaveBeenCalled();
+  });
+
+  // A shed is the feature's designed steady state under a saturated order budget,
+  // and it recurs every tick for as long as the budget stays saturated. Alerting
+  // on it would bury the real order failures this channel exists to carry — and
+  // it fails the same way (`ok:false`, `phase:'pre-call'`, retryable) as the
+  // genuine throttle two tests above, so only `deferred` separates them.
+  it('stays quiet on a deferred reprice — the resting stop is still protecting', async () => {
+    const { notifyOrderFailed, commit } = await run({
+      orderResult: {
+        ok: false,
+        retryable: true,
+        phase: 'pre-call',
+        deferred: true,
+        reason: 'deferred: no Binance order-rate headroom',
+      },
+    });
+    expect(notifyOrderFailed).not.toHaveBeenCalled();
+    // Still un-committed: the strategy must re-emit the reprice next tick.
+    expect(commit).not.toHaveBeenCalled();
   });
 
   it('resolves and warns when the notify throws synchronously', async () => {
