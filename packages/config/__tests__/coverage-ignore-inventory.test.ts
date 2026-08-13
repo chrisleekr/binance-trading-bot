@@ -167,7 +167,7 @@ const REVIEWED_IDENTITY_DIGESTS: Record<string, string> = {
   'packages/binance/src/market-data/fake-port.ts': '64e259fdba0be49f',
   'packages/binance/src/market-data/kline-fetcher.ts': '8bc0a3461d279b30',
   'packages/binance/src/public-klines.ts': '009866645bd7ee6e',
-  'packages/binance/src/rate-limit/order-governor.ts': 'e1678e522e028e0a',
+  'packages/binance/src/rate-limit/order-governor.ts': '69a2af6b660773d2',
   'packages/binance/src/rate-limit/redis-weight-governor.ts': '80050d886ff3f55c',
   'packages/binance/src/rate-limit/weight-governor.ts': '4e4c7987ba8df2db',
   'packages/indicators/src/rating/hull-ma.ts': 'e1ca5bb677b11575',
