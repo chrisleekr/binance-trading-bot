@@ -12,8 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@testcontainers/postgresql": "~11.14.0",
-    "@testcontainers/redis": "~11.14.0",
-    "testcontainers": "~11.14.0"
+    "@testcontainers/postgresql": "~12.1.0",
+    "@testcontainers/redis": "~12.1.0",
+    "testcontainers": "~12.1.0"
   }
 }
