@@ -270,12 +270,13 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
 
   const { loadEnabledProfiles, profileManager } = buildProfileManagerSlice({ db, logger });
 
-  const { resolveBinanceFull, resolveBinanceClient, exchangeInfoRefresh } = buildBinanceResolver({
-    db,
-    redis,
-    logger,
-    weightGovernor,
-  });
+  const { resolveBinanceFull, resolveBinanceClient, exchangeInfoRefresh, orderGovernorFor } =
+    buildBinanceResolver({
+      db,
+      redis,
+      logger,
+      weightGovernor,
+    });
 
   const {
     persistProfileState,
@@ -331,6 +332,8 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     liveDemo,
     profileManager,
     enqueueSymbolReconcile,
+    orderGovernorFor,
+    metrics,
   });
 
   const { profileContextCache, tickHandler } = buildTickHandler({

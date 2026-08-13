@@ -532,11 +532,15 @@ describe('ttPreviewLevels — defensive / branch coverage', () => {
     expect(rows(held).find((r) => r.tone === 'trail')?.price).toBe('196');
   });
 
-  it('falls back to lbp for the trailing high when there is no arm and no high', () => {
+  it('names no level, and no arming price, when there is no arm and no high', () => {
     const cfgObj = { sell: { trailingStopPercentage: '0.98' } };
     const model = ttPreviewLevels(previewIn(cfgObj as never, { state: null }));
-    // no sellArm (no trigger) and no highSinceBuy -> high = lbp 100 -> 98.
-    expect(rows(model).find((r) => r.tone === 'trail')?.price).toBe('98');
+    // No sellArm (no trigger) and no highSinceBuy: the sell gate has nothing to
+    // trail from, so the row explains the wait instead of quoting a price.
+    const trail = rows(model).find((r) => r.tone === 'trail');
+    expect(trail?.price).toBeUndefined();
+    expect(trail?.note).toContain('the first new high');
+    expect(trail?.note).toContain('2%');
   });
 
   it('treats a non-finite decimal field as absent', () => {
@@ -550,5 +554,52 @@ describe('ttPreviewLevels — defensive / branch coverage', () => {
     sparse[2] = { triggerPercentage: '0.9', maxPurchaseAmount: '100' }; // index 1 is a hole
     const model = ttPreviewLevels(previewIn({ buy: { gridLevels: sparse } } as never));
     expect(rows(model).some((r) => r.tone === 'buy')).toBe(false);
+  });
+});
+
+// The worker's sell-gate only trails from a real `highSinceBuy`; with none, no
+// trailing exit exists at any price. Projecting one anyway hands the operator a
+// level below the sell arm that price routinely crosses, which reads as "the
+// trailing stop fired and the bot ignored it".
+describe('ttPreviewLevels — the trailing stop is a level only once armed', () => {
+  // The reported ETHBTC position: +8% sell arm, 6% give-back trail, price never
+  // above the arm, so the trail never came into existence.
+  const TRAIL_CONFIG = { sell: { triggerPercentage: '1.08', trailingStopPercentage: '0.94' } };
+  const ENTRY = '0.029679746835443037975';
+
+  const trailRow = (state: unknown, currentPrice = '0.0302') =>
+    rows(
+      ttPreviewLevels(previewIn(TRAIL_CONFIG as never, { entryPrice: ENTRY, currentPrice, state })),
+    ).find((r) => r.tone === 'trail');
+
+  it('holds back the price and the chart line while the position is held but unarmed', () => {
+    const trail = trailRow({ avgEntryPrice: ENTRY, highSinceBuy: null });
+    // The row still belongs in the ladder — the operator needs to see the trail
+    // is configured — but it names no level, so nothing can be drawn from it.
+    expect(trail).toBeDefined();
+    expect(trail?.chartLine).toBeUndefined();
+    expect(trail?.price).toBeUndefined();
+  });
+
+  it('keeps the sell arm drawn while unarmed, since that is the operative gate', () => {
+    const model = ttPreviewLevels(
+      previewIn(TRAIL_CONFIG as never, {
+        entryPrice: ENTRY,
+        currentPrice: '0.0302',
+        state: { avgEntryPrice: ENTRY, highSinceBuy: null },
+      }),
+    );
+    const arm = rows(model).find((r) => r.code === 'technicals-force-sell');
+    expect(arm?.chartLine).toBe(true);
+    expect(arm?.price).toBe(new Decimal(ENTRY).mul('1.08').toString());
+  });
+
+  it('draws the trailing line at highSinceBuy * trailingStopPercentage once armed', () => {
+    // Regression lock on the armed side: suppressing the unarmed projection must
+    // not take the real trailing line with it.
+    const high = '0.0325';
+    const trail = trailRow({ avgEntryPrice: ENTRY, highSinceBuy: high });
+    expect(trail?.chartLine).toBe(true);
+    expect(trail?.price).toBe(new Decimal(high).mul('0.94').toString());
   });
 });

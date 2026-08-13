@@ -34,6 +34,22 @@ export interface OrderIntent {
    * vocabulary.
    */
   readonly overrideActionId?: string;
+  /**
+   * This order is an IMPROVEMENT, not a necessity: when the account's Binance
+   * order budget has no headroom, the executor skips it for this tick instead
+   * of waiting for headroom. Waiting would hold the per-(profile, symbol) chain
+   * lock, delaying the next tick's exit check — worse than a late reprice.
+   *
+   * Set it only when the order's absence leaves the position no less protected
+   * than it already is: re-pricing a resting protective stop qualifies, because
+   * the existing stop stays live. An exit, an entry, or the FIRST arming of a
+   * stop must never set it — those are the orders a shed would turn into a
+   * loss. Absent (the default) means block-and-wait.
+   *
+   * Generic on purpose: the executor decides shed-vs-block from this flag, not
+   * from `reason`, so it never has to know a strategy's intent vocabulary.
+   */
+  readonly deferrable?: boolean;
 }
 
 export interface OrderParams {

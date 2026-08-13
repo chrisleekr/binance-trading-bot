@@ -74,6 +74,17 @@ const projectLadder = (config: TTConfig, entryPrice: Decimal): PreviewRow[] => {
 };
 
 /**
+ * Operator-facing line for a configured-but-unarmed trailing stop. Names the
+ * price that brings the trail into existence (the sell arm) and the give-back it
+ * will then allow, so a level-less row still answers "what is this waiting for".
+ */
+const unarmedTrailNote = (trailPct: Decimal, sellArm: Decimal | null): string => {
+  const giveBack = new Decimal(1).minus(trailPct).mul(100).toString();
+  const armsAt = sellArm === null ? 'the first new high' : sellArm.toString();
+  return `Not armed yet — arms at ${armsAt}, then exits ${giveBack}% below the peak`;
+};
+
+/**
  * Sell-side levels — a Decimal port of the web `deriveSignal` math. `lbp` is the
  * average entry price. The stop-loss is the ONE gate-trigger: it fires precisely
  * at `lbp * stopLossPercentage` off the stable cost basis and carries the exact
@@ -124,21 +135,20 @@ const projectSells = (config: TTConfig, state: TTState | null, lbp: Decimal): Pr
 
   const trailPct = decOrNull(sell?.trailingStopPercentage);
   if (trailPct !== null && trailPct.gt(0) && trailPct.lte(1)) {
-    // The trail measures off the running high; project from the position high
-    // when held, else from the sell-arm (where the trail first arms), else lbp.
+    // The trail measures off `highSinceBuy`, which the sell gate only sets once
+    // price first reaches the sell arm. Until then no trailing exit exists at ANY
+    // price, so the row names no level: a projection off the arm or off the cost
+    // basis would sit BELOW the arm, where price crosses it routinely, and read as
+    // a trailing stop the bot hit and ignored.
     const positionHigh = state === null ? null : decOrNull(state.highSinceBuy);
-    const high = positionHigh ?? sellArm ?? lbp;
-    // The trail only sits somewhere real once a position is held or the running
-    // high exists; drawn flat it would land on the entry projection, so it is a
-    // chart line only when armed.
-    const armed = held || positionHigh !== null;
     rows.push({
       code: 'grid-sell',
       label: 'Trailing stop',
       tone: 'trail',
-      price: high.mul(trailPct).toString(),
       triggerWhen: 'below',
-      ...(armed ? { chartLine: true as const } : {}),
+      ...(positionHigh !== null
+        ? { price: positionHigh.mul(trailPct).toString(), chartLine: true as const }
+        : { note: unarmedTrailNote(trailPct, sellArm) }),
     });
   }
   return rows;

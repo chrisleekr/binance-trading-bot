@@ -96,7 +96,13 @@ describe('createExchangeInfoRefresh', () => {
     const refresh = createExchangeInfoRefresh({ redis, logger: silentLogger, fetchImpl });
     const result = await refresh();
 
-    expect(result).toEqual({ fetched: 2, written: 2, skipped: 0, deleted: 0 });
+    expect(result).toEqual({
+      fetched: 2,
+      written: 2,
+      skipped: 0,
+      deleted: 0,
+      orderRateLimits: { windows: [], headers: new Map() },
+    });
     expect(redis.writes.has(buildSymbolInfoKey('BTCUSDT'))).toBe(true);
     const btcRaw = redis.writes.get(buildSymbolInfoKey('BTCUSDT'));
     if (!btcRaw) throw new Error('test setup: BTCUSDT not written');
@@ -110,6 +116,46 @@ describe('createExchangeInfoRefresh', () => {
     expect(btc.filters.tickSize).toBe('0.01');
     expect(btc.filters.stepSize).toBe('0.0001');
     expect(btc.filters.minNotional).toBe('10');
+  });
+
+  it('retains the ORDERS rate-limit rows, which the order governor is built from', async () => {
+    const redis = stubRedis();
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        // Testnet's rows, which are HALF live's 100/10s — the reason these are
+        // read from the payload rather than hardcoded.
+        rateLimits: [
+          { rateLimitType: 'REQUEST_WEIGHT', interval: 'MINUTE', intervalNum: 1, limit: 6000 },
+          { rateLimitType: 'ORDERS', interval: 'SECOND', intervalNum: 10, limit: 50 },
+          { rateLimitType: 'ORDERS', interval: 'DAY', intervalNum: 1, limit: 160000 },
+        ],
+        symbols: [
+          {
+            symbol: 'BTCUSDT',
+            baseAsset: 'BTC',
+            quoteAsset: 'USDT',
+            status: 'TRADING',
+            filters: [],
+          },
+        ],
+      }),
+    );
+
+    const refresh = createExchangeInfoRefresh({ redis, logger: silentLogger, fetchImpl });
+    const { orderRateLimits } = await refresh();
+
+    expect(orderRateLimits.windows).toEqual([
+      { windowMs: 10_000, limit: 50 },
+      { windowMs: 86_400_000, limit: 160000 },
+    ]);
+    expect([...orderRateLimits.headers.keys()]).toEqual([
+      'x-mbx-order-count-10s',
+      'x-mbx-order-count-1d',
+    ]);
+    // Pinned here rather than in a shape test because THIS is what a followed
+    // redirect would buy an attacker: the ceiling every later placement is
+    // measured against, chosen by whichever host answered.
+    expect(fetchImpl.mock.calls[0]?.[1]?.redirect).toBe('error');
   });
 
   it('skips symbols with non-ASCII tickers (e.g. CJK meme tokens)', async () => {
@@ -138,7 +184,13 @@ describe('createExchangeInfoRefresh', () => {
     const refresh = createExchangeInfoRefresh({ redis, logger: silentLogger, fetchImpl });
     const result = await refresh();
 
-    expect(result).toEqual({ fetched: 2, written: 1, skipped: 1, deleted: 0 });
+    expect(result).toEqual({
+      fetched: 2,
+      written: 1,
+      skipped: 1,
+      deleted: 0,
+      orderRateLimits: { windows: [], headers: new Map() },
+    });
     expect(redis.writes.has(buildSymbolInfoKey('BTCUSDT'))).toBe(true);
     expect(redis.writes.has(buildSymbolInfoKey('币安人生USDT'))).toBe(false);
   });

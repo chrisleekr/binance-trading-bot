@@ -17,7 +17,8 @@
 // Binance REST docs: https://developers.binance.com/docs/binance-spot-api-docs/rest-api
 
 import { createHmac } from 'node:crypto';
-import type { WeightGovernor } from './rate-limit/index.js';
+import { BINANCE_HOSTS, type BinanceMode } from './endpoints.js';
+import type { OrderRateGovernor, WeightGovernor } from './rate-limit/index.js';
 import { errorMessage } from '@app/core/error';
 import { sleep as defaultSleep } from '@app/core/sleep';
 
@@ -27,17 +28,8 @@ import { sleep as defaultSleep } from '@app/core/sleep';
  * client built for one cannot reach the other so the mode is a constructor
  * input rather than a per-call argument.
  */
-export type BinanceMode = 'live' | 'test';
-
-/**
- * Per-mode REST host. Pinned here so callers cannot accidentally point a
- * `live` client at testnet (or vice versa) by string-concat — the mode-keyed
- * lookup is the only API for picking a host.
- */
-export const BINANCE_HOSTS: Record<BinanceMode, string> = {
-  live: 'https://api.binance.com',
-  test: 'https://testnet.binance.vision',
-};
+export { BINANCE_HOSTS, BINANCE_WS_API_HOSTS, BINANCE_WS_HOSTS } from './endpoints.js';
+export type { BinanceMode } from './endpoints.js';
 
 /**
  * Hard ceiling on a single REST round-trip. Without it a stalled TCP
@@ -62,31 +54,6 @@ const GET_RETRY_MAX_MS = 2_000;
 
 /** Transient network error messages worth one more attempt. Mirrors `public-klines.ts`. */
 const TRANSIENT_NETWORK_RE = /timeout|abort|fetch failed|network|ECONN|ENOTFOUND|EAI_AGAIN/i;
-
-/**
- * Per-mode WebSocket host. Kept next to the REST hosts because the
- * user-stream pool needs both — REST starts/keeps the listenKey, WS consumes
- * it — and pairing them in one constants module makes "which env am I
- * talking to" a single import.
- */
-export const BINANCE_WS_HOSTS: Record<BinanceMode, string> = {
-  live: 'wss://stream.binance.com:9443',
-  test: 'wss://testnet.binance.vision',
-};
-
-/**
- * WebSocket API endpoint per mode. Distinct from BINANCE_WS_HOSTS — the
- * latter is the legacy raw-stream host that consumed `listenKey`-tied
- * URLs. Binance retired the `listenKey` REST flow (changelog 2025-04-07
- * / 2025-10-24); the replacement is a request/response WS endpoint at
- * `/ws-api/v3` that also handles per-message-signed user-data
- * subscriptions. executionReport / balanceUpdate events arrive on the
- * same connection that issued the subscribe, so there is no second URL.
- */
-export const BINANCE_WS_API_HOSTS: Record<BinanceMode, string> = {
-  live: 'wss://ws-api.binance.com:443/ws-api/v3',
-  test: 'wss://ws-api.testnet.binance.vision/ws-api/v3',
-};
 
 /**
  * Per-account API credentials. Held as `readonly` so a bound client cannot
@@ -603,6 +570,15 @@ export interface CreateBinanceRestOptions {
    */
   readonly weightGovernor?: WeightGovernor;
   /**
+   * Optional per-ACCOUNT order-rate governor. Binance meters order placement
+   * against an `ORDERS` budget that is separate from `REQUEST_WEIGHT` and
+   * scoped to the UID rather than the IP, so this one is NOT shared across
+   * accounts the way `weightGovernor` is. A cancel does not move the budget,
+   * so only placements charge it. Omit it and order calls run unaccounted,
+   * which is the posture when exchangeInfo's `ORDERS` rows could not be read.
+   */
+  readonly orderGovernor?: OrderRateGovernor;
+  /**
    * Backoff delay between GET retries. Defaults to a real `setTimeout` sleep;
    * tests inject a no-op so the retry path runs without wall-clock waits.
    */
@@ -736,6 +712,10 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
       // reserve inside the resync could deadlock against a saturated governor.
       const res = await fetchImpl(`${host}/api/v3/time`, {
         method: 'GET',
+        // Carries no key, but its answer sets `timeOffsetMs`, which is added to
+        // the `timestamp` of every later signed request. A followed redirect
+        // would let another host set our signing clock.
+        redirect: 'error',
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       const localAfter = clock.nowMs();
@@ -787,6 +767,11 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
     // Order placement/cancellation reserves with priority so it admits against
     // the full governor ceiling, ahead of the band bulk read crons leave free.
     priority = false,
+    // Whether this call spends the account's ORDERS budget. Deliberately NOT
+    // folded into `priority`: `priority` covers cancels too (a cancel-before-sell
+    // must not stall behind a bulk read), but Binance's ORDERS budget is an
+    // UNFILLED ORDER COUNT — a placement adds one, a cancel adds nothing.
+    chargesOrderBudget = false,
     // Caller-supplied deadline. When set it governs BOTH the rate-limit
     // admission wait and the fetch, so a caller can bound the whole call —
     // the default fetch timeout only covers the network, not the unbounded
@@ -794,6 +779,20 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
     // the prior behaviour (default fetch timeout, no admission deadline).
     signal?: AbortSignal,
   ): Promise<T> => {
+    // The one ORDERS charge point. Charged once per call rather than per
+    // attempt: a -1021 re-issue below can send a second order request that this
+    // misses, and the response-header reconciliation is what corrects it.
+    //
+    // Ahead of the weight reservation because both governors are
+    // consume-and-decay with no release path, and this is the only one that can
+    // refuse. Charging weight first would bill the SHARED per-IP budget for a
+    // call that never goes out, throttling every other account in the process
+    // until it decays. Reversing that only holds while the weight governor
+    // cannot itself refuse; give it a throw path and the two need a real
+    // two-phase commit.
+    if (chargesOrderBudget && opts.orderGovernor) {
+      await opts.orderGovernor.reserve(1, { signal });
+    }
     // Reserve the per-IP weight budget before issuing. When no governor
     // is configured, callers run unrestricted — same as before this MR.
     if (opts.weightGovernor) {
@@ -837,12 +836,29 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
         method,
         headers,
         body,
+        // Never follow a redirect. The Fetch Standard drops `Authorization` on a
+        // cross-origin redirect but knows nothing about `X-MBX-APIKEY`, so a
+        // redirect off api.binance.com would replay the key to the new host.
+        // Binance's REST API never legitimately redirects, so failing is right.
+        redirect: 'error',
         signal: signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       const weightHeader = res.headers.get('x-mbx-used-weight-1m');
       if (weightHeader) {
         const n = Number.parseInt(weightHeader, 10);
         if (Number.isFinite(n)) ctx.weightUsed1m = n;
+      }
+      // Binance reports the authoritative per-account order count per window it
+      // enforces. Reconciling keeps the governor correct across the two ways our
+      // local tally can undercount: orders placed outside this process (the
+      // Binance UI), and a re-issued request that landed twice.
+      if (opts.orderGovernor) {
+        for (const [header, windowMs] of opts.orderGovernor.headerWindows) {
+          const raw = res.headers.get(header);
+          if (raw === null) continue;
+          const n = Number.parseInt(raw, 10);
+          if (Number.isFinite(n)) opts.orderGovernor.observe(windowMs, n);
+        }
       }
       if (!res.ok) {
         let payload: BinanceErrorPayload = { status: res.status, code: 0, msg: res.statusText };
@@ -988,6 +1004,7 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
         true,
         WEIGHT.placeOrder,
         true, // priority: an order must not stall behind a bulk read cron
+        true, // charges ORDERS: a placement adds one to the unfilled order count
       );
     },
     async cancelOrder(params) {
@@ -998,6 +1015,7 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
         true,
         WEIGHT.cancelOrder,
         true, // priority: cancel-before-sell is on the urgent protective path
+        // No ORDERS charge: cancelling does not change the unfilled order count.
       );
     },
     async getOrder(params) {
@@ -1032,6 +1050,7 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
         {},
         false,
         WEIGHT.tickerAll,
+        false,
         false,
         signal,
       );

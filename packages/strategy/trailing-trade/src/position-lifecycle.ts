@@ -35,6 +35,7 @@ export const POSITION_LIFECYCLE_KEYS = [
   'entryConfirmCount',
   'entryBlocker',
   'protectiveStopBlocker',
+  'exitBlocker',
 ] as const satisfies readonly (keyof TTState)[];
 
 /**
@@ -76,12 +77,17 @@ export const clearedSellPosition = (
   | 'forceSellFirstSeenAtMs'
   | 'entryConfirmCount'
   | 'protectiveStopBlocker'
+  | 'exitBlocker'
 > => ({
   avgEntryPrice: null,
   // The stop-arm blocker is position-scoped: with the position gone there is
   // nothing left to protect, so a stale "unprotected" warning must not survive
   // the close.
   protectiveStopBlocker: null,
+  // Same scope: the exit-blocker explains why a HELD position did not sell, so
+  // it dies with the position rather than describing a gate that no longer
+  // applies.
+  exitBlocker: null,
   highSinceBuy: null,
   // Mirrors highSinceBuy: a closed position must disarm the break-even stop so
   // a fresh entry re-arms from scratch.

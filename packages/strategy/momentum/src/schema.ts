@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { decimalString, ManualOverridePayload } from '@app/contracts';
+import { Decimal } from '@app/money';
 
 /**
  * Candle intervals this strategy supports. The worker subscribes to the
@@ -62,6 +63,16 @@ const MomentumProtectiveStopSchema = z.object({
   })
     .default('0.98')
     .describe('@ui:percent-of Limit price as a fraction of the stop trigger (0.98 = 2% below).'),
+  // How far the computed trigger must move before the resting order is cancelled
+  // and re-placed. This is the ONLY knob that bounds order spend in a market that
+  // keeps grinding upward, so it matters more once the profit trail advances the
+  // level intraday. Defaults to the core constant, so this leaf alone changes
+  // nothing.
+  minRearmDriftPct: decimalString('minRearmDriftPct must be in (0, 1)', { gt: 0, lt: 1 })
+    .default('0.001')
+    .describe(
+      '@ui:percent-of How far the stop level must move before the order held at Binance is rewritten. Higher means fewer orders sent, at the cost of the resting order lagging the in-app stop by up to this much. 0.1 rewrites on every tenth of a percent.',
+    ),
 });
 
 /**
@@ -190,6 +201,71 @@ const MomentumAtrTrailingStopSchema = z.object({
 });
 
 /**
+ * Profit-side ratchet: a SECOND trailing stop that exists only above entry.
+ *
+ * The hard stop's high-water mark advances on the TRADING interval's closed
+ * candle, so on a 1d profile an intraday run is unprotected until the next daily
+ * close. This leg advances instead on closed 1m candles (fed for every symbol
+ * regardless of `candleInterval`) folded into N-minute buckets. The effective
+ * stop is `max(hard, profit)`, so it can only ever tighten protection, and a
+ * trade that never clears the activation threshold behaves exactly as before.
+ *
+ * `ratchetMinutes` is the order-spend lever: the level cannot move more than
+ * once per bucket, so the resting order cannot be rewritten more often than
+ * that either.
+ *
+ * Optional so the live worker, which reads stored config WITHOUT schema-parsing,
+ * reads an absent block as disabled via optional chaining.
+ */
+const MomentumProfitTrailSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .default(false)
+      .describe(
+        'Once a trade is far enough in profit, follow the price up and sell on a small pullback, locking the gain in. Below your entry price nothing changes: your normal trailing stop still does the work.',
+      ),
+    activationPct: decimalString('activationPct must be in (0, 1)', { gt: 0, lt: 1 })
+      .default('0.05')
+      .describe(
+        '@ui:percent-of How far in profit the trade must get before the fast trail switches on. 5 means it starts following once you are 5% up.',
+      ),
+    trailPct: decimalString('trailPct must be in (0, 1)', { gt: 0, lt: 1 })
+      .default('0.03')
+      .describe(
+        '@ui:percent-of How far price may fall back from its peak before the fast trail sells. 3 means sell on a 3% pullback. It must be enough below the activation that the sale still lands above your entry: the pullback comes off the higher arming price, so it costs more than the activation gained. With a 5% activation the largest value accepted is a little under 4.8%.',
+      ),
+    ratchetMinutes: z
+      .number()
+      .int()
+      .min(1)
+      .max(60)
+      .default(5)
+      .describe(
+        'How often the profit trail moves up, in minutes. Only a 1-minute close that lands on this grid can raise it. This paces the profit trail and nothing else: your normal trailing stop still moves on your candle interval, so the stop order held at Binance can be rewritten more often than this whenever the normal stop is the higher of the two. The sell check itself runs every tick, so a fall through the current level is caught immediately. Lower reacts faster and sends more orders; 5 is a good balance.',
+      ),
+  })
+  .superRefine((v, ctx) => {
+    // Below entry the trail must never arm, or it could sell at a loss. Once
+    // armed the stop sits at `entry x (1 + act) x (1 - trail)`, which clears
+    // entry only while `trail < act / (1 + act)` — the pullback is taken off
+    // the HIGHER arming price, so it costs more than `act` gained. The naive
+    // `trail < act` admits a sliver above that bound where the stop computes
+    // below entry and the `Decimal.max(entryPrice, ...)` floor pins it exactly
+    // AT entry: a break-even gross sale, a loss once fees are paid, and not
+    // what the field text promises.
+    const act = new Decimal(v.activationPct);
+    if (new Decimal(v.trailPct).gte(act.div(act.plus(1)))) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['trailPct'],
+        message:
+          'trailPct must be below activationPct / (1 + activationPct), or the armed trail sits at or below entry',
+      });
+    }
+  });
+
+/**
  * Entry sizing: a fixed quote amount per buy, or a percent of account equity.
  * Modeled as an object so the operator picks exactly one mode in the UI and the
  * unused field stays blank; the worker reads the active field at tick time. The
@@ -300,6 +376,10 @@ export const MomentumConfigSchema = z.object({
   // `trailingStopPct` distance with `multiple × ATR` below the high. Off by
   // default so existing configs and golden replays stay byte-identical.
   atrTrailingStop: MomentumAtrTrailingStopSchema.optional(),
+  // Profit-side ratchet layered ON TOP of the hard stop above; the effective
+  // level is the max of the two. Off by default so existing configs and golden
+  // replays stay byte-identical.
+  profitTrail: MomentumProfitTrailSchema.optional(),
   // Entry confirmation band: the fast EMA must clear the slow EMA by this
   // fraction for a cross-up to count, filtering marginal crosses that whipsaw
   // in a chop near the MAs. [0, 1); 0 (or absent) reproduces a bare cross.
@@ -342,6 +422,7 @@ export const MomentumOverrideConfigSchema = z
     trailingStopPct: MomentumConfigSchema.shape.trailingStopPct.unwrap(),
     entryMarginPct: MomentumConfigSchema.shape.entryMarginPct.unwrap(),
     atrTrailingStop: MomentumConfigSchema.shape.atrTrailingStop.unwrap(),
+    profitTrail: MomentumConfigSchema.shape.profitTrail.unwrap(),
     // The signal shape and risk of a discovery-picked altcoin differ from the
     // BTC-tuned profile default, so these gate/exit levers are per-symbol
     // overridable. Each block's leaves default, so a partial override validates;
@@ -380,6 +461,14 @@ export const MomentumStateSchema = z.object({
   // a live intra-candle wick — so a transient spike cannot tighten the stop.
   // Seeded to the entry price on entry; cleared on exit.
   highSinceEntry: z.string().nullable(),
+  // High-water mark of the profit trail: the best close among the bucket-end 1m
+  // candles seen since entry, floored at the entry price. Separate from
+  // `highSinceEntry` because the two ratchet on different clocks — this one
+  // intraday, that one on the trading interval — and the effective stop is the
+  // max of the levels they produce. Null while the profit trail is disabled or
+  // the position is flat. Additive with `.default(null)` so the state schema
+  // version can stay put, for the same reason as `lastEntryCandleMs`.
+  profitHigh: z.string().nullable().default(null),
   // Authoritative held base-asset quantity for sell sizing. Maintained by the
   // fill-adopter and reconciled against the wallet at boot; null when flat.
   heldQuantity: z.string().nullable(),
@@ -391,6 +480,17 @@ export const MomentumStateSchema = z.object({
   // version can stay put: momentum declares no `migrateState`, and a bump would
   // strand live rows at the old version, silently no-opping the position adapter.
   lastEntryCandleMs: z.number().int().nullable().default(null),
+  // Epoch bounding which 1m closes may ratchet the profit trail: the close
+  // instant of the newest 1m candle already closed when the position opened.
+  // Deliberately NOT `lastEntryCandleMs`, which names the CANDLE the cross fired
+  // on: a cross stays live for the rest of that candle, so on a 1h/1d profile an
+  // entry held back by a budget skip or a mid-candle restart can land hours after
+  // that close. Folding from there would seed the mark with a pre-entry peak the
+  // position never held, arm the trail immediately, and sell the position it just
+  // opened. Null means the epoch is unknown (a wallet-reconciled position, or an
+  // entry taken before any 1m candle closed): fold nothing.
+  // Additive with `.default(null)` for the same no-version-bump reason.
+  profitTrailSinceMs: z.number().int().nullable().default(null),
   // Why the last tick refused to open a long, or null when it did not (an entry
   // fired, an exit ran, or a plain hold). The generic worker path turns a change
   // in this field into a queryable action_log row, so an operator can see which
@@ -458,8 +558,10 @@ export const initialMomentumState = (): MomentumState => ({
   schemaVersion: MOMENTUM_STATE_SCHEMA_VERSION,
   entryPrice: null,
   highSinceEntry: null,
+  profitHigh: null,
   heldQuantity: null,
   lastEntryCandleMs: null,
+  profitTrailSinceMs: null,
   entryBlocker: null,
   protectiveStopBlocker: null,
 });

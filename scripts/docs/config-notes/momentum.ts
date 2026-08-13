@@ -78,6 +78,31 @@ export const momentumNotes: FieldNotes = {
     expect:
       'When the stop triggers, the limit is placed this fraction of the trigger price. At `0.98` the limit sits 2% below the trigger — wide enough to fill in most conditions. Too tight and the stop triggers but never fills, leaving you holding.',
   },
+  'protectiveStop.minRearmDriftPct': {
+    when: 'Only when the protective stop is on. Raise it if you are hitting Binance order limits, or if the resting stop is being rewritten constantly in a market that is grinding one way.',
+    expect:
+      'The stop order held at Binance is only rewritten once the level has moved this far. Higher means fewer orders sent and a resting stop that lags the in-app level by up to this much; lower means the two stay in step at the cost of order allowance. It does not change when the strategy itself sells — that check runs every tick regardless.',
+  },
+  'profitTrail.enabled': {
+    when: 'Turn it on when trades run up nicely intraday and then hand the gain back before your normal stop reacts — the classic case is a long candle interval like `1d`, where the normal stop only moves once a day.',
+    expect:
+      'A second trailing stop that exists only above your entry price. It follows the price up on a minute-by-minute clock and sells on a small pullback. It can only ever sit above your normal stop, never below, so losing trades behave exactly as they do today.',
+  },
+  'profitTrail.activationPct': {
+    when: 'Only when the profit trail is on. Raise it to give trades more room to breathe before the tighter trail takes over; lower it to start protecting sooner.',
+    expect:
+      'Nothing happens until the trade is this far in profit. Set too low, the fast trail takes over while the trade is still just noise and ends it early; set too high, the trade may never reach it and your normal stop does all the work.',
+  },
+  'profitTrail.trailPct': {
+    when: 'Only when the profit trail is on. Tighten it to bank gains harder; loosen it if you are being sold out of moves that keep going.',
+    expect:
+      'Once switched on, the trade sells if price falls this far from its peak. It must be enough below the activation that the sale still clears your entry: the pullback is measured off the higher arming price, so it costs slightly more than the activation gained. With a 5% activation the form accepts a little under 4.8%. That bound is what stops this trail turning a winner into a loser.',
+  },
+  'profitTrail.ratchetMinutes': {
+    when: 'Only when the profit trail is on. Lower it if the trail is lagging fast moves; raise it if you are sending too many orders.',
+    expect:
+      'How often the profit trail is allowed to move up. It paces that trail only: your normal trailing stop advances on your candle interval, so with a 1-minute interval the stop order at Binance can still be rewritten every minute whenever the normal stop is the higher of the two. Each rewrite is a cancel plus a place and spends one unit of order allowance. The sell check itself runs every tick, so a fall through the current level is caught immediately; what this delays is the level moving UP.',
+  },
   'trendFilter.enabled': {
     when: 'Turn it on when backtests show the strategy losing money mainly on entries taken during sustained downtrends.',
     expect:

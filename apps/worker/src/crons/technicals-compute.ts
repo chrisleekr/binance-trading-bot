@@ -14,7 +14,7 @@ import { fanOutBounded } from '@app/core/fan-out';
 import { GLOBAL_KEYS, intervalToMs } from '@app/db';
 import { computeTechnicalsRating } from '@app/indicators/rating';
 import type { Candle } from '@app/strategy-core';
-import { fetchClosedKlines, type WeightGovernor } from '@app/binance';
+import { BINANCE_HOSTS, fetchClosedKlines, type WeightGovernor } from '@app/binance';
 
 import { commitPipelineChecked } from 'lib/redis-pipeline.js';
 import { ratingToSignal } from 'technicals/rating-to-signal.js';
@@ -28,7 +28,7 @@ const FETCH_STATUS_TTL_SECONDS = 300;
 
 /** Public Binance REST host — unauthenticated klines. The fetcher in
  * @app/binance reserves the flat klines weight (2). */
-const KLINES_BASE_URL = 'https://api.binance.com';
+const KLINES_BASE_URL = BINANCE_HOSTS.live;
 
 /** Number of candles we feed each indicator. 250 covers EMA200's warmup. */
 const KLINE_LIMIT = 250;

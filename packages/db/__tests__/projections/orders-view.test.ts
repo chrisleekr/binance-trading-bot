@@ -7,6 +7,7 @@ import {
   getSymbolOrderHistory,
   getSymbolState,
   readEntryBlocker,
+  readExitBlocker,
 } from '../../src/repo/projections/orders-view.js';
 import { setupFixture, TEST_DB_URL, type IsolationFixture } from '../isolation/_helpers.js';
 import { makeRedisStub } from './_redis-stub.js';
@@ -86,6 +87,31 @@ describeIfDb('orders-view projections', () => {
     });
   });
 
+  it('getSymbolState surfaces a stored exitBlocker from the persisted state body', async () => {
+    // The symbol screen reads this field instead of casting the opaque state
+    // blob, so the whole record has to survive the projection, `hasDownsideExit`
+    // included: it drives the "no exit below your entry" warning.
+    const ap = await profileRepo(fx.db, fx.alice.userId, fx.alice.accountId, fx.alice.profileId);
+    await ap.symbolStates.upsert('BTCUSDT', {
+      state: {
+        avgEntryPrice: '60000',
+        exitBlocker: {
+          reason: 'awaiting-sell-arm',
+          detail: { armPrice: '63000', hasDownsideExit: false },
+        },
+      },
+      strategyVersion: '2.0.0',
+    });
+    const { redis } = makeRedisStub();
+    const state = await getSymbolState(scope, redis, 'BTCUSDT');
+    expect(state.exitBlocker).toEqual({
+      reason: 'awaiting-sell-arm',
+      detail: { armPrice: '63000', hasDownsideExit: false },
+    });
+    // The two blockers answer different questions; this state has no entry one.
+    expect(state.entryBlocker).toBeNull();
+  });
+
   it('getSymbolState surfaces a disable with its remaining TTL', async () => {
     const { redis } = makeRedisStub();
     await redis.set(
@@ -149,8 +175,18 @@ describeIfDb('orders-view projections', () => {
   it('getSymbolArchive maps archive rows to the wire shape', async () => {
     const archive = await getSymbolArchive(scope, 'BTCUSDT', 50);
     expect(archive.items).toHaveLength(1);
-    expect(archive.items[0]?.symbol).toBe('BTCUSDT');
-    expect(Number(archive.items[0]?.profit)).toBe(2000);
+    // The whole wire shape, not just two fields: `netProfit` is derived here
+    // rather than stored, so dropping the mapping has to fail this.
+    expect(archive.items[0]).toMatchObject({
+      symbol: 'BTCUSDT',
+      baseAsset: 'BTC',
+      quoteAsset: 'USDT',
+      exitIntent: 'unknown',
+    });
+    expect(Number(archive.items[0]?.totalBuyQuote)).toBe(60000);
+    expect(Number(archive.items[0]?.totalSellQuote)).toBe(62000);
+    expect(Number(archive.items[0]?.profitPercent)).toBe(3.33);
+    expect(Number(archive.items[0]?.netProfit)).toBe(2000);
   });
 });
 
@@ -180,5 +216,45 @@ describe('readEntryBlocker', () => {
     expect(readEntryBlocker({ entryBlocker: { detail: { x: 1 } } })).toBeNull(); // no string reason
     expect(readEntryBlocker(null)).toBeNull();
     expect(readEntryBlocker('not-an-object')).toBeNull();
+  });
+});
+
+describe('readExitBlocker', () => {
+  it('reads a well-formed blocker with its detail', () => {
+    const state = {
+      exitBlocker: { reason: 'awaiting-sell-arm', detail: { armPrice: '105' } },
+      entryBlocker: { reason: 'exposure-cap' },
+    };
+    // Keyed off its own field: the exit-side record answers a different question
+    // from the entry-side one and must never pick up its neighbour's reason.
+    expect(readExitBlocker(state)).toEqual({
+      reason: 'awaiting-sell-arm',
+      detail: { armPrice: '105' },
+    });
+  });
+
+  it('carries hasDownsideExit through to the client verbatim', () => {
+    // The symbol panel warns "no exit below your entry" off this flag rather
+    // than re-deriving it from config, so the projection must not filter or
+    // coerce the detail body it was handed.
+    expect(
+      readExitBlocker({
+        exitBlocker: { reason: 'awaiting-sell-arm', detail: { hasDownsideExit: false } },
+      }),
+    ).toEqual({ reason: 'awaiting-sell-arm', detail: { hasDownsideExit: false } });
+  });
+
+  it('reads a reason-only blocker, omitting an absent detail', () => {
+    expect(readExitBlocker({ exitBlocker: { reason: 'stop-loss-not-hit' } })).toEqual({
+      reason: 'stop-loss-not-hit',
+    });
+  });
+
+  it('returns null when the state omits exitBlocker or stores it malformed', () => {
+    expect(readExitBlocker({ exitBlocker: null })).toBeNull();
+    expect(readExitBlocker({})).toBeNull();
+    expect(readExitBlocker({ exitBlocker: { detail: { x: 1 } } })).toBeNull(); // no string reason
+    expect(readExitBlocker(null)).toBeNull();
+    expect(readExitBlocker('not-an-object')).toBeNull();
   });
 });

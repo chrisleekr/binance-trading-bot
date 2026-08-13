@@ -1384,6 +1384,28 @@ export type TTOverrideConfig = z.infer<typeof TTOverrideConfigSchema>;
 export const TT_STATE_SCHEMA_VERSION = '2.0.0';
 
 /**
+ * Every rung a held position can stop at, highest priority first (the resolver
+ * documents what each one means). Exported as a value so the attribution table
+ * can be checked for completeness: a new rung without an operator-readable
+ * explanation would surface in the UI as a bare code.
+ */
+export const EXIT_BLOCKER_REASONS = [
+  'sell-disabled',
+  'exit-order-open',
+  'exit-unsellable',
+  'exit-config-invalid',
+  'trail-high-raised',
+  'atr-trail-above-price',
+  'trail-above-price',
+  'awaiting-sell-arm',
+  'break-even-floor-not-hit',
+  'break-even-not-armed',
+  'stop-loss-not-hit',
+  'time-stop-pending',
+  'no-exit-configured',
+] as const;
+
+/**
  * TT-side persisted state. `schemaVersion` is bumped lock-step with
  * `migrateState`; loaders that see a different version refuse to boot rather
  * than silently mutate a stranger's fields.
@@ -1576,11 +1598,35 @@ export const TTStateSchema = z.object({
     })
     .nullable()
     .default(null),
+  // Structured explanation of why the HELD position did not exit this tick, or
+  // null when the position is flat or an exit was emitted. The mirror image of `entryBlocker`
+  // on the sell side: without it a position that never reaches its sell arm
+  // ticks in silence for weeks, and the operator reads that silence as the bot
+  // ignoring an exit. The reason names the exit rung the position is waiting on
+  // and `detail` carries its threshold (decimal-strings, never IEEE-754) plus
+  // `hasDownsideExit`, so a position with no configured exit BELOW the entry is
+  // legible from the record alone. Defaulted null + coerced in
+  // `normalizeTickState` so a row serialised before this field reads as the
+  // contract null.
+  exitBlocker: z
+    .object({
+      reason: z.enum(EXIT_BLOCKER_REASONS),
+      // Identity of "the same blocker as last tick" for a consumer that records
+      // only CHANGES: the reason plus the rung's threshold, never the live price
+      // that rides in `detail` for legibility. Optional so a consumer stays
+      // correct (reason-only) against a state that predates it.
+      changeKey: z.string().optional(),
+      detail: z.record(z.string(), z.unknown()).optional(),
+    })
+    .nullable()
+    .default(null),
 });
 /** Mutable per-tick state the strategy writes back. Persisted by the executor; never read by other profiles or accounts. */
 export type TTState = z.infer<typeof TTStateSchema>;
 /** Structured "why no buy this tick" record carried in {@link TTState}; null means a buy fired or nothing was blocking. */
 export type EntryBlocker = NonNullable<TTState['entryBlocker']>;
+/** Structured "why no exit this tick" record carried in {@link TTState}; null means the position is flat or an exit fired. */
+export type ExitBlocker = NonNullable<TTState['exitBlocker']>;
 
 /**
  * Slice of the override bundle the strategy reads each tick. The worker

@@ -500,7 +500,16 @@ export const createTickHandler = (
         // Fire-and-forget — the notify fans out to Postgres and N outbound webhooks,
         // and it fires exactly when the network is already misbehaving, the worst
         // possible moment to hold the per-(profile, symbol) chain lock waiting on it.
-        if (failure !== undefined && orderFailure !== undefined && deps.notifyOrderFailed) {
+        // A deferred batch is excluded: nothing failed, the resting stop is
+        // still protecting, and the next tick re-emits. Alerting on it would
+        // train the operator to ignore the one channel that carries real
+        // order failures.
+        if (
+          failure !== undefined &&
+          failure.deferred !== true &&
+          orderFailure !== undefined &&
+          deps.notifyOrderFailed
+        ) {
           const notify = deps.notifyOrderFailed;
           const decisionType = orderFailure.decision.type;
           if (decisionType === 'place-order' || decisionType === 'cancel-order') {
@@ -726,7 +735,19 @@ export const createTickHandler = (
           decisionCount: decisions.length,
           throttled: false,
         };
+      } catch (err) {
+        // The numerator of every tick-health ratio, and the last thing that
+        // touches the error: rethrown unchanged so BullMQ still retries and
+        // DLQ-routes exactly as before. The throttled skips `return` from inside
+        // the try and never reach here, which is what keeps an operator's pause
+        // from reading as a fault.
+        deps.metrics?.record('tick_failures_total', 1, { profileId, symbol });
+        throw err;
       } finally {
+        // The denominator, in the `finally` so it counts once on every way out —
+        // completed, throttled and thrown alike. Recorded before the compensate
+        // so a future change there cannot swallow the count.
+        deps.metrics?.record('tick_total', 1, { profileId, symbol });
         // Never throws, so it cannot replace the error already in flight.
         await overrideTicket.compensate();
       }

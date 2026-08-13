@@ -118,6 +118,7 @@ export const getSymbolState = async (
     disable,
     entryBlocker: readEntryBlocker(symbolState?.state),
     protectiveStopBlocker: readProtectiveStopBlocker(symbolState?.state),
+    exitBlocker: readExitBlocker(symbolState?.state),
   };
 };
 
@@ -154,6 +155,15 @@ export const readEntryBlocker = (state: unknown): SymbolStateResponse['entryBloc
 export const readProtectiveStopBlocker = (
   state: unknown,
 ): SymbolStateResponse['protectiveStopBlocker'] => readStateBlocker(state, 'protectiveStopBlocker');
+
+/**
+ * Why a HELD position did not exit on the last tick, or null. The exit-side
+ * mirror of `entryBlocker`: the strategy names the rung it stopped at and the
+ * threshold that rung compares against, so the client reports the level the
+ * worker actually trades on instead of computing its own.
+ */
+export const readExitBlocker = (state: unknown): SymbolStateResponse['exitBlocker'] =>
+  readStateBlocker(state, 'exitBlocker');
 
 /** Most-recent order history for one symbol, newest first, capped at `limit`. */
 export const getSymbolOrderHistory = async (

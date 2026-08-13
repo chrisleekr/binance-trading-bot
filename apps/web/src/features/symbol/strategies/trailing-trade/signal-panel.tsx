@@ -109,14 +109,26 @@ type SignalView =
       readonly timeStop: { readonly bars: number; readonly interval: string } | null;
       readonly sellArm: PriceTarget | null;
       readonly trailingStop: PriceTarget | null;
-      /** True once price has reached the sell arm (highSinceBuy >= sell-arm price): the trailing stop is then an active exit, not a pending one. */
+      /** True once the position has a running high (`highSinceBuy`): the trailing stop is then an active exit, not a pending one. Unarmed, NO trailing exit exists at any price. */
       readonly trailingArmed: boolean;
+      /** True when some trail exists for the sell arm to arm: a fixed retrace
+       * percentage, the ATR trail, or the bull hold. False means reaching the
+       * sell arm sets a high-water mark that nothing consumes, so the arm is not
+       * a gate on any exit. */
+      readonly trailConfigured: boolean;
       readonly stopLoss: PriceTarget | null;
       /** Break-even stop, when enabled. `stage: 'arm'` is the level price must
        * rise to (on a closed candle) to arm the floor; `stage: 'floor'` is the
        * armed near-entry exit, shown only while the profit trail has not taken
        * over. Null when disabled, or armed but superseded by the trail. */
       readonly breakEven: { readonly stage: 'arm' | 'floor'; readonly target: PriceTarget } | null;
+      /**
+       * True when the worker recorded that NOTHING configured would exit this
+       * position below the entry: it can only close at a profit or by hand.
+       * False when it recorded an exit; null when it recorded nothing either
+       * way, which must not render as reassurance.
+       */
+      readonly noDownsideExit: boolean | null;
       /** Present when any configured Technicals interval has at least one of
        * `whenSell` / `whenStrongSell` / `whenNeutral` enabled — i.e. when the
        * force-sell-on-Technicals rule has anything to do for this profile. */
@@ -182,17 +194,15 @@ function entryGates(
 }
 
 /**
- * Build the force-sell-on-Technicals view, or null when the rule has nothing
- * to do for this profile. The trigger price formula is `avgEntryPrice *
- * sell.triggerPercentage` — identical to the strategy's
- * `technicalsForceSellTriggerPriceOf` (which is the same expression the
- * regular sell-arm uses). The status branches mirror
- * `evaluateTechnicalsForceSell`'s guards so the operator's readout and the
- * worker's decision can never diverge for a fixed input.
+ * Builds the Technicals force-sell status for a held position.
  *
- * `signals` carries the per-interval signals + the freshness window when the
- * caller has them (the query lands a moment after the panel mounts); when
- * absent we can still answer the three signal-independent branches.
+ * @param config - Strategy configuration containing Technicals sell rules
+ * @param lbp - Average entry price
+ * @param current - Current market price, if available
+ * @param sellTrigger - Configured force-sell price multiplier
+ * @param signals - Latest Technicals signals and freshness settings
+ * @param nowMs - Current time used to assess signal freshness
+ * @returns The force-sell view, or `null` when no Technicals sell rule is configured
  */
 function forceSellViewOf(
   config: Record<string, unknown>,
@@ -253,10 +263,22 @@ function forceSellViewOf(
   return { trigger, status: { kind: 'waiting-signal', intervals } };
 }
 
+/**
+ * Builds the signal-panel view for a symbol's current strategy state.
+ *
+ * @param strategy - The strategy configuration and state
+ * @param holding - The symbol's average entry price
+ * @param currentPrice - The current market price
+ * @param exitBlocker - The worker's recorded downside-exit status
+ * @param signals - Current Technicals signals used for force-sell status
+ * @param nowMs - Timestamp used to determine signal freshness
+ * @returns The signal view for an unavailable, flat, or held position
+ */
 export function deriveSignal(
   strategy: SymbolStateResponse['strategy'],
   holding: SymbolStateResponse['avgEntryPrice'],
   currentPrice: string | null,
+  exitBlocker: SymbolStateResponse['exitBlocker'] = null,
   signals?: TechnicalsResponse,
   nowMs: number = Date.now(),
 ): SignalView {
@@ -333,11 +355,22 @@ export function deriveSignal(
     generalTimeStopBars > 0
       ? { bars: generalTimeStopBars, interval: candleInterval }
       : null;
-  // Armed once the high water mark has reached the sell-arm price: the worker
-  // only honours the trailing stop after the arm, so the panel labels it as a
-  // live exit vs a pending one.
-  const trailingArmed =
-    highSinceBuy !== null && sellArm !== null ? highSinceBuy >= sellArm.price : false;
+  // Armed exactly when the worker has a running high to trail from: the sell
+  // gate's trailing branches are gated on `highSinceBuy !== null` and nothing
+  // else, and only the arm paths ever set it. Re-deriving the arm from the
+  // sell-arm price instead would call an ATR `fromEntry` trail (armed at entry,
+  // below the sell arm) unarmed while the worker was already trailing it.
+  const trailingArmed = highSinceBuy !== null;
+
+  // Is there a trail for the sell arm to arm at all? Mirrors the same three
+  // config reads in sell-gate.ts: with none of them on, reaching the arm sets a
+  // high-water mark nothing consumes, so naming the arm as the gate would
+  // promise an exit that does not exist. Read off config, not the live regime
+  // verdict, so the answer is stable tick to tick.
+  const trailConfigured =
+    (trailingPct !== null && trailingPct > 0) ||
+    asRecord(sell?.['atrTrailing'])?.['enabled'] === true ||
+    asRecord(asRecord(asRecord(config['regime'])?.['onBull'])?.['hold'])?.['enabled'] === true;
 
   // Break-even stop mirror: arms once a closed candle confirms a gain of
   // armAtPercentage, then a fall to floorPercentage (>= entry) sells near flat —
@@ -356,6 +389,9 @@ export function deriveSignal(
       breakEven = { stage: 'arm', target: target(lbp * beArmPct, current) };
     }
   }
+
+  const hasDownsideExit = exitBlocker?.detail?.['hasDownsideExit'];
+  const noDownsideExit = typeof hasDownsideExit === 'boolean' ? !hasDownsideExit : null;
 
   const forceSell = forceSellViewOf(config, lbp, current, sellTrigger, signals, nowMs);
 
@@ -387,8 +423,10 @@ export function deriveSignal(
     sellArm,
     trailingStop,
     trailingArmed,
+    trailConfigured,
     stopLoss,
     breakEven,
+    noDownsideExit,
     forceSell,
     pyramid,
   };
@@ -477,6 +515,13 @@ interface LadderRow {
   readonly sells: boolean;
   /** Short status suffix, e.g. armed / not-yet-armed for the trailing stop. */
   readonly note?: string;
+  /**
+   * True for the one row the position is actually waiting on when no profit exit
+   * exists yet. Distinct from `sells`: reaching this price arms an exit rather
+   * than firing one, so it is never a candidate for the nearest-exit flag, but it
+   * is what the operator must watch.
+   */
+  readonly nextGate?: boolean;
 }
 
 const toneClass: Record<RowTone, string> = {
@@ -490,27 +535,56 @@ const toneClass: Record<RowTone, string> = {
 function ladderRows(view: Extract<SignalView, { kind: 'holding' }>): readonly LadderRow[] {
   const rows: LadderRow[] = [];
   if (view.sellArm) {
+    // Unarmed, this is the only thing standing between the position and any
+    // profit exit — nothing below it can fire, so it is named as the gate rather
+    // than left as one more level in the list. With no trail configured there is
+    // nothing to arm, and calling it the gate would promise an exit that does
+    // not exist, the same phantom promise as drawing a trailing line with no
+    // trail. The worker refuses to name the arm on that config too.
+    const pending = !view.trailingArmed && view.trailConfigured;
+    // Armed with no trailing row to follow it. `trailingStop` needs a fixed
+    // retrace percentage, so an ATR or bull-hold trail arms without one: the
+    // level lives in the worker's closed-candle ATR, which this mirror is not
+    // given. Saying only "armed" would leave the operator hunting for an exit
+    // level that is nowhere on the page.
+    const unmirrored = view.trailingArmed && view.trailingStop === null;
     rows.push({
       key: 'sell-arm',
       label: 'Sell arm',
-      hint: 'Price rises to here → the trailing stop arms (profit-taking begins).',
+      hint: !view.trailConfigured
+        ? 'Your sell trigger level. No trailing stop is configured, so reaching it starts no profit exit.'
+        : pending
+          ? 'Price rises to here → the trailing stop arms (profit-taking begins). Until it does there is no trailing exit at any price.'
+          : unmirrored
+            ? 'Price rises to here → the trailing stop arms (profit-taking begins). The bot computes that level from its own ATR reading, so it is not shown here.'
+            : 'Price rises to here → the trailing stop arms (profit-taking begins).',
       price: view.sellArm.price,
       gapPct: view.sellArm.gapPct,
       tone: 'arm',
       sells: false,
-      note: view.trailingArmed ? 'armed' : 'not yet armed',
+      ...(pending ? { nextGate: true } : {}),
+      note: !view.trailConfigured
+        ? 'no trailing stop configured — reaching this arms nothing'
+        : pending
+          ? 'next gate — no trailing exit until price reaches here'
+          : unmirrored
+            ? 'armed — trailed from the ATR, level not mirrored here'
+            : 'armed',
     });
   }
+  // A trailing level exists only once armed (both are `highSinceBuy !== null`),
+  // so the row is unconditionally a live exit — an unarmed trail has no price to
+  // show and is covered by the sell-arm gate row above.
   if (view.trailingStop) {
     rows.push({
       key: 'trailing',
       label: 'Trailing stop',
-      hint: 'Once armed, a fall to this retrace level → market sell in profit.',
+      hint: 'A fall to this retrace level → market sell in profit.',
       price: view.trailingStop.price,
       gapPct: view.trailingStop.gapPct,
       tone: 'profit',
-      sells: view.trailingArmed,
-      note: view.trailingArmed ? 'active exit' : 'arms after sell arm',
+      sells: true,
+      note: 'active exit',
     });
   }
   if (view.stopLoss) {
@@ -565,6 +639,13 @@ function nearestExitKey(rows: readonly LadderRow[]): string | null {
   return best?.key ?? null;
 }
 
+/**
+ * Renders an exit-ladder row with its price, gap, status, and relevant marker.
+ *
+ * @param row - The exit-ladder row to display
+ * @param isNearest - Whether the row is nearest to the current price
+ * @returns The rendered exit-ladder row
+ */
 function LadderRowView({
   row,
   isNearest,
@@ -577,11 +658,16 @@ function LadderRowView({
       className="flex items-baseline justify-between gap-2 px-3 py-2 text-xs"
       data-testid={`exit-row-${row.key}`}
       data-nearest={isNearest ? 'true' : undefined}
+      data-next-gate={row.nextGate === true ? 'true' : undefined}
     >
       <span className="flex min-w-0 items-baseline gap-1.5">
         {isNearest ? (
           <span className="text-warning" aria-hidden title="Nearest exit">
             ⚡
+          </span>
+        ) : row.nextGate === true ? (
+          <span className="text-warning" aria-hidden title="Next exit gate">
+            ⚑
           </span>
         ) : null}
         <span className={toneClass[row.tone]} title={row.hint}>
@@ -717,9 +803,14 @@ const bullHoldToneClass: Record<'good' | 'muted', string> = {
 };
 
 /**
- * Renders the derived signal. Flat profiles get the entry-gate explainer (plus
- * a regime-block notice when bearish); held positions get the exit map plus the
- * Technicals and regime exits.
+ * Renders entry conditions for flat positions and exit conditions for held positions, including configured regime and Technicals signals.
+ *
+ * @param profileId - The profile identifier used to load market data
+ * @param symbol - The symbol whose signal is displayed
+ * @param strategy - The strategy configuration and state
+ * @param holding - The average entry price for the position
+ * @param currentPrice - The current market price
+ * @param exitBlocker - The worker-recorded downside-exit status
  */
 export function SymbolSignalPanel({
   profileId,
@@ -727,12 +818,15 @@ export function SymbolSignalPanel({
   strategy,
   holding,
   currentPrice,
+  exitBlocker,
 }: {
   readonly profileId: string;
   readonly symbol: string;
   readonly strategy: SymbolStateResponse['strategy'];
   readonly holding: SymbolStateResponse['avgEntryPrice'];
   readonly currentPrice: string | null;
+  /** The projection's worker-written exit record; see {@link deriveSignal}. */
+  readonly exitBlocker: SymbolStateResponse['exitBlocker'];
 }): React.JSX.Element {
   // Skip the technicals query entirely when no sell-side toggle is configured —
   // the force-sell row will not render, so the data is dead weight. Cache key
@@ -783,7 +877,7 @@ export function SymbolSignalPanel({
     [config, dailyCandles.data],
   );
 
-  const view = deriveSignal(strategy, holding, currentPrice, signalsForSymbol);
+  const view = deriveSignal(strategy, holding, currentPrice, exitBlocker, signalsForSymbol);
 
   return (
     <section className="space-y-2" data-testid="symbol-signal-panel">
@@ -850,6 +944,15 @@ function FlatView({
   );
 }
 
+/**
+ * Renders the signal panel for a held position, including exit levels, add conditions, and applicable
+ * time-stop, regime, and bull-hold status.
+ *
+ * @param view - Derived holding-position signal data.
+ * @param regime - Current regime-exit status.
+ * @param bullHold - Current bull-hold status.
+ * @returns The rendered holding-position signal view.
+ */
 function HoldingView({
   view,
   regime,
@@ -877,6 +980,14 @@ function HoldingView({
       </div>
 
       <ExitLadder view={view} />
+
+      {view.noDownsideExit === true ? (
+        <p className="px-1 text-xs text-warning" data-testid="symbol-signal-no-downside-exit">
+          No exit below your entry. Nothing on this ladder sells at a loss, so a fall is held until
+          you act — switch on a stop-loss, a break-even stop or a time-stop if that is not what you
+          want.
+        </p>
+      ) : null}
 
       {view.discoveryEntry ? (
         <p className="px-1 text-xs text-muted-fg" data-testid="symbol-signal-discovery-note">

@@ -175,6 +175,31 @@ describe('trailingTrade.tick — force-sell emission skip', () => {
     expect(out.decisions.some((d) => d.type === 'place-order')).toBe(false);
     expect(out.logs.some((l) => l.message === 'tt-technicals-force-sell-skipped')).toBe(true);
   });
+
+  it('replaces the previous tick blocker instead of carrying it on the skip', () => {
+    // The skip returns before the shared persist block, so the still-held
+    // position would otherwise report last tick's reason. The exit fired and
+    // could not be sized: that is what the operator has to read.
+    const config = rawConfig({ triggerPercentage: '1.05' });
+    const out = trailingTrade.tick(
+      input({
+        config,
+        state: heldState({
+          exitBlocker: {
+            reason: 'awaiting-sell-arm',
+            changeKey: 'awaiting-sell-arm|armPrice=94.5',
+            detail: { armPrice: '94.5' },
+          },
+        }),
+        currentPrice: '93',
+        minQty: '1000',
+        balances: { BTC: { asset: 'BTC', free: new Decimal('0.0001'), locked: new Decimal(0) } },
+      }),
+    );
+    expect(out.logs.some((l) => l.message === 'tt-technicals-force-sell-skipped')).toBe(true);
+    expect(out.nextState.exitBlocker?.reason).toBe('exit-unsellable');
+    expect(out.nextState.exitBlocker?.detail?.['currentPrice']).toBe('93');
+  });
 });
 
 describe('trailingTrade.tick — buy-gate skip dispatch', () => {

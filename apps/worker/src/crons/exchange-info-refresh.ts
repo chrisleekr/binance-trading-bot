@@ -15,7 +15,12 @@
 
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
-import { BINANCE_HOSTS, type BinanceMode } from '@app/binance';
+import {
+  BINANCE_HOSTS,
+  parseOrderRateLimits,
+  type BinanceMode,
+  type ParsedOrderRateLimits,
+} from '@app/binance';
 import { projectSymbolFilters } from '@app/contracts';
 import type { SymbolInfo } from '@app/strategy-core';
 import { buildSymbolInfoKey } from 'executor/redis-namespace.js';
@@ -41,6 +46,10 @@ interface RawSymbol {
 
 interface RawExchangeInfo {
   readonly symbols: readonly RawSymbol[];
+  // Binance publishes the account's ORDERS limits alongside the symbol list,
+  // and they differ per environment (live 100/10s + 200000/1d, testnet 50/10s
+  // + 160000/1d), so they are read here rather than hardcoded.
+  readonly rateLimits?: unknown;
 }
 
 const EXCHANGE_INFO_PATH = '/api/v3/exchangeInfo';
@@ -88,6 +97,14 @@ export interface ExchangeInfoRefreshResult {
   readonly written: number;
   readonly skipped: number;
   readonly deleted: number;
+  /**
+   * The `ORDERS` rows for this mode. Carried on the result rather than written
+   * to Redis: the only consumer is the per-account order governor built in the
+   * same worker process, and this refresh is primed before any tick runs.
+   * Empty when the payload omits or malforms them, which builds an inert
+   * governor — no invented fallback numbers.
+   */
+  readonly orderRateLimits: ParsedOrderRateLimits;
 }
 
 /**
@@ -131,6 +148,11 @@ export const createExchangeInfoRefresh = (
     try {
       const res = await fetchImpl(`${host}${EXCHANGE_INFO_PATH}`, {
         headers: { accept: 'application/json' },
+        // Unsigned, but this body now sets the account's ORDERS ceiling as well
+        // as the symbol filters. A followed redirect would let another host
+        // choose our order budget, and an inflated limit is the one direction
+        // the governor exists to prevent. Binance never redirects here.
+        redirect: 'error',
         signal: controller.signal,
       });
       if (!res.ok) {
@@ -210,10 +232,18 @@ export const createExchangeInfoRefresh = (
       }
     } while (cursor !== '0');
 
+    const orderRateLimits = parseOrderRateLimits(body.rateLimits);
     deps.logger.info(
-      { mode, fetched: symbols.length, written, skipped, deleted },
+      {
+        mode,
+        fetched: symbols.length,
+        written,
+        skipped,
+        deleted,
+        orderWindows: orderRateLimits.windows,
+      },
       'exchange-info-refresh: cache updated',
     );
-    return { fetched: symbols.length, written, skipped, deleted };
+    return { fetched: symbols.length, written, skipped, deleted, orderRateLimits };
   };
 };

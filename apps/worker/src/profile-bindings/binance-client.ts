@@ -10,6 +10,7 @@ import {
   createBinanceRest,
   type BinanceMode,
   type BinanceRestClient,
+  type OrderRateGovernor,
   type WeightGovernor,
 } from '@app/binance';
 
@@ -22,12 +23,17 @@ import {
  * `weightGovernor` is an optional shared admission control across every
  * profile's client. Wiring all profiles to one governor keeps the per-IP
  * Binance budget honest no matter how many profiles a single worker serves.
+ *
+ * `orderGovernor` is its per-ACCOUNT counterpart: Binance meters orders
+ * against the UID, not the IP, so this one is shared across an account's
+ * profiles but never across accounts.
  */
 export interface BuildBinanceClientInput {
   readonly mode: BinanceMode;
   readonly apiKey: string;
   readonly secretKey: string;
   readonly weightGovernor?: WeightGovernor;
+  readonly orderGovernor?: OrderRateGovernor;
 }
 
 /**
@@ -41,4 +47,5 @@ export const buildBinanceClient = (input: BuildBinanceClientInput): BinanceRestC
     mode: input.mode,
     credentials: { apiKey: input.apiKey, secretKey: input.secretKey },
     ...(input.weightGovernor ? { weightGovernor: input.weightGovernor } : {}),
+    ...(input.orderGovernor ? { orderGovernor: input.orderGovernor } : {}),
   });

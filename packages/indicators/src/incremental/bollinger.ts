@@ -57,11 +57,9 @@ export const incrementalBollinger = (
   const compute = (state: BollingerState): BollingerValue => {
     const middle = state.sum.dividedBy(period);
     // variance = E[X^2] - E[X]^2; clamp at zero to absorb tiny negative
-    // values that arise from Decimal precision loss on identical-close runs.
+    // values that arise from Decimal precision loss on near-identical closes.
     let variance = state.sumSq.dividedBy(period).minus(middle.times(middle));
-    /* v8 ignore start -- reason: decimal.js computes E[X^2]-E[X]^2 exactly, so variance is >= 0 for every real window (exactly 0 on a flat run); the negative-clamp guards an IEEE-754 artifact that cannot occur with Decimal math */
     if (variance.lessThan(0)) variance = new Decimal(0);
-    /* v8 ignore stop -- reason: end of the unreachable negative-variance clamp above */
     const stddev = variance.sqrt();
     return wrapValue(middle, stddev, multD);
   };

@@ -1,6 +1,6 @@
 import { Decimal } from '@app/money';
 import { ema, sma } from '@app/indicators';
-import { log, metric } from '@app/strategy-core';
+import { decOrNull, log, metric } from '@app/strategy-core';
 import type {
   Candle,
   Decision,
@@ -19,7 +19,7 @@ import {
 import { computeEntryQuantity, computeExitQuantity } from './quantity.js';
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
 import { trendMaType, trendPeriod } from './trend-filter.js';
-import { atrTrailingStopPrice } from './trailing-stop.js';
+import { profitTrailEpoch, ratchetProfitHigh, resolveStopLevel } from './stop-level.js';
 import { resolveEntryBudget } from './sizing.js';
 import { entryClientOrderId, exitClientOrderId } from './client-order-id.js';
 import { evaluateProtectiveStopArm, protectiveStopCancelDecisions } from './protective-stop.js';
@@ -34,6 +34,12 @@ const skipMetric = (side: string, reason: string): MetricEntry =>
 // Anything but a number reads as "never entered", so the guard fails open.
 const lastEntryCandle = (state: MomentumState): number | null =>
   typeof state.lastEntryCandleMs === 'number' ? state.lastEntryCandleMs : null;
+
+// Same unparsed-state guard, and load-bearing rather than merely tidy: absent,
+// `undefined` would fail OPEN downstream, because `openTimeMs < undefined` is
+// false for every candle and the whole pre-entry window would fold in.
+const profitTrailSince = (state: MomentumState): number | null =>
+  typeof state.profitTrailSinceMs === 'number' ? state.profitTrailSinceMs : null;
 
 /**
  * A no-op tick. `entryBlocker` records why an entry was suppressed this tick, or
@@ -311,8 +317,13 @@ const evaluateEntry = (
     schemaVersion: MOMENTUM_STATE_SCHEMA_VERSION,
     entryPrice: market.currentPrice,
     highSinceEntry: market.currentPrice,
+    // Seeded on the first held tick from the 1m window, not here: at entry the
+    // profit trail is definitionally unarmed, and seeding it to the entry price
+    // would be indistinguishable from "no 1m candle has closed yet".
+    profitHigh: null,
     heldQuantity: sized.quantity,
     lastEntryCandleMs: candleCloseMs,
+    profitTrailSinceMs: profitTrailEpoch(market.candlesByInterval['1m'] ?? []),
     // A fired entry is the definitive clear: the next re-block is a fresh
     // null -> reason edge the worker appends.
     entryBlocker: null,
@@ -354,13 +365,32 @@ const evaluateExit = (
   const closedClose = new Decimal(lastCandle.close);
   const madeNewHigh = closedClose.gt(prevHigh);
   const effectiveHigh = madeNewHigh ? closedClose : prevHigh;
+  const entry = new Decimal(entryPrice);
+  // The profit leg advances on closed 1m candles instead, which the worker feeds
+  // for every symbol regardless of `candleInterval`. That is the whole point: on
+  // a 1d profile the hard leg above is 24h stale, so an intraday run would be
+  // unprotected until the next daily close.
+  // Establish the epoch when the state carries none. The entry tick stamps it,
+  // but the fill adopter clears it on every adopted buy (it holds no candle
+  // window to derive one from), and a wallet-reconciled position never had one.
+  // Without this the mark would stay pinned at the entry price for the life of
+  // the position and the leg would never arm. Establishing it late only ever
+  // folds FEWER closes, so it cannot admit a peak the position never held.
+  const profitSinceMs =
+    profitTrailSince(state) ?? profitTrailEpoch(market.candlesByInterval['1m'] ?? []);
+  const profitHigh = ratchetProfitHigh(
+    config,
+    decOrNull(state.profitHigh),
+    entry,
+    market.candlesByInterval['1m'] ?? [],
+    profitSinceMs,
+  );
+  const level = resolveStopLevel(config, entry, effectiveHigh, profitHigh, candles);
   const price = new Decimal(market.currentPrice);
-  // ATR mode overrides the fixed retrace with a chandelier level when enabled and
-  // computable; null falls back to the byte-identical fixed expression.
-  const stopPrice =
-    atrTrailingStopPrice(config, candles, effectiveHigh) ??
-    effectiveHigh.times(new Decimal(1).minus(config.trailingStopPct));
-  const trailHit = price.lte(stopPrice);
+  // A null level means NEITHER leg resolved — no usable retrace fraction, no
+  // computable ATR, no armed profit leg — so hold, never sell. The resting stop
+  // is cancelled by the arm below for the same reason.
+  const trailHit = level.stop !== null && price.lte(level.stop);
 
   if (forceSell || trailHit || crossDown) {
     if (state.heldQuantity === null) {
@@ -433,8 +463,12 @@ const evaluateExit = (
       schemaVersion: MOMENTUM_STATE_SCHEMA_VERSION,
       entryPrice: null,
       highSinceEntry: null,
+      profitHigh: null,
       heldQuantity: null,
       lastEntryCandleMs: lastEntryCandle(state),
+      // The epoch does NOT carry through: it bounds the profit trail of the
+      // position being closed, and a same-cross re-entry stamps its own.
+      profitTrailSinceMs: null,
       // An exit is not an entry suppression; leave the field clear.
       entryBlocker: null,
       // Flat: there is no position left to protect, so no stop to be blocked.
@@ -464,8 +498,18 @@ const evaluateExit = (
   // A fill adopted out-of-band (the reconciler sets entryPrice without routing
   // through evaluateEntry) could leave a stale reason here; normalising it on
   // every held tick keeps the exit from emitting a spurious unblock row.
-  const held: MomentumState = { ...state, highSinceEntry: newHigh, entryBlocker: null };
-  const arm = evaluateProtectiveStopArm(input, held, effectiveHigh);
+  const held: MomentumState = {
+    ...state,
+    highSinceEntry: newHigh,
+    profitHigh: level.profitHigh?.toString() ?? null,
+    // Persist whatever epoch this tick resolved, so an adopted fill costs the
+    // profit leg one tick rather than the whole position.
+    profitTrailSinceMs: profitSinceMs,
+    entryBlocker: null,
+  };
+  // The resting stop mirrors the SAME resolved level the trail just tested, so
+  // the two cannot report different numbers.
+  const arm = evaluateProtectiveStopArm(input, held, level.stop);
   // Only the stop-arm outcome writes this field: a refused stop must be visible on
   // the dashboard for as long as it is refused, and must clear itself the tick it
   // arms. It never gates an ENTRY — the position is already open.

@@ -5,7 +5,7 @@
 // shared by every profile under the account), so they are resolved by accountId.
 
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
-import type { BinanceMode } from '@app/binance';
+import type { BinanceMode, OrderRateGovernor } from '@app/binance';
 import {
   accountRepoFromScope,
   repo,
@@ -47,6 +47,12 @@ export interface ProfileBindingsDeps {
   readonly defaultWeightLimit1m?: number;
   readonly clock?: { nowMs(): number };
   readonly logger?: { warn(obj: Readonly<Record<string, unknown>>, msg: string): void };
+  /**
+   * Resolves the account's ORDERS governor. Supplied by boot from the same
+   * memo the cold-load client uses, so both charge one bucket per account.
+   * Omitted in tests, which leaves order calls unaccounted.
+   */
+  readonly orderGovernorFor?: (accountId: AccountId, mode: BinanceMode) => OrderRateGovernor;
 }
 
 /**
@@ -120,10 +126,12 @@ const bindingsFromRepo = async (
   };
 
   const mode = asBinanceMode(modeRaw);
+  const orderGovernor = deps.orderGovernorFor?.(accountId, mode);
   const binance = buildBinanceClient({
     mode,
     apiKey: apiKey.key,
     secretKey: apiKey.secret,
+    ...(orderGovernor ? { orderGovernor } : {}),
   });
 
   // Order reconciliation by Binance id is account-domain. `toAccountScope` widens
@@ -136,6 +144,7 @@ const bindingsFromRepo = async (
   return {
     mode,
     binance,
+    ...(orderGovernor ? { orderGovernor } : {}),
     weightLimit1m: config.weightLimit1m,
     quoteAsset: config.quoteAsset,
     persistence,

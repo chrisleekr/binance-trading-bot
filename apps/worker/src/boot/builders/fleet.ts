@@ -9,7 +9,7 @@
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
 
-import { fetchClosedKlines, type WeightGovernor } from '@app/binance';
+import { BINANCE_HOSTS, fetchClosedKlines, type WeightGovernor } from '@app/binance';
 import type { MetricsRegistry } from '@app/observability';
 import { sleep } from '@app/core/sleep';
 
@@ -92,7 +92,7 @@ export const buildFleet = ({
     subscribedSymbols: () => marketSubscriptions.subscribedSymbols(),
     fetchPrice: createKlineGapPriceFetcher(({ symbol, interval, limit }) =>
       fetchClosedKlines(
-        { baseUrl: 'https://api.binance.com', symbol, interval, limit },
+        { baseUrl: BINANCE_HOSTS.live, symbol, interval, limit },
         {
           fetch,
           nowMs: () => Date.now(),

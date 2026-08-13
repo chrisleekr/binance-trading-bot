@@ -14,7 +14,7 @@ import { buildScalars } from './scalars.js';
 import { computeFirstBuyQuantity, type FirstBuySkipReason } from './quantity.js';
 import { resolveEntryBudget, type EntrySizingSkip } from './sizing.js';
 import { effectiveForceSellMinProfitPercent } from './fees.js';
-import type { TTBundle, TTConfig, TTState } from './schema.js';
+import type { ExitBlocker, TTBundle, TTConfig, TTState } from './schema.js';
 import {
   evaluateTechnicalsGate,
   type IntervalConsultation,
@@ -37,7 +37,7 @@ import { evaluateMeanReversionGate } from './mean-reversion-gate.js';
 import { handleOverride } from './branches/override.js';
 import { armAutoTriggerBuy, emitForcedFirstEntry } from './branches/first-entry.js';
 import { clearedAddTracking, clearedSellPosition } from './position-lifecycle.js';
-import { parseDecimal } from './branches/safe-decimal.js';
+import { parseDecimal, safeDecimal } from './branches/safe-decimal.js';
 import {
   closedBarsSinceEntry,
   evaluateSellGate,
@@ -61,6 +61,7 @@ import {
   evaluateRegimeRearm,
 } from './branches/regime-exit.js';
 import { resolveEntryBlocker, type AwaitingTriggerDetail } from './entry-blocker.js';
+import { hasDownsideExitConfigured, noExitCandidates, resolveExitBlocker } from './exit-blocker.js';
 
 // Loss-exit stamp for the re-entry cooldown. Returns the two state fields to
 // merge when a sell-side exit realised a loss (currentPrice strictly below the
@@ -325,6 +326,11 @@ const sellGateBranch: BranchHandler = (ctx) => {
   const now = scalars.now;
   let state = ctx.state;
   const preambleLogs: LogEntry[] = [...ctx.preambleLogs];
+  // Why this held position did not exit, resolved by the sell ladder below and
+  // persisted before the branch ends. Stays null while the ladder does not run
+  // (flat, sell side off, or an exit already resting) — those cases are named
+  // from the guard itself.
+  let ladderBlocker: ExitBlocker | null = null;
   if (config.sell.enabled && state.avgEntryPrice !== null && !scalars.hasOpenSell) {
     // Force-sell-on-Technicals runs before the standard sell gate so a
     // stop-loss still wins when both fire (stop-loss is the safety net; TV
@@ -463,7 +469,24 @@ const sellGateBranch: BranchHandler = (ctx) => {
           return {
             kind: 'terminal',
             output: {
-              nextState: state,
+              // This path returns before the shared persist block below, so it
+              // must name the rung itself: the position is still held, and a
+              // carried-over blocker from the previous tick would explain the
+              // wrong thing. The exit fired and could not be sized, which is
+              // exactly `exit-unsellable`.
+              nextState: {
+                ...state,
+                exitBlocker: resolveExitBlocker({
+                  ...noExitCandidates(),
+                  unsellable: { skip: emission.skipReason },
+                  // This branch runs only under an enabled sell side with no
+                  // resting SELL, so neither guard reason applies.
+                  sellDisabled: false,
+                  openSellOrder: false,
+                  currentPrice: safeDecimal(market.currentPrice),
+                  hasDownsideExit: hasDownsideExitConfigured(config, state.discoveryEntry === true),
+                }),
+              },
               decisions: [
                 {
                   type: 'emit-event',
@@ -523,6 +546,7 @@ const sellGateBranch: BranchHandler = (ctx) => {
     if (sellResult.kind === 'skip') {
       preambleLogs.push(sellResult.log);
     }
+    ladderBlocker = sellResult.blocker;
     // Regime exit (opt-in cash rotation): the per-symbol gates above declined to
     // sell — exit to cash now if the DAILY regime is CONFIRMED bearish (the last
     // N closed daily candles all below the regime MA). Placed last so stop-loss
@@ -577,9 +601,45 @@ const sellGateBranch: BranchHandler = (ctx) => {
       // emit|skip here (sellEmissionOrSkip never returns noop), so the skip
       // check's else arm is unreachable.
       /* v8 ignore start -- reason: sellEmissionOrSkip returns only emit|skip and emit returned above, so emission is always skip here; the else arm is unreachable by construction */
-      if (emission.kind === 'skip') preambleLogs.push(emission.log);
+      if (emission.kind === 'skip') {
+        preambleLogs.push(emission.log);
+        // Overwrite whatever rung the ladder stopped at: a fired exit that
+        // could not be sized outranks it, because the position is trapped
+        // rather than waiting. Both guard reasons are false by construction —
+        // the enclosing block runs only with the sell side enabled and no
+        // resting SELL.
+        ladderBlocker = resolveExitBlocker({
+          ...noExitCandidates(),
+          unsellable: { skip: emission.skipReason },
+          sellDisabled: false,
+          openSellOrder: false,
+          currentPrice: safeDecimal(market.currentPrice),
+          hasDownsideExit: hasDownsideExitConfigured(config, state.discoveryEntry === true),
+        });
+      }
       /* v8 ignore stop -- reason: end of the unreachable emit|skip else arm above */
     }
+  }
+
+  // Persist the exit blocker on every HELD tick, whether or not the ladder ran:
+  // an operator asking "why is this still open" gets the same answer from the
+  // record as from the ladder, and the worker diffs it across ticks to log the
+  // edge. Flat clears it — a closed position has no exit to explain.
+  if (state.avgEntryPrice !== null) {
+    state = {
+      ...state,
+      exitBlocker:
+        ladderBlocker ??
+        resolveExitBlocker({
+          ...noExitCandidates(),
+          sellDisabled: !config.sell.enabled,
+          openSellOrder: scalars.hasOpenSell,
+          currentPrice: safeDecimal(market.currentPrice),
+          hasDownsideExit: hasDownsideExitConfigured(config, state.discoveryEntry === true),
+        }),
+    };
+  } else if (state.exitBlocker !== null) {
+    state = { ...state, exitBlocker: null };
   }
 
   // Protective-stop arm. Deliberately OUTSIDE the `!hasOpenSell` guard above: a
@@ -1315,6 +1375,7 @@ export const normalizeTickState = (s: TTState): TTState => {
     entryConfirmCount: s.entryConfirmCount ?? 0,
     entryBlocker: s.entryBlocker ?? null,
     protectiveStopBlocker: s.protectiveStopBlocker ?? null,
+    exitBlocker: s.exitBlocker ?? null,
   };
 };
 

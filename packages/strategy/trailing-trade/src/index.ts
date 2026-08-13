@@ -50,6 +50,7 @@ export {
 } from './audit-event.js';
 
 export {
+  EXIT_BLOCKER_REASONS,
   TTAutoTriggerBuySchema,
   TTBundleSchema,
   TTConfigSchema,

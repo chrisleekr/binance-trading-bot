@@ -118,6 +118,87 @@ export const ttReasonAttribution: ReasonAttribution = {
   'technicals-no-signal': { gloss: 'No technical rating yet (still warming up)', kind: 'data' },
   'indicator-unavailable': { gloss: 'Indicators were still warming up', kind: 'data' },
   'invalid-filters': { gloss: 'Symbol filter data was invalid', kind: 'data' },
+
+  // Exit rungs. These answer "the coin is HELD and did not sell", which is a
+  // different question from every code above, and the one an operator asks
+  // loudest: each names the rung the position stopped at and the setting that
+  // defines it, so a level the bot is not actually watching is never mistaken
+  // for one it is.
+  'sell-disabled': {
+    setting: 'Sell switch',
+    paths: ['sell.enabled'],
+    gloss: 'Selling is switched off for this profile',
+    kind: 'config',
+  },
+  'exit-order-open': {
+    gloss: 'A sell order is already on the book',
+    kind: 'market',
+  },
+  'exit-unsellable': {
+    setting: 'Held quantity',
+    note: 'the exit triggered but the held amount could not be sold — either the wallet holds none of this coin, or it holds dust below the exchange minimum, which needs a manual top-up or sale',
+    gloss: 'An exit triggered but the position could not be sold',
+    kind: 'sizing',
+  },
+  'exit-config-invalid': {
+    note: 'a stored exit threshold could not be read, so that rung is inactive — re-save the profile settings',
+    gloss: 'An exit setting could not be read',
+    kind: 'config',
+  },
+  'trail-high-raised': {
+    gloss: 'Price made a new high and the trailing stop followed it up',
+    kind: 'market',
+  },
+  'atr-trail-above-price': {
+    setting: 'ATR trailing stop',
+    paths: ['sell.atrTrailing.multiplier'],
+    gloss: 'Holding: price is still above the ATR trailing stop',
+    kind: 'market',
+  },
+  'trail-above-price': {
+    setting: 'Trailing stop',
+    paths: ['sell.trailingStopPercentage'],
+    gloss: 'Holding: price is still above the trailing stop',
+    kind: 'market',
+  },
+  'awaiting-sell-arm': {
+    setting: 'Sell trigger',
+    paths: ['sell.triggerPercentage'],
+    note: 'the trailing stop does not exist until price first reaches the sell trigger — below it, no trailing exit can fire at any price',
+    gloss: 'Waiting for the sell trigger before the trailing stop arms',
+    kind: 'config',
+  },
+  'break-even-floor-not-hit': {
+    setting: 'Break-even floor',
+    paths: ['sell.breakEven.floorPercentage'],
+    gloss: 'Holding: price is still above the break-even floor',
+    kind: 'market',
+  },
+  'break-even-not-armed': {
+    setting: 'Break-even arm',
+    paths: ['sell.breakEven.armAtPercentage'],
+    gloss: 'The break-even stop has not armed yet',
+    kind: 'config',
+  },
+  'stop-loss-not-hit': {
+    setting: 'Stop loss',
+    paths: ['sell.stopLossPercentage'],
+    gloss: 'Holding: price is still above the stop loss',
+    kind: 'market',
+  },
+  'time-stop-pending': {
+    setting: 'Time stop',
+    paths: ['sell.timeStopBars', 'sell.discoveryTimeStopBars'],
+    gloss: 'Holding: the time stop has not run out of candles yet',
+    kind: 'config',
+  },
+  'no-exit-configured': {
+    setting: 'Stop loss',
+    paths: ['sell.stopLossPercentage', 'sell.breakEven.enabled', 'sell.atrTrailing.enabled'],
+    note: 'nothing configured would exit this position below its entry — it can only be closed by a profit exit or by you',
+    gloss: 'This position has no exit below the entry price',
+    kind: 'config',
+  },
 };
 
 /**

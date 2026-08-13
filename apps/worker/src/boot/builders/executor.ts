@@ -7,12 +7,15 @@ import type { Redis } from 'ioredis';
 
 import type { Database } from '@app/db';
 
+import type { MetricsSink } from 'metrics/catalog.js';
+
 import { notifyProviders as notifyProvidersRegistry } from 'notifiers.js';
 import { strategies as strategiesRegistry } from 'strategies.js';
 import { buildProfileBindings, buildProfileBindingsFromScope } from 'profile-bindings/index.js';
 import { createLiveExecutor, type LiveExecutor } from 'executor/live-executor.js';
 import { createThrottledReconcileEnqueue } from 'executor/reconcile-enqueue.js';
 import type { ProfileManager } from 'profile-manager/profile-manager.js';
+import type { OrderGovernorFor } from './binance-resolver.js';
 
 import type { StatePersistence } from './state-persistence.js';
 
@@ -23,6 +26,13 @@ export interface ExecutorDeps {
   readonly liveDemo: boolean;
   readonly profileManager: ProfileManager;
   readonly enqueueSymbolReconcile: StatePersistence['enqueueSymbolReconcile'];
+  /**
+   * Same per-account ORDERS memo the cold-load client uses. The executor builds
+   * its own REST client per order (fresh credentials), so without this the
+   * order path would be the one path that charges nothing.
+   */
+  readonly orderGovernorFor: OrderGovernorFor;
+  readonly metrics: MetricsSink;
 }
 
 export interface Executor {
@@ -36,6 +46,8 @@ export const buildExecutor = ({
   liveDemo,
   profileManager,
   enqueueSymbolReconcile,
+  orderGovernorFor,
+  metrics,
 }: ExecutorDeps): Executor => {
   const liveExecutor = createLiveExecutor({
     redis,
@@ -43,12 +55,13 @@ export const buildExecutor = ({
     liveDemo,
     strategies: strategiesRegistry,
     logger,
+    metrics,
     // A tick hands down the scope it already proved (and the config scalars it
     // already read); anything else proves + reads standalone here.
     resolveProfile: (operatorId, accountId, profileId, scope, resolved) =>
       scope
-        ? buildProfileBindingsFromScope({ db, logger }, scope, resolved)
-        : buildProfileBindings({ db, logger }, operatorId, accountId, profileId),
+        ? buildProfileBindingsFromScope({ db, logger, orderGovernorFor }, scope, resolved)
+        : buildProfileBindings({ db, logger, orderGovernorFor }, operatorId, accountId, profileId),
     // THROTTLED: a decision handler's discovery repeats every tick for as long as
     // its cause holds (a -2010 SELL refused because the base asset is locked in a
     // resting order fires once a second, for days). Unthrottled, that is a

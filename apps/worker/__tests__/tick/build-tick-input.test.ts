@@ -7,12 +7,17 @@ import { asAccountId, asProfileId, asUserId, type TechnicalsBundleConfig } from 
 import type { ProfileScope } from '@app/db';
 
 // The entry-blocker on-change writer resolves a bound repo from the scope and
-// appends one action_log. Mock the binding so the wrapper's write is observable
-// without a real DB; `appendSpy` captures the row.
-const appendSpy = vi.fn(async () => undefined);
+// records a condition. Mock the binding so the wrapper's write is observable
+// without a real DB; `recordSpy` captures the input. The state row and the log
+// edge are the writer's business and are covered against real Postgres in
+// packages/db; what matters here is WHETHER the tick path calls it.
+const recordSpy = vi.fn(async () => ({ changed: true as const, previousCode: null, sinceMs: 0 }));
 vi.mock('@app/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@app/db')>();
-  return { ...actual, profileRepoFromScope: () => ({ actionLogs: { append: appendSpy } }) };
+  return {
+    ...actual,
+    profileRepoFromScope: () => ({ conditionStates: { recordCondition: recordSpy } }),
+  };
 });
 
 import {
@@ -527,73 +532,246 @@ describe('buildTickInput', () => {
     expect(stubs.logger.error).toHaveBeenCalledOnce();
   });
 
-  describe('entry-blocker on-change action_log (de-spam)', () => {
+  describe('blocker on-change condition write (de-spam)', () => {
+    // The wrapper's "already recorded" cache is per (profile, symbol) and lives
+    // for the process, so tests share it. Each case takes its own symbol rather
+    // than depending on what the case above it left behind.
+    // Every commit audits each blocker field, so a per-condition view is what
+    // the de-spam claims are actually about.
+    const callsFor = (condition: string): unknown[] =>
+      recordSpy.mock.calls
+        .map((c) => c[0] as { condition: string })
+        .filter((c) => c.condition === condition);
+
     const builtCommit = async (
       stubs: Stubs,
+      symbol: string,
       prevState: unknown,
       nextState: unknown,
     ): Promise<void> => {
       stubs.loadForTick.mockResolvedValueOnce({ state: prevState, commit: stubs.stateCommit });
-      const built = await buildTickInput(stubs.deps, buildArgs());
+      const built = await buildTickInput(
+        stubs.deps,
+        buildArgs({ profile: makeProfile({ symbol }) }),
+      );
       if (built.kind !== 'ready') throw new Error('expected ready');
       await built.commit(nextState, 5000);
     };
 
-    it('writes ONE action_log when the entry-blocker reason changes', async () => {
-      appendSpy.mockClear();
+    it('records the condition ONCE when the entry-blocker reason changes', async () => {
+      recordSpy.mockClear();
       const stubs = makeStubs();
       await builtCommit(
         stubs,
+        'CHANGEUSDT',
         { entryBlocker: null },
         { entryBlocker: { reason: 'awaiting-trigger-price', detail: { windowLow: '95' } } },
       );
       expect(stubs.stateCommit).toHaveBeenCalledOnce();
-      expect(appendSpy).toHaveBeenCalledOnce();
-      expect(appendSpy.mock.calls[0]?.[0]).toMatchObject({
-        symbol: 'BTCUSDT',
-        level: 'info',
-        ctx: {
-          source: 'entry-blocker',
-          reason: 'awaiting-trigger-price',
-          detail: { windowLow: '95' },
-        },
+      expect(callsFor('entry-blocked')).toHaveLength(1);
+      expect(callsFor('entry-blocked')[0]).toMatchObject({
+        condition: 'entry-blocked',
+        symbol: 'CHANGEUSDT',
+        code: 'awaiting-trigger-price',
+        detail: { windowLow: '95' },
       });
     });
 
-    it('writes a "no longer blocked" log when the reason clears to null', async () => {
-      appendSpy.mockClear();
+    it('clears the condition (code null) when the reason resolves', async () => {
+      recordSpy.mockClear();
       const stubs = makeStubs();
       await builtCommit(
         stubs,
+        'CLEARUSDT',
         { entryBlocker: { reason: 'technicals-sell' } },
         { entryBlocker: null },
       );
-      expect(appendSpy).toHaveBeenCalledOnce();
-      expect(appendSpy.mock.calls[0]?.[0]).toMatchObject({
-        ctx: { source: 'entry-blocker', reason: null, previousReason: 'technicals-sell' },
+      expect(callsFor('entry-blocked')).toHaveLength(1);
+      expect(callsFor('entry-blocked')[0]).toMatchObject({
+        condition: 'entry-blocked',
+        symbol: 'CLEARUSDT',
+        code: null,
       });
     });
 
-    it('writes NO action_log when the reason is unchanged across ticks (de-spam)', async () => {
-      appendSpy.mockClear();
+    it('offers the held reason on every tick and lets the writer decide', async () => {
+      recordSpy.mockClear();
+      const stubs = makeStubs();
+      const held = { entryBlocker: { reason: 'technicals-no-signal' } };
+      await builtCommit(stubs, 'DESPAMUSDT', held, held);
+      await builtCommit(stubs, 'DESPAMUSDT', held, {
+        entryBlocker: { reason: 'technicals-no-signal', detail: { interval: '1m' } },
+      });
+      // Whether a steady reason is written is the WRITER's call, decided against
+      // the stored row. Deciding it here instead would need a per-process memo of
+      // what was last written, and unbinding a symbol now deletes its conditions
+      // out from under such a memo: the entry would outlive the row and suppress
+      // the rewrite when the symbol was bound again, reporting nothing blocking a
+      // blocked symbol. So the wrapper always offers, and offers the same
+      // identity each time so the writer recognises it.
+      expect(callsFor('entry-blocked')).toHaveLength(2);
+      expect(callsFor('entry-blocked').map((c) => c.code)).toEqual([
+        'technicals-no-signal',
+        'technicals-no-signal',
+      ]);
+      expect(stubs.stateCommit).toHaveBeenCalledTimes(2);
+    });
+
+    it('swallows a condition write failure (state commit already succeeded)', async () => {
+      recordSpy.mockClear();
+      recordSpy.mockRejectedValueOnce(new Error('record boom'));
+      const stubs = makeStubs();
+      await expect(
+        builtCommit(
+          stubs,
+          'SWALLOWUSDT',
+          { entryBlocker: null },
+          {
+            entryBlocker: { reason: 'min-notional' },
+          },
+        ),
+      ).resolves.toBeUndefined();
+      expect(stubs.logger.warn).toHaveBeenCalled();
+    });
+
+    it('re-offers a failed write on the next tick, reason unchanged', async () => {
+      recordSpy.mockClear();
+      recordSpy.mockRejectedValueOnce(new Error('record boom'));
+      const stubs = makeStubs();
+      const held = { entryBlocker: { reason: 'max-open-orders' } };
+      await builtCommit(stubs, 'RETRYUSDT', { entryBlocker: null }, held);
+      // Gating on the strategy state instead would compare prev to next, see no
+      // change, and leave the stored condition on the superseded reason until it
+      // happened to change again — weeks, on the stuck symbol this exists to
+      // explain. A lost write costs one tick of staleness, and needs no retry
+      // bookkeeping to recover.
+      await builtCommit(stubs, 'RETRYUSDT', held, held);
+      expect(callsFor('entry-blocked')).toHaveLength(2);
+      expect(callsFor('entry-blocked')[1]).toMatchObject({ code: 'max-open-orders' });
+    });
+
+    it('records the exit blocker under its own condition, alongside the entry one', async () => {
+      recordSpy.mockClear();
       const stubs = makeStubs();
       await builtCommit(
         stubs,
-        { entryBlocker: { reason: 'technicals-no-signal' } },
-        { entryBlocker: { reason: 'technicals-no-signal', detail: { interval: '1m' } } },
+        'EXITUSDT',
+        { exitBlocker: null },
+        {
+          exitBlocker: {
+            reason: 'awaiting-sell-arm',
+            changeKey: 'awaiting-sell-arm|armPrice=105',
+            detail: { armPrice: '105', currentPrice: '100' },
+          },
+        },
       );
-      expect(stubs.stateCommit).toHaveBeenCalledOnce();
-      expect(appendSpy).not.toHaveBeenCalled();
+      expect(callsFor('exit-blocked')).toHaveLength(1);
+      expect(callsFor('exit-blocked')[0]).toMatchObject({
+        condition: 'exit-blocked',
+        symbol: 'EXITUSDT',
+        code: 'awaiting-sell-arm',
+        detail: { armPrice: '105' },
+      });
     });
 
-    it('swallows an action_log append failure (state commit already succeeded)', async () => {
-      appendSpy.mockClear();
-      appendSpy.mockRejectedValueOnce(new Error('append boom'));
+    it('holds the changeKey steady while the price moves under an unchanged rung', async () => {
+      // The detail carries the live price, so a moving price must not read as a
+      // moved rung. The writer dedups on the key, so forwarding a stable key
+      // across ticks is what stops a row being written every tick for a position
+      // that is simply still waiting.
+      recordSpy.mockClear();
       const stubs = makeStubs();
-      await expect(
-        builtCommit(stubs, { entryBlocker: null }, { entryBlocker: { reason: 'min-notional' } }),
-      ).resolves.toBeUndefined();
-      expect(stubs.logger.warn).toHaveBeenCalled();
+      const blocker = (currentPrice: string) => ({
+        exitBlocker: {
+          reason: 'awaiting-sell-arm',
+          changeKey: 'awaiting-sell-arm|armPrice=105',
+          detail: { armPrice: '105', currentPrice },
+        },
+      });
+      await builtCommit(stubs, 'STEADYUSDT', blocker('100'), blocker('100'));
+      await builtCommit(stubs, 'STEADYUSDT', blocker('100'), blocker('101.5'));
+      expect(callsFor('exit-blocked')).toHaveLength(2);
+      expect(new Set(callsFor('exit-blocked').map((c) => c.changeKey))).toEqual(
+        new Set(['awaiting-sell-arm|armPrice=105']),
+      );
+    });
+
+    it('records again when the threshold moves under the same rung', async () => {
+      // A re-average moves the arm price: same reason, different level, and the
+      // operator is watching the level.
+      recordSpy.mockClear();
+      const stubs = makeStubs();
+      const armedAt = (armPrice: string) => ({
+        exitBlocker: {
+          reason: 'awaiting-sell-arm',
+          changeKey: `awaiting-sell-arm|armPrice=${armPrice}`,
+          detail: { armPrice },
+        },
+      });
+      await builtCommit(stubs, 'REARMUSDT', armedAt('105'), armedAt('105'));
+      await builtCommit(stubs, 'REARMUSDT', armedAt('105'), armedAt('110'));
+      expect(callsFor('exit-blocked')).toHaveLength(2);
+      expect(callsFor('exit-blocked')[1]).toMatchObject({ detail: { armPrice: '110' } });
+    });
+
+    it('hands the changeKey to the writer, not just the code', async () => {
+      // The writer dedups on `changeKey ?? code`. Withhold the key and it
+      // compares codes only, sees no change on a moved threshold, and writes
+      // nothing — the stored detail then keeps naming the level the position
+      // first waited at.
+      recordSpy.mockClear();
+      const stubs = makeStubs();
+      const armedAt = (armPrice: string) => ({
+        exitBlocker: {
+          reason: 'awaiting-sell-arm',
+          changeKey: `awaiting-sell-arm|armPrice=${armPrice}`,
+          detail: { armPrice },
+        },
+      });
+      await builtCommit(stubs, 'KEYUSDT', armedAt('105'), armedAt('105'));
+      await builtCommit(stubs, 'KEYUSDT', armedAt('105'), armedAt('110'));
+
+      expect(callsFor('exit-blocked')).toEqual([
+        expect.objectContaining({
+          code: 'awaiting-sell-arm',
+          changeKey: 'awaiting-sell-arm|armPrice=105',
+        }),
+        expect.objectContaining({
+          code: 'awaiting-sell-arm',
+          changeKey: 'awaiting-sell-arm|armPrice=110',
+        }),
+      ]);
+    });
+
+    it('sends no changeKey at all when the state carries none', async () => {
+      // The writer treats an absent key as "the code is the identity", which is
+      // what every pre-existing producer relies on.
+      recordSpy.mockClear();
+      const stubs = makeStubs();
+      await builtCommit(
+        stubs,
+        'BAREUSDT',
+        { entryBlocker: null },
+        { entryBlocker: { reason: 'knife-guard' } },
+      );
+      expect(callsFor('entry-blocked')[0]).not.toHaveProperty('changeKey');
+    });
+
+    it('falls back to the reason when a state carries no changeKey', async () => {
+      // The field is optional: a strategy with no volatile detail wants the
+      // reason itself to be the identity, and must not be forced to mint a key.
+      recordSpy.mockClear();
+      const stubs = makeStubs();
+      const held = { exitBlocker: { reason: 'sell-disabled' } };
+      await builtCommit(stubs, 'NOKEYUSDT', held, held);
+      await builtCommit(stubs, 'NOKEYUSDT', held, held);
+      // No key on either offer, so the writer compares codes — and they match, so
+      // the second offer is the no-op the steady state needs.
+      expect(callsFor('exit-blocked')).toHaveLength(2);
+      for (const call of callsFor('exit-blocked')) {
+        expect(call).not.toHaveProperty('changeKey');
+        expect(call).toMatchObject({ code: 'sell-disabled' });
+      }
     });
   });
 

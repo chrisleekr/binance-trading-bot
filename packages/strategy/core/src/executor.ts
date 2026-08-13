@@ -55,6 +55,14 @@ export type DecisionResult =
       readonly phase: DecisionFailurePhase;
       readonly reason: string;
       readonly cause?: unknown;
+      /**
+       * The decision was withheld BY POLICY, not attempted and failed. Separate
+       * from `phase: 'pre-call'`, which also covers genuine refusals: both leave
+       * state un-advanced so the strategy re-emits, but only a real failure is
+       * worth waking the operator for. A caller that alerts on failure must skip
+       * these, or a routine admission-control decision reads as an outage.
+       */
+      readonly deferred?: true;
     };
 
 export interface Executor {

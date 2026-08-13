@@ -444,7 +444,7 @@ describe('commitSymbolStateForTick', () => {
     const record = vi.fn();
 
     await commitSymbolStateForTick(
-      { redis, logger: silentLogger, persistSymbolState, metrics: { record } },
+      { redis, logger: silentLogger, persistSymbolState, metrics: { record, forget: vi.fn() } },
       SCOPE,
       symbol,
       nextState,
@@ -486,7 +486,7 @@ describe('commitSymbolStateForTick', () => {
 
     await expect(
       commitSymbolStateForTick(
-        { redis, logger: silentLogger, persistSymbolState, metrics: { record } },
+        { redis, logger: silentLogger, persistSymbolState, metrics: { record, forget: vi.fn() } },
         SCOPE,
         symbol,
         nextState,
@@ -515,7 +515,7 @@ describe('commitSymbolStateForTick', () => {
     const record = vi.fn();
 
     await commitSymbolStateForTick(
-      { redis, logger: silentLogger, persistSymbolState, metrics: { record } },
+      { redis, logger: silentLogger, persistSymbolState, metrics: { record, forget: vi.fn() } },
       SCOPE,
       symbol,
       nextState,
@@ -542,7 +542,7 @@ describe('commitSymbolStateForTick', () => {
     const record = vi.fn();
 
     await commitSymbolStateForTick(
-      { redis, logger: silentLogger, persistSymbolState, metrics: { record } },
+      { redis, logger: silentLogger, persistSymbolState, metrics: { record, forget: vi.fn() } },
       SCOPE,
       symbol,
       nextState,
@@ -564,7 +564,7 @@ describe('commitSymbolStateForTick', () => {
     const record = vi.fn();
 
     await commitSymbolStateForTick(
-      { redis, logger: silentLogger, persistSymbolState, metrics: { record } },
+      { redis, logger: silentLogger, persistSymbolState, metrics: { record, forget: vi.fn() } },
       SCOPE,
       symbol,
       nextState,
@@ -689,7 +689,7 @@ describe('mergeLatchFieldsOnCasMiss', () => {
     const { redis } = makeRedis();
     const coldLoad = { loadSymbolState: vi.fn(async () => winnerRow()) };
     const persistSymbolState = vi.fn(async () => true);
-    const metrics = { record: vi.fn() };
+    const metrics = { record: vi.fn(), forget: vi.fn() };
 
     const ok = await mergeLatchFieldsOnCasMiss(
       { redis, logger: silentLogger, persistSymbolState, coldLoad, metrics },
@@ -736,7 +736,7 @@ describe('mergeLatchFieldsOnCasMiss', () => {
     const { redis } = makeRedis();
     const coldLoad = { loadSymbolState: vi.fn(async () => winnerRow()) };
     const persistSymbolState = vi.fn(async () => false);
-    const metrics = { record: vi.fn() };
+    const metrics = { record: vi.fn(), forget: vi.fn() };
 
     const ok = await mergeLatchFieldsOnCasMiss(
       { redis, logger: silentLogger, persistSymbolState, coldLoad, metrics },

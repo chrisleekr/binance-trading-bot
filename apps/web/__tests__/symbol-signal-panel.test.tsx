@@ -62,6 +62,7 @@ const renderPanel = (props: {
   strategy: SymbolStateResponse['strategy'];
   holding: SymbolStateResponse['avgEntryPrice'];
   currentPrice: string | null;
+  exitBlocker?: SymbolStateResponse['exitBlocker'];
   technicalsResponse?: TechnicalsResponse;
   dailyCandlesResponse?: CandleList;
 }): ReturnType<typeof render> => {
@@ -86,6 +87,7 @@ const renderPanel = (props: {
         strategy={props.strategy}
         holding={props.holding}
         currentPrice={props.currentPrice}
+        exitBlocker={props.exitBlocker ?? null}
       />
     </QueryClientProvider>,
   );
@@ -579,6 +581,134 @@ describe('SymbolSignalPanel', () => {
     });
     expect(screen.getByTestId('exit-row-trailing')).toHaveAttribute('data-nearest', 'true');
     expect(screen.getByTestId('exit-row-stop-loss')).not.toHaveAttribute('data-nearest');
+  });
+
+  it('names the sell arm as the gate the position is waiting on while the trail is unarmed', () => {
+    // The reported position: held, price never reached the sell arm, so no
+    // profit exit exists at any price. Without the arm named, the ladder reads
+    // as a list of levels with nothing to watch.
+    const state = { avgEntryPrice: '100', currentGridTradeIndex: 0, highSinceBuy: null };
+    renderPanel({
+      strategy: strategyOf(ttConfig, state),
+      holding: holdingOf('100'),
+      currentPrice: '102',
+    });
+    const arm = screen.getByTestId('exit-row-sell-arm');
+    expect(arm).toHaveAttribute('data-next-gate', 'true');
+    expect(arm).toHaveTextContent('no trailing exit until price reaches here');
+    // The gap to the arm is what tells the operator how far off it is.
+    expect(arm).toHaveTextContent('-2.86%');
+    // Nothing draws a trailing level while there is no high to trail from.
+    expect(screen.queryByTestId('exit-row-trailing')).not.toBeInTheDocument();
+  });
+
+  it('drops the gate marker once the trail is armed', () => {
+    const state = { avgEntryPrice: '100', currentGridTradeIndex: 0, highSinceBuy: '110' };
+    renderPanel({
+      strategy: strategyOf(ttConfig, state),
+      holding: holdingOf('100'),
+      currentPrice: '108',
+    });
+    const arm = screen.getByTestId('exit-row-sell-arm');
+    expect(arm).not.toHaveAttribute('data-next-gate');
+    expect(arm).toHaveTextContent('armed');
+    expect(screen.getByTestId('exit-row-trailing')).toHaveTextContent('active exit');
+  });
+
+  it('does not name the sell arm as the gate when no trail is configured', () => {
+    // trailingStopPercentage '0' disables the trail (the schema accepts '' and
+    // '0'), and the worker's sell-gate refuses to name the arm on that config.
+    // Reaching this price would set a high-water mark nothing consumes, so
+    // flagging it as the next gate promises an exit that does not exist.
+    const cfg = { ...ttConfig, sell: { ...ttConfig.sell, trailingStopPercentage: '0' } };
+    const state = { avgEntryPrice: '100', currentGridTradeIndex: 0, highSinceBuy: null };
+    renderPanel({
+      strategy: strategyOf(cfg, state),
+      holding: holdingOf('100'),
+      currentPrice: '102',
+    });
+    const arm = screen.getByTestId('exit-row-sell-arm');
+    expect(arm).not.toHaveAttribute('data-next-gate');
+    expect(arm).toHaveTextContent('no trailing stop configured');
+    expect(arm).not.toHaveTextContent('armed');
+    expect(screen.queryByTestId('exit-row-trailing')).not.toBeInTheDocument();
+  });
+
+  it('still names the sell arm as the gate when only the ATR trail is configured', () => {
+    // The guard is "is there any trail", not "is the fixed percentage set": the
+    // ATR trail arms off the same high-water mark, so the arm is a real gate.
+    const cfg = {
+      ...ttConfig,
+      sell: {
+        ...ttConfig.sell,
+        trailingStopPercentage: '0',
+        atrTrailing: { enabled: true, period: 14, multiplier: '2' },
+      },
+    };
+    const state = { avgEntryPrice: '100', currentGridTradeIndex: 0, highSinceBuy: null };
+    renderPanel({
+      strategy: strategyOf(cfg, state),
+      holding: holdingOf('100'),
+      currentPrice: '102',
+    });
+    expect(screen.getByTestId('exit-row-sell-arm')).toHaveAttribute('data-next-gate', 'true');
+  });
+
+  it('warns when the worker reports the position has no exit below the entry', () => {
+    // Read from the worker's own record, never re-derived here: a position that
+    // can only close at a profit is a real choice, and an unnoticed one is how a
+    // held coin falls for weeks with nobody realising nothing would sell it.
+    const state = { avgEntryPrice: '100', currentGridTradeIndex: 0, highSinceBuy: null };
+    renderPanel({
+      strategy: strategyOf(ttConfig, state),
+      holding: holdingOf('100'),
+      currentPrice: '102',
+      exitBlocker: { reason: 'awaiting-sell-arm', detail: { hasDownsideExit: false } },
+    });
+    expect(screen.getByTestId('symbol-signal-no-downside-exit')).toHaveTextContent(
+      'No exit below your entry',
+    );
+  });
+
+  it('stays quiet when the worker reports an exit below the entry', () => {
+    const state = { avgEntryPrice: '100', currentGridTradeIndex: 0 };
+    renderPanel({
+      strategy: strategyOf(ttConfig, state),
+      holding: holdingOf('100'),
+      currentPrice: '102',
+      exitBlocker: { reason: 'stop-loss-not-hit', detail: { hasDownsideExit: true } },
+    });
+    expect(screen.queryByTestId('symbol-signal-no-downside-exit')).not.toBeInTheDocument();
+  });
+
+  it('ignores an exit record duck-typed off the raw strategy state', () => {
+    // The record is read from the typed projection field, not by casting the
+    // opaque state blob: the api response is the contract, and a hand-shaped
+    // blob field is exactly the unsafe cast this panel no longer performs.
+    const state = {
+      avgEntryPrice: '100',
+      currentGridTradeIndex: 0,
+      highSinceBuy: null,
+      exitBlocker: { reason: 'awaiting-sell-arm', detail: { hasDownsideExit: false } },
+    };
+    renderPanel({
+      strategy: strategyOf(ttConfig, state),
+      holding: holdingOf('100'),
+      currentPrice: '102',
+    });
+    expect(screen.queryByTestId('symbol-signal-no-downside-exit')).not.toBeInTheDocument();
+  });
+
+  it('stays quiet when no record says either way', () => {
+    // Silence over a guess: a state written before the record existed proves
+    // nothing about the exits, and a warning fired on absence would cry wolf.
+    const state = { avgEntryPrice: '100', currentGridTradeIndex: 0 };
+    renderPanel({
+      strategy: strategyOf(ttConfig, state),
+      holding: holdingOf('100'),
+      currentPrice: '102',
+    });
+    expect(screen.queryByTestId('symbol-signal-no-downside-exit')).not.toBeInTheDocument();
   });
 
   // --- regime exit ----------------------------------------------------------

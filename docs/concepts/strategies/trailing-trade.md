@@ -165,6 +165,7 @@ Per (profile, symbol), between ticks (`TTStateSchema`, schema version `2.0.0`):
 | `breakEvenArmed` | Whether the break-even floor is armed for this position. |
 | `forceSellCooldownUntilMs`, `lastLossExitAt` | Cooldown clocks; survive a position close. |
 | `entryBlocker` | Structured "why no buy this tick" reason the dashboard renders. |
+| `exitBlocker` | Structured "why no exit this tick" reason for a HELD position, with the rung's threshold; cleared to `null` when the position closes or an exit is emitted. Its `detail.hasDownsideExit` is `false` when nothing configured would exit this position _below_ the entry — a sell trigger and a trail alone will hold a position that drops forever, which is a legitimate choice but must not be an unnoticed one. |
 | `protectiveStopBlocker` | Why a held position currently has no exchange-side stop. |
 
 ## Internals

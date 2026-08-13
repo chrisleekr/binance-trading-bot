@@ -44,11 +44,22 @@ export {
   type Ticker24hrDto,
 } from './binance-rest.js';
 
+export { resolveBinanceEndpoints, type BinanceEndpointSet } from './endpoints.js';
+
 export {
+  createOrderRateGovernor,
   createRedisWeightGovernor,
   createWeightGovernor,
+  MAX_RESERVE_WAIT_MS,
+  OrderBudgetUnavailableError,
+  parseOrderRateLimits,
   RedisUnavailableError,
   type GovernorLogger,
+  type OrderRateGovernor,
+  type OrderRateGovernorOptions,
+  type OrderRateWindow,
+  type ParsedOrderRateLimits,
+  type RawRateLimit,
   type RedisEvalClient,
   type RedisWeightGovernorOptions,
   type WeightGovernor,

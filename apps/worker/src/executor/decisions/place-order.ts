@@ -10,6 +10,7 @@ import { sleep as realSleep } from '@app/core/sleep';
 import {
   BinanceApiError,
   DEFAULT_RECV_WINDOW_MS,
+  OrderBudgetUnavailableError,
   readSignedCallTiming,
   type OpenOrderDto,
 } from '@app/binance';
@@ -461,6 +462,27 @@ export const placeOrderHandler = async (
     });
   } catch (err) {
     await recordWeight(deps, deps.accountId, profileId, bindings.binance.ctx().weightUsed1m);
+    if (err instanceof OrderBudgetUnavailableError) {
+      // Refused at the ORDERS admission gate, before the request was signed, so
+      // it provably never reached Binance. Classified ahead of the transport
+      // branch below precisely so it does NOT probe: a probe of an order that
+      // was never sent can only resolve `ambiguous`, which is unretryable and
+      // would leave the placement permanently stranded over a rate limit that
+      // clears by itself.
+      return {
+        ok: false,
+        retryable: true,
+        phase: 'pre-call',
+        // The same condition the executor's pre-batch peek sheds silently,
+        // reached instead by losing the race between that peek and this
+        // reservation. A deferrable order has to classify identically either
+        // way, or the alert the shed exists to suppress fires on timing alone.
+        // A NON-deferrable refusal keeps alerting: that order's absence really
+        // does leave the position less protected.
+        ...(decision.intent.deferrable === true ? { deferred: true as const } : {}),
+        reason: `order-budget-exhausted window=${err.windowMs}ms wait=${err.waitMs}ms`,
+      };
+    }
     if (!(err instanceof BinanceApiError)) {
       // A transport-level throw (socket hang-up, timeout, DNS) tells us the
       // response never arrived — NOT that the request never landed. Rather than
