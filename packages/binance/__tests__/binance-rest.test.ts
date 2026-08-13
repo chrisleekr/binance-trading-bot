@@ -783,6 +783,39 @@ describe('createBinanceRest — ORDERS governor', () => {
     expect(orderGovernor.used(ONE_D)).toBe(900);
   });
 
+  it('reconciles the extra order request a -1021 re-issue puts on the wire', async () => {
+    // The ORDERS budget is charged ONCE per call, before signing, so the
+    // re-issue sends a second order request the local tally never sees. That
+    // undercount is deliberate and only safe because the header reconcile
+    // closes it: moving the charge per-attempt would instead double-bill every
+    // call that never reached Binance's matching engine.
+    const orderGovernor = createOrderRateGovernor(orderLimits);
+    const spy = makeFetchSpy(
+      jsonResponse({ code: -1021, msg: 'outside recvWindow' }, { status: 400 }),
+      jsonResponse({ serverTime: fixedClock.nowMs() + 5_000 }),
+      orderResponse(
+        { orderId: 1, clientOrderId: 'c-1', status: 'NEW' },
+        { 'x-mbx-order-count-10s': '12', 'x-mbx-order-count-1d': '440' },
+      ),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch, orderGovernor }));
+
+    await client.placeOrder({
+      symbol: 'BTCUSDT',
+      side: 'SELL',
+      type: 'MARKET',
+      quantity: '0.001',
+      newClientOrderId: 'c-1',
+    });
+
+    // Rejected attempt → /api/v3/time → re-issue.
+    expect(spy.calls).toHaveLength(3);
+    // One reserve charged 1; the headers on the SUCCEEDING attempt are what the
+    // governor ends up metering against.
+    expect(orderGovernor.used(TEN_S)).toBe(12);
+    expect(orderGovernor.used(ONE_D)).toBe(440);
+  });
+
   it('ignores an unparseable order-count header rather than zeroing the tally', async () => {
     const orderGovernor = createOrderRateGovernor(orderLimits);
     const spy = makeFetchSpy(

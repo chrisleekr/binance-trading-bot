@@ -81,6 +81,14 @@ describe('resolveBinanceEndpoints', () => {
     expect(() =>
       resolveBinanceEndpoints({ ...OVERRIDES, BINANCE_MARKET_WS_URL: 'wss://127.0.0.1:4010' }),
     ).toThrow(/must use ws:/);
+    // The REST scheme is pinned the same way, and rejecting the MORE secure
+    // scheme is the surprising half: the check is not about transport security
+    // on loopback, it is that every override must be one exact recognised shape.
+    // Widening it to "http or https" is the plausible edit, and it is the first
+    // step toward accepting a scheme whose host resolution differs.
+    expect(() =>
+      resolveBinanceEndpoints({ ...OVERRIDES, BINANCE_REST_URL: 'https://127.0.0.1:4010' }),
+    ).toThrow(/must use http:/);
     expect(() => resolveBinanceEndpoints({ ...OVERRIDES, BINANCE_REST_URL: 'not a URL' })).toThrow(
       /valid URL/,
     );

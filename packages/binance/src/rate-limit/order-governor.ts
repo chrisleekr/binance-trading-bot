@@ -165,11 +165,6 @@ interface WindowState {
   readonly records: { ts: number; count: number }[];
 }
 
-/**
- * Map a Binance `interval` / `intervalNum` pair to milliseconds. Exported
- * because the exchangeInfo parser and the response-header parser must agree on
- * the same mapping — a mismatch would silently orphan a window.
- */
 const UNIT_MS = new Map<string, number>([
   ['SECOND', 1_000],
   ['MINUTE', 60_000],
@@ -177,6 +172,12 @@ const UNIT_MS = new Map<string, number>([
   ['DAY', 86_400_000],
 ]);
 
+/**
+ * Map a Binance `interval` / `intervalNum` pair to milliseconds, or `null` when
+ * the pair is unrecognised. `parseOrderRateLimits` derives BOTH a window's key
+ * and its response-header name from the same row, so an unmappable interval
+ * must drop the whole row rather than yield a window no header can report on.
+ */
 export const intervalToMs = (interval: string, intervalNum: number): number | null => {
   // A Map, not an object literal: an object lookup walks the prototype chain, so
   // an interval named `constructor` or `toString` would resolve to an inherited

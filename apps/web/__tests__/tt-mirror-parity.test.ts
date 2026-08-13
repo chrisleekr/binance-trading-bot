@@ -16,7 +16,9 @@
 
 import { describe, expect, it } from 'vitest';
 import { TTConfigSchema, TTStateSchema } from '@app/strategy-trailing-trade';
+import type { TTConfig, TTState } from '@app/strategy-trailing-trade';
 import { ttPreviewLevels } from '@app/strategy-trailing-trade/preview';
+import type { PreviewInput } from '@app/strategy-core';
 
 import { deriveChartLines } from '../src/features/symbol/preview/preview-chart-lines.js';
 import { deriveSignal } from '../src/features/symbol/strategies/trailing-trade/signal-panel.js';
@@ -157,24 +159,38 @@ describe('chart ↔ Signal panel parity on the trailing-stop level', () => {
   const ENTRY = '100';
   const CURRENT = '105';
 
+  // The config/state literals here are RAW, exactly as the live worker stores
+  // them, so they do not satisfy the parsed generics. The cast is named rather
+  // than `as never` so a signature change surfaces as a type error here instead
+  // of being absorbed.
   const previewInput = (state: Record<string, unknown>) =>
     ({
       config: baseConfig,
       state,
       entryPrice: ENTRY,
       currentPrice: CURRENT,
-    }) as never;
+    }) as unknown as PreviewInput<TTConfig, TTState>;
 
-  const chartDrawsTrail = (state: Record<string, unknown>): boolean =>
-    deriveChartLines(ttPreviewLevels(previewInput(state))).some((l) => l.label === 'Trailing stop');
+  // Both sides return the trail PRICE, not a boolean. Agreeing that a line
+  // exists is the weaker half of the claim: two readings that draw the line at
+  // different prices are the same lie to the operator as one that omits it.
+  const chartTrailPrice = (state: Record<string, unknown>): number | null => {
+    const line = deriveChartLines(ttPreviewLevels(previewInput(state))).find(
+      (l) => l.label === 'Trailing stop',
+    );
+    return line ? Number(line.price) : null;
+  };
 
-  const panelShowsTrail = (state: Record<string, unknown>, holding: string | null): boolean => {
+  const panelTrailPrice = (
+    state: Record<string, unknown>,
+    holding: string | null,
+  ): number | null => {
     const view = deriveSignal(
       strategyOf(baseConfig, state),
       holding === null ? null : holdingOf(holding),
       CURRENT,
     );
-    return view.kind === 'holding' && view.trailingStop !== null;
+    return view.kind === 'holding' ? (view.trailingStop?.price ?? null) : null;
   };
 
   const CASES = [
@@ -194,11 +210,18 @@ describe('chart ↔ Signal panel parity on the trailing-stop level', () => {
   ] as const;
 
   it.each(CASES)('$name', ({ state, holding, trailIsReal }) => {
-    const chart = chartDrawsTrail({ ...state });
-    const panel = panelShowsTrail({ ...state }, holding);
+    const chart = chartTrailPrice({ ...state });
+    const panel = panelTrailPrice({ ...state }, holding);
     // Both must match each other AND the truth: agreeing on a wrong answer is
     // still a lie to the operator.
-    expect(panel).toBe(trailIsReal);
-    expect(chart).toBe(trailIsReal);
+    expect(panel !== null).toBe(trailIsReal);
+    expect(chart !== null).toBe(trailIsReal);
+    if (trailIsReal) {
+      // Not `toBe`: the chart price comes from the strategy's Decimal math and
+      // the panel from the mirror's Number() replay, so they can differ in the
+      // last float bit while still naming the same level. A real drift moves the
+      // level far more than that.
+      expect(panel as number).toBeCloseTo(chart as number, 8);
+    }
   });
 });

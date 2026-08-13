@@ -362,10 +362,17 @@ describe('createOrderRateGovernor', () => {
       for (let i = 0; i < 8; i += 1) await g.reserve(1);
 
       await expect(g.reserve(1)).rejects.toMatchObject({ windowMs: TEN_S });
-      // Six 10s waits fit under the 60s ceiling; the seventh would cross it.
-      // No single wait ever exceeds the window, so only the running total binds.
-      expect(sleeps).toEqual(Array.from({ length: 6 }, () => TEN_S));
+      // Derived from the constant, not a literal count: a changed ceiling should
+      // move this expectation rather than fail a test that is not about it.
+      const expected = Math.floor(MAX_RESERVE_WAIT_MS / TEN_S);
+      expect(sleeps).toEqual(Array.from({ length: expected }, () => TEN_S));
+      // The bound is CUMULATIVE. No single wait ever exceeds the window, so a
+      // per-wait ceiling would never bind here and the loop would run forever:
+      // it slept as long as it could, and one more wait would have crossed.
       expect(TEN_S).toBeLessThan(MAX_RESERVE_WAIT_MS);
+      const total = sleeps.reduce((a, b) => a + b, 0);
+      expect(total).toBeLessThanOrEqual(MAX_RESERVE_WAIT_MS);
+      expect(total + TEN_S).toBeGreaterThan(MAX_RESERVE_WAIT_MS);
     });
 
     it('still waits out a sub-ceiling delay', async () => {
