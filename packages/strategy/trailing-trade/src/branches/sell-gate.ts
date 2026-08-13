@@ -291,6 +291,12 @@ const runSellLadder = (
         );
       }
       cand.stopLoss = { stopPrice };
+    } else {
+      // Parsed fine, then failed the schema's runtime re-check. Without a
+      // candidate here the ladder falls through to `no-exit-configured` while
+      // `hasDownsideExit` still reports this stop-loss as configured, which
+      // tells the operator nothing is set up and nothing is wrong at once.
+      cand.configInvalid = { field: 'stopLossPercentage' };
     }
   }
 
@@ -317,6 +323,9 @@ const runSellLadder = (
     // (the worker ticks RAW config), and is hoisted so the arming tick below can
     // name the floor it just installed without recomputing the level.
     const floorPrice = floor.gte(1) ? lbp.times(floor) : null;
+    // Same reasoning as the stop-loss bound above: a sub-entry floor is
+    // rejected, so record WHY rather than leaving the rung silently absent.
+    if (floorPrice === null) cand.configInvalid = { field: 'breakEven.floorPercentage' };
     if (state.breakEvenArmed === true) {
       // Armed: exit on a live retrace to the floor, but only while the profit
       // trail has not taken over. Above the floor (or trail armed) ⇒ fall
@@ -341,6 +350,7 @@ const runSellLadder = (
       if (!armParse.ok) return armParse.skip;
       const armAt = armParse.value;
       const beArmPrice = armAt.gt(1) ? lbp.times(armAt) : null;
+      if (beArmPrice === null) cand.configInvalid = { field: 'breakEven.armAtPercentage' };
       if (beArmPrice !== null && !ratchetPrice.gte(beArmPrice)) {
         cand.breakEvenArm = { armPrice: beArmPrice };
       }

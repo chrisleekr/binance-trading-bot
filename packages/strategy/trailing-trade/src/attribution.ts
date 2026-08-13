@@ -136,7 +136,7 @@ export const ttReasonAttribution: ReasonAttribution = {
   },
   'exit-unsellable': {
     setting: 'Held quantity',
-    note: 'the exit triggered but the held amount could not be sold — usually dust below the exchange minimum, which needs a manual top-up or sale',
+    note: 'the exit triggered but the held amount could not be sold — either the wallet holds none of this coin, or it holds dust below the exchange minimum, which needs a manual top-up or sale',
     gloss: 'An exit triggered but the position could not be sold',
     kind: 'sizing',
   },

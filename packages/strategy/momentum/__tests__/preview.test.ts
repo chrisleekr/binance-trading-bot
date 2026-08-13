@@ -265,7 +265,9 @@ describe('momentumPreviewLevels — defensive / branch coverage', () => {
     });
     // Flat: the trail projects off the entry band (10 -> 9.5). The state still
     // carries a mark of 200; honouring it would show 194.
-    const model = momentumPreviewLevels(input(config, { state: held({ entryPrice: null }) }));
+    const model = momentumPreviewLevels(
+      input(config, { state: held({ entryPrice: null, profitHigh: '200' }) }),
+    );
     expect(row(model, 'trail')?.price).toBe('9.5');
   });
 

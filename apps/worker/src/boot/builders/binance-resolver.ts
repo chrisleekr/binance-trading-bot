@@ -15,6 +15,7 @@ import {
   createOrderRateGovernor,
   type BinanceMode,
   type OrderRateGovernor,
+  type OrderRateWindow,
   type WeightGovernor,
 } from '@app/binance';
 
@@ -26,6 +27,13 @@ import {
 } from 'crons/exchange-info-refresh.js';
 
 export type BinanceClient = ReturnType<typeof buildBinanceClient>;
+
+// Positional compare is enough: `parseOrderRateLimits` keeps the order of the
+// exchangeInfo rows, and a reorder with no value change costs one harmless
+// rebuild rather than a missed one.
+const sameWindows = (a: readonly OrderRateWindow[], b: readonly OrderRateWindow[]): boolean =>
+  a.length === b.length &&
+  a.every((w, i) => w.windowMs === b[i]?.windowMs && w.limit === b[i]?.limit);
 
 export interface ResolvedBinance {
   readonly rest: BinanceClient;
@@ -169,7 +177,27 @@ export const buildBinanceResolver = ({
       // silently drop rate protection for every account resolved afterwards.
       // An empty parse is a bad response, not a change of policy.
       if (result.orderRateLimits.windows.length > 0) {
+        const previous = orderRateLimits.get(mode);
         orderRateLimits.set(mode, result.orderRateLimits);
+        // A governor is built once per account and then memoised, so a changed
+        // ceiling reaches nothing on its own: the account would keep reserving
+        // against the old allowance for the life of the process, and a LOWERED
+        // limit would show up only as avoidable -1015 rejections. Dropping the
+        // memo makes the next resolve rebuild on the new windows. The rebuilt
+        // governor starts with no records, which `observe` pulls back up from
+        // the response headers on its first call.
+        if (
+          previous !== undefined &&
+          !sameWindows(previous.windows, result.orderRateLimits.windows)
+        ) {
+          for (const key of [...orderGovernors.keys()]) {
+            if (key.endsWith(`:${mode}`)) orderGovernors.delete(key);
+          }
+          logger.warn(
+            { mode, windows: result.orderRateLimits.windows.length },
+            'binance-resolver: ORDERS limits changed; rebuilding account governors',
+          );
+        }
       } else if (orderRateLimits.has(mode)) {
         logger.warn(
           { mode },

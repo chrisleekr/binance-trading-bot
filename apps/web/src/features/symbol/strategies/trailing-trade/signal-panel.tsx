@@ -543,6 +543,12 @@ function ladderRows(view: Extract<SignalView, { kind: 'holding' }>): readonly La
     // not exist, the same phantom promise as drawing a trailing line with no
     // trail. The worker refuses to name the arm on that config too.
     const pending = !view.trailingArmed && view.trailConfigured;
+    // Armed with no trailing row to follow it. `trailingStop` needs a fixed
+    // retrace percentage, so an ATR or bull-hold trail arms without one: the
+    // level lives in the worker's closed-candle ATR, which this mirror is not
+    // given. Saying only "armed" would leave the operator hunting for an exit
+    // level that is nowhere on the page.
+    const unmirrored = view.trailingArmed && view.trailingStop === null;
     rows.push({
       key: 'sell-arm',
       label: 'Sell arm',
@@ -550,7 +556,9 @@ function ladderRows(view: Extract<SignalView, { kind: 'holding' }>): readonly La
         ? 'Your sell trigger level. No trailing stop is configured, so reaching it starts no profit exit.'
         : pending
           ? 'Price rises to here → the trailing stop arms (profit-taking begins). Until it does there is no trailing exit at any price.'
-          : 'Price rises to here → the trailing stop arms (profit-taking begins).',
+          : unmirrored
+            ? 'Price rises to here → the trailing stop arms (profit-taking begins). The bot computes that level from its own ATR reading, so it is not shown here.'
+            : 'Price rises to here → the trailing stop arms (profit-taking begins).',
       price: view.sellArm.price,
       gapPct: view.sellArm.gapPct,
       tone: 'arm',
@@ -560,7 +568,9 @@ function ladderRows(view: Extract<SignalView, { kind: 'holding' }>): readonly La
         ? 'no trailing stop configured — reaching this arms nothing'
         : pending
           ? 'next gate — no trailing exit until price reaches here'
-          : 'armed',
+          : unmirrored
+            ? 'armed — trailed from the ATR, level not mirrored here'
+            : 'armed',
     });
   }
   // A trailing level exists only once armed (both are `highSinceBuy !== null`),

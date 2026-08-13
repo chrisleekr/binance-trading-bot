@@ -153,6 +153,8 @@ describe('evaluateSellGate — the blocker names the rung that held the position
   it('names no floor when a corrupted sub-entry floor disarmed that rung', () => {
     // floorPercentage < 1 would sell at a LOSS under the break-even label, so
     // the branch refuses the level — and the blocker must not invent one.
+    // It names the FIELD instead: the rung is configured and dead, which is not
+    // the same as absent, and `hasDownsideExit` on this record says so.
     const out = evaluateSellGate(
       input(
         { breakEven: { enabled: true, armAtPercentage: '1.01', floorPercentage: '0.9' } },
@@ -162,7 +164,9 @@ describe('evaluateSellGate — the blocker names the rung that held the position
       held(),
     );
     expect(out.kind).toBe('bump-high');
-    expect(blockerOf(out)?.reason).toBe('no-exit-configured');
+    expect(blockerOf(out)?.reason).toBe('exit-config-invalid');
+    expect(blockerOf(out)?.detail).toMatchObject({ field: 'breakEven.floorPercentage' });
+    expect(blockerOf(out)?.detail).not.toHaveProperty('floorPrice');
   });
 
   it('reports the pending break-even arm while the gain is short of it', () => {
@@ -188,9 +192,17 @@ describe('evaluateSellGate — the blocker names the rung that held the position
 
   it('skips the stop-loss rung when the stored percentage is out of bounds', () => {
     // A raw row above 1 would put the "stop" ABOVE the entry; the branch ignores
-    // it, so the blocker must not report a stop the gate will never fire.
+    // it, so the blocker must not report a stop the gate will never fire. It
+    // names the field instead. Falling through to `no-exit-configured` here
+    // would contradict `hasDownsideExit: true` on the same record, and would
+    // report this case differently from the UNPARSEABLE one above despite the
+    // operator's situation being identical.
     const out = evaluateSellGate(input({ stopLossPercentage: '1.5' }), held());
-    expect(blockerOf(out)?.reason).toBe('no-exit-configured');
+    expect(blockerOf(out)).toEqual({
+      reason: 'exit-config-invalid',
+      changeKey: 'exit-config-invalid|field=stopLossPercentage',
+      detail: { field: 'stopLossPercentage', currentPrice: '100', hasDownsideExit: true },
+    });
   });
 
   it('skips the fixed trail rung when the stored percentage is out of bounds', () => {
@@ -244,6 +256,15 @@ describe('evaluateSellGate — the blocker names the rung that held the position
       changeKey: 'exit-config-invalid|field=stopLossPercentage',
       detail: { field: 'stopLossPercentage', currentPrice: '100', hasDownsideExit: true },
     });
+  });
+
+  it('names an out-of-bound break-even arm as a dead rung', () => {
+    const out = evaluateSellGate(
+      input({ breakEven: { enabled: true, armAtPercentage: '0.99', floorPercentage: '1' } }),
+      held(),
+    );
+    expect(blockerOf(out)?.reason).toBe('exit-config-invalid');
+    expect(blockerOf(out)?.detail).toMatchObject({ field: 'breakEven.armAtPercentage' });
   });
 
   it('names the corrupt break-even floor when that is the rung that died', () => {

@@ -171,4 +171,56 @@ describe('buildBinanceResolver', () => {
     const resolved = await r.resolveBinanceFull(OPERATOR, ACCOUNT_B);
     expect(resolved?.orderGovernor.ceiling(10_000)).toBe(40);
   });
+
+  it('rebuilds an account governor when a refresh publishes a CHANGED ceiling', async () => {
+    // The memo is what makes the rolling window work, and it is also what stops
+    // a new ceiling from ever reaching a live account. A lowered limit that
+    // never lands is the dangerous direction: the governor keeps admitting
+    // against the old allowance and Binance answers -1015 on orders the whole
+    // mechanism exists to protect.
+    publishedRows.rows = ORDERS_ROWS;
+    const r = buildBinanceResolver({
+      db: fakeDb(),
+      redis: fakeRedis(),
+      logger: silentLogger(),
+      weightGovernor: anyProxy(),
+    });
+    await r.exchangeInfoRefresh();
+    const before = await r.resolveBinanceFull(OPERATOR, ACCOUNT_A);
+    expect(before?.orderGovernor.ceiling(10_000)).toBe(40);
+
+    publishedRows.rows = [
+      { rateLimitType: 'ORDERS', interval: 'SECOND', intervalNum: 10, limit: 5 },
+      { rateLimitType: 'ORDERS', interval: 'DAY', intervalNum: 1, limit: 160_000 },
+    ];
+    await r.exchangeInfoRefresh();
+    const after = await r.resolveBinanceFull(OPERATOR, ACCOUNT_A);
+
+    // floor(5 * 0.8) = 4. A same-instance assertion would pass on the stale
+    // governor too, so the ceiling is what proves the new rows landed.
+    expect(after?.orderGovernor.ceiling(10_000)).toBe(4);
+    expect(after?.orderGovernor).not.toBe(before?.orderGovernor);
+  });
+
+  it('keeps the memoised governor when a refresh republishes the SAME limits', async () => {
+    // The refresh cron re-runs on a schedule and almost always republishes an
+    // unchanged set. Rebuilding on every one of those would discard the rolling
+    // window each time and account nothing, which is the exact failure the memo
+    // was introduced to prevent.
+    publishedRows.rows = ORDERS_ROWS;
+    const r = buildBinanceResolver({
+      db: fakeDb(),
+      redis: fakeRedis(),
+      logger: silentLogger(),
+      weightGovernor: anyProxy(),
+    });
+    await r.exchangeInfoRefresh();
+    const before = await r.resolveBinanceFull(OPERATOR, ACCOUNT_A);
+
+    publishedRows.rows = [...ORDERS_ROWS];
+    await r.exchangeInfoRefresh();
+    const after = await r.resolveBinanceFull(OPERATOR, ACCOUNT_A);
+
+    expect(after?.orderGovernor).toBe(before?.orderGovernor);
+  });
 });
