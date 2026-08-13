@@ -147,8 +147,8 @@ describeIfDb('condition-states repo', () => {
       expect(rows[0]?.since.getTime()).toBe(T0.getTime());
       expect(rows[0]?.updatedAt.getTime()).toBe(T1.getTime());
 
-      // C5 wants the edge: the operator is watching the level, so the move is
-      // exactly the thing worth one row.
+      // The operator is watching the level, so a moved threshold is exactly
+      // the thing worth one edge row.
       const edges = await logs();
       expect(edges).toHaveLength(2);
       expect(

@@ -65,9 +65,12 @@ export type RecordConditionResult =
  *   - appends one `action_logs` edge with a uniform `ctx.source = 'condition'`,
  *     so one filter yields every state change in the system in one shape.
  *
- * The log append is best-effort relative to the state write: state is what the
- * diagnosis reads, so a failed edge must not lose it. Callers that care about
- * append failures get them via the thrown error only when state also failed.
+ * The two writes are not atomic and share one failure path. An append that
+ * fails after the state upsert landed still throws, so the caller reads
+ * "not recorded" for a state that was recorded. Catching it here is worse: a
+ * `ProfileScope` carries no logger, so the lost edge would vanish silently.
+ * A retry on that error is harmless, since the identity comparison finds the
+ * stored state and writes nothing, but it does not recover the missing edge.
  */
 export async function recordCondition(
   scope: ProfileScope,
