@@ -24,6 +24,7 @@ export * from './profile-state-history.js';
 export * from './profile-kv.js';
 export * from './profile-symbols.js';
 export * from './profiles.js';
+export * from './retention-config.js';
 export * from './symbol-states.js';
 export * from './trade-archive.js';
 export * from './users.js';

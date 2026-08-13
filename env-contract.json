@@ -110,16 +110,6 @@
     "kind": "config"
   },
   {
-    "env": "ACTION_LOG_RETENTION_DAYS",
-    "group": "Retention (days before pruning)",
-    "kind": "config"
-  },
-  {
-    "env": "AUDIT_LOG_RETENTION_DAYS",
-    "group": "Retention (days before pruning)",
-    "kind": "config"
-  },
-  {
     "env": "DISCOVERY_SNAPSHOT_RETENTION_DAYS",
     "group": "Retention (days before pruning)",
     "kind": "config"

@@ -22,7 +22,7 @@ afterAll(() => {
 // `profileRepoFromScope` / `accountRepoFromScope` must carry exactly the
 // module's scope-first exports for their tier — no fewer (a name the `only`
 // list forgets is `undefined` at call time while still typechecking, which is
-// the `storeProgress` class of bug) and no more (a two-arg bind over
+// how `listConditionEdges` reached production) and no more (a two-arg bind over
 // a module that also exports db-first globals binds those with the scope landing
 // in the `db` parameter slot).
 //

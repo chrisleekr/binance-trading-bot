@@ -34,6 +34,7 @@ import {
 import { recommendationLabel } from '@/shared/lib/technicals-format';
 
 import { titleCase } from '@app/contracts';
+import { describeReceipt } from '@/features/profile/lib/retention-receipt';
 import { TableSkeleton } from '@/shared/components/page-skeleton';
 
 /**
@@ -218,7 +219,7 @@ function AuditPayload({ payload }: { readonly payload: unknown }): React.JSX.Ele
 }
 
 /**
- * Single-line summary of one prune cron's last receipt. "Never run" when
+ * Single-line summary of both prune crons' last receipts. "Never run" when
  * the worker has not yet committed since its last restart. Pure
  * presentation; the data fetch lives here so the panel only pays for one
  * extra HTTP poll regardless of receipt count.
@@ -243,23 +244,15 @@ function RetentionFooter(): React.JSX.Element | null {
       </p>
     );
   }
-  const describe = (
-    label: string,
-    r: { ranAtMs: number; deleted: number; retentionDays: number } | null,
-  ): string => {
-    if (r === null) return `${label}: never run`;
-    const ageS = Math.max(0, Math.floor((Date.now() - r.ranAtMs) / 1_000));
-    const age =
-      ageS < 60
-        ? `${ageS}s ago`
-        : ageS < 3600
-          ? `${Math.floor(ageS / 60)}m ago`
-          : `${Math.floor(ageS / 3600)}h ago`;
-    return `${label}: ${r.deleted} pruned ${age} (retain ${r.retentionDays}d)`;
-  };
+  const failed = q.data.auditPrune?.ok === false || q.data.actionLogPrune?.ok === false;
+  const now = Date.now();
   return (
-    <p className="pt-2 text-xs text-muted-fg" data-testid="audit-retention-footer">
-      {describe('Audit', q.data.auditPrune)} · {describe('Action log', q.data.actionLogPrune)}
+    <p
+      className={cn('pt-2 text-xs', failed ? 'text-danger' : 'text-muted-fg')}
+      data-testid="audit-retention-footer"
+    >
+      {describeReceipt('Audit', q.data.auditPrune, now)} ·{' '}
+      {describeReceipt('Action log', q.data.actionLogPrune, now)}
     </p>
   );
 }

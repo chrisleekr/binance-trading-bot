@@ -3,9 +3,10 @@ import type { DI } from 'di.js';
 import type { Env } from 'types.js';
 import { HttpError } from 'middleware/error.js';
 
-// Locks credential / destructive / notifier-target routes under LIVE_DEMO. A
-// public demo box injects the operator identity for everyone (see
-// sessionResolver), so requireUser() no longer gates these — this guard does.
+// Locks credential, notifier, backup/restore, account creation and retention
+// changes under LIVE_DEMO. A public demo box injects the
+// operator identity for everyone (see sessionResolver), so requireUser() no
+// longer gates these. This guard does.
 // Reads di.env.LIVE_DEMO at REQUEST time, not mount time, so a route added to a
 // demo box later cannot silently stay reachable.
 export const requireNotDemo =

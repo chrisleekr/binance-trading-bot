@@ -261,6 +261,7 @@ const en: Readonly<Record<string, string>> = {
     'Restrict the key to this server’s IP on the Binance console. Keys are stored unencrypted, so the IP allowlist is what stops a stolen key from trading elsewhere.',
   'history.tab.archive': 'Archive',
   'history.tab.audit': 'Audit',
+  'history.tab.logs': 'Logs',
   'history.tab.activity': 'Activity',
   'activity.filter.all': 'All',
   'activity.filter.trades': 'Trades',

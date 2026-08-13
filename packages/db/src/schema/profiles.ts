@@ -1,15 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-  boolean,
-  check,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  uniqueIndex,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { accounts } from './accounts.js';
 
 export const profiles = pgTable(
@@ -68,20 +58,13 @@ export const profiles = pgTable(
     // contract defaults (every event on). Shape validated by @app/contracts
     // ProfileNotifyEvents at the API/worker boundary, not the DB.
     notifyEvents: jsonb('notify_events'),
-    actionLogRetentionDays: integer('action_log_retention_days'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [
-    uniqueIndex('profiles_account_name_uniq').on(table.accountId, table.name),
-    check(
-      'profiles_action_log_retention_days_chk',
-      sql`${table.actionLogRetentionDays} is null or ${table.actionLogRetentionDays} >= 1`,
-    ),
-  ],
+  (table) => [uniqueIndex('profiles_account_name_uniq').on(table.accountId, table.name)],
 );
 
 export type ProfileRow = typeof profiles.$inferSelect;

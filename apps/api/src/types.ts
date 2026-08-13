@@ -7,7 +7,7 @@ export interface Variables {
   userId?: UserId;
   // Mutated by audit middleware after a successful state-changing handler
   // returns; the middleware reads this and writes one audit_logs row.
-  auditEvent?: { event: string; payload?: unknown };
+  auditEvent?: { event: string; payload?: unknown; alreadyApplied?: boolean };
 }
 
 export interface Env {

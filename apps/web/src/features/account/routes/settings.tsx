@@ -1,7 +1,7 @@
 // `/settings` — the operator-level surface. Everything here belongs to the login
 // itself and is true no matter which Binance account is in view: the timezone
-// times render in, the ops notification toggles, the AI provider, the password,
-// the session, and the whole-database backup.
+// times render in, the ops notification toggles, the AI provider, how long logs
+// are kept, the password, the session, and the whole-database backup.
 //
 // Anything that acts on ONE account's wallet, key pair, or order book (dust
 // transfer, orphan orders, stop-all-trading) lives on that account's own
@@ -27,6 +27,7 @@ import { useTimezone } from '@/shared/context/timezone-context';
 import { OpsNotifyCard } from '@/features/account/components/ops-notify-card';
 import { AiProviderCard } from '@/features/account/components/ai-provider-card';
 import { OpsHealthPanel } from '@/features/account/components/ops-health-panel';
+import { RetentionSettingsCard } from '@/features/account/components/retention-settings-card';
 import { rootRoute } from '@/app/__root';
 
 const EmptyResponse = z.unknown();
@@ -173,6 +174,8 @@ function SettingsPage(): React.JSX.Element {
       <AiProviderCard />
 
       <OpsHealthPanel />
+
+      <RetentionSettingsCard />
 
       <Panel title="Shortcuts">
         <nav className="grid gap-2">

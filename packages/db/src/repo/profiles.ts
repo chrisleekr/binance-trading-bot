@@ -48,6 +48,19 @@ export async function listAllEnabled(
   return rows.map((r) => ({ ...r.profile, operatorId: r.operatorId as UserId }));
 }
 
+/**
+ * Every profile id in the deployment, enabled or not.
+ *
+ * Feeds the action-log cron's per-profile row cap, which has to reach disabled
+ * profiles too: switching a profile off stops it writing new rows but leaves the
+ * ones it already wrote, and those are exactly the rows a growth bound exists to
+ * cap. Cross-tenant by design, so db-first with no scope.
+ */
+export async function listAllIds(db: Database): Promise<string[]> {
+  const rows = await db.select({ id: profiles.id }).from(profiles);
+  return rows.map((r) => r.id);
+}
+
 /** Create a profile under the account (account-scoped: ownership already proven). */
 export async function insert(
   scope: AccountScope,

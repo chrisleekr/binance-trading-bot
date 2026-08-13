@@ -3,11 +3,12 @@
 // `resetSingletons` in `_helpers` restores every `check (id = 1)` row to its
 // migration defaults, because those rows cannot be truncated — each repo throws
 // when the row is missing. It carried only a comment asking the next author to
-// keep it in step, which is not a check: an unregistered singleton lets one
-// suite's write leak into every later suite in the process and, against a
-// persistent DATABASE_TEST_URL, into every later run. The symptom is a test
-// that passes on a fresh container and fails on the second run, which is the
-// worst shape a fixture bug can take.
+// keep it in step, and that is exactly what failed: `retention_config` shipped
+// without being registered, so a suite that shortened a retention horizon leaked
+// that horizon into every later suite in the process and, against a persistent
+// DATABASE_TEST_URL, into every later run. The symptom is a test that passes on
+// a fresh container and fails on the second run, which is the worst shape a
+// fixture bug can take.
 //
 // The database is asked which singletons exist rather than a list being restated
 // here, so adding a table is what arms the check — no second place to update.
@@ -40,7 +41,7 @@ describeIfInfra('resetSingletons', () => {
     const singletons = rows.map((r) => r.table_name).sort();
     // A vacuous pass would be indistinguishable from a correct one if the
     // query matched nothing, so require the ones that exist today.
-    expect(singletons.length).toBeGreaterThanOrEqual(3);
+    expect(singletons.length).toBeGreaterThanOrEqual(4);
 
     const helpers = await readFile(
       fileURLToPath(new URL('./_helpers.ts', import.meta.url)),

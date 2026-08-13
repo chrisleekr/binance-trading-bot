@@ -110,7 +110,6 @@ const aProfileRow = (overrides: Record<string, unknown> = {}) => ({
   state: {},
   enabled: true,
   binanceMode: 'test',
-  actionLogRetentionDays: null,
   createdAt: new Date(),
   updatedAt: new Date(),
   ...overrides,

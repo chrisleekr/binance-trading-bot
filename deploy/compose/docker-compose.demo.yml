@@ -11,8 +11,8 @@
 # key pair (seeded via a pg_restore of a golden snapshot at deploy — a deploy
 # secret, never committed), so visitors place real testnet orders with fake
 # money. "No sensitive info exposed" holds by construction: only a testnet key is
-# ever present and the credential, notifier, backup/restore, and
-# account-creation routes are off.
+# ever present and credential, notifier, backup/restore, account-creation and
+# retention-change routes are off.
 #
 # Operator deployment checklist:
 #   - Seed the golden testnet snapshot (account + profiles + symbols + history).

@@ -270,6 +270,11 @@ const resetSingletons = async (db: Queryable): Promise<void> => {
       enabled = false, interval_hours = 24, retention_count = 14, last_backup_at = null`);
   await db.query(/* sql */ `insert into ops_notify_config (id) values (1)
     on conflict (id) do update set events = '{}'::jsonb`);
+  await db.query(/* sql */ `insert into retention_config (id) values (1)
+    on conflict (id) do update set
+      action_log_days = 1, action_log_max_rows = 200000,
+      audit_log_days = 90, audit_stream_maxlen = 100000,
+      debug_capture_profile_id = null, debug_capture_until = null`);
   await db.query(/* sql */ `insert into ai_provider_config (id) values (1)
     on conflict (id) do update set
       provider = 'anthropic',

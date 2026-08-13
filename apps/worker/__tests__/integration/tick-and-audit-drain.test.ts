@@ -55,7 +55,12 @@ import { createStatePort } from '../../src/state/state-port.js';
 import { createTickHandler } from '../../src/tick/tick-handler.js';
 import type { ProfileTickContext } from '../../src/tick/build-tick-input.js';
 import type { SnapshotColdLoad } from '../../src/tick/snapshot-loader.js';
-import { createAuditShipper, createAuditDrainer } from '../../src/audit-shipper/audit-shipper.js';
+import {
+  AUDIT_DRAINER_GROUP,
+  createAuditShipper,
+  createAuditDrainer,
+} from '../../src/audit-shipper/audit-shipper.js';
+import { auditPersistBatch } from '../../src/boot/builders/audit.js';
 import { createLiveExecutor } from '../../src/executor/live-executor.js';
 import { createPlacementDedup, type PlacementDedup } from '../../src/executor/placement-dedup.js';
 import { buildProfileBindings } from '../../src/profile-bindings/index.js';
@@ -523,6 +528,7 @@ describeIfInfra('worker tick + audit-drain integration', () => {
               },
             });
           }
+          return rows.length;
         },
         enabledStreams: async () => [auditStreamKey],
         blockMs: 50,
@@ -668,4 +674,227 @@ describeIfInfra('worker tick + audit-drain integration', () => {
     const afterLen = Number(await h.redis.xlen(auditStreamKey));
     expect(afterLen - beforeLen).toBe(100);
   }, 240_000);
+
+  it('does not duplicate an action_log when XACK fails after persistence and reclaim retries it', async () => {
+    const stream = `${buildAuditStreamKey(ACCOUNT, PROFILE)}:ack-reclaim`;
+    const tickId = '00000000-0000-4000-8000-000000000793';
+    const logger = pino({ level: 'silent' });
+    const countRows = async (): Promise<number> => {
+      const res = await h.pool.query<{ count: string }>(
+        `select count(*)::text as count from action_logs
+           where profile_id = $1
+             and ctx ->> 'tickId' = $2`,
+        [TEST_PROFILE_ID, tickId],
+      );
+      return Number(res.rows[0]?.count ?? '-1');
+    };
+    const pendingCount = async (): Promise<number> => {
+      const summary = (await h.redis.xpending(stream, AUDIT_DRAINER_GROUP)) as readonly unknown[];
+      return Number(summary[0]);
+    };
+
+    let rejectFirstAck = true;
+    const redisWithFirstAckFailure = new Proxy(h.redis, {
+      get(target, property, receiver) {
+        if (property === 'pipeline') {
+          return () => {
+            const pipeline = target.pipeline();
+            let queuesAck = false;
+            let pipelineProxy: typeof pipeline;
+            pipelineProxy = new Proxy(pipeline, {
+              get(pipelineTarget, pipelineProperty, pipelineReceiver) {
+                if (pipelineProperty === 'xack') {
+                  return (ackStream: string, group: string, ...ids: string[]) => {
+                    queuesAck = true;
+                    pipelineTarget.xack(ackStream, group, ...ids);
+                    return pipelineProxy;
+                  };
+                }
+                if (pipelineProperty === 'exec') {
+                  return async () => {
+                    if (queuesAck && rejectFirstAck) {
+                      rejectFirstAck = false;
+                      throw new Error('injected XACK pipeline failure');
+                    }
+                    return pipelineTarget.exec();
+                  };
+                }
+                const value = Reflect.get(pipelineTarget, pipelineProperty, pipelineReceiver);
+                return typeof value === 'function' ? value.bind(pipelineTarget) : value;
+              },
+            });
+            return pipelineProxy;
+          };
+        }
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+
+    await h.redis.del(stream);
+    try {
+      await h.redis.xgroup('CREATE', stream, AUDIT_DRAINER_GROUP, '$', 'MKSTREAM');
+      await h.redis.xadd(
+        stream,
+        '*',
+        'body',
+        JSON.stringify({
+          accountId: TEST_ACCOUNT_ID,
+          profileId: TEST_PROFILE_ID,
+          tickId,
+          ts: Date.now(),
+          symbol: SYMBOL,
+          event: 'ack-reclaim-probe',
+          latencyMs: 3,
+          decisionTypes: ['place-order'],
+          clientOrderIds: ['cid-ack-reclaim-793'],
+          payload: { results: [{ type: 'place-order', ok: true }] },
+        }),
+      );
+
+      const drainer = createAuditDrainer({
+        redis: redisWithFirstAckFailure,
+        logger,
+        persistBatch: auditPersistBatch(h.db),
+        enabledStreams: async () => [stream],
+        blockMs: 50,
+        reclaimMinIdleMs: 1,
+      });
+
+      await expect(drainer.drainOnce()).resolves.toMatchObject({ batched: 1 });
+      expect(await countRows()).toBe(1);
+      expect(await pendingCount()).toBe(1);
+
+      await new Promise((resolve) => setTimeout(resolve, 25));
+
+      await expect(drainer.drainOnce()).resolves.toMatchObject({ batched: 1 });
+      expect(await pendingCount()).toBe(0);
+      expect(await countRows()).toBe(1);
+    } finally {
+      await h.redis.del(stream);
+    }
+  }, 60_000);
+
+  // The drainer skips the ACK when a persist fails, on the assumption the batch
+  // stays retryable in the group's PEL. Every read passes `>`, which returns only
+  // never-delivered entries, so before the reclaim path nothing ever came back
+  // for it: the rows were lost and XPENDING kept a permanent floor. Real Redis
+  // rather than a stub, because the PEL, XPENDING IDLE filtering and the XCLAIM
+  // ownership transfer are all server-side behaviour a hand-rolled mock asserts
+  // about itself.
+  it('reclaims a PEL batch abandoned by a failed persist and lands it in action_logs on a later pass', async () => {
+    // A dedicated stream: the exact XPENDING counts below would otherwise be
+    // perturbed by whatever the tick-driven cases left on the shared audit key.
+    const stream = `${buildAuditStreamKey(ACCOUNT, PROFILE)}:reclaim`;
+    const logger = pino({ level: 'silent' });
+    const countRows = async (): Promise<number> => {
+      const res = await h.pool.query<{ count: string }>(
+        `select count(*)::text as count from action_logs
+           where profile_id = $1
+             and ctx -> 'clientOrderIds' @> '["cid-reclaim-1"]'::jsonb`,
+        [TEST_PROFILE_ID],
+      );
+      return Number(res.rows[0]?.count ?? '-1');
+    };
+    const pendingCount = async (): Promise<number> => {
+      const summary = (await h.redis.xpending(stream, AUDIT_DRAINER_GROUP)) as readonly unknown[];
+      return Number(summary[0]);
+    };
+
+    await h.redis.del(stream);
+    try {
+      // Group first, entry second, so the entry is deliverable from `$`.
+      await h.redis.xgroup('CREATE', stream, AUDIT_DRAINER_GROUP, '$', 'MKSTREAM');
+      await h.redis.xadd(
+        stream,
+        '*',
+        'body',
+        JSON.stringify({
+          accountId: TEST_ACCOUNT_ID,
+          profileId: TEST_PROFILE_ID,
+          tickId: '00000000-0000-4000-8000-000000000794',
+          ts: Date.now(),
+          symbol: SYMBOL,
+          event: 'reclaim-probe',
+          latencyMs: 3,
+          // Actionable on purpose. A 'noop' entry is filtered out by the real
+          // mapper and writes zero rows, so it would exercise none of the
+          // production persist path this case exists to prove.
+          decisionTypes: ['place-order'],
+          clientOrderIds: ['cid-reclaim-1'],
+          payload: { results: [{ type: 'place-order', ok: true }] },
+        }),
+      );
+
+      const failing = createAuditDrainer({
+        redis: h.redis,
+        logger,
+        persistBatch: async () => {
+          throw new Error('postgres unreachable');
+        },
+        enabledStreams: async () => [stream],
+        blockMs: 50,
+        reclaimMinIdleMs: 1,
+      });
+      await expect(failing.drainOnce()).resolves.toMatchObject({ batched: 0 });
+
+      // Delivered but unacked: the state the pre-fix drainer could never leave.
+      expect(await pendingCount()).toBe(1);
+      expect(await countRows()).toBe(0);
+
+      // Age the entry past the injected min-idle window. Both XPENDING IDLE and
+      // XCLAIM filter on it, so reclaiming with no wait at all would leave that
+      // filter unexercised.
+      await new Promise((r) => setTimeout(r, 25));
+
+      const healthy = createAuditDrainer({
+        redis: h.redis,
+        logger,
+        // The production closure itself, not a hand-rolled stand-in: the mapper's
+        // filter and insertMany's empty-set skip are exactly what makes the
+        // returned count a proof of a write rather than of a resolve, and a copy
+        // here could drift from the one the worker actually runs.
+        persistBatch: auditPersistBatch(h.db),
+        enabledStreams: async () => [stream],
+        blockMs: 50,
+        reclaimMinIdleMs: 1,
+      });
+
+      // Nothing new was XADDed, so this count can only come from the PEL.
+      await expect(healthy.drainOnce()).resolves.toMatchObject({ batched: 1 });
+      expect(await countRows()).toBe(1);
+      // ACKed for real, so the pending floor falls back instead of standing for
+      // the life of the consumer group.
+      expect(await pendingCount()).toBe(0);
+
+      // The other half of the contract, against the real mapper and a real
+      // Postgres: a non-actionable entry writes NOTHING, so the persist reports
+      // zero even though it resolved. That zero is what stops a noop from
+      // proving the backend healthy and condemning an actionable entry beside
+      // it. It is still ACKed — it has nothing to write, and holding it would
+      // park the pending gauge on a permanent floor.
+      await h.redis.xadd(
+        stream,
+        '*',
+        'body',
+        JSON.stringify({
+          accountId: TEST_ACCOUNT_ID,
+          profileId: TEST_PROFILE_ID,
+          tickId: '00000000-0000-4000-8000-000000000795',
+          ts: Date.now(),
+          symbol: SYMBOL,
+          event: 'reclaim-probe-noop',
+          latencyMs: 3,
+          decisionTypes: ['noop'],
+          clientOrderIds: ['cid-reclaim-1'],
+          payload: {},
+        }),
+      );
+      await expect(healthy.drainOnce()).resolves.toMatchObject({ batched: 1 });
+      expect(await countRows()).toBe(1);
+      expect(await pendingCount()).toBe(0);
+    } finally {
+      await h.redis.del(stream);
+    }
+  }, 60_000);
 });

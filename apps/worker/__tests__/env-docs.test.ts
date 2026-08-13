@@ -49,7 +49,11 @@ describe('worker env documentation', () => {
   const env = loadWorkerEnv(MINIMUM) as unknown as Record<string, unknown>;
 
   it('documents at least the worker-specific variables, so the walk is not vacuous', () => {
-    expect(documented().length).toBeGreaterThanOrEqual(15);
+    // 13, down from 15: the action-log and audit-log retention horizons stopped
+    // being env vars and became operator-settable rows in `retention_config`.
+    // The floor only guards against the walk silently emptying out; it is not a
+    // ratchet, so a deliberate removal moves it.
+    expect(documented().length).toBeGreaterThanOrEqual(13);
   });
 
   it.each(documented())('%s: the documented default is the schema default', (name, v) => {

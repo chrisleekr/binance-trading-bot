@@ -1,4 +1,4 @@
-// HistoryPage — the per-profile History page (archive · audit · activity tabs).
+// HistoryPage — the per-profile History page (archive · audit · logs · activity).
 // Replaced the HISTORY dock. Asserts the page chrome and tab switching; the
 // individual panels have their own tests.
 
@@ -80,11 +80,12 @@ describe('HistoryPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders the History header and the three tabs, archive active by default', async () => {
+  it('renders the History header and every tab, archive active by default', async () => {
     setUp();
     expect(await screen.findByRole('heading', { name: /^history$/i })).toBeInTheDocument();
     expect(screen.getByTestId('history-tab-archive')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('history-tab-audit')).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByTestId('history-tab-logs')).toBeInTheDocument();
     expect(screen.getByTestId('history-tab-activity')).toBeInTheDocument();
   });
 
@@ -103,6 +104,14 @@ describe('HistoryPage', () => {
     await screen.findByTestId('history-tab-audit');
     await userEvent.click(screen.getByTestId('history-tab-audit'));
     expect(screen.getByTestId('history-tab-audit')).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('switches to the Logs tab on click, mounting the log viewer', async () => {
+    setUp();
+    await screen.findByTestId('history-tab-logs');
+    await userEvent.click(screen.getByTestId('history-tab-logs'));
+    expect(screen.getByTestId('history-tab-logs')).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByTestId('log-viewer')).toBeInTheDocument();
   });
 
   it('clicking a tab writes it to the URL, so the view is linkable', async () => {

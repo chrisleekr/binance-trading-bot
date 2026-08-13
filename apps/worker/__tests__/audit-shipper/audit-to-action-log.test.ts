@@ -9,6 +9,7 @@ import {
 const entry = (over: Partial<AuditEntry> = {}): AuditEntry => ({
   userId: asUserId('11111111-1111-1111-1111-111111111111'),
   profileId: asProfileId('22222222-2222-2222-2222-222222222222'),
+  tickId: '00000000-0000-4000-8000-000000000793',
   ts: 1_700_000_000_000,
   symbol: 'BTCUSDT',
   event: 'tick',
@@ -96,6 +97,19 @@ describe('auditEntriesToActionLogs', () => {
       msg: 'ETHUSDT: placed 1 order(s)',
     });
     expect(rows[0]?.time).toEqual(new Date(1_700_000_000_000));
+  });
+
+  it('maps tickId to the action_log row id', () => {
+    const tickId = '00000000-0000-4000-8000-000000000793';
+    const [row] = auditEntriesToActionLogs([
+      entry({
+        tickId,
+        decisionTypes: ['place-order'],
+        payload: results({ type: 'place-order', ok: true }),
+      }),
+    ]);
+
+    expect(row?.id).toBe(tickId);
   });
 
   it('summarises mixed place + cancel that both succeeded and carries context', () => {
@@ -267,5 +281,70 @@ describe('auditEntriesToActionLogs', () => {
 
   it('returns an empty array when nothing is actionable', () => {
     expect(auditEntriesToActionLogs([entry(), entry({ decisionTypes: ['noop'] })])).toEqual([]);
+  });
+});
+
+// Deep capture is the answer to "why did nothing happen at 14:32", so what
+// matters is not just that captured ticks are kept but that keeping them does
+// not degrade the ordinary rows: an actionable tick under capture must stay one
+// row at its own level, and a quiet tick must not be dressed up as a fault.
+describe('auditEntriesToActionLogs under deep capture', () => {
+  const CAPTURED = '22222222-2222-2222-2222-222222222222';
+  const OTHER = '33333333-3333-3333-3333-333333333333';
+  const policy = { debugCaptureProfileId: CAPTURED };
+
+  it('keeps a quiet tick as one debug row carrying the whole payload', () => {
+    const rows = auditEntriesToActionLogs(
+      [entry({ tickId: 'tick-1', payload: { price: '42', custom: { deep: true } } })],
+      policy,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.level).toBe('debug');
+    expect(rows[0]?.msg).toBe('BTCUSDT: evaluated, no action');
+    expect(rows[0]?.ctx).toMatchObject({
+      source: 'tick',
+      tickId: 'tick-1',
+      latencyMs: 5,
+      price: '42',
+      custom: { deep: true },
+    });
+  });
+
+  it('names the non-order decisions rather than calling real work "no action"', () => {
+    const [row] = auditEntriesToActionLogs(
+      [entry({ decisionTypes: ['set-kv', 'emit-event'] })],
+      policy,
+    );
+    expect(row?.msg).toBe('BTCUSDT: set-kv, emit-event, no order action');
+  });
+
+  it('does not duplicate an actionable tick into a second debug row', () => {
+    const rows = auditEntriesToActionLogs(
+      [
+        entry({
+          decisionTypes: ['place-order'],
+          payload: { ...results({ type: 'place-order', ok: true }), extra: 'kept' },
+        }),
+      ],
+      policy,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.level).toBe('info');
+    expect(rows[0]?.msg).toBe('BTCUSDT: placed 1 order(s)');
+    // The row gains the full payload without losing its summary line.
+    expect(rows[0]?.ctx).toMatchObject({ extra: 'kept' });
+  });
+
+  it('leaves other profiles on the default drain policy', () => {
+    const rows = auditEntriesToActionLogs(
+      [entry({ profileId: asProfileId(OTHER) }), entry({ profileId: asProfileId(CAPTURED) })],
+      policy,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.profileId).toBe(CAPTURED);
+  });
+
+  it('carries no capture when the policy names no profile (the default)', () => {
+    expect(auditEntriesToActionLogs([entry()], { debugCaptureProfileId: null })).toEqual([]);
   });
 });

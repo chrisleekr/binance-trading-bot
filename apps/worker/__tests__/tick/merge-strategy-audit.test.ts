@@ -4,7 +4,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { mergeStrategyAudit } from '../../src/tick/merge-strategy-audit.js';
+import { mergeStrategyAudit, RESERVED_AUDIT_KEYS } from '../../src/tick/merge-strategy-audit.js';
 
 const workerPayload = (): Record<string, unknown> => ({
   enqueuedAtMs: 1,
@@ -55,15 +55,20 @@ describe('mergeStrategyAudit', () => {
   it('guards every reserved key', () => {
     const payload = workerPayload();
     const onCollision = vi.fn();
+    // Driven from the exported set, not from a hand-written list: naming three
+    // of them and asserting three calls passes forever while claiming "every",
+    // so a key added to the guard would go untested by the test named after it.
+    // Null-prototype so `__proto__` becomes a plain own key rather than hitting
+    // the inherited setter.
+    const block = Object.create(null) as Record<string, unknown>;
+    for (const key of RESERVED_AUDIT_KEYS) block[key] = 'hijacked';
 
-    mergeStrategyAudit(
-      payload,
-      { enqueuedAtMs: 999, eventPayload: 'x', results: 'y' },
-      onCollision,
-    );
+    mergeStrategyAudit(payload, block, onCollision);
 
+    expect(Object.keys(block)).toHaveLength(RESERVED_AUDIT_KEYS.size);
     expect(payload).toEqual(workerPayload());
-    expect(onCollision).toHaveBeenCalledTimes(3);
+    expect(onCollision).toHaveBeenCalledTimes(RESERVED_AUDIT_KEYS.size);
+    for (const key of RESERVED_AUDIT_KEYS) expect(onCollision).toHaveBeenCalledWith(key);
   });
 
   it('refuses a JSON.parse-borne __proto__ key instead of rebinding the prototype', () => {

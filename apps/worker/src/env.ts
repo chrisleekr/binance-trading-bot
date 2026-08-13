@@ -25,20 +25,6 @@ export interface WorkerEnv {
    */
   LOG_LEVEL: LogLevel;
   /**
-   * Action-log retention horizon for the `action-log-prune` cron.
-   * Rows with `time < now - retention` are deleted on each cron fire.
-   * The default of 30 days is a sensible retention horizon; production
-   * operators routinely override via the compose env block.
-   */
-  ACTION_LOG_RETENTION_DAYS: number;
-  /**
-   * Audit-log retention horizon for the `audit-prune` cron. Default
-   * 90 days because audit_logs is a regular Postgres table (not a
-   * hypertable) and the longer horizon reflects the forensic-record
-   * intent of the table.
-   */
-  AUDIT_LOG_RETENTION_DAYS: number;
-  /**
    * Discovery universe-snapshot retention horizon for the
    * `discovery-snapshot-prune` cron. Rows with `captured_at < now - retention`
    * are deleted on each cron fire. Default 180 days is deliberately generous:
@@ -144,8 +130,6 @@ const WorkerEnvSchema = z.object({
   ...sharedEnvFields,
   LIVE_DEMO: booleanEnvFlag(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-  ACTION_LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
-  AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
   DISCOVERY_SNAPSHOT_RETENTION_DAYS: z.coerce.number().int().positive().default(180),
   EQUITY_SNAPSHOT_RETENTION_DAYS: z.coerce.number().int().positive().default(365),
   WORKER_ADMIN_PORT: z.coerce.number().int().positive().default(9101),
@@ -171,7 +155,7 @@ const WorkerEnvSchema = z.object({
  * invalid values fail fast at boot rather than at the first tick.
  *
  * Failing here is loud and operator-actionable; a malformed
- * `ACTION_LOG_RETENTION_DAYS=foo` or a missing `DATABASE_URL` crashes
+ * `DISCOVERY_SNAPSHOT_RETENTION_DAYS=foo` or a missing `DATABASE_URL` crashes
  * boot with a precise zod issue list rather than silently coercing to
  * `NaN` or falling back to `localhost`.
  */

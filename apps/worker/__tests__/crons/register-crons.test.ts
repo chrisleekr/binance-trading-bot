@@ -113,8 +113,10 @@ const buildCrons = (overrides?: Partial<Record<string, Partial<CronDef>>>): read
       handler: actionLogPruneHandler({
         logger: silentLogger,
         redis: stubRedis(),
-        retentionDays: 30,
-        prune: vi.fn(async () => 0),
+        resolveLimits: async () => ({ retentionDays: 30, maxRows: 200_000 }),
+        pruneByAge: vi.fn(async () => 0),
+        listProfileIds: async () => [],
+        pruneByRowCap: vi.fn(async () => 0),
       }),
     }),
     defineCron({
@@ -124,7 +126,7 @@ const buildCrons = (overrides?: Partial<Record<string, Partial<CronDef>>>): read
       handler: auditPruneHandler({
         logger: silentLogger,
         redis: stubRedis(),
-        retentionDays: 90,
+        resolveRetentionDays: async () => 90,
         pruneOlderThan: vi.fn(async () => 0),
       }),
     }),
@@ -392,15 +394,18 @@ describe('registerCrons', () => {
     expect(sendDigest).toHaveBeenCalledTimes(1);
   });
 
-  it('action-log-prune worker invokes the injected pruner', async () => {
-    const prune = vi.fn(async () => 7);
+  it('action-log-prune worker invokes both injected pruners', async () => {
+    const pruneByAge = vi.fn(async () => 7);
+    const pruneByRowCap = vi.fn(async () => 2);
     const crons = buildCrons({
       'action-log-prune': {
         handler: actionLogPruneHandler({
           logger: silentLogger,
           redis: stubRedis(),
-          retentionDays: 30,
-          prune,
+          resolveLimits: async () => ({ retentionDays: 30, maxRows: 200_000 }),
+          pruneByAge,
+          listProfileIds: async () => ['p1'],
+          pruneByRowCap,
         }),
       },
     });
@@ -411,7 +416,10 @@ describe('registerCrons', () => {
     const w = registeredWorkers.find((r) => r.name === 'action-log-prune');
     if (!w) throw new Error('test setup: action-log-prune worker not registered');
     await w.handler({ id: 'job-1', data: { isoDate: '2026-05-14' } } as unknown as Job);
-    expect(prune).toHaveBeenCalledTimes(1);
+    // Both rules run in the one registered worker. Asserting only the age pass
+    // would let the cap silently stop being wired.
+    expect(pruneByAge).toHaveBeenCalledTimes(1);
+    expect(pruneByRowCap).toHaveBeenCalledWith('p1', 200_000);
   });
 
   it('audit-prune worker invokes the injected pruner with retentionDays', async () => {
@@ -421,7 +429,7 @@ describe('registerCrons', () => {
         handler: auditPruneHandler({
           logger: silentLogger,
           redis: stubRedis(),
-          retentionDays: 45,
+          resolveRetentionDays: async () => 45,
           pruneOlderThan,
         }),
       },

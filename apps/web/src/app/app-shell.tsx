@@ -34,8 +34,8 @@ export function AppShell({
   // full-bleed grid. Every other route keeps the default scroll+padding.
   disableMainScroll?: boolean;
 }) {
-  // Public "Live demo": show the persistent banner and hide the entry points to
-  // the now-403 credential/destructive routes (Settings, backup, api-keys).
+  // Public "Live demo": show the persistent banner and hide settings,
+  // backup, and API-key entry points. Testnet trading stays interactive.
   const demoMode = useDemoMode();
   // WebKit has no scroll anchoring: a polled reflow above the fold bounces a
   // scrolled reader on the next tick. Hold their spot on <main> — the scroller

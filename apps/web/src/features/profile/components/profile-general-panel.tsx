@@ -143,8 +143,8 @@ function GeneralPanelBody({
   const rename = useMutation({
     mutationFn: (name: string) => patchProfile(profileId, { name }),
     onSuccess: async () => {
-      await invalidateProfile();
       toast.success(t('profile.controls.saved'));
+      await invalidateProfile();
     },
     onError: (err: unknown) =>
       toast.error(err instanceof Error ? err.message : t('profile.controls.rename_failed')),
@@ -153,8 +153,8 @@ function GeneralPanelBody({
   const setQuote = useMutation({
     mutationFn: (quoteAsset: string) => patchProfile(profileId, { quoteAsset }),
     onSuccess: async () => {
-      await invalidateProfile();
       toast.success(t('profile.controls.saved'));
+      await invalidateProfile();
     },
     onError: (err: unknown) =>
       toast.error(err instanceof Error ? err.message : t('profile.controls.quote_failed')),

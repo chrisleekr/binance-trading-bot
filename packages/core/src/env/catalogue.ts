@@ -217,7 +217,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     description: 'Turns the instance into a public, no-login sandbox.',
     when: 'Only on a throwaway public demo box. Never on an instance holding your keys.',
     expect:
-      'Injects a demo operator for every anonymous request, blocks credential and destructive routes, suppresses all notifier sending, and refuses to boot if any account is on live Binance. Only `1` or `true` enable it.',
+      'Injects a demo operator for every anonymous request; blocks credential, notifier, backup/restore, account-creation and retention-change routes; suppresses all notifier sending; and refuses to boot if any account is on live Binance. Trading remains interactive on Binance testnet. Only `1` or `true` enable it.',
   },
   PUBLIC_WEB_URL: {
     group: 'Runtime',
@@ -389,29 +389,6 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
   },
 
   // ── Retention ──────────────────────────────────────────────────────────────
-  ACTION_LOG_RETENTION_DAYS: {
-    group: 'Retention (days before pruning)',
-    consumers: ['worker'],
-    parsed: true,
-    kind: 'config',
-    values: 'a positive integer',
-    def: '30',
-    description: 'How long per-symbol action-log entries are kept.',
-    when: 'Raise it if you investigate incidents more than a month after the fact.',
-    expect:
-      'A daily sweep deletes anything older. Action logs are the highest-volume table, so a long horizon costs real disk.',
-  },
-  AUDIT_LOG_RETENTION_DAYS: {
-    group: 'Retention (days before pruning)',
-    consumers: ['worker'],
-    parsed: true,
-    kind: 'config',
-    values: 'a positive integer',
-    def: '90',
-    description: 'How long the audit trail of operator and system actions is kept.',
-    when: 'Raise it if you need a longer forensic window. This is the record of who changed what.',
-    expect: 'Longer than the action-log default on purpose. Deleted rows are unrecoverable.',
-  },
   DISCOVERY_SNAPSHOT_RETENTION_DAYS: {
     group: 'Retention (days before pruning)',
     consumers: ['worker'],
