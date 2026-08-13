@@ -30,7 +30,6 @@ const setUp = (): {
   return { record, getWaitingCount, deps };
 };
 
-/** The value the sampler recorded for `name` under `labels`, or undefined. */
 const valueOf = (
   record: ReturnType<typeof vi.fn>,
   name: string,

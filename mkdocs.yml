@@ -146,7 +146,6 @@ nav:
           - Account isolation: architecture/account-isolation.md
           - Worker pipeline: architecture/worker-pipeline.md
           - Database: architecture/database.md
-          - Conditions & diagnosis: architecture/observability-conditions.md
           - Auth: architecture/auth.md
       - Extending:
           - Strategy plugin contract: architecture/extensibility.md

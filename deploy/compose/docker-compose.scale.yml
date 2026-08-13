@@ -76,9 +76,8 @@ services:
       <<: *app-env
       ROLE: worker
       BACKUP_DIR: ${BACKUP_DIR:-/backups}
-      # Action-log and audit-log retention are DB-configured via Account →
-      # Settings → Retention, not env. A leftover *_RETENTION_DAYS here would
-      # read like a live knob while the worker ignores it.
+      ACTION_LOG_RETENTION_DAYS: ${ACTION_LOG_RETENTION_DAYS:-30}
+      AUDIT_LOG_RETENTION_DAYS: ${AUDIT_LOG_RETENTION_DAYS:-90}
       # Only the api service migrates; skip here so concurrent boots never race.
       SKIP_MIGRATIONS: '1'
     volumes:

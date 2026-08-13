@@ -10,7 +10,9 @@ const config: PlaywrightTestConfig = defineConfig({
   expect: { timeout: 10_000 },
   reporter: [['list'], ['json', { outputFile: 'test-results/app-results.json' }]],
   use: {
-    baseURL: 'http://localhost:53000',
+    // Matches WEB_ORIGIN in scripts/ci/test-app-e2e.sh: the api binds IPv4 only,
+    // and `localhost` can resolve to ::1 first.
+    baseURL: 'http://127.0.0.1:53000',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

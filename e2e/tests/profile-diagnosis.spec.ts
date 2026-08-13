@@ -113,7 +113,10 @@ test('investigate: header button to a finished report, and a lever that lands on
   // Panel and AutoForm group above it was expanded on arrival.
   const field = page.locator(`[id="${path}"]`);
   await expect(field).toBeVisible({ timeout: 10_000 });
-  await expect(page).toHaveURL(new RegExp(`focus=${encodeURIComponent(path)}`));
+  // Compared as a decoded value, not as a URL pattern: `encodeURIComponent`
+  // leaves `.` alone, so a regex built from `grid.buy.step` also matches
+  // `gridXbuyYstep`.
+  await expect.poll(() => new URL(page.url()).searchParams.get('focus')).toBe(path);
 });
 
 test('investigate: at 375x667 the button fits the header and the drawer is full width', async () => {
