@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Decimal } from '@app/money';
-import { assertDeterministic, decOrNull, mergeConfig } from '@app/strategy-core';
+import {
+  assertDeterministic,
+  decOrNull,
+  mergeConfig,
+  PROTECTIVE_STOP_BLOCKER_REASONS,
+} from '@app/strategy-core';
 import type { Candle, OpenOrder, ProfileSnapshot, SymbolInfo, TickInput } from '@app/strategy-core';
 
 import {
@@ -2766,5 +2771,183 @@ describe('momentum.tick — profit trail', () => {
     // one re-price per 5m bucket end — 12 of them in the hour.
     expect(placements).toBe(13);
     expect(placements).toBeLessThanOrEqual(1 + 60 / 5);
+  });
+});
+
+// The failure this guards: a held position whose recomputed stop falls under
+// Binance's PERCENT_PRICE_BY_SIDE ask floor. The arm cancels the resting stop,
+// the replacement comes back -1013, and the pair is re-derived every tick with
+// the position unguarded. The band and tick size are a real low-priced pair's,
+// so the arithmetic below exercises tick-grid rounding rather than round
+// numbers that hide it.
+describe('momentum.tick — protective stop outside the exchange price band', () => {
+  const BAND_FILTERS: SymbolInfo['filters'] = {
+    minNotional: '5',
+    tickSize: '0.001',
+    stepSize: '0.01',
+    minQty: '0.01',
+    maxQty: '92141578',
+    minPrice: '0.001',
+    maxPrice: '10000',
+    percentPriceBySide: {
+      bidMultiplierUp: '1.1',
+      bidMultiplierDown: '0.5',
+      askMultiplierUp: '2',
+      askMultiplierDown: '0.9',
+      avgPriceMins: 5,
+    },
+  };
+
+  const BAND_CFG = cfg({
+    trailingStopPct: '0.15',
+    protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' },
+  });
+
+  // Flat and below the position's high-water mark. The trail ratchets on the
+  // closed candle, so a flat series pins the trigger to `highSinceEntry` and
+  // leaves each case's reference price as the only variable.
+  const BAND_SERIES = ['8.4', '8.4', '8.4', '8.4'];
+
+  const heldPosition = (over: Partial<MomentumState> = {}): MomentumState =>
+    longState({ entryPrice: '8.416', highSinceEntry: '8.779', heldQuantity: '3.13', ...over });
+
+  const RESTING = psOrder({ stopPrice: '7.300', price: '7.154', origQty: '3.13' });
+
+  const bandInput = (
+    currentPrice: string,
+    over: Partial<InputOpts> = {},
+  ): TickInput<MomentumConfig, MomentumState, MomentumBundle> =>
+    mkInput({
+      closes: mkCandles(BAND_SERIES),
+      currentPrice,
+      state: heldPosition(),
+      config: BAND_CFG,
+      filters: BAND_FILTERS,
+      openOrders: [RESTING],
+      balances: {
+        USDT: QUOTE_BALANCE,
+        BTC: { asset: 'BTC', free: new Decimal('0'), locked: new Decimal('3.13') },
+      },
+      ...over,
+    });
+
+  it('emits neither the place nor the cancel, and records why on state', () => {
+    // trailingStopPct 0.15 against highSinceEntry 8.779 resolves the 7.462 /
+    // 7.312 pair the live order carried. Binance's floor is 8.8320 * 0.9 =
+    // 7.9488, so both legs sit under it and -1013 is the only possible answer.
+    const out = momentum.tick(bandInput('8.8320'));
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.protectiveStopBlocker?.reason).toBe('price-outside-exchange-band');
+    expect(out.nextState.protectiveStopBlocker?.detail).toMatchObject({
+      stopPrice: '7.462',
+      price: '7.312',
+      floor: '7.9488',
+      avgPriceMins: 5,
+      terminal: false,
+    });
+    // The position itself is untouched: this gates the stop-arm, not the trade.
+    expect(out.nextState.heldQuantity).toBe('3.13');
+  });
+
+  it('persists the refusal through the state schema unchanged', () => {
+    // The schema's reason enum is a hand-copy of the core vocabulary. Nothing
+    // parses persisted momentum state through it at runtime, so the tests here
+    // are where the copy is exercised as data rather than as a type. Assert a
+    // blocker is there first: with both sides null the round trip passes just
+    // as well with the band check deleted.
+    const out = momentum.tick(bandInput('8.8320'));
+    expect(out.nextState.protectiveStopBlocker?.reason).toBe('price-outside-exchange-band');
+    expect(MomentumStateSchema.parse(out.nextState).protectiveStopBlocker).toEqual(
+      out.nextState.protectiveStopBlocker,
+    );
+  });
+
+  it('accepts every reason the core vocabulary defines, not just this one', () => {
+    // The hand-copy above is only safe while it stays complete. `tsc` already
+    // rejects a narrowed enum where tick.ts assigns the core blocker into
+    // MomentumState, but it points at that assignment; driving the loop off the
+    // exported list fails here too, naming the reason that went missing.
+    for (const reason of PROTECTIVE_STOP_BLOCKER_REASONS) {
+      const parsed = MomentumStateSchema.parse({
+        ...heldPosition(),
+        protectiveStopBlocker: { reason },
+      });
+      expect(parsed.protectiveStopBlocker).toEqual({ reason });
+    }
+    // Without this the loop above survives the enum being widened to z.string(),
+    // which is a plausible repair when a parse blows up somewhere else.
+    expect(() =>
+      MomentumStateSchema.parse({
+        ...heldPosition(),
+        protectiveStopBlocker: { reason: 'not-a-real-reason' },
+      }),
+    ).toThrow();
+  });
+
+  it('warns, rather than informs, when the deferral leaves nothing covering the position', () => {
+    // Same refusal, no resting stop to fall back on. This is the branch the
+    // quieter guarded case exists to stay out of the way of: nothing covers the
+    // position, so it has to reach the operator at warn.
+    const out = momentum.tick(
+      bandInput('8.8320', {
+        openOrders: [],
+        balances: {
+          USDT: QUOTE_BALANCE,
+          BTC: { asset: 'BTC', free: new Decimal('3.13'), locked: new Decimal('0') },
+        },
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.protectiveStopBlocker).toMatchObject({
+      reason: 'price-outside-exchange-band',
+      detail: { guarded: false },
+    });
+    expect(out.logs).toEqual([
+      {
+        level: 'warn',
+        message: 'momentum: protective stop not armed',
+        context: expect.objectContaining({
+          symbol: 'BTCUSDT',
+          reason: 'price-outside-exchange-band',
+          guarded: false,
+        }),
+      },
+    ]);
+  });
+
+  it('re-arms and clears the blocker once the reference falls back into range', () => {
+    // 7.312 / 0.9 = 8.1244 is the highest reference this stop can be placed at.
+    const out = momentum.tick(
+      bandInput('8.10', {
+        state: heldPosition({
+          protectiveStopBlocker: { reason: 'price-outside-exchange-band' },
+        }),
+      }),
+    );
+    expect(out.nextState.protectiveStopBlocker).toBeNull();
+    expect(out.decisions.map((d) => d.type)).toEqual(['cancel-order', 'place-order']);
+    expect(out.decisions[1]).toMatchObject({
+      type: 'place-order',
+      params: { stopPrice: '7.462', price: '7.312', quantity: '3.13' },
+    });
+  });
+
+  it('is unchanged on a symbol Binance publishes no band for', () => {
+    const { percentPriceBySide: _absent, ...noBand } = BAND_FILTERS;
+    const out = momentum.tick(bandInput('8.8320', { filters: noBand }));
+    expect(out.nextState.protectiveStopBlocker).toBeNull();
+    expect(out.decisions.map((d) => d.type)).toEqual(['cancel-order', 'place-order']);
+  });
+
+  it('marks the refusal terminal when the limit offset can never clear the floor', () => {
+    const out = momentum.tick(
+      bandInput('8.8320', {
+        config: cfg({
+          trailingStopPct: '0.15',
+          protectiveStop: { enabled: true, limitOffsetPercentage: '0.9' },
+        }),
+      }),
+    );
+    expect(out.nextState.protectiveStopBlocker?.detail).toMatchObject({ terminal: true });
   });
 });

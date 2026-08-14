@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { Decimal } from '@app/money';
+import { PROTECTIVE_STOP_BLOCKER_REASONS } from '@app/strategy-core';
 import type { Decision, OpenOrder, PercentPriceBySideFilter, TickInput } from '@app/strategy-core';
 
 import {
@@ -1033,6 +1034,36 @@ describe('protective stop — outside Binance’s PERCENT_PRICE_BY_SIDE band', (
     const reloaded = TTStateSchema.parse(JSON.parse(JSON.stringify(blocked)));
 
     expect(reloaded.protectiveStopBlocker?.reason).toBe('price-outside-exchange-band');
+  });
+
+  it('accepts every reason the core vocabulary defines, not just this one', () => {
+    // The schema's reason enum is a hand-copy of the core list. The round trip
+    // above only ever feeds it the one reason this file is about, so it passes
+    // with the other three missing. Drive the loop off the exported list and the
+    // failure names the reason that went missing.
+    const serialised: unknown = JSON.parse(
+      JSON.stringify(
+        trailingTrade.tick(
+          buildInput({ openOrders: [restingProtectiveStop({ stopPrice: '80.00' })] }),
+        ).nextState,
+      ),
+    );
+
+    for (const reason of PROTECTIVE_STOP_BLOCKER_REASONS) {
+      const parsed = TTStateSchema.parse({
+        ...(serialised as object),
+        protectiveStopBlocker: { reason },
+      });
+      expect(parsed.protectiveStopBlocker).toEqual({ reason });
+    }
+    // Without this the loop survives the enum being widened to z.string(),
+    // which is a plausible repair when a parse blows up somewhere else.
+    expect(() =>
+      TTStateSchema.parse({
+        ...(serialised as object),
+        protectiveStopBlocker: { reason: 'not-a-real-reason' },
+      }),
+    ).toThrow();
   });
 
   it('arms unchanged on a symbol Binance publishes no band for', () => {

@@ -202,7 +202,7 @@ export const trailingTradeNotes: FieldNotes = {
   'sell.protectiveStop.limitOffsetPercentage': {
     when: 'Only when the protective stop is on. Widen the gap on thin or volatile coins.',
     expect:
-      'A wide gap fills reliably in a fast drop at a worse price; a tiny gap risks the stop triggering and never filling, leaving you holding through the fall. `0.995` puts the limit 0.5% below the trigger.',
+      "A wide gap fills reliably in a fast drop at a worse price; a tiny gap risks the stop triggering and never filling, leaving you holding through the fall. `0.995` puts the limit 0.5% below the trigger. There is also a hard floor under this value: at or below the symbol's Binance `askMultiplierDown` the stop cannot be placed at all, and the symbol reports a terminal blocker until you raise it.",
   },
   'sell.breakEven.enabled': {
     when: 'Turn it on when trades keep popping into small profit, stalling, and then running all the way down to the stop-loss.',

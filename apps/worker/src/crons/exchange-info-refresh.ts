@@ -21,27 +21,20 @@ import {
   type BinanceMode,
   type ParsedOrderRateLimits,
 } from '@app/binance';
-import { projectPermissionSets, projectSymbolFilters } from '@app/contracts';
+import { projectPermissionSets, projectSymbolFilters, type RawSymbolFilter } from '@app/contracts';
 import type { SymbolInfo } from '@app/strategy-core';
 import { buildSymbolInfoKey } from 'executor/redis-namespace.js';
-
-interface RawFilter {
-  readonly filterType: string;
-  readonly minPrice?: string;
-  readonly maxPrice?: string;
-  readonly tickSize?: string;
-  readonly minQty?: string;
-  readonly maxQty?: string;
-  readonly stepSize?: string;
-  readonly minNotional?: string;
-}
 
 interface RawSymbol {
   readonly symbol: string;
   readonly baseAsset: string;
   readonly quoteAsset: string;
   readonly status: string;
-  readonly filters?: readonly RawFilter[];
+  // Rows are forwarded whole to `projectSymbolFilters`, never read here, so they
+  // are typed as that function's own input. A local copy would type-check while
+  // omitting a field the projector needs, and a dropped
+  // `PERCENT_PRICE_BY_SIDE` multiplier degrades to "band unknown" silently.
+  readonly filters?: readonly RawSymbolFilter[];
   /** Unknown: shape-checked by `projectPermissionSets`, never trusted from here. */
   readonly permissionSets?: unknown;
 }

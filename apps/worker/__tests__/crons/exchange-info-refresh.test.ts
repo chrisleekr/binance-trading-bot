@@ -113,9 +113,72 @@ describe('createExchangeInfoRefresh', () => {
     };
     expect(btc.symbol).toBe('BTCUSDT');
     expect(btc.baseAsset).toBe('BTC');
-    expect(btc.filters.tickSize).toBe('0.01');
-    expect(btc.filters.stepSize).toBe('0.0001');
-    expect(btc.filters.minNotional).toBe('10');
+    // The whole projection, not a spot-check. Neither symbol here publishes a
+    // PERCENT_PRICE_BY_SIDE filter, and the band is parsed separately from the
+    // seven required thresholds precisely so a missing band cannot null them.
+    expect(btc.filters).toEqual({
+      minPrice: '0.01',
+      maxPrice: '1000000',
+      tickSize: '0.01',
+      minQty: '0.0001',
+      maxQty: '9000',
+      stepSize: '0.0001',
+      minNotional: '10',
+    });
+  });
+
+  it('persists the PERCENT_PRICE_BY_SIDE band, which the protective stop prices against', async () => {
+    const redis = stubRedis();
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        symbols: [
+          {
+            symbol: 'LINKUSDT',
+            baseAsset: 'LINK',
+            quoteAsset: 'USDT',
+            status: 'TRADING',
+            filters: [
+              {
+                filterType: 'PRICE_FILTER',
+                minPrice: '0.001',
+                maxPrice: '10000',
+                tickSize: '0.001',
+              },
+              { filterType: 'LOT_SIZE', minQty: '0.01', maxQty: '92141578', stepSize: '0.01' },
+              { filterType: 'NOTIONAL', minNotional: '5' },
+              {
+                filterType: 'PERCENT_PRICE_BY_SIDE',
+                bidMultiplierUp: '1.1',
+                bidMultiplierDown: '0.5',
+                askMultiplierUp: '2',
+                askMultiplierDown: '0.9',
+                avgPriceMins: 5,
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const refresh = createExchangeInfoRefresh({ redis, logger: silentLogger, fetchImpl });
+    await refresh();
+
+    const raw = redis.writes.get(buildSymbolInfoKey('LINKUSDT'));
+    if (!raw) throw new Error('test setup: LINKUSDT not written');
+    const persisted = JSON.parse(raw) as {
+      filters: { percentPriceBySide?: Record<string, unknown>; tickSize: string };
+    };
+    // All five, because the tick reads the band off this blob and a dropped
+    // multiplier reads as "band unknown", which is exactly the fail-open that
+    // lets an unplaceable stop through.
+    expect(persisted.filters.percentPriceBySide).toEqual({
+      bidMultiplierUp: '1.1',
+      bidMultiplierDown: '0.5',
+      askMultiplierUp: '2',
+      askMultiplierDown: '0.9',
+      avgPriceMins: 5,
+    });
+    expect(persisted.filters.tickSize).toBe('0.001');
   });
 
   it('retains the ORDERS rate-limit rows, which the order governor is built from', async () => {

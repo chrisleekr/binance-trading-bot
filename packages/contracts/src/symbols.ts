@@ -160,8 +160,11 @@ export const SymbolFilters = z.object({
 export type SymbolFilters = z.infer<typeof SymbolFilters>;
 
 /** Shape of a raw Binance filter row, before projection. Every value is optional
- * because each `filterType` carries only its own subset of these fields. */
-interface RawSymbolFilter {
+ * because each `filterType` carries only its own subset of these fields. Exported
+ * so a caller that declares a typed row shape uses the projector's own input
+ * instead of a copy that can silently fall behind it. Callers that stay
+ * deliberately permissive, like the api's cache-load schema, keep their own. */
+export interface RawSymbolFilter {
   readonly filterType: string;
   readonly minPrice?: string;
   readonly maxPrice?: string;

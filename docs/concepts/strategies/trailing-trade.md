@@ -63,6 +63,21 @@ flowchart TD
 
 The exit checks always run before the entry checks, so a held position is protected first. Even when no exit fires, the strategy keeps a resting stop-loss order parked on Binance as a backstop if `sell.protectiveStop` is on.
 
+### When Binance will not accept the protective stop
+
+Binance publishes a `PERCENT_PRICE_BY_SIDE` filter on nearly every listed spot pair: a sell is refused (`-1013`) unless its limit `price` sits inside `[reference × askMultiplierDown, reference × askMultiplierUp]`. The reference is Binance's own reference price for the symbol where one exists, otherwise the volume-weighted average price over the filter's `avgPriceMins` minutes, or the last trade price when `avgPriceMins` is `0`. A stop resting far below a fast-rising market falls under that floor. On a pair with no published band the bot reads the band as _unknown_ rather than absent and places the stop exactly as it did before, so nothing below applies there.
+
+The bot checks the band before it acts, and when the order would be refused it **defers the whole re-arm** — it places nothing and cancels nothing, so a stop already resting keeps protecting the position. The reason is recorded on `protectiveStopBlocker` and shown on the symbol, and the arm retries every tick. Only the limit price is judged, which is the leg the filter bounds; the trigger is left alone.
+
+One approximation makes that check inexact. A tick is pure and cannot read Binance's averaging window, so the bot bands against the current price instead. When the current price sits above the average the bot overstates the floor and defers an order Binance would have taken, which costs a tick and self-corrects; when it sits below, the order goes out and is refused exactly as it is today. Neither direction cancels a stop that is already protecting the position.
+
+Two floor cases behave differently:
+
+- **Temporary.** The market moved faster than the resting stop. Nothing to change; the stop arms itself as soon as the reference moves back into range.
+- **Permanent.** Arming needs `sell.protectiveStop.limitOffsetPercentage` to be **greater than the symbol's `askMultiplierDown`** — the limit sits at `trigger × limitOffsetPercentage` and the floor at `reference × askMultiplierDown`, and the trigger normally sits at or below the reference because a price at or under the trigger exits the position first, so an offset at or under that multiplier cannot clear the floor. The blocker is marked terminal and names the setting to raise. Raise it by a clear margin, not a hair: the limit is floored onto the symbol's tick grid before the band is judged, so the ratio Binance sees can fall short of the offset you set by up to one tick size divided by the trigger price. Raising it makes the stop placeable again once the reference comes back to roughly `trigger × limitOffsetPercentage ÷ askMultiplierDown` or below, which is not necessarily the next tick.
+
+Deferring means no order is sent, so a stop the bot defers no longer raises the **Order could not be placed** alert. A stop it does send can still come back `-1013` when the current price sits under Binance's average, and that one still alerts. The blocker is a dashboard signal: the symbol shows red when nothing covers the position, amber when an earlier stop of ours still covers it at a stale level.
+
 ## The two core behaviours
 
 ### Trailing buy (averaging down)
