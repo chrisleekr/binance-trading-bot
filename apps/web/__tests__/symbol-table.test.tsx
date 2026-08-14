@@ -397,7 +397,7 @@ describe('<SymbolTable>', () => {
     );
     const status = await screen.findByTestId('symbol-status-pa-LINKUSDT');
     expect(status).toHaveAttribute('data-status', 'stop-stale');
-    expect(status).toHaveTextContent('Stop stale');
+    expect(status).toHaveTextContent('Old stop');
     expect(status.getAttribute('title')).toMatch(/still resting on Binance/i);
   });
 });

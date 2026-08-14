@@ -638,6 +638,26 @@ describe('evaluateProtectiveStopArm — PERCENT_PRICE_BY_SIDE band', () => {
     });
     expect(out.blocker?.detail).toMatchObject({ guarded: false });
   });
+
+  it('does not call a position guarded when a foreign lock capped what this tick could size', () => {
+    // The same fraction, arrived at from the other direction: a foreign SELL holds
+    // 2.13 of the 3.13 position, so this tick can only size 1.00 and the resting
+    // stop already matches that reduced size. Judging coverage against what we
+    // could size — rather than against full protection — reports a 32%-covered
+    // position as guarded, which is the amber chip the operator dismisses.
+    const foreign = order({
+      orderId: 999,
+      clientOrderId: 'ghost',
+      symbol: 'LINKUSDT',
+      origQty: '2.13',
+    });
+    const out = run({
+      input: armInput('8.8320', true, [{ ...resting(), origQty: '1.00' }, foreign]),
+      reclaimableBase: new Decimal('1.00'),
+    });
+    expect(out.blocker?.reason).toBe('price-outside-exchange-band');
+    expect(out.blocker?.detail).toMatchObject({ guarded: false });
+  });
 });
 
 describe('percentPriceBySideRefusal', () => {

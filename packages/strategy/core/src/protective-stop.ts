@@ -533,7 +533,11 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
     reference: input.market.currentPrice,
     band: input.market.symbolInfo.filters.percentPriceBySide,
     desired,
-    guarded: stillGuarding(resting, desired.quantity),
+    // Measured against FULL protection, not the quantity this tick could size.
+    // A stop armed while a foreign order held most of the base covers a fraction
+    // of the position; calling that guarded is exactly the dismissible-amber-chip
+    // downgrade `stillGuarding` exists to refuse.
+    guarded: stillGuarding(resting, full.quantity),
   });
   if (outsideBand !== null) return { decisions: [], blocker: outsideBand };
 

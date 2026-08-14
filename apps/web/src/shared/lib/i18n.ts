@@ -135,7 +135,7 @@ const en: Readonly<Record<string, string>> = {
   'grid.status.watching': 'Watching',
   'grid.status.blocked': 'Blocked',
   'grid.status.unprotected': 'No stop',
-  'grid.status.stopStale': 'Stop stale',
+  'grid.status.stopStale': 'Old stop',
   'grid.status.paused': 'Paused',
   'home.scoped.title': 'Profile',
   'home.scoped.discovery_title': 'Discovery',
