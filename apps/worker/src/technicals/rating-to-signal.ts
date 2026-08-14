@@ -13,10 +13,9 @@ import type { computeTechnicalsRating } from '@app/indicators/rating';
 type Rating = ReturnType<typeof computeTechnicalsRating>;
 
 /**
- * Map a rating score in [-1, 1] to a recommendation, per TradingView's
- * Technical Ratings thresholds:
- *   score > 0.5 → STRONG_BUY; > 0.1 → BUY; < -0.5 → STRONG_SELL;
- *   < -0.1 → SELL; otherwise NEUTRAL.
+ * Map a rating score in [-1, 1] to a recommendation. Every bound is strict, so
+ * a score landing exactly on -0.5, -0.1, 0.1 or 0.5 resolves to the calmer
+ * bucket and never advertises the stronger reading.
  */
 export const bucketize = (score: number): TechnicalsRecommendation => {
   if (score < -0.5) return 'STRONG_SELL';

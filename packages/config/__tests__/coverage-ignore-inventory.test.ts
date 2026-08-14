@@ -175,7 +175,7 @@ const REVIEWED_IDENTITY_DIGESTS: Record<string, string> = {
   'packages/indicators/src/rating/adapter.ts': '37c984f905aaf5d8',
   'packages/indicators/src/rating/rating.ts': 'f37f3a4621d8015b',
   'packages/indicators/src/rating/vendored/types/Indicator.ts': 'be4fb9e729d0806e',
-  'packages/indicators/src/rating/bb-power.ts': 'b0a543495afe32e3',
+  'packages/indicators/src/rating/bb-power.ts': '4d8271cd4d8a6167',
   'packages/indicators/src/incremental/stochastic.ts': 'c2bff13345ee5b38',
   'packages/indicators/src/index.ts': '8fb4495c172df93a',
   'packages/strategy/core/src/replay.ts': '0bce841953ec4aed',
