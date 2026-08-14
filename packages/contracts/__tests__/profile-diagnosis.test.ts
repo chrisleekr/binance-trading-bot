@@ -61,7 +61,9 @@ const input = (over: Partial<ProfileDiagnosisInput> = {}): ProfileDiagnosisInput
     ...over.profile,
   },
   worker: { heartbeatPresent: true, ...over.worker },
-  halts: over.halts ?? [],
+  // `??` would fold an explicit null back to [], which is the exact distinction
+  // the unreadable-flag cases below turn on.
+  halts: over.halts === undefined ? [] : over.halts,
   conditions: over.conditions ?? [],
   snapshots: over.snapshots ?? [snapshot()],
   ...(over.liveFunnel ? { liveFunnel: over.liveFunnel } : {}),
@@ -133,6 +135,27 @@ describe('rung 2: profile active', () => {
       input({ halts: [{ label: 'daily loss limit', sinceMs: NOW - 2 * 3_600_000 }] }),
     );
     expect(r.items[0]?.evidence[0]).toMatch(/2 hours/);
+  });
+
+  it('reports unknown rather than clear when the halt flag could not be read', () => {
+    // The whole point of the rung is to answer "is something stopping this".
+    // An unreadable flag answering "nothing is halted" is the one failure that
+    // sends the operator away satisfied while the halt is still in force.
+    const r = runDiagnosisStep('profile-active', input({ halts: null }));
+    expect(r.status).toBe('unknown');
+    expect(r.line).toMatch(/could not be read/i);
+  });
+
+  it('still reports what it can prove when the profile is off and the flag is unreadable', () => {
+    // The disabled finding is proven, so it is not withheld. The line is built
+    // from the items, so it makes no claim about the halt state either way.
+    const r = runDiagnosisStep(
+      'profile-active',
+      input({ halts: null, profile: { ...input().profile, enabled: false } }),
+    );
+    expect(r.status).toBe('finding');
+    expect(r.items[0]?.title).toBe('This profile is switched off');
+    expect(r.line).not.toMatch(/halt/i);
   });
 });
 

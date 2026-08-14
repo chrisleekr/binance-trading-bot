@@ -83,12 +83,13 @@ const readHalts = async (deps: DiagnosisGatherDeps): Promise<ProfileDiagnosisInp
     // day. Reporting a guessed start would be worse than reporting none.
     return halted ? [{ label: "Today's loss limit was hit", sinceMs: null }] : [];
   } catch (err) {
-    // Renders as "no halt", which is the one answer this cannot prove. Accepted
-    // because the heartbeat read above shares this Redis: a failure here means
-    // that one failed too, so `worker-alive` already owns the headline and the
-    // operator is not shown a confident all-clear.
+    // null, not []: an empty list is the answer "nothing is halted", and a
+    // failed read has not earned it. The two reads run concurrently over one
+    // client, so this command can fail while the heartbeat GET succeeds, which
+    // would leave `worker-alive` reporting a live engine and this rung quietly
+    // clearing a halt it never saw.
     deps.logger.warn({ err }, 'diagnosis: halt flag read failed');
-    return [];
+    return null;
   }
 };
 

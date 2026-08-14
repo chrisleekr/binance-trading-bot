@@ -265,7 +265,11 @@ describe('gatherDiagnosisInput — the Redis reads report absence, never health'
     expect(input.halts).toEqual([{ label: "Today's loss limit was hit", sinceMs: null }]);
   });
 
-  it('omits the halt rather than claiming clear when the flag cannot be read', async () => {
+  it('reports the halt state as unreadable rather than as clear', async () => {
+    // null, not []. The two Redis reads run concurrently over one client, so
+    // this command can fail while the heartbeat GET succeeds: an empty list
+    // here would clear a halt nobody ever saw, on a ladder that still reports
+    // a live engine.
     const logger = makeLogger();
     const deps = withRedis(
       {
@@ -277,7 +281,8 @@ describe('gatherDiagnosisInput — the Redis reads report absence, never health'
     );
 
     const { input } = await gatherDiagnosisInput(deps);
-    expect(input.halts).toEqual([]);
+    expect(input.halts).toBeNull();
+    expect(input.worker.heartbeatPresent).toBe(true);
     expect(logger.warn).toHaveBeenCalledTimes(1);
   });
 

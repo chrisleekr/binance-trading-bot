@@ -317,8 +317,17 @@ export interface ProfileDiagnosisInput {
      */
     readonly heartbeatPresent: boolean;
   };
-  /** Kill-switch / daily-loss halts currently in force. */
-  readonly halts: readonly { readonly label: string; readonly sinceMs: number | null }[];
+  /**
+   * Kill-switch / daily-loss halts currently in force, or null when the flag
+   * could not be read.
+   *
+   * Nullable rather than defaulting to empty: the flag lives in Redis, and an
+   * empty list is the answer "nothing is halted", which a failed read cannot
+   * earn. Collapsing the two would let an unreadable store render as a clean
+   * bill of health on the one rung the operator consults to find out why
+   * nothing is trading.
+   */
+  readonly halts: readonly { readonly label: string; readonly sinceMs: number | null }[] | null;
   readonly conditions: readonly OpenCondition[];
   /** Newest-first. */
   readonly snapshots: readonly DiagnosisSnapshot[];
@@ -527,7 +536,7 @@ const stepProfileActive = (input: ProfileDiagnosisInput): DiagnosisStepResult =>
       lever: null,
     });
   }
-  for (const halt of input.halts) {
+  for (const halt of input.halts ?? []) {
     items.push({
       id: `halt:${halt.label}`,
       condition: 'halted',
@@ -545,13 +554,18 @@ const stepProfileActive = (input: ProfileDiagnosisInput): DiagnosisStepResult =>
       lever: null,
     });
   }
-  return items.length === 0
-    ? { status: 'ok', line: 'The profile is switched on and not halted.', items: [] }
-    : {
-        status: 'finding',
-        line: items.map((i) => i.title).join('; '),
-        items,
-      };
+  if (items.length > 0) {
+    // The line is built from the items, so it makes no claim about a halt state
+    // that may be unreadable. What is proven is still reported.
+    return { status: 'finding', line: items.map((i) => i.title).join('; '), items };
+  }
+  return input.halts === null
+    ? {
+        status: 'unknown',
+        line: 'The profile is switched on. Whether a halt is in force could not be read.',
+        items: [],
+      }
+    : { status: 'ok', line: 'The profile is switched on and not halted.', items: [] };
 };
 
 const stepConfigValid = (input: ProfileDiagnosisInput): DiagnosisStepResult => {
