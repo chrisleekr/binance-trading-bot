@@ -187,7 +187,14 @@ describe('coverage artifact fan-in', () => {
       expect(job).toContain(mergeScript);
       expect(job).toMatch(/lcov\.info/);
       expect(job).toMatch(/needs\s*:/);
-      for (const lane of Object.keys(COVERAGE_LANES)) expect(job).toContain(lane);
+      for (const lane of Object.keys(COVERAGE_LANES)) {
+        // Word-boundary, not substring: `integration` is a substring of
+        // `worker-integration`, so a merge job that dropped `integration` from
+        // `needs` would still satisfy a `toContain` check.
+        expect(job, `coverage-merge does not name the ${lane} lane`).toMatch(
+          new RegExp(String.raw`(?<![\w-])${lane}(?![\w-])`),
+        );
+      }
     }
     expect(mergeJobs[0]).toMatch(/artifacts\s*:/);
     expect(mergeJobs[1]).toMatch(/actions\/download-artifact@/);

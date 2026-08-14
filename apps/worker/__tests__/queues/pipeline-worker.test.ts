@@ -30,6 +30,7 @@ const repoMocks = vi.hoisted(() => ({
   tradeArchiveListForSymbol: vi.fn(),
   tradeArchiveInsert: vi.fn(),
   tradeArchiveRecordBackfillAttempt: vi.fn(),
+  tradeArchiveAttemptBoundary: vi.fn(async () => new Date('2026-08-01T00:00:00Z')),
   avgEntryPricesRemove: vi.fn(),
   avgEntryPricesFindBySymbol: vi.fn(),
   avgEntryPricesUpsert: vi.fn(),
@@ -76,6 +77,7 @@ vi.mock('@app/db', async (importOriginal) => {
         listForSymbol: repoMocks.tradeArchiveListForSymbol,
         insert: repoMocks.tradeArchiveInsert,
         recordBackfillAttempt: repoMocks.tradeArchiveRecordBackfillAttempt,
+        attemptBoundary: repoMocks.tradeArchiveAttemptBoundary,
       },
       avgEntryPrices: {
         remove: repoMocks.avgEntryPricesRemove,

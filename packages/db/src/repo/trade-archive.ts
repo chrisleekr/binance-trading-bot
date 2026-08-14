@@ -550,6 +550,26 @@ export interface BackfillAttemptOutcome {
    * recovery sweep re-enqueueing the same doomed job every 15 minutes.
    */
   readonly symbolUnavailable?: boolean;
+  /**
+   * When the attempt observed Binance's trade history, from `attemptBoundary`.
+   * Stamping the marker with the write time instead would cover fills the
+   * attempt never saw: `myTrades` paging takes seconds, and a fill adopted in
+   * that gap would sort before the marker and read as already-recovered.
+   */
+  readonly attemptedAt?: Date;
+}
+
+/**
+ * The database clock, read as the boundary an attempt is about to observe from.
+ *
+ * Postgres stamps `applied_fills.applied_at`, so the marker it is compared
+ * against has to come from the same clock. An app-side `new Date()` running
+ * fast would push the marker past fills the attempt never saw, which is the
+ * exact staleness the boundary exists to detect.
+ */
+export async function attemptBoundary(scope: ProfileScope): Promise<Date> {
+  const result = await scope.db.execute<{ now: Date }>(sql`select now() as now`);
+  return result.rows[0]!.now;
 }
 
 /** A coin with fills and no archive that a backfill attempt could not reconstruct. */
@@ -580,6 +600,7 @@ export async function recordBackfillAttempt(
       skippedOrphanSells: outcome.skippedOrphanSells,
       droppedOvershoot: outcome.droppedOvershoot,
       symbolUnavailable: outcome.symbolUnavailable ?? false,
+      attemptedAt: outcome.attemptedAt ?? sql`now()`,
     })
     .onConflictDoUpdate({
       target: [backfillAttempts.profileId, backfillAttempts.symbol],
@@ -588,7 +609,7 @@ export async function recordBackfillAttempt(
         skippedOrphanSells: outcome.skippedOrphanSells,
         droppedOvershoot: outcome.droppedOvershoot,
         symbolUnavailable: outcome.symbolUnavailable ?? false,
-        attemptedAt: sql`now()`,
+        attemptedAt: outcome.attemptedAt ?? sql`now()`,
         // A re-attempt is a deliberate "look again", so un-hide the coin: a
         // freshly-checked result should surface in the note, not stay hidden.
         dismissedAt: null,
@@ -611,25 +632,29 @@ const staleBackfillMarker = sql`exists (
 )`;
 
 /**
- * "This coin has a fill the archive does not cover", expressed RELATIVE to what
- * is already archived rather than as "this coin has no archive row at all".
- * The blanket form answers a different question: a grid-traded coin
- * archives cycle 1 fine and then suppresses cycle 2, and a predicate keyed on
- * "ever archived?" can never see that second gap — which is the shape the
- * backstop exists for.
+ * "This coin has a fill no archive row accounts for", tested per FILL rather
+ * than against a boundary. A predicate keyed on "ever archived?" answers a
+ * different question: a grid-traded coin archives cycle 1 fine and then
+ * suppresses cycle 2, and that form can never see the second gap — which is
+ * the shape the backstop exists for.
  *
- * The boundary is `archived_at`, not `cycle_end`. `cycle_end` is the closing
- * ORDER's exchange close time, and for a MARKET exit (the dominant one) that
- * row is written already-FILLED at placement, before the execution report is
- * applied — so `applied_at > cycle_end` holds the instant a healthy cycle is
- * archived, and every archived coin would report itself as missing. Forward
- * archiving stamps `archived_at` from its own cutoff, captured after the fill
- * landed, and `archived_at >= cycle_end` on every insert path.
+ * Coverage is the exchange order id, not a timestamp. The obvious cheaper test,
+ * "is this fill newer than the newest archived row", is a per-symbol
+ * high-watermark and only ever finds a gap at the TAIL: let cycle A fail to
+ * archive and cycle B succeed after it, and A sits below the watermark forever,
+ * invisible to the very sweep meant to repair it. Order id is exact, needs no
+ * ordering assumption, and is the one key both row shapes carry — forward rows
+ * summarise the local `orders` table, backfilled rows carry the ids
+ * reconstructed from `myTrades`.
+ *
+ * A fill whose order no row lists is genuinely unaccounted for, so the
+ * predicate errs toward reporting: an orphan SELL a backfill could not cost is
+ * kept quiet by the attempt marker instead, not by pretending it is archived.
  *
  * `sideFilter` carries everything that differs between the two callers, so the
- * boundary itself is defined once: the actionable list needs a closed cycle (a
- * SELL) that has settled, while the explanatory note also covers a BUY-only
- * coin, which is exactly what its "open or pre-history" reason says.
+ * coverage test itself is defined once: the actionable list needs a closed
+ * cycle (a SELL) that has settled, while the explanatory note also covers a
+ * BUY-only coin, which is exactly what its "open or pre-history" reason says.
  */
 const unarchivedFill = (
   profileIdRef: ReturnType<typeof sql>,
@@ -640,14 +665,13 @@ const unarchivedFill = (
   where af_sell.profile_id = ${profileIdRef}
     and af_sell.symbol = ${symbolRef}
     ${sideFilter}
-    and af_sell.applied_at > coalesce(
-      (
-        select max(${tradeArchive.archivedAt})
-        from ${tradeArchive}
-        where ${tradeArchive.profileId} = ${profileIdRef}
-          and ${tradeArchive.symbol} = ${symbolRef}
-      ),
-      '-infinity'::timestamptz
+    and not exists (
+      select 1
+      from ${tradeArchive} ta
+      cross join lateral jsonb_array_elements(ta.orders) archived_order
+      where ta.profile_id = ${profileIdRef}
+        and ta.symbol = ${symbolRef}
+        and archived_order->>'binanceOrderId' = af_sell.order_id::text
     )
 )`;
 
@@ -668,8 +692,8 @@ const ANY_SIDE = sql.empty();
 /**
  * Coins with a SETTLED closed cycle no archive row covers and no still-valid
  * backfill attempt — the actionable "may have unsaved P/L, recover it" set.
- * Sorted, profile-scoped. A coin whose newest cycle is archived leaves this
- * set; a coin that was attempted and recovered nothing moves to
+ * Sorted, profile-scoped. A coin every one of whose cycles is archived leaves
+ * this set; a coin that was attempted and recovered nothing moves to
  * {@link listUnreconstructableSymbols} instead of nagging here forever, until
  * a later fill makes that attempt stale.
  */
@@ -701,16 +725,16 @@ export async function listRecoverableSymbols(scope: ProfileScope): Promise<strin
  * row per symbol) filtered to still-missing coins with fills, so a free-text
  * backfill of a no-fills symbol never appears here.
  *
- * Uses the same {@link unarchivedFill} boundary as
+ * Uses the same {@link unarchivedFill} coverage test as
  * {@link listRecoverableSymbols} but without the SELL filter, so an attempted
- * open position still gets its reason. The boundary has to move in step with
- * the actionable list or a coin whose newest cycle is unarchived and
- * unreconstructable falls out of BOTH and is silently dropped — which is the
- * delisted-symbol case.
+ * open position still gets its reason. The test has to move in step with the
+ * actionable list or a coin with an unarchived, unreconstructable cycle falls
+ * out of BOTH and is silently dropped — which is the delisted-symbol case.
  *
  * `round_trips = 0` is what keeps an attempt that DID recover history out of a
- * note saying nothing could be recovered: a backfilled row is stamped at the
- * historic closing time, so its fills are always "newer" than it.
+ * note saying nothing could be recovered. A partial recovery still leaves
+ * uncovered fills behind (the orphan SELLs and overshoot cycles it had to
+ * drop), so coverage alone would read it as a total failure.
  *
  * A marker made stale by a later fill is excluded: that coin is actionable
  * again and belongs to {@link listRecoverableSymbols}. The two lists stay

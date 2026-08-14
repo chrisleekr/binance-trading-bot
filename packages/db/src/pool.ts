@@ -34,8 +34,11 @@ const envMaxFor = (kind: PoolKind): number | null => {
   // Whole-string digits only. `Number.parseInt` reads `1e3` as 1 and `10abc` as
   // 10, so an operator asking for a thousand connections would silently get
   // one, and a typo would silently shrink the pool instead of failing the boot.
+  // Safe-integer, not just integer: `Number('9007199254740993')` is an integer
+  // that is not the value the operator typed, and a pool that large is no limit
+  // at all. Both are better as a failed boot than a silent substitution.
   const parsed = /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     throw new Error(
       `Invalid pool size for ${kind} pool (env value "${raw}"): expected a positive integer`,
     );

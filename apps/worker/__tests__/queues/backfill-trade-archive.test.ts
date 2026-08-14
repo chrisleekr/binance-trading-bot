@@ -67,6 +67,10 @@ const trade = (o: {
 const insert = vi.fn(async () => ({ id: 'a-1' }));
 const listForSymbol = vi.fn(async () => [] as unknown[]);
 const recordBackfillAttempt = vi.fn(async () => undefined);
+// Read before the myTrades walk, so the marker only claims the history this
+// pass saw. Fixed here to keep the recorded value assertable.
+const BOUNDARY = new Date('2026-08-01T00:00:00Z');
+const attemptBoundary = vi.fn(async () => BOUNDARY);
 const getMyTrades = vi.fn();
 
 const makeDeps = (over?: {
@@ -107,10 +111,11 @@ beforeEach(() => {
   insert.mockClear();
   listForSymbol.mockClear();
   recordBackfillAttempt.mockClear();
+  attemptBoundary.mockClear();
   getMyTrades.mockReset();
   profileRepoSpy.mockReset();
   profileRepoSpy.mockResolvedValue({
-    tradeArchive: { insert, listForSymbol, recordBackfillAttempt },
+    tradeArchive: { insert, listForSymbol, recordBackfillAttempt, attemptBoundary },
   });
   binanceModeByIdSpy.mockReset();
   binanceModeByIdSpy.mockResolvedValue('live');
@@ -130,9 +135,16 @@ describe('handleBackfillTradeArchive', () => {
     expect(row.quoteAsset).toBe('USDT');
     expect(row.profit).toBe('10');
     expect((row.archivedAt as Date).getTime()).toBe(2000);
-    // The attempt is marked so the recover-vs-note split knows it was checked.
+    // The attempt is marked so the recover-vs-note split knows it was checked,
+    // and stamped with the pre-fetch boundary rather than the write time: a
+    // fill adopted while `myTrades` was being walked is absent from this pass,
+    // so a later stamp would claim history the pass never saw and the symbol
+    // would never be swept again.
     expect(recordBackfillAttempt).toHaveBeenCalledWith(
-      expect.objectContaining({ symbol: 'WLDUSDT', roundTrips: 1 }),
+      expect.objectContaining({ symbol: 'WLDUSDT', roundTrips: 1, attemptedAt: BOUNDARY }),
+    );
+    expect(must(attemptBoundary.mock.invocationCallOrder)[0]).toBeLessThan(
+      must(getMyTrades.mock.invocationCallOrder)[0],
     );
   });
 

@@ -428,7 +428,11 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
       // strand must not be silent: an un-flattened crumb keeps `avgEntryPrice`
       // set and blocks re-entry until the recovery sweep or a later fill
       // clears it, and a warn-only line is invisible to the operator.
-      if (stepSizeUnknown && resolution.kind === 'set') {
+      // Gated on the fresh apply for the same reason the alert below is: a
+      // Binance reconnect replays the terminal report, `resolveSell` takes its
+      // replay branch and still reports `set`, so an ungated write would hand
+      // the operator a second row for one strand and imply a second incident.
+      if (firstApply && stepSizeUnknown && resolution.kind === 'set') {
         deps.logger.error(
           {
             profileId: event.profileId,

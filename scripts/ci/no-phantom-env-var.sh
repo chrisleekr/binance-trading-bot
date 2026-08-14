@@ -197,9 +197,17 @@ for (const file of files) {
     if ((ts.isVariableDeclaration(node) || ts.isParameterDeclaration(node)) && ts.isIdentifier(node.name)) {
       const typeText = node.type ? source.text.slice(node.type.pos, node.type.end) : "";
       const initial = node.initializer ? unwrap(node.initializer) : null;
+      // An identifier initializer resolves through aliasValue so an alias of an
+      // alias is still an environment object. Without it `const b = a` breaks
+      // the chain and every `b.MISSING` read after it goes unseen, which is the
+      // one shape this gate exists to catch.
       scopes.at(-1).set(
         node.name.text,
-        typeText.includes("NodeJS.ProcessEnv") || Boolean(initial && isEnvInitializer(initial)),
+        typeText.includes("NodeJS.ProcessEnv") ||
+          Boolean(
+            initial &&
+              (isEnvInitializer(initial) || (ts.isIdentifier(initial) && aliasValue(initial.text))),
+          ),
       );
     }
     if (ts.isVariableDeclaration(node) && ts.isObjectBindingPattern(node.name) && node.initializer) {

@@ -6,7 +6,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { profileRepo, type ProfileRepo } from '../../src/repo/index.js';
 import { accounts } from '../../src/schema/accounts.js';
 import { appliedFills } from '../../src/schema/applied-fills.js';
-import { backfillAttempts } from '../../src/schema/backfill-attempts.js';
 import { profiles } from '../../src/schema/profiles.js';
 import { tradeArchive } from '../../src/schema/trade-archive.js';
 import { users } from '../../src/schema/users.js';
@@ -274,27 +273,27 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
     await ap.appliedFills.tryRecord({ symbol: 'AAVEUSDT', orderId: 15, tradeId: 15, side: 'SELL' });
     await ap.appliedFills.tryRecord({ symbol: 'ETHUSDT', orderId: 14, tradeId: 14, side: 'BUY' });
     await ap.appliedFills.tryRecord({ symbol: 'ETHUSDT', orderId: 16, tradeId: 16, side: 'SELL' });
-    // BTCUSDT has both fills and an archive row (beforeAll seed) — excluded.
-    // The fills are back-dated behind that row's `archived_at`: the predicate is
-    // cycle-relative, so "already archived" only holds while no fill landed
-    // after the last archived cycle (the newer-cycle case is asserted below).
+    // BTCUSDT's fills are excluded because an archive row LISTS their order
+    // ids, not because of when they landed: coverage is per cycle, so a symbol
+    // with archived history still reports any cycle that row does not name
+    // (asserted below).
     await ap.appliedFills.tryRecord({ symbol: 'BTCUSDT', orderId: 12, tradeId: 12, side: 'BUY' });
     await ap.appliedFills.tryRecord({ symbol: 'BTCUSDT', orderId: 17, tradeId: 17, side: 'SELL' });
-    await fx.db
-      .update(appliedFills)
-      .set({ appliedAt: new Date('2026-05-01T00:00:00Z') })
-      .where(
-        and(
-          eq(appliedFills.profileId, fx.alice.profileId),
-          eq(appliedFills.symbol, 'BTCUSDT'),
-          inArray(appliedFills.orderId, [12, 17]),
-        ),
-      );
+    await ap.tradeArchive.insert({
+      ...seedTrade('btc-cycle'),
+      orders: [
+        { binanceOrderId: '12', side: 'BUY' as const },
+        { binanceOrderId: '17', side: 'SELL' as const },
+      ],
+    });
     await bp.appliedFills.tryRecord({ symbol: 'DOGEUSDT', orderId: 13, tradeId: 13, side: 'BUY' });
     await bp.appliedFills.tryRecord({ symbol: 'DOGEUSDT', orderId: 18, tradeId: 18, side: 'SELL' });
     await settleFills(fx.alice.profileId, 'AAVEUSDT');
     await settleFills(fx.alice.profileId, 'ETHUSDT');
     await settleFills(fx.bob.profileId, 'DOGEUSDT');
+    // Settled too, so BTCUSDT's exclusion below is the archive row covering its
+    // orders rather than the grace period still holding the cycle back.
+    await settleFills(fx.alice.profileId, 'BTCUSDT', [12, 17]);
 
     const alice = await ap.tradeArchive.listRecoverableSymbols();
     expect(alice).toContain('AAVEUSDT'); // fills, no archive, not attempted
@@ -379,22 +378,44 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
       ...seedTrade('ada-first'),
       symbol: SYMBOL,
       baseAsset: 'ADA',
+      orders: [
+        { binanceOrderId: '61', side: 'BUY' as const },
+        { binanceOrderId: '62', side: 'SELL' as const },
+      ],
       archivedAt: new Date('2026-06-01T00:00:00Z'),
     });
 
     // Cycle one, already archived: nothing to recover.
     await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 61, tradeId: 61, side: 'BUY' });
     await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 62, tradeId: 62, side: 'SELL' });
-    await fx.db
-      .update(appliedFills)
-      .set({ appliedAt: new Date('2026-05-20T00:00:00Z') })
-      .where(and(eq(appliedFills.profileId, fx.alice.profileId), eq(appliedFills.symbol, SYMBOL)));
+    await settleFills(fx.alice.profileId, SYMBOL, [61, 62]);
     expect(await ap.tradeArchive.listRecoverableSymbols()).not.toContain(SYMBOL);
 
     // Cycle two closes after that archive row and never lands.
     await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 63, tradeId: 63, side: 'BUY' });
     await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 64, tradeId: 64, side: 'SELL' });
     await settleFills(fx.alice.profileId, SYMBOL, [63, 64]);
+    expect(await ap.tradeArchive.listRecoverableSymbols()).toContain(SYMBOL);
+
+    // Cycle THREE archives cleanly while cycle two is still missing, and its
+    // row is stamped AFTER cycle two's fills — the case a "newer than the
+    // newest archived row" boundary gets wrong. That boundary would lift past
+    // cycle two and hide it forever, which is precisely the dead-lettered
+    // archive job the sweep exists to repair. Coverage is per order id, so the
+    // gap survives a newer archive.
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 65, tradeId: 65, side: 'BUY' });
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 66, tradeId: 66, side: 'SELL' });
+    await settleFills(fx.alice.profileId, SYMBOL, [65, 66]);
+    await ap.tradeArchive.insert({
+      ...seedTrade('ada-third'),
+      symbol: SYMBOL,
+      baseAsset: 'ADA',
+      orders: [
+        { binanceOrderId: '65', side: 'BUY' as const },
+        { binanceOrderId: '66', side: 'SELL' as const },
+      ],
+      archivedAt: new Date(),
+    });
     expect(await ap.tradeArchive.listRecoverableSymbols()).toContain(SYMBOL);
 
     // A backfill that DID recover something clears the nudge without dropping
@@ -448,8 +469,8 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
     // without a staleness check the round trip that closed after it is
     // invisible to BOTH lists and the P/L is lost forever.
     //
-    // `applied_at` / `attempted_at` default to now() and the repo API has no
-    // parameter for them, so the historical timeline is written directly.
+    // `applied_at` has no repo parameter, so the historical timeline is written
+    // directly; `attempted_at` takes the boundary the caller observed from.
     const SYMBOL = 'LINKUSDT';
     await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 51, tradeId: 51, side: 'BUY' });
     await fx.db
@@ -462,16 +483,8 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
       roundTrips: 0,
       skippedOrphanSells: 0,
       droppedOvershoot: 0,
+      attemptedAt: new Date('2026-07-11T00:00:00Z'),
     });
-    await fx.db
-      .update(backfillAttempts)
-      .set({ attemptedAt: new Date('2026-07-11T00:00:00Z') })
-      .where(
-        and(
-          eq(backfillAttempts.profileId, fx.alice.profileId),
-          eq(backfillAttempts.symbol, SYMBOL),
-        ),
-      );
 
     // Still-valid marker: not actionable, and explained in the quiet note.
     expect(await ap.tradeArchive.listRecoverableSymbols()).not.toContain(SYMBOL);

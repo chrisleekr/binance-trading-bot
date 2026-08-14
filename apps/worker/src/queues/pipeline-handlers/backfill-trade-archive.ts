@@ -152,6 +152,12 @@ export const handleBackfillTradeArchive = async (
     );
   }
 
+  // Read BEFORE the fetch: the marker has to claim only the history this pass
+  // actually saw. Walking `myTrades` takes a page round-trip per 1000 fills, and
+  // a fill the adopter records during that walk is absent from `fills` yet would
+  // sort before a write-time marker, so the symbol would read as recovered and
+  // never be swept again.
+  const attemptedAt = await p.tradeArchive.attemptBoundary();
   const fills = await fetchAllMyTrades(client, payload.symbol);
   if (fills.length === 0) {
     await p.tradeArchive.recordBackfillAttempt({
@@ -159,6 +165,7 @@ export const handleBackfillTradeArchive = async (
       roundTrips: 0,
       skippedOrphanSells: 0,
       droppedOvershoot: 0,
+      attemptedAt,
     });
     deps.logger.info(logCtx, 'pipeline_backfill_trade_archive_no_trades');
     return;
@@ -184,6 +191,7 @@ export const handleBackfillTradeArchive = async (
       roundTrips: 0,
       skippedOrphanSells,
       droppedOvershoot: droppedOvershootCycles,
+      attemptedAt,
     });
     deps.logger.info(
       { ...logCtx, reconstructed: roundTrips.length },
@@ -259,6 +267,7 @@ export const handleBackfillTradeArchive = async (
     roundTrips: inserted + existing.length,
     skippedOrphanSells,
     droppedOvershoot: droppedOvershootCycles,
+    attemptedAt,
   });
   deps.logger.info(
     { ...logCtx, inserted, candidates: inWindow.length, reconstructed: roundTrips.length },

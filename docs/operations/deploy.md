@@ -157,14 +157,12 @@ Run Prometheus on the `internal` network so those hostnames resolve. In the defa
 
 ### What is not covered
 
-Four rules that previously shipped read metrics this repo emits nowhere. They parsed cleanly and then evaluated empty forever, so they could never fire — they have been removed rather than left in place looking healthy. **These failure modes have no alert coverage today** and reach you only through the UI or `docker compose logs -f app`:
+Two failure modes still have no rule, both for want of a series rather than for want of a threshold. They reach you only through the UI or `docker compose logs -f app`:
 
-- **Tick failure rate.** The worker counts throttled ticks but has no attempt or failure counter, so no error rate exists to alert on.
-- **Queue backlog.** BullMQ wait-queue depth is not exported.
-- **Postgres pool starvation.** The connection pool exports no idle/total gauges.
-- **Binance WebSocket reconnect storms.** Reconnects are logged, never counted.
+- **Technicals staleness.** The scanner that exported `technicals_breaker_state` and its siblings was replaced by in-process compute, which writes a fetch-status receipt to a Redis key instead. A rule can read it once a metric exports it.
+- **A wedged audit drain loop inside a live worker.** A loop that dies or hangs writes no series at all, and none of the audit rules goes stale-empty to reveal the absence. `WorkerDown` covers the whole process dying, not one stuck loop inside it.
 
-Each gap names its missing series and its tracking issue in the comments at the bottom of `alerts.yml`. A CI gate (`no-phantom-alert-metric.sh`) fails the build if a rule names a metric nothing emits, so a rule cannot go back to reading a series that was never written.
+Both are named with their missing series in the comments at the bottom of `alerts.yml`. A CI gate (`no-phantom-alert-metric.sh`) fails the build if a rule names a metric nothing emits, so a rule cannot start reading a series that was never written.
 
 **Metric names and label keys are checked; label values are not.** The gate rejects a selector key the metric does not emit, but it cannot prove an external scrape value such as `job="worker"` is correct. Thresholds and `for:` windows are not checked either: a rule set to `> 100000` is as silent as one naming a phantom. Every top-level observability YAML file is classified, and every discovered rules file is passed to `promtool check rules`. After editing a rule, still confirm it against live data in the Prometheus expression browser and require a non-empty result.
 

@@ -43,12 +43,18 @@ interface WsHooks {
   triggerOpen: () => void;
   triggerMessage: (data: string) => void;
   triggerClose: () => void;
+  deferClose: () => void;
 }
 
 /**
  * Socket stub whose `close()` fires its own close listeners, the way a real one
  * does. Without that the reconnect path would look free of disconnects here for
  * a reason that does not hold in production.
+ *
+ * `deferClose()` withholds that firing so `triggerClose()` delivers it later. A
+ * real close lands on a later turn, and a test about what happens in that gap
+ * cannot express it with a synchronous stub without emitting two close events
+ * for one socket.
  */
 const stubWs = (): BinanceWs & WsHooks => {
   const listeners: {
@@ -57,10 +63,13 @@ const stubWs = (): BinanceWs & WsHooks => {
     close: (() => void)[];
     error: ((err: Error) => void)[];
   } = { open: [], message: [], close: [], error: [] };
+  let deferred = false;
   const fire = (): void => listeners.close.forEach((cb) => cb());
   return {
     send: vi.fn(),
-    close: vi.fn(() => fire()),
+    close: vi.fn(() => {
+      if (!deferred) fire();
+    }),
     onOpen: vi.fn((cb: () => void) => listeners.open.push(cb)),
     onMessage: vi.fn((cb: (data: string) => void) => listeners.message.push(cb)),
     onClose: vi.fn((cb: () => void) => listeners.close.push(cb)),
@@ -68,6 +77,9 @@ const stubWs = (): BinanceWs & WsHooks => {
     triggerOpen: () => listeners.open.forEach((cb) => cb()),
     triggerMessage: (d: string) => listeners.message.forEach((cb) => cb(d)),
     triggerClose: fire,
+    deferClose: () => {
+      deferred = true;
+    },
   };
 };
 
@@ -194,11 +206,10 @@ describe('user-stream disconnect counter', () => {
     const { pool, sockets, disconnects } = setUp();
     await pool.open(USER_ID, ACCOUNT_ID, PROFILE_ID);
     const first = sockets[0];
+    first?.deferClose();
     await pool.close(USER_ID, ACCOUNT_ID, PROFILE_ID);
     await pool.open(USER_ID, ACCOUNT_ID, PROFILE_ID);
-    // The stub closes synchronously, so this second firing is how the ordering
-    // under test gets expressed: the first socket reporting its close AFTER the
-    // profile was reopened, which is what a real deferred close event does.
+    // The only close event this socket emits, landing after the reopen.
     first?.triggerClose();
 
     expect(disconnects()).toBe(0);

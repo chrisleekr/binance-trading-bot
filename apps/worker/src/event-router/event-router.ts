@@ -247,6 +247,23 @@ export const createEventRouter = (deps: EventRouterDeps): EventRouter => {
         );
       }
       if (event.kind === 'execution-report') {
+        // Fold this report's per-trade commission BEFORE the first await below.
+        // The handler runs synchronously up to that suspension and frames arrive
+        // in delivery order, so recording here keeps a partial's fee ordered
+        // ahead of the terminal report's read. Recording after the ownership
+        // await lets a terminal frame whose await settles first overtake an
+        // earlier partial, and the fill is then netted a fee short.
+        // Recorded whatever the ownership verdict, because the entry is
+        // account-scoped and every profile on the account is routed this same
+        // report; `record` ignores exact replays by trade id, so the fan-out
+        // folds one fee exactly once.
+        const feeKey = orderCommissionKey(unwrapId(accountId), event.symbol, event.orderId);
+        commissions.record(feeKey, {
+          executionType: event.executionType,
+          tradeId: event.tradeId,
+          commission: event.commission,
+          commissionAsset: event.commissionAsset,
+        });
         // Cross-profile isolation gate. With one account shared by N profiles,
         // Binance issues a single user-data stream per account, so this report
         // may be for an order a SIBLING profile placed (its symbol may not even
@@ -309,19 +326,10 @@ export const createEventRouter = (deps: EventRouterDeps): EventRouter => {
         // patches its filled amounts; both are no-ops on an absent key (it
         // cold-loads once next tick) so a dropped WS signal self-heals via the
         // key TTL rather than a fabricated entry.
-        // Fold this report's per-trade commission into the order's running
-        // total BEFORE the terminal read below, so a single-trade order (whose
-        // only TRADE report IS the terminal one) is counted too. The key is
-        // account-scoped and the read is non-destructive because every profile
-        // on this account is routed this same report: each of them must be able
-        // to hand the whole fee to the adopter.
-        const feeKey = orderCommissionKey(unwrapId(accountId), event.symbol, event.orderId);
-        commissions.record(feeKey, {
-          executionType: event.executionType,
-          tradeId: event.tradeId,
-          commission: event.commission,
-          commissionAsset: event.commissionAsset,
-        });
+        // The read is non-destructive because every profile on this account is
+        // routed this same report: each of them must be able to hand the whole
+        // fee to the adopter. A single-trade order is covered too, its only
+        // TRADE report being the terminal one that was recorded above.
         const orderCommission = isTerminalOrderStatus(event.orderStatus)
           ? commissions.take(feeKey)
           : null;
