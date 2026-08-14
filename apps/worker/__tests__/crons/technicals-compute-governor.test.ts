@@ -39,32 +39,39 @@ const klineRow = (openTimeMs: number, closeTimeMs: number): unknown[] => [
   '0',
 ];
 
-const stubFetch = (status = 200): typeof globalThis.fetch =>
-  (async () =>
-    new Response(
+const stubFetch = (status = 200, requests: string[] = []): typeof globalThis.fetch =>
+  (async (input) => {
+    requests.push(String(input));
+    return new Response(
       JSON.stringify(
         Array.from({ length: 251 }, (_, i) =>
           klineRow(1_000 + i * 60_000, 1_000 + (i + 1) * 60_000 - 1),
         ),
       ),
       { status, headers: { 'content-type': 'application/json' } },
-    )) as unknown as typeof globalThis.fetch;
+    );
+  }) as unknown as typeof globalThis.fetch;
 
 describe('technicals-compute kline fetcher × WeightGovernor', () => {
   it('reserves weight before each kline REST attempt', async () => {
     const governor = createWeightGovernor({ budget: 1200, targetUtilisation: 1 });
     const reserveSpy = vi.spyOn(governor, 'reserve');
+    const requests: string[] = [];
     const fetchAndCache = createFetchAndCache({
       redis: stubRedis(),
       signalTtlSeconds: 60,
       logger: silentLogger,
-      fetch: stubFetch(),
+      fetch: stubFetch(200, requests),
       weightGovernor: governor,
     });
     await fetchAndCache('1h', ['BTCUSDT', 'ETHUSDT', 'BNBUSDT']);
     expect(reserveSpy).toHaveBeenCalledTimes(3);
     for (const call of reserveSpy.mock.calls) {
       expect(call[0]).toBe(2);
+    }
+    expect(requests).toHaveLength(3);
+    for (const request of requests) {
+      expect(new URL(request).searchParams.get('limit')).toBe('1000');
     }
   });
 

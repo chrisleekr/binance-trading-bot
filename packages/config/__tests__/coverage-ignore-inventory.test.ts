@@ -111,7 +111,7 @@ const REVIEWED_IGNORES: Record<string, readonly string[]> = {
     'stop|end of the unreachable last-undefined guard above',
   ],
   'packages/indicators/src/rating/rating.ts': [
-    'start|mean is only ever called with the fixed 10-osc and 15-ma vote arrays, which are never empty, so the length-0 guard is unreachable',
+    'start|mean is only ever called with the fixed 11-osc and 15-ma vote arrays, which are never empty, so the length-0 guard is unreachable',
     'stop|end of the unreachable empty-votes guard above',
   ],
   'packages/indicators/src/rating/ultimate-osc.ts': [
@@ -173,9 +173,9 @@ const REVIEWED_IDENTITY_DIGESTS: Record<string, string> = {
   'packages/indicators/src/rating/hull-ma.ts': 'e1ca5bb677b11575',
   'packages/indicators/src/rating/ultimate-osc.ts': 'c95f2aa4f5d8a0b0',
   'packages/indicators/src/rating/adapter.ts': '37c984f905aaf5d8',
-  'packages/indicators/src/rating/rating.ts': '27f82c1ae21afe02',
+  'packages/indicators/src/rating/rating.ts': 'f37f3a4621d8015b',
   'packages/indicators/src/rating/vendored/types/Indicator.ts': 'be4fb9e729d0806e',
-  'packages/indicators/src/rating/bb-power.ts': '868b07b34d0682fe',
+  'packages/indicators/src/rating/bb-power.ts': 'b0a543495afe32e3',
   'packages/indicators/src/incremental/stochastic.ts': 'c2bff13345ee5b38',
   'packages/indicators/src/index.ts': '8fb4495c172df93a',
   'packages/strategy/core/src/replay.ts': '0bce841953ec4aed',

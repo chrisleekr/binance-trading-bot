@@ -2,10 +2,9 @@
 // Bear = low − EMA(close, period). TradingView's Technical Ratings use
 // "Bull Bear Power (13)" — a 13-period EMA — per the documented methodology
 // (https://www.tradingview.com/support/solutions/43000614331-technical-ratings/).
-// The vote rule lives in rating.ts, where it combines the pair with the same
-// 13-EMA's trend (Elder uses the EMA slope as the trend): uptrend + bear power
-// recovering from below zero → buy; downtrend + bull power fading from above
-// zero → sell.
+// The vote rule lives in rating.ts, where close versus EMA(50) supplies its
+// trend gate: uptrend + bear power recovering from below zero → buy;
+// downtrend + bull power fading from above zero → sell.
 
 import Decimal from 'decimal.js';
 

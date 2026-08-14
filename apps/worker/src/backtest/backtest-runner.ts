@@ -35,6 +35,10 @@ import type { CandleCache } from './candle-cache.js';
 import type { SignalCache } from './signal-cache.js';
 import { ratingToSignal } from 'technicals/rating-to-signal.js';
 import {
+  prepareTechnicalsRatingWindow,
+  TECHNICALS_SOURCE_CANDLE_LIMIT,
+} from 'technicals/rating-window.js';
+import {
   BUNDLE_PROVIDER_ENTRY_HINT,
   BUNDLE_PROVIDER_OVERRIDE,
   BUNDLE_PROVIDER_TECHNICALS,
@@ -51,14 +55,6 @@ export class BacktestCancelledError extends Error {
 // Candles loaded before the requested window so the first traded candle's
 // indicators are already warm. 200 covers the longest indicator period (EMA200).
 const WARMUP_CANDLES = 200;
-
-// Candles fed to each technicals rating, matching the live technicals cron's
-// KLINE_LIMIT (250 covers EMA200's warmup). The rating depends only on this
-// recent tail, so bounding the window keeps the backtest's rating IDENTICAL to
-// live (parity) and the per-tick cost constant. Rating the full, ever-growing
-// history each tick is O(n) in Decimal ops and makes long-range / fine-interval
-// backtests pathologically slow (observed as a "hang" at progress 0).
-const RATING_CANDLES = 250;
 
 // The daily regime candle is always materialised and fed into the strategy's
 // market snapshot, mirroring the live worker (subscriptions-manager subscribes
@@ -312,6 +308,7 @@ export async function runProfileBacktest(
   // interval; when equal, the detail series is the coarse series itself.
   const tvConfig = readTechnicalsConfig(config);
   const tvIntervals = tvConfig ? tvConfig.intervals.map((i) => i.interval as CandleInterval) : [];
+  const tvIntervalSet = new Set<CandleInterval>(tvIntervals);
   // The strategy decides on the interval its OWN config declares (`candleInterval`),
   // and the strategy reads `market.candlesByInterval[config.candleInterval]`. Live
   // derives its feed the same way (`feedIntervals(candleInterval)` /
@@ -333,8 +330,10 @@ export async function runProfileBacktest(
   const warmupMs = WARMUP_CANDLES * intervalToMs(strategyInterval);
   const loadFromMs = params.fromMs - warmupMs;
 
-  // candles[`${symbol}|${interval}`] → ascending Candle[]
+  // Raw consumers keep the historical replay horizon. Technicals keeps the
+  // longer source needed to match the live 999-clock-bar normalization.
   const candlesByKey = new Map<string, Candle[]>();
+  const technicalsCandlesByKey = new Map<string, Candle[]>();
   for (const symbol of params.symbols) {
     // Backfill phase: loading price history. Emitted per symbol so the live UI
     // shows which market is loading rather than a bar wedged near 0.
@@ -343,10 +342,16 @@ export async function runProfileBacktest(
       // The daily regime interval loads from a daily-appropriate horizon so a
       // long regime MA is warm at the window start; every other interval uses
       // the strategy-interval warmup.
-      const intervalFromMs =
+      const rawFromMs =
         interval === REGIME_DAILY_INTERVAL
           ? Math.min(loadFromMs, params.fromMs - REGIME_DAILY_WARMUP_MS)
           : loadFromMs;
+      const intervalFromMs = tvIntervalSet.has(interval)
+        ? Math.min(
+            rawFromMs,
+            params.fromMs - TECHNICALS_SOURCE_CANDLE_LIMIT * intervalToMs(interval),
+          )
+        : rawFromMs;
       // Range embedded in the key so a different window (range/symbols) can't
       // collide; separate runs over the same window share the key and load once.
       // A hit skips backfill safely: the cached array is the already-backfilled,
@@ -397,7 +402,14 @@ export async function runProfileBacktest(
           );
         }
       }
-      candlesByKey.set(`${symbol}|${interval}`, candles);
+      const key = `${symbol}|${interval}`;
+      if (tvIntervalSet.has(interval)) technicalsCandlesByKey.set(key, candles);
+      candlesByKey.set(
+        key,
+        intervalFromMs === rawFromMs
+          ? candles
+          : candles.filter((candle) => candle.openTimeMs >= rawFromMs),
+      );
     }
   }
 
@@ -557,7 +569,7 @@ export async function runProfileBacktest(
       buildBundle(
         strategy,
         tvConfig,
-        candlesByKey,
+        technicalsCandlesByKey,
         symbol,
         lastClose(window),
         signalCache,
@@ -785,18 +797,16 @@ export function buildBundle(
       const all = candlesByKey.get(`${symbol}|${interval}`) ?? [];
       // Advance the forward-only cursor to the count of candles closed by asOfMs
       // (the series is ascending by closeTimeMs, and asOfMs is monotonic per
-      // run), then take the trailing RATING_CANDLES, O(1) amortised instead of
+      // run), then take the bounded raw source, O(1) amortised instead of
       // re-filtering the whole history each tick. Without a cursor (no shared
       // state) fall back to a one-shot scan from 0.
       const cursorKey = `${symbol}|${interval}`;
       let count = windowCursor?.get(cursorKey) ?? 0;
       while (count < all.length && (all[count]?.closeTimeMs ?? Infinity) <= asOfMs) count++;
       windowCursor?.set(cursorKey, count);
-      // Only the most recent RATING_CANDLES feed the rating (see the constant):
-      // live parity and O(1) per tick instead of O(growing-history). The window
-      // start is a cursor-relative index; the slice itself is materialised only
-      // on a cache MISS below, so a hit avoids the up-to-250-element copy.
-      const startIdx = Math.max(0, count - RATING_CANDLES);
+      // Keep the cache identity on the raw clock-bar source. Filtering sparse
+      // bars is only needed on a miss, and cannot make two raw windows collide.
+      const startIdx = Math.max(0, count - TECHNICALS_SOURCE_CANDLE_LIMIT);
       // A window too short to rate yields a null signal — the strategy treats
       // that as "no technicals reading this interval", matching the live path
       // which also degrades to null. (Warm-up makes real ticks long-windowed;
@@ -820,8 +830,8 @@ export function buildBundle(
         if (cached !== undefined) {
           return { interval, signal: { ...cached, receivedAtMs: asOfMs } };
         }
-        // Miss: materialise the trailing RATING_CANDLES window and rate it.
-        const window = all.slice(startIdx, count);
+        // Miss: materialise and normalize the bounded source before rating it.
+        const window = prepareTechnicalsRatingWindow(all.slice(startIdx, count));
         const signal = ratingToSignal(symbol, window, computeTechnicalsRating(window), asOfMs);
         signalCache?.set(key, signal);
         return { interval, signal };

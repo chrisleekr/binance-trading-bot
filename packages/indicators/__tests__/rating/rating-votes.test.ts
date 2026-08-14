@@ -1,14 +1,11 @@
-// Supplemental rating-vote coverage (#441).
-//
-// computeTechnicalsRating's per-indicator vote helpers are module-private, so
-// the only way to reach their buy/sell arms is to drive crafted candle windows
-// through the public entry point. A strong uptrend, a strong downtrend, an
-// oscillating series, and a perfectly flat series between them cover the +1 /
-// -1 / 0 arms of every vote rule plus the null-input neutral fallbacks.
+// Crafted candle windows verify that the public pipeline wires indicator values
+// into the expected vote families. Exact helper predicates are tested directly.
 
 import { describe, expect, it } from 'vitest';
+import Decimal from 'decimal.js';
 import type { Candle } from '@app/strategy-core';
 
+import { stochRsi } from '../../src/rating/adapter.js';
 import { computeTechnicalsRating } from '../../src/rating/index.js';
 
 const N = 260; // long enough to warm the 200-period MAs
@@ -52,23 +49,102 @@ const flat = (): Candle[] => Array.from({ length: N }, (_, i) => mk(i, 150, 150,
 const votesOf = (w: Candle[]): Record<string, number> =>
   computeTechnicalsRating(w).perIndicatorVotes;
 
+const seededWindow = (
+  seed: number,
+  length: number,
+  options: {
+    readonly initialPrice?: number;
+    readonly bias?: number;
+    readonly stepScale?: number;
+    readonly wickScale?: number;
+  } = {},
+): Candle[] => {
+  let state = seed >>> 0;
+  let price = options.initialPrice ?? 200;
+  const bias = options.bias ?? 0;
+  const stepScale = options.stepScale ?? 20;
+  const wickScale = options.wickScale ?? 15;
+  const random = (): number => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+    return state / 4_294_967_296;
+  };
+  return Array.from({ length }, (_, i) => {
+    price += (random() - 0.5 + bias) * stepScale;
+    const high = price + random() * wickScale + 0.1;
+    const low = price - random() * wickScale - 0.1;
+    return mk(i, price, high, low);
+  });
+};
+
+const stochRsiState = (seed: number, bias: number) => {
+  const window = seededWindow(seed, 250, { initialPrice: 1_000, bias });
+  const rating = computeTechnicalsRating(window);
+  const lines = stochRsi(window);
+  const ema50 = rating.movingAverages.ema50;
+  const last = window[window.length - 1];
+  if (!lines || !ema50 || !last) throw new Error('Stochastic RSI case did not warm up');
+  return { rating, lines, ema50, close: new Decimal(last.close) };
+};
+
 describe('computeTechnicalsRating — vote arms across regimes', () => {
-  it('a strong uptrend produces buy votes on the moving averages and the Ichimoku cloud', () => {
+  it('uses close versus EMA(50) for both trend-gated oscillator votes', () => {
+    const votes = votesOf(seededWindow(29, 250, { bias: 0.02, stepScale: 12, wickScale: 8 }));
+    expect(votes['stochRsi']).toBe(0);
+    expect(votes['bbPower']).toBe(1);
+  });
+
+  it('votes BUY for oversold Stochastic RSI only when close is below EMA(50)', () => {
+    const buy = stochRsiState(13, -0.04);
+    expect(buy.lines.k.lessThan(20)).toBe(true);
+    expect(buy.lines.d.lessThan(20)).toBe(true);
+    expect(buy.lines.k.greaterThan(buy.lines.d)).toBe(true);
+    expect(buy.close.lessThan(buy.ema50)).toBe(true);
+    expect(buy.rating.perIndicatorVotes['stochRsi']).toBe(1);
+
+    const oppositeTrend = stochRsiState(13, 0);
+    expect(oppositeTrend.lines.k.lessThan(20)).toBe(true);
+    expect(oppositeTrend.lines.d.lessThan(20)).toBe(true);
+    expect(oppositeTrend.lines.k.greaterThan(oppositeTrend.lines.d)).toBe(true);
+    expect(oppositeTrend.close.greaterThan(oppositeTrend.ema50)).toBe(true);
+    expect(oppositeTrend.rating.perIndicatorVotes['stochRsi']).toBe(0);
+  });
+
+  it('votes SELL for overbought Stochastic RSI only when close is above EMA(50)', () => {
+    const sell = stochRsiState(3, 0);
+    expect(sell.lines.k.greaterThan(80)).toBe(true);
+    expect(sell.lines.d.greaterThan(80)).toBe(true);
+    expect(sell.lines.k.lessThan(sell.lines.d)).toBe(true);
+    expect(sell.close.greaterThan(sell.ema50)).toBe(true);
+    expect(sell.rating.perIndicatorVotes['stochRsi']).toBe(-1);
+
+    const oppositeTrend = stochRsiState(3, -0.04);
+    expect(oppositeTrend.lines.k.greaterThan(80)).toBe(true);
+    expect(oppositeTrend.lines.d.greaterThan(80)).toBe(true);
+    expect(oppositeTrend.lines.k.lessThan(oppositeTrend.lines.d)).toBe(true);
+    expect(oppositeTrend.close.lessThan(oppositeTrend.ema50)).toBe(true);
+    expect(oppositeTrend.rating.perIndicatorVotes['stochRsi']).toBe(0);
+  });
+
+  it('a strong uptrend produces buy votes on the moving averages', () => {
     const votes = votesOf(uptrend());
-    // Price is above every MA → each MA vote is +1. Ichimoku: price above the
-    // whole cloud with conversion over base → the cloud buy arm.
-    for (const key of ['ema10', 'sma50', 'ema200', 'vwma20', 'hullMa9', 'ichimokuBLine']) {
+    for (const key of ['ema10', 'sma50', 'ema200', 'vwma20', 'hullMa9']) {
       expect(votes[key]).toBe(1);
     }
+    // Not "this window misses the setup": the Ichimoku arms are unsatisfiable
+    // by construction, so Neutral here is the invariant, matching TradingView's
+    // own always-0 Rec.Ichimoku. rating-vote-helpers.test.ts proves it.
+    expect(votes['ichimokuBLine']).toBe(0);
     // At least one oscillator should read bullish or bearish-overbought.
     expect(Object.values(votes).some((v) => v !== 0)).toBe(true);
   });
 
-  it('a strong downtrend produces sell votes on the moving averages and the Ichimoku cloud', () => {
+  it('a strong downtrend produces sell votes on the moving averages', () => {
     const votes = votesOf(downtrend());
-    for (const key of ['ema10', 'sma50', 'ema200', 'vwma20', 'hullMa9', 'ichimokuBLine']) {
+    for (const key of ['ema10', 'sma50', 'ema200', 'vwma20', 'hullMa9']) {
       expect(votes[key]).toBe(-1);
     }
+    // Constant Neutral by construction, as in the uptrend case above.
+    expect(votes['ichimokuBLine']).toBe(0);
   });
 
   it('an oscillating series exercises the oscillator cross arms without crashing', () => {
@@ -125,10 +201,10 @@ describe('computeTechnicalsRating — vote arms across regimes', () => {
   });
 
   it('computes a present, valid ADX vote in a strong trend', () => {
-    // The ADX-rising/falling buy and sell arms are pinned directly in
-    // rating-vote-helpers.test.ts (the smoothed DI/ADX slope is too fiddly to
-    // land a specific arm through the full pipeline); here we only assert the
-    // trend is recognised and the vote is a valid tri-state.
+    // The rising ADX Buy/Sell arms and falling ADX Neutral branch are pinned
+    // directly in rating-vote-helpers.test.ts (the smoothed DI/ADX slope is too
+    // fiddly to land a specific arm through the full pipeline); here we only
+    // assert the trend is recognised and the vote is a valid tri-state.
     const r = computeTechnicalsRating(uptrend());
     expect(r.oscillators.adx?.greaterThan(20)).toBe(true);
     expect([-1, 0, 1]).toContain(r.perIndicatorVotes['adx']);

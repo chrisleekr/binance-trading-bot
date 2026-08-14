@@ -2,9 +2,9 @@
 
 A **Technical Rating** is a single number between −1 and +1 summarising what 26 classic technical indicators say about one coin on one timeframe. The bot computes it itself, from public Binance candles, and uses it two ways: to **block a buy** when the reading is bearish, and optionally to **force a sell** when a held position turns.
 
-The scoring method follows TradingView's published [Technical Ratings methodology][tv-ratings], so the number you see in the app should line up with TradingView's own gauge for the same coin and timeframe. That is deliberate — it gives you a free second opinion you can check by hand.
+The scoring method derives from TradingView's [Technical Ratings methodology][tv-ratings] and public [TechnicalRating v3 source][tv-source]. Reviewed timestamp-aligned scanner captures decide observed runtime behaviour where that published source differs from the scanner. A comparison is valid only for the exact Binance market, interval, closed traded candle timestamp, and close. TradingView's Technicals page shows its latest realtime value, so the page and this app can legitimately differ while a new candle is forming.
 
-Nothing here is fetched from a third party at run time. The bot pulls raw candles from Binance and does the arithmetic locally, using an indicator library vendored into the repo (ported from [bennycode/trading-signals][attr] under MIT).
+Nothing is fetched from TradingView at run time. The bot pulls raw candles from Binance and does the arithmetic locally, using an indicator library vendored into the repo (ported from [bennycode/trading-signals][attr] under MIT).
 
 ## How the rating is calculated
 
@@ -12,7 +12,7 @@ Four steps, on every configured timeframe.
 
 ### Step 1 — Get the candles
 
-The worker fetches the last **251 candles** for the coin and timeframe, then **discards the candle still forming**. Every indicator therefore reads only closed candles, so a rating never flickers because the current minute is mid-move.
+The worker requests up to **1,000 Binance clock candles** for the coin and timeframe. The Binance fetcher discards the candle still forming. The rating path then keeps the latest 999 closed source candles, discards zero-volume candles, and rates at most the latest **250 traded candles**. TradingView omits empty clock candles from its bar sequence, so this order matters for sparse markets.
 
 ### Step 2 — Each indicator casts one vote
 
@@ -26,7 +26,9 @@ Every indicator returns exactly one of three votes: **Buy (+1)**, **Neutral (0)*
 | SMA 10, 20, 30, 50, 100, 200 | price is above the average | price is below it | Neutral |
 | VWMA 20 (volume-weighted) | price is above the average | price is below it | Neutral |
 | Hull MA 9 | price is above the average | price is below it | Neutral |
-| Ichimoku cloud | price is above the whole cloud **and** above the base line **and** conversion is above base | the exact mirror image | Neutral |
+| Ichimoku cloud | current span A is above span B, base is above span A, conversion is above base, and price is above conversion | the exact mirror image | Neutral |
+
+The published v3 source writes its span comparison with a 26-bar index, but exact closed-bar scanner captures select current computed spans. The scanner judgment is the operational target, so the cloud vote reads the current 9 / 26 / 52 lines and stays Neutral until 52 traded bars are present. The full four-part ordering still applies.
 
 **The 11 oscillator votes.** These are momentum and strength gauges. Most need the previous candle's value too, because the rule is about direction, not level.
 
@@ -35,13 +37,13 @@ Every indicator returns exactly one of three votes: **Buy (+1)**, **Neutral (0)*
 | RSI (14) | below 30 **and rising** | above 70 **and falling** | Neutral |
 | Stochastic | %K and %D both below 20, with %K above %D | %K and %D both above 80, with %K below %D | Neutral |
 | CCI (20) | below −100 **and rising** | above +100 **and falling** | Neutral |
-| ADX | ADX above 20, +DI above −DI, **and ADX rising** | ADX above 20, −DI above +DI, **and ADX falling** | Neutral |
+| ADX | ADX above 20, +DI above −DI, **and ADX rising** | ADX above 20, −DI above +DI, **and ADX rising** | Neutral |
 | Awesome Oscillator | crosses above zero, or forms a saucer above zero (dips toward zero, then turns up) | crosses below zero, or forms a saucer below zero | Neutral |
 | Momentum | higher than last candle | lower than last candle | Neutral |
 | MACD | MACD line above its signal line | MACD line below its signal line | Neutral |
-| Stochastic RSI | %K and %D both below 20, with %K above %D | %K and %D both above 80, with %K below %D | Neutral |
+| Stochastic RSI | price below EMA(50), with %K and %D both below 20 and %K above %D | price above EMA(50), with %K and %D both above 80 and %K below %D | Neutral |
 | Williams %R | below −80 **and rising** | above −20 **and falling** | Neutral |
-| Bull/Bear Power | EMA(13) rising, bear power still negative but recovering | EMA(13) falling, bull power still positive but fading | Neutral |
+| Bull/Bear Power | price above EMA(50), with EMA(13)-based bear power still negative but recovering | price below EMA(50), with EMA(13)-based bull power still positive but fading | Neutral |
 | Ultimate Oscillator | above 70 | below 30 | Neutral |
 
 !!! note "Ultimate Oscillator reads as momentum, not overbought"
@@ -78,23 +80,29 @@ All three land in −1 … +1. The app shows all three: **Summary** is `recommen
 
 | Summary score          | Recommendation |
 | ---------------------- | -------------- |
-| `score >= 0.5`         | `STRONG_BUY`   |
-| `0.1 <= score < 0.5`   | `BUY`          |
-| `-0.1 < score < 0.1`   | `NEUTRAL`      |
-| `-0.5 < score <= -0.1` | `SELL`         |
-| `score <= -0.5`        | `STRONG_SELL`  |
+| `score > 0.5`          | `STRONG_BUY`   |
+| `0.1 < score <= 0.5`   | `BUY`          |
+| `-0.1 <= score <= 0.1` | `NEUTRAL`      |
+| `-0.5 <= score < -0.1` | `SELL`         |
+| `score < -0.5`         | `STRONG_SELL`  |
 
-These are TradingView's own boundaries, which is what makes the panel's "Compare on TradingView" link a meaningful cross-check.
+The bounds are strict. Exact scores of `-0.5`, `-0.1`, `0.1`, and `0.5` map to Sell, Neutral, Neutral, and Buy respectively.
+
+To compare by hand, open the exact `BINANCE:<symbol>` market and select the same interval. Compare this app's last closed traded candle only after confirming TradingView has the same timestamp and close. If the timestamp or close differs, the feeds are not aligned and the two ratings are not comparable yet.
 
 ### A worked example
 
 A coin in a clean but unremarkable uptrend, on the `1h` timeframe:
 
-- Price is above all 12 EMAs and SMAs, above the VWMA and the Hull MA, and above the Ichimoku cloud with bullish structure. **All 15 MA votes are +1**, so `recommendMa = 15/15 = 1.0`.
+- Price is above all 12 EMAs and SMAs, above the VWMA and the Hull MA. That is **14 votes of +1**. The fifteenth MA slot, Ichimoku, is always Neutral (see below), so `recommendMa = 14/15 ≈ 0.93` — a clean uptrend cannot reach 1.0.
 - Among the oscillators, only MACD (line above signal) and Momentum (higher than last candle) vote Buy. RSI sits at 58 — neither below 30 nor above 70 — so it is Neutral. Stochastic is mid-range, ADX is 18 so below its own threshold, and the rest have no setup. **2 votes of +1, 9 votes of 0**, so `recommendOther = 2/11 ≈ 0.18`.
-- `recommendAll = (1.0 + 0.18) / 2 = 0.59` → **`STRONG_BUY`**.
+- `recommendAll = (0.93 + 0.18) / 2 ≈ 0.56` → **`STRONG_BUY`**.
 
-Now the same coin stalls: price slips under the 10 and 20 period averages while the longer ones still hold, so 4 MA votes flip to −1 and `recommendMa = 11/15 ≈ 0.73`. MACD crosses down to −1 and Momentum goes to −1, so `recommendOther = −2/11 ≈ −0.18`. `recommendAll = (0.73 − 0.18) / 2 ≈ 0.27` → **`BUY`**. The rating degraded two steps from four averages and two oscillators turning, which is the sensitivity to expect.
+Now the same coin stalls: price slips under the 10 and 20 period averages while the longer ones still hold, so 4 MA votes flip to −1. Each score is the **average of signed votes**, not the share that voted Buy, so ten `+1` and four `−1` give `recommendMa = (10 − 4)/15 = 0.4`. MACD crosses down to −1 and Momentum goes to −1, so `recommendOther = −2/11 ≈ −0.18`. `recommendAll = (0.4 − 0.18) / 2 ≈ 0.11` → **`BUY`**. Four averages and two oscillators turning cost a full step, and left the score barely above the `0.1` Neutral boundary, which is the sensitivity to expect.
+
+!!! note "Ichimoku always votes Neutral"
+
+    TradingView's published rule compares the base line against the leading span A from 26 bars ago. Its own scanner instead compares against the current span, and that comparison is self-contradictory: leading span A is defined as the midpoint of the conversion and base lines, so "base above span A" and "conversion above base" can never both hold. TradingView's `Rec.Ichimoku` is therefore `0` for every symbol we have sampled, across crypto, equities and forex. This app reproduces that exactly, because the scanner is the reference the rating is checked against. The slot still counts toward the 15, which is why it caps `recommendMa` at `14/15`.
 
 ## When the rating is recomputed
 
@@ -107,8 +115,11 @@ flowchart TD
     Cron["Compute job, every 30s"]:::io
     CandleGate{"Has a new candle closed?"}:::gate
     Skip["Skip the fetch,<br/>re-stamp cached ratings as current"]:::wait
-    Fetch["Fetch 251 candles from Binance"]:::io
+    Fetch["Fetch up to 1000 candles from Binance"]:::io
     Drop["Discard the still-forming candle"]:::core
+    Source["Keep the latest 999 closed clock bars"]:::core
+    Filter["Discard zero-volume bars"]:::core
+    Traded["Keep the latest 250 traded bars"]:::core
     Rate["Cast 26 votes, average them"]:::core
     Bucket["Bucket into a recommendation"]:::core
     SetSig["Store with a freshness timestamp"]:::act
@@ -117,7 +128,10 @@ flowchart TD
     CandleGate -->|no| Skip
     CandleGate -->|yes| Fetch
     Fetch --> Drop
-    Drop --> Rate
+    Drop --> Source
+    Source --> Filter
+    Filter --> Traded
+    Traded --> Rate
     Rate --> Bucket
     Bucket --> SetSig
 
@@ -128,9 +142,10 @@ flowchart TD
     classDef wait fill:#ecf0f1,color:#2c3e50;
 ```
 
-The compute job is the only writer of ratings. The API, the strategy, and the web app only ever read them. The backtest engine runs the **same** calculation per replayed candle, so a backtested gate decision matches the live one exactly.
+The compute job is the only writer of ratings. The API, the strategy, and the web app only ever read them. The backtest engine applies the same 999-clock-bar source limit, zero-volume filter, 250-traded-bar tail, rating, and bucket rules per replayed candle.
 
 [tv-ratings]: https://www.tradingview.com/support/solutions/43000614331-technical-ratings/
+[tv-source]: https://pine-facade.tradingview.com/pine-facade/get/PUB%3Ba76380106c7f4d519db87128797c3a1c/last
 
 ## Operator configuration
 
@@ -143,7 +158,7 @@ Per-profile config lives under the strategy's **Technicals** block. Full field r
   - `whenSell` / `whenStrongSell` / `whenNeutral` — interval's **force-sell trigger set**. Fires a MARKET sell when any configured interval reports a matching recommendation while a position is held at profit and below its sell-trigger price. All three disabled by default.
   - `mode` — `block` (default) keeps the AND-veto semantics above. `advisory` records the row's verdict in the audit log but never vetoes the buy gate. Use to mark a noisy short timeframe as observability-only while still requiring longer TFs to consent.
 
-The cap of three intervals keeps the cron's Binance klines weight budget in check (each call is weight 2 for our `limit=251` request); raise via a strategy plugin if you need more.
+The cap of three intervals keeps the cron's Binance klines weight budget in check. Each `limit=1000` kline request has request weight 2. Raise the cap through a strategy plugin if you need more.
 
 ## Buy gate
 
@@ -210,7 +225,7 @@ The push-based IndicatorComputer keeps per-`(symbol, interval)` running state fo
 
 ## Reliability
 
-- **No external dependency at run time.** The worker fetches public Binance klines (unauthenticated, weight 2 per call at our 251-candle limit) and computes ratings locally. If Binance's klines endpoint is throttling, the per-symbol fetch fails are counted on the receipt; the pill goes amber/red within the 300s receipt TTL.
+- **No TradingView dependency at run time.** The worker fetches public Binance klines (unauthenticated, weight 2 per `limit=1000` call) and computes ratings locally. If Binance's klines endpoint is throttling, the per-symbol fetch failures are counted on the receipt; the pill goes amber/red within the 300s receipt TTL.
 - **Bounded retry.** One retry (two attempts total) with Retry-After support. A single rate-limit blip self-heals on the next cron tick.
 - **Crash-only.** Per-symbol writes go in one pipeline; the receipt is a follow-up SET after the pipeline commits (or fails), so the dashboard always sees a non-null `error` summary on partial failure rather than silently corrupting state.
 

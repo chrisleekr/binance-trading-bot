@@ -15,14 +15,14 @@ type Rating = ReturnType<typeof computeTechnicalsRating>;
 /**
  * Map a rating score in [-1, 1] to a recommendation, per TradingView's
  * Technical Ratings thresholds:
- *   score >= 0.5 → STRONG_BUY; >= 0.1 → BUY; <= -0.5 → STRONG_SELL;
- *   <= -0.1 → SELL; otherwise NEUTRAL (strict on both sides).
+ *   score > 0.5 → STRONG_BUY; > 0.1 → BUY; < -0.5 → STRONG_SELL;
+ *   < -0.1 → SELL; otherwise NEUTRAL.
  */
 export const bucketize = (score: number): TechnicalsRecommendation => {
-  if (score >= 0.5) return 'STRONG_BUY';
-  if (score >= 0.1) return 'BUY';
-  if (score <= -0.5) return 'STRONG_SELL';
-  if (score <= -0.1) return 'SELL';
+  if (score < -0.5) return 'STRONG_SELL';
+  if (score < -0.1) return 'SELL';
+  if (score > 0.5) return 'STRONG_BUY';
+  if (score > 0.1) return 'BUY';
   return 'NEUTRAL';
 };
 

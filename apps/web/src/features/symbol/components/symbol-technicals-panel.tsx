@@ -663,9 +663,9 @@ export function SymbolTechnicalsPanel({
             rel="noopener noreferrer"
             className="hover:text-foreground inline-flex items-center gap-1 text-xs text-muted-fg"
             data-testid="symbol-tv-external-link"
-            title="Open TradingView's published Technical Ratings for this symbol so you can cross-check against the ratings we compute locally from Binance klines. Note: long moving averages (EMA/SMA 100 and 200) are computed over a recent-candle window, so their raw values can differ slightly from TradingView's full-history values — the buy/sell signal still matches in trending conditions."
+            title="Open the exact Binance market on TradingView. This app rates the last closed traded candle, while TradingView's Technicals page shows the latest realtime value."
           >
-            Compare on TradingView
+            Open on TradingView
             <ExternalLink className="size-3" aria-hidden />
           </a>
         </div>

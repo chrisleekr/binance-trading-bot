@@ -4,9 +4,26 @@ import { ichimokuCloud } from '../../src/rating/ichimoku.js';
 import { loadCanonicalBtc1h, mkOhlcvWindow } from './test-utils.js';
 
 describe('ichimokuCloud', () => {
-  it('returns null when the window is shorter than the leading-span-B length', () => {
-    const w = mkOhlcvWindow([{ o: '1', h: '2', l: '0.5', c: '1.5' }]);
-    expect(ichimokuCloud(w)).toBeNull(); // default leadBLen 52
+  it('requires the longest configured period', () => {
+    const bars = Array.from({ length: 10 }, (_, i) => ({
+      o: String(i + 1),
+      h: String(i + 2),
+      l: String(i),
+      c: String(i + 1),
+    }));
+    expect(ichimokuCloud(mkOhlcvWindow(bars.slice(0, 9)), 6, 10, 4)).toBeNull();
+    expect(ichimokuCloud(mkOhlcvWindow(bars), 6, 10, 4)).not.toBeNull();
+  });
+
+  it('requires 52 bars with the default leading-span-B period', () => {
+    const bars = Array.from({ length: 52 }, (_, i) => ({
+      o: String(i + 1),
+      h: String(i + 2),
+      l: String(i),
+      c: String(i + 1),
+    }));
+    expect(ichimokuCloud(mkOhlcvWindow(bars.slice(0, 51)))).toBeNull();
+    expect(ichimokuCloud(mkOhlcvWindow(bars))).not.toBeNull();
   });
 
   it('hand-computed Donchian midpoints for each line', () => {
@@ -26,6 +43,22 @@ describe('ichimokuCloud', () => {
     expect(cloud?.conversion.toString()).toBe('10.5');
     expect(cloud?.leadB.toString()).toBe('9.5');
     expect(cloud?.leadA.toString()).toBe('10');
+  });
+
+  it('calculates leading spans from the current window', () => {
+    const w = mkOhlcvWindow(
+      Array.from({ length: 8 }, (_, i) => ({
+        o: String(i + 1),
+        h: String(i + 2),
+        l: String(i),
+        c: String(i + 1),
+      })),
+    );
+    const cloud = ichimokuCloud(w, 2, 4, 4);
+    expect(cloud?.conversion.toString()).toBe('7.5');
+    expect(cloud?.base.toString()).toBe('6.5');
+    expect(cloud?.leadA.toString()).toBe('7');
+    expect(cloud?.leadB.toString()).toBe('6.5');
   });
 
   it('snapshots stable cloud lines on the canonical BTC fixture', () => {

@@ -4,6 +4,10 @@ import type { Candle } from '@app/strategy-core';
 import type { TechnicalsBundleConfig } from '@app/contracts';
 import { buildBundle } from '../../src/backtest/backtest-runner.js';
 import { LruSignalCache } from '../../src/backtest/signal-cache.js';
+import {
+  prepareTechnicalsRatingWindow,
+  TECHNICALS_SOURCE_CANDLE_LIMIT,
+} from '../../src/technicals/rating-window.js';
 
 const MIN = 60_000;
 
@@ -18,7 +22,7 @@ const tvConfig = {
   ifExpires: 'do-nothing',
 } as unknown as TechnicalsBundleConfig;
 
-function candle(closeTimeMs: number, close: string): Candle {
+function candle(closeTimeMs: number, close: string, volume = '1'): Candle {
   return {
     openTimeMs: closeTimeMs - MIN + 1,
     closeTimeMs,
@@ -26,7 +30,7 @@ function candle(closeTimeMs: number, close: string): Candle {
     high: close,
     low: close,
     close,
-    volume: '1',
+    volume,
     isClosed: true,
   };
 }
@@ -50,21 +54,35 @@ describe('buildBundle', () => {
     );
   });
 
-  it('rates over only the most recent RATING_CANDLES (live parity + bounded cost)', () => {
-    // The rating depends only on its recent tail, and the live cron rates over
-    // KLINE_LIMIT=250 candles. So a 600-candle history and just its last 250
-    // must yield the identical signal — proving the bound preserves live parity
-    // (and keeps the per-tick cost constant instead of O(growing-history),
-    // which made long backtests hang).
-    const long: Candle[] = Array.from({ length: 600 }, (_, i) =>
-      candle((i + 1) * MIN, (100 + (i % 40)).toString()),
+  it('rates the same shared raw-clock and traded-bar window as live Technicals', () => {
+    const long: Candle[] = Array.from({ length: 1_100 }, (_, i) =>
+      candle((i + 1) * MIN, (100 + (i % 40)).toString(), i === 1_099 || i % 9 === 0 ? '0' : '1'),
     );
-    const asOf = 600 * MIN;
+    const asOf = 1_100 * MIN;
     const signalOf = (cs: Candle[]): unknown => {
       const b = buildBundle(strategy, tvConfig, new Map([['BTCUSDT|1m', cs]]), 'BTCUSDT', asOf);
       return (b['technicals'] as { signals: { signal: unknown }[] }).signals[0]?.signal;
     };
-    expect(signalOf(long)).toEqual(signalOf(long.slice(-250)));
+    const prepared = prepareTechnicalsRatingWindow(long.slice(-TECHNICALS_SOURCE_CANDLE_LIMIT));
+    expect(signalOf(long)).toEqual(signalOf(prepared));
+  });
+
+  it('keys cached ratings by the bounded raw source before zero-volume filtering', () => {
+    const source = Array.from({ length: 1_000 }, (_, i) =>
+      candle((i + 1) * MIN, (100 + (i % 40)).toString(), i === 999 ? '0' : '1'),
+    );
+    const cache = new Map();
+
+    buildBundle(
+      strategy,
+      tvConfig,
+      new Map([['BTCUSDT|1m', source]]),
+      'BTCUSDT',
+      1_000 * MIN,
+      cache,
+    );
+
+    expect([...cache.keys()]).toEqual([`BTCUSDT|1m|${2 * MIN}|${1_000 * MIN}`]);
   });
 
   it('memoises the signal by the latest closed candle (cache hit, same result)', () => {
@@ -95,7 +113,9 @@ describe('buildBundle', () => {
     // asOf = 30m: full window → a real signal is produced
     const late = buildBundle(strategy, tvConfig, candlesByKey, 'BTCUSDT', 30 * MIN);
     const lateSignals = (late['technicals'] as { signals: { signal: unknown }[] }).signals;
-    expect(lateSignals[0]?.signal).not.toBeNull();
+    // An empty signals array yields `undefined`, which passes a null check, so
+    // assert the produced shape instead.
+    expect(lateSignals[0]?.signal).toMatchObject({ recommendation: expect.any(String) });
   });
 
   it('a shared LruSignalCache reuses a signal across separate runs over the same candles', () => {

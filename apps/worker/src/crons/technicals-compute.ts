@@ -18,6 +18,10 @@ import { BINANCE_HOSTS, fetchClosedKlines, type WeightGovernor } from '@app/bina
 
 import { commitPipelineChecked } from 'lib/redis-pipeline.js';
 import { ratingToSignal } from 'technicals/rating-to-signal.js';
+import {
+  prepareTechnicalsRatingWindow,
+  TECHNICALS_KLINE_REQUEST_LIMIT,
+} from 'technicals/rating-window.js';
 
 /**
  * Soft TTL on the per-interval fetch-status Redis key. A missing key signals
@@ -29,9 +33,6 @@ const FETCH_STATUS_TTL_SECONDS = 300;
 /** Public Binance REST host — unauthenticated klines. The fetcher in
  * @app/binance reserves the flat klines weight (2). */
 const KLINES_BASE_URL = BINANCE_HOSTS.live;
-
-/** Number of candles we feed each indicator. 250 covers EMA200's warmup. */
-const KLINE_LIMIT = 250;
 
 /**
  * How many Binance fetches we let run concurrently per interval. At weight 2
@@ -62,8 +63,8 @@ export interface CreateFetchAndCacheDeps {
   readonly fetchKlines?: (symbol: string, interval: string) => Promise<readonly Candle[]>;
   /**
    * Optional shared rate-limit governor. When supplied, each kline fetch
-   * reserves the documented Binance weight (`GET /api/v3/klines` = 2 at
-   * `limit <= 500`) before issuing the request. Lets tick + cron + cold-
+   * reserves the documented Binance weight (`GET /api/v3/klines` = 2)
+   * before issuing the request. Lets tick + cron + cold-
    * load share one per-IP budget instead of independently 429-ing.
    */
   readonly weightGovernor?: WeightGovernor;
@@ -105,8 +106,8 @@ const restampReceivedAt = (raw: string, nowMs: number): string => {
  * Default klines source: the shared strict fetcher in @app/binance (decode,
  * open-bar drop, retry-with-Retry-After, flat weight reservation). Symbols
  * arrive as `BINANCE:BTCUSDT`; the REST endpoint wants the bare `BTCUSDT`.
- * Request one extra row because the latest bar is still forming — the fetcher
- * drops it via `closeTimeMs < now`.
+ * The fetcher drops the forming row via `closeTimeMs < now`; the remaining
+ * source is normalized to TradingView's traded-bar sequence downstream.
  */
 const defaultFetchKlines =
   (
@@ -117,7 +118,12 @@ const defaultFetchKlines =
   (symbol: string, interval: string): Promise<readonly Candle[]> => {
     const bare = symbol.includes(':') ? (symbol.split(':')[1] ?? symbol) : symbol;
     return fetchClosedKlines(
-      { baseUrl: KLINES_BASE_URL, symbol: bare, interval, limit: KLINE_LIMIT + 1 },
+      {
+        baseUrl: KLINES_BASE_URL,
+        symbol: bare,
+        interval,
+        limit: TECHNICALS_KLINE_REQUEST_LIMIT,
+      },
       {
         fetch: fetchImpl,
         nowMs: () => clock.nowMs(),
@@ -288,7 +294,8 @@ export const createFetchAndCache = (
 
     const runOne = async (symbol: string): Promise<void> => {
       try {
-        const candles = await fetchKlines(symbol, interval);
+        const sourceCandles = await fetchKlines(symbol, interval);
+        const candles = prepareTechnicalsRatingWindow(sourceCandles);
         if (candles.length === 0) {
           skippedInvalid += 1;
           return;
@@ -302,8 +309,8 @@ export const createFetchAndCache = (
           deps.signalTtlSeconds,
         );
         written += 1;
-        // Yield the event loop after each symbol's ~7.6ms synchronous indicator
-        // compute. Under ROLE=all the api shares this thread, so an unbroken
+        // Yield the event loop after each symbol's synchronous indicator compute.
+        // Under ROLE=all the api shares this thread, so an unbroken
         // batch of computes tail-latencies the dashboard; a macrotask break lets
         // pending request callbacks interleave. Output is unchanged.
         await new Promise<void>((resolve) => setImmediate(resolve));
