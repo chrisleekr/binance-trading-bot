@@ -257,7 +257,11 @@ describe('ManualTradePanel — interactions', () => {
   it('opens the confirm modal then POSTs the order on confirm', async () => {
     const { fetchMock } = renderManual((url) => {
       if (url.includes('/manual-order')) {
-        return json({ scheduledAt: '2026-05-10T12:00:00.000Z', overrideActionId: ACTION_ID });
+        return json({
+          scheduledAt: '2026-05-10T12:00:00.000Z',
+          overrideActionId: ACTION_ID,
+          createdAt: '2026-05-10T12:00:00.000Z',
+        });
       }
       throw new Error(`unexpected ${url}`);
     });
@@ -379,7 +383,11 @@ describe('ForceTriggerPanel — interactions', () => {
   it('Force buy modal calls /trigger-buy and surfaces the schedule', async () => {
     const { fetchMock } = renderForce((url) => {
       if (url.includes('/trigger-buy')) {
-        return json({ scheduledAt: '2026-05-10T12:00:00.000Z', overrideActionId: ACTION_ID });
+        return json({
+          scheduledAt: '2026-05-10T12:00:00.000Z',
+          overrideActionId: ACTION_ID,
+          createdAt: '2026-05-10T12:00:00.000Z',
+        });
       }
       throw new Error(`unexpected ${url}`);
     });
@@ -403,7 +411,11 @@ describe('ForceTriggerPanel — interactions', () => {
     // as a success. The panel polls the override row and reports what happened.
     renderForce((url) => {
       if (url.includes('/trigger-sell')) {
-        return json({ scheduledAt: '2026-05-10T12:00:00.000Z', overrideActionId: ACTION_ID });
+        return json({
+          scheduledAt: '2026-05-10T12:00:00.000Z',
+          overrideActionId: ACTION_ID,
+          createdAt: '2026-05-10T12:00:00.000Z',
+        });
       }
       if (url.includes('/override')) {
         return json(
@@ -464,7 +476,13 @@ describe('ForceTriggerPanel — interactions', () => {
       fetchMock.mock.calls.filter(([input]) => String(input).includes('/trigger-buy')),
     ).toHaveLength(1);
     await act(async () => {
-      resolver(json({ scheduledAt: '2026-05-10T12:00:00.000Z', overrideActionId: ACTION_ID }));
+      resolver(
+        json({
+          scheduledAt: '2026-05-10T12:00:00.000Z',
+          overrideActionId: ACTION_ID,
+          createdAt: '2026-05-10T12:00:00.000Z',
+        }),
+      );
     });
     await waitFor(() =>
       expect(toastSuccess).toHaveBeenCalledWith(expect.stringMatching(/Force buy scheduled/)),
@@ -474,7 +492,11 @@ describe('ForceTriggerPanel — interactions', () => {
   it('Force sell modal calls /trigger-sell', async () => {
     const { fetchMock } = renderForce((url) => {
       if (url.includes('/trigger-sell')) {
-        return json({ scheduledAt: '2026-05-10T12:00:00.000Z', overrideActionId: ACTION_ID });
+        return json({
+          scheduledAt: '2026-05-10T12:00:00.000Z',
+          overrideActionId: ACTION_ID,
+          createdAt: '2026-05-10T12:00:00.000Z',
+        });
       }
       throw new Error(`unexpected ${url}`);
     });

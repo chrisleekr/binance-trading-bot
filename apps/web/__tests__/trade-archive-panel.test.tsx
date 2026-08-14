@@ -135,6 +135,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           { symbol: 'BTCUSDT', reason: 'open-or-pre-history', dismissed: false },
           { symbol: 'SOLUSDT', reason: 'overshoot', dismissed: false },
           { symbol: 'XRPUSDT', reason: 'orphan-sells', dismissed: false },
+          { symbol: 'LUNAUSDT', reason: 'symbol-unavailable', dismissed: false },
         ],
       ),
     );
@@ -149,6 +150,9 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     );
     expect(within(note).getByTestId('unreconstructable-XRPUSDT')).toHaveTextContent(
       /sold without a recorded buy/,
+    );
+    expect(within(note).getByTestId('unreconstructable-LUNAUSDT')).toHaveTextContent(
+      /no longer lists this coin/,
     );
     // Nothing recoverable → no amber warning and no recover button to dead-end on.
     expect(screen.queryByTestId('archive-missing-nudge')).not.toBeInTheDocument();
@@ -256,6 +260,79 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     expect(hidden).toHaveTextContent(/sold more than was bought/);
     await userEvent.click(screen.getByTestId('unreconstructable-unhide-SOLUSDT'));
     expect(dismissUnreconstructable).toHaveBeenCalledWith(PID, 'SOLUSDT', false);
+  });
+
+  it('shows "P/L unavailable" for an un-costed row instead of a confident +0.00', async () => {
+    // The row's `profit` is an honest UNDER-count: a sale with no recorded
+    // purchase price contributes nothing. Rendered as a number it reads as a
+    // measured break-even, so a real trade looks flat. Only `missingCostBasis`
+    // distinguishes the two, and the row next to it proves the flag is not
+    // suppressing every P/L.
+    fetchProfileArchive.mockResolvedValue({
+      ...response([]),
+      items: [
+        {
+          id: 'arch-uncosted',
+          symbol: 'TSTUSDT',
+          exitIntent: 'grid-sell',
+          // What the projection really emits for a fully un-costed cycle:
+          // `total_buy_quote` is the summed cost basis, which excludes an
+          // un-costed SELL, and `total_sell_quote` is derived as buy + profit.
+          // Real coins were sold for real money and both columns still read 0.
+          totalBuyQuote: '0',
+          totalSellQuote: '0',
+          profit: '0',
+          netProfit: '0',
+          profitPercent: '0',
+          fees: {},
+          quoteAsset: 'USDT',
+          missingCostBasis: 2,
+          archivedAt: '2026-08-10T00:39:37.000Z',
+        },
+        {
+          id: 'arch-costed',
+          symbol: 'BTCUSDT',
+          exitIntent: 'grid-sell',
+          totalBuyQuote: '100',
+          totalSellQuote: '110',
+          profit: '10',
+          netProfit: '9',
+          profitPercent: '10',
+          fees: {},
+          quoteAsset: 'USDT',
+          missingCostBasis: 0,
+          archivedAt: '2026-05-10T05:00:00.000Z',
+        },
+      ],
+    });
+    renderPanel();
+
+    const uncosted = await screen.findByTestId('archive-profit-arch-uncosted');
+    expect(uncosted).toHaveTextContent('P/L unavailable');
+    expect(uncosted).not.toHaveTextContent('0.00');
+    // The percent cell is the other half of the same conditional: an em-dash,
+    // never a confident +0.00%.
+    expect(screen.getByTestId('archive-percent-arch-uncosted')).toHaveTextContent('—');
+    expect(screen.getByTestId('archive-percent-arch-uncosted')).not.toHaveTextContent('%');
+    // And the always-visible gloss, because a hover title is invisible on touch.
+    expect(screen.getByTestId('archive-pnl-unavailable-note')).toHaveTextContent(
+      /no record of what that coin originally cost/,
+    );
+
+    // The note has to match what the Buy/Sell cells actually show. `total_buy_quote`
+    // is the summed cost basis, which EXCLUDES an un-costed SELL, and
+    // `total_sell_quote` is derived as buy + profit — so both cells under-count on
+    // this row, and the copy says so rather than calling them correct.
+    expect(screen.getByTestId('archive-buy-arch-uncosted')).toHaveTextContent('0');
+    expect(screen.getByTestId('archive-sell-arch-uncosted')).toHaveTextContent('0');
+    expect(screen.getByTestId('archive-pnl-unavailable-note')).toHaveTextContent(
+      /Buy and Sell figures only count the part it could match/,
+    );
+
+    // The fully-costed row still renders its number, and a real percentage.
+    expect(screen.getByTestId('archive-profit-arch-costed')).toHaveTextContent('9.00');
+    expect(screen.getByTestId('archive-percent-arch-costed')).toHaveTextContent('10.00%');
+    expect(screen.queryByTestId('archive-pnl-unavailable-arch-costed')).not.toBeInTheDocument();
   });
 
   it('opens the delete-confirm dialog from a row overflow menu', async () => {

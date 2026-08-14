@@ -91,13 +91,30 @@ describe('toPureConfig', () => {
 
 describe('parseDiscoveryConfig', () => {
   it('parses an empty/absent block to a disabled config', () => {
-    expect(parseDiscoveryConfig(undefined)?.enabled).toBe(false);
-    expect(parseDiscoveryConfig({})?.enabled).toBe(false);
+    expect(parseDiscoveryConfig(undefined)).toMatchObject({ ok: true, cfg: { enabled: false } });
+    expect(parseDiscoveryConfig({})).toMatchObject({ ok: true, cfg: { enabled: false } });
   });
-  it('returns null for a malformed block (fail-safe disabled)', () => {
-    expect(parseDiscoveryConfig({ maxAutoSymbols: -1 })).toBeNull();
-  });
+
   it('parses a valid enabled block', () => {
-    expect(parseDiscoveryConfig({ enabled: true })?.enabled).toBe(true);
+    expect(parseDiscoveryConfig({ enabled: true })).toMatchObject({
+      ok: true,
+      cfg: { enabled: true },
+    });
+  });
+
+  it('reports a malformed block as invalid, distinctly from disabled', () => {
+    // Both used to be `null`, which is why a corrupt config looked exactly like
+    // a profile the operator had switched off.
+    const bad = parseDiscoveryConfig({ maxAutoSymbols: -1 });
+    expect(bad.ok).toBe(false);
+    const disabled = parseDiscoveryConfig({});
+    expect(disabled.ok).toBe(true);
+  });
+
+  it('names the offending field so the condition can say what to fix', () => {
+    const bad = parseDiscoveryConfig({ maxAutoSymbols: -1 });
+    if (bad.ok) throw new Error('expected an invalid parse');
+    expect(bad.issues).toHaveLength(1);
+    expect(bad.issues[0]).toMatch(/^maxAutoSymbols: /);
   });
 });

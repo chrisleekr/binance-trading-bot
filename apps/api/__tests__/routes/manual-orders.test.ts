@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { asProfileId } from '@app/contracts';
+import { asProfileId, TriggerResponse } from '@app/contracts';
 import { profileKey } from '@app/db';
 import { buildStrategyRegistry } from '@app/strategy-registry';
 import { createApiStrategyRegistry } from '../../src/strategies/registry.js';
@@ -309,6 +309,40 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
     expect(
       ((await after.json()) as { config: { blacklist: string[] } }).config.blacklist,
     ).toContain('ETHUSDT');
+  });
+
+  it('returns the armed row createdAt in the arm receipt so a watch has a server-clock baseline', async () => {
+    // `scheduledAt` is `action_at`, stamped on the API clock and a different
+    // column from `created_at`. A watcher that compares it against the
+    // `created_at` the read-back endpoint orders by is comparing two clocks,
+    // so it cannot tell an older sibling from a newer one.
+    fx.di.redis.forProfile = (() => ({
+      set: async () => undefined,
+      get: async () => null,
+      del: async () => undefined,
+    })) as unknown as typeof fx.di.redis.forProfile;
+    fx.di.tickQueue = { add: async () => undefined } as never;
+    await fx.di.pool.query(
+      `insert into profile_symbols (profile_id, symbol, base_asset, source) values ($1, 'ADAUSDT', 'ADA', 'auto')
+       on conflict (profile_id, symbol) do update set source = 'auto', last_flatten_at = null`,
+      [fx.alice.profileId],
+    );
+
+    const res = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/ADAUSDT/force-eject`,
+      {
+        method: 'POST',
+        headers: headers(fx.alice.userId),
+        body: JSON.stringify({ blocklist: false }),
+      },
+    );
+    expect(res.status).toBe(202);
+    const receipt = TriggerResponse.parse(await res.json());
+    const { rows } = await fx.di.pool.query<{ created_at: Date }>(
+      `select created_at from override_actions where id = $1`,
+      [receipt.overrideActionId],
+    );
+    expect(receipt.createdAt).toBe(rows[0]?.created_at.toISOString());
   });
 
   it('GET state carries the strategy operator-action set, filled from the registry', async () => {

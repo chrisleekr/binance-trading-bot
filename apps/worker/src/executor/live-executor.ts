@@ -25,6 +25,7 @@ import { createPlacementDedup, type PlacementDedup } from 'executor/placement-de
 import { DEFAULT_WEIGHT_TTL } from 'executor/weight-limiter.js';
 import {
   createNotifierGapThrottle,
+  createSymbolNotPermittedThrottle,
   createUnfundableThrottle,
   type NotifierGapThrottle,
 } from 'executor/notifier-gap-throttle.js';
@@ -90,6 +91,8 @@ export interface LiveExecutorDeps {
   readonly notifierGapThrottle?: NotifierGapThrottle;
   /** Fleet-wide suppression window for the `order-unfundable` alert; defaults to hourly per (profile, symbol). */
   readonly unfundableThrottle?: NotifierGapThrottle;
+  /** Same, for the `order-symbol-not-permitted` alert; its own key namespace. */
+  readonly symbolNotPermittedThrottle?: NotifierGapThrottle;
   /**
    * In-process duplicate-MARKET-placement guard. Injected mainly so integration
    * tests can hold a reference and clear it between cases (via `forgetSymbol`);
@@ -224,6 +227,9 @@ export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
     unfundableThrottle:
       deps.unfundableThrottle ??
       createUnfundableThrottle({ redis: deps.redis, logger: deps.logger }),
+    symbolNotPermittedThrottle:
+      deps.symbolNotPermittedThrottle ??
+      createSymbolNotPermittedThrottle({ redis: deps.redis, logger: deps.logger }),
     // One long-lived instance per executor (process), so a MARKET clientOrderId
     // recorded on one tick is visible to the next — the whole point is
     // cross-tick dedup. The Redis dep mirrors each record durably so a BullMQ

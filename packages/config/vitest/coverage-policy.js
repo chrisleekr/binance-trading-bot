@@ -10,10 +10,10 @@ const active = (lane, lines, branches) =>
   });
 
 export const COVERAGE_POLICY = Object.freeze({
-  '@app/api': active('integration', 78, 73),
+  '@app/api': active('integration', 79, 73),
   '@app/server': active('unit', 17, 12),
   '@app/web': active('unit', 80, 70),
-  '@app/worker': active('worker-integration', 87, 81),
+  '@app/worker': active('worker-integration', 88, 82),
   '@app/e2e': Object.freeze({
     exemption:
       'Playwright owns this test-only workspace, which has no product src tree for Vitest to measure.',
@@ -25,7 +25,7 @@ export const COVERAGE_POLICY = Object.freeze({
   }),
   '@app/contracts': active('unit', 97, 89),
   '@app/core': active('unit', 94, 92),
-  '@app/db': active('db-isolation', 80, 71),
+  '@app/db': active('db-isolation', 82, 74),
   '@app/discovery': active('unit', 100, 100),
   '@app/indicators': active('unit', 100, 100),
   '@app/llm': active('unit', 80, 82),

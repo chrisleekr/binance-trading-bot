@@ -49,6 +49,13 @@ export type DustTransferRequest = z.infer<typeof DustTransferRequest>;
 export const DustTransferResponse = z.object({
   scheduledAt: z.iso.datetime(),
   overrideActionId: z.uuid(),
+  /**
+   * The row's own `created_at`, on the server clock — the baseline a client
+   * needs to tell its own queued conversion apart from one armed after it.
+   * `scheduledAt` is when the conversion is due to run, which two arms can
+   * share.
+   */
+  createdAt: z.iso.datetime(),
 });
 /** TS type derived from {@link DustTransferResponse} so consumers don't re-run z.infer at every call site. */
 export type DustTransferResponse = z.infer<typeof DustTransferResponse>;

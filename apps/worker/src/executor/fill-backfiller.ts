@@ -13,7 +13,7 @@
 // against repeated reconnects.
 
 import type { Logger } from 'pino';
-import { Decimal } from '@app/money';
+import { Decimal, isPlainDecimalString } from '@app/money';
 import { type Database, profileRepo, ProfileNotOwnedError } from '@app/db';
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
 import type { BinanceRestClient } from '@app/binance';
@@ -59,7 +59,80 @@ interface AggregatedOrder {
   terminalTradeId: number;
   cumQty: Decimal;
   cumQuoteQty: Decimal;
+  /**
+   * Per-asset commission totals across the order's trades. `null` latches an
+   * invalid trade fee so no valid-looking partial subtotal reaches the adopter.
+   */
+  commissions: Map<string, Decimal> | null;
 }
+
+interface ValidatedTrade {
+  readonly id: number;
+  readonly orderId: number;
+  readonly symbol: string;
+  readonly qty: string;
+  readonly quoteQty: string;
+  readonly commission: unknown;
+  readonly commissionAsset: unknown;
+  readonly isBuyer: boolean;
+}
+
+const isNonNegativeDecimal = (value: unknown): value is string => {
+  if (typeof value !== 'string' || !isPlainDecimalString(value)) return false;
+  const parsed = new Decimal(value);
+  return parsed.isFinite() && parsed.gte(0);
+};
+
+const validateTrade = (value: unknown, requestedSymbol: string): ValidatedTrade | null => {
+  if (typeof value !== 'object' || value === null) return null;
+  const trade = value as Record<string, unknown>;
+  if (
+    trade['symbol'] !== requestedSymbol ||
+    !Number.isInteger(trade['id']) ||
+    !Number.isInteger(trade['orderId']) ||
+    typeof trade['isBuyer'] !== 'boolean' ||
+    !isNonNegativeDecimal(trade['qty']) ||
+    !isNonNegativeDecimal(trade['quoteQty'])
+  ) {
+    return null;
+  }
+  return {
+    id: trade['id'] as number,
+    orderId: trade['orderId'] as number,
+    symbol: requestedSymbol,
+    qty: trade['qty'],
+    quoteQty: trade['quoteQty'],
+    commission: trade['commission'],
+    commissionAsset: trade['commissionAsset'],
+    isBuyer: trade['isBuyer'],
+  };
+};
+
+const parseTradeCommission = (
+  commission: unknown,
+  commissionAsset: unknown,
+): { readonly asset: string; readonly charged: Decimal } | null => {
+  if (
+    typeof commission !== 'string' ||
+    typeof commissionAsset !== 'string' ||
+    !commissionAsset ||
+    !isPlainDecimalString(commission)
+  ) {
+    return null;
+  }
+  const charged = new Decimal(commission);
+  return charged.isFinite() && charged.gte(0) ? { asset: commissionAsset, charged } : null;
+};
+
+/** Fields that define one per-symbol Binance trade for replay validation. */
+const isExactTradeReplay = (a: ValidatedTrade, b: ValidatedTrade): boolean =>
+  a.symbol === b.symbol &&
+  a.orderId === b.orderId &&
+  a.isBuyer === b.isBuyer &&
+  a.qty === b.qty &&
+  a.quoteQty === b.quoteQty &&
+  a.commission === b.commission &&
+  a.commissionAsset === b.commissionAsset;
 
 export const createFillBackfiller = (deps: FillBackfillerDeps): FillBackfiller => {
   const backfill = async (
@@ -109,24 +182,64 @@ export const createFillBackfiller = (deps: FillBackfillerDeps): FillBackfiller =
     });
     if (trades.length === 0) return;
 
+    // Validate the whole page before adopting anything. Every row must belong
+    // to the requested symbol, where trade id is the identity. Exact repeats
+    // are harmless reconnect replays; conflicting payloads cannot both be trusted.
+    const byTradeId = new Map<number, ValidatedTrade>();
+    for (const untrustedTrade of trades as readonly unknown[]) {
+      const trade = validateTrade(untrustedTrade, symbol);
+      if (!trade) {
+        deps.logger.error(
+          { profileId, symbol },
+          'fill-backfiller: invalid trade row; skipping the untrustworthy batch',
+        );
+        return;
+      }
+      const original = byTradeId.get(trade.id);
+      if (!original) {
+        byTradeId.set(trade.id, trade);
+      } else if (!isExactTradeReplay(original, trade)) {
+        deps.logger.error(
+          { profileId, symbol, tradeId: trade.id },
+          'fill-backfiller: conflicting duplicate trade id; skipping the untrustworthy batch',
+        );
+        return;
+      }
+    }
+    const uniqueTrades = [...byTradeId.values()];
+
     // Re-create the live adopter's per-order shape: fold each order's full
     // cumulative qty once, keyed by its terminal trade id, so adoption
     // dedupes against the live `applied_fills` row instead of double-
     // counting each partial trade.
     const byOrder = new Map<number, AggregatedOrder>();
-    for (const t of trades) {
+    for (const t of uniqueTrades) {
+      const parsedCommission = parseTradeCommission(t.commission, t.commissionAsset);
       const existing = byOrder.get(t.orderId);
       if (existing) {
         existing.cumQty = existing.cumQty.add(t.qty);
         existing.cumQuoteQty = existing.cumQuoteQty.add(t.quoteQty);
         if (t.id > existing.terminalTradeId) existing.terminalTradeId = t.id;
+        if (existing.commissions !== null) {
+          if (parsedCommission === null) {
+            existing.commissions = null;
+          } else {
+            const prior = existing.commissions.get(parsedCommission.asset) ?? new Decimal(0);
+            existing.commissions.set(parsedCommission.asset, prior.plus(parsedCommission.charged));
+          }
+        }
       } else {
+        const commissions =
+          parsedCommission === null
+            ? null
+            : new Map([[parsedCommission.asset, parsedCommission.charged]]);
         byOrder.set(t.orderId, {
           orderId: t.orderId,
           side: t.isBuyer ? 'BUY' : 'SELL',
           terminalTradeId: t.id,
           cumQty: new Decimal(t.qty),
           cumQuoteQty: new Decimal(t.quoteQty),
+          commissions,
         });
       }
     }
@@ -148,6 +261,16 @@ export const createFillBackfiller = (deps: FillBackfillerDeps): FillBackfiller =
           side: o.side,
           cumQty: o.cumQty.toString(),
           cumQuoteQty: o.cumQuoteQty.toString(),
+          // Pass the fee through so the recovery path nets a base-asset BUY
+          // commission identically to the live user-stream path; a divergence
+          // here would leave a backfilled position permanently un-exitable.
+          ...(o.commissions
+            ? {
+                commissions: Object.fromEntries(
+                  [...o.commissions].map(([asset, total]) => [asset, total.toString()]),
+                ),
+              }
+            : {}),
         });
         adopted += 1;
       } catch (err) {

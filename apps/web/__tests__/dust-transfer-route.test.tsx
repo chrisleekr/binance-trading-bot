@@ -5,7 +5,7 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,8 +25,13 @@ const TEST_ACCOUNT = {
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
+const toastInfo = vi.fn();
 vi.mock('sonner', () => ({
-  toast: { success: (m: string) => toastSuccess(m), error: (m: string) => toastError(m) },
+  toast: {
+    success: (m: string) => toastSuccess(m),
+    error: (m: string) => toastError(m),
+    info: (m: string) => toastInfo(m),
+  },
   Toaster: () => null,
 }));
 
@@ -123,6 +128,11 @@ const sampleAssets = [
 describe('DustTransferPage', () => {
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    // The toast spies are module-scoped, so a `not.toHaveBeenCalled()` here would
+    // otherwise be answered by whichever earlier test last fired one.
+    toastSuccess.mockClear();
+    toastError.mockClear();
+    toastInfo.mockClear();
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -242,6 +252,7 @@ describe('DustTransferPage', () => {
           scheduledAt: new Date().toISOString(),
           // Real-shape UUID v4: third group starts with 4, fourth group with 8/9/a/b.
           overrideActionId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+          createdAt: new Date().toISOString(),
         });
       }
       if (url.endsWith('/profiles/p1/dust-transfer')) return json(sampleAssets);
@@ -259,6 +270,150 @@ describe('DustTransferPage', () => {
     await waitFor(() =>
       expect(toastSuccess).toHaveBeenCalledWith(expect.stringMatching(/scheduled.*aaaaaaaa/i)),
     );
+  });
+
+  const queuedHistory = [
+    {
+      id: 'dddddddd-eeee-4fff-8000-111111111111',
+      requestedAssets: ['XRP'],
+      convertedAssets: null,
+      bnbReceived: null,
+      status: 'pending',
+      createdAt: '2026-07-09T00:00:00.000Z',
+      consumedAt: null,
+    },
+  ];
+
+  /** Serves the eligible list and whatever history rows a visibility test needs. */
+  const setUpWithHistory = (history: unknown): void => {
+    setUp((url) => {
+      if (url.endsWith('/dust-transfer/history')) return json(history);
+      if (url.endsWith('/profiles/p1/dust-transfer')) return json(sampleAssets);
+      return json({}, 404);
+    });
+  };
+
+  it('hides the cancel affordance when every conversion has finished', async () => {
+    // The mount rule is one predicate with nothing else pinning its false side:
+    // inverted, it offers a destructive "cancel" on conversions that already
+    // moved the balance, which reads as an undo the bot cannot perform.
+    setUpWithHistory([
+      { ...queuedHistory[0], status: 'done', consumedAt: '2026-07-09T00:05:00.000Z' },
+    ]);
+
+    // Asserted only after a sibling of the panel has rendered. Before the history
+    // read lands, nothing is on screen and the absence would hold for any rule.
+    expect(
+      await screen.findByText('Recent conversions', undefined, { timeout: 5000 }),
+    ).toBeVisible();
+    expect(screen.queryByTestId('dust-cancel-open')).not.toBeInTheDocument();
+  });
+
+  it('offers cancel while a conversion is already being processed', async () => {
+    // The claimed row is where cancelling matters most: the route, not the page,
+    // decides whether the worker's claim is still live, and rows can be stacked
+    // behind it that nothing else can clear.
+    setUpWithHistory([{ ...queuedHistory[0], status: 'processing' }]);
+
+    expect(
+      await screen.findByTestId('dust-cancel-open', undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
+  });
+
+  it('cancels a queued conversion and refreshes both the eligible list and the history', async () => {
+    // Without this the operator can only wait: a mis-clicked conversion moves
+    // real balances and there is no other way back. Both reads have to be
+    // refreshed, because the cancelled row is what the history is showing.
+    const calls: string[] = [];
+    const { fetchMock } = setUp((url, init) => {
+      const method = init?.method ?? 'GET';
+      if (url.endsWith('/profiles/p1/dust-transfer')) {
+        calls.push(`${method} list`);
+        if (method === 'DELETE') return new Response(null, { status: 204 });
+        return json(sampleAssets);
+      }
+      if (url.endsWith('/dust-transfer/history')) {
+        calls.push('GET history');
+        return json(queuedHistory);
+      }
+      return json({}, 404);
+    });
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId('dust-cancel-open', undefined, { timeout: 5000 }));
+    await user.click(screen.getByTestId('dust-cancel-confirm'));
+
+    await waitFor(() => expect(calls).toContain('DELETE list'));
+    const after = calls.slice(calls.indexOf('DELETE list') + 1);
+    expect(after).toContain('GET list');
+    expect(after).toContain('GET history');
+    expect(fetchMock).toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('fires one DELETE when the confirm button is clicked twice in the same tick', async () => {
+    // `isPending` only flips on the next render, so the disabled attribute cannot
+    // catch a second click landing in the same tick — a ref is what does, and
+    // nothing else in this suite would notice if it were dropped. The second
+    // DELETE is not harmless: it lands after the first has emptied the queue, so
+    // an operator who double-clicks can get a 409 about someone else's row, or a
+    // 204 that reports nothing when their conversions did in fact go.
+    let deletes = 0;
+    setUp((url, init) => {
+      const method = init?.method ?? 'GET';
+      if (url.endsWith('/profiles/p1/dust-transfer')) {
+        if (method === 'DELETE') {
+          deletes += 1;
+          return new Response(null, { status: 204 });
+        }
+        return json(sampleAssets);
+      }
+      if (url.endsWith('/dust-transfer/history')) return json(queuedHistory);
+      return json({}, 404);
+    });
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId('dust-cancel-open', undefined, { timeout: 5000 }));
+
+    // fireEvent, not userEvent: each `await user.click` yields, which is exactly
+    // the render the guard exists to survive without.
+    const confirm = screen.getByTestId('dust-cancel-confirm');
+    act(() => {
+      fireEvent.click(confirm);
+      fireEvent.click(confirm);
+    });
+
+    await waitFor(() => expect(deletes).toBeGreaterThan(0));
+    expect(deletes).toBe(1);
+  });
+
+  it('reports the server sentence and no success when the conversion is already running', async () => {
+    // A 409 means the balance is already moving. Reporting it as a cancellation
+    // is the one answer the operator cannot recover from, because they act on
+    // it by looking away. It is not an error either: nothing broke, so an error
+    // toast would tell them to retry something that only needs waiting out.
+    setUp((url, init) => {
+      const method = init?.method ?? 'GET';
+      if (url.endsWith('/profiles/p1/dust-transfer')) {
+        if (method === 'DELETE')
+          return json(
+            { error: { code: 'CONFLICT', message: 'the bot is already converting this dust' } },
+            409,
+          );
+        return json(sampleAssets);
+      }
+      if (url.endsWith('/dust-transfer/history')) return json(queuedHistory);
+      return json({}, 404);
+    });
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId('dust-cancel-open', undefined, { timeout: 5000 }));
+    await user.click(screen.getByTestId('dust-cancel-confirm'));
+
+    await waitFor(() =>
+      expect(toastInfo).toHaveBeenCalledWith(
+        expect.stringMatching(/already converting this dust/i),
+      ),
+    );
+    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it('disables the submit button while no asset is selected', async () => {

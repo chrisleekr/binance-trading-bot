@@ -8,6 +8,7 @@ import {
   DustTransferRequest,
   DustTransferResponse,
   ErrorEnvelope,
+  OVERRIDE_CLAIM_STALE_MS,
 } from '@app/contracts';
 import { profileKey } from '@app/db';
 import { createRoute, z } from '@hono/zod-openapi';
@@ -125,6 +126,18 @@ const postRoute = createRoute({
   },
 });
 
+const deleteRoute = createRoute({
+  method: 'delete',
+  path: '/profiles/{profileId}/dust-transfer',
+  tags: ['dust-transfer'],
+  request: { params: ProfileIdParam },
+  responses: {
+    204: { description: 'no queued conversion remains' },
+    404: { description: 'NOT_FOUND', content: { 'application/json': { schema: ErrorEnvelope } } },
+    409: { description: 'CONFLICT', content: { 'application/json': { schema: ErrorEnvelope } } },
+  },
+});
+
 export const dustTransferRouter = (di: DI): ApiHono => {
   const app = createApiHono();
   app.use('/profiles/*/dust-transfer', requireUser());
@@ -179,8 +192,103 @@ export const dustTransferRouter = (di: DI): ApiHono => {
       payload: { assets: body.assets },
       triggeredBy: 'user',
     });
-    c.set('auditEvent', { event: 'dust-transfer', payload: { profileId, assets: body.assets } });
-    return c.json({ scheduledAt: action.actionAt.toISOString(), overrideActionId: action.id }, 202);
+    // The row id, not only the assets. The cancel below hard-deletes rows and can
+    // name only their ids afterwards, so without an id on this side the two halves
+    // of one operator action have no key in common and a disputed cancellation
+    // cannot say WHICH conversions it removed — the ids it logs would point at
+    // rows that no longer exist anywhere.
+    c.set('auditEvent', {
+      event: 'dust-transfer',
+      payload: { profileId, assets: body.assets, overrideActionId: action.id },
+    });
+    return c.json(
+      {
+        scheduledAt: action.actionAt.toISOString(),
+        overrideActionId: action.id,
+        createdAt: action.createdAt.toISOString(),
+      },
+      202,
+    );
+  });
+
+  app.openapi(deleteRoute, async (c) => {
+    const profileId = asProfileId(c.req.valid('param').profileId);
+    const p = await scopeOf(c, di, profileId);
+    // Read before the delete, because the delete's own outcome is the only reliable
+    // evidence of what it skipped. `processing_at` is a lease the worker can null
+    // again, so reading the column afterwards can see an unclaimed row that WAS
+    // claimed while the delete ran — and answering 204 there tells the operator
+    // their coins are safe while Binance is converting them. Identity survives that
+    // race; the column does not.
+    const target = await p.overrideActions.findActiveDustTransfer();
+    // Plural: dust rows carry no symbol, so arming never supersedes a sibling and a
+    // profile can hold several queued conversions. Cancelling one at a time would
+    // leave the operator pressing the button until the list happened to empty.
+    //
+    // The horizon is the reaper's own, from the one shared constant. A claim older
+    // than it belongs to a worker that died holding it, and the dust cron resets
+    // exactly those rows to pending and converts them on the same pass. Leaving one
+    // behind would answer this cancel 204 and spend the balance minutes later.
+    //
+    // One clock read for both the delete horizon and the staleness verdict below.
+    // Two reads straddle two round-trips, so a claim sitting on the boundary can be
+    // judged fresh by the delete and stale by the verdict — a 204 on a row the reaper
+    // will convert seconds later, which is the exact answer this route must never give.
+    const nowMs = Date.now();
+    const staleBefore = new Date(nowMs - OVERRIDE_CLAIM_STALE_MS);
+    const removedIds = await p.overrideActions.deletePendingDustTransfer(staleBefore);
+    const deleted = removedIds.length;
+    // Recorded before the read-back, which can throw: the rows are already hard-deleted
+    // by this line, so a failure between here and the response would otherwise leave a
+    // cancel with no trace anywhere. Flagged applied whenever rows actually went,
+    // because the conflict branch below answers 409 after the delete has landed and the
+    // middleware skips its write on 4xx. A cancel that removed nothing still logs on
+    // a 204 — pressing cancel is operator intent worth keeping either way — and
+    // `deleted: 0` in the payload is what tells the two apart.
+    //
+    // Ids and not just a count: the delete is hard, so those rows have left the history
+    // the operator can read. They are dereferenceable because the arm event on this same
+    // route logs the id it created alongside the asset list — the two halves of one
+    // operator action share a key, so a disputed cancellation can still say which
+    // conversions it removed.
+    c.set('auditEvent', {
+      event: 'dust-transfer-cancel',
+      payload: { profileId, deleted, removedIds },
+      alreadyApplied: deleted > 0,
+    });
+    const stillActive = await p.overrideActions.findActiveDustTransfer();
+    // Nothing to evict on any branch: the dust arm writes no Redis override key, so
+    // the row IS the queue. Copying the symbol route's eviction here would delete an
+    // unrelated key.
+    if (!stillActive) return new Response(null, { status: 204 });
+
+    // Did the guarded delete skip the very row the operator asked about? Then it was
+    // claimed at that moment whatever the column reads now. `processing_at` is still
+    // consulted as well, because a row armed after the read can be claimed too.
+    const survivedTheDelete = target !== null && stillActive.id === target.id;
+    // A lease the worker released mid-race reads as age 0, i.e. fresh, which is the
+    // safe direction: `survivedTheDelete` has already proved it was claimed.
+    const claimAgeMs =
+      stillActive.processingAt === null ? 0 : nowMs - stillActive.processingAt.getTime();
+    if (
+      (survivedTheDelete || stillActive.processingAt !== null) &&
+      claimAgeMs <= OVERRIDE_CLAIM_STALE_MS
+    ) {
+      // The wording has to own the half-measure: the queued rows may well be gone
+      // while an earlier claimed one survives, and an operator told "cancelled" stops
+      // watching a conversion that is still spending their balance.
+      throw new HttpError(
+        'CONFLICT',
+        deleted > 0
+          ? 'removed the queued conversions, but the bot is already converting an earlier one; wait for its outcome before re-issuing'
+          : 'the bot is already converting this dust; wait for the outcome before re-issuing it',
+      );
+    }
+    // The survivor is unclaimed and outlived the delete, so it was armed after it: new
+    // intent, not the conversion being cancelled. A stranded claim cannot reach here —
+    // the delete now takes those on the reaper's horizon — so 204 no longer stands for
+    // "left alone for someone else to run".
+    return new Response(null, { status: 204 });
   });
 
   return app;

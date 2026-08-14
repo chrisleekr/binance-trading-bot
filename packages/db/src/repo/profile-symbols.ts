@@ -13,7 +13,12 @@ import {
   type ProfileScope,
   SiblingQuoteConflictError,
   SymbolOwnershipConflictError,
+  withTx,
 } from './_scoped.js';
+import { remove as removeAvgEntryPrice } from './avg-entry-prices.js';
+import { clearAllForSymbol as clearConditionsForSymbol } from './condition-states.js';
+import { deletePendingForSymbol as deletePendingOverridesForSymbol } from './override-actions.js';
+import { remove as removeSymbolState } from './symbol-states.js';
 
 /**
  * Finds a sibling profile under the SAME account that already manages
@@ -186,16 +191,61 @@ export async function upsert(
   return row;
 }
 
+/**
+ * Every per-symbol row the binding owns, dropped together.
+ *
+ * The binding is what makes a symbol tick, and each of these tables is written
+ * ONLY by that tick. Dropping the binding alone strands them: nothing runs to
+ * close a `condition_states` row, revise a `symbol_states` body or consume a
+ * pending override ever again. The `condition_states` half is the one that is
+ * read back, so the operator is shown blockers on coins the profile does not
+ * hold.
+ *
+ * It lives inside the two unbind functions rather than in a helper the callers
+ * invoke, because a helper is what every unbind path already forgot. A caller
+ * cannot drop a binding without this running.
+ *
+ * `avg_entry_prices` is the cost basis, and deleting it is only safe because
+ * both callers have already established the position is not this profile's to
+ * hold: the reap runs its flat guard in the DELETE predicate, and `remove` is
+ * the operator (or a disposal handoff that has already re-pointed the ledger row
+ * at its new owner) saying so explicitly.
+ */
+const tearDownSymbolState = async (scope: ProfileScope, symbol: string): Promise<void> => {
+  await clearConditionsForSymbol(scope, symbol);
+  await removeSymbolState(scope, symbol);
+  await removeAvgEntryPrice(scope, symbol);
+  await deletePendingOverridesForSymbol(scope, symbol);
+};
+
+/**
+ * Detach a symbol from the profile and tear down everything that symbol owned,
+ * in one transaction, so a crash can never leave the state without the binding
+ * that explains it.
+ *
+ * The teardown is unconditional, not gated on a binding row having existed: the
+ * disposal handoff calls this for a position whose binding was already lost
+ * while it was open (a ledger row with no binding), and that row is exactly what
+ * must not be left behind.
+ *
+ * What does NOT ride along: the profile's Redis keys and the dashboard
+ * aggregate cache. Both are api-side concerns and are handled by the DELETE
+ * route; the discovery reap deliberately imports nothing but `@app/db`.
+ */
 export async function remove(scope: ProfileScope, symbol: string): Promise<void> {
-  await scope.db
-    .delete(profileSymbols)
-    .where(and(eq(profileSymbols.profileId, scope.profileId), eq(profileSymbols.symbol, symbol)));
+  await scope.db.transaction(async (tx) => {
+    const txScope = withTx(scope, tx);
+    await tx
+      .delete(profileSymbols)
+      .where(and(eq(profileSymbols.profileId, scope.profileId), eq(profileSymbols.symbol, symbol)));
+    await tearDownSymbolState(txScope, symbol);
+  });
 }
 
 /**
  * Flip a symbol's discovery source. The "Pin" operator action calls this with
  * `'manual'` so discovery stops reaping a coin it rotated in; discovery sets
- * `'auto'` when it rotates one in (Slice 3). Idempotent — pinning an already-
+ * `'auto'` when it rotates one in. Idempotent — pinning an already-
  * manual symbol is a no-op flip. Returns the updated row, or null when the
  * symbol is not attached to the profile.
  */
@@ -260,11 +310,11 @@ export type DiscoveryRemoveOutcome = 'removed' | 'not-found' | 'not-auto' | 'hel
 
 /**
  * Remove an auto-discovered symbol only when it is safe to abandon: the row
- * must be discovery-owned (`source='auto'`) AND flat — zero held quantity and
- * no open orders. Discovery never force-exits a position (issue #423,
- * Decision 3): a held symbol stays subscribed until the strategy's own exit
- * flattens it, and a later cycle reaps it. A manual symbol, a missing row, or
- * one still carrying a position / resting order is left untouched.
+ * must be discovery-owned (`source='auto'`) AND flat, meaning zero held
+ * quantity and no open orders. Discovery never force-exits a position: a held
+ * symbol stays subscribed until the strategy's own exit flattens it, and a
+ * later cycle reaps it. A manual symbol, a missing row, or one still carrying a
+ * position / resting order is left untouched.
  *
  * The flatness check rides inside the DELETE predicate, so the guard and the
  * delete are one atomic statement. There is no window for a concurrent fill or
@@ -272,33 +322,50 @@ export type DiscoveryRemoveOutcome = 'removed' | 'not-found' | 'not-auto' | 'hel
  * after a flatness read but before the delete. A no-op delete then needs a
  * single read to name the reason, which gates nothing and so carries no race.
  *
- * Removes ONLY the binding row. A reaped symbol is flat by definition, so any
- * leftover `avg_entry_prices` row is a zero-quantity price marker. The Slice-3
- * discovery caller owns the full teardown (Redis wipe, `avg_entry_prices`,
- * dashboard cache-bust) that the API DELETE handler performs after a `removed`.
+ * A reap that fires takes the symbol's per-symbol state with it, in the same
+ * transaction: `condition_states`, `symbol_states`, `avg_entry_prices` and the
+ * pending `override_actions`. That is load-bearing here rather than incidental,
+ * because the guard SELECTS FOR leaked state. A symbol is flat precisely when
+ * something blocked it from entering, and that blocker is an open condition row
+ * which nothing but its own tick can ever close. Every refusing outcome leaves
+ * all four surfaces untouched: the symbol is still bound and still ticking.
+ *
+ * What does NOT ride along: the profile's Redis keys and the dashboard
+ * aggregate cache. Both stay with the api's DELETE route. The reap cron is a
+ * leaf that imports only `@app/db` types, and the Redis wipe lives in the api,
+ * so pulling either of them down here reintroduces a boot-context cycle. The
+ * reaped symbol's cached keys expire on their own TTL.
  */
 export async function removeAutoIfFlat(
   scope: ProfileScope,
   symbol: string,
 ): Promise<DiscoveryRemoveOutcome> {
-  const deleted = await scope.db
-    .delete(profileSymbols)
-    .where(
-      and(
-        eq(profileSymbols.profileId, scope.profileId),
-        eq(profileSymbols.symbol, symbol),
-        eq(profileSymbols.source, 'auto'),
-        notExists(openOrderSubquery(scope, symbol)),
-        notExists(heldQuantitySubquery(scope, symbol)),
-      ),
-    )
-    .returning({ symbol: profileSymbols.symbol });
-  if (deleted.length > 0) return 'removed';
-  // Nothing deleted: classify why for the caller's log.
-  const row = await findForSymbol(scope, symbol);
-  if (!row) return 'not-found';
-  if (row.source !== 'auto') return 'not-auto';
-  return 'held';
+  return scope.db.transaction(async (tx) => {
+    const txScope = withTx(scope, tx);
+    const deleted = await tx
+      .delete(profileSymbols)
+      .where(
+        and(
+          eq(profileSymbols.profileId, scope.profileId),
+          eq(profileSymbols.symbol, symbol),
+          eq(profileSymbols.source, 'auto'),
+          notExists(openOrderSubquery(txScope, symbol)),
+          notExists(heldQuantitySubquery(txScope, symbol)),
+        ),
+      )
+      .returning({ symbol: profileSymbols.symbol });
+    if (deleted.length > 0) {
+      // Guarded on the DELETE having fired, so a refusal cannot wipe the state
+      // of a symbol that is still bound.
+      await tearDownSymbolState(txScope, symbol);
+      return 'removed';
+    }
+    // Nothing deleted: classify why for the caller's log.
+    const row = await findForSymbol(txScope, symbol);
+    if (!row) return 'not-found';
+    if (row.source !== 'auto') return 'not-auto';
+    return 'held';
+  });
 }
 
 /**

@@ -15,14 +15,14 @@ type Thresholds = { readonly lines: number; readonly branches: number };
 // These reviewed floors are independent of the runtime policy so lowering the
 // policy cannot silently lower its own test expectation.
 const APPROVED_FLOORS = {
-  '@app/api': { lines: 78, branches: 73 },
+  '@app/api': { lines: 79, branches: 73 },
   '@app/server': { lines: 17, branches: 12 },
   '@app/web': { lines: 80, branches: 70 },
-  '@app/worker': { lines: 87, branches: 81 },
+  '@app/worker': { lines: 88, branches: 82 },
   '@app/binance': { lines: 100, branches: 100, exact: true },
   '@app/contracts': { lines: 97, branches: 89 },
   '@app/core': { lines: 94, branches: 92 },
-  '@app/db': { lines: 80, branches: 71 },
+  '@app/db': { lines: 82, branches: 74 },
   '@app/discovery': { lines: 100, branches: 100, exact: true },
   '@app/indicators': { lines: 100, branches: 100, exact: true },
   '@app/llm': { lines: 80, branches: 82 },

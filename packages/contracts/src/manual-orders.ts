@@ -54,6 +54,15 @@ export type ManualOrderRequest = z.infer<typeof ManualOrderRequest>;
 export const ManualOrderResponse = z.object({
   scheduledAt: z.iso.datetime(),
   overrideActionId: z.uuid(),
+  /**
+   * The row's own `created_at`, on the server clock. Distinct from
+   * `scheduledAt`, which is when the override is due to fire. A client watching
+   * for the outcome re-reads the newest row for the symbol and has to decide
+   * whether what came back is still its own; comparing against a client clock
+   * would misjudge that on any skew, and `scheduledAt` cannot break the tie
+   * because two arms can share it.
+   */
+  createdAt: z.iso.datetime(),
 });
 /** TS type derived from {@link ManualOrderResponse} so consumers don't re-run z.infer at every call site. */
 export type ManualOrderResponse = z.infer<typeof ManualOrderResponse>;

@@ -6,6 +6,7 @@
 import type { AccountId, ProfileId } from '@app/contracts';
 import type { BinanceMode } from '@app/binance';
 import {
+  accountPermissionsKey,
   auditStreamKey,
   eventsChannelKey,
   eventsSeqKey,
@@ -36,6 +37,12 @@ export const buildWeightKey = (
 // the worker writer agree on the bytes.
 export const buildOpenOrdersKey = (accountId: AccountId, symbol: string): string =>
   openOrdersKey(accountId, symbol);
+
+// Account-domain: Binance permission tags belong to the key pair, so like the
+// open-orders snapshot this key carries no profile segment. Written by every
+// `/account` fetch, read by the pre-flight tradability check.
+export const buildAccountPermissionsKey = (accountId: AccountId): string =>
+  accountPermissionsKey(accountId);
 
 export const buildAccountInfoKey = (accountId: AccountId, profileId: ProfileId): string =>
   profileKey({ accountId, profileId }, 'accountInfo');

@@ -11,6 +11,7 @@ import type { Logger } from 'pino';
 import { unwrapId, type StoredDiscoveryConfig } from '@app/contracts';
 import type { BinanceMode, Ticker24hrDto } from '@app/binance';
 import type { ActiveProfile } from 'profile-manager/profile-manager.js';
+import type { SymbolAdmission } from './symbol-admission.js';
 
 /**
  * A profile's loaded discovery settings: the stored config plus the profile's
@@ -45,16 +46,24 @@ export interface DiscoveryHandlerDeps {
     profileName: string,
     nowMs: number,
     getAllTickers: () => Promise<readonly Ticker24hrDto[]>,
-    getSymbolStatuses: () => Promise<ReadonlyMap<string, string>>,
+    getSymbolAdmission: () => Promise<ReadonlyMap<string, SymbolAdmission>>,
+    getAccountPermissions: () => Promise<readonly string[]>,
   ) => Promise<{ added: number; removed: number }>;
   /** All-symbols 24h ticker fetch (exchange-account-wide); shared once per wake. */
   readonly fetchAllTickers: () => Promise<readonly Ticker24hrDto[]>;
   /**
-   * Symbol -> exchangeInfo `status` map for a given Binance environment. The
+   * Symbol -> exchangeInfo admission facts for a given Binance environment. The
    * admission filter must be scoped to the profile-account mode; the handler
-   * memoizes one fetch per distinct mode per wake for the TRADING filter (#635).
+   * memoizes one fetch per distinct mode per wake.
    */
-  readonly fetchSymbolStatuses: (mode: BinanceMode) => Promise<ReadonlyMap<string, string>>;
+  readonly fetchSymbolAdmission: (
+    mode: BinanceMode,
+  ) => Promise<ReadonlyMap<string, SymbolAdmission>>;
+  /**
+   * Permission tags cached for an account. Empty means unknown, which leaves the
+   * permission cut disabled for that account this wake.
+   */
+  readonly fetchAccountPermissions: (p: ActiveProfile) => Promise<readonly string[]>;
   /** Resolves a profile's Binance environment, so its admission map is mode-correct. */
   readonly resolveBinanceMode: (p: ActiveProfile) => Promise<BinanceMode>;
   readonly clock?: { nowMs(): number };
@@ -83,21 +92,26 @@ export const discoveryHandler =
     // admission map is mode-scoped (a testnet profile must not be admitted
     // against live-only symbols), so profiles sharing a mode share one fetch.
     // The promise is memoized so each mode is fetched at most once even under
-    // the sequential loop. `fetchSymbolStatuses` is best-effort (never throws;
+    // the sequential loop. `fetchSymbolAdmission` is best-effort (never throws;
     // empty map on failure), so an empty result caches and the wake fails open
     // on the status filter for that mode rather than re-scanning per profile.
-    const statusByMode = new Map<BinanceMode, Promise<ReadonlyMap<string, string>>>();
-    const getSymbolStatuses = (mode: BinanceMode): Promise<ReadonlyMap<string, string>> => {
-      let cached = statusByMode.get(mode);
+    const admissionByMode = new Map<BinanceMode, Promise<ReadonlyMap<string, SymbolAdmission>>>();
+    const getSymbolAdmission = (
+      mode: BinanceMode,
+    ): Promise<ReadonlyMap<string, SymbolAdmission>> => {
+      let cached = admissionByMode.get(mode);
       if (cached === undefined) {
-        cached = deps.fetchSymbolStatuses(mode);
-        statusByMode.set(mode, cached);
+        cached = deps.fetchSymbolAdmission(mode);
+        admissionByMode.set(mode, cached);
       }
       return cached;
     };
     // One mode resolution per account this wake — every profile on an account
     // shares its key pair and environment.
     const modeByAccount = new Map<string, BinanceMode>();
+    // Same reasoning for the permission tags: they belong to the account's key
+    // pair, so every profile on the account reads one cached value per wake.
+    const permissionsByAccount = new Map<string, Promise<readonly string[]>>();
     for (const p of deps.listActive()) {
       try {
         const loaded = await deps.loadConfig(p);
@@ -116,15 +130,29 @@ export const discoveryHandler =
         // live universe and re-admit symbols absent on testnet, DLQ-ing every tick.
         // Fail closed: skip the profile this wake. Live profiles keep the #635
         // fail-open — their candidate universe is the same environment.
-        if (mode === 'test' && (await getSymbolStatuses(mode)).size === 0) {
+        if (mode === 'test' && (await getSymbolAdmission(mode)).size === 0) {
           deps.logger.warn(
             { profileId: unwrapId(p.profileId) },
             'cron discovery: testnet exchangeInfo not primed; skipping test-mode profile this wake (fail closed)',
           );
           continue;
         }
-        const r = await deps.runForProfile(p, cfg, quoteAsset, name, nowMs, getAllTickers, () =>
-          getSymbolStatuses(mode),
+        const r = await deps.runForProfile(
+          p,
+          cfg,
+          quoteAsset,
+          name,
+          nowMs,
+          getAllTickers,
+          () => getSymbolAdmission(mode),
+          () => {
+            let cached = permissionsByAccount.get(accountKey);
+            if (cached === undefined) {
+              cached = deps.fetchAccountPermissions(p);
+              permissionsByAccount.set(accountKey, cached);
+            }
+            return cached;
+          },
         );
         if (r.added > 0 || r.removed > 0) {
           deps.logger.info(

@@ -30,6 +30,12 @@ const setUp = (): {
   return { record, getWaitingCount, deps };
 };
 
+/**
+ * Matches on labels as well as name so a per-queue gauge cannot be read from
+ * its sibling: `bullmq_queue_wait_jobs` is recorded once per queue, and a
+ * name-only match would satisfy an assertion that one queue is absent with the
+ * other queue's sample.
+ */
 const valueOf = (
   record: ReturnType<typeof vi.fn>,
   name: string,

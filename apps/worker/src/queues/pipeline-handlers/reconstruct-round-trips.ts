@@ -38,6 +38,13 @@ export interface ReconstructedOrderSummary {
  */
 export interface ReconstructedRoundTrip {
   readonly closingTradeId: number;
+  /**
+   * Binance order id of the fill that flattened the cycle. The re-run guard
+   * keys on this rather than on any order in the cycle: a BUY order whose
+   * partial fills straddle a flat-out belongs to two cycles, and matching on
+   * any shared order would drop the second one as a duplicate.
+   */
+  readonly closingBinanceOrderId: string;
   readonly closedAtMs: number;
   readonly totalBuyQuote: string;
   readonly totalSellQuote: string;
@@ -94,6 +101,7 @@ const buildRoundTrip = (fills: readonly MyTradeDto[]): ReconstructedRoundTrip =>
   const closing = fills[fills.length - 1];
   return {
     closingTradeId: closing?.id ?? 0,
+    closingBinanceOrderId: String(closing?.orderId ?? ''),
     closedAtMs: closing?.time ?? 0,
     totalBuyQuote: totalBuyQuote.toString(),
     totalSellQuote: totalSellQuote.toString(),

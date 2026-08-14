@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL } from 'drizzle-orm';
 import { asProfileId, type OverrideOutcomeInput, type ProfileId } from '@app/contracts';
 import {
   overrideActions,
@@ -349,6 +349,72 @@ export async function findActiveForSymbol(
   symbol: string,
 ): Promise<OverrideActionRow | null> {
   return findForSymbol(scope, symbol, isNull(overrideActions.consumedAt));
+}
+
+/**
+ * The newest unconsumed dust-transfer for the profile, or null. Dust rows are
+ * account-wide, so they carry no symbol: `symbol is null` is what separates them
+ * from the per-symbol overrides, and the action name is what separates them from
+ * any future account-wide action. Ordered like the symbol reads so the row a
+ * cancel decides on is the row the history page shows.
+ *
+ * A dust row is never `markPickedUp`-stamped — it has no Redis key and no tick
+ * hand-off — so `processingAt` on the returned row is the only thing that says a
+ * worker has started converting.
+ */
+export async function findActiveDustTransfer(
+  scope: ProfileScope,
+): Promise<OverrideActionRow | null> {
+  const rows = await scope.db
+    .select()
+    .from(overrideActions)
+    .where(
+      and(
+        eq(overrideActions.profileId, scope.profileId),
+        eq(overrideActions.action, 'dust-transfer'),
+        isNull(overrideActions.symbol),
+        isNull(overrideActions.consumedAt),
+      ),
+    )
+    .orderBy(desc(overrideActions.createdAt), desc(overrideActions.id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Deletes every dust-transfer for the profile that no live worker holds, and
+ * returns the ids removed. Ids rather than a count because the delete is hard: the
+ * rows are gone from the history the operator reads, so the caller's audit entry is
+ * the last place the detail can survive. Plural by necessity: arming a dust-transfer
+ * supersedes only
+ * rows carrying a symbol, so a profile can hold several queued conversions at once
+ * and cancelling one of them would leave the rest to run.
+ *
+ * A row claimed more recently than `staleBefore` is mid-conversion at Binance, and
+ * deleting it would erase the only record of a transfer that still completes. Past
+ * that horizon the claim belongs to a worker that died holding it, and
+ * `reapStaleProcessing` — which the caller must drive off the SAME horizon — resets
+ * it to pending so the cron converts it on its next pass. Leaving such a row behind
+ * would answer a cancel with success and then convert the coins anyway, so it is
+ * deleted here for exactly the reason the unclaimed rows are.
+ */
+export async function deletePendingDustTransfer(
+  scope: ProfileScope,
+  staleBefore: Date,
+): Promise<readonly string[]> {
+  const rows = await scope.db
+    .delete(overrideActions)
+    .where(
+      and(
+        eq(overrideActions.profileId, scope.profileId),
+        eq(overrideActions.action, 'dust-transfer'),
+        isNull(overrideActions.symbol),
+        isNull(overrideActions.consumedAt),
+        or(isNull(overrideActions.processingAt), lt(overrideActions.processingAt, staleBefore)),
+      ),
+    )
+    .returning({ id: overrideActions.id });
+  return rows.map((r) => r.id);
 }
 
 /**

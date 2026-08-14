@@ -26,6 +26,12 @@ export const QUEUE_NAMES = {
   // (profile, symbol)'s heldQuantity to wallet truth on a slow cadence, so a
   // missed fill heals within one window even when no code path noticed it.
   heldQuantityReconcile: 'held-quantity-reconcile',
+  // The HISTORY-side backstop. A cycle that closed without the forward archive
+  // firing leaves realised P/L with no `trade_archive` row and no signal; this
+  // sweep re-runs the archive screen's recoverable-symbols query on a timer and
+  // enqueues the same `backfill-trade-archive` repair the operator would have
+  // had to trigger by hand.
+  archiveRecoverySweep: 'archive-recovery-sweep',
   // The ORDER-side half of the same job: closes local order rows whose order has
   // left Binance's book. Ran only at boot, which on a healthy worker means never
   // — an order the operator cancelled ON BINANCE stayed `NEW` / `closed_at NULL`
@@ -167,6 +173,12 @@ export const QUEUE_SPECS: Record<QueueName, QueueSpec> = {
     backoffMs: 0,
     lockDurationMs: 300_000,
   },
+  // Enumerates every active profile's recoverable symbols and enqueues one
+  // pipeline repair job each. attempts 1: the self-rescheduling loop's next run
+  // IS the retry, and per-profile failures are already isolated in the handler.
+  // 60s lock covers the per-profile scoped query fan-out (no Binance call here —
+  // that cost lands on the pipeline jobs it enqueues).
+  'archive-recovery-sweep': { concurrency: 1, attempts: 1, backoffMs: 0, lockDurationMs: 60_000 },
   // Same shape as the held-quantity sweep: self-rescheduling, non-overlapping,
   // per-target failures already isolated inside the reaper, so the next run is the
   // retry. The lock covers a per-order `getOrder` fan-out across every profile.

@@ -31,7 +31,7 @@ import type { Candle } from '@app/strategy-core';
 import type { BootContext } from 'boot/boot-context.js';
 import { resolveNotifiersFromRows } from 'notifiers/lookup.js';
 import { isProfileEventEnabled } from 'notifiers/notify-event.js';
-import { buildSymbolInfoKey } from 'executor/redis-namespace.js';
+import { readAccountPermissions, writeAccountPermissions } from 'lib/account-permissions.js';
 import { QUEUE_NAMES } from 'queues/queue-names.js';
 import { createReconfigureEnqueue } from 'queues/reconfigure-enqueue.js';
 import type { ActiveProfile } from 'profile-manager/profile-manager.js';
@@ -45,6 +45,10 @@ import { persistSnapshotBestEffort } from './discovery/snapshot.js';
 import { applyDiscoveryAdd, applyDiscoveryReap } from './discovery/apply.js';
 import { discoveryMessage, notifyDiscovery, type ResolvedNotifiers } from './discovery/notify.js';
 import { runDiscoveryForProfile, type DiscoveryProfilePort } from './discovery/run.js';
+import {
+  fetchSymbolAdmission as readSymbolAdmission,
+  type SymbolAdmission,
+} from './discovery/symbol-admission.js';
 import {
   discoveryHandler,
   withTestModeFallback,
@@ -98,55 +102,39 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
   // batches covers the whole universe. Best-effort: a Redis error or an unprimed
   // keyspace returns an empty map, and `toDiscoveryTickers` then keeps the
   // quote-matched universe unfiltered rather than emptying it (#635).
-  const fetchSymbolStatuses = async (mode: BinanceMode): Promise<ReadonlyMap<string, string>> => {
-    const statuses = new Map<string, string>();
-    try {
-      let cursor = '0';
-      do {
-        const [next, batch] = await ctx.redis.scan(
-          cursor,
-          'MATCH',
-          buildSymbolInfoKey('*', mode),
-          'COUNT',
-          500,
-        );
-        cursor = next;
-        if (batch.length > 0) {
-          const values = await ctx.redis.mget(...batch);
-          for (const v of values) {
-            if (v === null) continue;
-            try {
-              const info = JSON.parse(v) as { symbol?: string; status?: string };
-              if (info.symbol && info.status) statuses.set(info.symbol, info.status);
-            } catch {
-              // Skip one unparseable value; a single bad key must not blind the wake.
-            }
-          }
-        }
-      } while (cursor !== '0');
-    } catch (err) {
-      ctx.logger.warn(
-        { err: err, mode },
-        'cron discovery: symbol-status fetch failed; status filter skipped this wake',
-      );
-      return new Map();
-    }
-    if (statuses.size === 0) {
-      ctx.logger.warn(
-        { mode },
-        'cron discovery: symbol-status map empty (exchangeInfo not primed?); status filter skipped this wake',
-      );
-    }
-    return statuses;
-  };
+  const fetchSymbolAdmission = (mode: BinanceMode): Promise<ReadonlyMap<string, SymbolAdmission>> =>
+    readSymbolAdmission(ctx.redis, ctx.logger, mode, 'cron discovery');
 
   const loadConfig = async (p: ActiveProfile): Promise<LoadedDiscovery | null> => {
     const repo = await profileRepo(ctx.db, p.operatorId, p.accountId, p.profileId);
     const profile = await repo.profile.findById();
     if (!profile) return null;
-    // Raw column read, tolerant: a missing / malformed block parses to disabled.
-    const cfg = parseDiscoveryConfig((profile as { discoveryConfig?: unknown }).discoveryConfig);
-    if (!cfg) return null;
+    const parsed = parseDiscoveryConfig((profile as { discoveryConfig?: unknown }).discoveryConfig);
+    // A stored config that fails its own schema stops discovery outright, and
+    // this is the only place that sees it. Record it before skipping, so the
+    // profile reads as broken rather than as quiet.
+    // Swallowed on purpose: this is a note about discovery, not part of it, and
+    // a diagnostic write that aborts the scan inverts the whole point. Every
+    // wake re-records unconditionally, so a failure self-heals next run rather
+    // than leaving the state stuck behind an in-memory gate.
+    try {
+      await repo.conditionStates.recordCondition({
+        condition: 'config-invalid',
+        code: parsed.ok ? null : 'schema',
+        ...(parsed.ok ? {} : { detail: { issues: parsed.issues } }),
+        now: new Date(),
+        msg: parsed.ok
+          ? 'Discovery settings parse again.'
+          : `Discovery settings do not match their schema, so discovery cannot run: ${parsed.issues.join('; ')}`,
+      });
+    } catch (err) {
+      ctx.logger.warn(
+        { err, profileId: p.profileId },
+        'cron discovery: config-invalid condition write failed; scan continues',
+      );
+    }
+    if (!parsed.ok) return null;
+    const cfg = parsed.cfg;
     // The quote asset is now the profile's own column, the single source of
     // truth, re-read each tick so an operator change takes effect without a
     // restart. Uppercase at the read boundary so the suffix match is robust to
@@ -165,7 +153,8 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
     profileName: string,
     nowMs: number,
     getAllTickers: () => Promise<readonly Ticker24hrDto[]>,
-    getSymbolStatuses: () => Promise<ReadonlyMap<string, string>>,
+    getSymbolAdmission: () => Promise<ReadonlyMap<string, SymbolAdmission>>,
+    getAccountPermissions: () => Promise<readonly string[]>,
   ): Promise<{ added: number; removed: number }> => {
     const repo = await profileRepo(ctx.db, p.operatorId, p.accountId, p.profileId);
     const pid = unwrapId(p.profileId);
@@ -212,7 +201,19 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
         const account = await client.getAccount();
         const map: Record<string, Decimal> = {};
         for (const b of account.balances) map[b.asset] = new Decimal(b.free).plus(b.locked);
-        return (walletByAsset = map);
+        walletByAsset = map;
+        // Opportunistic refresh: this cycle already paid for the signed call, so
+        // top up the permission cache the order pre-flight reads. Isolated from
+        // the reap verdict above, which must not hinge on a cache write.
+        try {
+          await writeAccountPermissions(ctx.redis, p.accountId, account.permissions);
+        } catch (err) {
+          ctx.logger.warn(
+            { profileId: pid, err: err },
+            'cron discovery: account-permissions cache write failed',
+          );
+        }
+        return walletByAsset;
       } catch (err) {
         ctx.logger.warn(
           { profileId: pid, err: err },
@@ -236,6 +237,7 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
     };
 
     const port: DiscoveryProfilePort = {
+      logger: ctx.logger,
       getAllTickers,
       getKlines: async (symbol, limit) =>
         (await rest.getKlines({ symbol, interval: '1h', limit })).map(klineToCandle),
@@ -372,7 +374,14 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
           discoveryResyncRequest(p),
         ),
     };
-    return runDiscoveryForProfile(port, cfg, quoteAsset, nowMs, await getSymbolStatuses());
+    return runDiscoveryForProfile(
+      port,
+      cfg,
+      quoteAsset,
+      nowMs,
+      await getSymbolAdmission(),
+      await getAccountPermissions(),
+    );
   };
 
   return defineCron({
@@ -386,7 +395,9 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
       shouldRun,
       runForProfile,
       fetchAllTickers: () => rest.getAllTickers24hr(),
-      fetchSymbolStatuses,
+      fetchSymbolAdmission,
+      fetchAccountPermissions: (p) =>
+        readAccountPermissions(ctx.redis, ctx.logger, p.accountId, 'cron discovery'),
       resolveBinanceMode: async (p) =>
         withTestModeFallback(await dbRepo.accounts.binanceModeById(ctx.db, p.accountId)),
     }),

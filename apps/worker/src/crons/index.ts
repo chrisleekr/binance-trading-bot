@@ -12,6 +12,7 @@ import type { CronDef } from './define.js';
 import { buildAccountSnapshotSafetyCron } from './account-snapshot-safety.cron.js';
 import { buildActionLogPruneCron } from './action-log-prune.cron.js';
 import { buildAliveCron } from './alive.cron.js';
+import { buildArchiveRecoverySweepCron } from './archive-recovery-sweep.cron.js';
 import { buildAuditPruneCron } from './audit-prune.cron.js';
 import { buildBacktestSweepCron } from './backtest-sweep.cron.js';
 import { buildDailyAthCron } from './daily-ath.cron.js';
@@ -44,6 +45,7 @@ export const buildCrons = (ctx: BootContext): readonly CronDef[] => [
   buildOrphanOrdersDetectCron(ctx),
   buildDetachedOrdersReconcileCron(ctx),
   buildHeldQuantityReconcileCron(ctx),
+  buildArchiveRecoverySweepCron(ctx),
   buildStaleOrderReapCron(ctx),
   buildDiscoveryCron(ctx),
   buildDiscoveryHealthCron(ctx),

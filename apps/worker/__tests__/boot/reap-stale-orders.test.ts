@@ -183,6 +183,23 @@ describe('reconcileMissingOrder', () => {
     expect(reapWithReason).toHaveBeenCalledWith(3478655619n, 'EXPIRED', 'reaped-not-on-exchange');
   });
 
+  it('reaps an EXPIRED_IN_MATCH order — the STP terminator is terminal here too', async () => {
+    // Self-Trade Prevention is routine with N profiles on one wallet. The status
+    // was terminal for the open-orders cache only, so the reaper skipped it and
+    // the row stayed `closed_at`-NULL forever, holding the live slot for its
+    // (profile, symbol, intent) and inflating open exposure.
+    const { run, reapWithReason, markFilledByBinanceOrderId } = setup(async () =>
+      order({ status: 'EXPIRED_IN_MATCH' }),
+    );
+    await expect(run()).resolves.toBe('reaped');
+    expect(reapWithReason).toHaveBeenCalledWith(
+      3478655619n,
+      'EXPIRED_IN_MATCH',
+      'reaped-not-on-exchange',
+    );
+    expect(markFilledByBinanceOrderId).not.toHaveBeenCalled();
+  });
+
   it('reaps as CANCELED when getOrder reports the order never existed (-2013)', async () => {
     const { run, reapWithReason } = setup(async () => {
       throw new BinanceApiError({ status: 400, code: -2013, msg: 'Order does not exist.' }, false);

@@ -245,6 +245,8 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
       'findActiveForSymbol',
       'findLatestForSymbol',
       'deletePendingForSymbol',
+      'findActiveDustTransfer',
+      'deletePendingDustTransfer',
     ]),
     profileKv: bindModule(scope, profileKv),
     // `only` excludes the GLOBAL `listAllEnabled` and the ACCOUNT-ID-scoped

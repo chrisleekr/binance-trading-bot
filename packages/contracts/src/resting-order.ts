@@ -24,9 +24,20 @@ const TERMINAL_ORDER_STATUSES: ReadonlySet<string> = new Set([
   'EXPIRED_IN_MATCH',
 ]);
 
-/** True when the order is still on the book (see {@link TERMINAL_ORDER_STATUSES}). */
-export const isRestingStatus = (status: string): boolean =>
-  !TERMINAL_ORDER_STATUSES.has(status.toUpperCase());
+/**
+ * True when the order has left the book for good.
+ *
+ * The ONE vocabulary every layer that decides "is this order done?" reads: the
+ * open-orders cache eviction, the boot reaper's close, and the `orders` row's
+ * `closed_at` stamp. Held apart, they drift — `EXPIRED_IN_MATCH` was terminal
+ * for the cache while the ledger still called it resting, so a self-trade-
+ * prevented order counted toward open exposure forever.
+ */
+export const isTerminalOrderStatus = (status: string): boolean =>
+  TERMINAL_ORDER_STATUSES.has(status.toUpperCase());
+
+/** True when the order is still on the book (see {@link isTerminalOrderStatus}). */
+export const isRestingStatus = (status: string): boolean => !isTerminalOrderStatus(status);
 
 /**
  * True when this order is a SELL still resting on the exchange — i.e. it is

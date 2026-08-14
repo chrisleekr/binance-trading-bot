@@ -40,12 +40,13 @@ const envMaxFor = (kind: PoolKind): number | null => {
   const parsed = /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     throw new Error(
-      `Invalid pool size for ${kind} pool (env value "${raw}"): expected a positive integer`,
+      `Invalid pool size for ${kind} pool (env value "${raw}"): expected a positive integer within the safe range`,
     );
   }
   return parsed;
 };
 
+/** The size a pool of this kind is created with: the environment, else our default. */
 export const resolvePoolMax = (kind: PoolKind): number => envMaxFor(kind) ?? DEFAULT_MAX[kind];
 
 export const createPool = ({ kind, connectionString }: CreatePoolOptions): Pool => {

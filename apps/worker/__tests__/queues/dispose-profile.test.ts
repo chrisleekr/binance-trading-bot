@@ -461,12 +461,15 @@ describe('handleDisposeProfile', () => {
 
     // Unbind before bind: base-asset exclusivity is per account, so the source
     // would otherwise be the conflicting owner of its own handoff.
-    expect(calls).toEqual([
-      'source.unbind',
-      'source.drop-position',
-      'target.bind',
-      'target.take-position',
-    ]);
+    expect(calls).toEqual(['source.unbind', 'target.bind', 'target.take-position']);
+    // The source's cost basis goes with its binding, so the handoff no longer
+    // drops it by hand. Doing both would be a second teardown that the unbind
+    // already performed.
+    expect(source.avgEntryPrices.remove).not.toHaveBeenCalled();
+    // And the teardown is the SOURCE's alone: it is scoped to the profile that
+    // unbound, so the row the target was just seeded with survives.
+    expect(target.profileSymbols.remove).not.toHaveBeenCalled();
+    expect(target.avgEntryPrices.remove).not.toHaveBeenCalled();
     // The ORDERS are never re-pointed: their clientOrderIds encode the SOURCE
     // profile, so the target's strategy could never recognise them.
     expect(target.orders.listLiveForProfile).not.toHaveBeenCalled();

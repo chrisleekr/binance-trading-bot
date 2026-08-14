@@ -53,7 +53,7 @@
 
 import type { Logger } from 'pino';
 import type { Queue } from 'bullmq';
-import { Decimal } from '@app/money';
+import { Decimal, isPlainDecimalString } from '@app/money';
 import {
   accountRepoFromScope,
   scopeAccount,
@@ -100,6 +100,12 @@ export interface FillEvent {
   readonly side: 'BUY' | 'SELL';
   readonly cumQty: string;
   readonly cumQuoteQty: string;
+  /**
+   * Total commission per asset across the whole order. The user stream reports
+   * fees per trade, so the caller accumulates the partials; the REST backfiller
+   * sums `myTrades` rows. Absent means unknown and folds the gross quantity.
+   */
+  readonly commissions?: Readonly<Record<string, string>>;
 }
 
 export interface FillAdopterDeps {
@@ -315,22 +321,37 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
         return;
       }
 
-      // Resolve the LOT_SIZE stepSize for a SELL before the tx so resolveFill
-      // can flatten a sub-step fee residual. Read outside the tx (it is a
-      // cache/Redis read, not a ledger write) and degrade to undefined on any
-      // failure — a delisted symbol must never block the already-final fill.
+      // Resolve the symbol's exchange metadata before the tx. Read outside the
+      // tx (a cache read, not a ledger write) and degrade on any failure — a
+      // delisted symbol must never block an already-final fill. Two consumers:
+      //   - SELL: the LOT_SIZE stepSize, so resolveFill can flatten a sub-step
+      //     fee residual.
+      //   - BUY: the base asset, so a base-asset commission is netted out of
+      //     the credited quantity.
+      const commissions = parseCommissions(deps, event);
       let sellStepSize: Decimal | undefined;
-      if (event.side === 'SELL') {
+      let baseAsset: string | undefined;
+      let stepSizeUnknown = false;
+      if (event.side === 'SELL' || commissions !== null) {
         try {
           const info = await deps.symbolInfo.get(event.symbol);
-          sellStepSize = new Decimal(info.filters.stepSize);
+          baseAsset = info.baseAsset;
+          if (event.side === 'SELL') sellStepSize = new Decimal(info.filters.stepSize);
         } catch (err) {
+          stepSizeUnknown = event.side === 'SELL';
           deps.logger.warn(
             { profileId: event.profileId, symbol: event.symbol, err: err },
-            'fill-adopter: stepSize lookup failed; folding SELL without sub-step flatten',
+            'fill-adopter: symbol-info lookup failed; folding without sub-step flatten or fee netting',
           );
         }
       }
+      // The quantity the wallet was actually credited. Everything downstream
+      // (cost basis, held quantity, the flat test on the eventual exit) is
+      // measured against the wallet, so the fold has to start there.
+      const buyQty =
+        event.side === 'BUY'
+          ? netBuyQuantity(deps, event, commissions, baseAsset)
+          : new Decimal(event.cumQty);
 
       // PG-side dedupe gate. Wrap the `applied_fills` insert and the
       // `avg_entry_prices` write in a single transaction so they
@@ -356,7 +377,7 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
         });
         firstApply = isFirstApply;
         if (event.side === 'BUY') {
-          return resolveBuy(txScope, event, isFirstApply);
+          return resolveBuy(txScope, event, isFirstApply, buyQty);
         }
         return resolveSell(txScope, event, isFirstApply, sellStepSize);
       });
@@ -400,6 +421,35 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
       }
 
       await applyResolution(deps, scope, event, resolution, positionAdapter);
+
+      // The LOT_SIZE lookup failed, so `resolveFill` ran without the sub-step
+      // flatten and any leftover crumb is indistinguishable from a real
+      // partial. The fill is final on Binance, so it is never blocked — but a
+      // strand must not be silent: an un-flattened crumb keeps `avgEntryPrice`
+      // set and blocks re-entry until the recovery sweep or a later fill
+      // clears it, and a warn-only line is invisible to the operator.
+      // Gated on the fresh apply for the same reason the alert below is: a
+      // Binance reconnect replays the terminal report, `resolveSell` takes its
+      // replay branch and still reports `set`, so an ungated write would hand
+      // the operator a second row for one strand and imply a second incident.
+      if (firstApply && stepSizeUnknown && resolution.kind === 'set') {
+        deps.logger.error(
+          {
+            profileId: event.profileId,
+            symbol: event.symbol,
+            orderId: event.orderId,
+            residualQty: resolution.qty,
+          },
+          'fill-adopter: SELL residual could not be checked against LOT_SIZE (symbol-info unavailable); position may be stranded on unsellable dust',
+        );
+        await appendFillActionLog(
+          deps,
+          scope,
+          event,
+          `Could not confirm ${event.symbol} was fully sold: ${resolution.qty} still tracked, and the exchange's trading rules were unavailable to check whether that amount is too small to sell`,
+          { outcome: 'residual-unverified', remainingQuantity: resolution.qty },
+        );
+      }
 
       // Money moved on the exchange — fire the profile's `order-filled` alert on
       // a fresh apply only (a Binance replay is not a new fill). Best-effort and
@@ -500,17 +550,89 @@ type FillResolution =
     }
   | { readonly kind: 'noop'; readonly reason: string };
 
+/**
+ * Parse every per-asset subtotal before using any one of them. A malformed
+ * foreign-asset subtotal makes the whole record unknowable too, otherwise the
+ * base subtotal could be partial while looking complete.
+ */
+const parseCommissions = (
+  deps: FillAdopterDeps,
+  event: FillEvent,
+): ReadonlyMap<string, Decimal> | null => {
+  if (!event.commissions) return null;
+  const parsed = new Map<string, Decimal>();
+  for (const [asset, raw] of Object.entries(event.commissions)) {
+    if (!asset || !isPlainDecimalString(raw)) {
+      deps.logger.warn(
+        { profileId: event.profileId, symbol: event.symbol, commissions: event.commissions },
+        'fill-adopter: invalid commission totals; folding gross quantity',
+      );
+      return null;
+    }
+    const charged = new Decimal(raw);
+    if (!charged.isFinite() || charged.lt(0)) return null;
+    parsed.set(asset, charged);
+  }
+  return parsed.size > 0 ? parsed : null;
+};
+
+/**
+ * Quantity a BUY actually credited to the wallet. Binance charges the BUY fee
+ * in the BASE asset unless a discount asset (BNB) is enabled, so folding the
+ * gross `executedQty` tracks a position permanently larger than the balance.
+ * The protective exit is sized from the real balance, so it can never bring
+ * the tracked number to zero: the exit resolves as a partial, the cycle never
+ * closes, and the completed trade never reaches the archive.
+ *
+ * Falls back to gross when there is no positive base-asset subtotal, the base
+ * asset cannot be resolved, or the commission record is absent or invalid. An
+ * unmeasured fee must not be guessed at.
+ */
+const netBuyQuantity = (
+  deps: FillAdopterDeps,
+  event: FillEvent,
+  commissions: ReadonlyMap<string, Decimal> | null,
+  baseAsset: string | undefined,
+): Decimal => {
+  const gross = new Decimal(event.cumQty);
+  if (commissions === null || !baseAsset) return gross;
+  const charged = commissions.get(baseAsset);
+  if (!charged || charged.lte(0)) return gross;
+  const net = gross.minus(charged);
+  if (net.lte(0)) {
+    // A fee at or above the whole fill is not a fee; trust the fill instead of
+    // writing a zero/negative position that would divide-by-zero on the VWAP.
+    deps.logger.error(
+      {
+        profileId: event.profileId,
+        symbol: event.symbol,
+        orderId: event.orderId,
+        cumQty: event.cumQty,
+        commission: charged.toString(),
+      },
+      'fill-adopter: base-asset commission >= filled quantity; folding gross quantity',
+    );
+    return gross;
+  }
+  return net;
+};
+
 const resolveBuy = async (
   scope: Awaited<ReturnType<typeof profileRepo>>,
   event: FillEvent,
   isFirstApply: boolean,
+  fillQty: Decimal,
 ): Promise<FillResolution> => {
   const existing = await scope.avgEntryPrices.findBySymbol(event.symbol);
   if (isFirstApply) {
     // The whole order's VWAP folds onto the prior durable position via the
     // shared resolveFill (same fold the backtest uses). The durable upsert,
     // idempotency, and replay branch below stay owned here.
-    const fillQty = new Decimal(event.cumQty);
+    //
+    // The VWAP divides by the FEE-NET quantity, not the gross: the operator
+    // paid `cumQuoteQty` and received `fillQty`, so that ratio is the real
+    // per-unit cost. Dividing by gross would understate the entry price and
+    // book the base-asset fee as profit on the exit.
     const fillAvgPrice = new Decimal(event.cumQuoteQty).div(fillQty);
     const prior: PositionView | null = existing
       ? { avgEntryPrice: existing.avgEntryPrice, heldQuantity: existing.quantity }

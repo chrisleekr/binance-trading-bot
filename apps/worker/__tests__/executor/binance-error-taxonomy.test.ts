@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { BinanceApiError } from '@app/binance';
 
-import { classifyBinanceError } from '../../src/executor/binance-error-taxonomy.js';
+import {
+  classifyBinanceError,
+  isSymbolNotPermittedError,
+} from '../../src/executor/binance-error-taxonomy.js';
 
 /**
  * `phase` decides whether a failed order may be re-issued. Get it wrong in the
@@ -44,5 +47,26 @@ describe('classifyBinanceError', () => {
     expect(classifyBinanceError(err(400, -2026, 'duplicate order', 'rejected')).result).toEqual({
       ok: true,
     });
+  });
+
+  it('separates the permanent -2010 refusal from the fundable ones', () => {
+    // -2010 is an umbrella: most causes clear on their own (balance arrives,
+    // the market reopens), but a permission refusal never does. Matching the
+    // verbatim `msg` is the only way Binance distinguishes them.
+    expect(
+      isSymbolNotPermittedError(
+        err(400, -2010, 'This symbol is not permitted for this account.', 'rejected'),
+      ),
+    ).toBe(true);
+    expect(
+      isSymbolNotPermittedError(err(400, -2010, 'Account has insufficient balance', 'rejected')),
+    ).toBe(false);
+    expect(isSymbolNotPermittedError(err(400, -2010, 'Market is closed.', 'rejected'))).toBe(false);
+    // Same text under a different code is a different failure mode.
+    expect(
+      isSymbolNotPermittedError(
+        err(400, -2011, 'This symbol is not permitted for this account.', 'rejected'),
+      ),
+    ).toBe(false);
   });
 });

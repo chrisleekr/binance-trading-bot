@@ -18,9 +18,11 @@ import type { DiscoveryUniverseSnapshotPayload } from '@app/db';
 import { fanOutBounded } from '@app/core/fan-out';
 import type { Candle } from '@app/strategy-core';
 import type { StoredDiscoveryConfig } from '@app/contracts';
+import type { Logger } from 'pino';
 import type { SiblingConflict } from '../sibling-conflict.js';
 import { toPureConfig } from './config.js';
 import { resolveQuoteUsdPrice, toDiscoveryTickers, USD_REFERENCE_QUOTE } from './quote-price.js';
+import type { SymbolAdmission } from './symbol-admission.js';
 import type { DiscoveryAddOutcome } from './apply.js';
 import type { DiscoveryNotifyAction } from './notify.js';
 
@@ -117,6 +119,12 @@ const selectKlineTargets = (
  * real Binance / Redis / DB.
  */
 export interface DiscoveryProfilePort {
+  /**
+   * Carries the admission and permission cuts' fail-safe warns. Both cuts are
+   * silent by construction, so without this the operator has no way to learn
+   * why a symbol they expect stopped appearing.
+   */
+  readonly logger: Pick<Logger, 'warn'>;
   getAllTickers(): Promise<readonly Ticker24hrDto[]>;
   getKlines(symbol: string, limit: number): Promise<readonly Candle[]>;
   listAutoSymbols(): Promise<readonly string[]>;
@@ -194,7 +202,8 @@ export const runDiscoveryForProfile = async (
   stored: StoredDiscoveryConfig,
   quoteAsset: string,
   nowMs: number,
-  statusBySymbol?: ReadonlyMap<string, string>,
+  admissionBySymbol?: ReadonlyMap<string, SymbolAdmission>,
+  accountPermissions?: readonly string[],
 ): Promise<{ added: number; removed: number }> => {
   const cfg = toPureConfig(stored, quoteAsset);
   const rawTickers = await port.getAllTickers();
@@ -207,9 +216,13 @@ export const runDiscoveryForProfile = async (
       `discovery: cannot price quote asset ${cfg.quoteAsset} in ${USD_REFERENCE_QUOTE} (no ${cfg.quoteAsset}${USD_REFERENCE_QUOTE} market)`,
     );
   }
-  // The status filter's fail-safe warn is emitted once per wake by the handler's
-  // status fetch, not here, so no logger is threaded into this per-profile call.
-  const tickers = toDiscoveryTickers(rawTickers, cfg.quoteAsset, quoteUsdPrice, statusBySymbol);
+  const tickers = toDiscoveryTickers(rawTickers, cfg.quoteAsset, quoteUsdPrice, {
+    logger: port.logger,
+    // Spread only when supplied: `exactOptionalPropertyTypes` rejects an
+    // explicit `undefined` on an optional property.
+    ...(admissionBySymbol === undefined ? {} : { admissionBySymbol }),
+    ...(accountPermissions === undefined ? {} : { accountPermissions }),
+  });
   // 24h high per symbol, captured for the enter-on-add anti-chase guard (#473).
   const highBySymbol: Record<string, string> = {};
   for (const t of rawTickers) highBySymbol[t.symbol] = t.highPrice;

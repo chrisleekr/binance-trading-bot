@@ -1,3 +1,4 @@
+import { profileRepo } from '@app/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { HAS_INFRA, setupApp, type ApiFixture } from './_helpers.js';
 
@@ -118,6 +119,21 @@ describeIfInfra('cross-account HTTP penetration tests', () => {
       method: 'GET',
       path: () => underAlice(`/profiles/${fx.alice.profileId}/dust-transfer/history`),
     },
+    // Hard-deletes rows, so an ownership regression here destroys another
+    // operator's queued conversions rather than merely disclosing them.
+    {
+      name: 'DELETE dust-transfer',
+      method: 'DELETE',
+      path: () => underAlice(`/profiles/${fx.alice.profileId}/dust-transfer`),
+    },
+    // The other leg on the one route here that destroys data. A handler that
+    // minted its scope from the URL's accountId alone and then took profileId raw
+    // would still pass the case above and fail only this one.
+    {
+      name: 'DELETE dust-transfer via own account, foreign profileId',
+      method: 'DELETE',
+      path: () => bobsAccountAliceProfile(`/profiles/${fx.alice.profileId}/dust-transfer`),
+    },
     // The 4-arg join: bob owns this account, but alice's profile is not in it.
     {
       name: 'GET profile via own account, foreign profileId',
@@ -143,4 +159,47 @@ describeIfInfra('cross-account HTTP penetration tests', () => {
       expect(res.status).toBe(404);
     });
   }
+
+  it("leaves alice's queued conversion in place when bob issues the cancel", async () => {
+    // A status code cannot say the rows survived. A handler that ran the delete
+    // and proved ownership afterwards would answer 404 on both legs above and
+    // have destroyed the conversions this route exists to let their owner
+    // cancel — the row is the only witness to the difference.
+    const p = await profileRepo(fx.di.db, fx.alice.userId, fx.alice.accountId, fx.alice.profileId);
+    const armed = await p.overrideActions.record({
+      symbol: null,
+      action: 'dust-transfer',
+      actionAt: new Date(),
+      payload: { assets: ['TRX'] },
+      triggeredBy: 'user',
+    });
+    const pending = async (): Promise<string[]> => {
+      const { rows } = await fx.di.pool.query<{ id: string }>(
+        `select id from override_actions
+          where profile_id = $1 and action = 'dust-transfer' and consumed_at is null`,
+        [fx.alice.profileId],
+      );
+      return rows.map((r) => r.id);
+    };
+    const cancelAs = async (userId: string, path: string): Promise<number> => {
+      const res = await fx.app.fetch(
+        new Request(`http://test.local${path}`, {
+          method: 'DELETE',
+          headers: new Headers({ 'x-test-user-id': userId }),
+        }),
+      );
+      return res.status;
+    };
+    const alicesRow = `/profiles/${fx.alice.profileId}/dust-transfer`;
+
+    expect(await cancelAs(fx.bob.userId, underAlice(alicesRow))).toBe(404);
+    expect(await cancelAs(fx.bob.userId, bobsAccountAliceProfile(alicesRow))).toBe(404);
+    expect(await pending()).toEqual([armed.id]);
+
+    // The owner's own cancel, on the same path: without it a route that 404s for
+    // everyone — or one mounted at a different path entirely — would satisfy
+    // every assertion above, and the 404s would prove nothing about ownership.
+    expect(await cancelAs(fx.alice.userId, underAlice(alicesRow))).toBe(204);
+    expect(await pending()).toEqual([]);
+  });
 });

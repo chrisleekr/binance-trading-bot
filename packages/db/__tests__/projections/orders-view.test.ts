@@ -46,6 +46,7 @@ describeIfDb('orders-view projections', () => {
       breakdown: { 'grid-buy:BUY': '60000', 'grid-sell:SELL': '62000' },
       profit: '2000',
       profitPercent: '3.33',
+      missingCostBasis: 1,
       orders: [{ side: 'BUY' as const }, { side: 'SELL' as const }],
       archivedAt: new Date('2026-05-11T00:00:00Z'),
     });
@@ -175,12 +176,14 @@ describeIfDb('orders-view projections', () => {
   it('getSymbolArchive maps archive rows to the wire shape', async () => {
     const archive = await getSymbolArchive(scope, 'BTCUSDT', 50);
     expect(archive.items).toHaveLength(1);
-    // The whole wire shape, not just two fields: `netProfit` is derived here
-    // rather than stored, so dropping the mapping has to fail this.
+    // The whole wire shape, not just two fields: `missingCostBasis` is what the
+    // UI switches on to say "P/L unavailable", and `netProfit` is derived here
+    // rather than stored, so dropping either mapping has to fail this.
     expect(archive.items[0]).toMatchObject({
       symbol: 'BTCUSDT',
       baseAsset: 'BTC',
       quoteAsset: 'USDT',
+      missingCostBasis: 1,
       exitIntent: 'unknown',
     });
     expect(Number(archive.items[0]?.totalBuyQuote)).toBe(60000);

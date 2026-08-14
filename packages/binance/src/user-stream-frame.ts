@@ -24,6 +24,20 @@ export type UserStreamEvent =
       readonly qtyLastFilled: string;
       readonly cumQty: string;
       readonly cumQuoteQty: string;
+      /**
+       * Commission charged on THIS event's trade, not on the order so far.
+       * `z`/`Z` are cumulative but `n`/`N` are per-trade, so a consumer that
+       * needs the order's total commission must accumulate across the
+       * partials itself.
+       */
+      readonly commission: string;
+      /**
+       * Asset the commission was charged in. Binance charges a BUY in the
+       * BASE asset unless a discount asset (BNB) is enabled, so this must be
+       * compared against the symbol's base asset before netting anything.
+       * Empty when the event carries no trade (a bare NEW / CANCELED report).
+       */
+      readonly commissionAsset: string;
       readonly tradeId: number;
       readonly eventTimeMs: number;
     }
@@ -74,6 +88,11 @@ export const parseUserStreamFrame = (raw: unknown): UserStreamEvent | null => {
       qtyLastFilled: String(inner['l'] ?? '0'),
       cumQty: String(inner['z'] ?? '0'),
       cumQuoteQty: String(inner['Z'] ?? '0'),
+      // Binance sends `N: null` (not an absent key) on a report with no trade,
+      // so `??` is load-bearing: `String(null)` would yield the literal "null"
+      // and match no asset symbol.
+      commission: String(inner['n'] ?? '0'),
+      commissionAsset: String(inner['N'] ?? ''),
       tradeId: Number(inner['t'] ?? 0),
       eventTimeMs: Number(inner['E'] ?? 0),
     };

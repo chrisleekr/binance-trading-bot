@@ -219,15 +219,22 @@ export interface OpenOrderDto {
 }
 
 /**
- * Subset of Binance's `/account` response. We deliberately drop the
- * `permissions` and commission-rate arrays because v1.0 does not act on
- * them; including them would couple downstream code to fields we do not
- * maintain a contract for.
+ * Subset of Binance's `/account` response. The commission-rate arrays are
+ * deliberately dropped because nothing acts on them.
  */
 export interface AccountDto {
   readonly balances: readonly { asset: string; free: string; locked: string }[];
   /** False during a Binance-side trading halt; the executor refuses to place orders when this flips. */
   readonly canTrade: boolean;
+  /**
+   * Permission tags this account holds, e.g. `['SPOT','TRD_GRP_025']`. A
+   * symbol is tradable only when the account holds at least one tag from
+   * every set the symbol publishes, so without this the account can bind a
+   * symbol Binance will refuse forever. Optional: older accounts and some
+   * stubbed responses omit it, and an absent list must fail open rather than
+   * block every symbol.
+   */
+  readonly permissions?: readonly string[];
 }
 
 /**
@@ -509,6 +516,15 @@ export class BinanceApiError extends Error {
   /** Whether the request provably did not execute. See {@link BinanceCallPhase}. */
   readonly phase: BinanceCallPhase;
   /**
+   * Binance's raw `msg`, kept verbatim and separate from the composed
+   * `message`. Some codes are overloaded across unrelated causes (`-2010`
+   * covers insufficient balance, a closed market, and a non-permitted
+   * symbol), so distinguishing them needs the original text. Carrying it as
+   * its own field means no downstream code has to substring-parse the
+   * composed message, whose prefix is a formatting detail.
+   */
+  readonly msg: string;
+  /**
    * `payload` is reified so log redaction can treat the error as a plain
    * shape; `retryable` and `phase` are precomputed at throw-time so the catch
    * site does not depend on the classifiers being importable.
@@ -518,6 +534,7 @@ export class BinanceApiError extends Error {
     this.name = 'BinanceApiError';
     this.status = payload.status;
     this.code = payload.code;
+    this.msg = payload.msg;
     this.retryable = retryable;
     this.phase = phase;
   }

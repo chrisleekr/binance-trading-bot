@@ -7,6 +7,7 @@ import type { AccountSnapshot, OpenOrder } from '@app/strategy-core';
 
 import { accountSnapshotFromDto, openOrdersFromDtos } from 'lib/binance-snapshot.js';
 import { writeAccountInfo } from 'lib/account-info-writer.js';
+import { writeAccountPermissions } from 'lib/account-permissions.js';
 
 import type { SnapshotColdLoad, SymbolStateRowView } from './snapshot-loader.js';
 
@@ -108,6 +109,7 @@ export const createProductionColdLoad = (deps: ColdLoadDeps): SnapshotColdLoad =
       // the tick — the next tick simply REST-fetches again.
       try {
         await writeAccountInfo(deps.redis, accountId, profileId, dto.balances);
+        await writeAccountPermissions(deps.redis, accountId, dto.permissions);
       } catch (err) {
         deps.logger.warn(
           { operatorId, accountId, profileId, err: err },

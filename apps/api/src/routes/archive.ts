@@ -23,14 +23,19 @@ import { scopeOf } from 'route-helpers.js';
 import { createApiHono, type ApiHono } from 'types.js';
 
 /**
- * Map a backfill attempt's drop counts to the operator-facing reason. Overshoot
- * (sold more than bought) is the most specific data problem, then orphan sells;
- * a zero-zero attempt is a bought-not-fully-sold or pre-history open position.
+ * Map a backfill attempt's outcome to the operator-facing reason. A delisted
+ * symbol wins outright: the attempt never got as far as reading trades, so its
+ * zero counts say nothing, and it is the only reason a retry cannot change.
+ * Then overshoot (sold more than bought), the most specific data problem, then
+ * orphan sells; a zero-zero attempt is a bought-not-fully-sold or pre-history
+ * open position.
  */
 function unreconstructableReason(u: {
   skippedOrphanSells: number;
   droppedOvershoot: number;
+  symbolUnavailable: boolean;
 }): UnreconstructableReason {
+  if (u.symbolUnavailable) return 'symbol-unavailable';
   if (u.droppedOvershoot > 0) return 'overshoot';
   if (u.skippedOrphanSells > 0) return 'orphan-sells';
   return 'open-or-pre-history';
@@ -38,9 +43,30 @@ function unreconstructableReason(u: {
 
 const ProfileIdParam = z.object({ profileId: z.uuid() });
 
+/**
+ * The composite cursor this route EMITS (`<archivedAt-iso>__<row id>`), plus
+ * the legacy bare-ISO form the handler still parses. Validating it as a plain
+ * ISO timestamp rejected the route's own `nextCursor` as a 422, so paging
+ * past the first page was impossible — the archive silently stopped at 25 rows.
+ * The row-id half is checked as a uuid because it is compared against a `uuid`
+ * column: a malformed value would otherwise fail as a Postgres cast error
+ * (500) instead of a bad-request at the boundary.
+ */
+const ArchiveCursor = z.string().refine(
+  (v) => {
+    const sep = v.indexOf('__');
+    if (sep < 0) return z.iso.datetime().safeParse(v).success;
+    return (
+      z.iso.datetime().safeParse(v.slice(0, sep)).success &&
+      z.uuid().safeParse(v.slice(sep + 2)).success
+    );
+  },
+  { message: 'cursor must be an ISO timestamp, optionally suffixed with `__<row id>`' },
+);
+
 const ArchiveQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(25),
-  cursor: z.iso.datetime().optional(),
+  cursor: ArchiveCursor.optional(),
   period: ArchivePeriod.default('a'),
   // tz is operator-controlled; default to UTC because the worker doesn't
   // know the operator's timezone — the SPA passes its own. Validate as a
@@ -221,6 +247,9 @@ export const archiveRouter = (di: DI): ApiHono => {
           profit: asDecimalString(r.profit),
           profitPercent: asDecimalString(r.profitPercent),
           exitIntent: deriveExitIntent(coerceArchivedOrders(r.orders)),
+          // Carried so the UI can say "P/L unavailable" instead of rendering an
+          // under-counted `profit` of 0 as a measured break-even.
+          missingCostBasis: r.missingCostBasis,
           archivedAt: r.archivedAt.toISOString(),
         })),
         nextCursor,

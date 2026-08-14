@@ -7,8 +7,10 @@ import {
   SymbolPatch,
   SymbolReservePut,
   type SymbolSource,
+  isSymbolPermittedForAccount,
+  parseAccountPermissions,
 } from '@app/contracts';
-import { projections, repo } from '@app/db';
+import { accountPermissionsKey, projections, repo } from '@app/db';
 import { Decimal } from '@app/money';
 import { mergeConfig } from '@app/strategy-core';
 import { createRoute, z } from '@hono/zod-openapi';
@@ -251,6 +253,42 @@ export const symbolsRouter = (di: DI): ApiHono => {
     if (listed === undefined || listed.status !== 'TRADING') {
       throw new HttpError('VALIDATION_FAILED', `symbol not tradable on Binance: ${body.symbol}`);
     }
+    // TRADING is not the same as tradable BY THIS ACCOUNT. Binance also gates
+    // each symbol on permission tags, and an account that lacks them has every
+    // order refused -2010 forever, which the tick re-derives and re-sends until
+    // the account's request-weight budget is gone. Reject the bind instead, so
+    // the operator learns it here rather than from a stalled profile.
+    //
+    // Only checked for a live account: the listing above is live-pinned, and a
+    // testnet key pair's tags are not comparable with a live symbol's sets.
+    // Fails open on an unreadable or empty permission cache, matching the
+    // worker's pre-flight: a signal that cannot be read is never a refusal. A
+    // FAILING read degrades the same way as an absent key, so a Redis fault
+    // costs the operator this check rather than the whole bind.
+    if (binanceMode === 'live') {
+      const accountPermissions = parseAccountPermissions(
+        await di.redis
+          .raw()
+          .get(accountPermissionsKey(accountId))
+          .catch((err: unknown) => {
+            di.logger.warn(
+              { accountId, err: err },
+              'symbols: account-permissions read failed; tradability check skipped',
+            );
+            return null;
+          }),
+      );
+      if (
+        !isSymbolPermittedForAccount({ permissionSets: listed.permissionSets, accountPermissions })
+      ) {
+        throw new HttpError(
+          'VALIDATION_FAILED',
+          `your Binance account is not permitted to trade ${body.symbol}: it requires ${listed.permissionSets
+            ?.map((s) => s.join(' or '))
+            .join(' and ')}, and your API key pair has ${accountPermissions.join(', ')}`,
+        );
+      }
+    }
     // Reject binding a symbol the profile's current config cannot trade — orders
     // that size below this symbol's exchange minimum, or a grid the balance can't
     // fund — before the bind is written, so an unfundable symbol never reaches
@@ -422,13 +460,15 @@ export const symbolsRouter = (di: DI): ApiHono => {
 
   // Full-wipe DELETE removes all per-symbol traces:
   //   1. Drop every Redis key under tenant:<u>:profile:<p>:*<symbol>*
-  //   2. Delete avg_entry_prices row
-  //   3. Delete symbol_states row (durable strategy body) so a re-add cold-loads
-  //      fresh from initialState instead of reviving a stale position
-  //   4. Remove pending override_actions for the symbol
-  //   5. Detach symbol from profile
+  //   2. Detach the symbol, which tears down its DB state in one transaction:
+  //      condition_states, symbol_states (so a re-add cold-loads fresh from
+  //      initialState instead of reviving a stale position), avg_entry_prices
+  //      and the pending override_actions.
+  // Only the Redis half is the route's own work: the DB half belongs to the
+  // binding and every unbind path inherits it, which is why there is nothing
+  // here to keep in step with the discovery reap.
   // Archive rows + historical orders survive intentionally. A processing
-  // override_action (a worker mid-side-effect) survives step 3 by design,
+  // override_action (a worker mid-side-effect) survives the detach by design,
   // but step 1 still drops its override:<symbol> cache key — a symbol wipe
   // is a wholesale teardown, unlike an override cancel which preserves the
   // cache for an in-flight row. The lingering DB row is resolved by the
@@ -439,9 +479,6 @@ export const symbolsRouter = (di: DI): ApiHono => {
     const { p, profile } = await requireOwnedProfile(c, di, profileId);
     const { operatorId, accountId } = p.scope;
     await wipeSymbolRedis(di.redis, accountId, profileId, symbol);
-    await p.avgEntryPrices.remove(symbol);
-    await p.symbolStates.remove(symbol);
-    await p.overrideActions.deletePendingForSymbol(symbol);
     await p.profileSymbols.remove(symbol);
     // `wipeSymbolRedis` only drops keys carrying the symbol name; the dashboard
     // cache key has no symbol, so bust it explicitly or the removed symbol

@@ -7,6 +7,7 @@ import {
   type DiscoveryProfilePort,
 } from '../../../src/crons/discovery/run.js';
 import type { SiblingConflict } from '../../../src/crons/sibling-conflict.js';
+import type { SymbolAdmission } from '../../../src/crons/discovery/symbol-admission.js';
 
 const NOW = 1_700_000_000_000;
 const HOUR = 3_600_000;
@@ -62,6 +63,7 @@ const permissiveConfig = () =>
   });
 
 const fakePort = (over: Partial<DiscoveryProfilePort> = {}): DiscoveryProfilePort => ({
+  logger: { warn: vi.fn() },
   getAllTickers: async () => [ticker({ symbol: 'AAAUSDT' })],
   getKlines: async () => eligibleKlines(),
   listAutoSymbols: async () => [],
@@ -580,5 +582,46 @@ describe('runDiscoveryForProfile', () => {
     expect(fetched).toContain('S00USDT'); // top-ranked candidate fetched
     expect(fetched).toContain('HELDUSDT'); // held symbol fetched despite last rank
     expect(fetched).not.toContain('S20USDT'); // beyond the cap → skipped this cycle
+  });
+});
+
+describe('runDiscoveryForProfile — the permission cut explains itself', () => {
+  // Drives the real per-profile path, not `toDiscoveryTickers` directly. The
+  // cut is silent (the symbol simply stops appearing), so the warn is the
+  // operator's only explanation — and the logger it lands on has to be the one
+  // production threads through the port, not one a test invents.
+  const admissionBySymbol = new Map<string, SymbolAdmission>([
+    ['AAAUSDT', { status: 'TRADING', permissionSets: [['SPOT']] }],
+    ['CRCLBUSDT', { status: 'TRADING', permissionSets: [['TRD_GRP_005']] }],
+  ]);
+
+  it('warns on the port’s logger, naming how many symbols the account may not trade', async () => {
+    const warn = vi.fn();
+    const port = fakePort({
+      logger: { warn },
+      getAllTickers: async () => [ticker({ symbol: 'AAAUSDT' }), ticker({ symbol: 'CRCLBUSDT' })],
+    });
+    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW, admissionBySymbol, [
+      'SPOT',
+    ]);
+    // CRCLBUSDT never reaches the funnel, so the explain cannot mention it.
+    expect(explainRowFor(port, 'CRCLBUSDT')).toBeUndefined();
+    expect(explainRowFor(port, 'AAAUSDT')).toBeDefined();
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ notPermitted: 1, quoteAsset: 'USDT' }),
+      expect.stringContaining('lacks a required Binance permission'),
+    );
+  });
+
+  it('stays quiet when the account may trade every candidate', async () => {
+    const warn = vi.fn();
+    const port = fakePort({
+      logger: { warn },
+      getAllTickers: async () => [ticker({ symbol: 'AAAUSDT' })],
+    });
+    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW, admissionBySymbol, [
+      'SPOT',
+    ]);
+    expect(warn).not.toHaveBeenCalled();
   });
 });

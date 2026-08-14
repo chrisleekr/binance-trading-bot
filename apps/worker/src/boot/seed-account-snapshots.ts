@@ -50,6 +50,16 @@ export interface SeedAccountSnapshotsDeps {
     profileId: ProfileId,
     balances: readonly { asset: string; free: string; locked: string }[],
   ) => Promise<void>;
+  /**
+   * Cache the permission tags carried on the same `getAccount` response. Seeded
+   * here so the very first tick after boot can already refuse a symbol the
+   * account is not permitted to trade, rather than waiting for the safety
+   * cron's first full reconcile.
+   */
+  readonly persistAccountPermissions: (
+    accountId: AccountId,
+    permissions: readonly string[] | undefined,
+  ) => Promise<void>;
 }
 
 export interface SeedTally {
@@ -75,6 +85,7 @@ export const runAccountSnapshotSeed = async (
       if (!rest) return 'skipped';
       const account = await rest.getAccount();
       await deps.persistAccount(profile.accountId, profile.profileId, account.balances);
+      await deps.persistAccountPermissions(profile.accountId, account.permissions);
       return 'seeded';
     },
     { concurrency: SEED_CONCURRENCY, onError: 'collect' },

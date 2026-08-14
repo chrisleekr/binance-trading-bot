@@ -122,6 +122,192 @@ describe('createFillBackfiller', () => {
     expect(adopt).not.toHaveBeenCalled();
   });
 
+  it('counts an exact duplicate trade id only once', async () => {
+    repoMocks.maxTradeId.mockResolvedValue(0);
+    const repeated = trade({
+      id: 1,
+      orderId: 20,
+      qty: '2',
+      quoteQty: '200',
+      commission: '0.2',
+      commissionAsset: 'TST',
+    });
+    const { deps, adopt } = makeDeps({ trades: [repeated, { ...repeated }] });
+
+    await createFillBackfiller(deps).backfill(USER_ID, ACCOUNT_ID, PROFILE_ID, SYMBOL);
+
+    expect(adopt).toHaveBeenCalledTimes(1);
+    expect(adopt.mock.calls[0]?.[0]).toMatchObject({
+      cumQty: '2',
+      cumQuoteQty: '200',
+      commissions: { TST: '0.2' },
+    });
+  });
+
+  it.each([
+    ['order', { orderId: 21 }],
+    ['symbol', { symbol: 'ETHUSDT' }],
+    ['side', { isBuyer: false }],
+    ['quantity', { qty: '2' }],
+    ['quote quantity', { quoteQty: '200' }],
+    ['commission', { commission: '0.2' }],
+    ['commission asset', { commissionAsset: 'TST' }],
+  ])('adopts nothing when a duplicate trade id conflicts on %s', async (_case, conflict) => {
+    repoMocks.maxTradeId.mockResolvedValue(0);
+    const original = trade({ id: 2, orderId: 20, commission: '0.1', commissionAsset: 'BNB' });
+    const { deps, adopt } = makeDeps({
+      trades: [trade({ id: 1, orderId: 10 }), original, { ...original, ...conflict }],
+    });
+
+    await createFillBackfiller(deps).backfill(USER_ID, ACCOUNT_ID, PROFILE_ID, SYMBOL);
+
+    expect(adopt).not.toHaveBeenCalled();
+  });
+
+  it('adopts nothing when any REST row belongs to another symbol', async () => {
+    repoMocks.maxTradeId.mockResolvedValue(0);
+    const { deps, adopt } = makeDeps({
+      trades: [trade({ id: 1, orderId: 10 }), trade({ id: 2, orderId: 20, symbol: 'ETHUSDT' })],
+    });
+
+    await createFillBackfiller(deps).backfill(USER_ID, ACCOUNT_ID, PROFILE_ID, SYMBOL);
+
+    expect(adopt).not.toHaveBeenCalled();
+  });
+
+  it('adopts nothing when semantic duplicate ids differ by runtime type', async () => {
+    repoMocks.maxTradeId.mockResolvedValue(0);
+    const numericId = trade({ id: 1, orderId: 20 });
+    const { deps, adopt } = makeDeps({
+      trades: [numericId, { ...numericId, id: '1' } as never],
+    });
+
+    await createFillBackfiller(deps).backfill(USER_ID, ACCOUNT_ID, PROFILE_ID, SYMBOL);
+
+    expect(adopt).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['string order id', { orderId: '20' }],
+    ['side string', { isBuyer: 'true' }],
+    ['side number', { isBuyer: 1 }],
+    ['numeric quantity', { qty: 1 }],
+    ['null quantity', { qty: null }],
+    ['negative quantity', { qty: '-1' }],
+    ['numeric quote quantity', { quoteQty: 100 }],
+    ['object quote quantity', { quoteQty: {} }],
+    ['negative quote quantity', { quoteQty: '-100' }],
+  ])('adopts nothing for an ill-typed %s', async (_case, invalid) => {
+    repoMocks.maxTradeId.mockResolvedValue(0);
+    const { deps, adopt } = makeDeps({
+      trades: [trade({ id: 1, orderId: 20, ...invalid } as never)],
+    });
+
+    await createFillBackfiller(deps).backfill(USER_ID, ACCOUNT_ID, PROFILE_ID, SYMBOL);
+
+    expect(adopt).not.toHaveBeenCalled();
+  });
+
+  it("sums each order's per-trade commission so the recovery path nets the same fee as the live one", async () => {
+    repoMocks.maxTradeId.mockResolvedValue(0);
+    const { deps, adopt } = makeDeps({
+      trades: [
+        trade({
+          id: 1,
+          orderId: 20,
+          qty: '600',
+          quoteQty: '9',
+          commission: '0.6',
+          commissionAsset: 'TST',
+        }),
+        trade({
+          id: 2,
+          orderId: 20,
+          qty: '1082.3',
+          quoteQty: '16.18',
+          commission: '1.0823',
+          commissionAsset: 'TST',
+        }),
+      ],
+    });
+    await createFillBackfiller(deps).backfill(USER_ID, ACCOUNT_ID, PROFILE_ID, SYMBOL);
+
+    expect(adopt.mock.calls[0]?.[0]).toMatchObject({
+      cumQty: '1682.3',
+      commissions: { TST: '1.6823' },
+    });
+  });
+
+  it("preserves each fee asset when one order's trades mixed commission assets", async () => {
+    repoMocks.maxTradeId.mockResolvedValue(0);
+    const { deps, adopt } = makeDeps({
+      // A BNB balance running out mid-order switches the fee asset.
+      trades: [
+        trade({ id: 1, orderId: 20, commission: '0.00004', commissionAsset: 'BNB' }),
+        trade({ id: 2, orderId: 20, commission: '0.9323', commissionAsset: 'TST' }),
+      ],
+    });
+    await createFillBackfiller(deps).backfill(USER_ID, ACCOUNT_ID, PROFILE_ID, SYMBOL);
+
+    const arg = adopt.mock.calls[0]?.[0] as unknown as Record<string, unknown>;
+    expect(arg['commissions']).toEqual({ BNB: '0.00004', TST: '0.9323' });
+  });
+
+  it.each(['not-a-number', 'NaN', 'Infinity'])(
+    'does not expose a partial fee total after a malformed %s commission',
+    async (malformed) => {
+      repoMocks.maxTradeId.mockResolvedValue(0);
+      const { deps, adopt } = makeDeps({
+        trades: [
+          trade({ id: 1, orderId: 20, commission: '0.5', commissionAsset: 'TST' }),
+          trade({ id: 2, orderId: 20, commission: malformed, commissionAsset: 'TST' }),
+        ],
+      });
+
+      await createFillBackfiller(deps).backfill(USER_ID, ACCOUNT_ID, PROFILE_ID, SYMBOL);
+
+      const arg = adopt.mock.calls[0]?.[0] as unknown as Record<string, unknown>;
+      expect(arg['commissions']).toBeUndefined();
+      expect(arg['commission']).toBeUndefined();
+    },
+  );
+
+  it.each([
+    ['numeric commission', { commission: 1 }],
+    ['null commission', { commission: null }],
+    ['object commission', { commission: {} }],
+    ['numeric commission asset', { commissionAsset: 1 }],
+    ['null commission asset', { commissionAsset: null }],
+    ['object commission asset', { commissionAsset: {} }],
+  ])('treats an ill-typed %s as an unknown fee', async (_case, malformed) => {
+    repoMocks.maxTradeId.mockResolvedValue(0);
+    const { deps, adopt } = makeDeps({
+      trades: [trade({ id: 1, orderId: 20, ...malformed } as never)],
+    });
+
+    await createFillBackfiller(deps).backfill(USER_ID, ACCOUNT_ID, PROFILE_ID, SYMBOL);
+
+    expect(adopt.mock.calls[0]?.[0]).not.toHaveProperty('commissions');
+  });
+
+  it.each([
+    ['an empty asset', [trade({ id: 1, orderId: 20, commission: '0.5', commissionAsset: '' })]],
+    [
+      'a malformed fee followed by a valid fee',
+      [
+        trade({ id: 1, orderId: 20, commission: 'not-a-number', commissionAsset: 'TST' }),
+        trade({ id: 2, orderId: 20, commission: '0.5', commissionAsset: 'TST' }),
+      ],
+    ],
+  ])('does not expose commissions after %s', async (_case, trades) => {
+    repoMocks.maxTradeId.mockResolvedValue(0);
+    const { deps, adopt } = makeDeps({ trades });
+
+    await createFillBackfiller(deps).backfill(USER_ID, ACCOUNT_ID, PROFILE_ID, SYMBOL);
+
+    expect(adopt.mock.calls[0]?.[0]).not.toHaveProperty('commissions');
+  });
+
   it('keeps adopting remaining orders when one adopt throws', async () => {
     repoMocks.maxTradeId.mockResolvedValue(0);
     const { deps, adopt } = makeDeps({

@@ -177,6 +177,75 @@ export const projectSymbolFilters = (
 };
 
 /**
+ * A symbol's `permissionSets` as Binance publishes them: a list of sets of
+ * permission names. Non-empty at both levels, since an empty list carries no
+ * claim and must be treated as "not published" rather than as "permits nothing".
+ */
+export const SymbolPermissionSets = z.array(z.array(z.string().min(1).max(32)).min(1)).min(1);
+/** TS type derived from {@link SymbolPermissionSets} so consumers don't re-run z.infer. */
+export type SymbolPermissionSets = z.infer<typeof SymbolPermissionSets>;
+
+/**
+ * Project a symbol's raw `permissionSets` field into {@link SymbolPermissionSets}.
+ * All-or-nothing like {@link projectSymbolFilters}: a shape Binance changed, or a
+ * partially-typed list, yields `null` rather than a half-read set, because a
+ * half-read set would be used to REFUSE orders on symbols the account can trade.
+ */
+export const projectPermissionSets = (raw: unknown): SymbolPermissionSets | null => {
+  const parsed = SymbolPermissionSets.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+};
+
+/**
+ * The permission tags cached for an account, read back from their JSON string.
+ * Returns an empty list for anything unusable (absent key, non-JSON, wrong
+ * shape, or a list carrying any non-string entry) so a corrupt value degrades
+ * exactly like an absent one: callers read empty as "cannot tell" and fail open.
+ *
+ * All-or-nothing like {@link projectPermissionSets}, and for the same reason.
+ * Keeping the survivors of a partially-typed list would return a positively-read
+ * but INCOMPLETE held-permission list, which reads as a confident "not
+ * permitted" and blocks every order on a tradable symbol, exits included.
+ */
+export const parseAccountPermissions = (raw: string | null): readonly string[] => {
+  if (raw === null) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  if (!parsed.every((p) => typeof p === 'string' && p.length > 0)) return [];
+  return parsed as readonly string[];
+};
+
+/**
+ * Whether an account may trade a symbol, per Binance's published tradability
+ * rule: `permissionSets` is an AND of ORs, so the account must hold at least one
+ * permission from EVERY published set. An account holding only
+ * `[LEVERAGED, TRD_GRP_025]` therefore fails a symbol publishing the single set
+ * `[SPOT, MARGIN, TRD_GRP_005, …]`, and every order on it is refused -2010
+ * "This symbol is not permitted for this account" no matter how often it retries.
+ *
+ * Fails OPEN in every ambiguity — no published sets, an empty set, or an unknown
+ * account permission list (a cold cache). The cost of a wrong "not permitted" is
+ * every order on a symbol the account can trade, silently; the cost of a wrong
+ * "permitted" is one Binance rejection, exactly what happens today.
+ */
+export const isSymbolPermittedForAccount = (input: {
+  readonly permissionSets?: readonly (readonly string[])[] | null | undefined;
+  readonly accountPermissions?: readonly string[] | null | undefined;
+}): boolean => {
+  const sets = input.permissionSets;
+  const held = input.accountPermissions;
+  if (sets === null || sets === undefined || sets.length === 0) return true;
+  if (held === null || held === undefined || held.length === 0) return true;
+  const heldSet = new Set(held);
+  return sets.every((set) => set.length === 0 || set.some((p) => heldSet.has(p)));
+};
+
+/**
  * One row from Binance's `exchangeInfo` endpoint, narrowed to the fields the
  * symbol picker needs (symbol id + base/quote for grouping/filtering + status
  * so disabled pairs don't reach the operator).
@@ -203,6 +272,13 @@ export const ExchangeInfoSymbol = z.object({
    * entries written before the field existed keep deserialising.
    */
   filters: SymbolFilters.nullable().optional(),
+  /**
+   * Binance's tradability sets for this symbol. Carried so a bind can refuse a
+   * symbol the account's own permissions can never trade, instead of discovering
+   * it one -2010 per tick. `null` when Binance published nothing usable.
+   * Optional so cache entries written before the field existed keep deserialising.
+   */
+  permissionSets: SymbolPermissionSets.nullable().optional(),
 });
 /** TS type derived from {@link ExchangeInfoSymbol} so consumers don't re-run z.infer at every call site. */
 export type ExchangeInfoSymbol = z.infer<typeof ExchangeInfoSymbol>;

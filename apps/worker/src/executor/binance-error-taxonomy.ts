@@ -97,4 +97,22 @@ export const classifyBinanceError = (err: BinanceApiError): ClassifiedError => {
   };
 };
 
+/**
+ * True only for the "symbol not permitted" flavour of -2010.
+ *
+ * -2010 is NEW_ORDER_REJECTED, an umbrella over unrelated causes: insufficient
+ * balance, a closed market, a stop that would trigger immediately, and this one.
+ * They differ in what the caller should do next, and the code alone cannot tell
+ * them apart, so the `msg` Binance sent is the only available discriminator.
+ *
+ * Matched as a substring of the error's verbatim `msg`, never the composed
+ * `message`. Deliberately unanchored: Binance appends a trailing period and
+ * varies the surrounding text, so a whole-string match would break on a
+ * cosmetic edit. Anything that does not match keeps today's treatment, so a
+ * real wording change degrades to the previous behaviour rather than misfiling
+ * an unrelated rejection.
+ */
+export const isSymbolNotPermittedError = (err: BinanceApiError): boolean =>
+  err.code === -2010 && /symbol is not permitted for this account/i.test(err.msg);
+
 export const minuteBucketOf = (nowMs: number): number => Math.floor(nowMs / 60_000);

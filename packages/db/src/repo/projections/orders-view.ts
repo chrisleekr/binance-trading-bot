@@ -197,6 +197,9 @@ export const getSymbolArchive = async (
       profit: r.profit as DecimalString,
       profitPercent: r.profitPercent as DecimalString,
       exitIntent: deriveExitIntent(coerceArchivedOrders(r.orders)),
+      // Carried so the UI can say "P/L unavailable" instead of rendering an
+      // under-counted `profit` of 0 as a measured break-even.
+      missingCostBasis: r.missingCostBasis,
       archivedAt: r.archivedAt.toISOString(),
     })),
   };

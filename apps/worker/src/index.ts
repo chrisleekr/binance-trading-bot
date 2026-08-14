@@ -194,6 +194,7 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
         listActive: ctx.profileManager.listActive,
         resolveBinance: ctx.resolveBinanceClient,
         persistAccount: ctx.accountSnapshotStore.persistAccount,
+        persistAccountPermissions: ctx.accountSnapshotStore.persistAccountPermissions,
       });
       logger.info({ tally }, 'seedAccountSnapshots: boot seed complete');
     } catch (err) {

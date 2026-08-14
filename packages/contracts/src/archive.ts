@@ -306,6 +306,12 @@ export const TradeArchiveResponse = z.object({
   // with no SELL or a missing intent (e.g. backfilled history). `.default`
   // keeps pre-existing response producers/consumers from breaking.
   exitIntent: z.string().default('unknown'),
+  // How many SELLs in this cycle had no cost basis. Those contribute nothing to
+  // `profit`, so a positive count means `profit`/`netProfit`/`profitPercent`
+  // are a conservative UNDER-count and must be presented as unavailable — a
+  // zero here reads as a measured break-even, which it is not. `.default(0)`
+  // keeps pre-column producers valid (they were fully costed or unknowable).
+  missingCostBasis: z.number().int().nonnegative().default(0),
   archivedAt: z.iso.datetime(),
 });
 /** TS type derived from {@link TradeArchiveResponse} so consumers don't re-run z.infer at every call site. */
@@ -332,10 +338,21 @@ export type ArchivePeriod = z.infer<typeof ArchivePeriod>;
 /**
  * Why a coin's history could not be reconstructed from Binance trade history:
  * `orphan-sells` (a SELL with no recorded matching BUY), `overshoot` (sold more
- * base than was bought here), or `open-or-pre-history` (bought-not-fully-sold,
- * or the cycle predates the returned history). The UI glosses each.
+ * base than was bought here), `symbol-unavailable` (Binance no longer lists the
+ * pair, so there is no history left to read), or `open-or-pre-history`
+ * (bought-not-fully-sold, or the cycle predates the returned history). The UI
+ * glosses each.
+ *
+ * `symbol-unavailable` is its own reason rather than folded into the zero-count
+ * case: a delisted coin labelled "an open or pre-history position" is a plainly
+ * wrong explanation, and it is the one reason no future retry can change.
  */
-export const UnreconstructableReason = z.enum(['open-or-pre-history', 'orphan-sells', 'overshoot']);
+export const UnreconstructableReason = z.enum([
+  'open-or-pre-history',
+  'orphan-sells',
+  'overshoot',
+  'symbol-unavailable',
+]);
 export type UnreconstructableReason = z.infer<typeof UnreconstructableReason>;
 
 /**

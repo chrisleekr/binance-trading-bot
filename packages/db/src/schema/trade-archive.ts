@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -59,6 +60,12 @@ export const tradeArchive = pgTable(
     // discovery-attributed realized PnL. Defaults `manual` so pre-discovery rows
     // and every non-discovery archive stamp honestly.
     source: text('source').$type<SymbolSource>().notNull().default('manual'),
+    // How many SELL fills in this cycle had no cost basis (`realized_pnl` NULL).
+    // Those contribute nothing to `profit`, so a positive count means the row's
+    // P/L is a conservative UNDER-count and must be presented as unavailable,
+    // not as a measured break-even. Mirrors migration 0080 (documentation only;
+    // the hand-written SQL owns the DDL).
+    missingCostBasis: integer('missing_cost_basis').notNull().default(0),
     archivedAt: timestamp('archived_at', { withTimezone: true }).notNull().defaultNow(),
     // Natural cross-pod dedup key: the cycle's max order close time (forward
     // archive) or a round-trip's closing time (backfill). Two consumers

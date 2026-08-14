@@ -68,4 +68,26 @@ describe('buildImproveConfigManualPrompt', () => {
     expect(prompt).toContain('Respond with ONLY a JSON object');
     expect(prompt).toContain('"suggestions"'); // the expected output schema
   });
+
+  it('describes and renders TOON 4 nested objects and uniform object arrays consistently', () => {
+    const prompt = buildImproveConfigManualPrompt(
+      {
+        strategyName: 'trailing-trade',
+        strategyVersion: '1.2.3',
+        configSchema: {},
+        context: {
+          metrics: { totalReturnPct: -3.5 },
+          roundTrips: [
+            { symbol: 'BTCUSDT', pnlPct: 1.25 },
+            { symbol: 'ETHUSDT', pnlPct: -0.5 },
+          ],
+        },
+      },
+      'safe',
+    );
+
+    expect(prompt).toContain('nested objects use indentation');
+    expect(prompt).toContain('metrics:\n  totalReturnPct: -3.5');
+    expect(prompt).toContain('roundTrips[2]{symbol,pnlPct}:\n  BTCUSDT,1.25\n  ETHUSDT,-0.5');
+  });
 });

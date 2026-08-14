@@ -45,11 +45,13 @@ const trade = (o: {
   isBuyer: boolean;
   time: number;
   id?: number;
+  /** Defaults to the trade id; set explicitly to span several fills over one order. */
+  orderId?: number;
 }): MyTradeDto => {
   const id = o.id ?? ++seq;
   return {
     id,
-    orderId: id,
+    orderId: o.orderId ?? id,
     symbol: 'WLDUSDT',
     price: '0',
     qty: o.qty,
@@ -65,9 +67,17 @@ const trade = (o: {
 const insert = vi.fn(async () => ({ id: 'a-1' }));
 const listForSymbol = vi.fn(async () => [] as unknown[]);
 const recordBackfillAttempt = vi.fn(async () => undefined);
+// Read before the myTrades walk, so the marker only claims the history this
+// pass saw. Fixed here to keep the recorded value assertable.
+const BOUNDARY = new Date('2026-08-01T00:00:00Z');
+const attemptBoundary = vi.fn(async () => BOUNDARY);
 const getMyTrades = vi.fn();
 
-const makeDeps = (over?: { client?: unknown; symbolInfo?: string | null }) => ({
+const makeDeps = (over?: {
+  client?: unknown;
+  symbolInfo?: string | null;
+  primedKeys?: readonly string[];
+}) => ({
   db: {} as never,
   redis: {
     get: vi.fn(async () =>
@@ -75,6 +85,18 @@ const makeDeps = (over?: { client?: unknown; symbolInfo?: string | null }) => ({
         ? JSON.stringify({ baseAsset: 'WLD', quoteAsset: 'USDT' })
         : over.symbolInfo,
     ),
+    // Delisting is concluded from an ABSENT key only, so this must answer for
+    // the real key rather than mirroring `get`: a present-but-corrupt value
+    // takes the retry path instead of the terminating marker.
+    exists: vi.fn(async () => (over?.symbolInfo === null ? 0 : 1)),
+    // One full cursor pass, honouring the MATCH glob. The two modes' keyspaces
+    // are disjoint ONLY by that glob, so a stub that ignores it would let a
+    // cold TEST keyspace read as primed off LIVE keys — and stamp every
+    // testnet symbol unavailable.
+    scan: vi.fn(async (_cursor: string, _match: string, pattern: string) => {
+      const prefix = pattern.replace(/\*$/, '');
+      return ['0', (over?.primedKeys ?? []).filter((k) => k.startsWith(prefix))];
+    }),
   } as never,
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never,
   resolveBinanceClient: vi.fn(async () =>
@@ -89,10 +111,11 @@ beforeEach(() => {
   insert.mockClear();
   listForSymbol.mockClear();
   recordBackfillAttempt.mockClear();
+  attemptBoundary.mockClear();
   getMyTrades.mockReset();
   profileRepoSpy.mockReset();
   profileRepoSpy.mockResolvedValue({
-    tradeArchive: { insert, listForSymbol, recordBackfillAttempt },
+    tradeArchive: { insert, listForSymbol, recordBackfillAttempt, attemptBoundary },
   });
   binanceModeByIdSpy.mockReset();
   binanceModeByIdSpy.mockResolvedValue('live');
@@ -112,9 +135,16 @@ describe('handleBackfillTradeArchive', () => {
     expect(row.quoteAsset).toBe('USDT');
     expect(row.profit).toBe('10');
     expect((row.archivedAt as Date).getTime()).toBe(2000);
-    // The attempt is marked so the recover-vs-note split knows it was checked.
+    // The attempt is marked so the recover-vs-note split knows it was checked,
+    // and stamped with the pre-fetch boundary rather than the write time: a
+    // fill adopted while `myTrades` was being walked is absent from this pass,
+    // so a later stamp would claim history the pass never saw and the symbol
+    // would never be swept again.
     expect(recordBackfillAttempt).toHaveBeenCalledWith(
-      expect.objectContaining({ symbol: 'WLDUSDT', roundTrips: 1 }),
+      expect.objectContaining({ symbol: 'WLDUSDT', roundTrips: 1, attemptedAt: BOUNDARY }),
+    );
+    expect(must(attemptBoundary.mock.invocationCallOrder)[0]).toBeLessThan(
+      must(getMyTrades.mock.invocationCallOrder)[0],
     );
   });
 
@@ -198,11 +228,120 @@ describe('handleBackfillTradeArchive', () => {
   });
 
   it('throws on a cold symbol-info cache so BullMQ retries', async () => {
+    // Keyspace empty: the refresh cron has not populated it, so the missing key
+    // proves nothing about the symbol and the job must be retried.
     await expect(
       handleBackfillTradeArchive(makeDeps({ symbolInfo: null }), payload),
     ).rejects.toThrow(/symbol-info missing/);
     expect(insert).not.toHaveBeenCalled();
     expect(recordBackfillAttempt).not.toHaveBeenCalled();
+  });
+
+  it('terminates instead of looping when the keyspace is primed and the symbol is gone', async () => {
+    // Sibling keys exist, so the refresh cron ran and deliberately dropped this
+    // one: a delisted coin would otherwise throw every 15 minutes forever.
+    const deps = makeDeps({
+      symbolInfo: null,
+      primedKeys: [buildSymbolInfoKey('BTCUSDT', 'live')],
+    });
+    await expect(handleBackfillTradeArchive(deps, payload)).resolves.toBeUndefined();
+    expect(insert).not.toHaveBeenCalled();
+    expect(getMyTrades).not.toHaveBeenCalled();
+    expect(recordBackfillAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: 'WLDUSDT', roundTrips: 0, symbolUnavailable: true }),
+    );
+    expect(deps.logger.warn).toHaveBeenCalledWith(
+      expect.anything(),
+      'pipeline_backfill_trade_archive_symbol_unlisted',
+    );
+  });
+
+  it('throws instead of stamping symbol-unavailable when the cached value is corrupt', async () => {
+    // The key EXISTS, so the symbol is listed — the value is just unreadable,
+    // which the next exchange-info refresh repairs. Writing the terminating
+    // marker here would strand the coin: a marker only re-opens when a LATER
+    // fill makes it stale, and nothing re-reads a repaired value.
+    const deps = makeDeps({
+      symbolInfo: 'not-json',
+      primedKeys: [buildSymbolInfoKey('BTCUSDT', 'live')],
+    });
+    await expect(handleBackfillTradeArchive(deps, payload)).rejects.toThrow(/symbol-info missing/);
+    expect(recordBackfillAttempt).not.toHaveBeenCalled();
+    expect(getMyTrades).not.toHaveBeenCalled();
+  });
+
+  it('scopes the primed-keyspace probe to the account mode, so a cold test keyspace retries', async () => {
+    // Live keys primed, test keys cold. The two keyspaces differ only by their
+    // glob, so a probe that scanned the live pattern would read "primed" and
+    // stamp every recoverable testnet symbol unavailable.
+    binanceModeByIdSpy.mockResolvedValueOnce('test');
+    const deps = makeDeps({
+      symbolInfo: null,
+      primedKeys: [buildSymbolInfoKey('BTCUSDT', 'live')],
+    });
+    await expect(handleBackfillTradeArchive(deps, payload)).rejects.toThrow(/symbol-info missing/);
+    expect(recordBackfillAttempt).not.toHaveBeenCalled();
+    expect(deps.redis.scan).toHaveBeenCalledWith(
+      '0',
+      'MATCH',
+      buildSymbolInfoKey('*', 'test'),
+      'COUNT',
+      500,
+    );
+  });
+
+  it('records the CUMULATIVE round-trip count when a re-sweep inserts nothing', async () => {
+    // A re-sweep of an already-recovered coin dedupes every cycle by design.
+    // Recording this pass's zero would make the coin claim it has no
+    // reconstructable history while its cycles sit archived, and re-walk its
+    // whole myTrades on every later staleness.
+    getMyTrades.mockResolvedValueOnce([
+      trade({ id: 1, qty: '100', quoteQty: '50', isBuyer: true, time: 1000 }),
+      trade({ id: 2, qty: '100', quoteQty: '60', isBuyer: false, time: 2000 }),
+    ]);
+    listForSymbol.mockResolvedValueOnce([{ orders: [{ tradeIds: [1, 2] }] }]);
+
+    await handleBackfillTradeArchive(makeDeps(), payload);
+
+    expect(insert).not.toHaveBeenCalled();
+    expect(recordBackfillAttempt).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: 'WLDUSDT', roundTrips: 1 }),
+    );
+  });
+
+  it('skips a round-trip whose orders were already archived live (no tradeIds recorded)', async () => {
+    // The live archive path stores binanceOrderId but not tradeIds, so the
+    // trade-id set alone cannot see it — without the order-id check the sweep
+    // would re-insert the same cycle under a different cycle_end.
+    getMyTrades.mockResolvedValueOnce([
+      trade({ id: 1, qty: '100', quoteQty: '50', isBuyer: true, time: 1000 }),
+      trade({ id: 2, qty: '100', quoteQty: '60', isBuyer: false, time: 2000 }),
+    ]);
+    listForSymbol.mockResolvedValueOnce([
+      { orders: [{ binanceOrderId: '1' }, { binanceOrderId: '2' }] },
+    ]);
+    await handleBackfillTradeArchive(makeDeps(), payload);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it('still archives a later cycle that shares a straddling BUY order with an archived one', async () => {
+    // Order 10 fills either side of a flat-out, so it belongs to both cycles.
+    // Matching any shared order would read cycle 2 as a duplicate and drop a
+    // real closed cycle — the exact silent loss this backstop exists to stop.
+    getMyTrades.mockResolvedValueOnce([
+      trade({ id: 1, orderId: 10, qty: '100', quoteQty: '50', isBuyer: true, time: 1000 }),
+      trade({ id: 2, orderId: 20, qty: '100', quoteQty: '60', isBuyer: false, time: 2000 }),
+      trade({ id: 3, orderId: 10, qty: '100', quoteQty: '55', isBuyer: true, time: 3000 }),
+      trade({ id: 4, orderId: 30, qty: '100', quoteQty: '70', isBuyer: false, time: 4000 }),
+    ]);
+    listForSymbol.mockResolvedValueOnce([
+      { orders: [{ binanceOrderId: '10' }, { binanceOrderId: '20' }] },
+    ]);
+
+    await handleBackfillTradeArchive(makeDeps(), payload);
+
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ profit: '15' }));
   });
 
   it('paginates myTrades until a short page is returned', async () => {
