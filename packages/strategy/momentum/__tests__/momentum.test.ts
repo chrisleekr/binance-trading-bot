@@ -2321,10 +2321,20 @@ describe('protective stop — a foreign resting SELL holding the base', () => {
       reason: 'price-outside-exchange-band',
       detail: { guarded: true },
     });
-    expect(out.logs[0]).toMatchObject({
-      level: 'info',
-      message: 'momentum: protective stop held at its previous level',
-    });
+    // The WHOLE array, not `logs[0]`: the point of the branch is that no warn
+    // is emitted, and indexing the first entry would still pass if a second one
+    // arrived carrying it.
+    expect(out.logs).toEqual([
+      {
+        level: 'info',
+        message: 'momentum: protective stop held at its previous level',
+        context: expect.objectContaining({
+          symbol: 'BTCUSDT',
+          reason: 'price-outside-exchange-band',
+          guarded: true,
+        }),
+      },
+    ]);
   });
 
   it('clears the blocker on the tick the stop finally arms', () => {
