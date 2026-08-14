@@ -21,7 +21,10 @@ import { useActiveAccountId } from '@/shared/lib/account-scope';
 import { isHeldPosition, unrealisedPnlOf } from '@/features/profile/lib/unrealised-pnl';
 import { deriveQuote } from '@/shared/lib/symbol-quote';
 import { formatAmount, formatPrice } from '@/shared/lib/format';
-import { glossProtectiveStopBlocker } from '@/shared/lib/gloss-protective-stop-blocker';
+import {
+  blockerPositionGuarded,
+  glossProtectiveStopBlocker,
+} from '@/shared/lib/gloss-protective-stop-blocker';
 import { glossEntryBlocker } from '@/shared/lib/gloss-entry-blocker';
 import { PnlValue } from '@/shared/components/pnl-value';
 import { LoadingRows } from '@/shared/components/page-skeleton';
@@ -160,8 +163,9 @@ function GridHeader() {
   );
 }
 
-/** The trading status of a symbol, in priority order: unprotected > held > paused > blocked > watching. */
-type SymbolStatusKind = 'unprotected' | 'holding' | 'paused' | 'blocked' | 'watching';
+/** The trading status of a symbol, in priority order: unprotected / stop-stale > held > paused > blocked > watching. */
+type SymbolStatusKind =
+  'unprotected' | 'stop-stale' | 'holding' | 'paused' | 'blocked' | 'watching';
 
 export interface SymbolStatus {
   readonly kind: SymbolStatusKind;
@@ -175,24 +179,28 @@ export interface SymbolStatus {
    * variant), BLOCKED to `warning` (amber tint matching the trade-archive
    * panel's status badges), PAUSED to `secondary`, WATCHING to `outline`, and
    * UNPROTECTED to `danger` — it is the only status that says money is at risk.
+   * A stop resting at a stale level reads `warning`, not `danger`: protection
+   * exists, it is just behind the trail.
    */
   readonly variant: 'up' | 'secondary' | 'warning' | 'outline' | 'danger';
 }
 
 /**
  * Derive a symbol's at-a-glance status. An open position whose protective stop
- * could not be placed outranks everything — it is unguarded right now. Otherwise
+ * could not be placed outranks everything — it is unguarded right now, unless an
+ * earlier stop of ours still covers it, which downgrades it to stale. Otherwise
  * held positions read HOLDING regardless of enabled state (the operator's money
  * is in it); a paused symbol that holds nothing reads PAUSED; a flat enabled
  * symbol with a blocker shows the blocker (amber), otherwise it is WATCHING.
  */
 export function deriveStatus(sym: ProfileDashboardSymbol): SymbolStatus {
   if (sym.protectiveStopBlocker) {
+    const stale = blockerPositionGuarded(sym.protectiveStopBlocker);
     return {
-      kind: 'unprotected',
-      label: t('grid.status.unprotected'),
+      kind: stale ? 'stop-stale' : 'unprotected',
+      label: stale ? t('grid.status.stopStale') : t('grid.status.unprotected'),
       title: glossProtectiveStopBlocker(sym.protectiveStopBlocker),
-      variant: 'danger',
+      variant: stale ? 'warning' : 'danger',
     };
   }
   if (isHeldPosition(sym)) {

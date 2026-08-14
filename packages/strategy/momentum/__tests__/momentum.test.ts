@@ -2295,6 +2295,48 @@ describe('protective stop — a foreign resting SELL holding the base', () => {
     expect(out.nextState.entryBlocker).toBeNull();
   });
 
+  it('logs a stop still covered at its previous level at info, not warn', () => {
+    // The exchange band refuses the re-price while our own stop keeps resting at
+    // the old trigger, so the position IS covered. A winning trail can sit
+    // outside the band for hours; warning every tick through it is how the real
+    // "no stop at all" warning gets skimmed past.
+    const out = momentum.tick(
+      armInput({
+        openOrders: [psOrder({ stopPrice: '80.00' })],
+        filters: {
+          ...FILTERS,
+          percentPriceBySide: {
+            askMultiplierUp: '5',
+            askMultiplierDown: '0.99',
+            bidMultiplierUp: '5',
+            bidMultiplierDown: '0.2',
+            avgPriceMins: 5,
+          },
+        },
+      }),
+    );
+    // Neither half of the re-arm goes out, and the resting stop is left alone.
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.protectiveStopBlocker).toMatchObject({
+      reason: 'price-outside-exchange-band',
+      detail: { guarded: true },
+    });
+    // The WHOLE array, not `logs[0]`: the point of the branch is that no warn
+    // is emitted, and indexing the first entry would still pass if a second one
+    // arrived carrying it.
+    expect(out.logs).toEqual([
+      {
+        level: 'info',
+        message: 'momentum: protective stop held at its previous level',
+        context: expect.objectContaining({
+          symbol: 'BTCUSDT',
+          reason: 'price-outside-exchange-band',
+          guarded: true,
+        }),
+      },
+    ]);
+  });
+
   it('clears the blocker on the tick the stop finally arms', () => {
     const blocked = longState({
       protectiveStopBlocker: { reason: 'base-locked-by-foreign-order' },

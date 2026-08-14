@@ -6,7 +6,10 @@
 import type { SymbolStateResponse } from '@app/contracts';
 
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
-import { glossProtectiveStopBlocker } from '@/shared/lib/gloss-protective-stop-blocker';
+import {
+  blockerPositionGuarded,
+  glossProtectiveStopBlocker,
+} from '@/shared/lib/gloss-protective-stop-blocker';
 
 export function SymbolProtectiveStopBlocker({
   protectiveStopBlocker,
@@ -14,9 +17,14 @@ export function SymbolProtectiveStopBlocker({
   readonly protectiveStopBlocker: SymbolStateResponse['protectiveStopBlocker'];
 }): React.JSX.Element | null {
   if (!protectiveStopBlocker) return null;
+  // A stop that is still resting at a stale level is a smaller emergency than no
+  // stop at all, and red on both trains the operator to skim past the real one.
+  const stale = blockerPositionGuarded(protectiveStopBlocker);
   return (
-    <Alert variant="danger" data-testid="symbol-protective-stop-blocker">
-      <AlertTitle>Protective stop not in place</AlertTitle>
+    <Alert variant={stale ? 'warning' : 'danger'} data-testid="symbol-protective-stop-blocker">
+      <AlertTitle>
+        {stale ? 'Protective stop stuck at an older level' : 'Protective stop not in place'}
+      </AlertTitle>
       <AlertDescription>{glossProtectiveStopBlocker(protectiveStopBlocker)}</AlertDescription>
     </Alert>
   );

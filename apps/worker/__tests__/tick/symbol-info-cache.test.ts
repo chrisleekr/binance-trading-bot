@@ -63,6 +63,50 @@ describe('createSymbolInfoCache', () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it('reads a pre-band blob back with an undefined percentPriceBySide, not a throw', async () => {
+    // Entries are cast, not schema-parsed, and no migration rewrites them: a blob
+    // written before the band existed must survive the read and present the field
+    // as UNKNOWN, which every consumer treats as "impose no constraint".
+    const redis = stubRedis({ [buildSymbolInfoKey('BTCUSDT')]: JSON.stringify(symbolInfo) });
+    const cache = createSymbolInfoCache({
+      redis,
+      logger: silentLogger,
+      refreshExchangeInfo: vi.fn(async () => undefined),
+    });
+
+    const result = await cache.get('BTCUSDT');
+
+    expect(result.filters.percentPriceBySide).toBeUndefined();
+    expect(result.filters.tickSize).toBe('0.01');
+  });
+
+  it('carries the band through when the cached blob has one', async () => {
+    const banded = {
+      ...symbolInfo,
+      filters: {
+        ...symbolInfo.filters,
+        percentPriceBySide: {
+          bidMultiplierUp: '1.1',
+          bidMultiplierDown: '0.5',
+          askMultiplierUp: '2',
+          askMultiplierDown: '0.9',
+          avgPriceMins: 5,
+        },
+      },
+    };
+    const redis = stubRedis({ [buildSymbolInfoKey('BTCUSDT')]: JSON.stringify(banded) });
+    const cache = createSymbolInfoCache({
+      redis,
+      logger: silentLogger,
+      refreshExchangeInfo: vi.fn(async () => undefined),
+    });
+
+    const result = await cache.get('BTCUSDT');
+
+    expect(result.filters.percentPriceBySide?.askMultiplierDown).toBe('0.9');
+    expect(result.filters.percentPriceBySide?.avgPriceMins).toBe(5);
+  });
+
   it('primes the cache via refresh on first-tick miss, then returns from cache', async () => {
     const redis = stubRedis();
     const refresh = vi.fn(async () => {

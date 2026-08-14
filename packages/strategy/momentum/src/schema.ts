@@ -528,6 +528,7 @@ export const MomentumStateSchema = z.object({
         'base-locked-by-foreign-order',
         'base-below-exchange-minimum',
         'base-short-of-tracked-position',
+        'price-outside-exchange-band',
       ]),
       detail: z.record(z.string(), z.unknown()).optional(),
     })

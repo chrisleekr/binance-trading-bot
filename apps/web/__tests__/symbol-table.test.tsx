@@ -374,4 +374,30 @@ describe('<SymbolTable>', () => {
     // The gloss folds in the shortfall so the operator sees WHY it is unfundable.
     expect(status.getAttribute('title')).toContain('189.87');
   });
+
+  // The same blocker field, a materially smaller emergency: an earlier stop is
+  // still resting, the strategy just could not move it up. NO STOP here would be
+  // a false alarm on a position that is in fact guarded.
+  it('a stop stuck behind the exchange band reads STOP STALE, not NO STOP', async () => {
+    renderTable([row('pa', 'alpha')], () =>
+      json(
+        dashboard([
+          sym({
+            symbol: 'LINKUSDT',
+            avgEntryPrice: '8.416',
+            quantity: '3.13',
+            currentPrice: '8.832',
+            protectiveStopBlocker: {
+              reason: 'price-outside-exchange-band',
+              detail: { price: '7.312', floor: '7.9488', avgPriceMins: 5, guarded: true },
+            },
+          }),
+        ]),
+      ),
+    );
+    const status = await screen.findByTestId('symbol-status-pa-LINKUSDT');
+    expect(status).toHaveAttribute('data-status', 'stop-stale');
+    expect(status).toHaveTextContent('Old stop');
+    expect(status.getAttribute('title')).toMatch(/still resting on Binance/i);
+  });
 });

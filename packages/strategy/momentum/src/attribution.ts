@@ -102,4 +102,18 @@ export const momentumReasonAttribution: ReasonAttribution = {
     gloss: 'Too few coins are free to meet the exchange minimum for a protective stop',
     kind: 'sizing',
   },
+  // Carries a lever because one shape of this refusal never clears on its own: a
+  // limit offset at or under the symbol's floor multiplier puts the order under
+  // the band at every possible price.
+  'price-outside-exchange-band': {
+    setting: 'Protective stop limit offset',
+    paths: ['protectiveStop.limitOffsetPercentage'],
+    // The map is keyed on the reason code alone and cannot see whether this
+    // refusal is the permanent shape, so the gloss says which one the lever
+    // answers. Raising the offset when the market is merely moving fast buys
+    // nothing and narrows the gap the stop needs to fill in a fast drop.
+    gloss:
+      'Binance will not accept a protective stop at this price yet; the limit offset is at fault only when the symbol marks the refusal permanent',
+    kind: 'sizing',
+  },
 };
