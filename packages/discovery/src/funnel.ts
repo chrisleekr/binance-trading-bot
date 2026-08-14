@@ -12,13 +12,13 @@ import type { DiscoveryDiff } from './types.js';
  * - Ticker segment (`universe` … `changeBand`): survivor counts over the FULL
  *   quote-matched ticker set — every symbol the cron saw this cycle, not just the
  *   handful it fetched klines for. Monotone non-increasing within the segment.
- * - Candidate/kline segment (`age`, `trend`, `eligible`): counts over the kline
+ * - Candidate/kline segment (`probed` … `eligible`): counts over the kline
  *   candidates (the shortlist ∪ held auto, minus pinned). Monotone non-increasing
  *   within the segment.
  *
  * There is NO monotonicity across the boundary: `changeBand` counts the whole
- * exchange's change-band survivors while `age` counts only the few candidates
- * whose klines were fetched, so `age` is normally far smaller than `changeBand`.
+ * exchange's change-band survivors while `probed` counts only the few candidates
+ * whose klines were fetched, so `probed` is normally far smaller than `changeBand`.
  * `breadthOk` is the market-breadth gate verdict the cycle evaluated.
  */
 export interface DiscoveryFunnel {
@@ -30,6 +30,13 @@ export interface DiscoveryFunnel {
   readonly activity: number;
   readonly spread: number;
   readonly changeBand: number;
+  /**
+   * Candidates whose price history was fetched (the candidate segment's
+   * denominator). Without it `age` is the segment's first entry and so can only
+   * ever be a denominator, which hides a collapse AT the age filter and makes
+   * the choke search blame a ticker filter that is working fine.
+   */
+  readonly probed: number;
   readonly age: number;
   readonly trend: number;
   /** Candidates that cleared every filter stage. */
@@ -60,8 +67,9 @@ const STAGES: readonly DiscoveryFilterName[] = [
  *
  * The TICKER segment (`universe` … `changeBand`) is taken verbatim from `ticker`,
  * which {@link tickerStageCounts} computed over the full quote-matched ticker set.
- * The CANDIDATE segment (`age`, `trend`, `eligible`) is derived from `candidates`,
- * the kline-stage rows: a candidate "survived" stage S iff S is in its `passed`
+ * The CANDIDATE segment (`probed` … `eligible`) is derived from `candidates`, the
+ * kline-stage rows: `probed` is how many entered the segment, and a candidate
+ * "survived" stage S iff S is in its `passed`
  * list (the chain truncated at its first failure), and `eligible` requires a FULL
  * pass (`passed.length === STAGES.length`), not merely `failedAt === null` — a
  * held symbol that vanished from the ticker feed also has `failedAt === null` but
@@ -87,6 +95,7 @@ export const projectFunnel = (
     activity: ticker.activity,
     spread: ticker.spread,
     changeBand: ticker.changeBand,
+    probed: candidates.length,
     age: survived('age'),
     trend: survived('trend'),
     eligible,

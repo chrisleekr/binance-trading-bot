@@ -39,6 +39,7 @@ const DEMO_GUARD_CONTRACT = [
   'ALL /api/restore',
   'PATCH /api/retention-config',
   'POST /api/accounts',
+  'POST /api/accounts/:accountId/profiles/:profileId/diagnosis/runs',
 ] as const;
 
 const PUBLIC_ROUTES_WITH_SENSITIVE_NAMES = new Set([
@@ -77,7 +78,7 @@ const sensitiveRoute = (route: MountedRoute): boolean => {
   if (sensitiveName) return true;
   if (route.path === '/api/accounts' && route.method === 'POST') return true;
   if (route.path === '/api/retention-config' && route.method === 'PATCH') return true;
-  return false;
+  return route.path.endsWith('/diagnosis/runs') && route.method === 'POST';
 };
 
 const unguardedSensitiveRoutes = (routes: readonly MountedRoute[]): string[] => {

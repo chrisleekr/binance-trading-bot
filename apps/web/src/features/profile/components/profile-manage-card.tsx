@@ -1,13 +1,16 @@
 // Profile Manage menu — the launcher into a profile's management pages, shown in
-// the Manage slide-over. Pure navigation, grouped (Configure / Analyze / Operate
-// / Profile). The lifecycle and admin actions (enable/disable, the per-profile
-// stop, rename, quote, delete, API key) moved to the General page
-// (profile-general-panel.tsx); the only inline action left is the operational
-// Reconcile fees mutation. Sections come from the shared PROFILE_SECTIONS.
+// the Manage slide-over. Mostly navigation, grouped (Configure / Analyze /
+// Operate / Profile). The lifecycle and admin actions (enable/disable, the
+// per-profile stop, rename, quote, delete, API key) moved to the General page
+// (profile-general-panel.tsx). Sections come from the shared PROFILE_SECTIONS.
+//
+// Two entries are hand-written rather than PROFILE_SECTIONS members: Investigate
+// and Reconcile fees are ACTIONS, not routes, and PROFILE_SECTIONS is `as const`
+// precisely so its `to` stays a literal route path for TanStack's typed Link.
 
 import { useMutation } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Receipt } from 'lucide-react';
+import { Receipt, Stethoscope } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { reconcileProfileFees } from '@/features/profile/api/profiles-mutations';
@@ -20,8 +23,11 @@ const tileClass =
 
 export function ProfileManageCard({
   profileId,
+  onInvestigate,
 }: {
   readonly profileId: string;
+  /** Hands the screen over to the investigation drawer; the caller closes this one. */
+  readonly onInvestigate: () => void;
 }): React.JSX.Element {
   const accountId = useActiveAccountId() ?? '';
   // Backfill real Binance commission into the trade archive so net-of-fee P/L is
@@ -55,6 +61,18 @@ export function ProfileManageCard({
                 </Link>
               );
             })}
+            {g.group === 'Analyze' ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="min-h-11 justify-start gap-2"
+                data-testid="profile-manage-investigate"
+                onClick={onInvestigate}
+              >
+                <Stethoscope className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="truncate">Investigate</span>
+              </Button>
+            ) : null}
             {g.group === 'Operate' ? (
               <Button
                 type="button"

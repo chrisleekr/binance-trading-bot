@@ -51,8 +51,12 @@ const KLINE_CONCURRENCY = 8;
  * volume-participation check (a fraction of an hour measured against the
  * full-hour average) and skews EMA/ADX, so the indicators must read closed
  * candles only. Closed == the interval end is in the past.
+ *
+ * Exported for the same reason as {@link selectKlineTargets}: the diagnosis
+ * re-probe must trim the identical candle, or its trend stage measures a
+ * different window than the bot's and the two funnels disagree for no reason.
  */
-const dropFormingCandle = (window: readonly Candle[], nowMs: number): readonly Candle[] =>
+export const dropFormingCandle = (window: readonly Candle[], nowMs: number): readonly Candle[] =>
   window.filter((c) => c.closeTimeMs < nowMs);
 
 /**
@@ -87,8 +91,12 @@ const buildEntryHintValue = (
  * for candidates that fail the age/trend filter; lower-ranked ones wait for a
  * future cycle. Held symbols keep their original shortlist order; the helper
  * preserves it (held-first, then candidates in rank order).
+ *
+ * Exported because the diagnosis re-probe fetches the same set: a probe that
+ * chose its candidates differently would report a funnel the bot never had, and
+ * the whole point of re-deriving it live is that the two agree.
  */
-const selectKlineTargets = (
+export const selectKlineTargets = (
   shortlist: readonly string[],
   autoSymbols: readonly string[],
   maxAutoSymbols: number,

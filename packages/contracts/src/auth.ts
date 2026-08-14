@@ -9,8 +9,9 @@ export const OnboardingStatus = z.object({
   masterExists: z.boolean(),
   /**
    * True on a public "Live demo" deployment (`LIVE_DEMO=1`): no login is
-   * required and the credential/destructive surfaces are locked. Drives the
-   * SPA's persistent demo banner and the hiding of now-403 nav entries.
+   * required; credential, notifier, backup/restore, account-creation,
+   * retention-change, and diagnosis-start routes are locked; and trading stays
+   * interactive on testnet. Drives the persistent banner and hidden 403 links.
    * Defaults false so a client predating the field keeps today's behaviour.
    */
   demoMode: z.boolean().default(false),

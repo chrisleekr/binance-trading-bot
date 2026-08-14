@@ -2,9 +2,10 @@
 // exchange-info-refresh cron writes for one mode: the exchangeInfo `status`,
 // and the permission sets that decide whether this account may trade it at all.
 //
-// Split out of the cron because the map decides which symbols
-// `toDiscoveryTickers` keeps: any second reader that derived admission
-// differently would report a universe the cron never saw.
+// Shared by the discovery cron and the diagnosis re-probe. The map decides which
+// symbols `toDiscoveryTickers` keeps, so a probe reading it differently would
+// report a universe the cron never saw — and the whole point of re-deriving the
+// funnel live is that the two agree.
 //
 // Mode-scoped on purpose: a testnet profile admitted against the live universe
 // binds symbols that do not exist on testnet, and every one of its ticks DLQs.

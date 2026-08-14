@@ -8,10 +8,14 @@ import { Page } from '@/shared/components/page';
 import { ProfileConfigPanel } from '@/features/profile/components/profile-config-panel';
 import { ProfilePageHeader } from '@/features/profile/components/profile-page-header';
 import { profileDetailRoute } from '@/features/profile/routes/profiles.$profileId';
+import { focusParam, useFocusConfigField } from '@/shared/lib/focus-config-field';
 import { t } from '@/shared/lib/i18n';
 
 function ProfileConfigPage(): React.JSX.Element {
   const { profileId } = configRoute.useParams();
+  // `?focus=<config.path>` arrives from a diagnosis finding: expand the field's
+  // collapsed ancestors and mark it, so the operator lands on the setting itself.
+  useFocusConfigField(configRoute.useSearch().focus);
   return (
     <Page>
       <ProfilePageHeader profileId={profileId} title={t('edit.profile_config.title')} />
@@ -25,4 +29,6 @@ export const configRoute = createRoute({
   getParentRoute: () => profileDetailRoute,
   path: 'config',
   component: ProfileConfigPage,
+  // A stale or hand-typed `?focus=` is simply absent rather than an error.
+  validateSearch: (search: Record<string, unknown>): { focus?: string } => focusParam(search),
 });

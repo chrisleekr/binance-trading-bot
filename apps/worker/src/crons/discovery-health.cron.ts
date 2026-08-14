@@ -26,12 +26,19 @@
 // operator is interrupted; the condition store answers "what is true now, and
 // since when", which an hourly suppression window would corrupt. It is the only
 // path that ever CLEARS these conditions, so it runs on every pass, healthy or
-// not: an alert has nothing to say when a problem goes away, so without the
-// healthy pass the condition would stay open forever.
+// not — an alert has nothing to say when a problem goes away, and "recovered at
+// 14:02" is exactly what the diagnosis needs.
 
 import type { Job } from 'bullmq';
 import type { Logger } from 'pino';
-import { unwrapId, type Condition, type ProfileId } from '@app/contracts';
+import {
+  assessDiscoveryHealth,
+  DISCOVERY_HEALTH_WINDOW,
+  unwrapId,
+  type Condition,
+  type ProfileId,
+  type SnapshotHealth,
+} from '@app/contracts';
 import { profileRepo, type DiscoveryUniverseSnapshotPayload } from '@app/db';
 import { createRedisWindowThrottle } from 'executor/notifier-gap-throttle.js';
 import type { BootContext } from 'boot/boot-context.js';
@@ -48,39 +55,6 @@ export const DISCOVERY_HEALTH_KEY_PREFIX = 'discovery-health-throttle:';
 
 /** The two health conditions, each throttled independently per profile. */
 export type DiscoveryHealthTrigger = 'stale' | 'breadth-block';
-
-// How many recent snapshots the breadth-block trigger inspects. A documented
-// constant, not a config knob: it is the evidence window for "persistently
-// blocked", tuned to the ~5-min monitor cadence, not something the operator sizes.
-export const DISCOVERY_HEALTH_WINDOW = 8;
-
-/** The two facts the health assessment reads off one persisted snapshot. */
-export interface SnapshotHealth {
-  readonly capturedAtMs: number;
-  /** `funnel.breadthOk`, or undefined for a snapshot persisted before the funnel field. */
-  readonly breadthOk: boolean | undefined;
-}
-
-/**
- * Pure health verdict from a profile's recent snapshots (newest-first). Total:
- * an empty history reads as stale (the scan is producing nothing). `breadthBlocked`
- * requires a FULL window of snapshots all breadth-blocked — fewer than `window`
- * rows is not yet evidence of persistence, and an old row missing `breadthOk`
- * (undefined) is not `=== false`, so it breaks the run and fails safe.
- */
-export const assessDiscoveryHealth = (
-  snapshots: readonly SnapshotHealth[],
-  refreshPeriodMs: number,
-  nowMs: number,
-  window: number,
-): { stale: boolean; breadthBlocked: boolean } => {
-  if (snapshots.length === 0) return { stale: true, breadthBlocked: false };
-  const newestMs = Math.max(...snapshots.map((s) => s.capturedAtMs));
-  const stale = nowMs - newestMs > 2 * refreshPeriodMs;
-  const breadthBlocked =
-    snapshots.length >= window && snapshots.slice(0, window).every((s) => s.breadthOk === false);
-  return { stale, breadthBlocked };
-};
 
 /** The condition each trigger records, and the code it carries while open. */
 const CONDITION_FOR: Record<DiscoveryHealthTrigger, { condition: Condition; code: string }> = {

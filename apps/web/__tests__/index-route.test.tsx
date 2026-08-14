@@ -77,6 +77,9 @@ const setUp = (
       items: [],
       nextCursor: null,
     });
+    // The Investigate trigger rehydrates the newest run on mount; seed an empty
+    // history so the header renders from cache instead of hitting the network.
+    queryClient.setQueryData(['diagnosis-runs', p.profileId], []);
     // Seed the per-profile dashboard query the flat SymbolTable fans out, so it
     // resolves from cache instead of hitting the network under test.
     queryClient.setQueryData(['profile-dashboard', p.profileId], {
@@ -170,6 +173,29 @@ describe('Home route /', () => {
     expect(screen.queryByTestId('profile-cards')).toBeNull();
     expect(screen.queryByTestId('profile-card-a')).toBeNull();
     expect(screen.queryByTestId('profile-card-b')).toBeNull();
+  });
+
+  it('carries the Investigate trigger on the focused profile header', async () => {
+    // "Why isn't it trading?" belongs where the profile is the subject. It used
+    // to live on the shared sub-page header, which repeated it on nine editors
+    // and made a profile-wide diagnostic look scoped to whichever one was open.
+    setUp(aggregate([row({ profileId: 'a', name: 'profile-a' })]), { scope: 'a' });
+    await screen.findByTestId('scoped-kpi-strip');
+    expect(screen.getByTestId('open-investigate')).toBeInTheDocument();
+  });
+
+  it('omits the Investigate trigger when no single profile is in focus', async () => {
+    // Unfocused, there is no profile for it to investigate; the button would
+    // have to guess one.
+    setUp(
+      aggregate([
+        row({ profileId: 'a', name: 'profile-a' }),
+        row({ profileId: 'b', name: 'profile-b' }),
+      ]),
+      { scope: 'all' },
+    );
+    await screen.findByTestId('profile-card-a');
+    expect(screen.queryByTestId('open-investigate')).toBeNull();
   });
 
   it('shows every profile when scope is "all"', async () => {

@@ -54,6 +54,7 @@ describe('projectFunnel', () => {
       activity: 0,
       spread: 0,
       changeBand: 0,
+      probed: 0,
       age: 0,
       trend: 0,
       eligible: 0,
@@ -135,9 +136,14 @@ describe('projectFunnel', () => {
       changeBand: 1,
     };
     const f = projectFunnel(candidates, emptyDiff, true, ticker);
+    // The segment's own denominator: every candidate whose klines were fetched,
+    // including the one that died at the first kline filter. Without it `age` is
+    // the first entry and nothing can score a collapse AT the age filter.
+    expect(f.probed).toBe(3);
     expect(f.age).toBe(2);
     expect(f.trend).toBe(1);
     expect(f.eligible).toBe(1);
+    expect(f.probed).toBeGreaterThanOrEqual(f.age);
     expect(f.age).toBeGreaterThanOrEqual(f.trend);
     expect(f.trend).toBeGreaterThanOrEqual(f.eligible);
     // The boundary is intentionally non-monotone: changeBand(1) < age(2).

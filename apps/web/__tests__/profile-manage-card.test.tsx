@@ -1,7 +1,7 @@
-// ProfileManageCard — the grouped navigation menu in the Manage slide-over. Pure
-// navigation now (the lifecycle/admin actions moved to the General page); only
-// Reconcile fees acts inline. Tests cover the menu inventory, that each tile
-// navigates to its page, and the reconcile action.
+// ProfileManageCard — the grouped navigation menu in the Manage slide-over.
+// Mostly navigation (the lifecycle/admin actions moved to the General page); the
+// two inline actions are Investigate and Reconcile fees. Tests cover the menu
+// inventory, that each tile navigates to its page, and both actions.
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -12,7 +12,7 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
@@ -38,12 +38,12 @@ const TILE_NAV: readonly (readonly [string, string])[] = [
   ['general', 'general'],
 ];
 
-const setUp = (): void => {
+const setUp = (onInvestigate: () => void = () => undefined): void => {
   const qc = createQueryClient();
   const root = createRootRoute({
     component: () => (
       <>
-        <ProfileManageCard profileId={PID} />
+        <ProfileManageCard profileId={PID} onInvestigate={onInvestigate} />
         <Outlet />
       </>
     ),
@@ -82,13 +82,19 @@ describe('<ProfileManageCard>', () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
-  it('renders every navigation tile plus the reconcile action, grouped', async () => {
+  it('renders every navigation tile plus the inline actions, grouped', async () => {
     setUp();
     expect(await screen.findByTestId('profile-manage-card')).toBeInTheDocument();
     for (const [testId] of TILE_NAV) {
       expect(screen.getByTestId(`profile-manage-${testId}`)).toBeVisible();
     }
-    expect(screen.getByTestId('profile-manage-reconcile-fees')).toBeVisible();
+    // Scoped to the group heading, not just present somewhere: the user guide
+    // sends the operator to Analyze by name, so the group is part of the
+    // contract and a whole-card query would stay green after a move.
+    const groupOf = (name: string): HTMLElement =>
+      screen.getByRole('heading', { name }).parentElement as HTMLElement;
+    expect(within(groupOf('Analyze')).getByTestId('profile-manage-investigate')).toBeVisible();
+    expect(within(groupOf('Operate')).getByTestId('profile-manage-reconcile-fees')).toBeVisible();
     // The lifecycle/admin actions moved to the General page — they are no longer
     // tiles in the menu.
     expect(screen.queryByTestId('profile-manage-rename')).toBeNull();
@@ -101,6 +107,20 @@ describe('<ProfileManageCard>', () => {
     await screen.findByTestId('profile-manage-card');
     await userEvent.click(screen.getByTestId(`profile-manage-${testId}`));
     await waitFor(() => expect(screen.getByTestId(`route-${seg}`)).toBeInTheDocument());
+  });
+
+  it('asks the caller to open the investigation rather than opening one itself', async () => {
+    // The card cannot own the drawer: it renders INSIDE a modal dialog, and a
+    // second modal mounted from here would nest two focus traps. It reports the
+    // intent and the sheet that owns both does the handover.
+    const onInvestigate = vi.fn();
+    setUp(onInvestigate);
+    await screen.findByTestId('profile-manage-card');
+
+    await userEvent.click(screen.getByTestId('profile-manage-investigate'));
+
+    expect(onInvestigate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('investigate-sheet')).toBeNull();
   });
 
   it('enqueues fee reconciliation and toasts on success', async () => {

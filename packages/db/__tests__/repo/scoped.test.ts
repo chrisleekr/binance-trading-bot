@@ -41,6 +41,7 @@ const PROFILE_NAMESPACE_MODULES: Readonly<Record<string, string>> = {
   backtestAdvisorResults: 'backtest-advisor-results.ts',
   backtestRuns: 'backtest-runs.ts',
   conditionStates: 'condition-states.ts',
+  diagnosisRuns: 'diagnosis-runs.ts',
   discoveryUniverseSnapshots: 'discovery-universe-snapshots.ts',
   equitySnapshots: 'equity-snapshots.ts',
   avgEntryPrices: 'avg-entry-prices.ts',

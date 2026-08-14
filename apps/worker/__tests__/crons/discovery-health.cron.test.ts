@@ -2,17 +2,20 @@ import type { Job } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';
 import { describe, expect, it, vi } from 'vitest';
-import { asAccountId, asProfileId, asUserId } from '@app/contracts';
+import {
+  asAccountId,
+  asProfileId,
+  asUserId,
+  DISCOVERY_HEALTH_WINDOW,
+  type SnapshotHealth,
+} from '@app/contracts';
 import type { ActiveProfile } from '../../src/profile-manager/profile-manager.js';
 import { createRedisWindowThrottle } from '../../src/executor/notifier-gap-throttle.js';
 import {
-  assessDiscoveryHealth,
   discoveryHealthHandler,
   DEFAULT_DISCOVERY_HEALTH_WINDOW_MS,
   DISCOVERY_HEALTH_KEY_PREFIX,
-  DISCOVERY_HEALTH_WINDOW,
   type DiscoveryHealthDeps,
-  type SnapshotHealth,
 } from '../../src/crons/discovery-health.cron.js';
 
 const NOW = 1_700_000_000_000;
@@ -62,59 +65,6 @@ const codeFor = (
       mock: { calls: [ActiveProfile, { condition: string; code: string | null }][] };
     }
   ).mock.calls.find((c) => c[1].condition === condition)?.[1].code;
-
-describe('assessDiscoveryHealth', () => {
-  it('reads an empty history as stale and not breadth-blocked', () => {
-    expect(assessDiscoveryHealth([], REFRESH, NOW, DISCOVERY_HEALTH_WINDOW)).toEqual({
-      stale: true,
-      breadthBlocked: false,
-    });
-  });
-
-  it('is stale when the newest snapshot is older than twice the refresh period', () => {
-    const r = assessDiscoveryHealth(
-      [snap(NOW - 3 * REFRESH, true)],
-      REFRESH,
-      NOW,
-      DISCOVERY_HEALTH_WINDOW,
-    );
-    expect(r.stale).toBe(true);
-  });
-
-  it('is not stale at exactly twice the refresh period (strict >)', () => {
-    const r = assessDiscoveryHealth(
-      [snap(NOW - 2 * REFRESH, true)],
-      REFRESH,
-      NOW,
-      DISCOVERY_HEALTH_WINDOW,
-    );
-    expect(r.stale).toBe(false);
-  });
-
-  it('breadth-blocks only on a FULL window that is all breadthOk=false', () => {
-    expect(
-      assessDiscoveryHealth(fullWindow(false), REFRESH, NOW, DISCOVERY_HEALTH_WINDOW)
-        .breadthBlocked,
-    ).toBe(true);
-    // One fewer than a full window is not yet evidence of persistence.
-    expect(
-      assessDiscoveryHealth(
-        fullWindow(false).slice(0, DISCOVERY_HEALTH_WINDOW - 1),
-        REFRESH,
-        NOW,
-        DISCOVERY_HEALTH_WINDOW,
-      ).breadthBlocked,
-    ).toBe(false);
-  });
-
-  it('does not breadth-block when any snapshot is not strictly false (undefined breaks the run)', () => {
-    const withGap = fullWindow(false);
-    withGap[3] = snap(NOW - 3 * 60_000, undefined); // an old row predating the funnel field
-    expect(
-      assessDiscoveryHealth(withGap, REFRESH, NOW, DISCOVERY_HEALTH_WINDOW).breadthBlocked,
-    ).toBe(false);
-  });
-});
 
 describe('discoveryHealthHandler', () => {
   it('alerts exactly once on a stale profile (T1)', async () => {
@@ -178,10 +128,10 @@ describe('discoveryHealthHandler', () => {
   });
 });
 
-// The conditions are the durable record of what is true now; the alerts are what
-// interrupts the operator. They are written on different rules on purpose, and
-// these pin that difference: an hourly alert window must never become the
-// resolution of "is discovery stale right now".
+// The conditions are what the diagnosis reads; the alerts are what interrupts
+// the operator. They are recorded on different rules on purpose, and these pin
+// that difference — an hourly alert window must never become the resolution of
+// "is discovery stale right now".
 describe('discovery-health condition recording', () => {
   it('records both conditions open when both verdicts fire', async () => {
     const recordCondition = vi.fn(async () => undefined);

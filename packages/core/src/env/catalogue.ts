@@ -217,7 +217,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     description: 'Turns the instance into a public, no-login sandbox.',
     when: 'Only on a throwaway public demo box. Never on an instance holding your keys.',
     expect:
-      'Injects a demo operator for every anonymous request; blocks credential, notifier, backup/restore, account-creation and retention-change routes; suppresses all notifier sending; and refuses to boot if any account is on live Binance. Trading remains interactive on Binance testnet. Only `1` or `true` enable it.',
+      'Injects a demo operator for every anonymous request; blocks credential, notifier, backup/restore, account-creation, retention-change, and diagnosis-start routes; suppresses all notifier sending; and refuses to boot if any account is on live Binance. Trading remains interactive on Binance testnet. Only `1` or `true` enable it.',
   },
   PUBLIC_WEB_URL: {
     group: 'Runtime',

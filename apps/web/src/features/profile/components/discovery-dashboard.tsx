@@ -37,6 +37,7 @@ import {
   profileSymbolsQueryOptions,
   unpinSymbol,
 } from '@/features/profile/api/discovery';
+import { DiscoveryFunnelPanel } from '@/features/profile/components/discovery-funnel-panel';
 import { profileDashboardQueryKey } from '@/features/profile/api/profile-dashboard';
 import { wipeSymbol } from '@/features/symbol/api/symbol';
 
@@ -750,6 +751,8 @@ export function DiscoveryDashboard({
           ) : null}
         </div>
       </Panel>
+
+      <DiscoveryFunnelPanel profileId={profileId} />
 
       <ManualSymbols profileId={profileId} />
 

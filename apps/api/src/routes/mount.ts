@@ -47,6 +47,7 @@ import { killSwitchRouter } from './kill-switch.js';
 import { dustTransferRouter } from './dust-transfer.js';
 import { orphanOrdersRouter } from './orphan-orders.js';
 import { dashboardRouter } from './dashboard.js';
+import { profileDiagnosisRouter } from './profile-diagnosis.js';
 import { technicalsRouter } from './technicals.js';
 
 /**
@@ -93,6 +94,7 @@ export const mountApiRouters = (app: ApiHono, di: DI): void => {
   app.route(ACCOUNT_BASE, discoveryRouter(di));
   app.route(ACCOUNT_BASE, riskRouter(di));
   app.route(ACCOUNT_BASE, gateStatusRouter(di));
+  app.route(ACCOUNT_BASE, profileDiagnosisRouter(di));
   app.route(ACCOUNT_BASE, ordersRouter(di));
   app.route(ACCOUNT_BASE, manualOrdersRouter(di));
   app.route(ACCOUNT_BASE, overrideRouter(di));
