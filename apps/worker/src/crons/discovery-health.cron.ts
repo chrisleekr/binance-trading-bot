@@ -20,10 +20,18 @@
 // window (createRedisWindowThrottle), so a standing condition alerts once per
 // window rather than every 5-minute tick. That is a TTL'd idempotency key, not a
 // lock: no owner, no release, it self-expires.
+//
+// Both verdicts are ALSO recorded as durable conditions, and that write is
+// deliberately outside the alert throttle. The throttle limits how often the
+// operator is interrupted; the condition store answers "what is true now, and
+// since when", which an hourly suppression window would corrupt. It is the only
+// path that ever CLEARS these conditions, so it runs on every pass, healthy or
+// not: an alert has nothing to say when a problem goes away, so without the
+// healthy pass the condition would stay open forever.
 
 import type { Job } from 'bullmq';
 import type { Logger } from 'pino';
-import { unwrapId, type ProfileId } from '@app/contracts';
+import { unwrapId, type Condition, type ProfileId } from '@app/contracts';
 import { profileRepo, type DiscoveryUniverseSnapshotPayload } from '@app/db';
 import { createRedisWindowThrottle } from 'executor/notifier-gap-throttle.js';
 import type { BootContext } from 'boot/boot-context.js';
@@ -33,11 +41,6 @@ import type { ActiveProfile } from 'profile-manager/profile-manager.js';
 import type { NotifyEvent } from 'notifiers/notify-event.js';
 import { parseDiscoveryConfig } from './discovery.cron.js';
 
-// How many recent snapshots the breadth-block trigger inspects. A documented
-// constant, not a config knob: it is the evidence window for "persistently
-// blocked", tuned to the ~5-min monitor cadence, not something the operator sizes.
-export const DISCOVERY_HEALTH_WINDOW = 8;
-
 /** One-hour suppression window per (profile, trigger); mirrors the notifier-gap default. */
 export const DEFAULT_DISCOVERY_HEALTH_WINDOW_MS = 3_600_000;
 
@@ -45,6 +48,11 @@ export const DISCOVERY_HEALTH_KEY_PREFIX = 'discovery-health-throttle:';
 
 /** The two health conditions, each throttled independently per profile. */
 export type DiscoveryHealthTrigger = 'stale' | 'breadth-block';
+
+// How many recent snapshots the breadth-block trigger inspects. A documented
+// constant, not a config knob: it is the evidence window for "persistently
+// blocked", tuned to the ~5-min monitor cadence, not something the operator sizes.
+export const DISCOVERY_HEALTH_WINDOW = 8;
 
 /** The two facts the health assessment reads off one persisted snapshot. */
 export interface SnapshotHealth {
@@ -74,6 +82,12 @@ export const assessDiscoveryHealth = (
   return { stale, breadthBlocked };
 };
 
+/** The condition each trigger records, and the code it carries while open. */
+const CONDITION_FOR: Record<DiscoveryHealthTrigger, { condition: Condition; code: string }> = {
+  stale: { condition: 'discovery-stale', code: 'no-recent-scan' },
+  'breadth-block': { condition: 'discovery-breadth-blocked', code: 'breadth-floor' },
+};
+
 export interface DiscoveryHealthDeps {
   readonly logger: Logger;
   readonly listActive: () => readonly ActiveProfile[];
@@ -85,6 +99,11 @@ export interface DiscoveryHealthDeps {
   readonly notify: NotifyEvent;
   /** Fleet-wide per-(profile, trigger) throttle; true when the alert may fire now. */
   readonly allowAlert: (profileId: ProfileId, trigger: DiscoveryHealthTrigger) => Promise<boolean>;
+  /** Record a profile-level condition's current code; null means it no longer holds. */
+  readonly recordCondition: (
+    profile: ActiveProfile,
+    input: { condition: Condition; code: string | null; msg: string },
+  ) => Promise<void>;
   readonly clock?: { nowMs(): number };
 }
 
@@ -94,6 +113,28 @@ const staleBody = (refreshPeriodMs: number): string =>
   )} min). It may be wedged or stopped — new symbols will not rotate in until it resumes. Check the worker and this profile's discovery settings.`;
 
 const breadthBody = `Every auto-discovery add has been blocked by the market-breadth floor for the last ${DISCOVERY_HEALTH_WINDOW} scans. The floor may be set too high to ever admit a symbol for this quote asset — review the market-breadth setting.`;
+
+/**
+ * Record one trigger's current truth. The writer itself is a no-op when nothing
+ * changed, so calling this every pass costs one read per trigger per profile per
+ * 5 minutes and writes only on a real transition.
+ */
+const recordHealthCondition = async (
+  deps: DiscoveryHealthDeps,
+  profile: ActiveProfile,
+  trigger: DiscoveryHealthTrigger,
+  open: boolean,
+  openMsg: string,
+): Promise<void> => {
+  const { condition, code } = CONDITION_FOR[trigger];
+  await deps.recordCondition(profile, {
+    condition,
+    code: open ? code : null,
+    msg: open
+      ? openMsg
+      : `Discovery ${trigger === 'stale' ? 'is scanning again' : 'is admitting symbols again'}.`,
+  });
+};
 
 /**
  * Per-profile health scan. One profile's failure is isolated (logged, loop
@@ -142,6 +183,10 @@ export const discoveryHealthHandler =
             body: breadthBody,
           });
         }
+        // After the alerts, so a condition write can never suppress one. Both
+        // are recorded every pass, including the healthy pass that clears them.
+        await recordHealthCondition(deps, p, 'stale', stale, staleBody(cfg.refreshPeriodMs));
+        await recordHealthCondition(deps, p, 'breadth-block', breadthBlocked, breadthBody);
       } catch (err) {
         deps.logger.warn(
           { profileId: unwrapId(p.profileId), err: err },
@@ -169,11 +214,14 @@ export const buildDiscoveryHealthCron = (ctx: BootContext): CronDef => {
         const repo = await profileRepo(ctx.db, p.operatorId, p.accountId, p.profileId);
         const profile = await repo.profile.findById();
         if (!profile) return null;
-        const cfg = parseDiscoveryConfig(
+        // An unparseable config is the discovery cron's condition to record, not
+        // this monitor's; here it just means there is no cadence to judge
+        // staleness against.
+        const parsed = parseDiscoveryConfig(
           (profile as { discoveryConfig?: unknown }).discoveryConfig,
         );
-        if (!cfg || !cfg.enabled) return null;
-        return { refreshPeriodMs: cfg.refreshPeriodMs };
+        if (!parsed.ok || !parsed.cfg.enabled) return null;
+        return { refreshPeriodMs: parsed.cfg.refreshPeriodMs };
       },
       recentSnapshots: async (p, limit) => {
         const repo = await profileRepo(ctx.db, p.operatorId, p.accountId, p.profileId);
@@ -185,6 +233,10 @@ export const buildDiscoveryHealthCron = (ctx: BootContext): CronDef => {
       },
       notify: ctx.notifyEvent,
       allowAlert: (profileId, trigger) => throttle.allow(`${trigger}:${unwrapId(profileId)}`),
+      recordCondition: async (p, input) => {
+        const repo = await profileRepo(ctx.db, p.operatorId, p.accountId, p.profileId);
+        await repo.conditionStates.recordCondition({ ...input, now: new Date() });
+      },
     }),
   });
 };

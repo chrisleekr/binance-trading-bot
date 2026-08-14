@@ -13,13 +13,16 @@
 //   404 — wrong/unowned profile. That IS a failure, and it must never read as
 //         "cancelled".
 
+import { useEffect, type ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { deferredResponder } from './_deferred-responder.js';
 import { SymbolCancelOverridePanel } from '../src/features/symbol/components/symbol-cancel-override-panel.js';
 import { symbolOverrideActionQueryKey } from '../src/features/symbol/api/symbol.js';
+import { useOverrideOutcome } from '../src/features/symbol/lib/use-override-outcome.js';
 import { setActiveAccountId } from '../src/shared/lib/account-scope.js';
 import { createQueryClient } from '../src/shared/lib/query-client.js';
 
@@ -68,11 +71,11 @@ const pendingRow = (id: string): unknown => ({
 });
 
 /** The same row after a tick settled it — no longer "active", so the route 204s. */
-const settledRow = (id: string): unknown => ({
+const settledRow = (id: string, outcome: unknown = { status: 'applied', at: AT }): unknown => ({
   ...(pendingRow(id) as Record<string, unknown>),
   processingAt: AT,
   consumedAt: AT,
-  outcome: { status: 'applied', at: AT },
+  outcome,
 });
 
 const json = (body: unknown, status = 200): Response =>
@@ -86,7 +89,27 @@ const envelope = (status: number, code: string, message: string): Response =>
 
 type Responder = (url: string, init?: RequestInit) => Response | Promise<Response>;
 
-const setUp = (responder: Responder) => {
+/**
+ * One of the workspace's other co-mounted outcome watchers. It shares this
+ * panel's query key, which is (profile, symbol) and not (profile, symbol,
+ * override), so its polls are the requests the panel's read-back has to keep
+ * apart from its own.
+ */
+function SiblingWatch({
+  overrideId,
+  createdAt,
+}: {
+  readonly overrideId: string;
+  readonly createdAt: string;
+}): null {
+  const { watch } = useOverrideOutcome(PROFILE_ID, SYMBOL);
+  useEffect(() => {
+    watch(overrideId, createdAt);
+  }, [watch, overrideId, createdAt]);
+  return null;
+}
+
+const setUp = (responder: Responder, sibling?: ReactNode) => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
       typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
@@ -96,11 +119,14 @@ const setUp = (responder: Responder) => {
   const queryClient = createQueryClient();
   render(
     <QueryClientProvider client={queryClient}>
+      {sibling}
       <SymbolCancelOverridePanel profileId={PROFILE_ID} symbol={SYMBOL} />
     </QueryClientProvider>,
   );
   return { fetchMock, queryClient };
 };
+
+const overrideKey = (): readonly unknown[] => symbolOverrideActionQueryKey(PROFILE_ID, SYMBOL);
 
 const deletesToOverride = (fetchMock: ReturnType<typeof vi.fn>): unknown[] =>
   fetchMock.mock.calls.filter(
@@ -315,6 +341,165 @@ describe('SymbolCancelOverridePanel', () => {
     expect(error).not.toHaveBeenCalled();
   });
 
+  it('issues its own read-back instead of adopting a sibling poll already in flight', async () => {
+    // The workspace co-mounts three watchers on this key, each polling every 2s
+    // while armed, so at the moment a cancel comes back 409 a request issued
+    // BEFORE the DELETE is routinely still open. react-query dedupes a fetch on
+    // a key that is already fetching onto the running one, which would hand this
+    // panel a body describing the world before the cancel: the pre-cancel row,
+    // watched as if it were the claim that beat the delete.
+    const gets = deferredResponder();
+    const { queryClient } = setUp(
+      (_url, init) =>
+        init?.method === 'DELETE' ? envelope(409, 'CONFLICT', CONFLICT_MESSAGE) : gets.responder(),
+      <SiblingWatch overrideId={STALE_ID} createdAt={AT} />,
+    );
+
+    // Held open across the whole cancel: this is the read that must not be
+    // allowed to answer the question the 409 asks.
+    await waitFor(() => expect(gets.issued()).toBe(1));
+    await openAndConfirm();
+    await waitFor(() => expect(info).toHaveBeenCalledWith(CONFLICT_MESSAGE));
+    await waitFor(() => expect(gets.issued()).toBe(2));
+
+    // And the sibling's read still reaches the cache. A request the panel
+    // cancelled to get a clean slot could never deliver a body: query-core
+    // rejects a silently-cancelled retryer, and a resolved retryer ignores a
+    // later resolve. So the pre-cancel row landing LAST is the proof that
+    // nothing the sibling was awaiting got taken away from it.
+    await act(async () => {
+      gets.settle(1, pendingRow(CLAIMED_ID));
+    });
+    await act(async () => {
+      gets.settle(0, pendingRow(STALE_ID));
+    });
+    await waitFor(() =>
+      expect(queryClient.getQueryState(overrideKey())?.data).toMatchObject({ id: STALE_ID }),
+    );
+  });
+
+  it('completes the read-back through a blanket invalidateQueries', async () => {
+    // Every successful mutation anywhere in the app fires `invalidateQueries()`
+    // from the shared MutationCache, and that refetch defaults to
+    // `cancelRefetch: true`, cancelling whatever is already in flight on the
+    // key. A read-back running through the query cache is therefore one
+    // unrelated mutation away from being killed mid-flight, leaving the operator
+    // with a 409 notice and no watch on the claim it told them to wait for.
+    const gets = deferredResponder();
+    const { queryClient } = setUp(
+      (_url, init) =>
+        init?.method === 'DELETE' ? envelope(409, 'CONFLICT', CONFLICT_MESSAGE) : gets.responder(),
+      <SiblingWatch overrideId={STALE_ID} createdAt={AT} />,
+    );
+
+    // The sibling's first poll has to LAND: the cancel branch is only reached
+    // for a query that is active and already holds data.
+    await waitFor(() => expect(gets.issued()).toBe(1));
+    await act(async () => {
+      gets.settle(0, pendingRow(STALE_ID));
+    });
+    await waitFor(() => expect(queryClient.getQueryState(overrideKey())?.data).not.toBeUndefined());
+
+    await openAndConfirm();
+    await waitFor(() => expect(info).toHaveBeenCalledWith(CONFLICT_MESSAGE));
+    await waitFor(() => expect(gets.issued()).toBeGreaterThanOrEqual(2));
+
+    // Not awaited: nothing it refetches resolves on its own here, so awaiting
+    // would hang rather than assert.
+    await act(async () => {
+      void queryClient.invalidateQueries();
+    });
+    await act(async () => {
+      gets.settle(1, pendingRow(CLAIMED_ID));
+    });
+
+    // Index-free from here: the armed watch and the sibling both poll this key
+    // on their own cadence, so which request is which is wall-clock dependent.
+    // The settle is deliberately inside the retried predicate, as a pump that
+    // answers whatever poll has since gone out. Either banner path is a pass and
+    // both prove the same thing: the pump answers the read-back with a settled
+    // body and the panel reports it, or it answers a pending one and the armed
+    // watch reads the settled body a poll later. It cannot manufacture a pass,
+    // because a read-back killed by the invalidate returns null, arms nothing,
+    // and the sibling renders no banner, so nothing is left to call the toast.
+    await waitFor(() => {
+      gets.settleAllPending(settledRow(CLAIMED_ID));
+      expect(success).toHaveBeenCalledWith('Your action went through.');
+    });
+  });
+
+  it('will not treat pre-arm cache state as its own post-arm evidence', async () => {
+    // A sibling watch that ended on a deleted row leaves an explicit `null` on
+    // the shared key, and nothing evicts it. Judged against that, a watch armed
+    // from the 409 read-back would read as already-unresolvable and die before
+    // its first poll, telling the operator to wait for an outcome that never
+    // arrives. The hook already bars that; what is newly at stake is the
+    // baseline it counts from, because an off-cache read-back no longer bumps
+    // the key's update count the way the old cached one did.
+    let reads = 0;
+    const { fetchMock, queryClient } = setUp((_url, init) => {
+      if (init?.method === 'DELETE') return envelope(409, 'CONFLICT', CONFLICT_MESSAGE);
+      reads += 1;
+      return json(reads === 1 ? pendingRow(CLAIMED_ID) : settledRow(CLAIMED_ID));
+    });
+    queryClient.setQueryData(overrideKey(), null);
+    await openAndConfirm();
+
+    await waitFor(() => expect(success).toHaveBeenCalledWith('Your action went through.'));
+    // The outcome came from a genuinely subsequent read, not from the read-back.
+    expect(getsToOverride(fetchMock).length).toBeGreaterThanOrEqual(2);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('reports a read-back row that already settled rather than deferring it to a poll', async () => {
+    // The claim can settle between the DELETE and the read-back, in which case
+    // the read-back body already carries the verdict, and the read was issued
+    // after the cancel so the verdict is final. Handing it to a watch instead
+    // risks losing it: a newer override for this symbol reads as superseding
+    // this row and retires the watch without a word.
+    // Deferred rather than answered inline, so the read-back spans a commit the
+    // way a real round-trip does. Answered inline it would land in the same
+    // React batch as the 409 notice, and the operator would only ever see the
+    // outcome, which is a testing artefact rather than the shipped behaviour.
+    const gets = deferredResponder();
+    const { fetchMock } = setUp((_url, init) =>
+      init?.method === 'DELETE' ? envelope(409, 'CONFLICT', CONFLICT_MESSAGE) : gets.responder(),
+    );
+    await openAndConfirm();
+
+    await waitFor(() => expect(info).toHaveBeenCalledWith(CONFLICT_MESSAGE));
+    await waitFor(() => expect(gets.issued()).toBe(1));
+    await act(async () => {
+      gets.settle(0, settledRow(CLAIMED_ID));
+    });
+
+    await waitFor(() => expect(success).toHaveBeenCalledWith('Your action went through.'));
+    expect(error).not.toHaveBeenCalled();
+    // One read and no watch: the verdict never went near the polling path.
+    expect(getsToOverride(fetchMock)).toHaveLength(1);
+  });
+
+  it('replaces the 409 notice when the read-back row settled as rejected', async () => {
+    // The half that says money did NOT move. The 409 prose tells the operator to
+    // wait for the outcome, so a rejection has to land as a failure notice and
+    // supersede it. Leaving the reassuring notice as the last word about an
+    // override that never ran is the failure this pins.
+    const gets = deferredResponder();
+    setUp((_url, init) =>
+      init?.method === 'DELETE' ? envelope(409, 'CONFLICT', CONFLICT_MESSAGE) : gets.responder(),
+    );
+    await openAndConfirm();
+
+    await waitFor(() => expect(info).toHaveBeenCalledWith(CONFLICT_MESSAGE));
+    await waitFor(() => expect(gets.issued()).toBe(1));
+    await act(async () => {
+      gets.settle(0, settledRow(CLAIMED_ID, { status: 'rejected', reason: 'no funds', at: AT }));
+    });
+
+    await waitFor(() => expect(error).toHaveBeenCalledWith('Your action did not run: no funds'));
+    expect(success).not.toHaveBeenCalled();
+  });
+
   it('keeps the outcome watch on a 204 so a row that just settled still reports', async () => {
     let latest: unknown = pendingRow(CLAIMED_ID);
     let raceLost = true;
@@ -355,8 +540,8 @@ describe('SymbolCancelOverridePanel', () => {
     await openAndConfirm();
 
     await waitFor(() => expect(info).toHaveBeenCalledWith(CONFLICT_MESSAGE));
-    // `retry: false` makes the read-back a single attempt, so one poll interval is
-    // enough to prove nothing followed it.
+    // A bare request has no retry policy behind it, so one attempt is all there
+    // is and one poll interval is enough to prove nothing followed it.
     const attempted = getsToOverride(fetchMock).length;
     expect(attempted).toBe(1);
     await new Promise((resolve) => setTimeout(resolve, 2_600));

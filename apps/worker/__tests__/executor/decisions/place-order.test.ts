@@ -764,6 +764,37 @@ describe('placeOrderHandler', () => {
     });
   });
 
+  it('a -2010 that means "symbol not permitted" enqueues NO reconcile, even on a SELL', async () => {
+    // -2010 is an umbrella code. The reconcile above is worth its getAccount +
+    // getMyTrades only when the refusal implies a balance the stream missed. A
+    // permission refusal implies nothing about the position and never clears,
+    // so reconciling on it just spends weight on every tick, forever.
+    const placeOrder = vi.fn(async () => {
+      throw new BinanceApiError(
+        {
+          status: 400,
+          code: -2010,
+          msg: 'This symbol is not permitted for this account.',
+        },
+        false,
+        'rejected',
+      );
+    });
+    const binance = fakeBinance({ placeOrder } as unknown as Partial<BinanceRestClient>);
+    const sell = { ...PLACE, intent: { ...PLACE.intent, side: 'SELL' as const } };
+    const enqueueSymbolReconcile = vi.fn();
+    const deps: DecisionDeps = {
+      ...buildDeps(buildBindings({ binance })),
+      enqueueSymbolReconcile,
+    };
+
+    const out = await placeOrderHandler(deps, CTX, sell);
+
+    expect(out.ok).toBe(false);
+    if (out.ok === false) expect(out.retryable).toBe(false);
+    expect(enqueueSymbolReconcile).not.toHaveBeenCalled();
+  });
+
   it('-2010 on a BUY enqueues nothing: a short quote balance says nothing about the position', async () => {
     const placeOrder = vi.fn(async () => {
       throw new BinanceApiError({

@@ -7,7 +7,7 @@
 // through the typed repo layer (CLAUDE.md: no raw drizzle in apps).
 
 import { Decimal, isPlainDecimalString } from '@app/money';
-import type { ProfileId, UserId } from '@app/contracts';
+import { isTerminalOrderStatus, type ProfileId, type UserId } from '@app/contracts';
 import type { AccountRepo, ProfileRepo } from '@app/db';
 import type { NotifierRowInput } from 'notifiers/lookup.js';
 
@@ -215,11 +215,11 @@ export const buildPersistence = (
   // them in that order. `Number.isFinite` rejects strings / null / NaN so a malformed
   // payload lands a valid clock fallback rather than an `Invalid Date`.
   const toRowValues = (row: PersistedOrder): { values: OrderValues; isClosed: boolean } => {
-    const isClosed =
-      row.status === 'FILLED' ||
-      row.status === 'CANCELED' ||
-      row.status === 'REJECTED' ||
-      row.status === 'EXPIRED';
+    // The shared terminal vocabulary, not a local list: a status terminal for
+    // the open-orders cache but not here (`EXPIRED_IN_MATCH`, the self-trade-
+    // prevention terminator) writes a `closed_at`-NULL row that occupies the
+    // live slot and the account's open exposure forever.
+    const isClosed = isTerminalOrderStatus(row.status);
     const raw = row.raw as
       { transactTime?: unknown; updateTime?: unknown; time?: unknown } | null | undefined;
     const epochMs = (v: unknown): number | null =>

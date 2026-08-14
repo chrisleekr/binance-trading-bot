@@ -5,19 +5,35 @@ import type {
   ExecutorContext,
   OpenOrder,
 } from '@app/strategy-core';
-import { asProfileId, asUserId, type ProfileId } from '@app/contracts';
+import {
+  asProfileId,
+  asUserId,
+  isSymbolPermittedForAccount,
+  projectPermissionSets,
+  type ProfileId,
+} from '@app/contracts';
 import { sleep as realSleep } from '@app/core/sleep';
 import {
   BinanceApiError,
   DEFAULT_RECV_WINDOW_MS,
   OrderBudgetUnavailableError,
   readSignedCallTiming,
+  type BinanceMode,
   type OpenOrderDto,
 } from '@app/binance';
-import { classifyBinanceError } from 'executor/binance-error-taxonomy.js';
+import {
+  classifyBinanceError,
+  isSymbolNotPermittedError,
+} from 'executor/binance-error-taxonomy.js';
 import { emitEvent } from 'executor/event-emitter.js';
 import { fundable } from 'executor/fundable.js';
-import { buildAccountInfoKey, buildOpenOrdersKey } from 'executor/redis-namespace.js';
+import {
+  buildAccountInfoKey,
+  buildAccountPermissionsKey,
+  buildOpenOrdersKey,
+  buildSymbolInfoKey,
+} from 'executor/redis-namespace.js';
+import { parseAccountPermissions } from 'lib/account-permissions.js';
 import { removeOpenOrder, upsertOpenOrder } from 'executor/open-orders-cache.js';
 import { readCurrentWeight, recordWeight } from 'executor/weight-limiter.js';
 import { parseAccountSnapshot } from 'tick/snapshot-loader.js';
@@ -83,6 +99,56 @@ const readAccountSnapshot = async (
       'place-order: account snapshot unreadable, funding pre-flight skipped',
     );
     return { balances: {}, readable: false };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
+/**
+ * Whether this account may trade this symbol at all, read from the two caches
+ * the exchange-info refresh and the `/account` writers already maintain.
+ *
+ * Both halves fail open independently: an unreadable symbol entry, an unprimed
+ * permissions key, or a stalled Redis yields an empty side, and the caller
+ * treats either as "cannot tell" and lets the order through. The refusal below
+ * is only ever raised on two positively-read values that provably do not
+ * intersect.
+ */
+const readSymbolPermission = async (
+  deps: DecisionDeps,
+  mode: BinanceMode,
+  symbol: string,
+): Promise<{
+  permissionSets: readonly (readonly string[])[] | null;
+  accountPermissions: readonly string[];
+}> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error('symbol-permission read timed out')),
+        ACCOUNT_SNAPSHOT_READ_TIMEOUT_MS,
+      );
+    });
+    const [rawSymbol, rawPermissions] = await Promise.race([
+      Promise.all([
+        deps.redis.get(buildSymbolInfoKey(symbol, mode)),
+        deps.redis.get(buildAccountPermissionsKey(deps.accountId)),
+      ]),
+      deadline,
+    ]);
+    const info =
+      rawSymbol === null ? null : (JSON.parse(rawSymbol) as { permissionSets?: unknown });
+    return {
+      permissionSets: info === null ? null : projectPermissionSets(info.permissionSets),
+      accountPermissions: parseAccountPermissions(rawPermissions),
+    };
+  } catch (err: unknown) {
+    deps.logger.warn(
+      { symbol, err: err },
+      'place-order: symbol permissions unreadable, tradability pre-flight skipped',
+    );
+    return { permissionSets: null, accountPermissions: [] };
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -355,6 +421,72 @@ export const placeOrderHandler = async (
     };
   }
 
+  // Tradability pre-flight. Binance gates each symbol on permission tags: the
+  // account must hold at least one tag from EVERY set the symbol publishes.
+  // When it does not, the placement is refused -2010 on every attempt, forever,
+  // and the strategy re-derives it every tick, so this one symbol can burn the
+  // account's entire request-weight budget and throttle every other profile on
+  // it. Both inputs are readable here, before any HTTP call.
+  //
+  // No mode gate, unlike the API's bind guard: that one compares a live-pinned
+  // symbol listing against whatever key pair the account holds, so it must
+  // restrict itself to live accounts. Here BOTH sides are already mode-scoped
+  // (the symbol-info key carries the mode, and the permissions are the
+  // account's own), so the comparison never crosses environments. Testnet
+  // publishes the single set `SPOT` on every symbol, which a testnet key pair
+  // holds, so the cut is inert there rather than wrong.
+  const permission = await readSymbolPermission(deps, bindings.mode, decision.intent.symbol);
+  if (
+    permission.permissionSets !== null &&
+    permission.accountPermissions.length > 0 &&
+    !isSymbolPermittedForAccount({
+      permissionSets: permission.permissionSets,
+      accountPermissions: permission.accountPermissions,
+    })
+  ) {
+    // Windowed like the unfundable alert, and for a stronger reason: nothing the
+    // bot does will ever clear this, so the re-emission is unbounded in time.
+    const alertAllowed =
+      (await deps.symbolNotPermittedThrottle?.allow(`${profileId}:${decision.intent.symbol}`)) ??
+      true;
+    if (alertAllowed) {
+      await emergencyNotify(deps, bindings, profileId, {
+        severity: 'error',
+        topic: 'order-symbol-not-permitted',
+        title: 'Symbol skipped — your Binance account cannot trade it',
+        symbol: decision.intent.symbol,
+        // Name the fix, because there is exactly one and the bot cannot do it:
+        // this never clears on its own the way a balance shortfall does.
+        body:
+          `Binance will not accept orders for ${decision.intent.symbol} on this account: the ` +
+          'symbol requires a trading permission your API key pair does not have. This does not ' +
+          'clear by itself, so the bot will not send any order for it. Remove the symbol from ' +
+          "this profile, or enable the required permission in your Binance account's settings.",
+        fields: [
+          {
+            label: 'Action',
+            value: `${decision.intent.side} ${decision.params.quantity} (${decision.params.type})`,
+          },
+          {
+            label: 'Symbol needs',
+            value: permission.permissionSets.map((s) => s.join(' or ')).join(' and '),
+          },
+          { label: 'Account has', value: permission.accountPermissions.join(', ') },
+        ],
+      });
+    }
+    return {
+      ok: false,
+      retryable: false,
+      // Nothing was transmitted. Non-retryable because no retry can ever
+      // succeed: the refusal is a property of the account, not of the moment.
+      phase: 'pre-call',
+      reason: `symbol not permitted for this account: ${decision.intent.symbol} requires ${permission.permissionSets
+        .map((s) => s.join('|'))
+        .join('+')}, account holds ${permission.accountPermissions.join(',')}`,
+    };
+  }
+
   // Funding pre-flight. A resting order LOCKS the balance it holds, so an order
   // sized from the wallet total is rejected -2010 by Binance on every attempt —
   // and a strategy that re-derives it each tick re-sends it forever. The wallet is
@@ -503,7 +635,16 @@ export const placeOrderHandler = async (
     // state that produced the impossible order. The "does the state even claim a
     // position?" judgement lives in the job (the reconcile no-ops when state
     // already agrees with the wallet), not here, so no StatePort on the hot path.
-    if (err.code === INSUFFICIENT_BALANCE && decision.intent.side === 'SELL') {
+    // -2010 is an umbrella code, and one of its other meanings is "this symbol
+    // is not permitted for this account". That says nothing about the wallet, so
+    // it must NOT enqueue a converge pass: the balance is fine, the symbol is
+    // simply untradeable, and a reconcile per tick would add queue churn to a
+    // condition only the operator can clear.
+    if (
+      err.code === INSUFFICIENT_BALANCE &&
+      decision.intent.side === 'SELL' &&
+      !isSymbolNotPermittedError(err)
+    ) {
       await enqueueReconcile(deps, profileId, decision.intent.symbol, 'place-2010-insufficient', {
         clientOrderId: decision.intent.clientOrderId,
       });

@@ -24,8 +24,12 @@ const profile = (profileId: string, accountId = 'a1'): ActiveProfile =>
     symbols: ['BTCUSDT'],
   }) as unknown as ActiveProfile;
 
-const rest = (balances: { asset: string; free: string; locked: string }[]) =>
-  ({ getAccount: vi.fn(async () => ({ balances })) }) as never;
+const rest = (
+  balances: { asset: string; free: string; locked: string }[],
+  permissions: readonly string[] = ['SPOT'],
+) => ({ getAccount: vi.fn(async () => ({ balances, permissions })) }) as never;
+
+const noopPermissions = () => vi.fn(async () => undefined);
 
 describe('runAccountSnapshotSeed', () => {
   it('persists each active profile’s full account snapshot', async () => {
@@ -35,6 +39,7 @@ describe('runAccountSnapshotSeed', () => {
       listActive: () => [profile('p1'), profile('p2')],
       resolveBinance: async () => rest([{ asset: 'BTC', free: '1', locked: '0' }]),
       persistAccount,
+      persistAccountPermissions: noopPermissions(),
     });
     expect(tally).toEqual({ seeded: 2, skipped: 0, failed: 0 });
     // persistAccount is account-scoped now: (accountId, profileId, balances).
@@ -44,6 +49,21 @@ describe('runAccountSnapshotSeed', () => {
     expect(persistAccount).toHaveBeenCalledTimes(2);
   });
 
+  it('seeds the account permission tags from the same getAccount response', async () => {
+    // Without this at boot, the order pre-flight reads an empty permission list
+    // and fails open until the safety cron's first full reconcile lands, which
+    // is exactly the window a restart-and-tick cycle races through.
+    const persistAccountPermissions = vi.fn(async () => undefined);
+    await runAccountSnapshotSeed({
+      logger: stubLogger,
+      listActive: () => [profile('p1')],
+      resolveBinance: async () => rest([{ asset: 'BTC', free: '1', locked: '0' }], ['TRD_GRP_025']),
+      persistAccount: vi.fn(async () => undefined),
+      persistAccountPermissions,
+    });
+    expect(persistAccountPermissions).toHaveBeenCalledWith('a1', ['TRD_GRP_025']);
+  });
+
   it('skips a profile with no resolvable credentials without persisting', async () => {
     const persistAccount = vi.fn(async () => undefined);
     const tally = await runAccountSnapshotSeed({
@@ -51,6 +71,7 @@ describe('runAccountSnapshotSeed', () => {
       listActive: () => [profile('p1')],
       resolveBinance: async () => null,
       persistAccount,
+      persistAccountPermissions: noopPermissions(),
     });
     expect(tally).toEqual({ seeded: 0, skipped: 1, failed: 0 });
     expect(persistAccount).not.toHaveBeenCalled();
@@ -67,6 +88,7 @@ describe('runAccountSnapshotSeed', () => {
           ? ({ getAccount: async () => Promise.reject(new Error('REST 418')) } as never)
           : rest([{ asset: 'ETH', free: '2', locked: '0' }]),
       persistAccount,
+      persistAccountPermissions: noopPermissions(),
     });
     expect(tally).toEqual({ seeded: 1, skipped: 0, failed: 1 });
     expect(persistAccount).toHaveBeenCalledTimes(1);
@@ -84,6 +106,7 @@ describe('runAccountSnapshotSeed', () => {
       listActive: () => [profile('p1'), profile('p2')],
       resolveBinance: async () => rest([{ asset: 'BTC', free: '1', locked: '0' }]),
       persistAccount,
+      persistAccountPermissions: noopPermissions(),
     });
     expect(tally).toEqual({ seeded: 1, skipped: 0, failed: 1 });
     expect(persistAccount).toHaveBeenCalledTimes(2);
@@ -96,6 +119,7 @@ describe('runAccountSnapshotSeed', () => {
       listActive: () => [],
       resolveBinance: async () => rest([]),
       persistAccount,
+      persistAccountPermissions: noopPermissions(),
     });
     expect(tally).toEqual({ seeded: 0, skipped: 0, failed: 0 });
     expect(persistAccount).not.toHaveBeenCalled();

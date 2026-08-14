@@ -16,6 +16,8 @@ describe('parseUserStreamFrame', () => {
         l: '0.001',
         z: '0.0015',
         Z: '75',
+        n: '0.0000015',
+        N: 'BTC',
         t: 9,
         E: 1,
       },
@@ -32,6 +34,8 @@ describe('parseUserStreamFrame', () => {
       qtyLastFilled: '0.001',
       cumQty: '0.0015',
       cumQuoteQty: '75',
+      commission: '0.0000015',
+      commissionAsset: 'BTC',
       tradeId: 9,
       eventTimeMs: 1,
     });
@@ -64,9 +68,20 @@ describe('parseUserStreamFrame', () => {
       qtyLastFilled: '0',
       cumQty: '0',
       cumQuoteQty: '0',
+      commission: '0',
+      commissionAsset: '',
       tradeId: 0,
       eventTimeMs: 0,
     });
+  });
+
+  it('reads a null commissionAsset as absent, not as the literal "null"', () => {
+    // Binance sends `N: null` (an explicit key) on a report with no trade, so
+    // a bare String() would produce "null" and match no asset symbol.
+    const event = parseUserStreamFrame({
+      event: { e: 'executionReport', X: 'CANCELED', x: 'CANCELED', n: null, N: null },
+    });
+    expect(event).toMatchObject({ commission: '0', commissionAsset: '' });
   });
 
   it('decodes a balanceUpdate', () => {

@@ -146,6 +146,36 @@ describe('buildPersistence.persistOrder', () => {
     expect(orderUpsertLive).not.toHaveBeenCalled();
   });
 
+  it('closes an EXPIRED_IN_MATCH row — the STP terminator ends the order, it does not rest', async () => {
+    // The ledger reads the same terminal vocabulary as the open-orders cache.
+    // While it kept its own list, a self-trade-prevented order was evicted from
+    // the cache but written `closed_at`-NULL, so it occupied the live slot for
+    // its (profile, symbol, intent) and counted toward open exposure forever.
+    const clock = { nowMs: () => 1_700_000_000_000 };
+    const p = build({ clock });
+    await p.persistOrder(
+      {
+        userId,
+        profileId,
+        symbol: 'BTCUSDT',
+        side: 'BUY',
+        intent: 'manual',
+        binanceOrderId: 98n,
+        clientOrderId: 'cid-98',
+        status: 'EXPIRED_IN_MATCH',
+        raw: { server: 'response' },
+      },
+      CLOSE_PREV,
+    );
+    expect(orderInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'EXPIRED_IN_MATCH',
+        closedAt: new Date(1_700_000_000_000),
+      }),
+    );
+    expect(orderUpsertLive).not.toHaveBeenCalled();
+  });
+
   it('sources closedAt from raw.transactTime when present so it reflects the real fill time (issue #255)', async () => {
     const clock = { nowMs: () => 1_700_000_005_000 }; // 5s after the fill
     const p = build({ clock });

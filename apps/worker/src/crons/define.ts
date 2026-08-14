@@ -38,6 +38,7 @@ export type CronName =
   | 'orphan-orders-detect'
   | 'detached-orders-reconcile'
   | 'held-quantity-reconcile'
+  | 'archive-recovery-sweep'
   | 'stale-order-reap'
   | 'portfolio-risk'
   | 'edge-decay-monitor'

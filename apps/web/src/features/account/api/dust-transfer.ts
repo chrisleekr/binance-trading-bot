@@ -9,6 +9,7 @@ import {
   DustTransferResponse,
   type DustTransferRequest,
 } from '@app/contracts';
+import { z } from 'zod';
 
 import { apiFetch, encodePathSegment } from '@/shared/lib/api';
 import { accountPath } from '@/shared/lib/account-scope';
@@ -51,6 +52,20 @@ export const submitDustTransfer = (
       body,
     },
   );
+
+/**
+ * Revoke the queued dust conversions for one profile.
+ *
+ * Removes every conversion the worker has not started, so one click clears the
+ * queue: arming a dust transfer supersedes nothing, and a profile can hold
+ * several. A 409 means the worker is already converting an earlier one and the
+ * balance is moving; the server's message is the only thing that knows whether
+ * queued rows were removed alongside it, so callers surface it verbatim.
+ */
+export const cancelDustTransfer = (profileId: string): Promise<unknown> =>
+  apiFetch(accountPath(`/profiles/${encodePathSegment(profileId)}/dust-transfer`), z.unknown(), {
+    method: 'DELETE',
+  });
 
 /**
  * Fetch the profile's past dust conversions, most recent first. Any money-path

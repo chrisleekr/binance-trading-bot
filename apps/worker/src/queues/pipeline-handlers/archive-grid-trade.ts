@@ -120,7 +120,9 @@ interface ResolvedFees {
    * The same commissions valued in the quote asset, as a decimal string. A
    * commission asset that can be neither matched to the quote/base asset nor
    * priced via a ticker lookup is recorded in `fees` but EXCLUDED here (logged),
-   * so this is a conservative under-count rather than a fabricated value.
+   * so this is a conservative under-count rather than a fabricated value. A
+   * base-asset BUY commission is also excluded because the cost basis already
+   * expensed it; see {@link valueCommissionInQuote}.
    */
   readonly feesQuote: string;
 }
@@ -130,10 +132,18 @@ interface ResolvedFees {
  * price; anything else (e.g. BNB) at a `{asset}{quote}` ticker, cached per
  * archive call. Returns null when the asset cannot be priced so the caller can
  * record the raw fee but leave it out of the quote total instead of guessing.
+ *
+ * A base-asset BUY commission is valued at ZERO, and the asymmetry with a SELL
+ * is the whole point: on a BUY the exchange keeps coins it never credited, and
+ * the position's average entry price is already computed against that fee-net
+ * quantity, so the eventual exit's realised P/L has expensed the fee once
+ * already. Counting it again here would subtract it twice from `netProfit`. On
+ * a SELL the fee is taken out of proceeds the wallet would otherwise have
+ * received, which nothing else expenses, so it stays a real cost.
  */
 export const valueCommissionInQuote = async (
   client: BinanceRestClient,
-  trade: { commission: string; commissionAsset: string; price: string },
+  trade: { commission: string; commissionAsset: string; price: string; isBuyer: boolean },
   baseAsset: string,
   quoteAsset: string,
   priceCache: Map<string, Decimal | null>,
@@ -141,7 +151,9 @@ export const valueCommissionInQuote = async (
   const commission = new Decimal(trade.commission);
   if (commission.isZero()) return new Decimal(0);
   if (trade.commissionAsset === quoteAsset) return commission;
-  if (trade.commissionAsset === baseAsset) return commission.mul(new Decimal(trade.price));
+  if (trade.commissionAsset === baseAsset) {
+    return trade.isBuyer ? new Decimal(0) : commission.mul(new Decimal(trade.price));
+  }
   const pair = `${trade.commissionAsset}${quoteAsset}`;
   let price = priceCache.get(pair);
   if (price === undefined) {
@@ -328,6 +340,10 @@ export const handleArchiveGridTrade = async (
     breakdown: summary.breakdown,
     profit: summary.profit,
     profitPercent: summary.profitPercent,
+    // Persist the gap, not just the warn above: once the row is written, an
+    // under-counted `profit` of 0 is indistinguishable from a real break-even,
+    // and only this count lets the API and UI say "unavailable" instead.
+    missingCostBasis: summary.missingCostBasis,
     orders: orderSummaries,
     fees,
     feesQuote,

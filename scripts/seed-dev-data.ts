@@ -920,18 +920,13 @@ async function main(): Promise<void> {
       }
       // Shell-sourceable so the harness can export these straight into
       // Playwright's environment, the same channel the Binance fixture uses.
-      // Single-quoted, not JSON: the harness `source`s this file, and the shell
-      // expands `$`, backticks and backslashes inside double quotes, so a
-      // password carrying any of them would be sourced as a different string
-      // than the one seeded and the sign-in step would fail on the wrong error.
-      const shellQuote = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`;
       await writeFile(
         process.env['SEED_MANIFEST_PATH']!,
         [
-          `export E2E_USER_EMAIL=${shellQuote(OPERATOR_EMAIL)}`,
-          `export E2E_USER_PASSWORD=${shellQuote(OPERATOR_PASSWORD)}`,
-          `export E2E_ACCOUNT_ID=${shellQuote(op.accountId)}`,
-          `export E2E_PROFILE_ID=${shellQuote(first.id)}`,
+          `export E2E_USER_EMAIL=${JSON.stringify(OPERATOR_EMAIL)}`,
+          `export E2E_USER_PASSWORD=${JSON.stringify(OPERATOR_PASSWORD)}`,
+          `export E2E_ACCOUNT_ID=${JSON.stringify(op.accountId)}`,
+          `export E2E_PROFILE_ID=${JSON.stringify(first.id)}`,
           '',
         ].join('\n'),
       );

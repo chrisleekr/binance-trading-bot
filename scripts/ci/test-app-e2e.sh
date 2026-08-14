@@ -81,10 +81,7 @@ export DATABASE_URL="$DATABASE_TEST_URL"
 export REDIS_URL="$REDIS_TEST_URL"
 export NODE_ENV=test
 export AUTH_SECRET=app-e2e-only-auth-secret-0123456789abcdef
-# 127.0.0.1, not localhost: the api binds IPv4 only, and a runner whose resolver
-# returns ::1 first would make the CORS origin, the readiness probe, and
-# Playwright's baseURL point at a socket nothing is listening on.
-export WEB_ORIGIN=http://127.0.0.1:53000
+export WEB_ORIGIN=http://localhost:53000
 export WEB_DIST_DIR="$REPO_ROOT/apps/web/dist"
 export ROLE=all
 export PORT=53000
@@ -125,7 +122,7 @@ bun apps/server/src/index.ts >"$RUN_ROOT/app.log" 2>&1 &
 APP_PID=$!
 
 if ! bun scripts/ci/wait-app-e2e-url.ts http://127.0.0.1:9100/readyz "$APP_PID" 120000 ||
-  ! bun scripts/ci/wait-app-e2e-url.ts http://127.0.0.1:53000/login "$APP_PID" 120000; then
+  ! bun scripts/ci/wait-app-e2e-url.ts http://localhost:53000/login "$APP_PID" 120000; then
   cat "$RUN_ROOT/app.log" >&2
   exit 1
 fi

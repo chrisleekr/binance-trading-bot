@@ -14,6 +14,7 @@ import type { Redis } from 'ioredis';
 import type { AccountId, ProfileId } from '@app/contracts';
 import { buildAccountInfoKey, buildUserStreamEventKey } from 'executor/redis-namespace.js';
 import { ACCOUNT_INFO_TTL_S, writeAccountInfo } from 'lib/account-info-writer.js';
+import { writeAccountPermissions } from 'lib/account-permissions.js';
 
 type BalanceMap = Record<string, { free: string; locked: string }>;
 
@@ -80,6 +81,16 @@ export interface AccountSnapshotStore {
    * closes that hole.
    */
   readonly accountInfoExists: (accountId: AccountId, profileId: ProfileId) => Promise<boolean>;
+  /**
+   * Cache the permission tags from the same `getAccount` response that fed
+   * `persistAccount`. Account-scoped, not profile-scoped: the tags belong to
+   * the key pair. Lives on this store so the callers that already hold it need
+   * no second Redis handle.
+   */
+  readonly persistAccountPermissions: (
+    accountId: AccountId,
+    permissions: readonly string[] | undefined,
+  ) => Promise<void>;
 }
 
 export const createAccountSnapshotStore = (redis: Redis): AccountSnapshotStore => ({
@@ -116,4 +127,6 @@ export const createAccountSnapshotStore = (redis: Redis): AccountSnapshotStore =
   },
   accountInfoExists: async (accountId, profileId) =>
     (await redis.exists(buildAccountInfoKey(accountId, profileId))) === 1,
+  persistAccountPermissions: (accountId, permissions) =>
+    writeAccountPermissions(redis, accountId, permissions),
 });

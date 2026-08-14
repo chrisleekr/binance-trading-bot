@@ -350,6 +350,11 @@ const cancelOne = async (
  * retry re-derives the plan cleanly) or commits a fully seeded target. `withTx`
  * re-brands each already-proven scope onto the transaction handle, so both repos
  * ride the same transaction with their ownership proof intact.
+ *
+ * The unbind also tears the source's per-symbol state down, cost basis included,
+ * so nothing here deletes it a second time. Safe because the values were read
+ * into `positions` before this ran, and the target is seeded from that copy
+ * inside the same transaction: the row is re-pointed, never lost.
  */
 const handoffPositions = async (
   db: Database,
@@ -363,7 +368,6 @@ const handoffPositions = async (
     const tgt = profileRepoFromScope(withTx(target.scope, tx));
     for (const position of positions) {
       await src.profileSymbols.remove(position.symbol);
-      await src.avgEntryPrices.remove(position.symbol);
       await tgt.profileSymbols.upsert(position.symbol, position.baseAsset, {
         source: 'manual',
         ...(position.overrideConfig != null

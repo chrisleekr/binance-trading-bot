@@ -187,7 +187,11 @@ const buildDashboard = async (
     // count test-mode practice positions or a different quote unit).
     repo.avgEntryPrices.sumDeployedQuoteForAccount(di.db, p.scope.accountId, profile.quoteAsset),
     p.profileSymbols.listForProfile(),
-    p.actionLogs.listRecent(ACTIVITY_SCAN),
+    // Narrow to discovery rows in SQL, not in `toActivity`. Scanning the newest
+    // 200 rows of every kind worked while `action_logs` held only actionable
+    // ticks; deep capture writes a row per tick per symbol, so 200 rows now
+    // covers a few minutes and the activity feed silently empties out.
+    p.actionLogs.listPage(ACTIVITY_SCAN, null, { source: 'auto' }),
     di.redis.raw().get(GLOBAL_KEYS.discoveryExplain(unwrapId(p.scope.profileId))),
     readQuoteCash(di, p, profile.quoteAsset),
   ]);

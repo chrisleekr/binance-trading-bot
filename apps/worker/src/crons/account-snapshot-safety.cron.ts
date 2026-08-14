@@ -39,6 +39,11 @@ export interface AccountSnapshotSafetyDeps {
     profileId: ProfileId,
     balances: readonly { asset: string; free: string; locked: string }[],
   ) => Promise<void>;
+  /** Cache the permission tags carried on the same `getAccount` response. */
+  readonly persistAccountPermissions: (
+    accountId: AccountId,
+    permissions: readonly string[] | undefined,
+  ) => Promise<void>;
   readonly lastWsEventMs: (accountId: AccountId, profileId: ProfileId) => Promise<number | null>;
   readonly accountInfoExists: (accountId: AccountId, profileId: ProfileId) => Promise<boolean>;
   readonly clock?: { nowMs(): number };
@@ -102,6 +107,7 @@ export const accountSnapshotSafetyHandler = (deps: AccountSnapshotSafetyDeps) =>
         if (!rest) return 'skipped';
         const account = await rest.getAccount();
         await deps.persistAccount(profile.accountId, profile.profileId, account.balances);
+        await deps.persistAccountPermissions(profile.accountId, account.permissions);
         lastFullReconcileMs.set(id, now);
         return 'refreshed';
       },
@@ -135,6 +141,7 @@ export const buildAccountSnapshotSafetyCron = (ctx: BootContext): CronDef => {
       listActive: ctx.listActive,
       resolveBinance: ctx.resolveBinanceClient,
       persistAccount: store.persistAccount,
+      persistAccountPermissions: store.persistAccountPermissions,
       lastWsEventMs: store.lastWsEventMs,
       accountInfoExists: store.accountInfoExists,
     }),

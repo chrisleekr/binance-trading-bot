@@ -27,7 +27,7 @@
 //   - FILLED                  -> reclaim the row to FILLED with the
 //                                exchange's executedQty / cummulativeQuoteQty
 //                                so the archive cost basis is truthful.
-//   - CANCELED/EXPIRED/REJECTED-> reap (close) with the real terminal status.
+//   - any terminal non-fill    -> reap (close) with the real terminal status.
 //   - getOrder -2013 (unknown) -> the order never existed on Binance (dev
 //                                seed / manual row): reap as CANCELED.
 //   - transient query failure  -> leave the row live; retry next boot rather
@@ -52,7 +52,7 @@
 import type { Logger } from 'pino';
 import { accountRepoFromScope, profileRepo, toAccountScope, type Database } from '@app/db';
 import { BinanceApiError, type BinanceRestClient, type OpenOrderDto } from '@app/binance';
-import type { AccountId, ProfileId, UserId } from '@app/contracts';
+import { isTerminalOrderStatus, type AccountId, type ProfileId, type UserId } from '@app/contracts';
 import type { ActiveProfile } from 'profile-manager/profile-manager.js';
 
 export interface ReapStaleOrdersDeps {
@@ -95,8 +95,15 @@ type ReapBinance = NonNullable<Awaited<ReturnType<ReapStaleOrdersDeps['resolveBi
  */
 const REAPABLE_STATUSES = new Set(['NEW', 'PARTIALLY_FILLED']);
 
-/** Terminal statuses that mean the candidate genuinely left the book as a non-fill. */
-const CLOSED_NOT_FILLED = new Set(['CANCELED', 'EXPIRED', 'REJECTED']);
+/**
+ * Whether the candidate genuinely left the book as a non-fill. Derived from the
+ * shared terminal vocabulary rather than a local list so a status the exchange
+ * treats as terminal (`EXPIRED_IN_MATCH`, the self-trade-prevention terminator)
+ * cannot be terminal for the open-orders cache and still "resting" here — which
+ * left the row open forever, holding the live slot and the account's exposure.
+ */
+const isClosedNotFilled = (status: string): boolean =>
+  isTerminalOrderStatus(status) && status.toUpperCase() !== 'FILLED';
 
 /** Binance `getOrder` code for an order id that never existed on the account. */
 const ORDER_NOT_EXIST = -2013;
@@ -212,7 +219,7 @@ export const reconcileMissingOrder = async (
     return 'skipped';
   }
 
-  if (CLOSED_NOT_FILLED.has(order.status)) {
+  if (isClosedNotFilled(order.status)) {
     const closed = await accountOrders.reapWithReason(
       target.binanceOrderId,
       order.status,

@@ -15,9 +15,18 @@ Completed trades with their profit and loss. Controls:
 - **Period** — `All time`, `Today`, `This week`, `This month`.
 - **P/L** basis toggle — **Net of fees** (profit after Binance fees) or **Gross** (before fees). Net is the honest number; run **Reconcile fees** (below) if fees look missing.
 - Summaries: **P/L by exit reason** and **P/L by source**.
-- **Backfill** — reconstruct trades for a symbol (enter e.g. `WLDUSDT`, press **Backfill**); reconstructed trades appear shortly.
+- **Recover a specific coin** — a collapsed section for a coin that is missing from the list below and from the notices above it (enter e.g. `WLDUSDT`, press **Backfill**); reconstructed trades appear shortly. Safe to re-run, and the coin need not still be trading.
 
 **Columns:** Symbol · Exit · Buy · Sell · Net PnL (or PnL in gross basis) · PnL% · Fees (commission paid to Binance) · Time · row actions.
+
+### When history is incomplete
+
+Two notices can appear above the table, and they mean different things.
+
+- **Trade history incomplete** (a yellow warning) — these coins have fills on Binance but no saved profit/loss here. **While the profile is running**, the bot retries them by itself every 15 minutes, so they usually clear without you doing anything. A **paused profile is not swept**, so nothing retries until you resume it — press **Recover all** to repair it now, and press it any time you would rather not wait for the next pass.
+- A quieter grey note lists coins a recovery already tried and could not rebuild, each with its reason: no closed buy → sell cycle yet, sold without a recorded buy, sold more than was bought here, or Binance no longer lists the coin. There is nothing to do about those, so there is no button — **✕** hides one and **Show hidden** brings it back.
+
+A row itself can read **P/L unavailable** with an em-dash in the PnL% column. That means the bot has no record of what the coin originally cost, so it cannot work out the profit or loss. On those rows the **Buy** and **Sell** figures count only the part it could match, so they read low too, and the summaries above count the trade as zero. It is an unmeasured trade, not a break-even one.
 
 ## Audit
 

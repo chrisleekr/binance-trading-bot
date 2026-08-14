@@ -1,4 +1,4 @@
-import { integer, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { profiles } from './profiles.js';
 
 // Records that a trade-archive backfill was attempted for a (profile, symbol)
@@ -22,6 +22,10 @@ export const backfillAttempts = pgTable(
     roundTrips: integer('round_trips').notNull(),
     skippedOrphanSells: integer('skipped_orphan_sells').notNull().default(0),
     droppedOvershoot: integer('dropped_overshoot').notNull().default(0),
+    // The attempt gave up because Binance no longer lists the symbol, so there
+    // is nothing to reconstruct and no retry can change that. Distinct from a
+    // zero/zero attempt, which means "checked, found no closed cycle".
+    symbolUnavailable: boolean('symbol_unavailable').notNull().default(false),
     attemptedAt: timestamp('attempted_at', { withTimezone: true }).notNull().defaultNow(),
     // Null while the coin shows in the "no recoverable history" note; set when
     // the operator hides it, cleared again on un-hide. Server-side per

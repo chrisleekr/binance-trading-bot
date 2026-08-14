@@ -74,6 +74,7 @@ export {
   profilePrefix,
   dashboardAggregateCacheKey,
   openOrdersKey,
+  accountPermissionsKey,
   eventsChannelKey,
   eventsStreamKey,
   eventsSeqKey,

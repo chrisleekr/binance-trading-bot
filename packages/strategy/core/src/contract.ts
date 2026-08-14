@@ -48,6 +48,14 @@ export interface SymbolInfo {
   readonly quoteAsset: string;
   readonly status: string;
   readonly filters: SymbolFilters;
+  /**
+   * Binance's tradability sets: the account must hold one permission from every
+   * set or every order on this symbol is refused. Optional because the cached
+   * entries written before the field existed are parsed with an unvalidated cast
+   * and there is no migration, so a reader must treat absence as "unknown", never
+   * as "permits nothing".
+   */
+  readonly permissionSets?: readonly (readonly string[])[];
 }
 
 export interface ApiLimits {

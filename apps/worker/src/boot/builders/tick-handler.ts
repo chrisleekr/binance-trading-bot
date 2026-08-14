@@ -11,7 +11,11 @@ import type { Redis } from 'ioredis';
 import { GLOBAL_KEYS, profileRepoFromScope, type Database } from '@app/db';
 
 import { strategies as strategiesRegistry } from 'strategies.js';
-import { createRedisWindowThrottle } from 'executor/notifier-gap-throttle.js';
+import {
+  createRedisWindowThrottle,
+  SYMBOL_DELISTED_KEY_PREFIX,
+  SYMBOL_NOT_PERMITTED_RETIRE_KEY_PREFIX,
+} from 'executor/notifier-gap-throttle.js';
 import { reapAutoBinding } from 'crons/discovery-reap.js';
 import { buildProfileTickContext } from 'profile-bindings/tick-context.js';
 import { QUEUE_NAMES } from 'queues/queue-names.js';
@@ -202,7 +206,7 @@ export const buildTickHandler = ({
         symbol,
         Date.now(),
       ),
-    // After a delisted binding is reaped, tell the WS to drop the now-unbound
+    // After either self-heal reaps a binding, tell the WS to drop the now-unbound
     // symbol promptly: the same `reconfigure-profile` resync the discovery cron
     // and the api symbol routes enqueue. The payload MUST carry accountId — the
     // pipeline worker fails a resync missing it as pipeline_invalid_payload.
@@ -214,7 +218,17 @@ export const buildTickHandler = ({
     delistThrottle: createRedisWindowThrottle({
       redis,
       logger,
-      prefix: 'symbol-delisted-throttle:',
+      prefix: SYMBOL_DELISTED_KEY_PREFIX,
+      windowMs: 3_600_000,
+    }),
+    // Its OWN key namespace — not the delist throttle's, and not the placement
+    // refusal's either. Every one of these windows is keyed (profile, symbol), so
+    // a shared prefix is a shared Redis key: whichever cause fired first would
+    // mute the other for an hour, and the placement refusal always fires first.
+    notPermittedThrottle: createRedisWindowThrottle({
+      redis,
+      logger,
+      prefix: SYMBOL_NOT_PERMITTED_RETIRE_KEY_PREFIX,
       windowMs: 3_600_000,
     }),
     // Spread only when defined: `exactOptionalPropertyTypes` rejects an explicit

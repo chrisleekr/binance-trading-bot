@@ -278,21 +278,28 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
   });
 
   it('splits recoverableSymbols vs unreconstructableSymbols by backfill attempt', async () => {
-    // Bob already has AAAUSDT/BBBUSDT archive rows (prior test). Fills on a coin
-    // with NO archive and no attempt (PEPEUSDT) → recoverable; on one that DOES
-    // (AAAUSDT) → neither. A coin attempted-and-empty (FOOUSDT, overshoot) →
-    // unreconstructable with a reason. Proves the route wires both repo lists.
+    // Bob already has AAAUSDT/BBBUSDT archive rows (prior test). A CLOSED cycle
+    // (a BUY and a SELL) with NO archive and no attempt (PEPEUSDT) →
+    // recoverable; one that DOES have an archive (AAAUSDT) → neither. A coin
+    // attempted-and-empty (OVERUSDT, overshoot) → unreconstructable with a
+    // reason. Proves the route wires both repo lists.
+    // `applied_at` is back-dated because the recoverable list waits for a closing
+    // SELL to settle (the forward archive gets first claim on a cycle it may
+    // still be writing); fills stamped `now()` are deliberately not yet listed.
+    const SETTLED = `now() - interval '1 hour'`;
     await fx.di.pool.query(
-      `insert into applied_fills (profile_id, symbol, order_id, trade_id, side)
-       values ($1,'PEPEUSDT',901,901,'BUY'), ($1,'AAAUSDT',902,902,'BUY'),
-              ($1,'OVERUSDT',903,903,'BUY'), ($1,'ORPHUSDT',904,904,'BUY'),
-              ($1,'OPENUSDT',905,905,'BUY'), ($1,'BOTHUSDT',906,906,'BUY')`,
+      `insert into applied_fills (profile_id, symbol, order_id, trade_id, side, applied_at)
+       values ($1,'PEPEUSDT',901,901,'BUY',${SETTLED}), ($1,'PEPEUSDT',907,907,'SELL',${SETTLED}),
+              ($1,'AAAUSDT',902,902,'BUY',${SETTLED}),
+              ($1,'OVERUSDT',903,903,'BUY',${SETTLED}), ($1,'ORPHUSDT',904,904,'BUY',${SETTLED}),
+              ($1,'OPENUSDT',905,905,'BUY',${SETTLED}), ($1,'BOTHUSDT',906,906,'BUY',${SETTLED}),
+              ($1,'GONEUSDT',908,908,'BUY',${SETTLED})`,
       [fx.bob.profileId],
     );
     await fx.di.pool.query(
-      `insert into backfill_attempts (profile_id, symbol, round_trips, skipped_orphan_sells, dropped_overshoot)
-       values ($1,'OVERUSDT',0,0,4), ($1,'ORPHUSDT',0,2,0), ($1,'OPENUSDT',0,0,0),
-              ($1,'BOTHUSDT',0,1,1)`,
+      `insert into backfill_attempts (profile_id, symbol, round_trips, skipped_orphan_sells, dropped_overshoot, symbol_unavailable)
+       values ($1,'OVERUSDT',0,0,4,false), ($1,'ORPHUSDT',0,2,0,false), ($1,'OPENUSDT',0,0,0,false),
+              ($1,'BOTHUSDT',0,1,1,false), ($1,'GONEUSDT',0,0,0,true)`,
       [fx.bob.profileId],
     );
 
@@ -319,7 +326,90 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
     expect(reasonBy['ORPHUSDT']).toBe('orphan-sells');
     expect(reasonBy['OPENUSDT']).toBe('open-or-pre-history');
     expect(reasonBy['BOTHUSDT']).toBe('overshoot');
+    // A delisted coin outranks the count-derived reasons: nothing can be read
+    // for it at all, so "no closed cycle" would misdescribe why.
+    expect(reasonBy['GONEUSDT']).toBe('symbol-unavailable');
     expect(body.unreconstructableSymbols.map((u) => u.symbol)).not.toContain('PEPEUSDT');
+  });
+
+  it('round-trips its own nextCursor: the emitted cursor pages instead of 422ing', async () => {
+    // The emitted cursor is composite (`<iso>__<row id>`) but the query schema
+    // validated it as a bare ISO timestamp, so echoing back `nextCursor` — the
+    // only thing a client can do with it — was rejected at the boundary and the
+    // archive was permanently pinned to its first page.
+    const url = `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive`;
+    const page = async (cursor?: string) => {
+      const res = await fx.app.request(
+        cursor === undefined
+          ? `${url}?limit=1`
+          : `${url}?limit=1&cursor=${encodeURIComponent(cursor)}`,
+        { method: 'GET', headers: headers(fx.bob.userId) },
+      );
+      return {
+        status: res.status,
+        body: (await res.json()) as { items: { id: string }[]; nextCursor: string | null },
+      };
+    };
+
+    const first = await page();
+    expect(first.status).toBe(200);
+    expect(first.body.nextCursor).toMatch(/__/);
+
+    const second = await page(first.body.nextCursor ?? '');
+    expect(second.status).toBe(200);
+    expect(second.body.items).toHaveLength(1);
+    // A different row: the cursor advanced rather than replaying page one.
+    expect(second.body.items[0]?.id).not.toBe(first.body.items[0]?.id);
+  });
+
+  it('still rejects a cursor that is neither an ISO timestamp nor `<iso>__<id>`', async () => {
+    // Widening the schema must not make it accept anything: the timestamp half
+    // is parsed into a Date and the id half is compared against a `uuid`
+    // column, so garbage belongs in the schema's 422, not a Postgres cast error.
+    const res = await fx.app.request(
+      `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive?cursor=not-a-cursor`,
+      { method: 'GET', headers: headers(fx.bob.userId) },
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it('rejects a well-formed cursor whose row-id half is not a uuid', async () => {
+    // The timestamp half parses, so only the uuid check stands between this and
+    // `lt(trade_archive.id, ...)` against a `uuid` column — which fails as a
+    // Postgres cast error (500), not a bad request.
+    const res = await fx.app.request(
+      `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive?cursor=${encodeURIComponent('2026-01-01T00:00:00.000Z__not-a-uuid')}`,
+      { method: 'GET', headers: headers(fx.bob.userId) },
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it('surfaces missingCostBasis so an under-counted row is not read as a break-even', async () => {
+    // `profit = 0` from a SELL with no cost basis is indistinguishable from a
+    // genuine break-even on the wire. The count is what lets the UI say
+    // "unavailable" instead of rendering a number nobody measured.
+    await fx.di.pool.query(
+      `insert into trade_archive
+         (profile_id, symbol, base_asset, quote_asset, total_buy_quote,
+          total_sell_quote, profit, profit_percent, breakdown, orders, fees,
+          missing_cost_basis, archived_at)
+       values ($1,'NOCBUSDT','NOCB','USDT','0','50','0','0','{}'::jsonb,'[]'::jsonb,'{}'::jsonb,
+               2, now())`,
+      [fx.bob.profileId],
+    );
+
+    const res = await fx.app.request(
+      `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive?limit=200`,
+      { method: 'GET', headers: headers(fx.bob.userId) },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      items: { symbol: string; missingCostBasis: number }[];
+    };
+    const bySymbol = Object.fromEntries(body.items.map((i) => [i.symbol, i.missingCostBasis]));
+    expect(bySymbol['NOCBUSDT']).toBe(2);
+    // A fully-costed row reports 0, so the flag means something.
+    expect(bySymbol['AAAUSDT']).toBe(0);
   });
 
   it('hides + un-hides an unreconstructable coin via the dismiss endpoint', async () => {

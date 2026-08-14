@@ -125,6 +125,7 @@ describe('accountSnapshotSafetyHandler', () => {
   const stubRest = {
     getAccount: vi.fn(async () => ({
       balances: [{ asset: 'BTC', free: '1', locked: '0' }],
+      permissions: ['SPOT', 'TRD_GRP_025'],
     })),
   };
 
@@ -136,6 +137,7 @@ describe('accountSnapshotSafetyHandler', () => {
       listActive: () => [profile('p1', ['BTCUSDT'])],
       resolveBinance,
       persistAccount,
+      persistAccountPermissions: vi.fn(async () => undefined),
       // WS event 10s ago — inside the 30s staleness window.
       lastWsEventMs: async () => 990_000,
       accountInfoExists: async () => true,
@@ -160,6 +162,7 @@ describe('accountSnapshotSafetyHandler', () => {
       listActive: () => [profile('p1', ['BTCUSDT'])],
       resolveBinance: async () => stubRest as never,
       persistAccount,
+      persistAccountPermissions: vi.fn(async () => undefined),
       // WS always fresh and cache always present — only the interval forces it.
       lastWsEventMs: async () => nowMs - 1_000,
       accountInfoExists: async () => true,
@@ -203,11 +206,13 @@ describe('accountSnapshotSafetyHandler', () => {
     // lapses. Without the presence check the cron would skip and leave the
     // dashboard blank; with it, an absent cache forces a refresh.
     const persistAccount = vi.fn(async () => undefined);
+    const persistAccountPermissions = vi.fn(async () => undefined);
     await accountSnapshotSafetyHandler({
       logger: stubLogger,
       listActive: () => [profile('p1', ['BTCUSDT'])],
       resolveBinance: async () => stubRest as never,
       persistAccount,
+      persistAccountPermissions,
       lastWsEventMs: async () => 990_000,
       accountInfoExists: async () => false,
       clock: { nowMs: () => 1_000_000 },
@@ -216,6 +221,10 @@ describe('accountSnapshotSafetyHandler', () => {
     expect(persistAccount).toHaveBeenCalledWith('a1', 'p1', [
       { asset: 'BTC', free: '1', locked: '0' },
     ]);
+    // The permission cache key is deliberately TTL-less, and this cron is what
+    // `@app/db`'s `accountPermissionsKey` names as its periodic-refresh
+    // guarantee. Unasserted, that guarantee could be deleted without a failure.
+    expect(persistAccountPermissions).toHaveBeenCalledWith('a1', ['SPOT', 'TRD_GRP_025']);
   });
 
   it('REST-refreshes and persists when no WS event is recorded', async () => {
@@ -228,6 +237,7 @@ describe('accountSnapshotSafetyHandler', () => {
       listActive: () => [profile('p1', ['BTCUSDT'])],
       resolveBinance: async () => stubRest as never,
       persistAccount,
+      persistAccountPermissions: vi.fn(async () => undefined),
       lastWsEventMs: async () => null,
       accountInfoExists,
       clock: { nowMs: () => 1_000_000 },
@@ -245,6 +255,7 @@ describe('accountSnapshotSafetyHandler', () => {
       listActive: () => [profile('p1', ['BTCUSDT'])],
       resolveBinance: async () => null,
       persistAccount,
+      persistAccountPermissions: vi.fn(async () => undefined),
       lastWsEventMs: async () => null,
       accountInfoExists: async () => true,
     })(job);
@@ -264,6 +275,7 @@ describe('accountSnapshotSafetyHandler', () => {
         listActive: () => [profile('p1', ['BTCUSDT'], 'a1'), profile('p2', ['ETHUSDT'], 'a2')],
         resolveBinance,
         persistAccount,
+        persistAccountPermissions: vi.fn(async () => undefined),
         lastWsEventMs: async () => null,
         accountInfoExists: async () => true,
       })(job),

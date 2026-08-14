@@ -98,7 +98,31 @@ vi.mock('@app/db', async (importOriginal) => {
   };
 });
 
-const silentLogger = new Proxy({} as Logger, { get: () => () => undefined }) as Logger;
+interface LogEntry {
+  readonly level: string;
+  readonly msg: string;
+}
+
+// Recording logger: a stepSize-lookup failure must SURFACE the un-flattenable
+// residual, so the log line is an assertable contract, not noise.
+const makeRecordingLogger = (): { logger: Logger; entries: LogEntry[] } => {
+  const entries: LogEntry[] = [];
+  const at =
+    (level: string) =>
+    (_obj: unknown, msg?: unknown): void => {
+      entries.push({ level, msg: String(msg ?? '') });
+    };
+  const logger = {
+    trace: at('trace'),
+    debug: at('debug'),
+    info: at('info'),
+    warn: at('warn'),
+    error: at('error'),
+    fatal: at('fatal'),
+    child: () => logger,
+  } as unknown as Logger;
+  return { logger, entries };
+};
 
 const USER_ID = asUserId('00000000-0000-0000-0000-000000000001');
 const ACCOUNT_ID = asAccountId('00000000-0000-0000-0000-000000000003');
@@ -135,6 +159,7 @@ const makeAdopter = (
   notifyEvent?: Parameters<typeof createFillAdopter>[0]['notifyEvent'],
 ) => {
   const { redis, store } = makeRedisStub();
+  const { logger, entries: logs } = makeRecordingLogger();
   // Phase A RED: the clear-SELL branch must enqueue the existing
   // archive-grid-trade pipeline job. Fake the queue so the call is asserted.
   const pipelineQueue = { add: vi.fn() };
@@ -173,7 +198,7 @@ const makeAdopter = (
   } as unknown as Parameters<typeof createFillAdopter>[0]['db'];
   const statePort = createStatePort({
     redis,
-    logger: silentLogger,
+    logger,
     registry,
     // The adopter only uses the scope-based `mutate` path, which never
     // touches cold-load; supply a stub that throws if it is unexpectedly
@@ -188,7 +213,7 @@ const makeAdopter = (
   const adopter = createFillAdopter({
     db: fakeDb,
     chain: createChainByKey(),
-    logger: silentLogger,
+    logger,
     statePort,
     registry,
     pipelineQueue: pipelineQueue as unknown as Parameters<
@@ -206,7 +231,7 @@ const makeAdopter = (
     } as unknown as Parameters<typeof createFillAdopter>[0]['symbolInfo'],
     notifyEvent,
   });
-  return { adopter, redis, store, persistSymbolState, registry, pipelineQueue };
+  return { adopter, redis, store, persistSymbolState, registry, pipelineQueue, logs };
 };
 
 const defaultProfile = () => ({
@@ -483,12 +508,14 @@ describe('createFillAdopter', () => {
       expect(pipelineQueue.add).toHaveBeenCalledTimes(1);
     });
 
-    it('degrades to the no-flatten behavior when the stepSize lookup fails (delisted symbol)', async () => {
+    it('degrades to the no-flatten behavior when the stepSize lookup fails, and surfaces the strand', async () => {
       reset();
       // symbolInfo.get throws (delisted). sellStepSize falls back to undefined,
       // so resolveFill uses the historical exact-zero residual rule: a sub-step
       // residual is NOT flattened — the fill still completes (never blocked).
-      const { adopter } = makeAdopter('0.0001', true);
+      // The residual is unverifiable, not proven real, so it must be surfaced
+      // rather than left as a silent phantom position that blocks re-entry.
+      const { adopter, logs } = makeAdopter('0.0001', true);
       repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
         avgEntryPrice: '60000',
         quantity: '0.001',
@@ -516,6 +543,15 @@ describe('createFillAdopter', () => {
         avgEntryPrice: '60000',
         quantity: '0.00001',
       });
+      // Not silent: an operator-visible activity row plus an error-level log
+      // naming the residual, so a stranded position is diagnosable.
+      const msgs = repoMocks.actionLogsAppend.mock.calls.map((c) => (c[0] as { msg: string }).msg);
+      expect(msgs).toContain(
+        `Could not confirm ${SYMBOL} was fully sold: 0.00001 still tracked, and the exchange's trading rules were unavailable to check whether that amount is too small to sell`,
+      );
+      expect(
+        logs.filter((l) => l.level === 'error' && l.msg.includes('could not be checked against')),
+      ).toHaveLength(1);
     });
 
     it('keeps the position when the SELL residual is at or above one LOT_SIZE step', async () => {

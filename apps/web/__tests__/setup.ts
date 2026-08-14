@@ -130,23 +130,11 @@ export const finishWebTest = (): void => {
     } finally {
       cleanupInProgress = false;
     }
-    // Every check runs before anything throws. The `finally` below reinstalls
-    // the fetch sentinel, which drops what it recorded, so a test that both
-    // warns and leaks a request would lose the request evidence if the first
-    // failure short-circuited the rest.
-    const failures: Error[] = [];
     if (warningBeforeCleanup) {
-      failures.push(new Error(`React test contract violated: ${String(warningBeforeCleanup[0])}`));
+      throw new Error(`React test contract violated: ${String(warningBeforeCleanup[0])}`);
     }
-    for (const audit of [auditReactActWarnings, auditUnexpectedFetches]) {
-      try {
-        audit();
-      } catch (error) {
-        failures.push(error as Error);
-      }
-    }
-    if (failures.length === 1) throw failures[0];
-    if (failures.length > 1) throw new AggregateError(failures, 'Web test contract violated');
+    auditReactActWarnings();
+    auditUnexpectedFetches();
   } finally {
     vi.unstubAllGlobals();
     installFetchSentinel();

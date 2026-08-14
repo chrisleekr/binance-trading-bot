@@ -177,3 +177,40 @@ export const createUnfundableThrottle = (deps: NotifierGapThrottleDeps): Notifie
     windowMs: deps.windowMs ?? DEFAULT_ORDER_UNFUNDABLE_WINDOW_MS,
     ...(deps.setTimeoutMs === undefined ? {} : { setTimeoutMs: deps.setTimeoutMs }),
   });
+
+/**
+ * Suppression window for the `order-symbol-not-permitted` alert. Same re-emission
+ * shape as the unfundable case, but strictly worse: the wallet can be freed in a
+ * minute, whereas a missing Binance permission is permanent until the operator
+ * unbinds the symbol or changes the account's permissions. One alert per
+ * (profile, symbol) per window.
+ */
+export const DEFAULT_SYMBOL_NOT_PERMITTED_WINDOW_MS = 3_600_000;
+
+export const SYMBOL_NOT_PERMITTED_KEY_PREFIX = 'symbol-not-permitted-throttle:';
+
+export const createSymbolNotPermittedThrottle = (
+  deps: NotifierGapThrottleDeps,
+): NotifierGapThrottle =>
+  createRedisWindowThrottle({
+    redis: deps.redis,
+    logger: deps.logger,
+    prefix: SYMBOL_NOT_PERMITTED_KEY_PREFIX,
+    windowMs: deps.windowMs ?? DEFAULT_SYMBOL_NOT_PERMITTED_WINDOW_MS,
+    ...(deps.setTimeoutMs === undefined ? {} : { setTimeoutMs: deps.setTimeoutMs }),
+  });
+
+/**
+ * The two tick-boundary self-heal records. Named here, beside the executor's
+ * prefixes, because that adjacency is what makes a collision visible: these four
+ * windows are all keyed `(profile, symbol)`, so two sharing a prefix would share
+ * one Redis key and whichever fired first would mute the other for an hour.
+ *
+ * `SYMBOL_NOT_PERMITTED_RETIRE_KEY_PREFIX` is deliberately NOT
+ * {@link SYMBOL_NOT_PERMITTED_KEY_PREFIX}: that one covers "an order was just
+ * refused", this one "the binding cannot be retired, act". Same cause, different
+ * moments, different operator fixes — and the refusal fires first, so sharing
+ * would swallow the one that asks for action.
+ */
+export const SYMBOL_DELISTED_KEY_PREFIX = 'symbol-delisted-throttle:';
+export const SYMBOL_NOT_PERMITTED_RETIRE_KEY_PREFIX = 'symbol-not-permitted-retire-throttle:';

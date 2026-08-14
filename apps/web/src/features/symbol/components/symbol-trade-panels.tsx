@@ -264,7 +264,7 @@ export function ManualTradePanel({ profileId, symbol }: SymbolTradePanelsProps):
     mutationFn: (body: ManualOrderRequest) => submitManualOrder(profileId, symbol, body),
     onSuccess: (res) => {
       setBanner({ kind: 'ok', message: 'Scheduled — waiting for the bot to run it…' });
-      outcomeWatch.watch(res.overrideActionId);
+      outcomeWatch.watch(res.overrideActionId, res.createdAt);
       setConfirmOpen(false);
       setForm(initialForm());
       firingRef.current = false;
@@ -546,7 +546,7 @@ export function ForceTriggerPanel({
     mutationFn: () => triggerBuy(profileId, symbol),
     onSuccess: (res) => {
       setBanner({ kind: 'ok', message: 'Force buy scheduled — waiting for the bot to run it…' });
-      outcomeWatch.watch(res.overrideActionId);
+      outcomeWatch.watch(res.overrideActionId, res.createdAt);
       setMode(null);
       firingRef.current = false;
     },
@@ -560,7 +560,7 @@ export function ForceTriggerPanel({
     mutationFn: () => triggerSell(profileId, symbol),
     onSuccess: (res) => {
       setBanner({ kind: 'ok', message: 'Force sell scheduled — waiting for the bot to run it…' });
-      outcomeWatch.watch(res.overrideActionId);
+      outcomeWatch.watch(res.overrideActionId, res.createdAt);
       setMode(null);
       firingRef.current = false;
     },

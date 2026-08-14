@@ -45,11 +45,23 @@ const buildDeps = (over: Partial<DiscoveryHealthDeps>): DiscoveryHealthDeps => (
   recentSnapshots: vi.fn(async () => fullWindow(true)),
   notify: vi.fn(async () => undefined),
   allowAlert: vi.fn(async () => true),
+  recordCondition: vi.fn(async () => undefined),
   clock: { nowMs: () => NOW },
   ...over,
 });
 
 const run = (deps: DiscoveryHealthDeps): Promise<void> => discoveryHealthHandler(deps)({} as Job);
+
+/** The code recorded for one condition on this pass, or undefined if untouched. */
+const codeFor = (
+  spy: DiscoveryHealthDeps['recordCondition'],
+  condition: string,
+): string | null | undefined =>
+  (
+    spy as unknown as {
+      mock: { calls: [ActiveProfile, { condition: string; code: string | null }][] };
+    }
+  ).mock.calls.find((c) => c[1].condition === condition)?.[1].code;
 
 describe('assessDiscoveryHealth', () => {
   it('reads an empty history as stale and not breadth-blocked', () => {
@@ -163,6 +175,75 @@ describe('discoveryHealthHandler', () => {
     // The healthy-path profile still alerted despite the first throwing.
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify.mock.calls[0][0].profileId).toBe(good.profileId);
+  });
+});
+
+// The conditions are the durable record of what is true now; the alerts are what
+// interrupts the operator. They are written on different rules on purpose, and
+// these pin that difference: an hourly alert window must never become the
+// resolution of "is discovery stale right now".
+describe('discovery-health condition recording', () => {
+  it('records both conditions open when both verdicts fire', async () => {
+    const recordCondition = vi.fn(async () => undefined);
+    await run(
+      buildDeps({
+        // Every row aged past the staleness bound: the verdict maxes over the
+        // whole window, so one old row among fresh ones is not a stall.
+        recentSnapshots: vi.fn(async () =>
+          fullWindow(false).map((s) => snap(s.capturedAtMs - 3 * REFRESH, false)),
+        ),
+        recordCondition,
+      }),
+    );
+    expect(codeFor(recordCondition, 'discovery-stale')).toBe('no-recent-scan');
+    expect(codeFor(recordCondition, 'discovery-breadth-blocked')).toBe('breadth-floor');
+  });
+
+  it('clears both conditions on a healthy pass, which no alert ever does', async () => {
+    const recordCondition = vi.fn(async () => undefined);
+    const notify = vi.fn(async () => undefined);
+    await run(
+      buildDeps({ recentSnapshots: vi.fn(async () => fullWindow(true)), notify, recordCondition }),
+    );
+    expect(notify).not.toHaveBeenCalled();
+    expect(codeFor(recordCondition, 'discovery-stale')).toBeNull();
+    expect(codeFor(recordCondition, 'discovery-breadth-blocked')).toBeNull();
+  });
+
+  it('records the condition even when the throttle suppresses the alert', async () => {
+    const recordCondition = vi.fn(async () => undefined);
+    const notify = vi.fn(async () => undefined);
+    await run(
+      buildDeps({
+        recentSnapshots: vi.fn(async () => [snap(NOW - 3 * REFRESH, true)]),
+        notify,
+        allowAlert: vi.fn(async () => false),
+        recordCondition,
+      }),
+    );
+    // Suppressing the notification must not make the profile look healthy.
+    expect(notify).not.toHaveBeenCalled();
+    expect(codeFor(recordCondition, 'discovery-stale')).toBe('no-recent-scan');
+  });
+
+  it('does not let a failed condition write suppress the alert', async () => {
+    const notify = vi.fn(async () => undefined);
+    await run(
+      buildDeps({
+        recentSnapshots: vi.fn(async () => [snap(NOW - 3 * REFRESH, true)]),
+        notify,
+        recordCondition: vi.fn(async () => {
+          throw new Error('condition boom');
+        }),
+      }),
+    );
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes no condition for a profile whose discovery is disabled', async () => {
+    const recordCondition = vi.fn(async () => undefined);
+    await run(buildDeps({ loadConfig: vi.fn(async () => null), recordCondition }));
+    expect(recordCondition).not.toHaveBeenCalled();
   });
 });
 

@@ -16,3 +16,13 @@ Rules Binance imposes:
 ## Converting
 
 The **Eligible assets** panel lists each convertible asset with its estimated BTC value and a checkbox. Tick the ones to convert; the footer shows how many you selected and the running BTC total. Press **Convert to BNB**. A **Recent conversions** panel below shows past runs and how much BNB each produced.
+
+Pressing **Convert to BNB** queues the conversion rather than running it on the spot. The bot picks queued conversions up every five minutes, so there is a real window in which one is waiting rather than done.
+
+## Cancelling
+
+While a conversion is waiting or running, a **Queued conversion** panel appears with a **Cancel queued conversion** button. It disappears once nothing is left to cancel, so a page showing only finished conversions offers no button — there is nothing there to undo.
+
+Cancelling removes **every** conversion this profile still has waiting, not just the most recent one. Dust requests do not replace each other, so pressing **Convert to BNB** twice leaves two of them queued.
+
+It cannot stop a conversion Binance has already started. If the bot is mid-conversion you get a message saying so, and any _other_ queued conversions are still removed. Wait for that one to finish and check **Recent conversions** before asking for another.

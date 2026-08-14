@@ -136,6 +136,40 @@ describeIfDb('summarizeArchiveSince — cost-basis accounting', () => {
     expect(Number(s.totalBuyQuote)).toBe(0);
     expect(s.missingCostBasis).toBe(1);
     expect(s.profitPercent).toBe('0');
+
+    // The under-count must SURVIVE onto the archive row. `profit = 0` from an
+    // un-costed SELL is indistinguishable from a genuine break-even once
+    // written, so the count is what lets the API and UI say "unavailable"
+    // instead of rendering a number nobody measured as `+0.00`.
+    const row = await ap.tradeArchive.insert({
+      symbol: 'CCCUSDT',
+      baseAsset: 'CCC',
+      quoteAsset: 'USDT',
+      totalBuyQuote: s.totalBuyQuote,
+      totalSellQuote: s.totalSellQuote,
+      breakdown: s.breakdown,
+      profit: s.profit,
+      profitPercent: s.profitPercent,
+      missingCostBasis: s.missingCostBasis,
+      archivedAt: new Date('2026-06-14T10:05:00Z'),
+      cycleEnd: new Date('2026-06-14T10:00:00Z'),
+    });
+    expect(row?.missingCostBasis).toBe(1);
+  });
+
+  it('a fully-costed archive row records zero missing cost bases (the column default is not a guess)', async () => {
+    const row = await ap.tradeArchive.insert({
+      symbol: 'EEEUSDT',
+      baseAsset: 'EEE',
+      quoteAsset: 'USDT',
+      totalBuyQuote: '100',
+      totalSellQuote: '110',
+      profit: '10',
+      profitPercent: '10',
+      archivedAt: new Date('2026-06-15T10:00:00Z'),
+      cycleEnd: new Date('2026-06-15T10:00:00Z'),
+    });
+    expect(row?.missingCostBasis).toBe(0);
   });
 
   it('stampRealizedPnl costs an ALREADY-FILLED SELL row (the MARKET path) and is write-once', async () => {

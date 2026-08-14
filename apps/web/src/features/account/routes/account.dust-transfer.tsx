@@ -25,6 +25,7 @@ import {
   fetchDustList,
   submitDustTransfer,
 } from '@/features/account/api/dust-transfer';
+import { DustCancelPanel } from '@/features/account/components/dust-cancel-panel';
 import { accountScopeRoute } from '@/features/account/routes/account-scope';
 import { useTimezone } from '@/shared/context/timezone-context';
 import { formatInstant } from '@/shared/lib/format-time';
@@ -86,6 +87,10 @@ function DustTransferPage(): React.JSX.Element {
     enabled: profileId !== null,
   });
 
+  // `processing` counts as cancellable from here: the route decides whether the
+  // worker's claim is live, and hiding the button on a claimed row would leave an
+  // operator with no way to clear the queued rows stacked behind it.
+  const queued = (history.data ?? []).some((row) => row.status !== 'done');
   const eligible = (list.data ?? []).filter(isEligible);
   const eligibleByAsset = new Map(eligible.map((a) => [a.asset, a] as const));
   const selectedAssets = [...selected]
@@ -216,6 +221,18 @@ function DustTransferPage(): React.JSX.Element {
               {submitting ? 'Scheduling…' : 'Convert to BNB'}
             </Button>
           </form>
+        </Panel>
+      ) : null}
+
+      {/* Mounted only while something is actually cancellable. A permanently
+          visible destructive button on a screen whose usual state is "nothing
+          queued" reads as an offer to undo conversions that already happened. */}
+      {profileId !== null && queued ? (
+        <Panel title="Queued conversion">
+          <DustCancelPanel
+            profileId={profileId}
+            onDone={() => Promise.all([list.refetch(), history.refetch()])}
+          />
         </Panel>
       ) : null}
 

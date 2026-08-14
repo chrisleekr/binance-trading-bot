@@ -64,6 +64,24 @@ The partial unique index `orders_one_live_per_intent (profile_id, symbol, intent
 
 A **recovery row** — an order that IS live on Binance but whose normal bookkeeping did not land — is written by `orders.insertTracking` under a reserved intent, `` `${intent}:untracked:${binanceOrderId}` ``. `intent` is an open, strategy-owned string (no CHECK since 0026), and the reservation is what keeps the row out of the strategy's live slot: that slot is very often ALREADY HELD by the still-resting previous order — which is the single most likely reason the normal write failed in the first place — so an insert under the strategy's own intent would conflict on the partial unique index and be silently swallowed, leaving the live order with zero local trace. The row stays fully visible where it matters: the orphan sweep and the exposure guard read `account_id` / `closed_at` (intent-blind), and the fill adopter seeks by `(account_id, binance_order_id)`.
 
+## `trade_archive.missing_cost_basis`: an under-count must say so
+
+`profit` is cost-basis matched, so a SELL whose `realized_pnl` is NULL contributes nothing rather than booking its proceeds as a zero-cost gain. That arithmetic is correct, and it is also **unreadable once written**: `profit = 0` renders as `+0.00`, and the operator reads a real trade as flat. The count was already computed at archive time and only logged, which put the whole signal outside the row it describes.
+
+Migration `0080` adds `missing_cost_basis integer NOT NULL DEFAULT 0`: how many of the cycle's SELLs had no cost basis. A positive value means the row's `profit` and `profit_percent` — and the net figure the API derives as `profit − fees_quote`, which is not a stored column — are a conservative **under-count**, and the API carries it so the archive page shows "P/L unavailable" instead of a number nobody measured.
+
+The bought and sold totals under-count on exactly the same rows, so they are **not** a safe fallback: `total_buy_quote` is `Σ cost_basis_quote`, which an un-costed SELL contributes nothing to, and `total_sell_quote` is derived as `total_buy_quote + profit` so that `profit = sell − buy` holds exactly. A fully un-costed cycle therefore renders `0` in both money columns despite real coins changing hands, and the period rollups above the table count it as zero. The archive page's inline note says so rather than presenting those figures as measured.
+
+The default is `0`, which is not a claim about existing rows — it is the assumption the UI already made before the column existed. Backfilling it would mean re-deriving cost bases that no longer exist, which is precisely the fabrication the NULL was protecting against.
+
+## `backfill_attempts.symbol_unavailable`: a terminal reason the counts cannot express
+
+The other reasons a coin lands in the "nothing to recover" note are derived from the reconstruct drop counts, and all of them assume the trade history was **read**. A delisted coin never gets that far: the backfill handler needs the symbol's base/quote assets from the exchange-info cache, and without them it cannot value a single fill.
+
+Migration `0081` adds `symbol_unavailable boolean NOT NULL DEFAULT false`. The handler stamps it when the symbol is absent from a **primed** cache — absence alone is not evidence, because a cold cache looks identical, so the keyspace is probed for the account's mode first and the job is retried when it is empty. The flag **outranks** the count-derived reasons on the API projection: with `round_trips`, `skipped_orphan_sells` and `dropped_overshoot` all `0`, the count-derived reason would read `open-or-pre-history`, which names the wrong cause and points the operator at a window that does not exist.
+
+Like `0080`'s default, `false` is not a claim about existing rows: it is the state every row already implied before the column existed, and a marker re-opens by itself once a later fill makes it stale.
+
 ## `condition_states`: a level store beside the edge stream
 
 `action_logs` records **edges** — that something changed. Operators ask **level** questions: what is wrong now, and since when. The two are not interchangeable, and writing only on change is what exposes the gap: a symbol stuck on one reason for three weeks has exactly one transition row, written three weeks ago. Once that row is past the retention horizon the query returns nothing, so the log viewer is emptiest for the most-stuck symbol, which is the worst possible failure mode for a diagnostic.

@@ -176,17 +176,18 @@ export interface TickHandlerDeps {
     readonly willRetry: boolean;
   }) => Promise<void>;
   /**
-   * Reap a (profile, symbol) binding whose Binance mode no longer lists the
-   * symbol, but ONLY when it is safe to abandon: discovery-owned (`source=auto`)
-   * AND flat. Returns why it did or didn't: `removed` (reaped), `held` (still
-   * carries a position/order), `not-auto` (operator-pinned), `not-found` (already
-   * gone). Optional so a stub that never exercises the delisted path can omit it;
-   * a missing function is a no-op (the tick still self-heals to a skip).
+   * Reap a (profile, symbol) binding that can never trade again — Binance no
+   * longer lists the symbol, or the account holds no permission for it — but
+   * ONLY when it is safe to abandon: discovery-owned (`source=auto`) AND flat.
+   * Returns why it did or didn't: `removed` (reaped), `held` (still carries a
+   * position/order), `not-auto` (operator-pinned), `not-found` (already gone).
+   * Optional so a stub that never exercises either self-heal can omit it; a
+   * missing function is a no-op (the tick still self-heals to a skip).
    */
   readonly reapAutoIfFlat?: (scope: ProfileScope, symbol: string) => Promise<ReapOutcome>;
   /**
-   * Append one operator-visible action_log row. Used by the delisted-symbol
-   * self-heal to record the reap (or why it couldn't). Optional / no-op when
+   * Append one operator-visible action_log row. Used by both tick-boundary
+   * self-heals to record the reap (or why it couldn't). Optional / no-op when
    * unwired, same pattern as {@link settleOverrideAction}.
    */
   readonly appendActionLog?: (
@@ -201,7 +202,17 @@ export interface TickHandlerDeps {
    */
   readonly delistThrottle?: { allow(key: string): Promise<boolean> };
   /**
-   * Enqueue a `reconfigure-profile` job after a delisted binding is reaped, so the
+   * The same suppression window for the symbol-the-account-cannot-trade alert,
+   * on its OWN Redis key namespace — not {@link delistThrottle}'s, and not the
+   * executor's placement-refusal one. Every such window is keyed (profile,
+   * symbol), so a shared prefix is a shared key and whichever cause fired first
+   * mutes the rest for the whole window. Fails OPEN — a Redis fault emits the
+   * record rather than costing the self-heal. Optional / always-emit when
+   * unwired.
+   */
+  readonly notPermittedThrottle?: { allow(key: string): Promise<boolean> };
+  /**
+   * Enqueue a `reconfigure-profile` job after a binding is reaped, so the
    * WS subscriber drops the now-unbound symbol promptly instead of waiting for the
    * next discovery pass. Fired ONLY on a `removed` reap. Best-effort: a throw is
    * swallowed (the tick still self-heals to a skip). Optional / no-op when unwired.

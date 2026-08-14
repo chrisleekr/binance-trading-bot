@@ -368,7 +368,9 @@ export interface ArchiveSummary {
    * SELL rows in the window with no cost basis (`realized_pnl IS NULL`). They
    * contribute nothing to profit — never a fabricated zero-cost gain — so a
    * positive count means the row's realised P/L is a conservative UNDER-count,
-   * not wrong. The handler logs it so the gap is observable, not silent.
+   * not wrong. The handler persists it onto the archive row (and logs it), so
+   * the API and UI can say "P/L unavailable" rather than render the
+   * under-count as a measured `+0.00`.
    */
   readonly missingCostBasis: number;
 }
@@ -542,6 +544,12 @@ export interface BackfillAttemptOutcome {
   readonly skippedOrphanSells: number;
   /** Cycles that sold more base than they bought (surplus from a pre-history position). */
   readonly droppedOvershoot: number;
+  /**
+   * The attempt stopped because Binance no longer lists the symbol. A
+   * terminating outcome: no retry resolves it, so the marker is what stops the
+   * recovery sweep re-enqueueing the same doomed job every 15 minutes.
+   */
+  readonly symbolUnavailable?: boolean;
 }
 
 /** A coin with fills and no archive that a backfill attempt could not reconstruct. */
@@ -549,6 +557,7 @@ export interface UnreconstructableSymbol {
   readonly symbol: string;
   readonly skippedOrphanSells: number;
   readonly droppedOvershoot: number;
+  readonly symbolUnavailable: boolean;
   /** Operator has hidden this coin from the note (still returned so it can be un-hidden). */
   readonly dismissed: boolean;
 }
@@ -570,6 +579,7 @@ export async function recordBackfillAttempt(
       roundTrips: outcome.roundTrips,
       skippedOrphanSells: outcome.skippedOrphanSells,
       droppedOvershoot: outcome.droppedOvershoot,
+      symbolUnavailable: outcome.symbolUnavailable ?? false,
     })
     .onConflictDoUpdate({
       target: [backfillAttempts.profileId, backfillAttempts.symbol],
@@ -577,6 +587,7 @@ export async function recordBackfillAttempt(
         roundTrips: outcome.roundTrips,
         skippedOrphanSells: outcome.skippedOrphanSells,
         droppedOvershoot: outcome.droppedOvershoot,
+        symbolUnavailable: outcome.symbolUnavailable ?? false,
         attemptedAt: sql`now()`,
         // A re-attempt is a deliberate "look again", so un-hide the coin: a
         // freshly-checked result should surface in the note, not stay hidden.
@@ -585,12 +596,82 @@ export async function recordBackfillAttempt(
     });
 }
 
+// A backfill marker only speaks for the fills that existed when it was written.
+// `applied_fills.applied_at` and `backfill_attempts.attempted_at` are both
+// server `now()`, so a fill stamped after the attempt is history the attempt
+// never saw, and the marker no longer answers "checked, nothing to recover".
+// Without this the live BTCUSDT timeline (BUY 2026-07-07, attempt 2026-07-11,
+// SELL 2026-08-01) stays permanently un-recoverable: the round trip that
+// completed AFTER the attempt is invisible to both lists.
+const staleBackfillMarker = sql`exists (
+  select 1 from ${appliedFills} af_new
+  where af_new.profile_id = ${backfillAttempts.profileId}
+    and af_new.symbol = ${backfillAttempts.symbol}
+    and af_new.applied_at > ${backfillAttempts.attemptedAt}
+)`;
+
 /**
- * Coins with fills, no archive row, and NO prior backfill attempt — the
- * actionable "may have unsaved P/L, recover it" set. Sorted, profile-scoped.
- * A coin that recovered round-trips gains archive rows and so leaves this set;
- * a coin that was attempted and recovered nothing moves to
- * {@link listUnreconstructableSymbols} instead of nagging here forever.
+ * "This coin has a fill the archive does not cover", expressed RELATIVE to what
+ * is already archived rather than as "this coin has no archive row at all".
+ * The blanket form answers a different question: a grid-traded coin
+ * archives cycle 1 fine and then suppresses cycle 2, and a predicate keyed on
+ * "ever archived?" can never see that second gap — which is the shape the
+ * backstop exists for.
+ *
+ * The boundary is `archived_at`, not `cycle_end`. `cycle_end` is the closing
+ * ORDER's exchange close time, and for a MARKET exit (the dominant one) that
+ * row is written already-FILLED at placement, before the execution report is
+ * applied — so `applied_at > cycle_end` holds the instant a healthy cycle is
+ * archived, and every archived coin would report itself as missing. Forward
+ * archiving stamps `archived_at` from its own cutoff, captured after the fill
+ * landed, and `archived_at >= cycle_end` on every insert path.
+ *
+ * `sideFilter` carries everything that differs between the two callers, so the
+ * boundary itself is defined once: the actionable list needs a closed cycle (a
+ * SELL) that has settled, while the explanatory note also covers a BUY-only
+ * coin, which is exactly what its "open or pre-history" reason says.
+ */
+const unarchivedFill = (
+  profileIdRef: ReturnType<typeof sql>,
+  symbolRef: ReturnType<typeof sql>,
+  sideFilter: ReturnType<typeof sql>,
+): ReturnType<typeof sql> => sql`exists (
+  select 1 from ${appliedFills} af_sell
+  where af_sell.profile_id = ${profileIdRef}
+    and af_sell.symbol = ${symbolRef}
+    ${sideFilter}
+    and af_sell.applied_at > coalesce(
+      (
+        select max(${tradeArchive.archivedAt})
+        from ${tradeArchive}
+        where ${tradeArchive.profileId} = ${profileIdRef}
+          and ${tradeArchive.symbol} = ${symbolRef}
+      ),
+      '-infinity'::timestamptz
+    )
+)`;
+
+// The actionable list additionally waits for the fill to SETTLE. Between the
+// closing SELL's `applied_fills` commit and the forward archive's insert the
+// cycle legitimately looks unarchived, and a sweep that enqueues a backfill in
+// that window races the forward path into a SECOND P/L row for one cycle: the
+// two paths derive different `cycle_end` values (the execution report's event
+// time vs the `myTrades` row time), so the partial unique index cannot collapse
+// them and the profit is counted twice. Well above normal pipeline latency,
+// well below the 15-minute sweep period.
+const SELL_ONLY = sql`and af_sell.side = 'SELL'
+    and af_sell.applied_at < now() - interval '3 minutes'`;
+// The note is explanatory, not actionable: it enqueues nothing, so it has no
+// race to lose and stays ungraced.
+const ANY_SIDE = sql.empty();
+
+/**
+ * Coins with a SETTLED closed cycle no archive row covers and no still-valid
+ * backfill attempt — the actionable "may have unsaved P/L, recover it" set.
+ * Sorted, profile-scoped. A coin whose newest cycle is archived leaves this
+ * set; a coin that was attempted and recovered nothing moves to
+ * {@link listUnreconstructableSymbols} instead of nagging here forever, until
+ * a later fill makes that attempt stale.
  */
 export async function listRecoverableSymbols(scope: ProfileScope): Promise<string[]> {
   const rows = await scope.db
@@ -599,15 +680,12 @@ export async function listRecoverableSymbols(scope: ProfileScope): Promise<strin
     .where(
       and(
         eq(appliedFills.profileId, scope.profileId),
-        sql`not exists (
-          select 1 from ${tradeArchive}
-          where ${tradeArchive.profileId} = ${appliedFills.profileId}
-            and ${tradeArchive.symbol} = ${appliedFills.symbol}
-        )`,
+        unarchivedFill(sql`${appliedFills.profileId}`, sql`${appliedFills.symbol}`, SELL_ONLY),
         sql`not exists (
           select 1 from ${backfillAttempts}
           where ${backfillAttempts.profileId} = ${appliedFills.profileId}
             and ${backfillAttempts.symbol} = ${appliedFills.symbol}
+            and not ${staleBackfillMarker}
         )`,
       ),
     )
@@ -616,11 +694,28 @@ export async function listRecoverableSymbols(scope: ProfileScope): Promise<strin
 }
 
 /**
- * Coins with fills and no archive that a backfill already tried and could not
- * reconstruct (no complete buy→sell cycle). The reconstruct counts let the UI
- * explain why, as a quiet non-actionable note rather than a warning. Reads from
- * the marker table (one row per symbol) filtered to still-missing coins with
- * fills, so a free-text backfill of a no-fills symbol never appears here.
+ * Coins with fills the archive does not cover that a backfill already tried and
+ * could not reconstruct (no complete buy→sell cycle, or the symbol is gone from
+ * Binance). The reconstruct counts let the UI explain why, as a quiet
+ * non-actionable note rather than a warning. Reads from the marker table (one
+ * row per symbol) filtered to still-missing coins with fills, so a free-text
+ * backfill of a no-fills symbol never appears here.
+ *
+ * Uses the same {@link unarchivedFill} boundary as
+ * {@link listRecoverableSymbols} but without the SELL filter, so an attempted
+ * open position still gets its reason. The boundary has to move in step with
+ * the actionable list or a coin whose newest cycle is unarchived and
+ * unreconstructable falls out of BOTH and is silently dropped — which is the
+ * delisted-symbol case.
+ *
+ * `round_trips = 0` is what keeps an attempt that DID recover history out of a
+ * note saying nothing could be recovered: a backfilled row is stamped at the
+ * historic closing time, so its fills are always "newer" than it.
+ *
+ * A marker made stale by a later fill is excluded: that coin is actionable
+ * again and belongs to {@link listRecoverableSymbols}. The two lists stay
+ * disjoint, so a symbol is never simultaneously "recover this" and "nothing to
+ * recover".
  */
 export async function listUnreconstructableSymbols(
   scope: ProfileScope,
@@ -630,22 +725,25 @@ export async function listUnreconstructableSymbols(
       symbol: backfillAttempts.symbol,
       skippedOrphanSells: backfillAttempts.skippedOrphanSells,
       droppedOvershoot: backfillAttempts.droppedOvershoot,
+      symbolUnavailable: backfillAttempts.symbolUnavailable,
       dismissed: sql<boolean>`${backfillAttempts.dismissedAt} is not null`,
     })
     .from(backfillAttempts)
     .where(
       and(
         eq(backfillAttempts.profileId, scope.profileId),
+        eq(backfillAttempts.roundTrips, 0),
         sql`exists (
           select 1 from ${appliedFills}
           where ${appliedFills.profileId} = ${backfillAttempts.profileId}
             and ${appliedFills.symbol} = ${backfillAttempts.symbol}
         )`,
-        sql`not exists (
-          select 1 from ${tradeArchive}
-          where ${tradeArchive.profileId} = ${backfillAttempts.profileId}
-            and ${tradeArchive.symbol} = ${backfillAttempts.symbol}
-        )`,
+        unarchivedFill(
+          sql`${backfillAttempts.profileId}`,
+          sql`${backfillAttempts.symbol}`,
+          ANY_SIDE,
+        ),
+        sql`not ${staleBackfillMarker}`,
       ),
     )
     .orderBy(backfillAttempts.symbol);

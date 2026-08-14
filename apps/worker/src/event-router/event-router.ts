@@ -11,12 +11,22 @@
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';
-import { unwrapId, type AccountId, type ProfileId, type UserId } from '@app/contracts';
+import {
+  isTerminalOrderStatus,
+  unwrapId,
+  type AccountId,
+  type ProfileId,
+  type UserId,
+} from '@app/contracts';
 import { GLOBAL_KEYS } from '@app/db';
 import type { TickEvent, TickJobData } from 'queues/job-payloads.js';
 import { tickJobId } from 'queues/queue-names.js';
 import { buildOpenOrdersKey, buildUserStreamEventKey } from 'executor/redis-namespace.js';
 import { patchOpenOrder, removeOpenOrder } from 'executor/open-orders-cache.js';
+import {
+  createOrderCommissionAccumulator,
+  orderCommissionKey,
+} from 'executor/order-commission-accumulator.js';
 import type { FillAdopter } from 'executor/fill-adopter.js';
 import type { ProfileManager } from 'profile-manager/profile-manager.js';
 import type { ParsedMarketEvent } from 'market-data/types.js';
@@ -25,11 +35,6 @@ import type { UserStreamEvent } from 'user-stream/user-stream-pool.js';
 // A symbol that stopped streaming for this long reads as absent rather than
 // reporting a stale price as if it were current.
 const TICKER_TTL_S = 60;
-
-// Order states that mean the order has left the book for good: it is removed
-// from the cached open-orders list. Anything else non-terminal (PARTIALLY_FILLED)
-// is patched in place; a bare NEW is already carried by the executor's upsert.
-const TERMINAL_ORDER_STATUSES = new Set(['FILLED', 'CANCELED', 'EXPIRED', 'REJECTED']);
 
 /** Who owns the order an execution report refers to, from this profile's view. */
 export type OrderOwnership = 'own' | 'sibling' | 'detached';
@@ -123,6 +128,11 @@ export interface EventRouter {
 
 export const createEventRouter = (deps: EventRouterDeps): EventRouter => {
   const clock = deps.clock ?? { nowMs: () => Date.now() };
+  // Binance reports commission per TRADE while qty/quote are cumulative, and
+  // the adopter only acts on the terminal report — so the order's total fee has
+  // to be summed here, where every partial is seen. Scoped to the router
+  // instance (one per worker) rather than the module, so tests get isolation.
+  const commissions = createOrderCommissionAccumulator(clock);
 
   const enqueue = async (
     profileId: ProfileId,
@@ -299,9 +309,31 @@ export const createEventRouter = (deps: EventRouterDeps): EventRouter => {
         // patches its filled amounts; both are no-ops on an absent key (it
         // cold-loads once next tick) so a dropped WS signal self-heals via the
         // key TTL rather than a fabricated entry.
+        // Fold this report's per-trade commission into the order's running
+        // total BEFORE the terminal read below, so a single-trade order (whose
+        // only TRADE report IS the terminal one) is counted too. The key is
+        // account-scoped and the read is non-destructive because every profile
+        // on this account is routed this same report: each of them must be able
+        // to hand the whole fee to the adopter.
+        const feeKey = orderCommissionKey(unwrapId(accountId), event.symbol, event.orderId);
+        commissions.record(feeKey, {
+          executionType: event.executionType,
+          tradeId: event.tradeId,
+          commission: event.commission,
+          commissionAsset: event.commissionAsset,
+        });
+        const orderCommission = isTerminalOrderStatus(event.orderStatus)
+          ? commissions.take(feeKey)
+          : null;
         try {
           const key = buildOpenOrdersKey(accountId, event.symbol);
-          if (TERMINAL_ORDER_STATUSES.has(event.orderStatus)) {
+          // `isTerminalOrderStatus` is the shared vocabulary from `@app/contracts`,
+          // not a local set: the cache eviction here, the boot reaper's close and
+          // the `orders` row's `closed_at` stamp must agree on which statuses are
+          // done, or a status terminal for one of them (`EXPIRED_IN_MATCH`, the
+          // self-trade-prevention terminator) leaves the ledger claiming the order
+          // still rests while the cache says it is gone.
+          if (isTerminalOrderStatus(event.orderStatus)) {
             await removeOpenOrder(deps.redis, key, event.orderId);
           } else if (event.orderStatus === 'PARTIALLY_FILLED') {
             await patchOpenOrder(deps.redis, key, event.orderId, {
@@ -333,6 +365,7 @@ export const createEventRouter = (deps: EventRouterDeps): EventRouter => {
             side: event.side,
             cumQty: event.cumQty,
             cumQuoteQty: event.cumQuoteQty,
+            ...(orderCommission ?? {}),
           });
         } catch (err) {
           deps.logger.error(

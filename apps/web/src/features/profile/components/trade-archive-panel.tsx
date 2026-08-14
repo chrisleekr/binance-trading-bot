@@ -69,6 +69,8 @@ function glossUnreconstructable(reason: UnreconstructableReason): string {
       return 'sold more than was bought here — surplus from a pre-history position';
     case 'open-or-pre-history':
       return 'an open or pre-history position with no closed cycle';
+    case 'symbol-unavailable':
+      return 'Binance no longer lists this coin, so its history can no longer be read';
   }
 }
 
@@ -102,6 +104,24 @@ function intentShare(
     .reduce((sum, b) => sum + Math.abs(Number(b.profitSum)), 0);
   if (total === 0) return 0;
   return Math.round((Math.abs(Number(bucket.profitSum)) / total) * 100);
+}
+
+/**
+ * Stand-in for a P/L the bot could not work out. A cycle whose sale had no
+ * recorded purchase price contributes nothing to `profit`, so the stored number
+ * is an under-count — and an under-count of zero renders as a confident
+ * "+0.00", turning a real trade into a flat one. Say the number is missing
+ * instead of showing one nobody measured.
+ *
+ * Module-level, not nested in the panel's render body: a component declared
+ * inside another's render remounts its whole subtree on every render.
+ */
+function UnavailablePnl({ testId }: { readonly testId?: string }): React.JSX.Element {
+  return (
+    <span className="text-[11px] font-normal text-muted-fg italic" data-testid={testId}>
+      P/L unavailable
+    </span>
+  );
 }
 
 export function TradeArchivePanel({ profileId }: { profileId: string }): React.JSX.Element {
@@ -268,6 +288,13 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
               {recoverableSymbols.length === 1 ? ' has' : 's have'} fills on Binance but no saved
               profit/loss here. Recover {recoverableSymbols.length === 1 ? 'it' : 'them'} in one
               click.
+            </p>
+            {/* The sweep enumerates RUNNING profiles only, so a paused profile
+                never self-repairs. Promising an automatic retry without that
+                caveat leaves the operator waiting on a pass that never runs. */}
+            <p className="text-xs">
+              While this profile is running, the bot also retries by itself every 15 minutes. A
+              paused profile is not retried.
             </p>
             <ul className="flex flex-wrap gap-1.5" data-testid="missing-symbol-chips">
               {recoverableSymbols.map((s) => (
@@ -520,6 +547,18 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
         <p className="text-sm text-muted-fg">No archive entries for this period.</p>
       ) : null}
 
+      {/* Always-visible gloss for the "P/L unavailable" rows. A hover title is
+          invisible on touch, so the explanation renders inline once above the
+          table rather than per row (which would drown the list). */}
+      {items.some((row) => row.missingCostBasis > 0) ? (
+        <p className="text-xs text-muted-fg" data-testid="archive-pnl-unavailable-note">
+          Some trades below show <span className="italic">P/L unavailable</span>: the bot has no
+          record of what that coin originally cost, so it cannot work out the profit or loss. On
+          those rows the Buy and Sell figures only count the part it could match, so they read low
+          too, and the totals above count those trades as zero.
+        </p>
+      ) : null}
+
       {items.length > 0 ? (
         <div className="rounded-md border border-border">
           <Table data-testid="archive-list" className="text-xs">
@@ -558,11 +597,17 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                       {exitIntentLabel(row.exitIntent)}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-muted-fg tabular-nums">
+                  <TableCell
+                    className="text-right font-mono text-muted-fg tabular-nums"
+                    data-testid={`archive-buy-${row.id}`}
+                  >
                     {row.totalBuyQuote}
                     <span className="ml-1 text-muted-fg">{row.quoteAsset}</span>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-muted-fg tabular-nums">
+                  <TableCell
+                    className="text-right font-mono text-muted-fg tabular-nums"
+                    data-testid={`archive-sell-${row.id}`}
+                  >
                     {row.totalSellQuote}
                     <span className="ml-1 text-muted-fg">{row.quoteAsset}</span>
                   </TableCell>
@@ -570,14 +615,27 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                     className="text-right font-mono tabular-nums"
                     data-testid={`archive-profit-${row.id}`}
                   >
-                    <PnlValue
-                      value={basis === 'net' ? row.netProfit : row.profit}
-                      unit={row.quoteAsset}
-                    />
+                    {row.missingCostBasis > 0 ? (
+                      <UnavailablePnl testId={`archive-pnl-unavailable-${row.id}`} />
+                    ) : (
+                      <PnlValue
+                        value={basis === 'net' ? row.netProfit : row.profit}
+                        unit={row.quoteAsset}
+                      />
+                    )}
                   </TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">
-                    <PnlValue value={row.profitPercent} />
-                    <span className="text-muted-fg">%</span>
+                  <TableCell
+                    className="text-right font-mono tabular-nums"
+                    data-testid={`archive-percent-${row.id}`}
+                  >
+                    {row.missingCostBasis > 0 ? (
+                      <span className="text-muted-fg">—</span>
+                    ) : (
+                      <>
+                        <PnlValue value={row.profitPercent} />
+                        <span className="text-muted-fg">%</span>
+                      </>
+                    )}
                   </TableCell>
                   <TableCell
                     className="text-right font-mono text-muted-fg tabular-nums"

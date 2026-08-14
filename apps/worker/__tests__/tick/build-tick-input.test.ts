@@ -533,9 +533,9 @@ describe('buildTickInput', () => {
   });
 
   describe('blocker on-change condition write (de-spam)', () => {
-    // The wrapper's "already recorded" cache is per (profile, symbol) and lives
-    // for the process, so tests share it. Each case takes its own symbol rather
-    // than depending on what the case above it left behind.
+    // De-spam compares a changeKey against the stored condition row, not against
+    // any in-process memo, so a case reusing a symbol would start from the row
+    // the case above it left behind. Each case takes its own symbol.
     // Every commit audits each blocker field, so a per-condition view is what
     // the de-spam claims are actually about.
     const callsFor = (condition: string): unknown[] =>

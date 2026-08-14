@@ -75,6 +75,13 @@ export interface DecisionDeps {
    * order storm for a Slack storm. Optional ⇒ tests omit it ⇒ always-allow.
    */
   readonly unfundableThrottle?: NotifierGapThrottle;
+  /**
+   * Same role for the `order-symbol-not-permitted` ALERT, keyed per
+   * (profile, symbol). Its own throttle rather than a shared one: the two
+   * refusals have different causes and different fixes, so suppressing one must
+   * never suppress the other. Optional ⇒ tests omit it ⇒ always-allow.
+   */
+  readonly symbolNotPermittedThrottle?: NotifierGapThrottle;
 
   /**
    * Defer a converge-to-exchange-truth pass for one (profile, symbol) onto the

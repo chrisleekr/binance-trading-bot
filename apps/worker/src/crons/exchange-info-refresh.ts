@@ -21,7 +21,7 @@ import {
   type BinanceMode,
   type ParsedOrderRateLimits,
 } from '@app/binance';
-import { projectSymbolFilters } from '@app/contracts';
+import { projectPermissionSets, projectSymbolFilters } from '@app/contracts';
 import type { SymbolInfo } from '@app/strategy-core';
 import { buildSymbolInfoKey } from 'executor/redis-namespace.js';
 
@@ -42,6 +42,8 @@ interface RawSymbol {
   readonly quoteAsset: string;
   readonly status: string;
   readonly filters?: readonly RawFilter[];
+  /** Unknown: shape-checked by `projectPermissionSets`, never trusted from here. */
+  readonly permissionSets?: unknown;
 }
 
 interface RawExchangeInfo {
@@ -74,13 +76,21 @@ const ZERO_FILTERS: SymbolInfo['filters'] = {
   minNotional: '0',
 };
 
-const projectSymbol = (raw: RawSymbol): SymbolInfo => ({
-  symbol: raw.symbol,
-  baseAsset: raw.baseAsset,
-  quoteAsset: raw.quoteAsset,
-  status: raw.status,
-  filters: projectSymbolFilters(raw.filters) ?? ZERO_FILTERS,
-});
+const projectSymbol = (raw: RawSymbol): SymbolInfo => {
+  // Omit the key entirely when the payload is absent or malformed. An empty
+  // array would read as "no sets published", which the tradability check
+  // treats as permitted, so an all-or-nothing projection keeps the absent
+  // case and the unreadable case identically fail-open.
+  const permissionSets = projectPermissionSets(raw.permissionSets);
+  return {
+    symbol: raw.symbol,
+    baseAsset: raw.baseAsset,
+    quoteAsset: raw.quoteAsset,
+    status: raw.status,
+    filters: projectSymbolFilters(raw.filters) ?? ZERO_FILTERS,
+    ...(permissionSets === null ? {} : { permissionSets }),
+  };
+};
 
 export interface ExchangeInfoRefreshDeps {
   readonly redis: Redis;

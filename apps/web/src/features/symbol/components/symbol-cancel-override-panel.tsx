@@ -18,7 +18,8 @@
 //         the race. Neither a success nor a breakage, so it rides an `info`
 //         notice carrying the server's own prose — which is the only thing that
 //         knows whether a queued row was deleted alongside the claimed one — and
-//         the claimed override's outcome is worth watching.
+//         the claim's outcome still has to reach the operator: reported straight
+//         off if the read-back already carries it, watched by id if it does not.
 //   404 — wrong or unowned profile. A real failure.
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -41,7 +42,11 @@ import {
   getOverride,
   symbolOverrideActionQueryKey,
 } from '@/features/symbol/api/symbol';
-import { useOutcomeBanner, useOverrideOutcome } from '@/features/symbol/lib/use-override-outcome';
+import {
+  outcomeBanner,
+  useOutcomeBanner,
+  useOverrideOutcome,
+} from '@/features/symbol/lib/use-override-outcome';
 
 /**
  * Per-symbol "cancel queued override" entry in the symbol workspace's emergency
@@ -52,8 +57,9 @@ import { useOutcomeBanner, useOverrideOutcome } from '@/features/symbol/lib/use-
  *
  * Owns its own outcome watch rather than relying on the force-trigger panel's,
  * because that panel unmounts entirely for strategies with no trigger actions and
- * its watch disappears with it. Accepted cost: when both panels end up watching
- * the same row — arm a force-sell, cancel it immediately, get a 409 because a
+ * its watch disappears with it. Accepted cost: when both panels end up reporting
+ * the same row, whether this one watched it or read it back already settled.
+ * Arm a force-sell, cancel it immediately, get a 409 because a
  * tick already claimed it, and this panel's read-back lands on that same row — the
  * operator sees its outcome twice. Duplicated, never wrong, and the alternative
  * is no notice at all on strategies that never mount the other panel.
@@ -105,33 +111,50 @@ export function SymbolCancelOverridePanel({
       // The read returns the newest override in the outcome window — normally the
       // claimed one, though not provably so: the 409 is decided from the newest
       // UNCONSUMED row while this read ignores `consumed_at`, so a stalled claim
-      // on an older row plus a newer settled one would disagree. The watch's own
-      // identity check absorbs that. `err.message` is the server's prose, the only
-      // place that knows whether a queued row was deleted alongside the claim.
+      // on an older row plus a newer settled one would disagree. Either way the
+      // answer is the newest row in the window: reported straight off if it has
+      // already settled, watched by id if it has not, which is why the notices
+      // below speak about the action and never about "your cancel".
+      // `err.message` is the server's prose, the only place that knows whether a
+      // queued row was deleted alongside the claim.
       setBanner({ kind: 'info', message: err.message });
-      const row = await queryClient
-        .fetchQuery({
-          queryKey: symbolOverrideActionQueryKey(profileId, symbol),
-          queryFn: () => getOverride(profileId, symbol),
-          // Must hit the network. The app-wide `staleTime: Infinity` would hand
-          // back whatever a sibling panel's poll last cached, and the whole point
-          // of this read is learning the id the 409 omits — a cached row can be
-          // the one this cancel just deleted, which would arm a watch that never
-          // matches. `gcTime: 0` because react-query only ever RAISES gcTime, so
-          // inheriting the 30-minute default would permanently undo the 0 the
-          // watch hook chose and keep stale rows alive across symbol switches.
-          staleTime: 0,
-          gcTime: 0,
-          // Not worth retrying: the outcome poll re-reads this key on its own
-          // cadence, so a failed id lookup costs one watch, not the information.
-          retry: false,
-        })
-        // Belt-and-braces. `useMutation` already swallows a rejection thrown from
-        // `onError`, so today this changes nothing observable — it is here so a
-        // future `onSettled` or `mutateAsync` caller cannot turn a failed id
-        // lookup into an unhandled rejection.
-        .catch(() => null);
-      if (row) outcomeWatch.watch(row.id);
+      // Deliberately a bare request, not a read of the override-action query.
+      // Only a request issued after the DELETE can describe the world the DELETE
+      // left behind, and that key cannot promise one: the workspace co-mounts
+      // several outcome watches on it, each polling while armed, so a read of the
+      // key joins whichever request is already running rather than starting one.
+      // That request is routinely older than this cancel, and the id it carries
+      // can be the row the delete just removed. A watch armed on it follows a row
+      // that can never answer and ends in a "could not confirm" notice about a
+      // cancel that in fact worked. Sharing the key cuts the other way too: any
+      // successful mutation anywhere in the app invalidates it, which cancels an
+      // in-flight read of the key outright, and the operator is left told to wait
+      // for an outcome nothing is watching for.
+      //
+      // No retry: a failed lookup costs one watch, not the information, because
+      // the server's own sentence still stands. The `catch` is belt-and-braces.
+      // `useMutation` already swallows a rejection thrown from `onError`, so it
+      // is here so a future `onSettled` or `mutateAsync` caller cannot turn a
+      // failed id lookup into an unhandled rejection.
+      const row = await getOverride(profileId, symbol).catch(() => null);
+      if (!row) return;
+      // A row that already carries its outcome needs no watch, and must not get
+      // one: this read is the freshest the symbol has, so it is safe to say now.
+      // Arming instead would put the verdict behind a poll, where a newer
+      // override landing for the symbol reads as superseding this row and
+      // retires the watch in silence, losing a settled answer about money that
+      // already moved. `clear` first, because a watch this panel armed on an
+      // earlier 409 may be following the very row this read just answered for:
+      // left running, its own poll surfaces the same outcome and says it twice.
+      // A watch left running on an earlier row does not retire quietly either: a
+      // newer row reads as a displacement and ends that watch in "could not
+      // confirm", which would bury this settled answer under an unknown.
+      if (row.outcome) {
+        outcomeWatch.clear();
+        setBanner(outcomeBanner(row.outcome));
+        return;
+      }
+      outcomeWatch.watch(row.id, row.createdAt);
     },
   });
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 /**
  * Generate `env-contract.json`, the machine-readable list of every environment
- * variable this repo reads. The scope is whatever `ENV_CATALOGUE` declares and
- * this script publishes all of it unfiltered: unwired reference templates under
- * `deploy/observability/` name variables nothing deployed reads, so they are
- * kept out of the catalogue rather than filtered out here.
+ * variable the api, worker and compose stack reads. Scoped to those consumers
+ * on purpose: unwired reference templates under `deploy/observability/` name
+ * variables nothing deployed reads, and publishing those would tell the chart
+ * to mirror keys no process ever looks up.
  *
  * The helm chart at chrisleekr/helm-charts is synced by version only, so an
  * added or removed variable never reaches its ConfigMap or Secret and nothing

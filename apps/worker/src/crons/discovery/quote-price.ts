@@ -7,8 +7,10 @@
 
 import { Decimal } from '@app/money';
 import type { Ticker24hrDto } from '@app/binance';
+import { isSymbolPermittedForAccount } from '@app/contracts';
 import type { DiscoveryTicker } from '@app/discovery';
 import type { Logger } from 'pino';
+import type { SymbolAdmission } from './symbol-admission.js';
 
 /**
  * The stablecoin market we treat as "US dollars" for denominating every volume
@@ -70,35 +72,70 @@ export const resolveQuoteUsdPrice = (
  * `isActive` fails closed. They still inflate the ranked universe, so resolving
  * base/quote from exchangeInfo would be the complete fix.
  *
- * `statusBySymbol` (exchangeInfo `status` per symbol, mode-scoped) keeps only
- * `TRADING` markets in the universe: Binance still returns a 24h-ticker row for
- * a delisted/halted pair, and a delisting removes the symbol's exchangeInfo key
- * entirely, so a symbol absent from the map is also excluded (#635). Fail-safe:
- * an absent or empty map (exchangeInfo not primed / Redis miss) skips the status
- * filter and warns, keeping the quote-matched universe rather than emptying it.
+ * `admissionBySymbol` (exchangeInfo facts per symbol, mode-scoped) drives two
+ * cuts:
+ *
+ * - `status` keeps only `TRADING` markets: Binance still returns a 24h-ticker
+ *   row for a delisted/halted pair, and a delisting removes the symbol's
+ *   exchangeInfo key entirely, so a symbol absent from the map is excluded too.
+ * - `permissionSets` keeps only symbols this account may actually trade. A
+ *   symbol is tradable only when the account holds at least one tag from EVERY
+ *   published set, so an account without `SPOT` cannot trade a tokenised-equity
+ *   pair no matter its status. Binding one anyway makes every tick re-derive an
+ *   order Binance refuses with -2010 forever, and the retry burns the account's
+ *   whole request-weight budget.
+ *
+ * Fail-safe throughout: an absent or empty map (exchangeInfo not primed / Redis
+ * miss) skips both filters and warns, and an empty `accountPermissions` skips
+ * the permission filter, keeping the quote-matched universe rather than
+ * emptying it. A signal that cannot be read is never a refusal.
  */
+export interface DiscoveryTickerOptions {
+  readonly admissionBySymbol?: ReadonlyMap<string, SymbolAdmission>;
+  /**
+   * Permission tags the account holds. Empty means unknown, which disables the
+   * permission cut rather than rejecting everything.
+   */
+  readonly accountPermissions?: readonly string[];
+  /**
+   * Required, not optional: both cuts below are silent by construction (a symbol
+   * simply stops appearing), so the warn is the operator's only explanation. An
+   * optional logger let every production caller omit it and the warn never fired.
+   */
+  readonly logger: Pick<Logger, 'warn'>;
+}
+
 export const toDiscoveryTickers = (
   raw: readonly Ticker24hrDto[],
   quoteAsset: string,
   quoteUsdPrice: Decimal,
-  statusBySymbol?: ReadonlyMap<string, string>,
-  logger?: Pick<Logger, 'warn'>,
+  opts: DiscoveryTickerOptions,
 ): DiscoveryTicker[] => {
-  const applyStatus = statusBySymbol !== undefined && statusBySymbol.size > 0;
-  if (statusBySymbol !== undefined && statusBySymbol.size === 0) {
-    logger?.warn(
+  const { admissionBySymbol, accountPermissions, logger } = opts;
+  const applyStatus = admissionBySymbol !== undefined && admissionBySymbol.size > 0;
+  if (admissionBySymbol !== undefined && admissionBySymbol.size === 0) {
+    logger.warn(
       {},
-      'discovery: empty symbol-status map; keeping the quote-matched universe unfiltered (fail-safe)',
+      'discovery: empty symbol-admission map; keeping the quote-matched universe unfiltered (fail-safe)',
     );
   }
+  const applyPermissions = applyStatus && (accountPermissions?.length ?? 0) > 0;
   const usdVolumeBySymbol = new Map(raw.map((t) => [t.symbol, t.quoteVolume]));
-  return raw
-    .filter(
-      (t) =>
-        t.symbol.endsWith(quoteAsset) &&
-        t.symbol.length > quoteAsset.length &&
-        (!applyStatus || statusBySymbol?.get(t.symbol) === 'TRADING'),
-    )
+  let notPermitted = 0;
+  const kept = raw
+    .filter((t) => {
+      if (!t.symbol.endsWith(quoteAsset) || t.symbol.length <= quoteAsset.length) return false;
+      if (!applyStatus) return true;
+      const admission = admissionBySymbol?.get(t.symbol);
+      if (admission?.status !== 'TRADING') return false;
+      if (!applyPermissions) return true;
+      const permitted = isSymbolPermittedForAccount({
+        permissionSets: admission.permissionSets,
+        accountPermissions,
+      });
+      if (!permitted) notPermitted += 1;
+      return permitted;
+    })
     .map((t) => {
       const base = t.symbol.slice(0, t.symbol.length - quoteAsset.length);
       return {
@@ -113,4 +150,16 @@ export const toDiscoveryTickers = (
         askPrice: t.askPrice,
       };
     });
+  // Cut here rather than as a funnel stage, for the same reason `status` is:
+  // both are exchange admission facts, while every funnel stage is a filter the
+  // operator can tune. A stage would also be the only one no config change can
+  // relax. That leaves the funnel's universe count silently smaller, so log the
+  // real count — otherwise a symbol the operator expects vanishes unexplained.
+  if (notPermitted > 0) {
+    logger.warn(
+      { quoteAsset, notPermitted, kept: kept.length },
+      'discovery: symbols excluded, account lacks a required Binance permission',
+    );
+  }
+  return kept;
 };

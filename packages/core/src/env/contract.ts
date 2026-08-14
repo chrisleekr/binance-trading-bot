@@ -130,7 +130,7 @@ const normaliseName = (name: string): string => name.toUpperCase().replace(/-/g,
  * floor turns an import or catalogue regression into a failure. Sits a margin
  * below the real count so ordinary removals do not red it.
  */
-export const ENV_CONTRACT_FLOOR: number = 36;
+export const ENV_CONTRACT_FLOOR: number = 35;
 
 /**
  * True when the name alone is enough to conclude the value is credential

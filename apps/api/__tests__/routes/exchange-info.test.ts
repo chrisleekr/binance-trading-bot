@@ -17,6 +17,7 @@ const upstreamSample = {
       quoteAsset: 'USDT',
       status: 'TRADING',
       filters: [{ filterType: 'PRICE_FILTER', tickSize: '0.01000000' }],
+      permissionSets: [['SPOT', 'MARGIN']],
       orderTypes: ['LIMIT'],
     },
     {
@@ -87,8 +88,17 @@ describe('loadOrFetchExchangeInfo', () => {
       // Only PRICE_FILTER.tickSize here — no LOT_SIZE/NOTIONAL, so the full set
       // can't be projected.
       filters: null,
+      // Carried through so the bind route can refuse a symbol this account's
+      // Binance permission tags can never satisfy.
+      permissionSets: [['SPOT', 'MARGIN']],
     });
-    expect(body.symbols[1]).toMatchObject({ symbol: 'ETHUSDT', filterTickSize: null });
+    // Absent upstream projects to null, which reads as "no constraint
+    // published" and stays permitted.
+    expect(body.symbols[1]).toMatchObject({
+      symbol: 'ETHUSDT',
+      filterTickSize: null,
+      permissionSets: null,
+    });
     expect(body.fetchedAt).toBe('2026-05-10T00:00:00.000Z');
     expect(fixture.raw.get(EXCHANGE_INFO_REDIS_KEY)).toBeTruthy();
     expect(fixture.ttl).toEqual({

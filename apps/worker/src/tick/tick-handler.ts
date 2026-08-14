@@ -35,7 +35,12 @@ import { errorMessage } from '@app/core/error';
 import type { DecisionFailure, TickHandlerDeps, TickResult } from './tick-types.js';
 import { applyDailyHalt } from './halt-filter.js';
 import { extractLivePrice, mapEventToTrigger, tickIntervals } from './tick-event.js';
-import { redisUnavailableSkip, symbolDelistedReap, throttledSkip } from './tick-skip.js';
+import {
+  redisUnavailableSkip,
+  symbolDelistedReap,
+  symbolNotPermittedRetire,
+  throttledSkip,
+} from './tick-skip.js';
 import {
   DEFAULT_PERSIST_TIMEOUT,
   isOrderRetriable,
@@ -175,6 +180,32 @@ export const createTickHandler = (
         const trigger: TriggerEvent = mapEventToTrigger(data);
         let built: BuiltTick;
         try {
+          // A symbol this account has no permission to trade is refused by Binance
+          // on every order it will ever emit, so it is retired here rather than
+          // re-derived and re-refused every tick. Inside the try on purpose: the
+          // symbol-info read it needs can itself confirm a delisting, and that
+          // throw belongs to the catch below, whose copy is the accurate one.
+          //
+          // Gated on the two halts the assembler checks before its own symbol-info
+          // read, because it now runs ahead of the assembler: an operator who has
+          // pulled the kill switch or paused the coin must not have a binding
+          // deleted and its WS subscription reconfigured underneath them. The
+          // first tick after the halt clears retires it.
+          if (raw.killSwitch === null && raw.symbolDisable === null) {
+            const notPermittedSkip = await symbolNotPermittedRetire(deps, {
+              scope: profile.scope,
+              profileId,
+              symbol,
+              mode: profile.binanceMode,
+              latencyMs: clock.nowMs() - startMs,
+              nowMs: clock.nowMs(),
+            });
+            if (notPermittedSkip) {
+              const retireLatencyMs = clock.nowMs() - startMs;
+              await stampTickMeta(retireLatencyMs, null);
+              return { ...notPermittedSkip, latencyMs: retireLatencyMs };
+            }
+          }
           built = await buildTickInput(deps, {
             profile,
             strategy,

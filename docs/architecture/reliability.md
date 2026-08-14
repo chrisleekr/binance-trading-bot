@@ -8,6 +8,7 @@ The worker is crash-only: idempotent jobs, a version-aware per-symbol `symbol_st
 - [Held-quantity reconciliation](worker-pipeline.md#converging-on-exchange-truth) — four paths converge the strategy's `heldQuantity` claim onto wallet truth.
 - [Account-event idle clock](worker-pipeline.md#the-account-event-idle-clock) — a second liveness clock that reconnects and resyncs a stream that pongs but delivers no events.
 - [Delisted-symbol self-heal](#delisted-symbol-self-heal) — a symbol Binance no longer lists reaps its own flat auto-discovered binding at the tick boundary instead of dead-lettering.
+- [Unpermitted-symbol self-heal](#unpermitted-symbol-self-heal) — a symbol the account has no Binance permission to trade retires the same flat auto-discovered binding, before the tick assembler and at no request weight of its own.
 
 ## Binance clock-drift self-heal
 
@@ -49,9 +50,27 @@ For a **held or operator-pinned** delisted symbol — left in place (below) and 
 
 On a `SymbolDelistedError` the tick self-heals instead of dead-lettering the same symbol every tick forever:
 
-- It reaps the binding **only when it is flat and auto-discovered** (`source=auto`, no held quantity, no open order) via the shared `reapAutoBinding` — the same reap the [discovery](../concepts/discovery.md) cron uses, so the two paths cannot leave divergent discovery state. A held or operator-pinned symbol is left in place.
+- It reaps the binding **only when it is flat and auto-discovered** (`source=auto`, no held quantity, no open order) via the shared `reapAutoBinding` — the same reap the [discovery](../concepts/discovery.md) cron uses, so the two paths cannot leave divergent discovery state. The unbind itself deletes the symbol's `condition_states`, `symbol_states`, `avg_entry_prices` and pending `override_actions` in the same transaction, so a delisted coin leaves no state a tick could never come back to close. A held or operator-pinned symbol is left in place.
 - It writes one operator `action_log`: `info` when the binding was removed; a `warn` when it was held or pinned (the operator must flatten or unpin it), throttled to one per hour per profile+symbol so a stuck symbol cannot flood the log.
 - On a removal it enqueues one `reconfigure-profile` resync — the same job the [discovery](../concepts/discovery.md) cron and the api symbol routes use — so the WS subscriber drops the now-unbound symbol promptly instead of feeding it until the next discovery pass. The payload carries `accountId` (a resync missing it fails the job as an invalid payload and dead-letters on that failure, rather than completing silently). The enqueue is a queue add, not a re-entrant tick, so it cannot deadlock the per-(profile, symbol) chain.
 - It returns a graceful skip (no decisions, no dead-letter); the next market event re-ticks.
 
 The action_log and the reconfigure enqueue are best-effort — a transient fault is logged and swallowed, never allowed to re-fail the tick the self-heal exists to rescue.
+
+## Unpermitted-symbol self-heal
+
+Binance gates each symbol on permission tags: a symbol publishes `permissionSets`, and the account may trade it only when it holds at least one tag from **every** published set. A bound symbol the account cannot satisfy is refused `-2010 This symbol is not permitted for this account` on every order it will ever send, and no amount of waiting changes that. So the tick retires the binding on the same terms as a delisting.
+
+The check is **data-driven**, not error-driven — nothing throws — so it runs before the tick assembler rather than in its catch, and it spends **no Binance request weight of its own**: the symbol's sets come from the same symbol-info cache the assembler reads on the very next line, and the account's tags from the Redis key every signed `/account` response already writes. It is gated on the kill switch and the per-symbol pause, the two halts the assembler checks before its own symbol-info read, so running ahead of the assembler cannot retire a binding on a profile the operator has explicitly stopped.
+
+It **fails open** in every ambiguity — the symbol publishes no sets, its published shape drifted, or the account's cached tags are absent, empty or unparseable — and the tick proceeds normally. The asymmetry is deliberate: a wrong "not permitted" silently retires a binding the account can trade, while a wrong "permitted" costs one Binance rejection, which is what happens today anyway.
+
+When the symbol is confirmed unreachable, the tick takes the same self-heal the delisted path takes, sharing one implementation so the two cannot drift:
+
+- Reap **only when flat and auto-discovered**, through the shared `reapAutoBinding`. The unbind deletes the symbol's `condition_states`, `symbol_states`, `avg_entry_prices` and pending `override_actions` in one Postgres transaction; the discovery Redis hashes are cleared straight after, and only on a confirmed removal. Held or operator-pinned bindings are left in place — retirement is never allowed to abandon a position or override the operator.
+- One operator `action_log`: `info` on removal; a `warn` when it was held or pinned, naming the sell-down or unpin the operator has to perform. The warn is throttled to one per hour per profile+symbol on **its own Redis key namespace** — not the delist throttle's, and not the placement refusal's. All three are keyed `(profile, symbol)`, so a shared prefix is a shared key, and the placement refusal always fires first.
+- Only the sets the account satisfies nothing from are recorded, plus counts. Binance controls `permissionSets` and caps neither level, so a tokenised-equity symbol publishes hundreds of tags that no operator can act on and that the log viewer would then serve on every page.
+- On a removal, one `reconfigure-profile` resync so the WS subscriber drops the now-unbound symbol, then a graceful skip: no decisions, no dead-letter.
+- A binding that **survives** (held or pinned) keeps ticking. Only a retired symbol has nothing left to tick; one still bound must close its own blocker rows and stay able to cancel its resting orders.
+
+Two boundaries are load-bearing. A `SymbolDelistedError` raised while reading the symbol row propagates to the delisted branch instead of being swallowed here, so a symbol Binance no longer lists at all is described accurately. And the order-placement pre-call refusal stays exactly as it is: retirement fails open in every ambiguity above and deliberately declines `manual` and held bindings, so that refusal is precisely where those still land, at zero request weight.

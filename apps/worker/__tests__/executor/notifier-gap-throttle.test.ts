@@ -6,8 +6,14 @@ import {
   createNotifierGapThrottle,
   createOrderFailedThrottle,
   DEFAULT_NOTIFIER_GAP_WINDOW_MS,
+  createSymbolNotPermittedThrottle,
   DEFAULT_ORDER_FAILED_WINDOW_MS,
+  DEFAULT_SYMBOL_NOT_PERMITTED_WINDOW_MS,
   ORDER_FAILED_KEY_PREFIX,
+  ORDER_UNFUNDABLE_KEY_PREFIX,
+  SYMBOL_DELISTED_KEY_PREFIX,
+  SYMBOL_NOT_PERMITTED_KEY_PREFIX,
+  SYMBOL_NOT_PERMITTED_RETIRE_KEY_PREFIX,
 } from '../../src/executor/notifier-gap-throttle.js';
 
 const fakeLogger = () => ({ warn: vi.fn() }) as unknown as Logger;
@@ -147,5 +153,51 @@ describe('createOrderFailedThrottle', () => {
       `${ORDER_FAILED_KEY_PREFIX}p-1:BTCUSDT:retry`,
       `${ORDER_FAILED_KEY_PREFIX}p-1:BTCUSDT:final`,
     ]);
+  });
+});
+
+describe('createSymbolNotPermittedThrottle', () => {
+  it('has its OWN key namespace and a one-hour window', async () => {
+    // Keyed per (profile, symbol) and hourly because the refusal is PERMANENT:
+    // unlike a wallet shortfall, nothing the bot does clears it, so the
+    // re-emission is unbounded in time rather than merely long.
+    const set = vi.fn<Redis['set']>().mockResolvedValue('OK');
+    const redis = { set } as unknown as Redis;
+    const t = createSymbolNotPermittedThrottle({ redis, logger: fakeLogger() });
+
+    expect(await t.allow('p-1:CRCLBUSDT')).toBe(true);
+
+    expect(set).toHaveBeenCalledWith(
+      `${SYMBOL_NOT_PERMITTED_KEY_PREFIX}p-1:CRCLBUSDT`,
+      '1',
+      'PX',
+      DEFAULT_SYMBOL_NOT_PERMITTED_WINDOW_MS,
+      'NX',
+    );
+    expect(DEFAULT_SYMBOL_NOT_PERMITTED_WINDOW_MS).toBe(3_600_000);
+  });
+
+  it('does not share a namespace with the unfundable throttle', async () => {
+    // The two refusals have different causes and different fixes ("free up the
+    // wallet" vs "the account can never trade this"), so suppressing one must
+    // never suppress the other. Equal windows make a shared prefix easy to miss.
+    expect(SYMBOL_NOT_PERMITTED_KEY_PREFIX).not.toBe(ORDER_UNFUNDABLE_KEY_PREFIX);
+  });
+});
+
+describe('per-(profile, symbol) throttle namespaces', () => {
+  it('gives every (profile, symbol) window its own prefix', () => {
+    // All four are keyed `${profileId}:${symbol}` on the same 1h window, so a
+    // duplicated prefix is a duplicated Redis key and the second caller is muted
+    // for an hour. Nothing else would catch that: each throttle passes its own
+    // unit tests while silently sharing a key with a sibling.
+    const prefixes = [
+      ORDER_FAILED_KEY_PREFIX,
+      ORDER_UNFUNDABLE_KEY_PREFIX,
+      SYMBOL_NOT_PERMITTED_KEY_PREFIX,
+      SYMBOL_DELISTED_KEY_PREFIX,
+      SYMBOL_NOT_PERMITTED_RETIRE_KEY_PREFIX,
+    ];
+    expect(new Set(prefixes).size).toBe(prefixes.length);
   });
 });

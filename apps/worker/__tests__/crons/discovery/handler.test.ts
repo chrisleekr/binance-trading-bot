@@ -1,9 +1,11 @@
 import type { Job } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
-import { asProfileId, asUserId, DiscoveryConfigSchema } from '@app/contracts';
+import { asAccountId, asProfileId, asUserId, DiscoveryConfigSchema } from '@app/contracts';
 import type { Ticker24hrDto } from '@app/binance';
 import type { ActiveProfile } from '../../../src/profile-manager/profile-manager.js';
 import { discoveryHandler, withTestModeFallback } from '../../../src/crons/discovery/handler.js';
+import type { SymbolAdmission } from '../../../src/crons/discovery/symbol-admission.js';
+import { readAccountPermissions } from '../../../src/lib/account-permissions.js';
 
 const NOW = 1_700_000_000_000;
 
@@ -62,9 +64,11 @@ describe('discoveryHandler', () => {
     shouldRun: async () => true,
     runForProfile: vi.fn(async () => ({ added: 1, removed: 0 })),
     fetchAllTickers: vi.fn(async () => [ticker({ symbol: 'AAAUSDT' })]),
-    fetchSymbolStatuses: vi.fn(
-      async (_mode: string) => new Map<string, string>([['AAAUSDT', 'TRADING']]),
+    fetchSymbolAdmission: vi.fn(
+      async (_mode: string) =>
+        new Map<string, SymbolAdmission>([['AAAUSDT', { status: 'TRADING' }]]),
     ),
+    fetchAccountPermissions: vi.fn(async () => ['SPOT']),
     resolveBinanceMode: vi.fn(async () => 'live'),
     clock: { nowMs: () => NOW },
     ...over,
@@ -105,7 +109,83 @@ describe('discoveryHandler', () => {
       NOW,
       expect.any(Function),
       expect.any(Function),
+      expect.any(Function),
     );
+  });
+
+  it('resolves the account permission tags once per account, shared across its profiles', async () => {
+    // The tags belong to the key pair, so two profiles on one account must not
+    // each pay a Redis read for the same answer.
+    const fetchAccountPermissions = vi.fn(async () => ['SPOT']);
+    const runForProfile = vi.fn(
+      async (
+        _p,
+        _cfg,
+        _quoteAsset,
+        _name,
+        _now,
+        _getAllTickers: () => Promise<unknown>,
+        _getSymbolAdmission: () => Promise<unknown>,
+        getAccountPermissions: () => Promise<readonly string[]>,
+      ) => {
+        expect(await getAccountPermissions()).toEqual(['SPOT']);
+        return { added: 0, removed: 0 };
+      },
+    );
+    await discoveryHandler(
+      deps({
+        listActive: () => [profile('1'), profile('2')],
+        fetchAccountPermissions,
+        runForProfile,
+      }),
+    )({} as Job);
+    expect(runForProfile).toHaveBeenCalledTimes(2);
+    expect(fetchAccountPermissions).toHaveBeenCalledTimes(1);
+  });
+
+  it('a Redis fault on the permission read costs the cut, not the profiles', async () => {
+    // The production reader degrades a fault to the unknown list rather than
+    // rejecting. That matters here because this promise is memoized per account
+    // for the whole wake: a rejection would replay to every remaining profile on
+    // the account and skip each one, so a Redis blip would cost the whole wake.
+    const fetchAccountPermissions = vi.fn(() =>
+      readAccountPermissions(
+        {
+          get: async () => {
+            throw new Error('redis unreachable');
+          },
+        },
+        logger,
+        asAccountId('00000000-0000-4000-8000-0000000000aa'),
+        'cron discovery',
+      ),
+    );
+    const seen: (readonly string[])[] = [];
+    const runForProfile = vi.fn(
+      async (
+        _p,
+        _cfg,
+        _quoteAsset,
+        _name,
+        _now,
+        _getAllTickers: () => Promise<unknown>,
+        _getSymbolAdmission: () => Promise<unknown>,
+        getAccountPermissions: () => Promise<readonly string[]>,
+      ) => {
+        seen.push(await getAccountPermissions());
+        return { added: 0, removed: 0 };
+      },
+    );
+    await discoveryHandler(
+      deps({
+        listActive: () => [profile('1'), profile('2')],
+        fetchAccountPermissions,
+        runForProfile,
+      }),
+    )({} as Job);
+    expect(runForProfile).toHaveBeenCalledTimes(2);
+    // Empty ⇒ unknown ⇒ the permission cut is disabled for the wake, not a refusal.
+    expect(seen).toEqual([[], []]);
   });
 
   it('fail-safe: a throwing profile is caught and does not abort the others', async () => {
@@ -136,11 +216,12 @@ describe('discoveryHandler', () => {
     expect(fetchAllTickers).toHaveBeenCalledTimes(1); // one fetch, shared
   });
 
-  it('builds the symbol-status map once per wake, shared across same-mode profiles (#635)', async () => {
+  it('builds the symbol-admission map once per wake, shared across same-mode profiles (#635)', async () => {
     // Both profiles resolve to the same mode (the default resolveBinanceMode →
     // 'live'), so the per-mode memo collapses them to a single scan.
-    const fetchSymbolStatuses = vi.fn(
-      async (_mode: string) => new Map<string, string>([['AAAUSDT', 'TRADING']]),
+    const fetchSymbolAdmission = vi.fn(
+      async (_mode: string) =>
+        new Map<string, SymbolAdmission>([['AAAUSDT', { status: 'TRADING' }]]),
     );
     // Each profile resolves statuses through the shared getter, as the real port does.
     const runForProfile = vi.fn(
@@ -151,20 +232,20 @@ describe('discoveryHandler', () => {
         _name,
         _now,
         _getAllTickers: () => Promise<unknown>,
-        getSymbolStatuses: () => Promise<ReadonlyMap<string, string>>,
+        getSymbolAdmission: () => Promise<ReadonlyMap<string, SymbolAdmission>>,
       ) => {
-        await getSymbolStatuses();
+        await getSymbolAdmission();
         return { added: 0, removed: 0 };
       },
     );
     await discoveryHandler(
-      deps({ listActive: () => [profile('1'), profile('2')], fetchSymbolStatuses, runForProfile }),
+      deps({ listActive: () => [profile('1'), profile('2')], fetchSymbolAdmission, runForProfile }),
     )({} as Job);
     expect(runForProfile).toHaveBeenCalledTimes(2);
-    expect(fetchSymbolStatuses).toHaveBeenCalledTimes(1); // one scan, shared
+    expect(fetchSymbolAdmission).toHaveBeenCalledTimes(1); // one scan, shared
   });
 
-  it('scopes the symbol-status admission map to each profile-account binance_mode (#662)', async () => {
+  it('scopes the symbol-admission map to each profile-account binance_mode (#662)', async () => {
     // Three profiles: one live, two testnet (distinct accounts). The admission
     // map must be resolved per-mode: a testnet profile must never be admitted
     // against live-only symbols (REUSDT here) that do not exist on testnet, or
@@ -178,17 +259,17 @@ describe('discoveryHandler', () => {
     const resolveBinanceMode = vi.fn(async (p: ActiveProfile) =>
       testAccounts.has(p.accountId as never as string) ? 'test' : 'live',
     );
-    const fetchSymbolStatuses = vi.fn(async (mode?: string) =>
+    const fetchSymbolAdmission = vi.fn(async (mode?: string) =>
       mode === 'test'
-        ? new Map<string, string>([['BTCUSDT', 'TRADING']])
-        : new Map<string, string>([
-            ['BTCUSDT', 'TRADING'],
-            ['REUSDT', 'TRADING'],
+        ? new Map<string, SymbolAdmission>([['BTCUSDT', { status: 'TRADING' }]])
+        : new Map<string, SymbolAdmission>([
+            ['BTCUSDT', { status: 'TRADING' }],
+            ['REUSDT', { status: 'TRADING' }],
           ]),
     );
-    // Per call, capture the profile's 7th arg (the getSymbolStatuses thunk) keyed
+    // Per call, capture the profile's 7th arg (the getSymbolAdmission thunk) keyed
     // by profile identity so each profile's resolved admission map is inspectable.
-    const captured = new Map<string, () => Promise<ReadonlyMap<string, string>>>();
+    const captured = new Map<string, () => Promise<ReadonlyMap<string, SymbolAdmission>>>();
     const runForProfile = vi.fn(
       async (
         p: ActiveProfile,
@@ -197,10 +278,10 @@ describe('discoveryHandler', () => {
         _name,
         _now,
         _getAllTickers: () => Promise<unknown>,
-        getSymbolStatuses: () => Promise<ReadonlyMap<string, string>>,
+        getSymbolAdmission: () => Promise<ReadonlyMap<string, SymbolAdmission>>,
       ) => {
         const key = p === pTest ? 'p-test' : p === pTest2 ? 'p-test2' : 'p-live';
-        captured.set(key, getSymbolStatuses);
+        captured.set(key, getSymbolAdmission);
         return { added: 0, removed: 0 };
       },
     );
@@ -208,7 +289,7 @@ describe('discoveryHandler', () => {
       deps({
         listActive: () => [pLive, pTest, pTest2],
         resolveBinanceMode,
-        fetchSymbolStatuses,
+        fetchSymbolAdmission,
         runForProfile,
       }),
     )({} as Job);
@@ -219,10 +300,10 @@ describe('discoveryHandler', () => {
     expect((await captured.get('p-test2')!()).has('REUSDT')).toBe(false);
     expect((await captured.get('p-live')!()).has('REUSDT')).toBe(true);
     // Each mode's exchangeInfo status set was fetched under its own mode.
-    expect(fetchSymbolStatuses).toHaveBeenCalledWith('test');
-    expect(fetchSymbolStatuses).toHaveBeenCalledWith('live');
+    expect(fetchSymbolAdmission).toHaveBeenCalledWith('test');
+    expect(fetchSymbolAdmission).toHaveBeenCalledWith('live');
     // Distinct modes fetch once each; the repeated 'test' mode collapses to one.
-    expect(fetchSymbolStatuses).toHaveBeenCalledTimes(2);
+    expect(fetchSymbolAdmission).toHaveBeenCalledTimes(2);
   });
 
   it('fails closed on an empty admission map for a test-mode profile, but stays open for live (#662)', async () => {
@@ -234,7 +315,7 @@ describe('discoveryHandler', () => {
     const resolveBinanceMode = vi.fn(async (p: ActiveProfile) =>
       p.accountId === ('acct-test' as never) ? 'test' : 'live',
     );
-    const fetchSymbolStatuses = vi.fn(async () => new Map<string, string>()); // unprimed
+    const fetchSymbolAdmission = vi.fn(async () => new Map<string, SymbolAdmission>()); // unprimed
     const ran: string[] = [];
     const runForProfile = vi.fn(async (p: ActiveProfile) => {
       ran.push(p === pTest ? 'p-test' : 'p-live');
@@ -246,7 +327,7 @@ describe('discoveryHandler', () => {
         logger: { info: vi.fn(), warn, error: vi.fn(), debug: vi.fn() } as never,
         listActive: () => [pLive, pTest],
         resolveBinanceMode,
-        fetchSymbolStatuses,
+        fetchSymbolAdmission,
         runForProfile,
       }),
     )({} as Job);

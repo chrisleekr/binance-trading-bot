@@ -1,4 +1,4 @@
-import { ExchangeInfoResponse, projectSymbolFilters } from '@app/contracts';
+import { ExchangeInfoResponse, projectPermissionSets, projectSymbolFilters } from '@app/contracts';
 import { BINANCE_HOSTS, type BinanceMode } from '@app/binance';
 import { createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
@@ -54,6 +54,9 @@ const RawExchangeInfo = z.object({
         // row carries `tickSize`. Schema is permissive so an upstream
         // filter-shape change doesn't break the cache load.
         filters: z.array(z.object({ filterType: z.string() }).passthrough()).optional(),
+        // Which permission tags may trade this symbol. Permissive here for the
+        // same reason as `filters`: the shape is validated where it is used.
+        permissionSets: z.unknown().optional(),
       })
       .passthrough(),
   ),
@@ -156,6 +159,10 @@ export const loadOrFetchExchangeInfo = async (
         // The full sizing/pricing set (with the NOTIONAL/MIN_NOTIONAL fallback the
         // tick-only extractor lacked) so a strategy preview can size an entry.
         filters: projectSymbolFilters(s.filters),
+        // Carried through so the picker can tell the operator a symbol their
+        // account cannot trade, instead of letting them bind it and discover it
+        // only as a rejected order.
+        permissionSets: projectPermissionSets(s.permissionSets),
       })),
     fetchedAt: now().toISOString(),
   };

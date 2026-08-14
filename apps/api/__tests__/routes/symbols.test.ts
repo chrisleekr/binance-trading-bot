@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { GLOBAL_KEYS, profileKey } from '@app/db';
+import { accountPermissionsKey, GLOBAL_KEYS, profileKey } from '@app/db';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 
 /**
@@ -94,6 +94,136 @@ describeIfInfra('symbols router — per-symbol config override', () => {
       },
     );
     expect(res.status).toBe(422);
+  });
+
+  it('rejects binding a live-account symbol whose Binance permission sets the key pair cannot satisfy', async () => {
+    // TRADING is not tradable BY THIS ACCOUNT. Bound anyway, every tick
+    // re-derives the entry order and Binance refuses it -2010 forever, burning
+    // the account's whole request-weight budget. Reject at the bind instead.
+    const redis = fx.di.redis.raw();
+    const cachedExchangeInfo = await redis.get('exchange-info:cache');
+    const permissionsKey = accountPermissionsKey(fx.alice.accountId);
+    try {
+      await redis.set(
+        'exchange-info:cache',
+        JSON.stringify({
+          symbols: [
+            {
+              symbol: 'BTCUSDT',
+              baseAsset: 'BTC',
+              quoteAsset: 'USDT',
+              status: 'TRADING',
+              filterTickSize: '0.01',
+              permissionSets: [['SPOT', 'TRD_GRP_005']],
+            },
+          ],
+          fetchedAt: '2026-05-31T00:00:00.000Z',
+        }),
+      );
+      await fx.di.pool.query(`update accounts set binance_mode = 'live' where id = $1`, [
+        fx.alice.accountId,
+      ]);
+      await redis.set(permissionsKey, JSON.stringify(['LEVERAGED', 'TRD_GRP_025']));
+
+      const denied = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols`,
+        {
+          method: 'POST',
+          headers: headers(fx.alice.userId),
+          body: JSON.stringify({ symbol: 'BTCUSDT' }),
+        },
+      );
+      expect(denied.status).toBe(422);
+      expect(JSON.stringify(await denied.json())).toContain('not permitted to trade');
+
+      // Unreadable permission cache must fail open: an absent signal is
+      // "unknown", never "forbidden", or a cold Redis blocks every bind.
+      await redis.del(permissionsKey);
+      const open = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols`,
+        {
+          method: 'POST',
+          headers: headers(fx.alice.userId),
+          body: JSON.stringify({ symbol: 'BTCUSDT' }),
+        },
+      );
+      expect(open.status).toBe(201);
+    } finally {
+      await redis.del(permissionsKey);
+      if (cachedExchangeInfo !== null) await redis.set('exchange-info:cache', cachedExchangeInfo);
+      await fx.di.pool.query(`update accounts set binance_mode = 'test' where id = $1`, [
+        fx.alice.accountId,
+      ]);
+    }
+  });
+
+  it('a failing permission-cache read fails open at the bind, it does not 500', async () => {
+    // An absent key already fails open. A FAILING get is the same signal — the
+    // check could not run — so it must degrade the same way. Unguarded, the
+    // ioredis error escapes as a 500, which turns a Redis blip into an operator
+    // who cannot bind anything.
+    const redis = fx.di.redis.raw();
+    const cachedExchangeInfo = await redis.get('exchange-info:cache');
+    const permissionsKey = accountPermissionsKey(fx.alice.accountId);
+    // The route takes its client from `raw()`, which hands out a fresh
+    // connection per call, so the fault has to be injected at that seam. Only
+    // the permission key faults: the exchangeInfo read runs through the same
+    // client, and breaking it too would prove nothing about this guard.
+    const faulty = new Proxy(redis, {
+      get(target, prop, receiver) {
+        if (prop === 'get') {
+          return async (key: string) =>
+            key === permissionsKey
+              ? Promise.reject(new Error('redis unreachable'))
+              : redis.get(key);
+        }
+        const value = Reflect.get(target, prop, receiver) as unknown;
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const raw = vi.spyOn(fx.di.redis, 'raw').mockReturnValue(faulty);
+    try {
+      // Sets the account cannot satisfy, so a READABLE cache 422s here. Only the
+      // unreadable read can make this a 201.
+      await redis.set(
+        'exchange-info:cache',
+        JSON.stringify({
+          symbols: [
+            {
+              symbol: 'BTCUSDT',
+              baseAsset: 'BTC',
+              quoteAsset: 'USDT',
+              status: 'TRADING',
+              filterTickSize: '0.01',
+              permissionSets: [['TRD_GRP_005']],
+            },
+          ],
+          fetchedAt: '2026-05-31T00:00:00.000Z',
+        }),
+      );
+      await fx.di.pool.query(`update accounts set binance_mode = 'live' where id = $1`, [
+        fx.alice.accountId,
+      ]);
+      await redis.set(permissionsKey, JSON.stringify(['SPOT']));
+
+      const res = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols`,
+        {
+          method: 'POST',
+          headers: headers(fx.alice.userId),
+          body: JSON.stringify({ symbol: 'BTCUSDT' }),
+        },
+      );
+      expect(res.status).toBe(201);
+    } finally {
+      raw.mockRestore();
+      await redis.del(permissionsKey);
+      if (cachedExchangeInfo !== null) await redis.set('exchange-info:cache', cachedExchangeInfo);
+      await fx.di.pool.query(`update accounts set binance_mode = 'test' where id = $1`, [
+        fx.alice.accountId,
+      ]);
+      await redis.quit();
+    }
   });
 
   it('GET returns the single symbol row with a null override by default', async () => {
@@ -593,7 +723,10 @@ describeIfInfra('symbols router — per-symbol config override', () => {
   it('DELETE untrack clears the durable symbol_states row so a re-add cold-loads fresh', async () => {
     // Attach ETHUSDT and seed a durable strategy-state row (as the worker would
     // after a fill). The untrack must drop it, otherwise a re-add would revive a
-    // stale position the operator never asked the profile to hold.
+    // stale position the operator never asked the profile to hold. The open
+    // condition rows go with it: only this symbol's tick can ever close one, and
+    // once the binding is gone that tick never runs again, so a survivor is read
+    // back forever as a live blocker on a coin the profile no longer holds.
     const add = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols`,
       {
@@ -608,6 +741,16 @@ describeIfInfra('symbols router — per-symbol config override', () => {
        values ($1, 'ETHUSDT', $2::jsonb, '2.0.0')
        on conflict (profile_id, symbol) do update set state = excluded.state`,
       [fx.alice.profileId, JSON.stringify({ schemaVersion: '2.0.0', avgEntryPrice: '1500' })],
+    );
+    // One condition about the symbol and one about the profile itself. The
+    // profile-level subject is the empty-string sentinel, not a symbol, so it
+    // must outlive a per-symbol teardown.
+    await fx.di.pool.query(
+      `insert into condition_states (profile_id, condition, symbol, code)
+       values ($1, 'entry-blocked', 'ETHUSDT', 'knife-guard'),
+              ($1, 'discovery-idle', '', 'no-candidates')
+       on conflict (profile_id, condition, symbol) do update set code = excluded.code`,
+      [fx.alice.profileId],
     );
 
     const del = await fx.app.request(
@@ -624,6 +767,16 @@ describeIfInfra('symbols router — per-symbol config override', () => {
       [fx.alice.profileId],
     );
     expect(states.rowCount).toBe(0);
+    const symbolCondition = await fx.di.pool.query(
+      `select 1 from condition_states where profile_id = $1 and symbol = 'ETHUSDT'`,
+      [fx.alice.profileId],
+    );
+    expect(symbolCondition.rowCount).toBe(0);
+    const profileCondition = await fx.di.pool.query(
+      `select 1 from condition_states where profile_id = $1 and condition = 'discovery-idle'`,
+      [fx.alice.profileId],
+    );
+    expect(profileCondition.rowCount).toBe(1);
     // The profile_symbols binding is gone too (the untrack, unchanged).
     const bound = await fx.di.pool.query(
       `select 1 from profile_symbols where profile_id = $1 and symbol = 'ETHUSDT'`,

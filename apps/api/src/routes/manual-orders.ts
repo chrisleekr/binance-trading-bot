@@ -186,6 +186,21 @@ const resetConfigRoute = createRoute({
   },
 });
 
+/**
+ * The 202 receipt every arm route hands back. Shared so the four of them cannot
+ * drift: `createdAt` is the row's own server stamp and a client watching for the
+ * outcome needs it from all of them, not from whichever one was edited last.
+ */
+const armReceipt = (action: {
+  readonly id: string;
+  readonly actionAt: Date;
+  readonly createdAt: Date;
+}): ManualOrderResponse => ({
+  scheduledAt: action.actionAt.toISOString(),
+  overrideActionId: action.id,
+  createdAt: action.createdAt.toISOString(),
+});
+
 export const manualOrdersRouter = (di: DI): ApiHono => {
   const app = createApiHono();
   app.use('/profiles/*', requireUser());
@@ -229,7 +244,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
         ...(body.price !== undefined && { price: body.price }),
       },
     });
-    return c.json({ scheduledAt: action.actionAt.toISOString(), overrideActionId: action.id }, 202);
+    return c.json(armReceipt(action), 202);
   });
 
   app.openapi(cancelOrderRoute, async (c) => {
@@ -358,7 +373,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
       writeOverrideAndEnqueue(di, p, symbol, overridePayload),
     );
     c.set('auditEvent', { event: 'trigger-buy', payload: { profileId: scope.profileId, symbol } });
-    return c.json({ scheduledAt: action.actionAt.toISOString(), overrideActionId: action.id }, 202);
+    return c.json(armReceipt(action), 202);
   });
 
   app.openapi(triggerSellRoute, async (c) => {
@@ -381,7 +396,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
       writeOverrideAndEnqueue(di, p, symbol, overridePayload),
     );
     c.set('auditEvent', { event: 'trigger-sell', payload: { profileId: scope.profileId, symbol } });
-    return c.json({ scheduledAt: action.actionAt.toISOString(), overrideActionId: action.id }, 202);
+    return c.json(armReceipt(action), 202);
   });
 
   // Force-eject: an operator's deliberate "get me out of this auto coin now".
@@ -425,7 +440,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
       event: 'force-eject',
       payload: { profileId: scope.profileId, symbol, blocklist },
     });
-    return c.json({ scheduledAt: action.actionAt.toISOString(), overrideActionId: action.id }, 202);
+    return c.json(armReceipt(action), 202);
   });
 
   app.openapi(lbpPutRoute, async (c) => {

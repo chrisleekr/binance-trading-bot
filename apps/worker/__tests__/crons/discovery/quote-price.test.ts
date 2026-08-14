@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Ticker24hrDto } from '@app/binance';
 import { Decimal } from '@app/money';
+import type { SymbolAdmission } from '../../../src/crons/discovery/symbol-admission.js';
 import {
   resolveQuoteUsdPrice,
   toDiscoveryTickers,
@@ -21,6 +22,10 @@ const ticker = (over: Partial<Ticker24hrDto>): Ticker24hrDto => ({
   ...over,
 });
 
+// `logger` is a required option because both cuts below are silent by
+// construction; tests that do not assert on the warn still have to supply one.
+const noopLogger = (): { warn: ReturnType<typeof vi.fn> } => ({ warn: vi.fn() });
+
 describe('toDiscoveryTickers', () => {
   it('keeps only the configured quote asset and maps the fields', () => {
     const out = toDiscoveryTickers(
@@ -31,6 +36,7 @@ describe('toDiscoveryTickers', () => {
       ],
       'USDT',
       new Decimal(1),
+      { logger: noopLogger() },
     );
     expect(out.map((t) => t.symbol)).toEqual(['AAAUSDT']);
     expect(out[0]?.quoteAsset).toBe('USDT');
@@ -42,6 +48,7 @@ describe('toDiscoveryTickers', () => {
       [ticker({ symbol: 'AAAUSDT', quoteVolume: '7' })],
       'USDT',
       new Decimal(1),
+      { logger: noopLogger() },
     );
     expect(out[0]?.pairVolumeUsd).toBe('7');
     expect(out[0]?.assetVolumeUsd).toBe('7');
@@ -53,7 +60,9 @@ describe('toDiscoveryTickers', () => {
       ticker({ symbol: 'ETHBTC', quoteVolume: '30' }),
       ticker({ symbol: 'ETHUSDT', quoteVolume: '180000000' }),
     ];
-    const out = toDiscoveryTickers(raw, 'BTC', resolveQuoteUsdPrice(raw, 'BTC') as Decimal);
+    const out = toDiscoveryTickers(raw, 'BTC', resolveQuoteUsdPrice(raw, 'BTC') as Decimal, {
+      logger: noopLogger(),
+    });
     expect(out.map((t) => t.symbol)).toEqual(['ETHBTC']);
     // 30 BTC of turnover at $100k/BTC is $3M, the number a dollar floor judges.
     expect(out[0]?.pairVolumeUsd).toBe('3000000');
@@ -66,7 +75,9 @@ describe('toDiscoveryTickers', () => {
       ticker({ symbol: 'BTCUSDT', lastPrice: '100000' }),
       ticker({ symbol: 'OBSCUREBTC' }),
     ];
-    const out = toDiscoveryTickers(raw, 'BTC', new Decimal(100_000));
+    const out = toDiscoveryTickers(raw, 'BTC', new Decimal(100_000), {
+      logger: noopLogger(),
+    });
     expect(out[0]?.assetVolumeUsd).toBeNull();
   });
 
@@ -75,15 +86,15 @@ describe('toDiscoveryTickers', () => {
     // matching alone lets it into the universe; only the exchangeInfo status
     // keeps it out. BCCUSDT (delisted) shares the USDT quote with the live
     // ETHUSDT, so the quote filter can't distinguish them — status must.
-    const statusBySymbol = new Map<string, string>([
-      ['ETHUSDT', 'TRADING'],
-      ['BCCUSDT', 'BREAK'], // delisted/halted
+    const admissionBySymbol = new Map<string, SymbolAdmission>([
+      ['ETHUSDT', { status: 'TRADING' }],
+      ['BCCUSDT', { status: 'BREAK' }], // delisted/halted
     ]);
     const out = toDiscoveryTickers(
       [ticker({ symbol: 'ETHUSDT' }), ticker({ symbol: 'BCCUSDT' })],
       'USDT',
       new Decimal(1),
-      statusBySymbol,
+      { admissionBySymbol, logger: noopLogger() },
     );
     expect(out.map((t) => t.symbol)).toEqual(['ETHUSDT']);
   });
@@ -92,12 +103,15 @@ describe('toDiscoveryTickers', () => {
     // The real delisting path is key deletion, not a status flip: exchange-info
     // -refresh DELETEs the symbol's key, so a delisted pair is simply absent
     // from the status map. Absent must read as non-TRADING, i.e. excluded.
-    const statusBySymbol = new Map<string, string>([['ETHUSDT', 'TRADING']]); // BCCUSDT absent
+    // BCCUSDT absent
+    const admissionBySymbol = new Map<string, SymbolAdmission>([
+      ['ETHUSDT', { status: 'TRADING' }],
+    ]);
     const out = toDiscoveryTickers(
       [ticker({ symbol: 'ETHUSDT' }), ticker({ symbol: 'BCCUSDT' })],
       'USDT',
       new Decimal(1),
-      statusBySymbol,
+      { admissionBySymbol, logger: noopLogger() },
     );
     expect(out.map((t) => t.symbol)).toEqual(['ETHUSDT']);
   });
@@ -110,11 +124,60 @@ describe('toDiscoveryTickers', () => {
       [ticker({ symbol: 'ETHUSDT' }), ticker({ symbol: 'BCCUSDT' })],
       'USDT',
       new Decimal(1),
-      new Map(),
-      { warn },
+      { admissionBySymbol: new Map(), logger: { warn } },
     );
     expect(out.map((t) => t.symbol)).toEqual(['ETHUSDT', 'BCCUSDT']);
     expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it('excludes a TRADING symbol the account holds no permission for, and warns', () => {
+    // Binance tradability is AND-of-ORs: the account must hold at least one tag
+    // from every published set. A tokenized equity publishes SPOT/MARGIN groups
+    // an account tagged only LEVERAGED/TRD_GRP_025 can never satisfy, so every
+    // order it derives is refused with -2010 forever.
+    const warn = vi.fn();
+    const admissionBySymbol = new Map<string, SymbolAdmission>([
+      ['ETHUSDT', { status: 'TRADING', permissionSets: [['SPOT', 'TRD_GRP_025']] }],
+      ['CRCLBUSDT', { status: 'TRADING', permissionSets: [['SPOT', 'TRD_GRP_005']] }],
+    ]);
+    const out = toDiscoveryTickers(
+      [ticker({ symbol: 'ETHUSDT' }), ticker({ symbol: 'CRCLBUSDT' })],
+      'USDT',
+      new Decimal(1),
+      { admissionBySymbol, accountPermissions: ['LEVERAGED', 'TRD_GRP_025'], logger: { warn } },
+    );
+    expect(out.map((t) => t.symbol)).toEqual(['ETHUSDT']);
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it('fails open on an empty account permission list: keeps every TRADING symbol', () => {
+    // An unreadable permission cache must never shrink the universe: an absent
+    // signal is "unknown", not "forbidden".
+    const admissionBySymbol = new Map<string, SymbolAdmission>([
+      ['ETHUSDT', { status: 'TRADING', permissionSets: [['SPOT']] }],
+      ['CRCLBUSDT', { status: 'TRADING', permissionSets: [['TRD_GRP_005']] }],
+    ]);
+    const out = toDiscoveryTickers(
+      [ticker({ symbol: 'ETHUSDT' }), ticker({ symbol: 'CRCLBUSDT' })],
+      'USDT',
+      new Decimal(1),
+      { admissionBySymbol, accountPermissions: [], logger: noopLogger() },
+    );
+    expect(out.map((t) => t.symbol)).toEqual(['ETHUSDT', 'CRCLBUSDT']);
+  });
+
+  it('keeps a symbol that publishes no permission sets', () => {
+    // Older cache entries predate the projection and carry no sets. Absent sets
+    // read as "no constraint published", which must stay permitted.
+    const admissionBySymbol = new Map<string, SymbolAdmission>([
+      ['ETHUSDT', { status: 'TRADING' }],
+    ]);
+    const out = toDiscoveryTickers([ticker({ symbol: 'ETHUSDT' })], 'USDT', new Decimal(1), {
+      admissionBySymbol,
+      accountPermissions: ['TRD_GRP_025'],
+      logger: noopLogger(),
+    });
+    expect(out.map((t) => t.symbol)).toEqual(['ETHUSDT']);
   });
 });
 

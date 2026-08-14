@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { profileRepo, type ProfileRepo } from '../../src/repo/index.js';
 import { accounts } from '../../src/schema/accounts.js';
+import { appliedFills } from '../../src/schema/applied-fills.js';
+import { backfillAttempts } from '../../src/schema/backfill-attempts.js';
 import { profiles } from '../../src/schema/profiles.js';
 import { tradeArchive } from '../../src/schema/trade-archive.js';
 import { users } from '../../src/schema/users.js';
@@ -42,6 +44,25 @@ const seedTrade = (tag: string) => ({
 describeIfDb('trade-archive account-scoped reads and writes', () => {
   let fx: IsolationFixture;
   let ap: ProfileRepo;
+
+  /**
+   * Age a symbol's fills past the settling grace. `listRecoverableSymbols`
+   * ignores a SELL until it has settled, so the forward archive gets first
+   * claim on a cycle it is still writing; a fill just recorded by `tryRecord`
+   * is therefore not yet actionable.
+   */
+  const settleFills = async (
+    profileId: IsolationFixture['alice']['profileId'],
+    symbol: string,
+    orderIds?: readonly number[],
+  ): Promise<void> => {
+    const conditions = [eq(appliedFills.profileId, profileId), eq(appliedFills.symbol, symbol)];
+    if (orderIds) conditions.push(inArray(appliedFills.orderId, [...orderIds]));
+    await fx.db
+      .update(appliedFills)
+      .set({ appliedAt: new Date(Date.now() - 3_600_000) })
+      .where(and(...conditions));
+  };
 
   beforeAll(async () => {
     fx = await setupFixture();
@@ -246,12 +267,34 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
     const bp = await profileRepo(fx.db, fx.bob.userId, fx.bob.accountId, fx.bob.profileId);
 
     // `it` blocks share the seeded DB (no per-test cleanup), so assert by
-    // containment + ordering rather than exact arrays.
+    // containment + ordering rather than exact arrays. Each recoverable coin
+    // needs a CLOSED cycle — a BUY and a SELL. A BUY-only symbol is an open
+    // position, covered separately below.
     await ap.appliedFills.tryRecord({ symbol: 'AAVEUSDT', orderId: 11, tradeId: 11, side: 'BUY' });
+    await ap.appliedFills.tryRecord({ symbol: 'AAVEUSDT', orderId: 15, tradeId: 15, side: 'SELL' });
     await ap.appliedFills.tryRecord({ symbol: 'ETHUSDT', orderId: 14, tradeId: 14, side: 'BUY' });
+    await ap.appliedFills.tryRecord({ symbol: 'ETHUSDT', orderId: 16, tradeId: 16, side: 'SELL' });
     // BTCUSDT has both fills and an archive row (beforeAll seed) — excluded.
+    // The fills are back-dated behind that row's `archived_at`: the predicate is
+    // cycle-relative, so "already archived" only holds while no fill landed
+    // after the last archived cycle (the newer-cycle case is asserted below).
     await ap.appliedFills.tryRecord({ symbol: 'BTCUSDT', orderId: 12, tradeId: 12, side: 'BUY' });
+    await ap.appliedFills.tryRecord({ symbol: 'BTCUSDT', orderId: 17, tradeId: 17, side: 'SELL' });
+    await fx.db
+      .update(appliedFills)
+      .set({ appliedAt: new Date('2026-05-01T00:00:00Z') })
+      .where(
+        and(
+          eq(appliedFills.profileId, fx.alice.profileId),
+          eq(appliedFills.symbol, 'BTCUSDT'),
+          inArray(appliedFills.orderId, [12, 17]),
+        ),
+      );
     await bp.appliedFills.tryRecord({ symbol: 'DOGEUSDT', orderId: 13, tradeId: 13, side: 'BUY' });
+    await bp.appliedFills.tryRecord({ symbol: 'DOGEUSDT', orderId: 18, tradeId: 18, side: 'SELL' });
+    await settleFills(fx.alice.profileId, 'AAVEUSDT');
+    await settleFills(fx.alice.profileId, 'ETHUSDT');
+    await settleFills(fx.bob.profileId, 'DOGEUSDT');
 
     const alice = await ap.tradeArchive.listRecoverableSymbols();
     expect(alice).toContain('AAVEUSDT'); // fills, no archive, not attempted
@@ -269,7 +312,9 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
     const bp = await profileRepo(fx.db, fx.bob.userId, fx.bob.accountId, fx.bob.profileId);
 
     await ap.appliedFills.tryRecord({ symbol: 'PEPEUSDT', orderId: 21, tradeId: 21, side: 'BUY' });
+    await ap.appliedFills.tryRecord({ symbol: 'PEPEUSDT', orderId: 23, tradeId: 23, side: 'SELL' });
     await bp.appliedFills.tryRecord({ symbol: 'SHIBUSDT', orderId: 22, tradeId: 22, side: 'BUY' });
+    await settleFills(fx.alice.profileId, 'PEPEUSDT');
 
     // Before the attempt PEPE is recoverable (actionable), not in the note.
     expect(await ap.tradeArchive.listRecoverableSymbols()).toContain('PEPEUSDT');
@@ -304,7 +349,155 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
     });
     expect(
       (await ap.tradeArchive.listUnreconstructableSymbols()).find((u) => u.symbol === 'PEPEUSDT'),
-    ).toMatchObject({ skippedOrphanSells: 3, droppedOvershoot: 0 });
+    ).toMatchObject({ skippedOrphanSells: 3, droppedOvershoot: 0, symbolUnavailable: false });
+
+    // A delisted coin is terminal for a different reason, and the flag has to
+    // survive the round trip for the API to gloss it as such.
+    await ap.tradeArchive.recordBackfillAttempt({
+      symbol: 'PEPEUSDT',
+      roundTrips: 0,
+      skippedOrphanSells: 0,
+      droppedOvershoot: 0,
+      symbolUnavailable: true,
+    });
+    expect(
+      (await ap.tradeArchive.listUnreconstructableSymbols()).find((u) => u.symbol === 'PEPEUSDT'),
+    ).toMatchObject({ symbolUnavailable: true });
+    // Terminal means terminal for BOTH lists: a delisted coin the operator can
+    // still see in the note must not also sit in the actionable set, or the
+    // sweep re-enqueues a backfill that can never resolve the symbol.
+    expect(await ap.tradeArchive.listRecoverableSymbols()).not.toContain('PEPEUSDT');
+  });
+
+  it('lists a symbol that already has archive rows once a NEWER cycle closes un-archived', async () => {
+    // The old predicate excluded any symbol holding at least one archive row, so
+    // a coin whose first cycle archived cleanly and whose second was missed
+    // could never be repaired. Recoverability is relative to the last archived
+    // cycle, not to "has any history at all".
+    const SYMBOL = 'ADAUSDT';
+    await ap.tradeArchive.insert({
+      ...seedTrade('ada-first'),
+      symbol: SYMBOL,
+      baseAsset: 'ADA',
+      archivedAt: new Date('2026-06-01T00:00:00Z'),
+    });
+
+    // Cycle one, already archived: nothing to recover.
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 61, tradeId: 61, side: 'BUY' });
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 62, tradeId: 62, side: 'SELL' });
+    await fx.db
+      .update(appliedFills)
+      .set({ appliedAt: new Date('2026-05-20T00:00:00Z') })
+      .where(and(eq(appliedFills.profileId, fx.alice.profileId), eq(appliedFills.symbol, SYMBOL)));
+    expect(await ap.tradeArchive.listRecoverableSymbols()).not.toContain(SYMBOL);
+
+    // Cycle two closes after that archive row and never lands.
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 63, tradeId: 63, side: 'BUY' });
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 64, tradeId: 64, side: 'SELL' });
+    await settleFills(fx.alice.profileId, SYMBOL, [63, 64]);
+    expect(await ap.tradeArchive.listRecoverableSymbols()).toContain(SYMBOL);
+
+    // A backfill that DID recover something clears the nudge without dropping
+    // the coin into the "nothing to recover" note: the lists stay disjoint.
+    await ap.tradeArchive.recordBackfillAttempt({
+      symbol: SYMBOL,
+      roundTrips: 1,
+      skippedOrphanSells: 0,
+      droppedOvershoot: 0,
+    });
+    expect(await ap.tradeArchive.listRecoverableSymbols()).not.toContain(SYMBOL);
+    expect(
+      (await ap.tradeArchive.listUnreconstructableSymbols()).map((u) => u.symbol),
+    ).not.toContain(SYMBOL);
+  });
+
+  it('never lists a BUY-only symbol as recoverable — that is an open position, not lost history', async () => {
+    // A coin the bot currently HOLDS has fills and no archive row by definition.
+    // Listing it nagged the operator to "recover" a cycle that has not closed
+    // yet, and the sweep cron would enqueue a backfill that can reconstruct
+    // nothing. Only a symbol with at least one SELL has history to recover.
+    await ap.appliedFills.tryRecord({ symbol: 'SOLUSDT', orderId: 41, tradeId: 41, side: 'BUY' });
+
+    expect(await ap.tradeArchive.listRecoverableSymbols()).not.toContain('SOLUSDT');
+
+    // The same coin becomes recoverable the moment it is sold.
+    await ap.appliedFills.tryRecord({ symbol: 'SOLUSDT', orderId: 42, tradeId: 42, side: 'SELL' });
+    await settleFills(fx.alice.profileId, 'SOLUSDT');
+    expect(await ap.tradeArchive.listRecoverableSymbols()).toContain('SOLUSDT');
+  });
+
+  it('waits for the closing SELL to settle before calling the cycle recoverable', async () => {
+    // The forward archive writes its row shortly after the SELL's `applied_fills`
+    // commit. A sweep that enqueued a backfill inside that window would race it
+    // into a SECOND P/L row for one cycle: the two paths derive `cycle_end` from
+    // different clocks, so the partial unique index cannot collapse them.
+    const SYMBOL = 'XRPUSDT';
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 71, tradeId: 71, side: 'BUY' });
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 72, tradeId: 72, side: 'SELL' });
+
+    expect(await ap.tradeArchive.listRecoverableSymbols()).not.toContain(SYMBOL);
+
+    await settleFills(fx.alice.profileId, SYMBOL);
+    expect(await ap.tradeArchive.listRecoverableSymbols()).toContain(SYMBOL);
+  });
+
+  it('a fill applied AFTER a backfill attempt makes the marker stale: recoverable again, and not unreconstructable', async () => {
+    // The live BTCUSDT timeline: BUY 2026-07-07, backfill attempt 2026-07-11
+    // (nothing to reconstruct — the position was still open), SELL 2026-08-01.
+    // A marker only speaks for the fills that existed when it was written, so
+    // without a staleness check the round trip that closed after it is
+    // invisible to BOTH lists and the P/L is lost forever.
+    //
+    // `applied_at` / `attempted_at` default to now() and the repo API has no
+    // parameter for them, so the historical timeline is written directly.
+    const SYMBOL = 'LINKUSDT';
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 51, tradeId: 51, side: 'BUY' });
+    await fx.db
+      .update(appliedFills)
+      .set({ appliedAt: new Date('2026-07-07T00:00:00Z') })
+      .where(and(eq(appliedFills.profileId, fx.alice.profileId), eq(appliedFills.symbol, SYMBOL)));
+
+    await ap.tradeArchive.recordBackfillAttempt({
+      symbol: SYMBOL,
+      roundTrips: 0,
+      skippedOrphanSells: 0,
+      droppedOvershoot: 0,
+    });
+    await fx.db
+      .update(backfillAttempts)
+      .set({ attemptedAt: new Date('2026-07-11T00:00:00Z') })
+      .where(
+        and(
+          eq(backfillAttempts.profileId, fx.alice.profileId),
+          eq(backfillAttempts.symbol, SYMBOL),
+        ),
+      );
+
+    // Still-valid marker: not actionable, and explained in the quiet note.
+    expect(await ap.tradeArchive.listRecoverableSymbols()).not.toContain(SYMBOL);
+    expect((await ap.tradeArchive.listUnreconstructableSymbols()).map((u) => u.symbol)).toContain(
+      SYMBOL,
+    );
+
+    // The exit lands three weeks later — history the attempt never saw.
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 52, tradeId: 52, side: 'SELL' });
+    await fx.db
+      .update(appliedFills)
+      .set({ appliedAt: new Date('2026-08-01T00:00:00Z') })
+      .where(
+        and(
+          eq(appliedFills.profileId, fx.alice.profileId),
+          eq(appliedFills.symbol, SYMBOL),
+          eq(appliedFills.orderId, 52),
+        ),
+      );
+
+    expect(await ap.tradeArchive.listRecoverableSymbols()).toContain(SYMBOL);
+    // And the two lists stay disjoint — never both "recover this" and
+    // "nothing to recover".
+    expect(
+      (await ap.tradeArchive.listUnreconstructableSymbols()).map((u) => u.symbol),
+    ).not.toContain(SYMBOL);
   });
 
   it('setUnreconstructableDismissed hides + reveals a coin, scoped', async () => {

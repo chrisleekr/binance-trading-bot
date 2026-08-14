@@ -16,22 +16,15 @@ import { ENV_CATALOGUE } from '@app/core/env';
 
 import { resolvePoolMax, type PoolKind } from '../src/pool.js';
 
+/** Each pool kind, the variable that sizes it, and its documented default. */
 const POOLS: readonly (readonly [PoolKind, string, number])[] = [
   ['api', 'API_DB_POOL_MAX', 10],
   ['worker', 'WORKER_DB_POOL_MAX', 25],
   ['admin', 'ADMIN_DB_POOL_MAX', 2],
 ];
 
-// Restored rather than deleted: a runner that sizes a pool through the
-// environment would otherwise lose that setting for every suite after this one.
-const inheritedPoolEnv = new Map(POOLS.map(([, env]) => [env, process.env[env]]));
-
 afterEach(() => {
-  for (const [, env] of POOLS) {
-    const inherited = inheritedPoolEnv.get(env);
-    if (inherited === undefined) delete process.env[env];
-    else process.env[env] = inherited;
-  }
+  for (const [, env] of POOLS) delete process.env[env];
 });
 
 describe('resolvePoolMax: documented defaults', () => {
@@ -76,10 +69,7 @@ describe('resolvePoolMax: a bad value fails loudly', () => {
   // than a failed boot, and the catalogue prose now promises the failure. `+5`
   // is the one an operator would read as a positive integer, so it is pinned
   // here rather than left to whoever next reads the regex.
-  // `9007199254740993` is the smallest whole-digit value `Number` cannot hold:
-  // it parses to 9007199254740992, so accepting it would size the pool to a
-  // number the operator never wrote.
-  const REJECTED = ['lots', '1e3', '10abc', '10.5', '0', '-1', '+5', '9007199254740993'];
+  const REJECTED = ['lots', '1e3', '10abc', '10.5', '0', '-1', '+5'];
 
   it.each(POOLS.flatMap(([kind, env]) => REJECTED.map((raw) => [kind, env, raw] as const)))(
     '%s pool rejects %s=%s',

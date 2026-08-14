@@ -1,4 +1,4 @@
-import { asProfileId, type ProfileId } from '@app/contracts';
+import { asProfileId, DustTransferResponse, type ProfileId } from '@app/contracts';
 import { profileRepo } from '@app/db';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
@@ -110,5 +110,27 @@ describeIfInfra('dust-transfer history route', () => {
     expect(done.convertedAssets).toEqual(['TRX', 'DOGE']);
     expect(done.bnbReceived).toBe('0.01230000');
     expect(done.consumedAt).not.toBeNull();
+  });
+
+  it('returns the armed row createdAt in the arm receipt so a watch has a server-clock baseline', async () => {
+    // `scheduledAt` is `action_at`, stamped on the API clock and a different
+    // column from `created_at`. A watcher that compares it against the
+    // `created_at` the read-back endpoint orders by is comparing two clocks,
+    // so it cannot tell an older sibling from a newer one.
+    const res = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${PROFILE_ID}/dust-transfer`,
+      {
+        method: 'POST',
+        headers: { ...headers(), 'content-type': 'application/json' },
+        body: JSON.stringify({ assets: ['TRX'] }),
+      },
+    );
+    expect(res.status).toBe(202);
+    const receipt = DustTransferResponse.parse(await res.json());
+    const { rows } = await fx.di.pool.query<{ created_at: Date }>(
+      `select created_at from override_actions where id = $1`,
+      [receipt.overrideActionId],
+    );
+    expect(receipt.createdAt).toBe(rows[0]?.created_at.toISOString());
   });
 });

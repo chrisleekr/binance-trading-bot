@@ -21,10 +21,11 @@ function fakeClient(ticker?: { lastPrice: string } | Error): BinanceRestClient {
   } as unknown as BinanceRestClient;
 }
 
-const trade = (commission: string, commissionAsset: string, price = '100') => ({
+const trade = (commission: string, commissionAsset: string, price = '100', isBuyer = false) => ({
   commission,
   commissionAsset,
   price,
+  isBuyer,
 });
 
 describe('valueCommissionInQuote', () => {
@@ -41,7 +42,7 @@ describe('valueCommissionInQuote', () => {
     expect(client.getTicker24hr).not.toHaveBeenCalled();
   });
 
-  it('values a base-asset commission at the fill price', async () => {
+  it('values a base-asset SELL commission at the fill price', async () => {
     const out = await valueCommissionInQuote(
       fakeClient(),
       trade('0.01', 'BTC', '60000'),
@@ -50,6 +51,20 @@ describe('valueCommissionInQuote', () => {
       new Map(),
     );
     expect(out?.toString()).toBe('600'); // 0.01 BTC × 60000
+  });
+
+  it('values a base-asset BUY commission at zero — the cost basis already expensed it', async () => {
+    // The BUY VWAP divides the quote paid by the fee-NET quantity, so the exit's
+    // realised P/L has already carried this fee. Valuing it into feesQuote too
+    // would subtract it a second time from netProfit.
+    const out = await valueCommissionInQuote(
+      fakeClient(),
+      trade('0.01', 'BTC', '60000', true),
+      'BTC',
+      'USDT',
+      new Map(),
+    );
+    expect(out?.toString()).toBe('0');
   });
 
   it('values another asset (BNB) via a {asset}{quote} ticker, cached per call', async () => {
@@ -87,6 +102,7 @@ const myTrade = (o: {
   commission: string;
   commissionAsset: string;
   price?: string;
+  isBuyer?: boolean;
 }): MyTradeDto =>
   ({
     id: o.orderId * 10,
@@ -98,7 +114,7 @@ const myTrade = (o: {
     commission: o.commission,
     commissionAsset: o.commissionAsset,
     time: 0,
-    isBuyer: false,
+    isBuyer: o.isBuyer ?? false,
     isMaker: false,
   }) as MyTradeDto;
 
@@ -168,5 +184,45 @@ describe('resolveFees', () => {
     const { deps } = depsFor([], { lastPrice: '5' });
     const out = await resolveFees(deps, PAYLOAD, new Set(), 'BTC', 'USDT');
     expect(out).toEqual({ fees: {}, feesQuote: '0' });
+  });
+
+  it('nets a base-asset-fee cycle to sellProceeds − sellFee − buyQuotePaid', async () => {
+    // The live TSTUSDT cycle: BUY 1682.30 TST for 25.184031 USDT with a 1.6823
+    // TST fee, protective SELL for 31.292772 USDT with a 0.03129277 USDT fee.
+    // The BUY fee is coins the wallet never received, so the cost basis already
+    // carries it; only the SELL fee is cash the operator paid on top.
+    const BUY_QUOTE_PAID = new Decimal('25.184031');
+    const SELL_PROCEEDS = new Decimal('31.292772');
+    const SELL_FEE = new Decimal('0.03129277');
+    const { deps } = depsFor(
+      [
+        myTrade({
+          orderId: 1,
+          commission: '1.6823',
+          commissionAsset: 'TST',
+          price: '0.014970',
+          isBuyer: true,
+        }),
+        myTrade({
+          orderId: 2,
+          commission: SELL_FEE.toString(),
+          commissionAsset: 'USDT',
+          price: '0.018620',
+        }),
+      ],
+      new Error('no ticker needed'),
+    );
+    const out = await resolveFees(deps, PAYLOAD, new Set([1, 2]), 'TST', 'USDT');
+
+    // Both commissions stay in the raw audit map; only the quote total changes.
+    expect(out.fees).toEqual({ TST: '1.6823', USDT: '0.03129277' });
+    expect(out.feesQuote).toBe(SELL_FEE.toString());
+
+    // The identity the API's `netProfit = profit − feesQuote` has to satisfy.
+    const profit = SELL_PROCEEDS.minus(BUY_QUOTE_PAID);
+    const netProfit = profit.minus(new Decimal(out.feesQuote));
+    expect(netProfit.toString()).toBe(
+      SELL_PROCEEDS.minus(SELL_FEE).minus(BUY_QUOTE_PAID).toString(),
+    );
   });
 });
