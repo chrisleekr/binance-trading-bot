@@ -588,6 +588,9 @@ export const placeOrderHandler = async (
       newClientOrderId: decision.intent.clientOrderId,
       ...(decision.params.price !== undefined ? { price: decision.params.price } : {}),
       ...(decision.params.stopPrice !== undefined ? { stopPrice: decision.params.stopPrice } : {}),
+      ...(decision.params.trailingDelta !== undefined
+        ? { trailingDelta: decision.params.trailingDelta }
+        : {}),
       ...(decision.params.timeInForce !== undefined
         ? { timeInForce: decision.params.timeInForce }
         : {}),
@@ -715,12 +718,20 @@ export const placeOrderHandler = async (
           side: decision.intent.side,
           type: decision.params.type,
           status: status as OpenOrder['status'],
-          price: decision.params.price ?? '0',
+          // A STOP_LOSS has no limit leg at all, so there is no price to record.
+          // The empty string is the same "absent" sentinel the snapshot adapter
+          // already uses for a missing stopPrice: every reader parses it to
+          // "unknown" rather than to zero. Fabricating '0' is what puts a stop
+          // priced at nothing in front of the operator.
+          price: decision.params.type === 'STOP_LOSS' ? '' : (decision.params.price ?? '0'),
           origQty: decision.params.quantity,
           executedQty: '0',
           cummulativeQuoteQty: '0',
           ...(decision.params.stopPrice !== undefined
             ? { stopPrice: decision.params.stopPrice }
+            : {}),
+          ...(decision.params.trailingDelta !== undefined
+            ? { trailingDelta: decision.params.trailingDelta }
             : {}),
           ...(decision.params.timeInForce !== undefined
             ? { timeInForce: decision.params.timeInForce }

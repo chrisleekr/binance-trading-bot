@@ -17,7 +17,11 @@ import type {
 } from '@app/strategy-core';
 
 const ORDER_SIDES: readonly OrderSide[] = ['BUY', 'SELL'];
-const ORDER_TYPES: readonly OrderType[] = ['LIMIT', 'MARKET', 'STOP_LOSS_LIMIT'];
+// STOP_LOSS is here because an exchange-native trailing protective stop rests as
+// one. `narrowEnum` THROWS on an unknown type, and the throw lands inside the
+// tick, so omitting it would dead-letter every tick on that symbol for as long as
+// the order rests — the position would go wholly unmanaged.
+const ORDER_TYPES: readonly OrderType[] = ['LIMIT', 'MARKET', 'STOP_LOSS', 'STOP_LOSS_LIMIT'];
 const ORDER_STATUSES: readonly OrderStatus[] = [
   'NEW',
   'PARTIALLY_FILLED',
@@ -81,6 +85,9 @@ export const openOrdersFromDtos = (dtos: readonly OpenOrderDto[]): readonly Open
     executedQty: o.executedQty,
     cummulativeQuoteQty: o.cummulativeQuoteQty,
     ...(isNonZeroDecimal(o.stopPrice) ? { stopPrice: o.stopPrice } : {}),
+    // Carried through so a resting trailing stop's distance is readable: it has
+    // no trigger price, so this is the only field a re-arm can compare.
+    ...(typeof o.trailingDelta === 'number' ? { trailingDelta: o.trailingDelta } : {}),
     ...(o.timeInForce
       ? { timeInForce: narrowEnum(TIME_IN_FORCES, o.timeInForce, 'timeInForce') }
       : {}),

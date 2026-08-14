@@ -88,4 +88,31 @@ describe('openOrdersFromDtos', () => {
     expect(() => openOrdersFromDtos([dto({ type: 'SOME_FUTURE_TYPE' })])).toThrow(/unknown type/);
     expect(() => openOrdersFromDtos([dto({ status: 'BROKEN' })])).toThrow(/unknown status/);
   });
+
+  it('narrows a resting exchange-native trailing stop instead of throwing on it', () => {
+    // A STOP_LOSS rests whenever a protective stop went out as a native trail.
+    // The throw above lands INSIDE the tick, so an unlisted type would
+    // dead-letter every tick on that symbol for as long as the order rests —
+    // the position would go wholly unmanaged, which is the opposite of what
+    // arming a stop was for.
+    const [o] = openOrdersFromDtos([
+      dto({ type: 'STOP_LOSS', side: 'SELL', stopPrice: '0', trailingDelta: 1551 }),
+    ]);
+    expect(o.type).toBe('STOP_LOSS');
+    // The distance is the only field that can tell a later tick whether the
+    // resting order still matches the configured stop: a trailing order has no
+    // readable trigger, because the exchange moves it.
+    expect(o.trailingDelta).toBe(1551);
+    expect(o).not.toHaveProperty('stopPrice');
+  });
+
+  it('omits trailingDelta on every order that does not carry one', () => {
+    expect(openOrdersFromDtos([dto()])[0]).not.toHaveProperty('trailingDelta');
+    // Binance omits the field entirely on a non-trailing order; a non-numeric
+    // value is a payload we cannot read, and reading it as a distance would
+    // compare a resting order against a number it does not hold.
+    expect(
+      openOrdersFromDtos([dto({ trailingDelta: '1551' } as Partial<OpenOrderDto>)])[0],
+    ).not.toHaveProperty('trailingDelta');
+  });
 });

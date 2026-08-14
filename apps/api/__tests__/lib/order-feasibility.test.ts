@@ -464,6 +464,238 @@ describe('orderFeasibilityDiagnostics', () => {
   });
 });
 
+// A symbol whose snapshot carries Binance's price band, plus a config whose
+// backup stop is deeper than that band will hold: 15% against a maximum of
+// 1 − 0.95 ÷ 0.995 ≈ 4.52%.
+const BAND_SYM_KEY = GLOBAL_KEYS.symbolInfo('ETHUSDT');
+const bandSymbolInfo = JSON.stringify({
+  ...JSON.parse(symbolInfo),
+  symbol: 'ETHUSDT',
+  filters: {
+    ...JSON.parse(symbolInfo).filters,
+    percentPriceBySide: {
+      bidMultiplierUp: '1.1',
+      bidMultiplierDown: '0.5',
+      askMultiplierUp: '2',
+      askMultiplierDown: '0.95',
+      avgPriceMins: 5,
+    },
+  },
+});
+// Parsed here rather than through `cfg`, which spreads its overrides into `buy`.
+const sellCfg = (sell: Record<string, unknown>): unknown =>
+  TTConfigSchema.parse({
+    symbol: 'BTCUSDT',
+    candleInterval: '1h',
+    buy: { enabled: true, entrySizing: { mode: 'fixed', amount: '20' } },
+    sell: { enabled: true, triggerPercentage: '1.05', ...sell },
+  });
+const deepStopConfig = sellCfg({
+  stopLossPercentage: '0.85',
+  protectiveStop: { enabled: true, limitOffsetPercentage: '0.995' },
+});
+
+describe('protective-stop price band, checked at bind time', () => {
+  it('warns without blocking when the stop is deeper than the band holds', async () => {
+    // The whole point of the check: the operator hears it while binding the
+    // symbol, not from the first tick that could not arm a stop over an open
+    // position. Host-minted, so it rides back on the mutation body.
+    const diags = await assertOrderFeasible(
+      makeDi({ [BAND_SYM_KEY]: bandSymbolInfo }),
+      fakeP(['ETHUSDT']),
+      trailingTrade,
+      deepStopConfig,
+      { mode: 'live' },
+    );
+    const band = diags.find((d) => d.code === 'stop-outside-exchange-band');
+    expect(band?.level).toBe('warn');
+    expect(band?.message).toContain('ETHUSDT: ');
+    expect(band?.message).toContain('15%');
+    expect(band?.message).toContain('4.52%');
+    // Names the fallback so the operator can change the outcome, not just the stop.
+    expect(band?.message).toContain('notify');
+    expect(band?.path).toEqual(['sell', 'stopLossPercentage']);
+  });
+
+  it('runs on a symbol with no cached price, which is the state a fresh bind is in', async () => {
+    // The band check reads filters and config only. Gating it behind the price
+    // would silence it on exactly the route it exists for.
+    const diags = await assertOrderFeasible(
+      makeDi({ [BAND_SYM_KEY]: bandSymbolInfo }),
+      fakeP(['ETHUSDT']),
+      trailingTrade,
+      deepStopConfig,
+      { mode: 'live' },
+    );
+    expect(diags.map((d) => d.code)).toContain('stop-outside-exchange-band');
+  });
+
+  it('runs for a strategy that has no order-feasibility check at all', async () => {
+    // The strategy that owns the deepest stops implements no sizing check, so
+    // hanging the band check off that member would leave it uncovered.
+    const noCheck = {
+      ...trailingTrade,
+      checkOrderFeasibility: undefined,
+    } as unknown as AnyStrategy;
+    const diags = await assertOrderFeasible(
+      makeDi({ [BAND_SYM_KEY]: bandSymbolInfo }),
+      fakeP(['ETHUSDT']),
+      noCheck,
+      deepStopConfig,
+      { mode: 'live' },
+    );
+    expect(diags.map((d) => d.code)).toEqual(['stop-outside-exchange-band']);
+  });
+
+  it('reports the band check as unrun when the filters never loaded', async () => {
+    // The band check reads the same filters the sizing check does, so an
+    // unreadable snapshot skips it too. For a strategy with no sizing check the
+    // sizing sentence does not apply, and saying nothing at all left an empty
+    // result that reads as "checked and fine" on the one check that ran.
+    const noCheck = {
+      ...trailingTrade,
+      checkOrderFeasibility: undefined,
+    } as unknown as AnyStrategy;
+    const diags = await assertOrderFeasible(
+      makeDi({}),
+      fakeP(['ETHUSDT']),
+      noCheck,
+      deepStopConfig,
+      { mode: 'live' },
+    );
+    expect(diags).toHaveLength(1);
+    expect(diags[0]).toMatchObject({ level: 'warn', code: 'filters-unavailable' });
+    expect(diags[0]?.message).toMatch(/^ETHUSDT: /);
+    expect(diags[0]?.message).toMatch(/price band/);
+    // The sizing wording would name a check this strategy never had.
+    expect(diags[0]?.message).not.toMatch(/order sizing/);
+  });
+
+  it('carries the symbol trailing bounds through, so the trail escape is not promised blind', async () => {
+    // `native-trail` escapes the band only when the symbol's own TRAILING_DELTA
+    // bounds accept the distance. 15% is 1500 bips against a 1000 cap here, so
+    // nothing would rest — and the ordinary sentence promises a trailing stop is
+    // covering the position. Exercised through the api's own filter projection,
+    // which is where a whitelisted field is easiest to drop.
+    const capped = JSON.stringify({
+      ...JSON.parse(bandSymbolInfo),
+      filters: {
+        ...JSON.parse(bandSymbolInfo).filters,
+        trailingDelta: {
+          minTrailingAboveDelta: 10,
+          maxTrailingAboveDelta: 1000,
+          minTrailingBelowDelta: 10,
+          maxTrailingBelowDelta: 1000,
+        },
+      },
+    });
+    const trailCfg = sellCfg({
+      stopLossPercentage: '0.85',
+      protectiveStop: {
+        enabled: true,
+        limitOffsetPercentage: '0.995',
+        onBandBlock: 'native-trail',
+      },
+    });
+    const message = (
+      await assertOrderFeasible(
+        makeDi({ [BAND_SYM_KEY]: capped }),
+        fakeP(['ETHUSDT']),
+        trailingTrade,
+        trailCfg,
+        { mode: 'live' },
+      )
+    ).find((d) => d.code === 'stop-outside-exchange-band')?.message;
+    expect(message).toContain('will not accept a trailing stop at this distance');
+    expect(message).toContain('no resting stop behind it');
+  });
+
+  it('stays silent about a missing price for a strategy that sizes no orders', async () => {
+    // The mirror of the filters case above, and it must NOT be symmetrical. A
+    // missing price only skips the SIZING check, and this strategy has none, so
+    // there is nothing unrun to report — while the band check, which never
+    // wanted a price, already ran. Read through `orderFeasibilityDiagnostics`
+    // with `reportMissingPrice`: without both, `price-unavailable` is dropped
+    // before the caller sees it and the assertion cannot fail.
+    const noCheck = {
+      ...trailingTrade,
+      checkOrderFeasibility: undefined,
+    } as unknown as AnyStrategy;
+    const store = { [BAND_SYM_KEY]: bandSymbolInfo };
+    const codes = (
+      await orderFeasibilityDiagnostics(
+        makeDi(store),
+        fakeP(['ETHUSDT']),
+        noCheck,
+        deepStopConfig,
+        {
+          mode: 'live',
+          reportMissingPrice: true,
+        },
+      )
+    ).map((d) => d.code);
+    expect(codes).toContain('stop-outside-exchange-band');
+    expect(codes).not.toContain('price-unavailable');
+
+    // Control on the same store: the strategy that DOES size orders had one
+    // skipped here, so the warning is owed. Without this the assertion above
+    // would pass on a path that reports nothing to anybody.
+    const withCheck = (
+      await orderFeasibilityDiagnostics(
+        makeDi(store),
+        fakeP(['ETHUSDT']),
+        trailingTrade,
+        deepStopConfig,
+        { mode: 'live', reportMissingPrice: true },
+      )
+    ).map((d) => d.code);
+    expect(withCheck).toContain('price-unavailable');
+  });
+
+  it('fails open on a symbol Binance publishes no band for', async () => {
+    // A missing band must never impede a bind: the constraint is unknown, not zero.
+    await expect(
+      assertOrderFeasible(makeDi(LIVE), fakeP(['BTCUSDT']), trailingTrade, deepStopConfig, {
+        mode: 'live',
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it('fails open on a band that has drifted, without losing the rest of the filters', async () => {
+    // A malformed band must fail open on the band ALONE. Taking the whole filter
+    // set down would report a readable symbol as unchecked and hide a real block.
+    const drifted = JSON.stringify({
+      ...JSON.parse(bandSymbolInfo),
+      filters: {
+        ...JSON.parse(bandSymbolInfo).filters,
+        percentPriceBySide: { askMultiplierDown: 7 },
+      },
+    });
+    const store = { [BAND_SYM_KEY]: drifted, [GLOBAL_KEYS.ticker('ETHUSDT')]: ticker };
+    const diags = await orderFeasibilityDiagnostics(
+      makeDi(store),
+      fakeP(['ETHUSDT']),
+      trailingTrade,
+      deepStopConfig,
+      { mode: 'live' },
+    );
+    expect(diags.map((d) => d.code)).not.toContain('stop-outside-exchange-band');
+    expect(diags.map((d) => d.code)).not.toContain('filters-unavailable');
+  });
+
+  it('says nothing when the profile rests no stop at the exchange', async () => {
+    await expect(
+      assertOrderFeasible(
+        makeDi({ [BAND_SYM_KEY]: bandSymbolInfo }),
+        fakeP(['ETHUSDT']),
+        trailingTrade,
+        sellCfg({ stopLossPercentage: '0.85' }),
+        { mode: 'live' },
+      ),
+    ).resolves.toEqual([]);
+  });
+});
+
 describe('assertOrderFeasible', () => {
   it('throws VALIDATION_FAILED when a block is found', async () => {
     await expect(

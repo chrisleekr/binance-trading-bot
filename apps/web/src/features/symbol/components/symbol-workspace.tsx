@@ -25,7 +25,7 @@ import {
   fetchProfileDashboard,
   profileDashboardQueryKey,
 } from '@/features/profile/api/profile-dashboard';
-import { isRawShape, orderPrice, orderQty } from '@/features/symbol/lib/order-raw';
+import { isRawShape, orderDisplayPrice, orderQty } from '@/features/symbol/lib/order-raw';
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
 import { FormActions } from '@/shared/components/form-actions';
 import { BackLink } from '@/shared/components/page';
@@ -40,7 +40,7 @@ import {
 } from '@/shared/components/ui/dialog';
 import { useProfileSocketHandlers, type SocketFrame } from '@/features/profile/socket';
 import { errorMessage } from '@/shared/lib/api';
-import { formatAmount, formatPrice } from '@/shared/lib/format';
+import { formatAmount } from '@/shared/lib/format';
 import { fetchExchangeInfo } from '@/features/symbol/api/exchange-info';
 import { getStrategyView } from '@/features/symbol/strategies/registry';
 import { usePreviewModel } from '@/features/symbol/preview/use-preview-model';
@@ -418,7 +418,7 @@ function SymbolWorkspaceInner({
             <DialogTitle>Cancel order?</DialogTitle>
             <DialogDescription>
               {confirming
-                ? `${confirming.side} ${confirming.symbol} qty ${formatAmount(orderQty(confirming))} @ ${formatPrice(orderPrice(confirming))}. Cancellation is scheduled — fill confirmation arrives over WS.`
+                ? `${confirming.side} ${confirming.symbol} qty ${formatAmount(orderQty(confirming))} @ ${orderDisplayPrice(confirming)}. Cancellation is scheduled — fill confirmation arrives over WS.`
                 : null}
             </DialogDescription>
           </DialogHeader>

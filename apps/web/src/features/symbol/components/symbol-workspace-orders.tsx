@@ -3,12 +3,12 @@
 // closed-order history.
 
 import { SymbolOrderHistoryPanel } from '@/features/symbol/components/symbol-order-history-panel';
-import { orderPrice, orderQty } from '@/features/symbol/lib/order-raw';
+import { orderDisplayPrice, orderQty } from '@/features/symbol/lib/order-raw';
 import { Badge } from '@/shared/components/ui/badge';
 import { FormActions } from '@/shared/components/form-actions';
 import { Button } from '@/shared/components/ui/button';
 import { Card } from '@/shared/components/ui/card';
-import { formatAmount, formatPrice } from '@/shared/lib/format';
+import { formatAmount } from '@/shared/lib/format';
 import { type StrategyView } from '@/features/symbol/strategies/types';
 
 import type { OrderResponse, SymbolStateResponse } from '@app/contracts';
@@ -92,7 +92,7 @@ function OpenOrdersPanel({
             </div>
             <div className="flex justify-between text-muted-fg">
               <span>qty {formatAmount(orderQty(order))}</span>
-              <span>@ {formatPrice(orderPrice(order))}</span>
+              <span>@ {orderDisplayPrice(order)}</span>
             </div>
             <FormActions>
               <Button

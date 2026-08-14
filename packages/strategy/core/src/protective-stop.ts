@@ -1,7 +1,16 @@
 import { isRestingSell } from '@app/contracts';
 import { Decimal, roundToStep, toFixedStep } from '@app/money';
-import type { OpenOrder, PercentPriceBySideFilter, TickInput } from './contract.js';
+import type {
+  ConfigDiagnostic,
+  MetricEntry,
+  OpenOrder,
+  PercentPriceBySideFilter,
+  ProtectiveStopBandSettings,
+  TickInput,
+  TrailingDeltaFilter,
+} from './contract.js';
 import type { Decision } from './decision.js';
+import { metric } from './emit.js';
 import { sizableBase } from './balances.js';
 import { finalise, type SizeFilters } from './sizing.js';
 
@@ -168,16 +177,179 @@ const positiveDecimal = (value: unknown): Decimal | null => {
 };
 
 /**
+ * The deepest stop, as a fraction below the reference price, that Binance's
+ * `PERCENT_PRICE_BY_SIDE` band still accepts for a stop whose limit leg sits at
+ * `limitOffset × trigger`. Inverting `price ≥ ref × askMultiplierDown` on the
+ * lower (limit) leg gives `1 − askMultiplierDown ÷ limitOffset`.
+ *
+ * `null` on every ambiguity — no band, a band that is not an object, an
+ * unparseable multiplier, an unusable offset — and a null MUST read as "no
+ * constraint", never as zero, or an unreadable band would refuse every stop.
+ *
+ * The single owner of that algebra. The tick-time refusal, the bind-time warning
+ * and the operator gloss all quote this one number; a second derivation would
+ * let two surfaces name two different maxima for the same symbol.
+ */
+export const maxStopDistancePct = (
+  band: PercentPriceBySideFilter | null | undefined,
+  limitOffset: Decimal,
+): Decimal | null => {
+  // Cast, not parsed: the cached symbol blob is revived with a bare `as`, so
+  // this slot can hold any JSON value, `null` included.
+  if (typeof band !== 'object' || band === null) return null;
+  if (!limitOffset.isFinite() || limitOffset.lte(0)) return null;
+  const down = positiveDecimal(band.askMultiplierDown);
+  return down === null ? null : new Decimal(1).minus(down.div(limitOffset));
+};
+
+// Percent for an operator, not for a machine: two places is enough to compare
+// against a stop-loss field and never renders in exponential notation.
+const asPercent = (value: Decimal): string => `${value.mul(100).toDecimalPlaces(2).toString()}%`;
+
+// What the profile will actually do when the exchange refuses the stop. Named
+// with the same words the settings form uses, so the operator can find the knob.
+const ON_BAND_BLOCK_CONSEQUENCE: Readonly<
+  Record<ProtectiveStopBandSettings['onBandBlock'], string>
+> = {
+  notify:
+    '"If Binance rejects the backup stop" is set to notify, so the bot will alert you and the position will sit with no resting stop behind it.',
+  clamp:
+    '"If Binance rejects the backup stop" is set to clamp, so the bot will raise the resting stop to the deepest level Binance accepts — closer to the market than you asked for.',
+  'native-trail':
+    '"If Binance rejects the backup stop" is set to native-trail, so the bot will rest a Binance trailing stop instead, which this price band does not apply to.',
+};
+
+// Once the maximum drops to the margin's own headroom the clamp escape has
+// nothing to clamp to: `clampStopToExchangeFloor` returns the level untouched
+// rather than rest a trigger that fires on contact, so the profile behaves
+// exactly like `notify`.
+// Promising the raise anyway is worse than the ordinary warning, because it tells
+// the operator a fallback is covering them when none is.
+const CLAMP_SPENT =
+  '"If Binance rejects the backup stop" is set to clamp, but there is no level to clamp to while the limit price sits this far under the trigger, so the bot will alert you and the position will sit with no resting stop behind it.';
+
+// The trail escape has its own way of being spent, and it is not the clamp's.
+// `TRAILING_DELTA` bounds are published per symbol, so a distance outside them
+// yields no delta, the arm falls through to the refusal, and nothing rests —
+// while the ordinary sentence promises a trailing stop is covering the position.
+// Same failure as the spent clamp: the escape the operator selected is the one
+// that cannot run.
+const NATIVE_TRAIL_UNAVAILABLE =
+  '"If Binance rejects the backup stop" is set to native-trail, but this symbol will not accept a trailing stop at this distance, so the bot will alert you and the position will sit with no resting stop behind it.';
+
+/**
+ * The sentence for a selected escape that cannot run on this symbol, or `null`
+ * when it can. Each escape is judged against the filter that governs it, never
+ * against the other's, so neither can inherit the other's availability.
+ */
+const spentEscape = (
+  settings: ProtectiveStopBandSettings,
+  max: Decimal,
+  trailing: TrailingDeltaFilter | null | undefined,
+): string | null => {
+  if (settings.onBandBlock === 'clamp' && max.lte(CLAMP_SPENT_AT_OR_BELOW)) return CLAMP_SPENT;
+  if (
+    settings.onBandBlock === 'native-trail' &&
+    nativeTrailingDelta({ stopDistancePct: settings.stopDistancePct, filter: trailing }) === null
+  ) {
+    return NATIVE_TRAIL_UNAVAILABLE;
+  }
+  return null;
+};
+
+/**
+ * The tick-time counterpart of {@link protectiveStopBandWarning}: one metric
+ * entry when the price band moved this tick's stop off the configured one, empty
+ * when it did not.
+ *
+ * Both `onBandBlock` escapes silently substitute something for the level the
+ * operator set — a clamp rests the stop nearer the market, a native trail rests
+ * a different ORDER TYPE with a market fill — and neither leaves a blocker
+ * behind, because from the strategy's side nothing was refused. Without a series
+ * of its own an operator has no way to learn their stop is not the one they
+ * configured, on any symbol, for as long as the band binds.
+ *
+ * One name across strategies, distinguished by the drained `strategy` label, so
+ * an alert rule covers every profile rather than one per plugin. Only `symbol`
+ * and `reason` are carried: the metrics sink drops every other tag.
+ *
+ * The two causes are mutually exclusive by construction — a clamp is applied
+ * only under `onBandBlock: 'clamp'` and a trail only under `'native-trail'` —
+ * so this never has to rank them.
+ *
+ * EVENT semantics, and every caller owes them: emit only on a tick that actually
+ * sends the adjusted order, never on every tick spent holding one. A caller that
+ * emits per held tick makes this name mean two things at once, so summing it
+ * across strategies means nothing and a `rate(...) > 0` rule reads a settled,
+ * still-clamped stop as resolved. "Is this stop clamped right now" is a state
+ * question and belongs on the operator surfaces, not on a counter.
+ */
+export const protectiveStopBandAdjustment = (params: {
+  readonly symbol: string;
+  readonly floorClamped: boolean;
+  readonly nativeTrailed: boolean;
+}): MetricEntry[] => {
+  const { symbol, floorClamped, nativeTrailed } = params;
+  const reason = nativeTrailed ? 'native-trail' : floorClamped ? 'floor-clamped' : null;
+  return reason === null ? [] : [metric('protective_stop_band_adjusted', { symbol, reason })];
+};
+
+/**
+ * Advisory warning for a stop the symbol's price band cannot hold, for a caller
+ * that has the config and the filters but no position yet — a symbol bind, a
+ * settings save. Names the achievable maximum and what the profile will do
+ * instead, so the operator can widen the stop or switch the fallback knowingly.
+ *
+ * Never a `block`: a stop deeper than the band is a legitimate choice, and under
+ * `native-trail` it works exactly as configured. Rejecting the bind would refuse
+ * a working setup.
+ *
+ * `null` — fail OPEN — whenever the profile rests no stop or the band imposes no
+ * readable constraint. A symbol that publishes no band must bind unimpeded.
+ *
+ * Takes the `TRAILING_DELTA` filter alongside the band because neither escape
+ * can be promised without the filter that governs it: the band decides whether
+ * the priced stop is refused at all, and the trailing bounds decide whether the
+ * trail the operator picked can carry this distance on this symbol.
+ */
+export const protectiveStopBandWarning = (params: {
+  readonly settings: ProtectiveStopBandSettings | null;
+  readonly band: PercentPriceBySideFilter | null | undefined;
+  readonly trailing: TrailingDeltaFilter | null | undefined;
+}): ConfigDiagnostic | null => {
+  const { settings, band, trailing } = params;
+  if (settings === null) return null;
+  const max = maxStopDistancePct(band, settings.limitOffsetPct);
+  if (max === null || settings.stopDistancePct.lte(max)) return null;
+  // A non-positive maximum is the config-shaped case: the limit offset is at or
+  // under the band's floor multiplier, so no stop distance at all is placeable
+  // and quoting "no deeper than -0.5%" would read as a target to aim at.
+  const ceiling = max.gt(0)
+    ? `accepts a resting stop no deeper than ${asPercent(max)} below the market`
+    : 'accepts no resting stop at all while the limit price sits this far under the trigger';
+  const consequence =
+    spentEscape(settings, max, trailing) ?? ON_BAND_BLOCK_CONSEQUENCE[settings.onBandBlock];
+  return {
+    level: 'warn',
+    code: 'stop-outside-exchange-band',
+    message: `This backup stop sits ${asPercent(settings.stopDistancePct)} below the market, but Binance's price band for this symbol ${ceiling}. ${consequence}`,
+    path: [...settings.path],
+  };
+};
+
+/**
  * Whether Binance's `PERCENT_PRICE_BY_SIDE` band makes this stop unplaceable,
  * as a blocker, or `null` when it is placeable or the band is unknown.
  *
- * Judged on the limit `price` alone, which is what the filter definition bounds:
- * `PRICE_FILTER` spells out that it covers `price` AND `stopPrice`, while
- * `PERCENT_PRICE_BY_SIDE` names only the order price, and the contrast is the
- * evidence. Banding the trigger too would be conservative in the wrong
- * direction on the ceiling — the trigger is the higher of the two legs, so it
- * alone can breach a ceiling the limit clears, and a stop deferred there is a
- * naked position waiting on a rule the exchange does not enforce.
+ * Judged on BOTH legs of the order. The exchange bands the trigger as well as
+ * the limit: a SELL `STOP_LOSS` carrying only a `stopPrice` outside the window
+ * is refused `-1013 Filter failure: PERCENT_PRICE_BY_SIDE`, and so is a
+ * `STOP_LOSS_LIMIT` whose `stopPrice` sits outside while its `price` sits
+ * inside. That is measured behaviour, not a reading of which fields the filter
+ * definition names. Because `stopPrice > price` on every protective stop, only
+ * the limit can breach the floor and only the trigger can breach the ceiling —
+ * so judging the limit alone left the entire ceiling side unguarded, passing an
+ * order whose cancel half lands and whose replacement half cannot.
  *
  * `reference` is the price the caller already holds for this tick, NOT Binance's
  * own reference: for `avgPriceMins > 0` the exchange bands against a volume
@@ -228,10 +400,20 @@ export const percentPriceBySideRefusal = (params: {
   const floor = down === null ? null : ref.mul(down);
   const ceiling = up === null ? null : ref.mul(up);
   const belowFloor = floor !== null && price.lt(floor);
-  const aboveCeiling = ceiling !== null && price.gt(ceiling);
+  // Both legs are banded, but they can only ever breach opposite ends: the limit
+  // is the lower leg, so the floor is its alone, and the ceiling is the trigger's
+  // alone. Testing the trigger against the floor as well would add nothing and
+  // testing the limit against the ceiling costs nothing.
+  const aboveCeiling = ceiling !== null && (stopPrice.gt(ceiling) || price.gt(ceiling));
   if (!belowFloor && !aboveCeiling) return null;
 
   const ratio = price.div(stopPrice);
+  // The floor breach restated as the stop DISTANCE the operator is choosing:
+  // `price < ref × down` is exactly `requiredStopDistancePct > maxDistance`.
+  // Derived once so the worker alert and the web gloss quote the same two
+  // numbers instead of each re-deriving the algebra from the raw multipliers.
+  const maxDistance = maxStopDistancePct(band, ratio);
+  const requiredStopDistancePct = new Decimal(1).minus(stopPrice.div(ref));
   return {
     reason: 'price-outside-exchange-band',
     detail: {
@@ -247,6 +429,8 @@ export const percentPriceBySideRefusal = (params: {
       askMultiplierUp: band.askMultiplierUp,
       avgPriceMins: band.avgPriceMins,
       limitOffsetRatio: ratio.toDecimalPlaces(6).toString(),
+      maxStopDistancePct: maxDistance === null ? null : maxDistance.toDecimalPlaces(6).toString(),
+      requiredStopDistancePct: requiredStopDistancePct.toDecimalPlaces(6).toString(),
       terminal: belowFloor && down !== null && ratio.lte(down),
       // Which bound was actually breached, so the gloss never quotes a floor at
       // an operator whose stop is priced too HIGH. One price cannot breach both
@@ -255,6 +439,186 @@ export const percentPriceBySideRefusal = (params: {
       guarded,
     },
   };
+};
+
+// Absorbs the gap between the caller's last-trade `reference` and the 5-minute
+// mean the exchange bands against. Measured drift is under 0.05%; the error that
+// matters is last BELOW the mean during a fast fall, exactly when the stop must
+// land. 1% is ~25x the observed drift and costs 1% of stop distance.
+const EXCHANGE_FLOOR_MARGIN = new Decimal('1.01');
+
+// The maximum stop distance at which the clamp still has somewhere to raise to.
+// `clampStopToExchangeFloor` declines once the margin-lifted floor reaches the
+// reference, and `floor / ref` is `(1 - maxStopDistancePct) x EXCHANGE_FLOOR_MARGIN`,
+// so the clamp goes inert a hair BEFORE the maximum reaches zero. Derived from
+// the margin the clamp actually applies, so one constant governs both the
+// behaviour and the sentence describing it.
+const CLAMP_SPENT_AT_OR_BELOW = new Decimal(1).minus(new Decimal(1).div(EXCHANGE_FLOOR_MARGIN));
+
+/**
+ * The exchange facts a stop-level resolver needs to apply the floor clamp: the
+ * reference price the caller already holds and the symbol's published band.
+ * Both nullable — a preview may carry neither and a symbol may publish no band —
+ * which reads as "do not clamp", never as "clamp to zero".
+ */
+export interface StopBandContext {
+  readonly reference: string | null;
+  readonly band: PercentPriceBySideFilter | null | undefined;
+}
+
+/**
+ * Raise a stop trigger to the lowest level Binance's `PERCENT_PRICE_BY_SIDE`
+ * band would still accept, or return it unchanged.
+ *
+ * Both legs are banded and the LOWER one binds, so an acceptable stop needs
+ * `stop × limitOffset >= reference × askMultiplierDown`. Inverting that gives
+ * the trigger floor, which {@link EXCHANGE_FLOOR_MARGIN} then lifts clear of the
+ * exchange's own averaged reference.
+ *
+ * Identity on every ambiguity — no band, a band that is not an object, an
+ * unparseable multiplier or reference, an unusable offset, no stop to raise, a
+ * stop already at or above the floor. Identity ALSO when the floor is not
+ * strictly below the reference: that is the config-shaped case where no price
+ * movement can arm the stop, and a trigger resting at or above the market fires
+ * on contact, which is a market sell wearing a stop's name.
+ *
+ * Tightening protection is the accepted cost. A clamped stop sits nearer the
+ * market than the operator asked for, which is the tradeoff of having a resting
+ * order at all versus having none.
+ *
+ * The returned stop tracks the caller's nullability: a resolver that already
+ * holds a level gets a non-null one back, so it needs no unreachable fallback
+ * branch to satisfy the type.
+ */
+export const clampStopToExchangeFloor = <TStop extends Decimal | null>(params: {
+  readonly stop: TStop;
+  readonly reference: string;
+  readonly band: PercentPriceBySideFilter | null | undefined;
+  readonly limitOffset: Decimal;
+}): { readonly stop: TStop | Decimal; readonly clamped: boolean } => {
+  const { stop, reference, band, limitOffset } = params;
+  const identity = { stop, clamped: false };
+  if (stop === null) return identity;
+  // Cast, not parsed, exactly as in `percentPriceBySideRefusal`: the cached
+  // symbol blob can hold any JSON value in this slot.
+  if (typeof band !== 'object' || band === null) return identity;
+  if (!limitOffset.isFinite() || limitOffset.lte(0)) return identity;
+
+  const ref = positiveDecimal(reference);
+  const down = positiveDecimal(band.askMultiplierDown);
+  if (ref === null || down === null) return identity;
+
+  const floor = ref.mul(down).div(limitOffset).mul(EXCHANGE_FLOOR_MARGIN);
+  if (!floor.lt(ref) || stop.gte(floor)) return identity;
+  return { stop: floor, clamped: true };
+};
+
+// A trailing delta is a whole number of basis points: 10000 = 100%.
+const BIPS_PER_UNIT = new Decimal(10_000);
+
+/**
+ * What an exchange-native trailing protective stop is placed with: a size and a
+ * trailing distance. No trigger and no limit — Binance derives the trigger from
+ * the high-water mark it tracks itself, which is precisely why this order type
+ * escapes the `PERCENT_PRICE_BY_SIDE` band that refuses a priced stop.
+ */
+export interface DesiredNativeTrailingStop {
+  readonly quantity: string;
+  readonly trailingDelta: number;
+}
+
+/**
+ * The `trailingDelta` (basis points) for the operator's CONFIGURED stop distance,
+ * or null when the symbol will not accept that distance.
+ *
+ * Derived from the config fraction, never from `1 − stop / currentPrice`. The
+ * exchange already measures the trail from its own high-water mark, so feeding it
+ * a distance measured from the live price double-counts: the delta would then
+ * differ every time price moved, and since the re-arm test compares deltas, the
+ * stop would be cancelled and re-placed on a fraction of a percent of drift.
+ * Every replacement restarts Binance's high-water mark, so that churn does not
+ * merely cost order weight — it destroys the very tracking the trail exists for.
+ *
+ * Null on every ambiguity, exactly as {@link clampStopToExchangeFloor} is
+ * identity on every ambiguity: no `TRAILING_DELTA` filter published, a filter
+ * that is not an object, non-integer bounds, a distance outside `(0, 1)`, or a
+ * distance outside the symbol's own bounds. The caller falls back to the ordinary
+ * refusal, which is the honest outcome — a delta the exchange rejects would
+ * otherwise be sent as an order the operator never asked for while reporting no
+ * problem.
+ *
+ * Only the `Below` bounds are consulted: a SELL stop-loss trails DOWN from the
+ * high-water mark, so the `Above` pair governs a different order entirely.
+ */
+export const nativeTrailingDelta = (params: {
+  readonly stopDistancePct: Decimal;
+  readonly filter: TrailingDeltaFilter | null | undefined;
+}): number | null => {
+  const { stopDistancePct, filter } = params;
+  // Cast, not parsed, as everywhere else that reads the cached symbol blob.
+  if (typeof filter !== 'object' || filter === null) return null;
+  const { minTrailingBelowDelta: min, maxTrailingBelowDelta: max } = filter;
+  if (!Number.isInteger(min) || !Number.isInteger(max)) return null;
+
+  // A distance at or above 1 puts the trigger at or below zero, and one at or
+  // below 0 is not a stop. Both read as "no usable delta" rather than clamping,
+  // so a nonsense config falls back to the refusal instead of resting an order
+  // nobody asked for.
+  if (!stopDistancePct.isFinite() || stopDistancePct.lte(0) || stopDistancePct.gte(1)) return null;
+
+  const bips = stopDistancePct.mul(BIPS_PER_UNIT).toDecimalPlaces(0).toNumber();
+  return bips >= min && bips <= max ? bips : null;
+};
+
+/**
+ * Operator-facing line for a protective stop that will rest as an exchange-native
+ * trail, or null when the ordinary PRICED stop is what will actually rest.
+ *
+ * A preview row exists to name the level the tick acts on, and a native trailing
+ * stop HAS no such level: Binance derives the trigger from a high-water mark that
+ * begins at placement and moves on its own. Quoting the configured price would
+ * print a number nothing ever acts on, and quoting it as a `trigger` row would
+ * make the drift gate compare a static level against a moving one, which fails
+ * the moment price advances. So the caller drops the price and shows this
+ * instead.
+ *
+ * Null on the same terms the arm falls back on: the band accepts the priced stop,
+ * or no usable delta could be derived. The percentage quoted is read back OUT of
+ * the delta, so the sentence cannot claim a distance the order does not carry.
+ *
+ * Takes the symbol's tick size because the arm judges the band against
+ * tick-rounded legs, and rounding moves the limit leg across the floor on the
+ * tick where the market sits on the boundary. Unrounded here, the two would
+ * disagree exactly there — the arm resting a trail while this row printed a
+ * fixed trigger price, which is the disagreement the drift gate exists to catch.
+ * Null tick means the symbol published no step to round to, so both sides judge
+ * the raw prices and still agree.
+ */
+export const nativeTrailPreviewNote = (params: {
+  readonly stop: Decimal;
+  readonly limit: Decimal;
+  readonly tick: Decimal | null;
+  readonly reference: string | null;
+  readonly stopDistancePct: Decimal;
+  readonly band: PercentPriceBySideFilter | null | undefined;
+  readonly trailing: TrailingDeltaFilter | null | undefined;
+}): string | null => {
+  const { stop, limit, tick, reference, stopDistancePct, band, trailing } = params;
+  if (reference === null) return null;
+  const onGrid = (value: Decimal): string =>
+    tick === null ? value.toString() : toFixedStep(value, tick);
+  const refused = percentPriceBySideRefusal({
+    symbol: '',
+    reference,
+    band,
+    desired: { stopPrice: onGrid(stop), price: onGrid(limit), quantity: '0' },
+    guarded: false,
+  });
+  if (refused === null) return null;
+  const delta = nativeTrailingDelta({ stopDistancePct, filter: trailing });
+  if (delta === null) return null;
+  const pct = new Decimal(delta).div(100).toString();
+  return `No fixed trigger price — Binance trails this stop ${pct}% below the highest price seen since it was placed, then sells at market.`;
 };
 
 // Re-place the resting stop only when the recomputed trigger has moved by at
@@ -272,6 +636,25 @@ const MIN_STOP_DRIFT = new Decimal('0.001');
 // a materially undersized stop is always corrected.
 const MIN_QTY_DRIFT = new Decimal('0.01');
 
+// A floor-clamped level is pinned to the exchange floor, which is a fraction of
+// the CURRENT price — so it moves whenever the market does, and the 0.1% default
+// re-places the resting stop on almost every tick for as long as the band binds.
+// A whole percent is the smallest band that makes that quiet, and it costs
+// nothing: the clamped level never sinks below the configured stop, so the only
+// thing a wider band delays is the floating portion following the market down.
+const CLAMPED_STOP_DRIFT = new Decimal('0.01');
+
+/**
+ * The re-arm drift band for a stop the exchange floor is holding up, given
+ * whatever band the plugin would otherwise use (`null` = the shared default).
+ *
+ * Always the wider of the two. A plugin that deliberately set a wider band did
+ * so to bound its own order rate, and the clamp is a reason to send fewer
+ * orders, never more.
+ */
+export const clampedStopDrift = (operatorBand: Decimal | null): Decimal =>
+  operatorBand === null ? CLAMPED_STOP_DRIFT : Decimal.max(operatorBand, CLAMPED_STOP_DRIFT);
+
 /**
  * Whether a resting protective stop (matched by OUR clientOrderId, so it is our
  * live order placed with the trigger we chose) must be cancelled and re-placed to
@@ -284,17 +667,44 @@ const MIN_QTY_DRIFT = new Decimal('0.01');
  * resting STOP_LOSS_LIMIT, and treating that as "drifted" re-places an identical
  * stop every tick — a cancel/replace storm that never converges. A genuinely
  * stale stop is retracted by the position-close path, not re-armed per tick.
+ *
+ * The one exception is a resting order that carries a `trailingDelta` when the
+ * caller wants a priced stop: that is a wrong order type rather than a stale
+ * price, and it is re-armed unconditionally.
+ *
+ * `desiredTrailingDelta` switches the test to the exchange-native trailing stop,
+ * which has no trigger to compare: the exchange owns the high-water mark and
+ * moves the trigger with it. The ONLY thing that can drift is the configured
+ * distance, and re-arming on anything else is actively harmful — a cancel and
+ * replace restarts the trail from the current price, throwing away every bit of
+ * high-water mark the resting order had accumulated.
  */
 export const protectiveStopNeedsRearm = (
   resting: OpenOrder,
   desiredStopPrice: string,
   desiredQuantity: string,
   minStopDrift: Decimal = MIN_STOP_DRIFT,
+  desiredTrailingDelta?: number,
 ): boolean => {
-  const restingStop = safeDecimal(resting.stopPrice);
-  if (restingStop === null) return false;
-  const desiredStop = new Decimal(desiredStopPrice);
-  if (restingStop.minus(desiredStop).abs().gte(desiredStop.mul(minStopDrift))) return true;
+  if (desiredTrailingDelta !== undefined) {
+    // A trail carries no trigger to drift, so distance replaces the price test —
+    // but only that test. The SIZE of a trailing stop drifts exactly as a priced
+    // one does, and the quantity band below is the only thing that ever corrects
+    // an undersized stop.
+    if (resting.trailingDelta !== desiredTrailingDelta) return true;
+  } else if (resting.trailingDelta !== undefined) {
+    // A trail is resting and the caller no longer wants one. That is a wrong
+    // ORDER TYPE, not a drifted trigger, and no price comparison can detect it:
+    // a trailing order reports no `stopPrice`, so the priced branch below reads
+    // it as unparseable and leaves it alone — forever, silently, because the arm
+    // reports no blocker either.
+    return true;
+  } else {
+    const restingStop = safeDecimal(resting.stopPrice);
+    if (restingStop === null) return false;
+    const desiredStop = new Decimal(desiredStopPrice);
+    if (restingStop.minus(desiredStop).abs().gte(desiredStop.mul(minStopDrift))) return true;
+  }
 
   const orig = safeDecimal(resting.origQty);
   if (orig === null) return false;
@@ -409,6 +819,25 @@ export interface ProtectiveStopArmParams<C, S, B extends Readonly<Record<string,
   readonly buildPlace: (desired: DesiredProtectiveStop, rearm: boolean) => Decision;
   readonly buildCancel: (resting: OpenOrder) => Decision;
   /**
+   * The EXCHANGE-NATIVE trailing escape for a stop the price band refuses.
+   * Present only when the operator chose `onBandBlock: 'native-trail'`; absent, a
+   * banded stop is refused with a blocker as before.
+   *
+   * The tradeoff the operator accepted: the order keeps their full stop distance
+   * and escapes the band, but it triggers a MARKET sell (no limit leg exists to
+   * be banded) and it trails from the high-water mark SINCE PLACEMENT, not from
+   * the entry price. That makes it a crash net rather than an entry-anchored stop.
+   *
+   * Builder and distance travel together so neither can be supplied alone. The
+   * distance is the CONFIGURED fraction, not one measured against the live price:
+   * see {@link nativeTrailingDelta} for why a price-derived delta re-arms the
+   * order on every tick and resets the exchange's high-water mark each time.
+   */
+  readonly nativeTrail?: {
+    readonly stopDistancePct: Decimal;
+    readonly build: (desired: DesiredNativeTrailingStop, rearm: boolean) => Decision;
+  };
+  /**
    * Trigger-drift band for the re-arm, as a fraction of the desired trigger.
    * Defaults to 0.1%. A plugin whose level advances intraday exposes this to the
    * operator, because it is the only knob that bounds order spend in a market
@@ -437,7 +866,9 @@ export interface ProtectiveStopArmParams<C, S, B extends Readonly<Record<string,
  *   - the priced order falls outside Binance's `PERCENT_PRICE_BY_SIDE` band ⇒
  *     [] + a blocker, again leaving anything resting alone. The exchange can only
  *     answer -1013, so cancelling to make room buys nothing and costs the
- *     protection already in place.
+ *     protection already in place. UNLESS `buildNativeTrailPlace` is supplied, in
+ *     which case the same protection goes out as an exchange-native trailing
+ *     `STOP_LOSS`, which the band does not reach.
  *   - no resting stop ⇒ [place]; trigger OR sized quantity drifted materially ⇒
  *     [cancel, place]; within both bands ⇒ [] (no churn).
  *
@@ -510,6 +941,35 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
   // a first arm or a re-price of a live stop.
   const resting = findRestingProtectiveStop(input.openOrders, ourClientOrderId);
 
+  // The basis-point distance the operator's CONFIGURED stop maps to on this
+  // symbol, or null when they did not choose native trailing or the symbol will
+  // not accept that distance. Stable across ticks by construction: it is derived
+  // from config, never from the moving price.
+  const trailingDelta =
+    params.nativeTrail === undefined
+      ? null
+      : nativeTrailingDelta({
+          stopDistancePct: params.nativeTrail.stopDistancePct,
+          filter: input.market.symbolInfo.filters.trailingDelta,
+        });
+
+  // A resting order carrying a delta is an exchange-native trail and is judged on
+  // distance alone.
+  //
+  // Two different "no delta this tick" cases hide here and must NOT be conflated.
+  // The symbol going quiet on its `TRAILING_DELTA` bounds is transient, and
+  // treating the resting delta as unchanged keeps live protection rather than
+  // tearing it down over a missing filter. The operator leaving `native-trail`
+  // is not transient: holding the trail there would make the mode change a no-op
+  // for the life of the position, silently, because the arm reports no blocker.
+  // So an abandoned trail reports `undefined` and falls through to the priced
+  // re-arm path, where the band check decides on its merits.
+  const abandoningTrail = resting?.trailingDelta !== undefined && params.nativeTrail === undefined;
+  const restingTrailDelta =
+    abandoningTrail || resting?.trailingDelta === undefined
+      ? undefined
+      : (trailingDelta ?? resting.trailingDelta);
+
   // A stop that is already resting at the right level is settled: nothing is
   // sent, so no band applies. Tested BEFORE the band check because a blocker
   // here would be a lie the operator cannot ignore — every consumer reads the
@@ -517,7 +977,13 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
   // sits outside a tight band for most of a winning position's life.
   if (
     resting !== undefined &&
-    !protectiveStopNeedsRearm(resting, desired.stopPrice, desired.quantity, params.minStopDrift)
+    !protectiveStopNeedsRearm(
+      resting,
+      desired.stopPrice,
+      desired.quantity,
+      params.minStopDrift,
+      restingTrailDelta,
+    )
   ) {
     return { decisions: [], blocker: null };
   }
@@ -539,7 +1005,35 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
     // downgrade `stillGuarding` exists to refuse.
     guarded: stillGuarding(resting, full.quantity),
   });
-  if (outsideBand !== null) return { decisions: [], blocker: outsideBand };
+  if (outsideBand !== null) {
+    // The band refuses the PRICED stop, and the operator asked for the trailing
+    // escape. Binance bands a trigger, not a distance, so a `STOP_LOSS` carrying
+    // only a `trailingDelta` is accepted where the same protection expressed as a
+    // price is not — and it keeps the distance the operator chose instead of
+    // tightening it. A derivation that came back null (bounds unpublished, or the
+    // distance outside them) falls through to the refusal rather than sending a
+    // distance nobody asked for.
+    //
+    // Only a FLOOR breach. A ceiling breach means the desired trigger sits ABOVE
+    // the market by more than the band allows, which a stop trailing DOWNWARD
+    // from a high-water mark cannot express at any distance: it would rest a
+    // far-below-market order in place of one meant to fire almost immediately.
+    if (
+      params.nativeTrail !== undefined &&
+      trailingDelta !== null &&
+      outsideBand.detail['bound'] === 'floor'
+    ) {
+      const place = params.nativeTrail.build(
+        { quantity: desired.quantity, trailingDelta },
+        resting !== undefined,
+      );
+      return {
+        decisions: resting === undefined ? [place] : [buildCancel(resting), place],
+        blocker: null,
+      };
+    }
+    return { decisions: [], blocker: outsideBand };
+  }
 
   if (resting === undefined) return { decisions: [buildPlace(desired, false)], blocker: null };
   // Our own stop is cancelled in the same batch, so the base it locks is released

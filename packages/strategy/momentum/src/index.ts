@@ -19,6 +19,7 @@ import { momentumPositionAdapter } from './position-adapter.js';
 import { momentumReasonAttribution } from './attribution.js';
 import { momentumPreviewLevels, momentumPreviewDataNeeds } from './preview.js';
 import { momentumAttributeOrder } from './client-order-id.js';
+import { momentumStopBandSettings } from './protective-stop.js';
 
 export { momentumReasonAttribution } from './attribution.js';
 export { momentumPositionAdapter } from './position-adapter.js';
@@ -122,5 +123,9 @@ export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> =
   reasonAttribution: momentumReasonAttribution,
   previewDataNeeds: momentumPreviewDataNeeds,
   previewLevels: momentumPreviewLevels,
+  // Lets a caller holding the symbol's filters warn at BIND time that the
+  // configured trail is deeper than the symbol's price band will hold, instead
+  // of the operator learning it from the first tick that could not arm a stop.
+  protectiveStopBandSettings: momentumStopBandSettings,
   tick: computeTick,
 };

@@ -1,4 +1,4 @@
-import { log, metric } from '@app/strategy-core';
+import { log, metric, protectiveStopBandAdjustment } from '@app/strategy-core';
 import type {
   Decision,
   LogEntry,
@@ -669,7 +669,17 @@ const sellGateBranch: BranchHandler = (ctx) => {
               rearm: arm.decisions.length > 1,
             }),
           ],
-          metrics: [metric('tt_protective_stop_arm', { symbol: market.symbol })],
+          metrics: [
+            metric('tt_protective_stop_arm', { symbol: market.symbol }),
+            // The order going out is not the one configured whenever the band
+            // moved the level, and only this branch can say so: the arm reports
+            // no blocker for either escape.
+            ...protectiveStopBandAdjustment({
+              symbol: market.symbol,
+              floorClamped: arm.floorClamped,
+              nativeTrailed: arm.nativeTrailed,
+            }),
+          ],
         },
       };
     }

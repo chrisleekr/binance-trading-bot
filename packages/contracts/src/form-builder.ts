@@ -221,6 +221,9 @@ const LABEL_OVERRIDES: Record<string, string> = {
   limitPricePercentage: 'Buy limit price (above current)',
   'buy.avgEntryPriceRemoveThreshold': 'Dust cleanup price (below avg entry)',
   'sell.stopLossPercentage': 'Stop-loss (below entry)',
+  // `onBandBlock` humanises to "On Band Block", which names an implementation
+  // detail the operator has no word for. Label the decision they are making.
+  onBandBlock: 'If Binance rejects the backup stop',
   'sell.triggerPercentage': 'Trailing-stop arm (above entry)',
   'sell.trailingStopPercentage': 'Trailing-stop distance (from peak)',
   trailingStopPct: 'Trailing-stop distance (from peak)',

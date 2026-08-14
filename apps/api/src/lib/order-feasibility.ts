@@ -2,7 +2,7 @@ import type { BinanceMode } from '@app/binance';
 import { AccountInfoSnapshot, type ConfigDiagnostic } from '@app/contracts';
 import { GLOBAL_KEYS, profileKey, type ProfileRepo } from '@app/db';
 import { Decimal } from '@app/money';
-import type { AnyStrategy } from '@app/strategy-core';
+import { protectiveStopBandWarning, type AnyStrategy } from '@app/strategy-core';
 import type { DI } from 'di.js';
 import { HttpError } from 'middleware/error.js';
 import { z } from 'zod';
@@ -21,6 +21,34 @@ const SymbolInfoForFeasibility = z.object({
     maxQty: z.string(),
     minPrice: z.string(),
     maxPrice: z.string(),
+    // The price band, when the snapshot carries one. `.catch(undefined)` keeps a
+    // band that has drifted from "no band on this symbol": a malformed row must
+    // fail open on the band alone, not take the whole filter set down and report
+    // an otherwise-readable symbol as unchecked. Absent on every entry written
+    // before the field existed, and Binance does not publish it on every symbol.
+    percentPriceBySide: z
+      .object({
+        bidMultiplierUp: z.string(),
+        bidMultiplierDown: z.string(),
+        askMultiplierUp: z.string(),
+        askMultiplierDown: z.string(),
+        avgPriceMins: z.number(),
+      })
+      .optional()
+      .catch(undefined),
+    // The per-symbol trailing bounds, on the same fail-open terms as the band:
+    // the warning below can only promise the trail escape when the symbol's own
+    // bounds accept the configured distance, and a drifted row must silence that
+    // one clause rather than report the whole symbol as unchecked.
+    trailingDelta: z
+      .object({
+        minTrailingAboveDelta: z.number(),
+        maxTrailingAboveDelta: z.number(),
+        minTrailingBelowDelta: z.number(),
+        maxTrailingBelowDelta: z.number(),
+      })
+      .optional()
+      .catch(undefined),
   }),
 });
 
@@ -202,7 +230,13 @@ const resolveAvailableQuote = (
  * gap only — a strategy's own check may still return nothing for a config it
  * declines to size, so an empty result is not a guarantee of full coverage.
  * `config` MUST be the schema-parsed config so the strategy reads typed fields.
- * Both lists come back empty for strategies without the check.
+ *
+ * A second, cheaper check runs per symbol for any strategy that declares
+ * `protectiveStopBandSettings`: whether the configured stop is deeper than the
+ * symbol's `PERCENT_PRICE_BY_SIDE` band will hold. It needs the filters only, no
+ * price and no balance, so it runs for a symbol with no cached price and for a
+ * strategy with no order-feasibility check at all. Both lists come back empty
+ * only when the strategy declares neither.
  *
  * The full-grid funding check runs only when `availableQuoteOverride` or
  * `fundFromAccountValue` is set (see {@link FeasibilityOptions}); otherwise only
@@ -219,7 +253,10 @@ const runFeasibility = async (
 ): Promise<SplitDiagnostics> => {
   const empty = { all: [], hostMinted: [] };
   const check = strategy.checkOrderFeasibility;
-  if (!check) return empty;
+  // Resolved once: the stop settings are symbol-independent, the band they are
+  // judged against is not.
+  const bandSettings = strategy.protectiveStopBandSettings?.(config) ?? null;
+  if (!check && bandSettings === null) return empty;
 
   const symbolList = opts.symbols ?? (await p.profileSymbols.listForProfile()).map((s) => s.symbol);
   if (symbolList.length === 0) return empty;
@@ -272,12 +309,18 @@ const runFeasibility = async (
     // price so a symbol missing both yields one finding, not two.
     const info = symInfoRaw ? safeJson(SymbolInfoForFeasibility, symInfoRaw) : null;
     if (!info) {
+      // Same code, different sentence: neither check may claim the other's
+      // coverage. A strategy that does not size orders never had sizing to
+      // verify, but the band check below reads these same filters, so it went
+      // unrun too and saying nothing would read as "checked and fine".
       mint(
         toWireDiagnostic(
           {
             level: 'warn',
             code: 'filters-unavailable',
-            message: `Binance ${exchangeLabel} trading rules have not loaded yet, so order sizing was not verified.`,
+            message: check
+              ? `Binance ${exchangeLabel} trading rules have not loaded yet, so order sizing was not verified.`
+              : `Binance ${exchangeLabel} trading rules have not loaded yet, so the backup stop was not checked against this symbol's price band.`,
           },
           `${symbol}: `,
         ),
@@ -285,6 +328,22 @@ const runFeasibility = async (
       );
       continue;
     }
+
+    // Deliberately AHEAD of the price gate below: the band check reads the
+    // symbol's filters and the profile's own settings, and nothing else. A
+    // freshly bound symbol for which nothing is streaming yet has no cached price,
+    // which is the common case on the one route where this warning matters most.
+    //
+    // Host-minted from the plugin's NUMBERS, never from plugin prose, so it can
+    // ride back on the mutation body. Fails open on its own: no band published,
+    // an unreadable multiplier, or a profile resting no stop yields nothing.
+    const bandWarning = protectiveStopBandWarning({
+      settings: bandSettings,
+      band: info.filters.percentPriceBySide,
+      trailing: info.filters.trailingDelta,
+    });
+    if (bandWarning) mint(toWireDiagnostic(bandWarning, `${symbol}: `), true);
+
     const ticker = tickerRaw ? safeJson(TickerSnapshot, tickerRaw) : null;
     if (!ticker) {
       // Neither wording reads as a fault, because neither is one. The two
@@ -296,17 +355,19 @@ const runFeasibility = async (
       const reason = opts.reportMissingPrice
         ? `No ${exchangeLabel} price is cached for this symbol yet — a price is kept only while some profile is tracking that symbol`
         : `No current ${exchangeLabel} price for this profile yet — prices stream while a profile is running`;
-      mint(
-        toWireDiagnostic(
-          {
-            level: 'warn',
-            code: 'price-unavailable',
-            message: `${reason}, so order sizing was not verified.`,
-          },
-          `${symbol}: `,
-        ),
-        Boolean(opts.reportMissingPrice),
-      );
+      if (check) {
+        mint(
+          toWireDiagnostic(
+            {
+              level: 'warn',
+              code: 'price-unavailable',
+              message: `${reason}, so order sizing was not verified.`,
+            },
+            `${symbol}: `,
+          ),
+          Boolean(opts.reportMissingPrice),
+        );
+      }
       continue;
     }
 
@@ -327,7 +388,9 @@ const runFeasibility = async (
     // is its whole purpose. A mutation success body is a different thing: it is
     // the record of what was written, so it carries only findings the host
     // itself minted and can vouch for.
-    for (const d of check(orderInput)) all.push(toWireDiagnostic(d, `${symbol}: `));
+    if (check) {
+      for (const d of check(orderInput)) all.push(toWireDiagnostic(d, `${symbol}: `));
+    }
   }
   return { all, hostMinted };
 };

@@ -170,6 +170,10 @@ const armOut = (
       high,
       decOrNull(state.profitHigh),
       (input.market.candlesByInterval[input.config.candleInterval] ?? []).filter((c) => c.isClosed),
+      {
+        reference: input.market.currentPrice,
+        band: input.market.symbolInfo.filters.percentPriceBySide,
+      },
     ).stop,
   );
 
@@ -1486,6 +1490,9 @@ describe('schema', () => {
       enabled: false,
       limitOffsetPercentage: '0.98',
       minRearmDriftPct: '0.001',
+      // `notify` is the pre-existing behaviour, so an existing profile that never
+      // set this leaf keeps replaying byte-identically.
+      onBandBlock: 'notify',
     });
     expect(cfg().protectiveStop).toBeUndefined();
   });
@@ -2939,6 +2946,86 @@ describe('momentum.tick — protective stop outside the exchange price band', ()
     expect(out.decisions.map((d) => d.type)).toEqual(['cancel-order', 'place-order']);
   });
 
+  it('onBandBlock notify is the default and leaves the refusal in place', () => {
+    // Stated explicitly so the default can never drift to a mode that changes
+    // what an existing profile does.
+    expect(BAND_CFG.protectiveStop?.onBandBlock).toBe('notify');
+    const out = momentum.tick(bandInput('8.8320'));
+    expect(out.nextState.protectiveStopBlocker?.reason).toBe('price-outside-exchange-band');
+  });
+
+  it('onBandBlock clamp raises the stop until the exchange will take the order', () => {
+    const out = momentum.tick(
+      bandInput('8.8320', {
+        config: cfg({
+          trailingStopPct: '0.15',
+          protectiveStop: {
+            enabled: true,
+            limitOffsetPercentage: '0.98',
+            onBandBlock: 'clamp',
+          },
+        }),
+      }),
+    );
+    expect(out.nextState.protectiveStopBlocker).toBeNull();
+    expect(out.decisions.map((d) => d.type)).toEqual(['cancel-order', 'place-order']);
+    const place = out.decisions[1];
+    if (place?.type !== 'place-order') throw new Error('expected a place-order');
+    const params = place.params as { stopPrice: string; price: string };
+    // The trigger moved off the operator's 7.462 to the exchange floor.
+    expect(params.stopPrice).toBe('8.192');
+    // The one criterion that decides whether Binance accepts it: the LIMIT leg,
+    // the lower of the two, must clear `reference * askMultiplierDown`.
+    expect(new Decimal(params.price).gte(new Decimal('8.8320').mul('0.9'))).toBe(true);
+  });
+
+  const CLAMP_CFG = cfg({
+    trailingStopPct: '0.15',
+    protectiveStop: { enabled: true, limitOffsetPercentage: '0.98', onBandBlock: 'clamp' },
+  });
+
+  it('never lets the clamped level fire the in-process exit, at any reference', () => {
+    // The one direction the clamp could break a position outright. It only ever
+    // RAISES the trail, and it raises it toward the same price the trail is
+    // compared against — so if the floor ever reached the reference, enabling
+    // clamp would market-sell every held position on the next tick. It cannot:
+    // `askMultiplierDown / limitOffset x margin` is 0.928 here, and
+    // `clampStopToExchangeFloor` declines outright when the floor is not strictly
+    // below the reference. Swept rather than sampled because the margin is
+    // arithmetic that holds for today's bands, not by construction.
+    for (const price of ['8.8320', '8.20', '8.1245', '8.00']) {
+      const out = momentum.tick(bandInput(price, { config: CLAMP_CFG }));
+      expect(out.decisions.map((d) => d.type)).not.toContain('noop');
+      expect(out.decisions).not.toContainEqual(
+        expect.objectContaining({ intent: expect.objectContaining({ reason: 'exit' }) }),
+      );
+      expect(out.nextState.heldQuantity).toBe('3.13');
+    }
+  });
+
+  it('still exits at the operator level, which is where the clamp goes inert', () => {
+    // At a reference of 7.40 the floor is 6.86, well under the configured 7.462,
+    // so the clamp returns the level untouched and the two modes must agree
+    // exactly. A clamp that moved this boundary would be selling at a level the
+    // operator never chose.
+    for (const config of [CLAMP_CFG, BAND_CFG]) {
+      const out = momentum.tick(bandInput('7.40', { config }));
+      expect(out.decisions).toContainEqual(
+        expect.objectContaining({
+          type: 'place-order',
+          intent: expect.objectContaining({ side: 'SELL', reason: 'exit' }),
+          params: expect.objectContaining({ type: 'MARKET', quantity: '3.13' }),
+        }),
+      );
+      expect(out.metrics).toContainEqual({
+        name: 'momentum.exit',
+        value: 1,
+        tags: { reason: 'trailing-stop' },
+      });
+      expect(out.nextState.heldQuantity).toBeNull();
+    }
+  });
+
   it('marks the refusal terminal when the limit offset can never clear the floor', () => {
     const out = momentum.tick(
       bandInput('8.8320', {
@@ -2949,5 +3036,164 @@ describe('momentum.tick — protective stop outside the exchange price band', ()
       }),
     );
     expect(out.nextState.protectiveStopBlocker?.detail).toMatchObject({ terminal: true });
+  });
+
+  const TRAIL_BOUNDS = {
+    minTrailingAboveDelta: 10,
+    maxTrailingAboveDelta: 2000,
+    minTrailingBelowDelta: 10,
+    maxTrailingBelowDelta: 2000,
+  };
+
+  it('onBandBlock native-trail hands the operator distance to Binance instead of tightening it', () => {
+    const out = momentum.tick(
+      bandInput('8.8320', {
+        filters: { ...BAND_FILTERS, trailingDelta: TRAIL_BOUNDS },
+        config: cfg({
+          trailingStopPct: '0.15',
+          protectiveStop: {
+            enabled: true,
+            limitOffsetPercentage: '0.98',
+            onBandBlock: 'native-trail',
+          },
+        }),
+      }),
+    );
+    expect(out.nextState.protectiveStopBlocker).toBeNull();
+    expect(out.decisions.map((d) => d.type)).toEqual(['cancel-order', 'place-order']);
+    const place = out.decisions[1];
+    if (place?.type !== 'place-order') throw new Error('expected a place-order');
+    // `trailingStopPct: 0.15` straight through as 1500 bips: the distance the
+    // operator configured, where `clamp` would have moved the trigger to 8.192
+    // and left barely 7% of room.
+    expect(place.params).toEqual({
+      type: 'STOP_LOSS',
+      quantity: '3.13',
+      trailingDelta: 1500,
+    });
+  });
+
+  it('sends a first native trail as unskippable, with no stop left resting behind it', () => {
+    // The re-arm case above carries `deferrable`, because the stop it replaces
+    // keeps resting until the paired cancel lands. A FIRST arm has no such
+    // fallback: skipping it on an exhausted order budget leaves the position
+    // with nothing at all, so the flag must be absent here.
+    const out = momentum.tick(
+      bandInput('8.8320', {
+        openOrders: [],
+        balances: {
+          USDT: QUOTE_BALANCE,
+          BTC: { asset: 'BTC', free: new Decimal('3.13'), locked: new Decimal('0') },
+        },
+        filters: { ...BAND_FILTERS, trailingDelta: TRAIL_BOUNDS },
+        config: cfg({
+          trailingStopPct: '0.15',
+          protectiveStop: {
+            enabled: true,
+            limitOffsetPercentage: '0.98',
+            onBandBlock: 'native-trail',
+          },
+        }),
+      }),
+    );
+    expect(out.decisions.map((d) => d.type)).toEqual(['place-order']);
+    const place = out.decisions[0];
+    if (place?.type !== 'place-order') throw new Error('expected a place-order');
+    expect(place.intent.deferrable).toBeUndefined();
+    expect(place.params).toEqual({
+      type: 'STOP_LOSS',
+      quantity: '3.13',
+      trailingDelta: 1500,
+    });
+  });
+
+  it('falls back to the refusal when the symbol publishes no TRAILING_DELTA bounds', () => {
+    const out = momentum.tick(
+      bandInput('8.8320', {
+        config: cfg({
+          trailingStopPct: '0.15',
+          protectiveStop: {
+            enabled: true,
+            limitOffsetPercentage: '0.98',
+            onBandBlock: 'native-trail',
+          },
+        }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.protectiveStopBlocker?.reason).toBe('price-outside-exchange-band');
+  });
+  // The two escapes leave no blocker behind — nothing was refused in the end —
+  // so a metric is the only trace that the stop resting at Binance is not the
+  // one the operator configured.
+  it('reports the clamp as a band adjustment on the metric series', () => {
+    const out = momentum.tick(
+      bandInput('8.8320', {
+        config: cfg({
+          trailingStopPct: '0.15',
+          protectiveStop: {
+            enabled: true,
+            limitOffsetPercentage: '0.98',
+            onBandBlock: 'clamp',
+          },
+        }),
+      }),
+    );
+    expect(out.metrics).toContainEqual({
+      name: 'protective_stop_band_adjusted',
+      value: 1,
+      tags: { symbol: 'BTCUSDT', reason: 'floor-clamped' },
+    });
+  });
+
+  it('reports the native-trail substitution on the same series', () => {
+    const out = momentum.tick(
+      bandInput('8.8320', {
+        filters: { ...BAND_FILTERS, trailingDelta: TRAIL_BOUNDS },
+        config: cfg({
+          trailingStopPct: '0.15',
+          protectiveStop: {
+            enabled: true,
+            limitOffsetPercentage: '0.98',
+            onBandBlock: 'native-trail',
+          },
+        }),
+      }),
+    );
+    expect(out.metrics).toContainEqual({
+      name: 'protective_stop_band_adjusted',
+      value: 1,
+      tags: { symbol: 'BTCUSDT', reason: 'native-trail' },
+    });
+  });
+
+  it('counts adjustments applied, not ticks spent holding an adjusted stop', () => {
+    // The clamp still binds — `level.floorClamped` is true — but the clamped stop
+    // is already resting at exactly this level, so nothing is sent. Counting the
+    // held tick would give this name per-tick semantics here and per-order
+    // semantics in the sibling strategy, which is what makes a cross-strategy sum
+    // meaningless. 8.192 * 0.98 = 8.028 is the limit the clamped arm derives.
+    const out = momentum.tick(
+      bandInput('8.8320', {
+        openOrders: [psOrder({ stopPrice: '8.192', price: '8.028', origQty: '3.13' })],
+        config: cfg({
+          trailingStopPct: '0.15',
+          protectiveStop: {
+            enabled: true,
+            limitOffsetPercentage: '0.98',
+            onBandBlock: 'clamp',
+          },
+        }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.metrics.map((m) => m.name)).not.toContain('protective_stop_band_adjusted');
+  });
+
+  it('stays silent while the band leaves the configured stop alone', () => {
+    // The default `notify` mode substitutes nothing, so the series must not fire
+    // on the ordinary refusal — that one is already a blocker and a skip metric.
+    const out = momentum.tick(bandInput('8.8320'));
+    expect(out.metrics.map((m) => m.name)).not.toContain('protective_stop_band_adjusted');
   });
 });

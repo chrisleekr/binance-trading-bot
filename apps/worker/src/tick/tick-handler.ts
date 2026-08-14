@@ -383,6 +383,31 @@ export const createTickHandler = (
           deps.logger[entry.level](ctx, entry.message);
         }
 
+        // Same forwarding step for `output.metrics`. Without it the entries are
+        // written by the strategy, returned on the tick output, and then read by
+        // nothing — every strategy counter would sit at zero on /metrics, which
+        // is indistinguishable from a path that never fired.
+        //
+        // The entry NAME rides as a label rather than becoming a catalogue member:
+        // strategy names are dotted, per-plugin, and some are built at runtime, so
+        // no closed union can cover them and an uncatalogued name is dropped
+        // silently by the sink.
+        for (const entry of output.metrics) {
+          // Entry tags first, canonical attribution second, so a strategy tag that
+          // happens to be called `symbol` cannot misattribute the series. Of the
+          // free-form tags only `reason` is declared on the metric; `side`, `cap`,
+          // `level`, `regime` and friends are dropped by the sink's label
+          // projection on purpose, not by oversight — promoting a tag only one
+          // strategy emits multiplies the series count for every strategy.
+          deps.metrics?.record('strategy_metric_total', entry.value, {
+            ...(entry.tags ?? {}),
+            strategy: profile.strategyName,
+            name: entry.name,
+            profileId,
+            symbol,
+          });
+        }
+
         // Daily-loss circuit breaker: when the portfolio-risk cron has flagged this
         // profile (today's realised loss hit its limit), suppress new BUY orders for
         // the rest of the UTC day. SELLs, cancels, and events still flow so exits and

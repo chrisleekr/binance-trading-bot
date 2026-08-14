@@ -136,6 +136,22 @@ export const PercentPriceBySide = z.object({
 export type PercentPriceBySide = z.infer<typeof PercentPriceBySide>;
 
 /**
+ * Binance's `TRAILING_DELTA` filter: the inclusive basis-point bounds on the
+ * `trailingDelta` an order may carry, PER SYMBOL. A SELL stop-loss trails down
+ * from the high-water mark, so the `Below` pair is the one that governs it. Not
+ * money — a delta is a ratio Binance types as a `LONG` — so these are plain
+ * non-negative integers rather than decimal-strings.
+ */
+export const TrailingDelta = z.object({
+  minTrailingAboveDelta: z.number().int().nonnegative(),
+  maxTrailingAboveDelta: z.number().int().nonnegative(),
+  minTrailingBelowDelta: z.number().int().nonnegative(),
+  maxTrailingBelowDelta: z.number().int().nonnegative(),
+});
+/** TS type derived from {@link TrailingDelta} so consumers don't re-run z.infer at every call site. */
+export type TrailingDelta = z.infer<typeof TrailingDelta>;
+
+/**
  * The seven Binance filter thresholds a strategy needs to size and price an
  * order, mirroring `SymbolFilters` in `@app/strategy-core`. Each value is a
  * decimal-string (trailing zeros preserved) so a consumer can read tick/step
@@ -155,6 +171,7 @@ export const SymbolFilters = z.object({
   minPrice: FilterDecimalString,
   maxPrice: FilterDecimalString,
   percentPriceBySide: PercentPriceBySide.optional(),
+  trailingDelta: TrailingDelta.optional(),
 });
 /** TS type derived from {@link SymbolFilters} so consumers don't re-run z.infer at every call site. */
 export type SymbolFilters = z.infer<typeof SymbolFilters>;
@@ -178,6 +195,10 @@ export interface RawSymbolFilter {
   readonly askMultiplierUp?: string;
   readonly askMultiplierDown?: string;
   readonly avgPriceMins?: number;
+  readonly minTrailingAboveDelta?: number;
+  readonly maxTrailingAboveDelta?: number;
+  readonly minTrailingBelowDelta?: number;
+  readonly maxTrailingBelowDelta?: number;
 }
 
 /**
@@ -189,13 +210,14 @@ export interface RawSymbolFilter {
  * or any value is not a positive decimal-string, so a partial upstream row can
  * never produce a half-populated filter set.
  *
- * `PERCENT_PRICE_BY_SIDE` is parsed SEPARATELY and spread in only on success,
- * because the two carry opposite failure meanings. A missing sizing threshold
- * must void the whole set (a half-populated one sizes a bad order), whereas a
- * missing or garbled band must degrade to "unknown" and leave the seven intact:
- * folding it into the same all-or-nothing parse would turn every symbol Binance
- * publishes no band for into a null filter set, which is a far larger outage
- * than the band it was meant to add.
+ * `PERCENT_PRICE_BY_SIDE` and `TRAILING_DELTA` are parsed SEPARATELY and spread
+ * in only on success, because they carry the opposite failure meaning to the
+ * seven. A missing sizing threshold must void the whole set (a half-populated
+ * one sizes a bad order), whereas a missing or garbled band must degrade to
+ * "unknown" and leave the seven intact: folding either into the same
+ * all-or-nothing parse would turn every symbol Binance publishes no such row for
+ * into a null filter set, which is a far larger outage than the row it was meant
+ * to add.
  */
 export const projectSymbolFilters = (
   filters: readonly RawSymbolFilter[] | undefined,
@@ -220,7 +242,15 @@ export const projectSymbolFilters = (
   // publishes it (all 3641 carry `PERCENT_PRICE_BY_SIDE` instead), so mapping it
   // would be dead code guarding a case that cannot arrive.
   const band = PercentPriceBySide.safeParse(find('PERCENT_PRICE_BY_SIDE'));
-  return band.success ? { ...parsed.data, percentPriceBySide: band.data } : parsed.data;
+  // Same all-or-nothing-free treatment as the band, and for the same reason: a
+  // symbol that publishes no trailing bounds must still yield a usable filter
+  // set, and the reader answers absence with "do not place a trailing order".
+  const trailing = TrailingDelta.safeParse(find('TRAILING_DELTA'));
+  return {
+    ...parsed.data,
+    ...(band.success ? { percentPriceBySide: band.data } : {}),
+    ...(trailing.success ? { trailingDelta: trailing.data } : {}),
+  };
 };
 
 /**

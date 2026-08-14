@@ -1,6 +1,6 @@
 import { Decimal } from '@app/money';
 import { ema, sma } from '@app/indicators';
-import { decOrNull, log, metric } from '@app/strategy-core';
+import { decOrNull, log, metric, protectiveStopBandAdjustment } from '@app/strategy-core';
 import type {
   Candle,
   Decision,
@@ -385,7 +385,10 @@ const evaluateExit = (
     market.candlesByInterval['1m'] ?? [],
     profitSinceMs,
   );
-  const level = resolveStopLevel(config, entry, effectiveHigh, profitHigh, candles);
+  const level = resolveStopLevel(config, entry, effectiveHigh, profitHigh, candles, {
+    reference: market.currentPrice,
+    band: market.symbolInfo.filters.percentPriceBySide,
+  });
   const price = new Decimal(market.currentPrice);
   // A null level means NEITHER leg resolved — no usable retrace fraction, no
   // computable ATR, no armed profit leg — so hold, never sell. The resting stop
@@ -509,7 +512,7 @@ const evaluateExit = (
   };
   // The resting stop mirrors the SAME resolved level the trail just tested, so
   // the two cannot report different numbers.
-  const arm = evaluateProtectiveStopArm(input, held, level.stop);
+  const arm = evaluateProtectiveStopArm(input, held, level.stop, level.floorClamped);
   // Only the stop-arm outcome writes this field: a refused stop must be visible on
   // the dashboard for as long as it is refused, and must clear itself the tick it
   // arms. It never gates an ENTRY — the position is already open.
@@ -544,6 +547,24 @@ const evaluateExit = (
           ],
     // The refusal is a SKIP with a reason, like every entry suppression: that is
     // what makes it queryable and what gives the attribution gloss a consumer.
-    metrics: arm.blocker === null ? [] : [skipMetric('sell', arm.blocker.reason)],
+    // Alongside it, the quieter case: the band did not refuse the stop, it moved
+    // it, and the operator's configured level is not the one resting.
+    //
+    // Gated on decisions because the series counts adjustments APPLIED, not ticks
+    // spent holding an adjusted stop. `level.floorClamped` stays true for as long
+    // as the clamp binds, so an ungated emit would count held ticks here while the
+    // sibling strategy counts orders — one name meaning two things, and a sum
+    // across strategies meaning nothing. "Is my stop clamped right now" is a state
+    // question, answered by the blocker surfaces, not by a counter.
+    metrics: [
+      ...(arm.blocker === null ? [] : [skipMetric('sell', arm.blocker.reason)]),
+      ...(arm.decisions.length === 0
+        ? []
+        : protectiveStopBandAdjustment({
+            symbol: market.symbol,
+            floorClamped: level.floorClamped,
+            nativeTrailed: arm.nativeTrailed,
+          })),
+    ],
   };
 };

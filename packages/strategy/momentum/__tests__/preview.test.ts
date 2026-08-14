@@ -437,3 +437,124 @@ describe('momentumPreviewLevels — defensive / branch coverage', () => {
     expect(row(model, 'trend')?.chartLine).toBeUndefined();
   });
 });
+
+describe('momentumPreviewLevels — exchange-native trailing protective stop', () => {
+  // askMultiplierDown 0.98 puts the floor at 9.8 against a reference of 10, and
+  // the projected level is 10.2 * 0.95 = 9.69 with a 9.4962 limit: both legs sit
+  // under the floor, so the priced stop is exactly the one Binance refuses.
+  const BANDED_FILTERS: SymbolInfo['filters'] = {
+    ...FILTERS,
+    percentPriceBySide: {
+      askMultiplierUp: '2',
+      askMultiplierDown: '0.98',
+      bidMultiplierUp: '1.1',
+      bidMultiplierDown: '0.5',
+      avgPriceMins: 5,
+    },
+    trailingDelta: {
+      minTrailingAboveDelta: 10,
+      maxTrailingAboveDelta: 2000,
+      minTrailingBelowDelta: 10,
+      maxTrailingBelowDelta: 2000,
+    },
+  };
+
+  const model = (onBandBlock: string | undefined, filters = BANDED_FILTERS): PreviewModel =>
+    momentumPreviewLevels({
+      ...previewInput(
+        cfg({
+          protectiveStop: {
+            enabled: true,
+            limitOffsetPercentage: '0.98',
+            ...(onBandBlock === undefined ? {} : { onBandBlock }),
+          },
+        }),
+        RICH_ACCOUNT_WIRE,
+      ),
+      filters,
+    });
+
+  it('projects the trailing stop with NO fixed trigger and no limit price', () => {
+    const ps = row(model('native-trail'), 'protective-stop');
+    // A trailing stop has no level to name: Binance derives the trigger from a
+    // high-water mark that only starts at placement. Any price here would be a
+    // number the operator watches and nothing ever acts on.
+    expect(ps?.price).toBeUndefined();
+    expect(ps?.limitPrice).toBeUndefined();
+    expect(ps?.triggerWhen).toBeUndefined();
+    expect(ps?.chartLine).toBeUndefined();
+    expect(ps?.label).toBe('Protective stop (exchange trail)');
+    // The CONFIGURED `trailingStopPct: 0.05`, read back out of the delta the
+    // order will carry — not a distance re-measured against the live price,
+    // which would print a percentage the resting order does not hold.
+    expect(ps?.note).toContain('5%');
+  });
+
+  it('carries no field the preview-drift gate can key on', () => {
+    // The gate matches a row on `code` + `trigger === true` + `price` +
+    // `triggerWhen`, and this row's exemption is the ABSENCE of all three. An
+    // absence nothing asserts is one a later edit fills in silently, and the day
+    // it does, the golden replay starts comparing a static number against a
+    // high-water mark Binance moves on its own. Pinned as the whole key set so a
+    // NEW price-bearing field fails here too, not just the three named ones.
+    const ps = row(model('native-trail'), 'protective-stop');
+    expect(ps).toBeDefined();
+    expect(Object.keys(ps ?? {}).sort()).toEqual(['code', 'label', 'note', 'tone']);
+  });
+
+  it('keeps the ordinary priced row whenever the priced stop is what will rest', () => {
+    // Inside the band, no band published, and the default mode all end at the
+    // same place: the row names the trigger the tick acts on.
+    const priced = (m: PreviewModel) => {
+      const ps = row(m, 'protective-stop');
+      expect(ps?.label).toBe('Protective stop');
+      expect(ps?.price).toBe('9.69');
+      expect(ps?.note).toBeUndefined();
+    };
+    priced(model('native-trail', FILTERS));
+    priced(model('notify'));
+    priced(model(undefined));
+  });
+
+  it('keeps the priced row when the symbol will not accept the distance', () => {
+    // No usable delta means no trail can be placed, so promising one in the
+    // preview would describe an order the arm is about to refuse instead.
+    const { trailingDelta: _dropped, ...noBounds } = BANDED_FILTERS;
+    const ps = row(model('native-trail', noBounds), 'protective-stop');
+    expect(ps?.price).toBe('9.69');
+    expect(ps?.note).toBeUndefined();
+  });
+
+  it('keeps the priced row when there is no configured distance to trail by', () => {
+    // An unparseable `trailingStopPct` leaves the profit trail holding the stop
+    // on its own, so a level still rests — but there is no distance to hand
+    // Binance, so no trail can go out. Dropping the row entirely would hide a
+    // resting protective stop from the one screen that shows it; the priced
+    // level is what the arm sends, and it is what belongs here.
+    const model = momentumPreviewLevels({
+      config: {
+        ...cfg({
+          profitTrail: { enabled: true, activationPct: '0.05', trailPct: '0.03' },
+          protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' },
+        }),
+        trailingStopPct: 'nope',
+        protectiveStop: {
+          enabled: true,
+          limitOffsetPercentage: '0.98',
+          onBandBlock: 'native-trail',
+        },
+      },
+      state: held({ profitHigh: '200' }),
+      entryPrice: '100',
+      currentPrice: '10',
+      filters: BANDED_FILTERS,
+      candles: mkCandles(FLAT_CLOSES),
+      account: RICH_ACCOUNT_WIRE,
+      quoteAsset: 'USDT',
+    } as never);
+    const ps = row(model, 'protective-stop');
+    // 200 * 0.97, the profit leg — the hard leg contributed nothing.
+    expect(ps?.price).toBe('194');
+    expect(ps?.note).toBeUndefined();
+  });
+});

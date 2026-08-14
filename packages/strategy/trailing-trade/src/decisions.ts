@@ -218,6 +218,10 @@ export const hasOpenSellForSymbol = (
  * `opts.stopLimit` switches the order to a resting STOP_LOSS_LIMIT SELL (the
  * offline protective stop): a stop trigger plus a limit price, GTC. When
  * omitted the MARKET shape is byte-identical to the pre-existing callers.
+ * `opts.trailingDelta` switches it instead to a resting STOP_LOSS carrying only
+ * a trailing distance — no trigger and no limit, because both would be banded —
+ * which Binance triggers as a MARKET sell. The two are mutually exclusive;
+ * `stopLimit` wins if both are somehow supplied.
  * `opts.clientOrderId` overrides the seed-hashed id for the protective stop,
  * which keys its resting order on a stable per-(profile, symbol) id instead.
  */
@@ -228,6 +232,7 @@ export const buildSellDecision = (
   clientOrderIdSeed: string,
   opts?: {
     readonly stopLimit?: { readonly stopPrice: string; readonly price: string };
+    readonly trailingDelta?: number;
     readonly clientOrderId?: string;
   },
 ): Decision => {
@@ -239,15 +244,22 @@ export const buildSellDecision = (
       opts?.clientOrderId ??
       sellClientOrderId(input.profile.id, input.market.symbol, clientOrderIdSeed),
   };
-  const params: OrderParams = opts?.stopLimit
-    ? {
-        type: 'STOP_LOSS_LIMIT',
-        quantity,
-        price: opts.stopLimit.price,
-        stopPrice: opts.stopLimit.stopPrice,
-        timeInForce: 'GTC',
-      }
-    : { type: 'MARKET', quantity };
+  let params: OrderParams;
+  if (opts?.stopLimit) {
+    params = {
+      type: 'STOP_LOSS_LIMIT',
+      quantity,
+      price: opts.stopLimit.price,
+      stopPrice: opts.stopLimit.stopPrice,
+      timeInForce: 'GTC',
+    };
+  } else if (opts?.trailingDelta !== undefined) {
+    // No timeInForce: a STOP_LOSS executes as a MARKET order on trigger, so
+    // there is no resting limit for one to govern.
+    params = { type: 'STOP_LOSS', quantity, trailingDelta: opts.trailingDelta };
+  } else {
+    params = { type: 'MARKET', quantity };
+  }
   return { type: 'place-order', intent, params };
 };
 

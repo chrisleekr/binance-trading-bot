@@ -38,10 +38,6 @@ export const isRawShape = (v: unknown): v is RawOrderShape => {
 export const orderQty = (order: OrderResponse): string =>
   isRawShape(order.raw) ? (order.raw.origQty ?? '—') : '—';
 
-/** Order price from the Binance `raw` payload, or an em-dash. */
-export const orderPrice = (order: OrderResponse): string =>
-  isRawShape(order.raw) ? (order.raw.price ?? '—') : '—';
-
 /**
  * Display string for the Price column. MARKET orders book at the trade fill
  * price, so the request-side `price` field is "0" — rendering "0" was the
@@ -52,12 +48,18 @@ export const orderPrice = (order: OrderResponse): string =>
  * usable quote total we render bare `MKT`. LIMIT orders fall through to the
  * regular price reader.
  *
+ * A `STOP_LOSS` is the exchange-native trailing stop: it carries a trailing
+ * distance instead of a trigger, and Binance reports its `price` as zero because
+ * there is no limit leg. Rendering that zero would tell the operator their stop
+ * sits at a price of nothing, so it gets its own label.
+ *
  * `cummulativeQuoteQty` matches Binance's misspelling on the wire; preserved
  * verbatim so the guard reads the field Binance actually ships.
  */
 export const orderDisplayPrice = (order: OrderResponse): string => {
   if (!isRawShape(order.raw)) return '—';
   const raw = order.raw;
+  if (raw.type === 'STOP_LOSS') return 'TRAIL';
   if (raw.type !== 'MARKET') return raw.price ? formatPrice(raw.price) : '—';
   const executed = Number(raw.executedQty);
   const quote = Number(raw.cummulativeQuoteQty);

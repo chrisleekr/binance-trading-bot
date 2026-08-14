@@ -633,6 +633,81 @@ describe('createExchangeInfoRefresh', () => {
       expect(warns).toEqual([]);
     });
   });
+
+  // Dropped exactly like the band, and just as invisibly. The difference is what
+  // stops working: `onBandBlock: 'native-trail'` derives its distance from these
+  // bounds, so without them the ONE escape from a band refusal silently reverts
+  // to refusing, on a profile whose operator opted into the escape.
+  describe('a dropped TRAILING_DELTA filter', () => {
+    const TRAILING_UNPARSEABLE: MetricName = 'exchange_info_trailing_delta_unparseable_total';
+
+    const withTrailing = (row: Record<string, unknown> | null) => ({
+      symbol: 'LINKUSDT',
+      baseAsset: 'LINK',
+      quoteAsset: 'USDT',
+      status: 'TRADING',
+      filters: [
+        { filterType: 'PRICE_FILTER', tickSize: '0.001', minPrice: '0.001', maxPrice: '1000' },
+        { filterType: 'LOT_SIZE', stepSize: '0.01', minQty: '0.01', maxQty: '9000' },
+        { filterType: 'NOTIONAL', minNotional: '10' },
+        ...(row === null ? [] : [row]),
+      ],
+    });
+
+    it('is per-mode only, same cardinality bound as its sibling counters', () => {
+      expect(CATALOG[TRAILING_UNPARSEABLE].labelNames).toEqual(['mode']);
+      expect(CATALOG[TRAILING_UNPARSEABLE].kind).toBe('counter');
+    });
+
+    it('counts and logs a published trailing filter the projection dropped', async () => {
+      const redis = stubRedis();
+      const { logger, warns } = capturingLogger();
+      const metrics = metricsStub();
+      // Published, and the sizing filters survive — but the bounds arrive as
+      // decimal-strings where the schema types them as the integers Binance
+      // documents, which is the shape drift a quoted numeric field would take.
+      const fetchImpl = vi.fn(async () =>
+        jsonResponse({
+          symbols: [
+            withTrailing({
+              filterType: 'TRAILING_DELTA',
+              minTrailingAboveDelta: '10',
+              maxTrailingAboveDelta: '2000',
+              minTrailingBelowDelta: '10',
+              maxTrailingBelowDelta: '2000',
+            }),
+          ],
+        }),
+      );
+
+      const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
+      await refresh();
+
+      expect(metrics.record).toHaveBeenCalledWith(TRAILING_UNPARSEABLE, 1, { mode: 'live' });
+      expect(warns).toHaveLength(1);
+      expect(warns[0]?.ctx).toMatchObject({ mode: 'live', symbols: 1, sample: ['LINKUSDT'] });
+      // The symbol keeps trading and keeps its band, which is why the counter
+      // above is the only thing that can report the loss.
+      const raw = redis.writes.get(buildSymbolInfoKey('LINKUSDT'));
+      if (!raw) throw new Error('test setup: LINKUSDT not written');
+      const persisted = JSON.parse(raw) as { filters: Record<string, unknown> };
+      expect(persisted.filters['stepSize']).toBe('0.01');
+      expect(persisted.filters['trailingDelta']).toBeUndefined();
+    });
+
+    it('stays silent when no trailing filter was published at all', async () => {
+      const redis = stubRedis();
+      const { logger, warns } = capturingLogger();
+      const metrics = metricsStub();
+      const fetchImpl = vi.fn(async () => jsonResponse({ symbols: [withTrailing(null)] }));
+
+      const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
+      await refresh();
+
+      expect(metrics.record).not.toHaveBeenCalled();
+      expect(warns).toEqual([]);
+    });
+  });
 });
 
 describe('combineExchangeInfoRefresh', () => {

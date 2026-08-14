@@ -78,6 +78,11 @@ export const momentumNotes: FieldNotes = {
     expect:
       "When the stop triggers, the limit is placed this fraction of the trigger price. At `0.98` the limit sits 2% below the trigger — wide enough to fill in most conditions. Too tight and the stop triggers but never fills, leaving you holding. There is also a hard floor on how far you can lower it: at or below the symbol's Binance `askMultiplierDown` the stop cannot be placed at all, and the symbol reports a terminal blocker until you raise it.",
   },
+  'protectiveStop.onBandBlock': {
+    when: 'Only when the protective stop is on. Change it if you run a trailing stop wider than about 7% and keep being told the backup stop could not be placed.',
+    expect:
+      'Binance refuses a resting sell priced too far below the market, and this picks what happens then. `notify` alerts you and leaves the position with no resting stop behind it. `clamp` raises the stop to the deepest level Binance will take: at the default `0.98` limit offset that is roughly 7.2% below the market on a typical coin. That level is anchored to the market rather than to your high-water mark, so it follows the price both up and down and never sits below the trail you set: a gradual pullback moves it back down instead of triggering it, so it is not a tighter trailing exit but a resting order that catches a fast drop. While the exchange floor is what is holding the stop up, `minRearmDriftPct` is widened to 1% so following the market does not rewrite the order every tick. `native-trail` hands Binance a trailing stop at your full distance instead, so nothing is tightened — the costs are that it sells at whatever the market pays rather than at a limit price, and Binance measures the distance from the highest price seen since the order was placed rather than from your entry, so there is no fixed trigger price for the app to show you.',
+  },
   'protectiveStop.minRearmDriftPct': {
     when: 'Only when the protective stop is on. Raise it if you are hitting Binance order limits, or if the resting stop is being rewritten constantly in a market that is grinding one way.',
     expect:

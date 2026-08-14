@@ -603,3 +603,112 @@ describe('ttPreviewLevels — the trailing stop is a level only once armed', () 
     expect(trail?.price).toBe(new Decimal(high).mul('0.94').toString());
   });
 });
+
+describe('ttPreviewLevels — exchange-native trailing backup stop', () => {
+  // askMultiplierDown 0.995 puts the floor at 99.5 against a reference of 100,
+  // and the backup stop's limit leg is 97 * 0.995 = 96.515: the priced order is
+  // exactly the one Binance refuses.
+  const BANDED = {
+    ...previewInput(GRID_CONFIG()).filters,
+    percentPriceBySide: {
+      askMultiplierUp: '2',
+      askMultiplierDown: '0.995',
+      bidMultiplierUp: '1.1',
+      bidMultiplierDown: '0.5',
+      avgPriceMins: 5,
+    },
+    trailingDelta: {
+      minTrailingAboveDelta: 10,
+      maxTrailingAboveDelta: 2000,
+      minTrailingBelowDelta: 10,
+      maxTrailingBelowDelta: 2000,
+    },
+  };
+
+  const config = (onBandBlock: string): TTConfig =>
+    ({
+      ...GRID_CONFIG(),
+      sell: {
+        ...GRID_CONFIG().sell,
+        protectiveStop: { enabled: true, limitOffsetPercentage: '0.995', onBandBlock },
+      },
+    }) as unknown as TTConfig;
+
+  const model = (onBandBlock: string, filters = BANDED): PreviewModel =>
+    ttPreviewLevels({ ...previewInput(config(onBandBlock)), filters });
+
+  it('projects the backup stop as a note with NO price and NO trigger', () => {
+    const ps = row(model('native-trail'), 'protective-stop');
+    // The row exists to say the exchange is holding something; it must not name
+    // a level, because the trigger is a high-water mark Binance moves itself.
+    expect(ps?.price).toBeUndefined();
+    expect(ps?.trigger).toBeUndefined();
+    expect(ps?.triggerWhen).toBeUndefined();
+    expect(ps?.chartLine).toBeUndefined();
+    expect(ps?.note).toContain('3%');
+    // The in-process stop-loss row is untouched: that level IS still acted on.
+    expect(row(model('native-trail'), 'grid-stop-loss')?.price).toBe('97');
+  });
+
+  it('carries no field the preview-drift gate can key on', () => {
+    // The gate matches a row on `code` + `trigger === true` + `price` +
+    // `triggerWhen`, and this row's exemption is the ABSENCE of all three. An
+    // absence nothing asserts is one a later edit fills in silently, and the day
+    // it does, the golden replay starts comparing a static number against a
+    // high-water mark Binance moves on its own. Pinned as the whole key set so a
+    // NEW price-bearing field fails here too, not just the three named ones.
+    const ps = row(model('native-trail'), 'protective-stop');
+    expect(ps).toBeDefined();
+    expect(Object.keys(ps ?? {}).sort()).toEqual(['code', 'label', 'note', 'tone']);
+  });
+
+  it('prices the trail off the same default offset the arm uses when none is set', () => {
+    // A profile saved before the offset leaf existed carries no value at all. The
+    // arm falls back to the package default there, so the projection has to fall
+    // back to the SAME one or the note quotes a limit the resting order will not
+    // carry.
+    const noOffset = {
+      ...GRID_CONFIG(),
+      sell: {
+        ...GRID_CONFIG().sell,
+        protectiveStop: { enabled: true, onBandBlock: 'native-trail' },
+      },
+    } as unknown as TTConfig;
+    const ps = row(
+      ttPreviewLevels({ ...previewInput(noOffset), filters: BANDED }),
+      'protective-stop',
+    );
+    expect(ps?.note).toContain('3%');
+  });
+
+  it('emits no row when the configured offset is not a fraction of the trigger', () => {
+    // An offset above 1 prices the limit leg ABOVE the trigger, which is not a
+    // stop the arm would ever send. Quoting a trail derived from it would put a
+    // limit price on the screen that no order can carry.
+    const badOffset = {
+      ...GRID_CONFIG(),
+      sell: {
+        ...GRID_CONFIG().sell,
+        protectiveStop: {
+          enabled: true,
+          limitOffsetPercentage: '1.4',
+          onBandBlock: 'native-trail',
+        },
+      },
+    } as unknown as TTConfig;
+    expect(
+      row(ttPreviewLevels({ ...previewInput(badOffset), filters: BANDED }), 'protective-stop'),
+    ).toBeUndefined();
+  });
+
+  it('emits no such row on any path where a priced stop is what rests', () => {
+    // notify / clamp / absent bounds / no band: the `grid-stop-loss` row already
+    // names the level, and a second row promising a trail would contradict it.
+    expect(row(model('notify'), 'protective-stop')).toBeUndefined();
+    expect(row(model('clamp'), 'protective-stop')).toBeUndefined();
+    const { trailingDelta: _dropped, ...noBounds } = BANDED;
+    expect(row(model('native-trail', noBounds), 'protective-stop')).toBeUndefined();
+    const { percentPriceBySide: _noBand, ...unbanded } = BANDED;
+    expect(row(model('native-trail', unbanded), 'protective-stop')).toBeUndefined();
+  });
+});

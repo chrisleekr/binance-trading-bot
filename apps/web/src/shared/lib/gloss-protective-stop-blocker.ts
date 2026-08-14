@@ -1,8 +1,12 @@
 // Turn a strategy's protective-stop blocker (reason code + sparse detail) into one
 // plain-language sentence for a non-finance operator (invariant #3). Separate from
 // the entry-blocker gloss because it answers a different, louder question: the
-// position is OPEN and running without its safety net. Stays off decimal.js —
-// detail numbers arrive as strings and are shown verbatim.
+// position is OPEN and running without its safety net. Detail numbers arrive as
+// strings and are shown verbatim; only the band refusal's percentages are
+// formatted, and that is done by the strategy package so the push alert cannot
+// quote a different figure for the same refusal.
+
+import { explainProtectiveStopBandRefusal } from '@app/strategy-core';
 
 /** Loose blocker shape: any strategy's reason code + optional sparse detail. */
 interface ProtectiveStopBlocker {
@@ -75,17 +79,12 @@ export function glossProtectiveStopBlocker(blocker: ProtectiveStopBlocker): stri
         limit && price
           ? ` The stop would be priced at ${price}, against an estimated ${overCeiling ? 'highest' : 'lowest'} allowed sell of ${limit}.`
           : '';
-      const net = blockerPositionGuarded(blocker)
-        ? ' An earlier protective stop is still resting on Binance and was deliberately left there, so the position is not unguarded — the bot just cannot move the stop up to its new level yet.'
-        : ' Until then this position has no safety net.';
-      if (d?.['terminal'] === true) {
-        const down = str(d, 'askMultiplierDown');
-        const knob = down
-          ? `above ${down} (Binance's floor multiplier for this pair)`
-          : "above Binance's floor multiplier for this pair";
-        return `Binance will not accept a protective stop (the automatic sell that caps a loss) at this price, and waiting will not fix it: your limit offset puts the order under the floor Binance allows for a sell on this pair.${basis}${range} Raise this profile's protective-stop "limitOffsetPercentage" ${knob}; the bot can then arm the stop once the price is back near its trigger, which may take longer than the next check.${net}`;
-      }
-      return `Binance will not accept a protective stop (the automatic sell that caps a loss) at this price right now: it falls outside the range the exchange allows for a sell on this pair.${basis}${range} Nothing for you to do — the bot re-checks every tick and arms the stop as soon as the market moves back into range.${net}`;
+      // The sentences come from the strategy package that mints the refusal, and
+      // the push alert reads the same ones. Wording this screen independently is
+      // how the two surfaces ended up recommending opposite fixes for one block —
+      // including which of them claimed the position was unguarded.
+      const copy = explainProtectiveStopBandRefusal(d ?? {});
+      return `${copy.situation}${basis}${range} ${copy.exposure}${copy.remedy === '' ? '' : ` ${copy.remedy}`}`;
     }
     case 'base-below-exchange-minimum': {
       const free = str(d, 'free');

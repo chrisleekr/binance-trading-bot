@@ -1,8 +1,9 @@
 import { Decimal } from '@app/money';
-import { decOrNull } from '@app/strategy-core';
-import type { Candle } from '@app/strategy-core';
+import { clampStopToExchangeFloor, decOrNull } from '@app/strategy-core';
+import type { Candle, StopBandContext } from '@app/strategy-core';
 
 import { coerceDec, coerceInt } from './config-coerce.js';
+import { DEFAULT_LIMIT_OFFSET } from './protective-stop.js';
 import type { MomentumConfig } from './schema.js';
 import { atrTrailingStopPrice } from './trailing-stop.js';
 
@@ -113,6 +114,12 @@ export interface StopResolution {
    * "no trail this tick", never "sell".
    */
   readonly stop: Decimal | null;
+  /**
+   * Whether `stop` was raised off the operator's level to the lowest trigger
+   * Binance's price band accepts. Reported so a caller can say the level shown
+   * is the exchange's, not the one configured.
+   */
+  readonly floorClamped: boolean;
 }
 
 /**
@@ -135,6 +142,12 @@ export interface StopResolution {
  * and lowering a profile's `activationPct` does not re-validate symbol
  * overrides that were merged against the old one. The floor makes the guarantee
  * structural.
+ *
+ * Under `onBandBlock: 'clamp'` the result is finally raised to the lowest
+ * trigger Binance's price band accepts. That happens HERE rather than at the
+ * three consumers so the in-process trail fires at exactly the price the resting
+ * order rests at; clamping only where the order is built would leave the in-app
+ * stop below a level the exchange never held.
  */
 export const resolveStopLevel = (
   config: MomentumConfig,
@@ -142,6 +155,7 @@ export const resolveStopLevel = (
   effectiveHigh: Decimal,
   profitHigh: Decimal | null,
   tradingCandles: readonly Candle[],
+  bandContext: StopBandContext,
 ): StopResolution => {
   let hard = atrTrailingStopPrice(config, tradingCandles, effectiveHigh);
   if (hard === null) {
@@ -167,5 +181,22 @@ export const resolveStopLevel = (
   // The max of whichever legs resolved; null only when neither did.
   const stop =
     hard !== null && profitStop !== null ? Decimal.max(hard, profitStop) : (hard ?? profitStop);
-  return { profitHigh, stop };
+
+  // Optional chaining throughout: the live worker ticks RAW stored config, so a
+  // profile saved before this leaf existed carries no `onBandBlock` key at all.
+  // With no order resting at Binance there is no band to satisfy, so a disabled
+  // protective stop never tightens the in-app trail.
+  const ps = config.protectiveStop;
+  const unclamped = { profitHigh, stop, floorClamped: false };
+  if (ps?.enabled !== true || ps.onBandBlock !== 'clamp') return unclamped;
+  const limitOffset = decOrNull(ps.limitOffsetPercentage ?? DEFAULT_LIMIT_OFFSET);
+  if (limitOffset === null) return unclamped;
+
+  const clamped = clampStopToExchangeFloor({
+    stop,
+    reference: bandContext.reference ?? '',
+    band: bandContext.band,
+    limitOffset,
+  });
+  return { profitHigh, stop: clamped.stop, floorClamped: clamped.clamped };
 };
