@@ -152,6 +152,7 @@ const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
   const tickQueue = new Queue('tick-test', { connection });
   const backtestQueue = new Queue('backtest-test', { connection });
   const advisorQueue = new Queue('advisor-test', { connection });
+  const diagnosisQueue = new Queue('profile-diagnosis-test', { connection });
   // A REAL profile-scoped writer, not a thrower. The operator-override accept
   // path writes through `forProfile`, so a stub that throws turns every accepted
   // override into a 500 — which silently downgrades "the daily-loss breaker let
@@ -215,6 +216,7 @@ const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
     tickQueue,
     backtestQueue,
     advisorQueue,
+    diagnosisQueue,
     logger,
     auth,
     strategies: createApiStrategyRegistry(buildStrategyRegistry()),
@@ -232,6 +234,7 @@ const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
     shutdown: async () => {
       await backtestQueue.close();
       await advisorQueue.close();
+      await diagnosisQueue.close();
       await queue.close();
       await tickQueue.close();
       await scopedRedis.quit();

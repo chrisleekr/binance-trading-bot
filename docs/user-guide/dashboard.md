@@ -25,7 +25,7 @@ From top to bottom:
 
 Focusing a profile adds:
 
-- **Status and "Manage profile"** — enable/disable the profile and open the tab sheet (see [Profile](profile/index.md)).
+- **Status, "Investigate", and "Manage profile"** — enable/disable the profile, run the read-only ["why isn't it trading?" check](profile/index.md#investigate-why-isnt-it-trading), and open the tab sheet (see [Profile](profile/index.md)).
 - **Health strip** — a one-line gate and edge summary; tap "Details" to expand the scorecards.
 - **KPI strip** — deployed capital, exposure cap, auto-discovered symbols, holdings, and realised P/L over the last 7 days.
 - **Equity curve** — the profile's value over time against a buy-and-hold benchmark.

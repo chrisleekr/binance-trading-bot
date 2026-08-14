@@ -120,3 +120,19 @@ export interface AdvisorJobData {
   readonly profileId: string;
   readonly variant: AdvisorVariant;
 }
+
+/**
+ * One "why isn't this profile trading?" investigation.
+ *
+ * `liveProbe` carries the operator's choice rather than being decided in the
+ * worker: re-deriving the funnel against Binance spends per-account request
+ * weight, and who pays a cost belongs with whoever asked for it. The worker may
+ * still fall back to stored snapshots when the probe fails, and says so.
+ */
+export interface DiagnosisJobData {
+  readonly runId: string;
+  readonly userId: string;
+  readonly accountId: string;
+  readonly profileId: string;
+  readonly liveProbe: boolean;
+}

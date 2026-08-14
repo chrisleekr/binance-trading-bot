@@ -2,8 +2,9 @@
 // Replaces the old persistent ProfileSectionNav (and its deleted test): the
 // contract is now "Back-to-dashboard link + title + profile name + the status
 // pill and Manage slide-over trigger in the header actions slot". This locks
-// that composition so a future edit cannot silently drop the Manage trigger or
-// repoint Back away from the dashboard.
+// that composition so a future edit cannot silently drop the Manage trigger,
+// repoint Back away from the dashboard, or re-add the Investigate trigger that
+// deliberately lives only on the profile landing header.
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -18,6 +19,7 @@ import { render, screen } from '@testing-library/react';
 import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { diagnosisRunsQueryKey } from '@/features/profile/api/diagnosis';
 import { profileQueryKey } from '@/features/profile/api/profile';
 import { profileDashboardQueryKey } from '@/features/profile/api/profile-dashboard';
 import { ProfilePageHeader } from '@/features/profile/components/profile-page-header';
@@ -56,6 +58,10 @@ const renderHeader = async (): Promise<void> => {
   const qc = createQueryClient();
   qc.setQueryData(['dashboard-aggregate', ACCOUNT_ID], { profiles: [row()] });
   qc.setQueryData(profileQueryKey(PID), { name: 'btc-real' });
+  // The Manage slide-over keeps the investigation drawer mounted (closed), and
+  // it rehydrates the newest run; seed an empty history so the header renders
+  // from cache instead of reaching for the api.
+  qc.setQueryData(diagnosisRunsQueryKey(PID), []);
   qc.setQueryData(profileDashboardQueryKey(PID), {
     profileId: PID,
     enabled: true,
@@ -135,6 +141,11 @@ describe('<ProfilePageHeader>', () => {
     // The Manage slide-over trigger replaces the old always-on section strip as
     // the way to reach other sections from any page.
     expect(screen.getByTestId('open-manage-sheet')).toBeInTheDocument();
+    // Investigate is NOT here. It renders once, on the profile landing header,
+    // and is reachable from these pages through the Manage slide-over — a
+    // profile-wide diagnostic offered from the Discovery editor reads as though
+    // it only investigates discovery.
+    expect(screen.queryByTestId('open-investigate')).toBeNull();
     // Status pill renders in the actions slot.
     expect(screen.getByTestId('profile-status-state')).toHaveTextContent(/Enabled/i);
   });

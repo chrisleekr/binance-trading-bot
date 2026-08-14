@@ -245,3 +245,28 @@
      fallback covers the first frame before the measurement lands. */
   animation: ticker-scroll var(--ticker-duration, 40s) linear infinite;
 }
+
+/* Deep-link landing pulse. A diagnosis finding links to the exact field that
+   armed it; without a marker the operator arrives at a scrolled page with no
+   idea which of a dozen inputs was meant. Ring-only so it cannot shift layout.
+   Honours prefers-reduced-motion by holding a static ring instead of pulsing —
+   the marker is the point, the animation is not. */
+@keyframes field-focus-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+}
+@utility field-focus-pulse {
+  animation: field-focus-pulse 0.6s ease-in-out 3;
+  border-radius: 0.25rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .field-focus-pulse {
+    animation: none;
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+}

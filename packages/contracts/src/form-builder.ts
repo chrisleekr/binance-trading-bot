@@ -270,6 +270,22 @@ function pickOverride(path: string): string | null {
 }
 
 /**
+ * The label a rendered form shows for a config path — the override when one
+ * matches, otherwise the humanised last segment.
+ *
+ * Exported so anything that NAMES a setting to the operator derives the same
+ * string the form actually renders, rather than re-humanising the key and
+ * drifting. `min24hAssetVolumeUsd` reads "Min 24h volume for the coin (USD)"
+ * here exactly as it does in the form; a hand-written label that drifts sends
+ * the operator hunting for a field that does not exist, which is worse than
+ * showing the raw path.
+ */
+export function labelForPath(dotPath: string): string {
+  const segments = dotPath.split('.');
+  return pickOverride(dotPath) ?? titleCase(segments[segments.length - 1] ?? '');
+}
+
+/**
  * Title-case an identifier-shaped segment for display — `rsiMaxBuy` and
  * `price-below-sma` both become readable labels. Splits on `_`/`-` and
  * camelCase boundaries; domain acronyms (RSI/SMA/EMA/…) render fully
@@ -409,11 +425,11 @@ function walkField(
   root: JsonSchemaNode,
 ): FormField | null {
   const dotPath = path.join('.');
-  const last = path[path.length - 1] ?? '';
   const meta = parseDescription(node.description);
   const base: FormFieldBase = {
     path: dotPath,
-    label: pickOverride(dotPath) ?? titleCase(last),
+    // Same function the diagnosis uses to name a setting, so the two cannot drift.
+    label: labelForPath(dotPath),
     widget: meta.widget,
     description: meta.description,
     advanced: meta.advanced,

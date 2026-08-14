@@ -14,7 +14,7 @@ Open the **Manage profile** sheet from the profile dashboard to reach every tab.
 
 ![Manage profile slide-over](../../assets/screenshots/user-guide/manage-profile-sheet.png)
 
-_The "Manage profile" sheet is the launcher for every profile tab, plus the Reconcile fees action. Seeded demo data, not a real account._
+_The "Manage profile" sheet is the launcher for every profile tab, plus the Investigate and Reconcile fees actions. Seeded demo data, not a real account._
 
 | Tab | What you set there |
 | --- | --- |
@@ -27,6 +27,36 @@ _The "Manage profile" sheet is the launcher for every profile tab, plus the Reco
 | **[History](history.md)** | The profile's past orders and actions, read-only. |
 | **[Bulk order](bulk-order.md)** | Place one manual order across every coin in the profile. |
 | **[General](general.md)** | Rename, enable, stop, reconcile fees, and delete the profile. |
+
+## Investigate — "why isn't it trading?"
+
+The profile page carries an **Investigate** button in the top-right, next to the status chip and **Manage profile**. It answers the question you would otherwise answer by reading logs: what, right now, is stopping this profile from buying.
+
+From one of the tabs in the table above, open **Manage profile** and choose **Investigate** under _Analyze_ — the button itself is not repeated on every tab, because the check always looks at the whole profile rather than the settings page you happen to have open.
+
+Pressing it opens a panel that explains what the check does before it runs anything. It is **read-only** — nothing is paused, bought, sold, or changed. Confirm with **Investigate**, or with **Skip the live re-scan** if you would rather not spend request budget (see below).
+
+The check then runs in the background as a checklist, in the order that matters, each step turning into its own line as the worker finishes it:
+
+1. Is the trading engine running?
+2. Is this profile switched on?
+3. Are the settings valid?
+4. Is auto-discovery scanning?
+5. Is the market broad enough to buy into?
+6. Where do candidate coins drop out?
+7. Is there room for another coin?
+8. What is holding back buys?
+9. What are the held coins waiting on to sell?
+10. Does every held coin have a way out?
+11. Which setting is responsible?
+
+The order is the ranking: the first step that finds something owns the headline, because a stopped engine makes every later answer meaningless. Every finding is still listed, and each one that traces back to a setting carries a link that opens the right tab with that field expanded and highlighted.
+
+**"Nothing is blocking it, your settings are just strict" is a valid answer.** When nothing is provable the report says so rather than inventing a cause.
+
+Step 6 is the slow one. It re-runs the coin scan against Binance for an independent second opinion, which takes a few seconds and uses a little of the account's request budget; it queues behind live trading, so it cannot starve the bot. **Skip the live re-scan** uses the last stored scan instead, and the report says which of the two it read. Closing the panel does not cancel a running check — on the profile page the button keeps spinning, and reopening the panel from either place returns to live progress.
+
+Durations in the report ("blocked for 19 days") stay exact however short your [log retention](../system/settings.md#log-retention) is: what is currently true of a profile is stored separately from the log of changes. See [Conditions and the diagnosis](../../architecture/observability-conditions.md).
 
 ## Enabling a profile
 

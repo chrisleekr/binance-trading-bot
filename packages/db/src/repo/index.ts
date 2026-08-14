@@ -14,6 +14,7 @@ import * as backtestRuns from './backtest-runs.js';
 import * as backupConfig from './backup-config.js';
 import * as candles from './candles.js';
 import * as conditionStates from './condition-states.js';
+import * as diagnosisRuns from './diagnosis-runs.js';
 import * as discoveryUniverseSnapshots from './discovery-universe-snapshots.js';
 import * as equitySnapshots from './equity-snapshots.js';
 import * as avgEntryPrices from './avg-entry-prices.js';
@@ -44,6 +45,7 @@ export {
   backupConfig,
   candles,
   conditionStates,
+  diagnosisRuns,
   discoveryUniverseSnapshots,
   equitySnapshots,
   avgEntryPrices,
@@ -98,6 +100,7 @@ export interface ProfileRepo {
   readonly backtestAdvisorResults: ScopeBound<typeof backtestAdvisorResults>;
   readonly backtestRuns: ScopeBound<typeof backtestRuns>;
   readonly conditionStates: ScopeBound<typeof conditionStates>;
+  readonly diagnosisRuns: ScopeBound<typeof diagnosisRuns>;
   readonly discoveryUniverseSnapshots: ScopeBound<typeof discoveryUniverseSnapshots>;
   readonly equitySnapshots: ScopeBound<typeof equitySnapshots>;
   readonly avgEntryPrices: ScopeBound<typeof avgEntryPrices>;
@@ -188,6 +191,17 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
       'fail',
     ]),
     conditionStates: bindModule(scope, conditionStates),
+    // `only` excludes the GLOBAL `failStaleNonTerminal` (db-first, cross-profile
+    // sweep for runs stranded by a dead job).
+    diagnosisRuns: bindModule(scope, diagnosisRuns, [
+      'create',
+      'findById',
+      'listForProfile',
+      'patchSteps',
+      'finish',
+      'fail',
+      'pruneKeepNewest',
+    ]),
     // `only` excludes the GLOBAL `pruneOlderThan` (db-first retention sweep)
     // from the bound surface.
     discoveryUniverseSnapshots: bindModule(scope, discoveryUniverseSnapshots, [

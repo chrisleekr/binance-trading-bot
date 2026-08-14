@@ -85,6 +85,11 @@ export interface DI {
   // coalescing (a stable jobId + retained completed job would silently no-op a
   // regenerate re-add).
   advisorQueue: Queue;
+  // Profile-diagnosis queue, consumed by the worker's study role. Unlike the
+  // advisor, a stable `jobId` IS correct here: it is the run id, so a duplicate
+  // submit of the same run coalesces, and the id is unique per run so a retained
+  // completed job can never swallow a later investigation.
+  diagnosisQueue: Queue;
   logger: Logger;
   auth: Auth;
   strategies: ApiStrategyRegistry;
@@ -146,6 +151,9 @@ export const createDI = (env: Env): DI => {
   const advisorQueue = new Queue('advisor', {
     connection: createBullMQConnection({ url: env.REDIS_URL }),
   });
+  const diagnosisQueue = new Queue('profile-diagnosis', {
+    connection: createBullMQConnection({ url: env.REDIS_URL }),
+  });
   const logger = createLogger({ level: env.NODE_ENV === 'production' ? 'info' : 'debug' });
   const metrics = createMetricsRegistry({ service: 'api' });
   const auth = createAuth({
@@ -180,6 +188,7 @@ export const createDI = (env: Env): DI => {
     await tickQueue.close();
     await backtestQueue.close();
     await advisorQueue.close();
+    await diagnosisQueue.close();
     await redis.quit();
     await pool.end();
   };
@@ -192,6 +201,7 @@ export const createDI = (env: Env): DI => {
     tickQueue,
     backtestQueue,
     advisorQueue,
+    diagnosisQueue,
     logger,
     auth,
     strategies,

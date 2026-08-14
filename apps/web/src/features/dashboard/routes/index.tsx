@@ -20,6 +20,7 @@ import { ScopedKpiStrip } from '@/features/dashboard/components/scoped-kpi-strip
 import { SymbolTable } from '@/features/dashboard/components/symbol-table';
 import { MarketTrendCard } from '@/features/dashboard/components/market-trend-card';
 import { TechnicalsHealthPill } from '@/features/technicals/components/technicals-health-pill';
+import { InvestigateButton } from '@/features/profile/components/investigate-button';
 import { ProfileManageSheet } from '@/features/profile/components/profile-manage-sheet';
 import { ProfileStatus } from '@/features/profile/components/profile-status';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
@@ -142,6 +143,10 @@ function OverviewPanel({
           {/* Scoped to one profile: its enabled/notifier status reads here,
               on the right of the overview header where the profile is the subject. */}
           {focusedProfileId !== null ? <ProfileStatus profileId={focusedProfileId} /> : null}
+          {/* "Why isn't it trading?" — a first-class action, so it is a visible
+              button rather than a Manage-menu entry, and it sits here on the
+              profile landing page instead of repeating on every sub-page. */}
+          {focusedProfileId !== null ? <InvestigateButton profileId={focusedProfileId} /> : null}
           {/* Manage actions sit beside the status pill — one tap opens the full
               action set in the slide-over (off the glance scroll). */}
           {focusedProfileId !== null ? <ProfileManageSheet profileId={focusedProfileId} /> : null}

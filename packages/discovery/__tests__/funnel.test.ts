@@ -46,7 +46,7 @@ const zeroTicker: TickerStageCounts = {
 
 describe('projectFunnel', () => {
   it('returns all-zero counts and false breadth on an empty cycle without throwing', () => {
-    expect(projectFunnel([], emptyDiff, false, zeroTicker)).toEqual({
+    expect(projectFunnel([], emptyDiff, false, zeroTicker, 0)).toEqual({
       universe: 0,
       quote: 0,
       blacklist: 0,
@@ -54,6 +54,7 @@ describe('projectFunnel', () => {
       activity: 0,
       spread: 0,
       changeBand: 0,
+      probed: 0,
       age: 0,
       trend: 0,
       eligible: 0,
@@ -77,7 +78,7 @@ describe('projectFunnel', () => {
       spread: 4,
       changeBand: 3,
     };
-    const f = projectFunnel([candidate('AAAUSDT', null, 'added')], emptyDiff, true, ticker);
+    const f = projectFunnel([candidate('AAAUSDT', null, 'added')], emptyDiff, true, ticker, 1);
     // Ticker segment: from the counts.
     expect(f.universe).toBe(9);
     expect(f.quote).toBe(8);
@@ -103,7 +104,7 @@ describe('projectFunnel', () => {
       spread: 0,
       changeBand: 0,
     };
-    const f = projectFunnel([], emptyDiff, true, ticker);
+    const f = projectFunnel([], emptyDiff, true, ticker, 0);
     expect(f.quote).toBe(4);
     expect(f.blacklist).toBe(3);
     expect(f.liquidity).toBe(2);
@@ -134,10 +135,15 @@ describe('projectFunnel', () => {
       spread: 3,
       changeBand: 1,
     };
-    const f = projectFunnel(candidates, emptyDiff, true, ticker);
+    const f = projectFunnel(candidates, emptyDiff, true, ticker, candidates.length);
+    // The segment's own denominator: every candidate whose klines were fetched,
+    // including the one that died at the first kline filter. Without it `age` is
+    // the first entry and nothing can score a collapse AT the age filter.
+    expect(f.probed).toBe(3);
     expect(f.age).toBe(2);
     expect(f.trend).toBe(1);
     expect(f.eligible).toBe(1);
+    expect(f.probed).toBeGreaterThanOrEqual(f.age);
     expect(f.age).toBeGreaterThanOrEqual(f.trend);
     expect(f.trend).toBeGreaterThanOrEqual(f.eligible);
     // The boundary is intentionally non-monotone: changeBand(1) < age(2).
@@ -164,7 +170,7 @@ describe('projectFunnel', () => {
       spread: 60,
       changeBand: 12,
     };
-    const f = projectFunnel([vanished], emptyDiff, true, ticker);
+    const f = projectFunnel([vanished], emptyDiff, true, ticker, 1);
     expect(f.universe).toBe(250); // from the counts, not the candidate array length
     expect(f.age).toBe(0);
     expect(f.trend).toBe(0);
@@ -177,9 +183,34 @@ describe('projectFunnel', () => {
       remove: ['OLDUSDT', 'OLD2USDT'],
       desired: ['KEPTUSDT', 'NEWUSDT'], // one retained survivor + one new add
     };
-    const f = projectFunnel([], diff, true, zeroTicker);
+    const f = projectFunnel([], diff, true, zeroTicker, 0);
     expect(f.added).toBe(1);
     expect(f.removed).toBe(2);
     expect(f.kept).toBe(1);
+  });
+
+  it('takes probed from the caller, so a failed kline fetch does not read as an age cut', () => {
+    // Three candidates reached the kline stage; only one window arrived. The two
+    // without data score as failing `age`, which is exactly what a partial probe
+    // must not report as the age filter doing its job.
+    const candidates = [
+      candidate('AAAUSDT', null, 'added'),
+      candidate('BBBUSDT', 'age', 'rejected'),
+      candidate('CCCUSDT', 'age', 'rejected'),
+    ];
+    const ticker: TickerStageCounts = {
+      universe: 9,
+      quote: 8,
+      blacklist: 7,
+      liquidity: 6,
+      activity: 5,
+      spread: 4,
+      changeBand: 3,
+    };
+
+    expect(projectFunnel(candidates, emptyDiff, true, ticker, 1).probed).toBe(1);
+    // Left to derive itself, the ladder would claim two of three died at the age
+    // filter when neither was ever measured.
+    expect(projectFunnel(candidates, emptyDiff, true, ticker, candidates.length).probed).toBe(3);
   });
 });

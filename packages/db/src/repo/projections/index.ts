@@ -25,3 +25,4 @@ export {
   readProtectiveStopBlocker,
 } from './orders-view.js';
 export { getSymbolLogs, getProfileAuditLogExport, type AuditLogExportRow } from './logs.js';
+export { getDiscoveryFunnelView, toDiagnosisSnapshots } from './diagnosis-view.js';

@@ -1,9 +1,9 @@
 // The requireNotDemo() deny-list and onboarding-status demoMode field are both
 // driven by the LIVE_DEMO deployment flag.
 //
-// The guard covers credential, notifier, backup/restore, account-creation and
-// retention-change routes. Trading remains interactive on testnet. One
-// assertion samples each locked surface at request level.
+// The guard covers credential, notifier, backup/restore, account-creation,
+// retention-change, and diagnosis-start routes. Trading remains interactive on
+// testnet. One assertion samples each locked surface at request level.
 //
 // The guard reads `di.env.LIVE_DEMO` at request time; the fixture mutates that
 // field on the shared di object the routers close over.
@@ -105,6 +105,20 @@ describeIfInfra('requireNotDemo deny-list under LIVE_DEMO', () => {
   });
   it('notify-provider POST :name/test-fire is locked', async () => {
     await expect403(`${np()}/test-fire`, 'POST', '{}');
+  });
+
+  // Starting an investigation is the one write on an otherwise read-only
+  // surface, and its live re-probe spends the account's Binance request weight.
+  // An anonymous visitor could otherwise burn the operator's budget with a
+  // button. Reading a finished report stays open — it carries no credential.
+  it('diagnosis POST /profiles/:id/diagnosis/runs is locked', async () => {
+    await expect403(`/api/accounts/${acc()}/profiles/${prof()}/diagnosis/runs`, 'POST', '{}');
+  });
+  it('diagnosis GET /profiles/:id/diagnosis/runs stays open', async () => {
+    const res = await fx.app.request(`/api/accounts/${acc()}/profiles/${prof()}/diagnosis/runs`, {
+      headers: headers(),
+    });
+    expect(res.status).toBe(200);
   });
 });
 

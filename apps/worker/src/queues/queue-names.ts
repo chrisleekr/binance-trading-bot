@@ -76,6 +76,10 @@ export const QUEUE_NAMES = {
   // under the study role (an Anthropic round-trip must never share the live
   // trading event loop).
   advisor: 'advisor',
+  // On-demand "why isn't this profile trading?" investigation. The api seeds a
+  // `diagnosis_runs` row and enqueues with `jobId = diagnosis:<runId>`, so a
+  // double-click coalesces onto the run the operator is already watching.
+  profileDiagnosis: 'profile-diagnosis',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -250,6 +254,13 @@ export const QUEUE_SPECS: Record<QueueName, QueueSpec> = {
   // parallel Anthropic round-trips a multi-sample EXPLORE variant makes (each
   // ~30s streamed), well past BullMQ's 30s default.
   advisor: { concurrency: 2, attempts: 1, backoffMs: 0, lockDurationMs: 300_000 },
+  // Profile diagnosis. concurrency 2 so investigating one profile does not queue
+  // behind another. attempts 1: the run is read-only and the operator is watching
+  // it, so a failure belongs on the row as an error they can retry by clicking
+  // again — a silent retry would only make the progress display lie. 120s lock
+  // covers the live funnel re-probe (all-symbols ticker + a bounded kline walk),
+  // well past BullMQ's 30s default.
+  'profile-diagnosis': { concurrency: 2, attempts: 1, backoffMs: 0, lockDurationMs: 120_000 },
 };
 
 // Only the queues whose producers coalesce by jobId get a builder. The crons

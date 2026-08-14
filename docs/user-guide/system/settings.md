@@ -21,6 +21,8 @@ How long the bot keeps its own records. Changes apply on the next nightly sweep;
 
 Press **Save retention settings**. Shortening a horizon, or tightening the row cap, deletes rows on the next sweep and cannot be undone, so a reduction asks you to confirm and names exactly which limit shrank and by how much. Raising one saves without a prompt.
 
+One day is a short horizon on purpose. The action log is a record of **changes**, and what is currently true of a profile or symbol — blocked entries, stale discovery, a market-breadth block — is held separately with its own start time, so a condition that has held for weeks still reports its full duration after the log behind it has been swept. See [Conditions and the diagnosis](../../architecture/observability-conditions.md).
+
 ## Shortcuts
 
 - **[Backup & restore](backup-restore.md)** — export the whole configuration or restore it from a backup.

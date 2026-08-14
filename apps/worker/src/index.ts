@@ -28,6 +28,10 @@ import { runHeldQuantityReconciliation } from './boot/reconcile-held-quantity.js
 import { runStaleOrderReaper } from './boot/reap-stale-orders.js';
 import { runAccountSnapshotSeed } from './boot/seed-account-snapshots.js';
 import { runStaleAdvisorSweep, startPeriodicAdvisorSweep } from './boot/sweep-stale-advisors.js';
+import {
+  runStaleDiagnosisSweep,
+  startPeriodicDiagnosisSweep,
+} from './boot/sweep-stale-diagnoses.js';
 import { buildCrons } from './crons/index.js';
 import { registerCrons } from './crons/register-crons.js';
 import { QUEUE_NAMES } from './queues/queue-names.js';
@@ -36,6 +40,7 @@ import { registerPipelineWorker } from './queues/pipeline-worker.js';
 import { registerSymbolReconcileWorker } from './queues/symbol-reconcile-worker.js';
 import { registerBacktestWorker } from './queues/backtest-worker.js';
 import { registerAdvisorWorker } from './queues/advisor-worker.js';
+import { registerDiagnosisWorker } from './queues/diagnosis-worker.js';
 import { createRunBacktestJob } from './boot/run-backtest-job.js';
 import { LruCandleCache } from './backtest/candle-cache.js';
 import { LruSignalCache } from './backtest/signal-cache.js';
@@ -284,6 +289,16 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
     // clear disposes it (it is already unref'd).
     heartbeatTimers.push(startPeriodicAdvisorSweep({ db: ctx.db, logger }));
 
+    // Diagnosis runs strand the same way, and worse: the drawer hides "Check
+    // again" while a run is live, so one abandoned row locks the operator out of
+    // investigating that profile at all. Same boot + interval pair, same role.
+    try {
+      await runStaleDiagnosisSweep({ db: ctx.db, logger });
+    } catch (err) {
+      logger.error({ err }, 'staleDiagnosisSweep: boot sweep failed; continuing');
+    }
+    heartbeatTimers.push(startPeriodicDiagnosisSweep({ db: ctx.db, logger }));
+
     const backtestKlines = createBinanceRest({
       mode: 'live',
       credentials: { apiKey: '', secretKey: '' },
@@ -329,6 +344,18 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
       logger,
       resolveLlm,
       strategies: ctx.strategies,
+    });
+
+    // Profile diagnosis. Study-role because the operator asks "why isn't it
+    // trading?" exactly when the live worker is wedged, and an investigation
+    // that shares that worker's fate cannot answer.
+    registerDiagnosisWorker(queueSet, {
+      db: ctx.db,
+      redis,
+      logger,
+      strategies: ctx.strategies,
+      weightGovernor: ctx.weightGovernor,
+      nowMs: () => Date.now(),
     });
   }
 

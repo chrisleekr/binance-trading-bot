@@ -44,6 +44,8 @@ export interface DiscoveryFunnel {
   readonly activity: number;
   readonly spread: number;
   readonly changeBand: number;
+  /** Candidates whose klines were fetched: the candidate segment's denominator. */
+  readonly probed: number;
   readonly age: number;
   readonly trend: number;
   readonly eligible: number;

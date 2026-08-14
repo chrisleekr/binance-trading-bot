@@ -183,6 +183,9 @@ const GLOBAL_FUNCTIONS = new Set([
   // Cross-profile boot sweep reclaiming advisor rows left `running` by a lost or
   // dead background job; db-first like the retention sweeps.
   'backtest-advisor-results.ts:failStaleRunning',
+  // Same shape for diagnosis runs: the sweep reclaims non-terminal rows across
+  // every profile, so it has no scope to prove.
+  'diagnosis-runs.ts:failStaleNonTerminal',
   // Worker recovery: mark one backtest run errored by id when the failure
   // happened before the run was scoped (the ownership lookup threw); the runId
   // is off an already-enqueued job, so there is no scope to prove.
