@@ -26,7 +26,11 @@ import { callAsync } from 'lib/call-async.js';
 import { raceDeadline } from 'lib/race-deadline.js';
 import type { AppliedDecision } from 'executor/live-executor.js';
 import { readRawSnapshot } from './snapshot-loader.js';
-import { buildOrderRearmKey, buildProfileTickMetaKey } from 'executor/redis-namespace.js';
+import {
+  buildOrderRearmKey,
+  buildOrderRefusalKey,
+  buildProfileTickMetaKey,
+} from 'executor/redis-namespace.js';
 import type { AuditEntry } from 'audit-shipper/audit-shipper.js';
 import { mergeStrategyAudit } from './merge-strategy-audit.js';
 import { tickInputDigest } from './tick-input-digest.js';
@@ -50,6 +54,18 @@ import {
   settleOverride,
 } from './override-settlement.js';
 import { createOverrideTicket } from './override-ticket.js';
+import {
+  ORDER_REFUSAL_PROBE_MS,
+  ORDER_REFUSAL_THRESHOLD,
+  ORDER_REFUSAL_TTL_MS,
+  orderRefusalGate,
+  orderRefusalIdentityKey,
+  parseOrderRefusalState,
+  transitionOrderRefusal,
+  type OrderPlacementOutcome,
+  type OrderRefusalTransition,
+  type PlacementDecision,
+} from './order-refusal-circuit.js';
 
 export type { TickHandlerDeps, TickResult };
 
@@ -436,6 +452,14 @@ export const createTickHandler = (
           deps.logger,
           { profileId, symbol },
         );
+        const refusalState = parseOrderRefusalState(raw.orderRefusal);
+        const placementDecision = halt.kept.find(
+          (decision): decision is PlacementDecision => decision.type === 'place-order',
+        );
+        const refusalGate =
+          refusalState !== undefined && placementDecision !== undefined
+            ? orderRefusalGate(refusalState, placementDecision, clock.nowMs())
+            : { defer: false, probe: false };
         // Did an earlier tick for this (profile, symbol) leave an order un-placed and
         // its state un-advanced? Then this tick is that retry, and the audit says so.
         // Read as part of the tick's opening snapshot pipeline rather than as its own
@@ -480,7 +504,9 @@ export const createTickHandler = (
         // defer path applies, and for the same reason: no plugin is trusted to have
         // stamped the override id on the order it emitted. `cancel-order` alone does
         // not trip it, matching that same scoping: nothing can be left resting.
-        if (halt.kept.some((d) => d.type === 'place-order')) overrideTicket.markOrderAttempted();
+        if (placementDecision !== undefined && !refusalGate.defer) {
+          overrideTicket.markOrderAttempted();
+        }
         // That marker also started the pick-up breadcrumb, and this is the last point
         // at which it is still worth having: past here an order may be on the wire,
         // and a crash then must not leave a row that reads "no tick ever ran inside
@@ -495,6 +521,7 @@ export const createTickHandler = (
             halt.kept,
             profile.scope,
             { quoteAsset: profile.quoteAsset, weightLimit1m: profile.weightLimit1m },
+            refusalGate.defer ? { deferRepeatedRefusal: true } : undefined,
           );
         } catch (err) {
           await stampTickMeta(clock.nowMs() - startMs, errorMessage(err));
@@ -537,6 +564,163 @@ export const createTickHandler = (
         const orderDidNotExecute =
           placementResult !== undefined &&
           (placementResult.phase === 'pre-call' || placementResult.phase === 'rejected');
+        let refusalTransition: OrderRefusalTransition | undefined;
+        let persistedRefusalEvent: OrderRefusalTransition['event'] = null;
+        if (refusalState !== undefined) {
+          const placementIndex = applied.findIndex((item) => item.decision.type === 'place-order');
+          const appliedPlacement = placementIndex < 0 ? undefined : applied[placementIndex];
+          const blockedByEarlierOrder =
+            placementIndex > 0 &&
+            applied
+              .slice(0, placementIndex)
+              .some(
+                (item) =>
+                  (item.decision.type === 'place-order' || item.decision.type === 'cancel-order') &&
+                  !item.result.ok,
+              );
+          let outcome: OrderPlacementOutcome | null = null;
+          if (placementDecision !== undefined) {
+            if (refusalGate.defer) {
+              outcome = { kind: 'circuit-deferred', decision: placementDecision };
+            } else if (
+              appliedPlacement === undefined ||
+              (appliedPlacement.result.ok === false && appliedPlacement.result.deferred === true) ||
+              blockedByEarlierOrder
+            ) {
+              outcome = { kind: 'not-attempted', decision: placementDecision };
+            } else {
+              outcome = {
+                kind: 'result',
+                decision: placementDecision,
+                result: appliedPlacement.result,
+              };
+            }
+          }
+
+          refusalTransition = transitionOrderRefusal(refusalState, outcome, clock.nowMs());
+          const refusalKey = buildOrderRefusalKey(accountId, profileId, symbol);
+          const needsWrite =
+            refusalTransition.state === null
+              ? raw.orderRefusal !== null
+              : refusalTransition.state !== refusalState;
+          let refusalStatePersisted = !needsWrite;
+          if (needsWrite) {
+            await raceDeadline(
+              async () => {
+                if (refusalTransition?.state === null) {
+                  await deps.redis.del(refusalKey);
+                } else if (refusalTransition?.state !== undefined) {
+                  await deps.redis.set(
+                    refusalKey,
+                    JSON.stringify(refusalTransition.state),
+                    'PX',
+                    ORDER_REFUSAL_TTL_MS,
+                  );
+                }
+                refusalStatePersisted = true;
+              },
+              REARM_TIMEOUT_MS,
+              () => {
+                deps.logger.warn(
+                  { profileId, symbol },
+                  'tick-handler: order refusal state write timed out; diagnosis will retry next tick',
+                );
+              },
+              (err: unknown) => {
+                deps.logger.warn(
+                  { profileId, symbol, err },
+                  'tick-handler: order refusal state write failed; diagnosis will retry next tick',
+                );
+              },
+            );
+          }
+          persistedRefusalEvent = refusalStatePersisted ? refusalTransition.event : null;
+
+          const recordOrderRefusalCondition = deps.recordOrderRefusalCondition;
+          if (refusalStatePersisted && recordOrderRefusalCondition) {
+            const openState =
+              refusalTransition.state?.count === ORDER_REFUSAL_THRESHOLD
+                ? refusalTransition.state
+                : null;
+            try {
+              await recordOrderRefusalCondition(profile.scope, {
+                symbol,
+                code: openState === null ? null : String(openState.rejection.code),
+                ...(openState === null
+                  ? {}
+                  : {
+                      changeKey: orderRefusalIdentityKey(openState),
+                      detail: {
+                        request: openState.request,
+                        rejection: openState.rejection,
+                        threshold: ORDER_REFUSAL_THRESHOLD,
+                        probeEveryMs: ORDER_REFUSAL_PROBE_MS,
+                      },
+                    }),
+                now: new Date(clock.nowMs()),
+                msg:
+                  openState === null
+                    ? `${symbol}: order refusal loop cleared`
+                    : `${symbol}: Binance repeatedly refused the same order (${openState.rejection.code})`,
+              });
+            } catch (err) {
+              deps.logger.warn(
+                { profileId, symbol, err },
+                'tick-handler: order refusal condition write failed; retrying next tick',
+              );
+            }
+          }
+
+          const probeResult =
+            refusalGate.probe && outcome?.kind === 'result' ? outcome.result : undefined;
+          if (persistedRefusalEvent === 'tripped') {
+            deps.logger.warn(
+              {
+                profileId,
+                symbol,
+                code: refusalTransition.state?.rejection.code,
+                msg: refusalTransition.state?.rejection.msg,
+              },
+              'tick-handler: repeated Binance order refusal circuit tripped',
+            );
+          } else if (probeResult && (probeResult.ok || probeResult.phase !== 'pre-call')) {
+            deps.logger.info(
+              {
+                profileId,
+                symbol,
+                ok: probeResult.ok,
+                ...(probeResult.ok ? {} : { phase: probeResult.phase }),
+              },
+              'tick-handler: probed a repeatedly refused Binance order',
+            );
+          }
+
+          if (
+            persistedRefusalEvent !== null &&
+            refusalTransition.state?.count === ORDER_REFUSAL_THRESHOLD &&
+            deps.notifyOrderRefusalLoop
+          ) {
+            const notify = deps.notifyOrderRefusalLoop;
+            const openState = refusalTransition.state;
+            void callAsync(() =>
+              notify({
+                operatorId,
+                accountId,
+                profileId,
+                symbol,
+                identityKey: orderRefusalIdentityKey(openState),
+                request: openState.request,
+                rejection: openState.rejection,
+                probe: persistedRefusalEvent === 'probe-refused',
+              }),
+            ).catch((err: unknown) => {
+              deps.logger.warn(
+                { profileId, symbol, err },
+                'tick-handler: could not notify the operator about an order refusal loop',
+              );
+            });
+          }
+        }
         let writtenConditions: readonly WrittenCondition[] = [];
 
         // Commit the per-symbol slice through the load handle: PG-first
@@ -558,21 +742,23 @@ export const createTickHandler = (
         // state that assumed it landed is the truthful one and we COMMIT — re-issuing
         // from an un-advanced state would double the order.
         if (orderDidNotExecute) {
-          deps.logger.warn(
-            {
-              profileId,
-              symbol,
-              phase: placementResult.phase,
-              retryable: placementResult.retryable,
-              reason: placementResult.reason,
-              // The order the tick could not place is not always the one that FAILED:
-              // a broken cancel skips the placement behind it.
-              ...(failure !== undefined && failure !== placementResult
-                ? { blockedBy: failure.reason }
-                : {}),
-            },
-            'tick-handler: an order never reached the exchange — state left un-advanced so the next tick re-issues it',
-          );
+          if (!refusalGate.defer) {
+            deps.logger.warn(
+              {
+                profileId,
+                symbol,
+                phase: placementResult.phase,
+                retryable: placementResult.retryable,
+                reason: placementResult.reason,
+                // The order the tick could not place is not always the one that FAILED:
+                // a broken cancel skips the placement behind it.
+                ...(failure !== undefined && failure !== placementResult
+                  ? { blockedBy: failure.reason }
+                  : {}),
+              },
+              'tick-handler: an order never reached the exchange — state left un-advanced so the next tick re-issues it',
+            );
+          }
           // The blockers are still recorded even though the body is not. An OPEN
           // blocker describes what the strategy EVALUATED this tick, so it is
           // truthful on a deliberately un-advanced state — and withholding it
@@ -636,6 +822,8 @@ export const createTickHandler = (
           failure !== undefined &&
           failure.deferred !== true &&
           orderFailure !== undefined &&
+          persistedRefusalEvent !== 'tripped' &&
+          persistedRefusalEvent !== 'probe-refused' &&
           deps.notifyOrderFailed
         ) {
           const notify = deps.notifyOrderFailed;
@@ -839,7 +1027,9 @@ export const createTickHandler = (
           // clientOrderId, so Binance's open-order dedup does not catch it). A double
           // market SELL is not a bug worth trusting every present and future plugin
           // to avoid, so the worker refuses to re-arm any tick that placed anything.
-          const placedAnOrder = applied.some((a) => a.decision.type === 'place-order');
+          const placedAnOrder = applied.some(
+            (a) => a.decision.type === 'place-order' && (a.result.ok || a.result.deferred !== true),
+          );
           if (output.overrideDeferred === true && placedAnOrder) {
             deps.logger.error(
               {

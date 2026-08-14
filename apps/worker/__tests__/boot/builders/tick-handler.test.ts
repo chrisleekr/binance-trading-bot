@@ -34,11 +34,13 @@ interface Built {
   readonly deps: TickHandlerDeps;
   readonly events: Record<string, unknown>[];
   readonly stopKeys: string[];
+  readonly refusalKeys: string[];
 }
 
-const build = (allowStop = true): Built => {
+const build = (allowStop = true, allowRefusal = true): Built => {
   const events: Record<string, unknown>[] = [];
   const stopKeys: string[] = [];
+  const refusalKeys: string[] = [];
   const slice = buildTickHandler({
     env: ENV,
     db: fakeDb(),
@@ -56,6 +58,12 @@ const build = (allowStop = true): Built => {
       events.push(event as unknown as Record<string, unknown>);
     },
     orderFailedThrottle: { allow: async () => true } as never,
+    orderRefusalLoopThrottle: {
+      allow: async (key: string) => {
+        refusalKeys.push(key);
+        return allowRefusal;
+      },
+    } as never,
     protectiveStopBlockedThrottle: {
       allow: async (key: string) => {
         stopKeys.push(key);
@@ -66,7 +74,7 @@ const build = (allowStop = true): Built => {
   });
   const deps = captured.deps;
   if (!deps) throw new Error('buildTickHandler did not construct a tick handler');
-  return { slice, deps, events, stopKeys };
+  return { slice, deps, events, stopKeys, refusalKeys };
 };
 
 const BAND = {
@@ -135,6 +143,67 @@ describe('buildTickHandler', () => {
     expect(Object.keys(slice).sort()).toEqual(['profileContextCache', 'tickHandler']);
     expect(typeof slice.profileContextCache.evictProfile).toBe('function');
     expect(slice.tickHandler).toBeDefined();
+  });
+});
+
+describe('buildTickHandler — the order-refusal-loop notifier', () => {
+  const input = {
+    operatorId: OPERATOR,
+    accountId: ACCOUNT,
+    profileId: PROFILE,
+    symbol: SYMBOL,
+    identityKey: 'request-and-rejection-digest',
+    request: {
+      clientOrderId: 'client-1',
+      symbol: SYMBOL,
+      side: 'BUY' as const,
+      type: 'LIMIT' as const,
+      quantity: '2.5',
+      price: '10',
+      stopPrice: null,
+      timeInForce: 'GTC' as const,
+    },
+    rejection: { code: -2010, msg: 'Account has insufficient balance.' },
+    probe: false,
+  };
+
+  it('keys its hourly throttle on the exact request and rejection identity', async () => {
+    const { deps, refusalKeys } = build();
+    const notify = deps.notifyOrderRefusalLoop;
+    if (!notify) throw new Error('the builder did not wire notifyOrderRefusalLoop');
+
+    await notify(input);
+
+    expect(refusalKeys).toEqual([`${PROFILE}:${SYMBOL}:request-and-rejection-digest`]);
+  });
+
+  it('reports the exact Binance refusal under the existing order-failed category', async () => {
+    const { deps, events } = build();
+    const notify = deps.notifyOrderRefusalLoop;
+    if (!notify) throw new Error('the builder did not wire notifyOrderRefusalLoop');
+
+    await notify(input);
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      category: 'order-failed',
+      symbol: SYMBOL,
+      fields: expect.arrayContaining([
+        { label: 'Action', value: 'BUY LIMIT' },
+        { label: 'Binance code', value: '-2010' },
+        { label: 'Binance message', value: 'Account has insufficient balance.' },
+      ]),
+    });
+  });
+
+  it('sends nothing while the hourly throttle window is open', async () => {
+    const { deps, events } = build(true, false);
+    const notify = deps.notifyOrderRefusalLoop;
+    if (!notify) throw new Error('the builder did not wire notifyOrderRefusalLoop');
+
+    await notify(input);
+
+    expect(events).toEqual([]);
   });
 });
 

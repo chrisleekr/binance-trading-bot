@@ -196,7 +196,104 @@ describe('rung 3: config valid', () => {
   });
 });
 
-describe('rung 4: discovery running', () => {
+describe('rung 4: order execution', () => {
+  const refusal = (
+    symbol: string,
+    msg: string,
+    detail: unknown = {
+      request: {
+        clientOrderId: 'client-1',
+        symbol,
+        side: 'BUY',
+        type: 'STOP_LOSS_LIMIT',
+        quantity: '0.010',
+        price: '50000',
+        stopPrice: '50100',
+        timeInForce: 'GTC',
+      },
+      rejection: { code: -2010, msg },
+      threshold: 3,
+      probeEveryMs: 60_000,
+    },
+  ): OpenCondition =>
+    cond({
+      condition: 'order-refusal-loop',
+      symbol,
+      code: '-2010',
+      detail,
+      sinceMs: NOW - DAY,
+    });
+
+  it('is the fourth rung and is ok without an open refusal loop', () => {
+    expect(DIAGNOSIS_STEPS[3]).toBe('order-execution');
+    expect(runDiagnosisStep('order-execution', input())).toEqual({
+      status: 'ok',
+      line: 'No repeated Binance order refusal is currently recorded.',
+      items: [],
+    });
+  });
+
+  it('reports the exact request, code, raw message, threshold, and probe cadence', () => {
+    const msg = 'Account has insufficient balance for requested action.';
+    const r = runDiagnosisStep('order-execution', input({ conditions: [refusal('BTCUSDT', msg)] }));
+
+    expect(CONDITION_SEVERITY['order-refusal-loop']).toBe('degraded');
+    expect(r.status).toBe('finding');
+    expect(r.items[0]).toMatchObject({
+      id: 'order-refusal-loop:BTCUSDT',
+      condition: 'order-refusal-loop',
+      code: '-2010',
+      severity: 'degraded',
+      lever: null,
+      symbols: [{ symbol: 'BTCUSDT', sinceMs: NOW - DAY }],
+    });
+    expect(r.items[0]?.evidence).toEqual([
+      'Action: BUY STOP_LOSS_LIMIT 0.010 BTCUSDT.',
+      `Binance -2010: ${msg}`,
+      'Binance refused this exact order 3 times. The bot now probes it once every 60 seconds.',
+    ]);
+  });
+
+  it('keeps overloaded Binance codes separate when their raw messages differ', () => {
+    const r = runDiagnosisStep(
+      'order-execution',
+      input({
+        conditions: [
+          refusal('BTCUSDT', 'Account has insufficient balance for requested action.'),
+          refusal('ETHUSDT', 'Market is closed.'),
+        ],
+      }),
+    );
+
+    expect(r.items).toHaveLength(2);
+    expect(r.items.map((item) => item.evidence[1])).toEqual([
+      'Binance -2010: Account has insufficient balance for requested action.',
+      'Binance -2010: Market is closed.',
+    ]);
+  });
+
+  it('does not invent request evidence from malformed detail', () => {
+    const r = runDiagnosisStep(
+      'order-execution',
+      input({ conditions: [refusal('BTCUSDT', 'unused', 'malformed')] }),
+    );
+
+    expect(r.status).toBe('finding');
+    expect(r.items[0]?.evidence).toContain(
+      'The exact request and Binance message were not recorded.',
+    );
+  });
+
+  it('adds the degraded finding without changing the existing verdict taxonomy', () => {
+    const i = input({ conditions: [refusal('BTCUSDT', 'Market is closed.')] });
+    const report = buildProfileDiagnosis(i, runAll(i));
+
+    expect(report.items.some((item) => item.condition === 'order-refusal-loop')).toBe(true);
+    expect(report.verdict).toBe('idle-by-design');
+  });
+});
+
+describe('rung 5: discovery running', () => {
   it('skips rather than faults when discovery is deliberately off', () => {
     const r = runDiagnosisStep(
       'discovery-running',
@@ -254,7 +351,7 @@ describe('rung 4: discovery running', () => {
   });
 });
 
-describe('rung 5: market breadth', () => {
+describe('rung 6: market breadth', () => {
   it('is ok while the floor is being cleared', () => {
     expect(runDiagnosisStep('market-breadth', input()).status).toBe('ok');
   });
@@ -304,7 +401,7 @@ describe('rung 5: market breadth', () => {
   });
 });
 
-describe('rung 6: candidate funnel', () => {
+describe('rung 7: candidate funnel', () => {
   it('reports unknown, never zero, when no scan carries funnel counts', () => {
     // Rows predating the funnel field have no counts. Coercing that to 0 would
     // manufacture a choke at the first stage on every legacy profile.
@@ -452,7 +549,7 @@ describe('rung 6: candidate funnel', () => {
   });
 });
 
-describe('rung 7: symbol slots', () => {
+describe('rung 8: symbol slots', () => {
   it('is ok with room to spare', () => {
     expect(runDiagnosisStep('symbol-slots', input()).status).toBe('ok');
   });
@@ -500,7 +597,7 @@ describe('rung 7: symbol slots', () => {
   });
 });
 
-describe('rung 8: entry blockers', () => {
+describe('rung 9: entry blockers', () => {
   it('groups symbols by reason rather than listing one row per coin', () => {
     const r = runDiagnosisStep(
       'entry-blockers',
@@ -584,7 +681,7 @@ const EXIT_ATTRIBUTION = {
   },
 };
 
-describe('rung 9: exit blockers', () => {
+describe('rung 10: exit blockers', () => {
   it('names the rung and the level each held coin is waiting on', () => {
     const r = runDiagnosisStep(
       'exit-blockers',
@@ -642,7 +739,7 @@ describe('rung 9: exit blockers', () => {
   });
 });
 
-describe('rung 10: exit protection', () => {
+describe('rung 11: exit protection', () => {
   it('warns when a held coin has no exit below its entry', () => {
     const r = runDiagnosisStep(
       'exit-protection',
@@ -775,7 +872,7 @@ describe('rung 10: exit protection', () => {
   });
 });
 
-describe('rung 11: which setting', () => {
+describe('rung 12: which setting', () => {
   it('says nothing is misconfigured when the blocks trace to no setting', () => {
     // The honest bottom rung: "your settings are just strict" and "the market is
     // not cooperating" are valid answers, and must not be dressed up as a cause.

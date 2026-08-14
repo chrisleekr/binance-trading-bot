@@ -6,6 +6,7 @@ import {
   buildDustEligibleKey,
   buildKillSwitchKey,
   buildOpenOrdersKey,
+  buildOrderRefusalKey,
   buildProfileTickMetaKey,
   buildSymbolInfoKey,
   buildSymbolStateKey,
@@ -24,6 +25,9 @@ describe('catalogued profile key builders', () => {
   it('produce the tenant-prefixed key for each catalogue entry', () => {
     expect(buildKillSwitchKey(userId, profileId)).toBe(`${prefix}kill-switch`);
     expect(buildSymbolStateKey(userId, profileId, 'BTCUSDT')).toBe(`${prefix}symbol-state:BTCUSDT`);
+    expect(buildOrderRefusalKey(userId, profileId, 'BTCUSDT')).toBe(
+      `${prefix}order-refusal:BTCUSDT`,
+    );
     expect(buildProfileTickMetaKey(userId, profileId)).toBe(`${prefix}profile-tick-meta`);
     expect(buildAccountInfoKey(userId, profileId)).toBe(`${prefix}account-info`);
     expect(buildDustEligibleKey(userId, profileId)).toBe(`${prefix}dust-eligible`);

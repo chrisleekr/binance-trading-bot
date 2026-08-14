@@ -73,6 +73,12 @@ export const buildSymbolStateKey = (
   symbol: string,
 ): string => profileKey({ accountId, profileId }, 'symbolState', symbol);
 
+export const buildOrderRefusalKey = (
+  accountId: AccountId,
+  profileId: ProfileId,
+  symbol: string,
+): string => profileKey({ accountId, profileId }, 'orderRefusal', symbol);
+
 // Operational metadata for the dashboard tick-health chips. Written by
 // `tick-handler` after every tick attempt, read by the profile-aggregate
 // projection. Separate from `symbolState` so the strategy state blob

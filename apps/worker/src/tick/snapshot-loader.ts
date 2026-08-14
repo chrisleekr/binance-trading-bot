@@ -24,6 +24,7 @@ import {
   buildOpenOrdersKey,
   buildKillSwitchKey,
   buildOrderRearmKey,
+  buildOrderRefusalKey,
   buildSymbolStateKey,
   buildWeightKey,
 } from 'executor/redis-namespace.js';
@@ -55,6 +56,8 @@ export interface RawSnapshot {
   // strategy runs. The only writer is the same tick handler, strictly later than
   // this read, so reading it here is equivalent to reading it post-strategy.
   readonly orderRearm: string | null;
+  /** Undefined means this soft slot errored; the circuit must fail open and skip mutation. */
+  readonly orderRefusal: string | null | undefined;
   readonly indicatorsByInterval: Readonly<Record<string, string | null>>;
 }
 
@@ -117,6 +120,7 @@ export const readRawSnapshot = async (redis: Redis, input: SnapshotInput): Promi
   const disableKey = buildDisableActionKey(input.accountId, input.profileId, input.symbol);
   const weightKey = buildWeightKey(input.accountId, input.profileId, minuteBucketOf(input.nowMs));
   const rearmKey = buildOrderRearmKey(input.profileId, input.symbol);
+  const refusalKey = buildOrderRefusalKey(input.accountId, input.profileId, input.symbol);
   const indicatorKeys = input.intervals.map((iv) => indicatorKey(input.symbol, iv));
 
   const pipe = redis.pipeline();
@@ -127,6 +131,7 @@ export const readRawSnapshot = async (redis: Redis, input: SnapshotInput): Promi
   pipe.get(disableKey);
   pipe.get(weightKey);
   pipe.get(rearmKey);
+  pipe.get(refusalKey);
   for (const k of indicatorKeys) pipe.get(k);
 
   const replies = (await commitPipeline(pipe)) as PipeReply[] | null;
@@ -162,6 +167,14 @@ export const readRawSnapshot = async (redis: Redis, input: SnapshotInput): Promi
     const r = replies[cursor++];
     return r && !r[0] && typeof r[1] === 'string' ? r[1] : null;
   })();
+  // This guard is operational safety, not a decision prerequisite. If only its
+  // slot fails, send the order and leave both Redis and the durable condition
+  // untouched until a later tick can read the current state.
+  const orderRefusal = ((): string | null | undefined => {
+    const r = replies[cursor++];
+    if (!r || r[0]) return undefined;
+    return typeof r[1] === 'string' ? r[1] : null;
+  })();
   const indicatorsByInterval: Record<string, string | null> = {};
   for (const iv of input.intervals) indicatorsByInterval[iv] = grab(cursor++);
 
@@ -173,6 +186,7 @@ export const readRawSnapshot = async (redis: Redis, input: SnapshotInput): Promi
     symbolDisable,
     weightUsed1m: weightRaw === null ? 0 : Number.parseInt(weightRaw, 10) || 0,
     orderRearm,
+    orderRefusal,
     indicatorsByInterval,
   };
 };

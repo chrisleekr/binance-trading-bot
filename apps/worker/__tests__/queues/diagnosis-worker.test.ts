@@ -199,17 +199,18 @@ describe('diagnosis worker', () => {
 
     const at = stepsWhenProbeStarted as unknown as Record<string, { status: string }>;
     expect(at['candidate-funnel']?.status).toBe('running');
-    // The five rungs before it have resolved...
+    // Every rung before it has resolved.
     for (const id of [
       'worker-alive',
       'profile-active',
       'config-valid',
+      'order-execution',
       'discovery-running',
       'market-breadth',
     ]) {
       expect(['ok', 'finding', 'skipped', 'unknown']).toContain(at[id]?.status);
     }
-    // ...and nothing after it has started.
+    // Nothing after it has started.
     for (const id of ['symbol-slots', 'entry-blockers', 'config-levers']) {
       expect(at[id]?.status).toBe('pending');
     }

@@ -101,6 +101,7 @@ const baseRaw = (overrides: Partial<RawSnapshot> = {}): RawSnapshot => ({
   killSwitch: null,
   symbolDisable: null,
   weightUsed1m: 10,
+  orderRefusal: null,
   indicatorsByInterval: { '1h': null },
   ...overrides,
 });

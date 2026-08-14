@@ -41,20 +41,21 @@ The check then runs in the background as a checklist, in the order that matters,
 1. Is the trading engine running?
 2. Is this profile switched on?
 3. Are the settings valid?
-4. Is auto-discovery scanning?
-5. Is the market broad enough to buy into?
-6. Where do candidate coins drop out?
-7. Is there room for another coin?
-8. What is holding back buys?
-9. What are the held coins waiting on to sell?
-10. Does every held coin have a way out?
-11. Which setting is responsible?
+4. Is Binance accepting this profile's orders?
+5. Is auto-discovery scanning?
+6. Is the market broad enough to buy into?
+7. Where do candidate coins drop out?
+8. Is there room for another coin?
+9. What is holding back buys?
+10. What are the held coins waiting on to sell?
+11. Does every held coin have a way out?
+12. Which setting is responsible?
 
 The order is the ranking: the first step that finds something owns the headline, because a stopped engine makes every later answer meaningless. Every finding is still listed, and each one that traces back to a setting carries a link that opens the right tab with that field expanded and highlighted.
 
 **"Nothing is blocking it, your settings are just strict" is a valid answer.** When nothing is provable the report says so rather than inventing a cause.
 
-Step 6 is the slow one. It re-runs the coin scan against Binance for an independent second opinion, which takes a few seconds and uses a little of the account's request budget; it queues behind live trading, so it cannot starve the bot. **Skip the live re-scan** uses the last stored scan instead, and the report says which of the two it read. Closing the panel does not cancel a running check — on the profile page the button keeps spinning, and reopening the panel from either place returns to live progress.
+Step 7 is the slow one. It re-runs the coin scan against Binance for an independent second opinion, which takes a few seconds and uses a little of the account's request budget; it queues behind live trading, so it cannot starve the bot. **Skip the live re-scan** uses the last stored scan instead, and the report says which of the two it read. Closing the panel does not cancel a running check — on the profile page the button keeps spinning, and reopening the panel from either place returns to live progress.
 
 Durations in the report ("blocked for 19 days") stay exact however short your [log retention](../system/settings.md#log-retention) is: what is currently true of a profile is stored separately from the log of changes. See [Conditions and the diagnosis](../../architecture/observability-conditions.md).
 

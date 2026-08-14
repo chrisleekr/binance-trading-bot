@@ -5,13 +5,16 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createNotifierGapThrottle,
   createOrderFailedThrottle,
+  createOrderRefusalLoopThrottle,
   createProtectiveStopBlockedThrottle,
   DEFAULT_NOTIFIER_GAP_WINDOW_MS,
   createSymbolNotPermittedThrottle,
   DEFAULT_ORDER_FAILED_WINDOW_MS,
+  DEFAULT_ORDER_REFUSAL_LOOP_WINDOW_MS,
   DEFAULT_PROTECTIVE_STOP_BLOCKED_WINDOW_MS,
   DEFAULT_SYMBOL_NOT_PERMITTED_WINDOW_MS,
   ORDER_FAILED_KEY_PREFIX,
+  ORDER_REFUSAL_LOOP_KEY_PREFIX,
   ORDER_UNFUNDABLE_KEY_PREFIX,
   PROTECTIVE_STOP_BLOCKED_KEY_PREFIX,
   SYMBOL_NOT_PERMITTED_KEY_PREFIX,
@@ -157,6 +160,30 @@ describe('createOrderFailedThrottle', () => {
       `${ORDER_FAILED_KEY_PREFIX}p-1:BTCUSDT:retry`,
       `${ORDER_FAILED_KEY_PREFIX}p-1:BTCUSDT:final`,
     ]);
+  });
+});
+
+describe('createOrderRefusalLoopThrottle', () => {
+  it('has an identity-scoped namespace and a one-hour window', async () => {
+    const set = vi.fn<Redis['set']>().mockResolvedValue('OK');
+    const redis = { set } as unknown as Redis;
+    const t = createOrderRefusalLoopThrottle({ redis, logger: fakeLogger() });
+
+    await t.allow('p-1:BTCUSDT:digest-a');
+    await t.allow('p-1:BTCUSDT:digest-b');
+
+    expect(set.mock.calls.map((call) => call[0])).toEqual([
+      `${ORDER_REFUSAL_LOOP_KEY_PREFIX}p-1:BTCUSDT:digest-a`,
+      `${ORDER_REFUSAL_LOOP_KEY_PREFIX}p-1:BTCUSDT:digest-b`,
+    ]);
+    expect(set.mock.calls[0]).toEqual([
+      `${ORDER_REFUSAL_LOOP_KEY_PREFIX}p-1:BTCUSDT:digest-a`,
+      '1',
+      'PX',
+      DEFAULT_ORDER_REFUSAL_LOOP_WINDOW_MS,
+      'NX',
+    ]);
+    expect(DEFAULT_ORDER_REFUSAL_LOOP_WINDOW_MS).toBe(3_600_000);
   });
 });
 

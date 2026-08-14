@@ -75,6 +75,20 @@ const makeFailingDisableRedis = (): Redis => {
   return { pipeline: () => pipeline } as unknown as Redis;
 };
 
+const makeOrderRefusalRedis = (reply: [Error | null, string | null]): Redis => {
+  const queued: string[] = [];
+  const pipeline = {
+    get(key: string) {
+      queued.push(key);
+      return pipeline;
+    },
+    async exec() {
+      return queued.map((key) => (key.includes(':order-refusal:') ? reply : [null, null]));
+    },
+  };
+  return { pipeline: () => pipeline } as unknown as Redis;
+};
+
 describe('readRawSnapshot fail-closed on the disable-action slot (#658)', () => {
   // C4: the per-symbol disable key is read on the SAME pipeline as the
   // kill-switch and inherits the per-slot fail-closed `grab()` semantics —
@@ -91,6 +105,31 @@ describe('readRawSnapshot fail-closed on the disable-action slot (#658)', () => 
         nowMs: 1_700_000_000_000,
       }),
     ).rejects.toThrow('disable-action slot errored');
+  });
+});
+
+describe('readRawSnapshot order-refusal slot', () => {
+  const input = {
+    accountId: asAccountId('33333333-3333-4333-8333-333333333333'),
+    profileId: asProfileId('22222222-2222-4222-8222-222222222222'),
+    symbol: 'BTCUSDT',
+    intervals: ['1h'],
+    nowMs: 1_700_000_000_000,
+  };
+
+  it('returns the raw circuit state when the slot is readable', async () => {
+    await expect(
+      readRawSnapshot(makeOrderRefusalRedis([null, '{"v":1}']), input),
+    ).resolves.toMatchObject({ orderRefusal: '{"v":1}' });
+  });
+
+  it('fails open with undefined when only the circuit slot errors', async () => {
+    await expect(
+      readRawSnapshot(
+        makeOrderRefusalRedis([new Error('order-refusal slot errored'), null]),
+        input,
+      ),
+    ).resolves.toMatchObject({ orderRefusal: undefined });
   });
 });
 

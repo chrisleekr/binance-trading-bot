@@ -56,6 +56,7 @@ describe('PROFILE_KEYS catalogue', () => {
     expect(PROFILE_KEYS.exchangeInfo()).toBe('exchange-info');
     expect(PROFILE_KEYS.exchangeSymbols()).toBe('exchange-symbols');
     expect(PROFILE_KEYS.killSwitch()).toBe('kill-switch');
+    expect(PROFILE_KEYS.orderRefusal('BTCUSDT')).toBe('order-refusal:BTCUSDT');
     expect(PROFILE_KEYS.dashboardCache()).toBe('dashboard:cache');
     expect(PROFILE_KEYS.dustEligible()).toBe('dust-eligible');
     expect(PROFILE_KEYS.userStreamEvent()).toBe('user-stream:last-event');
@@ -72,6 +73,9 @@ describe('profileKey / profilePrefix composition', () => {
       `${prefix}disable-action:BTCUSDT`,
     );
     expect(profileKey(aliceScope, 'killSwitch')).toBe(`${prefix}kill-switch`);
+    expect(profileKey(aliceScope, 'orderRefusal', 'BTCUSDT')).toBe(
+      `${prefix}order-refusal:BTCUSDT`,
+    );
     expect(profileKey(aliceScope, 'dashboardCache')).toBe(`${prefix}dashboard:cache`);
     expect(profileKey(aliceScope, 'dustEligible')).toBe(`${prefix}dust-eligible`);
     expect(profileKey(aliceScope, 'userStreamEvent')).toBe(`${prefix}user-stream:last-event`);

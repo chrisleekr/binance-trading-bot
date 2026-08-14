@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 
 import { createChainByKey } from '../../src/lib/chain-by-key.js';
+import { buildOrderRefusalKey } from '../../src/executor/redis-namespace.js';
 import { createTickHandler, type TickHandlerDeps } from '../../src/tick/tick-handler.js';
 import type { ProfileTickContext } from '../../src/tick/build-tick-input.js';
 import type { TickJobData } from '../../src/queues/job-payloads.js';
@@ -28,6 +29,7 @@ const SYMBOL = 'BTCUSDT';
 const OVERRIDE_ACTION_ID = '01234567-89ab-4cde-89ab-cdef01234567';
 const OVERRIDE = { kind: 'trigger-sell' as const, overrideActionId: OVERRIDE_ACTION_ID };
 const OVERRIDE_KEY = profileKey({ accountId: ACCOUNT, profileId: PROFILE }, 'override', SYMBOL);
+const REFUSAL_KEY = buildOrderRefusalKey(ACCOUNT, PROFILE, SYMBOL);
 
 const SYMBOL_INFO: SymbolInfo = {
   symbol: SYMBOL,
@@ -41,19 +43,23 @@ const SYMBOL_INFO: SymbolInfo = {
  * (all slots empty → cold-load), the tick-meta / re-arm `set`, and `exists`.
  * `set` calls are recorded so the re-arm can be asserted on the exact key.
  */
-const buildFakeRedis = (setCalls: unknown[][]): import('ioredis').Redis => {
-  const makeChain = (count: { n: number }) => {
+const buildFakeRedis = (
+  setCalls: unknown[][],
+  orderRefusal: string | null,
+): import('ioredis').Redis => {
+  const makeChain = (keys: string[]) => {
     const chain = {
-      get() {
-        count.n += 1;
+      get(key: string) {
+        keys.push(key);
         return chain;
       },
-      exec: async () => Array.from({ length: count.n }, () => [null, null] as const),
+      exec: async () =>
+        keys.map((key) => [null, key === REFUSAL_KEY ? orderRefusal : null] as const),
     };
     return chain;
   };
   return {
-    pipeline: () => makeChain({ n: 0 }),
+    pipeline: () => makeChain([]),
     exists: async () => 0,
     // The tick reads the order re-arm flag (audit attribution) and clears it once
     // every order lands. No flag by default.
@@ -103,6 +109,7 @@ const buildStubStrategy = (opts: { deferred: boolean; placeOrder?: boolean }): S
                 side: 'SELL',
                 reason: 'exit',
                 clientOrderId: 'stub-exit-1',
+                overrideActionId: OVERRIDE_ACTION_ID,
               },
               params: { type: 'MARKET', quantity: '1' },
             },
@@ -118,14 +125,40 @@ interface RunOpts {
   readonly deferred: boolean;
   readonly placeOrder?: boolean;
   readonly overrideTtlMs?: number;
+  readonly circuitDeferred?: boolean;
 }
 
 const run = async (
   opts: RunOpts,
-): Promise<{ setCalls: unknown[][]; settleOverrideAction: ReturnType<typeof vi.fn> }> => {
+): Promise<{
+  setCalls: unknown[][];
+  settleOverrideAction: ReturnType<typeof vi.fn>;
+  markOverridePickedUp: ReturnType<typeof vi.fn>;
+  applyOptions: unknown[];
+}> => {
   const setCalls: unknown[][] = [];
-  const redis = buildFakeRedis(setCalls);
+  const orderRefusal = opts.circuitDeferred
+    ? JSON.stringify({
+        v: 1,
+        request: {
+          clientOrderId: 'stub-exit-1',
+          symbol: SYMBOL,
+          side: 'SELL',
+          type: 'MARKET',
+          quantity: '1',
+          price: null,
+          stopPrice: null,
+          timeInForce: null,
+        },
+        rejection: { code: -2010, msg: 'Account has insufficient balance.' },
+        count: 3,
+        nextProbeAtMs: Number.MAX_SAFE_INTEGER,
+      })
+    : null;
+  const redis = buildFakeRedis(setCalls, orderRefusal);
   const settleOverrideAction = vi.fn(async () => {});
+  const markOverridePickedUp = vi.fn(async () => true);
+  const applyOptions: unknown[] = [];
   const registry = createRegistry();
   registry.register(buildStubStrategy(opts));
 
@@ -156,8 +189,29 @@ const run = async (
     registry,
     executor: {
       // Echo the decisions back as applied, the shape the handler audits on.
-      applyAll: async (_ctx: unknown, _accountId: unknown, decisions: readonly unknown[]) =>
-        decisions.map((decision) => ({ decision, result: { ok: true } })),
+      applyAll: async (
+        _ctx: unknown,
+        _accountId: unknown,
+        decisions: readonly unknown[],
+        _scope: unknown,
+        _resolved: unknown,
+        options: { readonly deferRepeatedRefusal?: true } | undefined,
+      ) => {
+        applyOptions.push(options);
+        return decisions.map((decision) => ({
+          decision,
+          result:
+            options?.deferRepeatedRefusal === true
+              ? {
+                  ok: false as const,
+                  retryable: true,
+                  phase: 'pre-call' as const,
+                  deferred: true as const,
+                  reason: 'deferred: repeated refusal circuit',
+                }
+              : { ok: true as const },
+        }));
+      },
     },
     chain: createChainByKey(),
     logger: {
@@ -183,6 +237,7 @@ const run = async (
     resolveProfile: async () => profile,
     auditShipper: { publish: async () => undefined },
     settleOverrideAction,
+    markOverridePickedUp,
   } as unknown as TickHandlerDeps;
 
   const handler = createTickHandler(deps);
@@ -199,7 +254,7 @@ const run = async (
   } as unknown as Job<TickJobData>;
 
   await handler(job);
-  return { setCalls, settleOverrideAction };
+  return { setCalls, settleOverrideAction, markOverridePickedUp, applyOptions };
 };
 
 // Only the override key matters here; the handler also SETs its tick-meta blob.
@@ -250,6 +305,20 @@ describe('tick handler — override settle wiring', () => {
 
     expect(rearmCalls(setCalls)).toHaveLength(0);
     expect(settleOverrideAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-arms a circuit-deferred override without claiming it was dispatched', async () => {
+    const { setCalls, settleOverrideAction, markOverridePickedUp, applyOptions } = await run({
+      deferred: true,
+      placeOrder: true,
+      overrideTtlMs: 120_000,
+      circuitDeferred: true,
+    });
+
+    expect(applyOptions).toEqual([{ deferRepeatedRefusal: true }]);
+    expect(rearmCalls(setCalls)).toHaveLength(1);
+    expect(markOverridePickedUp).not.toHaveBeenCalled();
+    expect(settleOverrideAction).not.toHaveBeenCalled();
   });
 
   it('consumes a deferred override when the provider surfaced no TTL', async () => {

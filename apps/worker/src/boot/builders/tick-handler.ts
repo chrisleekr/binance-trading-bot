@@ -54,6 +54,7 @@ export interface TickHandlerDeps {
   readonly klineFetcher: MarketData['klineFetcher'];
   readonly notifyEvent: NotifyEvent;
   readonly orderFailedThrottle: Notifiers['orderFailedThrottle'];
+  readonly orderRefusalLoopThrottle: Notifiers['orderRefusalLoopThrottle'];
   readonly protectiveStopBlockedThrottle: Notifiers['protectiveStopBlockedThrottle'];
   readonly auditShipper: Audit['auditShipper'];
 }
@@ -78,6 +79,7 @@ export const buildTickHandler = ({
   klineFetcher,
   notifyEvent,
   orderFailedThrottle,
+  orderRefusalLoopThrottle,
   protectiveStopBlockedThrottle,
   auditShipper,
 }: TickHandlerDeps): TickHandlerSlice => {
@@ -143,6 +145,12 @@ export const buildTickHandler = ({
     // and executed by the next tick.
     findActiveOverride: (scope, symbol) =>
       profileRepoFromScope(scope).overrideActions.findActiveForSymbol(symbol),
+    recordOrderRefusalCondition: async (scope, input) => {
+      await profileRepoFromScope(scope).conditionStates.recordCondition({
+        condition: 'order-refusal-loop',
+        ...input,
+      });
+    },
     notifyOverrideOutcome: (input) =>
       notifyEvent({
         category: 'override-unresolved',
@@ -168,29 +176,53 @@ export const buildTickHandler = ({
         `${input.profileId}:${input.symbol}:${input.willRetry ? 'retry' : 'final'}`,
       );
       if (!allowed) return;
+      let body =
+        'The bot could not cancel an order on Binance, and the reason will NOT clear on its own. It cannot make progress until you act. Check the order on Binance.';
+      if (input.willRetry) {
+        body =
+          'The bot could not get an order onto Binance. It will try again on the next cycle; if this keeps repeating, check the symbol and your balance.';
+      } else if (input.decisionType === 'place-order') {
+        body =
+          'The bot could not get an order onto Binance, and the reason will NOT clear on its own. After three identical refusals, it slows that exact request to one probe per minute until you act. If this was a protective stop, the position is currently unguarded. Check it on Binance.';
+      }
       await notifyEvent({
         category: 'order-failed',
         operatorId: input.operatorId,
         accountId: input.accountId,
         profileId: input.profileId,
         symbol: input.symbol,
-        // `willRetry` is "will a retry ever succeed", NOT "will the bot try again".
-        // The bot leaves the strategy state un-advanced whenever an order provably
-        // never reached the exchange, so it DOES keep re-attempting — it just cannot
-        // make progress on a cause that does not clear by itself (a -1013 filter
-        // failure, a -2010 insufficient balance). Telling the operator "it will NOT
-        // retry" would be a lie, and the dangerous kind: it reads as "the bot has
-        // given up, so nothing more will happen", when in fact the position is stuck
-        // and only they can unstick it.
-        body: input.willRetry
-          ? 'The bot could not get an order onto Binance. It will try again on the next cycle; if this keeps repeating, check the symbol and your balance.'
-          : 'The bot could not get an order onto Binance, and the reason will NOT clear on its own. It keeps re-attempting every cycle but cannot make progress until you act. If this was a protective stop, the position is currently unguarded — check it on Binance.',
+        // `willRetry` means the cause can clear, not that the bot gives up otherwise.
+        // A repeated structural refusal moves to the dedicated once-per-minute probe.
+        body,
         fields: [
           {
             label: 'Action',
             value: input.decisionType === 'place-order' ? 'Place order' : 'Cancel order',
           },
           { label: 'Reason', value: input.result.reason },
+        ],
+      });
+    },
+    notifyOrderRefusalLoop: async (input) => {
+      const allowed = await orderRefusalLoopThrottle.allow(
+        `${input.profileId}:${input.symbol}:${input.identityKey}`,
+      );
+      if (!allowed) return;
+      await notifyEvent({
+        category: 'order-failed',
+        operatorId: input.operatorId,
+        accountId: input.accountId,
+        profileId: input.profileId,
+        symbol: input.symbol,
+        body: input.probe
+          ? 'Binance is still returning the same refusal. The bot will keep probing this exact request once per minute until the refusal or request changes.'
+          : 'Binance refused the same order three times. The bot has slowed this exact request to one probe per minute until the refusal or request changes.',
+        fields: [
+          { label: 'Action', value: `${input.request.side} ${input.request.type}` },
+          { label: 'Quantity', value: input.request.quantity },
+          { label: 'Client order ID', value: input.request.clientOrderId },
+          { label: 'Binance code', value: String(input.rejection.code) },
+          { label: 'Binance message', value: input.rejection.msg },
         ],
       });
     },

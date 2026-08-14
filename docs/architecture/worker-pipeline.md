@@ -266,7 +266,22 @@ flowchart TD
 
 Committing after a maybe-landed order (`accepted` / `ambiguous`) is what prevents a duplicate on retry: the next tick recomputes from an advanced state and does not re-emit the order that may already be live.
 
-`retryable` survives only as the audit flag and the alert wording (`willRetry`). Note what it does NOT mean: the bot re-attempts a frozen state EVERY tick regardless, so `willRetry: false` says "the cause will not clear by itself", not "the bot has given up". The alert says so — it keeps re-attempting but cannot make progress until the operator acts.
+`retryable` survives only as the audit flag and the alert wording (`willRetry`). Note what it does NOT mean: `willRetry: false` says "the cause will not clear by itself", not "the bot has given up". The strategy still re-derives the order from its un-advanced state on every tick. The refusal circuit below decides how often that re-derived order is actually sent to Binance.
+
+### Repeated Binance refusals: three attempts, then one probe per minute
+
+A structural refusal is a parsed `BinanceApiError` with `phase: 'rejected'` and `retryable: false`. Three consecutive structural refusals trip a per-(account, profile, symbol) circuit only when both identities are byte-for-byte unchanged:
+
+- request: `clientOrderId`, symbol, side, type, quantity, price, stop price, and time in force;
+- rejection: Binance's numeric code and raw message.
+
+Strategy metadata such as reason, override attribution, and whether an order is deferrable is deliberately excluded. Those fields do not change the request Binance judged. Conversely, the raw rejection message is retained because codes such as `-2010` cover several distinct refusals.
+
+Once tripped, the strategy still evaluates every market event and the audit still records its ordered decisions, but `applyAll` withholds the complete suffix from the first order onward until 60 seconds have elapsed. That includes a cancel before the placement; only a non-order prefix still runs. The existing multi-placement check runs first and still rejects the whole batch before any side effect. At the probe boundary, one real placement is allowed. The same refusal schedules the next probe for another 60 seconds; success, a transient or ambiguous failure, a changed request, or a changed rejection clears or restarts the sequence as appropriate.
+
+The state is a 15-minute self-expiring Redis value under the profile and symbol namespace. Reads are part of the opening snapshot pipeline. A failed read fails open and skips circuit mutation for that tick; a failed write skips the matching condition update, so the durable diagnosis never claims a state Redis did not confirm. The tick's existing per-(profile, symbol) in-process chain serialises reads and writes, so this needs no Lua script and no distributed lock.
+
+Tripping opens the degraded `order-refusal-loop` condition with the exact request and rejection in `detail`. Every known-state tick synchronises that condition, including suppressed ticks and the tick that clears it. The first two refusals use the normal `order-failed` notification. The trip and each refused probe use a separate alert path, throttled to one message per exact request-and-rejection identity per hour. Suppressed ticks do not alert or log; trips and actual probes do.
 
 **The retry IS the un-advanced state.** There is no replay queue and there must not be one: a replayed order is a stale-priced order. Leaving the state un-advanced makes the next tick recompute from fresh market data and re-emit. The same predicate — `(phase === 'pre-call' || phase === 'rejected') && retryable` — is what the operator-override settle reads to decide whether to RE-ARM the override; the commit decision uses the `phase` half of it alone, because "safe to leave un-advanced" and "worth retrying" are not the same question.
 

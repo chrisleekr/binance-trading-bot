@@ -24,6 +24,8 @@ export const CONDITIONS = [
   'discovery-breadth-blocked',
   /** Per profile: the stored config no longer satisfies its own schema. */
   'config-invalid',
+  /** Per (profile, symbol): Binance repeatedly refused one exact order request. */
+  'order-refusal-loop',
   /**
    * Per (profile, symbol): the protective stop the strategy wants cannot be
    * placed, so the position may be sitting with nothing guarding it. Distinct
@@ -41,8 +43,8 @@ export const conditionSchema = z.enum(CONDITIONS);
  * How much a condition matters when several are open at once.
  *
  * `blocking` means the profile cannot trade until it changes. `degraded` means
- * it still can, but on stale or untrustworthy inputs. Nothing here is "error" —
- * a blocked entry is usually the strategy working correctly, and colouring it
+ * it still runs, but one path is impaired or its inputs are untrustworthy. Nothing here is "error".
+ * A blocked entry is usually the strategy working correctly, and colouring it
  * as a fault trains the operator to ignore it.
  */
 export type ConditionSeverity = 'blocking' | 'degraded';
@@ -53,6 +55,7 @@ export const CONDITION_SEVERITY: Record<Condition, ConditionSeverity> = {
   'discovery-stale': 'degraded',
   'discovery-breadth-blocked': 'degraded',
   'config-invalid': 'blocking',
+  'order-refusal-loop': 'degraded',
   // Not `blocking`: the profile keeps trading every other symbol, and only one
   // position is exposed. Ranking it blocking would roll the whole-profile
   // verdict up to "blocked", which claims the bot has stopped when it has not.

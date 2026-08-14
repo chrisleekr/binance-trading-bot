@@ -736,12 +736,17 @@ describe('placeOrderHandler', () => {
   });
 
   it('logic-error -2010 is non-retryable and does NOT fire emergency notify', async () => {
-    const placeOrder = vi.fn(async () => {
-      throw new BinanceApiError({
+    const cause = new BinanceApiError(
+      {
         status: 400,
         code: -2010,
-        message: 'Account has insufficient balance for requested action.',
-      });
+        msg: 'Account has insufficient balance for requested action.',
+      },
+      false,
+      'rejected',
+    );
+    const placeOrder = vi.fn(async () => {
+      throw cause;
     });
     const binance = fakeBinance({ placeOrder } as unknown as Partial<BinanceRestClient>);
     const bindings = buildBindings({ binance });
@@ -761,7 +766,10 @@ describe('placeOrderHandler', () => {
     const out = await placeOrderHandler(deps, CTX, PLACE);
 
     expect(out.ok).toBe(false);
-    if (out.ok === false) expect(out.retryable).toBe(false);
+    if (out.ok === false) {
+      expect(out.retryable).toBe(false);
+      expect(out.cause).toBe(cause);
+    }
     expect(provider.send).not.toHaveBeenCalled();
   });
 
