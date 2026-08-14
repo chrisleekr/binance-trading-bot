@@ -29,6 +29,7 @@ export const riskRoute = createRoute({
   getParentRoute: () => profileDetailRoute,
   path: 'risk',
   component: RiskPage,
-  // A stale or hand-typed `?focus=` is simply absent rather than an error.
+  // Only a missing, empty, or non-string `?focus=` is dropped here. A stale field
+  // id survives and simply matches nothing, so a hand-edited URL cannot fail the route.
   validateSearch: (search: Record<string, unknown>): { focus?: string } => focusParam(search),
 });

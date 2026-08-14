@@ -52,7 +52,10 @@ export function useDiagnosisRunStatus(profileId: string) {
   return {
     latest,
     isLive: isRunLive(latest),
-    isLoading: query.isLoading,
+    // Paused counts as loading. Offline, the default `online` network mode holds
+    // the first fetch with `isLoading` false and no data, which the drawer would
+    // read as "no run yet" and offer a new investigation it cannot start.
+    isLoading: query.isLoading || query.isPaused,
     start,
   };
 }

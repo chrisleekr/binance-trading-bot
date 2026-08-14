@@ -6,7 +6,7 @@
 // through this profile's scope, and the keep-newest-N prune must be per profile
 // rather than table-wide.
 
-import { eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, beforeAll, describe, expect, it } from 'vitest';
 import type { DiagnosisStep, ProfileDiagnosis } from '@app/contracts';
 import { diagnosisRuns, scopeProfile, type ProfileScope } from '../../src/repo/index.js';
@@ -52,9 +52,10 @@ describeIfDb('diagnosis-runs repo', () => {
   });
 
   beforeEach(async () => {
-    await fx.db
-      .delete(diagnosisRunsTable)
-      .where(inArray(diagnosisRunsTable.profileId, [fx.alice.profileId, fx.bob.profileId]));
+    // The whole table, not just this fixture's profiles: `failStaleNonTerminal`
+    // sweeps globally, so a row left by anything else would inflate the count it
+    // returns and make the assertion below depend on suite order.
+    await fx.db.delete(diagnosisRunsTable);
   });
 
   const rowsFor = async (profileId: string) =>

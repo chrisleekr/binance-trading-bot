@@ -13,8 +13,8 @@ import type { StrategyDescriptor } from './strategies.js';
 /**
  * The reason-code → config-setting attribution map the strategy declares (on its
  * public descriptor), resolved at runtime from `GET /strategies`. Nothing here
- * knows any strategy's codes (core invariant 1): it names a blocker's lever off
- * whatever the active strategy provides.
+ * knows any strategy's codes, so adding a strategy never edits this file: it
+ * names a blocker's lever off whatever the active strategy provides.
  */
 export type ReasonAttributionMap = NonNullable<StrategyDescriptor['reasonAttribution']>;
 
@@ -29,6 +29,10 @@ const getPath = (obj: unknown, path: readonly string[]): unknown =>
 const isArmedValue = (v: unknown): boolean => {
   if (v === true) return true;
   if (typeof v === 'string') return v !== '' && v !== 'off' && v !== '0';
+  // Numbers count: several gates are declared as plain numbers rather than
+  // decimal strings, and skipping them makes a multi-path entry fall back to
+  // its first path and name a knob the operator never moved.
+  if (typeof v === 'number') return Number.isFinite(v) && v !== 0;
   if (typeof v === 'object' && v !== null) return Object.keys(v).length > 0;
   return false;
 };

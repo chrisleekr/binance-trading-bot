@@ -31,10 +31,14 @@ export interface DiscoveryFunnel {
   readonly spread: number;
   readonly changeBand: number;
   /**
-   * Candidates whose price history was fetched (the candidate segment's
+   * Candidates whose price history was actually fetched (the candidate segment's
    * denominator). Without it `age` is the segment's first entry and so can only
    * ever be a denominator, which hides a collapse AT the age filter and makes
    * the choke search blame a ticker filter that is working fine.
+   *
+   * Counts fetched windows, not candidates: a candidate with no window fails the
+   * age cut for want of data, so counting it here would render a fetch failure
+   * as an age-filter failure and point the operator at the wrong setting.
    */
   readonly probed: number;
   readonly age: number;
@@ -68,19 +72,23 @@ const STAGES: readonly DiscoveryFilterName[] = [
  * The TICKER segment (`universe` … `changeBand`) is taken verbatim from `ticker`,
  * which {@link tickerStageCounts} computed over the full quote-matched ticker set.
  * The CANDIDATE segment (`probed` … `eligible`) is derived from `candidates`, the
- * kline-stage rows: `probed` is how many entered the segment, and a candidate
- * "survived" stage S iff S is in its `passed`
+ * kline-stage rows: a candidate "survived" stage S iff S is in its `passed`
  * list (the chain truncated at its first failure), and `eligible` requires a FULL
  * pass (`passed.length === STAGES.length`), not merely `failedAt === null` — a
  * held symbol that vanished from the ticker feed also has `failedAt === null` but
  * an empty `passed`, and it is not eligible. `kept` = desired minus new adds =
  * retained survivors.
+ *
+ * `probed` is passed in rather than taken as `candidates.length` because the two
+ * differ whenever a kline fetch failed: such a candidate is scored as failing the
+ * age cut, and counting it as probed would attribute a data outage to a filter.
  */
 export const projectFunnel = (
   candidates: readonly CandidateExplain[],
   diff: DiscoveryDiff,
   breadthOk: boolean,
   ticker: TickerStageCounts,
+  probed: number,
 ): DiscoveryFunnel => {
   const survived = (stage: DiscoveryFilterName): number =>
     candidates.filter((c) => c.passed.includes(stage)).length;
@@ -95,7 +103,7 @@ export const projectFunnel = (
     activity: ticker.activity,
     spread: ticker.spread,
     changeBand: ticker.changeBand,
-    probed: candidates.length,
+    probed,
     age: survived('age'),
     trend: survived('trend'),
     eligible,

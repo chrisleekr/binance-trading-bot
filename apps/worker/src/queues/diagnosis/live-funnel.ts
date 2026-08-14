@@ -147,8 +147,10 @@ export const probeLiveFunnel = async (
       tickers,
       klinesBySymbol,
       // Cooldowns are deliberately not read. They gate whether a symbol may be
-      // re-added, not whether it clears a filter, so they change the diff this
-      // probe discards and never the ladder it reports.
+      // re-added, not whether it clears a filter, so the only counts they move
+      // are the diff-derived ones (`added`/`kept`/`removed`), and the diagnosis
+      // builds its history strip from stored scans, never from a probe. The
+      // ladder it reports is untouched by them.
       currentAuto: deps.autoSymbols.map((symbol) => ({ symbol, addedAtMs: 0 })),
       lastFlattenAtMsBySymbol: {},
       manualMembers: deps.manualSymbols,
@@ -160,6 +162,10 @@ export const probeLiveFunnel = async (
       explained.diff,
       marketBreadthOk(tickers, cfg),
       tickerStageCounts(tickers, cfg),
+      // Only the candidates that actually got a window. A partial fetch leaves
+      // the rest scored as failing the age cut, and counting them here would
+      // report a Binance outage as a filter the operator should loosen.
+      explained.candidates.filter((c) => klinesBySymbol[c.symbol] !== undefined).length,
     );
   } catch (err) {
     deps.logger.warn({ err: err }, 'diagnosis: live funnel probe failed; using the stored funnel');

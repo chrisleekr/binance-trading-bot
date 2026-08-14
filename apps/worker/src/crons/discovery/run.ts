@@ -315,6 +315,9 @@ export const runDiscoveryForProfile = async (
       diff,
       marketBreadthOk(tickers, cfg),
       tickerStageCounts(tickers, cfg),
+      // Every candidate was measured: the kline fetch above is fail-fast, so a
+      // cycle that reaches here has a window for every symbol it walked.
+      candidates.length,
     ),
     configDigest: {
       quoteAsset: cfg.quoteAsset,

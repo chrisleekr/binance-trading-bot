@@ -163,7 +163,7 @@ describe('<InvestigateButton>', () => {
 
     await screen.findByTestId('diagnosis-run');
     expect(server.posts).toBe(1);
-    // Nine rungs, all pending: the operator sees what will be checked before any
+    // Every rung, all pending: the operator sees what will be checked before any
     // of it has been checked.
     expect(statuses()).toEqual(DIAGNOSIS_STEPS.map(() => 'pending'));
   });

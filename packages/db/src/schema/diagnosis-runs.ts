@@ -24,7 +24,10 @@ export const diagnosisRuns = pgTable(
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
   },
-  (table) => [index('diagnosis_runs_by_profile_started').on(table.profileId, table.startedAt)],
+  // Descending to match the hand-authored migration, which is what actually runs.
+  (table) => [
+    index('diagnosis_runs_by_profile_started').on(table.profileId, table.startedAt.desc()),
+  ],
 );
 
 export type DiagnosisRunRow = typeof diagnosisRuns.$inferSelect;

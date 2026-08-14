@@ -158,7 +158,10 @@ export function DiscoveryFunnelPanel({
   const timeZone = useTimezone();
   const query = useQuery(discoveryFunnelQueryOptions(profileId));
 
-  if (query.isLoading) return <LoadingRows rows={4} />;
+  // Paused counts as loading: an offline first fetch leaves no data with
+  // `isLoading` false, and the no-scan copy below would then claim the bot has
+  // never recorded counts when the read simply never left the device.
+  if (query.isLoading || query.isPaused) return <LoadingRows rows={4} />;
   // Advisory surface, so a failed read must not take the discovery page with it
   // — but it says so rather than vanishing. A panel that disappears on error is
   // indistinguishable from a profile that has never scanned.

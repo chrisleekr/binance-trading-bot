@@ -60,12 +60,21 @@ export const DIAGNOSIS_STEP_LABELS: Record<DiagnosisStepId, string> = {
  * on purpose: collapsing "not applicable" into "no problem found" is how a
  * diagnostic ends up quietly reporting health it never established.
  */
-export type DiagnosisStepStatus = 'pending' | 'running' | 'ok' | 'finding' | 'skipped' | 'unknown';
+const DIAGNOSIS_STEP_STATUSES = [
+  'pending',
+  'running',
+  'ok',
+  'finding',
+  'skipped',
+  'unknown',
+] as const;
+
+export type DiagnosisStepStatus = (typeof DIAGNOSIS_STEP_STATUSES)[number];
 
 export const diagnosisStepSchema = z.object({
   id: z.enum(DIAGNOSIS_STEPS),
   label: z.string(),
-  status: z.enum(['pending', 'running', 'ok', 'finding', 'skipped', 'unknown']),
+  status: z.enum(DIAGNOSIS_STEP_STATUSES),
   /** One line the operator reads; present for every terminal status. */
   line: z.string(),
 });
@@ -73,7 +82,9 @@ export const diagnosisStepSchema = z.object({
 export type DiagnosisStep = z.infer<typeof diagnosisStepSchema>;
 
 /** Which settings page owns a config path, so a finding can link straight to it. */
-export type DiagnosisSurface = 'discovery' | 'config' | 'risk';
+const DIAGNOSIS_SURFACES = ['discovery', 'config', 'risk'] as const;
+
+export type DiagnosisSurface = (typeof DIAGNOSIS_SURFACES)[number];
 
 export const diagnosisLeverSchema = z.object({
   /** The field's rendered form label, derived the same way the form derives it. */
@@ -81,7 +92,7 @@ export const diagnosisLeverSchema = z.object({
   path: z.string(),
   /** Current value, formatted; null when the value could not be read. */
   value: z.string().nullable(),
-  surface: z.enum(['discovery', 'config', 'risk']),
+  surface: z.enum(DIAGNOSIS_SURFACES),
 });
 
 export type DiagnosisLever = z.infer<typeof diagnosisLeverSchema>;
@@ -126,7 +137,9 @@ export type DiagnosisItem = z.infer<typeof diagnosisItemSchema>;
  * `unknown` means the ladder could not establish anything — never dressed up as
  * `trading`.
  */
-export type DiagnosisVerdict = 'trading' | 'blocked' | 'idle-by-design' | 'unknown';
+const DIAGNOSIS_VERDICTS = ['trading', 'blocked', 'idle-by-design', 'unknown'] as const;
+
+export type DiagnosisVerdict = (typeof DIAGNOSIS_VERDICTS)[number];
 
 export const diagnosisFunnelSchema = z.object({
   latestAtMs: z.number(),
@@ -167,7 +180,7 @@ export type DiagnosisFunnel = z.infer<typeof diagnosisFunnelSchema>;
 
 export const profileDiagnosisSchema = z.object({
   asOfMs: z.number(),
-  verdict: z.enum(['trading', 'blocked', 'idle-by-design', 'unknown']),
+  verdict: z.enum(DIAGNOSIS_VERDICTS),
   headline: z.string(),
   steps: z.array(diagnosisStepSchema),
   items: z.array(diagnosisItemSchema),
@@ -664,14 +677,17 @@ const stepMarketBreadth = (input: ProfileDiagnosisInput): DiagnosisStepResult =>
   const unavailable = discoveryUnavailable(input, 'Auto-discovery is switched off.');
   if (unavailable) return unavailable;
   const open = openOf(input, 'discovery-breadth-blocked');
-  const blocked =
-    open.length > 0 ||
-    assessDiscoveryHealth(
-      input.snapshots,
-      input.profile.refreshPeriodMs ?? 0,
-      input.nowMs,
-      input.discoveryHealthWindow,
-    ).breadthBlocked;
+  // The refresh period only feeds the staleness verdict, which this rung does
+  // not read: `discovery-running` owns that answer and reports unknown without a
+  // period rather than judging against a stand-in. Destructured to one field so
+  // a later reader cannot pick up a `stale` computed from that stand-in.
+  const { breadthBlocked } = assessDiscoveryHealth(
+    input.snapshots,
+    input.profile.refreshPeriodMs ?? 0,
+    input.nowMs,
+    input.discoveryHealthWindow,
+  );
+  const blocked = open.length > 0 || breadthBlocked;
   if (!blocked) {
     return { status: 'ok', line: 'The market-breadth floor is being cleared.', items: [] };
   }

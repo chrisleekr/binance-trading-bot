@@ -56,6 +56,11 @@ export async function listForProfile(
 /**
  * Publish the ladder's current position. Called after each rung, which is what
  * makes the progress the UI shows the worker's real state.
+ *
+ * Non-terminal rows only. A run that outlives the sweep cutoff is reclaimed as
+ * `error` while its job is still alive; without the guard the next rung writes
+ * `running` back over it, leaving a live-looking row that also carries a
+ * finish time and a failure the operator was already shown.
  */
 export async function patchSteps(
   scope: ProfileScope,
@@ -65,9 +70,20 @@ export async function patchSteps(
   await scope.db
     .update(diagnosisRuns)
     .set({ status: 'running', steps })
-    .where(and(eq(diagnosisRuns.profileId, scope.profileId), eq(diagnosisRuns.id, runId)));
+    .where(
+      and(
+        eq(diagnosisRuns.profileId, scope.profileId),
+        eq(diagnosisRuns.id, runId),
+        inArray(diagnosisRuns.status, ['queued', 'running']),
+      ),
+    );
 }
 
+/**
+ * Record the finished report. Clears `error` because a run reclaimed by the
+ * sweep and then completed anyway is a success, and the drawer renders that
+ * string verbatim next to the result.
+ */
 export async function finish(
   scope: ProfileScope,
   runId: string,
@@ -76,7 +92,7 @@ export async function finish(
 ): Promise<void> {
   await scope.db
     .update(diagnosisRuns)
-    .set({ status: 'done', steps: report.steps, report, finishedAt: now })
+    .set({ status: 'done', steps: report.steps, report, error: null, finishedAt: now })
     .where(and(eq(diagnosisRuns.profileId, scope.profileId), eq(diagnosisRuns.id, runId)));
 }
 

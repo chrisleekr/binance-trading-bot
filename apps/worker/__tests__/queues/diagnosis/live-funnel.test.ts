@@ -132,7 +132,12 @@ describe('probeLiveFunnel', () => {
       getKlines,
     });
 
-    expect(await probeLiveFunnel(deps, stored, 'USDT')).not.toBeNull();
+    const funnel = await probeLiveFunnel(deps, stored, 'USDT');
+    expect(funnel).not.toBeNull();
+    // Only the symbol that got a window counts as probed. The other one is
+    // scored as failing the age cut for want of data, and counting it here
+    // would render a Binance outage as a filter the operator should loosen.
+    expect(funnel?.probed).toBe(1);
   });
 
   it('returns null rather than throwing when the ticker fetch fails', async () => {

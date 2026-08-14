@@ -72,6 +72,30 @@ describe('buildTimeline', () => {
     expect(t.clipped).toBe(true);
   });
 
+  it('does not mark spans clipped when the log has no edges to be older than', () => {
+    // An empty log has no horizon. Treating the report time as one makes every
+    // span older than "now" clipped, and the legend then blames a log entry that
+    // does not exist for cutting them off.
+    const t = buildTimeline(
+      report({
+        timeline: [],
+        items: [
+          item({
+            condition: 'entry-blocked',
+            code: 'knife-guard',
+            symbols: [{ symbol: 'BTCUSDT', sinceMs: NOW - 30 * DAY }],
+            sinceMs: NOW - 30 * DAY,
+          }),
+        ],
+      }),
+    );
+
+    const span = t.lanes.find((l) => l.symbol === 'BTCUSDT')?.spans[0];
+    expect(span?.startMs).toBe(NOW - 30 * DAY);
+    expect(span?.clipped).toBe(false);
+    expect(t.clipped).toBe(false);
+  });
+
   it('prefers the condition start over the edge that appeared to open it', () => {
     const t = buildTimeline(
       report({

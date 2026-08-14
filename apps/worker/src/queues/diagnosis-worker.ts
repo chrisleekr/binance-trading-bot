@@ -112,8 +112,15 @@ export function registerDiagnosisWorker(queueSet: QueueSet, deps: DiagnosisWorke
     const nowMs = deps.nowMs();
     const endedAt = (): Date => new Date(deps.nowMs());
     const results = new Map<DiagnosisStepId, DiagnosisStepResult>();
+    // Progress is presentational; the terminal `finish` write is the result. A
+    // transient failure here must cost live detail, not the rungs already
+    // resolved, so it is logged and swallowed rather than failing the run.
     const publish = (running: DiagnosisStepId | null): Promise<void> =>
-      p.diagnosisRuns.patchSteps(runId, renderSteps(results, running));
+      p.diagnosisRuns
+        .patchSteps(runId, renderSteps(results, running))
+        .catch((err: unknown) =>
+          deps.logger.warn({ err, runId }, 'diagnosis: progress write failed; continuing'),
+        );
 
     const mode = await dbRepo.accounts.binanceModeById(deps.db, accountId);
     if (mode === null) {

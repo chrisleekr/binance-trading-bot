@@ -42,4 +42,24 @@ describe('attributeBlocker(code, attributionMap, config)', () => {
     expect(attr?.path).toBeNull();
     expect(attr?.detail).toMatch(/reads the market/);
   });
+
+  it('picks a numeric path that is set over an earlier one left at zero', () => {
+    // Several gates are declared as plain numbers rather than decimal strings.
+    // Skipping them sends the operator to the first path in the list, which is
+    // the one knob they demonstrably did not touch.
+    const map: ReasonAttributionMap = {
+      band: { setting: 'Gainers band', paths: ['minPercent', 'rankTopPercent'] },
+    };
+    const attr = attributeBlocker('band', map, { minPercent: '0', rankTopPercent: 30 });
+    expect(attr?.path).toBe('rankTopPercent');
+    expect(attr?.value).toBe('30');
+  });
+
+  it('falls back to the first path when every numeric path is zero', () => {
+    const map: ReasonAttributionMap = {
+      band: { setting: 'Gainers band', paths: ['minPercent', 'rankTopPercent'] },
+    };
+    const attr = attributeBlocker('band', map, { minPercent: '0', rankTopPercent: 0 });
+    expect(attr?.path).toBe('minPercent');
+  });
 });

@@ -65,8 +65,12 @@ export const buildTimeline = (report: ProfileDiagnosis): Timeline => {
   const endMs = report.asOfMs;
 
   // The oldest edge is the log's own horizon: nothing before it survives, so a
-  // span reaching past it is clipped rather than shortened.
-  const horizonMs = edges[0]?.atMs ?? endMs;
+  // span reaching past it is clipped rather than shortened. With no edges there
+  // is no horizon to be older than, and marking spans clipped against a
+  // stand-in would tell the operator they were cut off by a log that is empty.
+  const horizonMs = edges[0]?.atMs ?? null;
+  const clippedAt = (ms: number): boolean => horizonMs !== null && ms < horizonMs;
+  const chartStartMs = horizonMs ?? endMs;
 
   const done: (TimelineSpan & { symbol: string | null })[] = [];
   const live = new Map<string, OpenSpan>();
@@ -83,7 +87,7 @@ export const buildTimeline = (report: ProfileDiagnosis): Timeline => {
         condition: e.condition,
         symbol: e.symbol,
         code: e.previousCode,
-        startMs: horizonMs,
+        startMs: chartStartMs,
         endMs: e.atMs,
         open: false,
         clipped: true,
@@ -123,17 +127,17 @@ export const buildTimeline = (report: ProfileDiagnosis): Timeline => {
           symbol,
           code: item.code,
           startMs: sinceMs,
-          clipped: sinceMs < horizonMs,
+          clipped: clippedAt(sinceMs),
         });
       } else if (sinceMs < current.startMs) {
-        live.set(key, { ...current, startMs: sinceMs, clipped: sinceMs < horizonMs });
+        live.set(key, { ...current, startMs: sinceMs, clipped: clippedAt(sinceMs) });
       }
     }
   }
 
   for (const s of live.values()) done.push({ ...s, endMs, open: true });
 
-  const startMs = Math.min(horizonMs, ...done.map((s) => s.startMs), endMs);
+  const startMs = Math.min(chartStartMs, ...done.map((s) => s.startMs), endMs);
 
   const lanes = new Map<string, TimelineLane>();
   for (const s of done) {

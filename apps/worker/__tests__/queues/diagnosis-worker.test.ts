@@ -284,21 +284,31 @@ describe('diagnosis worker', () => {
     expect(gatherMocks.gatherDiagnosisInput).not.toHaveBeenCalled();
   });
 
+  it('keeps walking the ladder when a progress write fails', async () => {
+    // Progress is presentational and the rungs are held in memory until `finish`
+    // writes them. Failing the run over a lost UPDATE would throw away an
+    // investigation that had already answered every question it was asked.
+    repoMocks.patchSteps.mockRejectedValueOnce(new Error('db gone'));
+
+    await expect(harness()()).resolves.toBeUndefined();
+    expect(repoMocks.finish).toHaveBeenCalledOnce();
+    expect(repoMocks.fail).not.toHaveBeenCalled();
+  });
+
   // The queue runs with `attempts: 1`, so a run left `running` is left there
   // forever: there is no retry coming to write a terminal status. The row has to
   // be marked on the way out, and the throw still has to reach the DLQ.
-  it('marks the run errored and rethrows when a progress write fails', async () => {
-    repoMocks.patchSteps.mockRejectedValueOnce(new Error('db gone'));
+  it('marks the run errored and rethrows when the terminal write fails', async () => {
+    repoMocks.finish.mockRejectedValueOnce(new Error('db gone'));
 
     await expect(harness()()).rejects.toThrow('db gone');
     expect(repoMocks.fail).toHaveBeenCalledOnce();
-    expect(repoMocks.finish).not.toHaveBeenCalled();
   });
 
   it('still surfaces the original failure when the error write itself fails', async () => {
     // Losing the row write is bad; swallowing the cause behind it is worse,
     // because the DLQ entry is then the only remaining record of what broke.
-    repoMocks.patchSteps.mockRejectedValueOnce(new Error('db gone'));
+    repoMocks.finish.mockRejectedValueOnce(new Error('db gone'));
     repoMocks.fail.mockRejectedValueOnce(new Error('also gone'));
 
     await expect(harness()()).rejects.toThrow('db gone');

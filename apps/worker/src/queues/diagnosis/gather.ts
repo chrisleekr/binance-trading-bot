@@ -33,7 +33,12 @@ type ScopedRepo = Awaited<ReturnType<typeof profileRepo>>;
 // The heartbeat the worker writes; the api's health route reads the same bytes.
 const WORKER_STATUS_KEY = 'worker:status';
 
-/** Newest scans to read. Matches the health monitor's window so both agree. */
+/**
+ * Newest scans to read. Wider than `DISCOVERY_HEALTH_WINDOW`, which is the span
+ * the breadth verdict is judged over: the history strip wants enough points to
+ * separate a chronic choke from an unlucky scan, and the verdict still reads
+ * only its own window off the front of this list.
+ */
 const SNAPSHOT_LIMIT = 40;
 
 /** Condition edges to read for the timeline. Bounded — this is a tail, not an export. */
@@ -78,8 +83,10 @@ const readHalts = async (deps: DiagnosisGatherDeps): Promise<ProfileDiagnosisInp
     // day. Reporting a guessed start would be worse than reporting none.
     return halted ? [{ label: "Today's loss limit was hit", sinceMs: null }] : [];
   } catch (err) {
-    // Omitted, not reported un-halted: this surface must not claim a breaker is
-    // clear when it could not read it.
+    // Renders as "no halt", which is the one answer this cannot prove. Accepted
+    // because the heartbeat read above shares this Redis: a failure here means
+    // that one failed too, so `worker-alive` already owns the headline and the
+    // operator is not shown a confident all-clear.
     deps.logger.warn({ err }, 'diagnosis: halt flag read failed');
     return [];
   }
