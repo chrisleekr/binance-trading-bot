@@ -40,7 +40,7 @@ const envMaxFor = (kind: PoolKind): number | null => {
   const parsed = /^\d+$/.test(trimmed) ? Number(trimmed) : Number.NaN;
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
     throw new Error(
-      `Invalid pool size for ${kind} pool (env value "${raw}"): expected a positive integer`,
+      `Invalid pool size for ${kind} pool (env value "${raw}"): expected a positive integer within the safe range`,
     );
   }
   return parsed;
