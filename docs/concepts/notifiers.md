@@ -26,7 +26,7 @@ Each profile has its own set of alert categories. Every category defaults to **o
 | `alive` | info | The recurring balance/holdings digest. |
 | `backtest-complete` | info | A backtest you started finishes, with its headline result (trades, profit factor, alpha vs buy-and-hold). |
 | `order-filled` | info | One of the profile's orders fills, with side, quantity, and average price. **Off by default** — an active grid fills several times a day, so this is opt-in. |
-| `order-failed` | error | The bot tried to place or cancel an order and the exchange refused it. Often the protective stop-loss, so the position may be unguarded. Repeats for the same symbol are collapsed into one alert per 15-minute window. |
+| `order-failed` | error | The bot tried to place or cancel an order and the exchange refused it. Often the protective stop-loss, so the position may be unguarded. Repeats for the same symbol are collapsed into one alert per 15-minute window. A protective stop the bot declines to send because it would fall outside Binance's price band does not reach the exchange, so it raises no alert; watch the symbol's blocker instead. |
 | `override-unresolved` | error | A manual action you triggered hit a network or exchange fault and the bot cannot tell whether it went through. Check the exchange before re-issuing it. |
 
 The first two are capital-safety alerts — keep them on unless you have another monitor (`edge-decay-warning` is advisory: it never pauses buys, it just warns you).

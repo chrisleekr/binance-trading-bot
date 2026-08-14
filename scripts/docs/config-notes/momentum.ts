@@ -76,7 +76,7 @@ export const momentumNotes: FieldNotes = {
   'protectiveStop.limitOffsetPercentage': {
     when: 'Only when the protective stop is on. Lower it (further below the trigger) on thin, volatile coins where a stop can gap through a tight limit.',
     expect:
-      'When the stop triggers, the limit is placed this fraction of the trigger price. At `0.98` the limit sits 2% below the trigger — wide enough to fill in most conditions. Too tight and the stop triggers but never fills, leaving you holding.',
+      "When the stop triggers, the limit is placed this fraction of the trigger price. At `0.98` the limit sits 2% below the trigger — wide enough to fill in most conditions. Too tight and the stop triggers but never fills, leaving you holding. There is also a hard floor on how far you can lower it: at or below the symbol's Binance `askMultiplierDown` the stop cannot be placed at all, and the symbol reports a terminal blocker until you raise it.",
   },
   'protectiveStop.minRearmDriftPct': {
     when: 'Only when the protective stop is on. Raise it if you are hitting Binance order limits, or if the resting stop is being rewritten constantly in a market that is grinding one way.',
