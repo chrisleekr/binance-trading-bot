@@ -526,12 +526,21 @@ const evaluateExit = (
             }),
           ]
         : [
-            // An open position with no protective stop is not a debug detail.
-            log('warn', 'momentum: protective stop not armed', {
-              symbol: market.symbol,
-              reason: arm.blocker.reason,
-              ...arm.blocker.detail,
-            }),
+            // An open position with no protective stop is not a debug detail. One
+            // still covered by the previous level is a different, quieter fact:
+            // logging it at warn every tick, for as long as a winning trail sits
+            // outside the band, is how the real warning gets skimmed past.
+            arm.blocker.detail['guarded'] === true
+              ? log('info', 'momentum: protective stop held at its previous level', {
+                  symbol: market.symbol,
+                  reason: arm.blocker.reason,
+                  ...arm.blocker.detail,
+                })
+              : log('warn', 'momentum: protective stop not armed', {
+                  symbol: market.symbol,
+                  reason: arm.blocker.reason,
+                  ...arm.blocker.detail,
+                }),
           ],
     // The refusal is a SKIP with a reason, like every entry suppression: that is
     // what makes it queryable and what gives the attribution gloss a consumer.

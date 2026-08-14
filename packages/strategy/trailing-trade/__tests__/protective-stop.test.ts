@@ -7,12 +7,13 @@
 
 import { describe, expect, it } from 'vitest';
 import { Decimal } from '@app/money';
-import type { Decision, OpenOrder, TickInput } from '@app/strategy-core';
+import type { Decision, OpenOrder, PercentPriceBySideFilter, TickInput } from '@app/strategy-core';
 
 import {
   trailingTrade,
   TTConfigSchema,
   TTBundleSchema,
+  TTStateSchema,
   type TTState,
   type TTBundle,
   type TTConfig,
@@ -45,6 +46,7 @@ interface BuildOpts {
   readonly openOrders?: readonly OpenOrder[];
   readonly tickSize?: string;
   readonly stepSize?: string;
+  readonly percentPriceBySide?: PercentPriceBySideFilter;
   // Sell-side trigger / technicals / regime knobs needed to drive each closing
   // path to its terminal MARKET sell in the ordering tests below.
   readonly technicals?: TechnicalsConfig;
@@ -146,6 +148,7 @@ const buildInput = (o: BuildOpts = {}): TickInput<TTConfig, TTState, TTBundle> =
           maxQty: '9000',
           minPrice: '0.01',
           maxPrice: '1000000',
+          ...(o.percentPriceBySide ? { percentPriceBySide: o.percentPriceBySide } : {}),
         },
       },
     },
@@ -987,5 +990,58 @@ describe('closing-sell ordering — cancel precedes the MARKET sell', () => {
     // A BUY adds exposure; the stop stays correctly in place ⇒ no cancel.
     expect(out.decisions.some(isCancel)).toBe(false);
     expect(out.decisions.some((d) => isPlace(d) && d.intent.side === 'BUY')).toBe(true);
+  });
+});
+
+describe('protective stop — outside Binance’s PERCENT_PRICE_BY_SIDE band', () => {
+  const BAND: PercentPriceBySideFilter = {
+    bidMultiplierUp: '1.1',
+    bidMultiplierDown: '0.5',
+    askMultiplierUp: '2',
+    askMultiplierDown: '0.95',
+    avgPriceMins: 5,
+  };
+
+  it('emits neither the place nor the cancel and records the refusal', () => {
+    // stop 96.00 / limit 95.52 against a floor of 105 × 0.95 = 99.75.
+    const out = trailingTrade.tick(
+      buildInput({
+        percentPriceBySide: BAND,
+        openOrders: [restingProtectiveStop({ stopPrice: '80.00' })],
+      }),
+    );
+    expect(out.decisions.some(isCancel)).toBe(false);
+    expect(out.decisions.some((d) => isPlace(d) && d.intent.reason === 'protective-stop')).toBe(
+      false,
+    );
+    expect(blockerOf(out.nextState)).toMatchObject({
+      reason: 'price-outside-exchange-band',
+      detail: { stopPrice: '96.00', price: '95.52', floor: '99.75', terminal: false },
+    });
+  });
+
+  it('round-trips the new blocker through the persisted-state schema', () => {
+    // The blocker is written to `symbol_states` and re-parsed on the next tick's
+    // load: a reason the schema does not know reads back as a corrupt row.
+    const blocked = trailingTrade.tick(
+      buildInput({
+        percentPriceBySide: BAND,
+        openOrders: [restingProtectiveStop({ stopPrice: '80.00' })],
+      }),
+    ).nextState;
+
+    const reloaded = TTStateSchema.parse(JSON.parse(JSON.stringify(blocked)));
+
+    expect(reloaded.protectiveStopBlocker?.reason).toBe('price-outside-exchange-band');
+  });
+
+  it('arms unchanged on a symbol Binance publishes no band for', () => {
+    const out = trailingTrade.tick(
+      buildInput({ openOrders: [restingProtectiveStop({ stopPrice: '80.00' })] }),
+    );
+    expect(blockerOf(out.nextState)).toBeNull();
+    expect(out.decisions.some((d) => isPlace(d) && d.intent.reason === 'protective-stop')).toBe(
+      true,
+    );
   });
 });

@@ -6,6 +6,7 @@ export type {
   Clock,
   RNG,
   Candle,
+  PercentPriceBySideFilter,
   SymbolFilters,
   SymbolInfo,
   ApiLimits,
@@ -86,12 +87,14 @@ export type { SizeFilters } from './sizing.js';
 export { log, metric } from './emit.js';
 export { resolveCandleWindow } from './window.js';
 export {
+  PROTECTIVE_STOP_BLOCKER_REASONS,
   armableBaseQuantity,
   classifyProtectiveStopRefusal,
   evaluateProtectiveStopArm,
   findForeignRestingSell,
   findRestingProtectiveStop,
   ownRestingSellBase,
+  percentPriceBySideRefusal,
   protectiveStopNeedsRearm,
 } from './protective-stop.js';
 export type {

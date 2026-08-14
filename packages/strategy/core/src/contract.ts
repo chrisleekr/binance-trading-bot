@@ -32,6 +32,22 @@ export interface Candle {
   readonly isClosed: boolean;
 }
 
+/**
+ * Binance's `PERCENT_PRICE_BY_SIDE` band. An order is refused -1013 unless a BUY
+ * prices inside `[ref × bidMultiplierDown, ref × bidMultiplierUp]` or a SELL
+ * inside `[ref × askMultiplierDown, ref × askMultiplierUp]`, where `ref` is the
+ * average price over the last `avgPriceMins` minutes (0 = last trade price).
+ * Multipliers are decimal-strings; `avgPriceMins` is a plain minute count, not
+ * money.
+ */
+export interface PercentPriceBySideFilter {
+  readonly bidMultiplierUp: string;
+  readonly bidMultiplierDown: string;
+  readonly askMultiplierUp: string;
+  readonly askMultiplierDown: string;
+  readonly avgPriceMins: number;
+}
+
 export interface SymbolFilters {
   readonly minNotional: string;
   readonly tickSize: string;
@@ -40,6 +56,19 @@ export interface SymbolFilters {
   readonly maxQty: string;
   readonly minPrice: string;
   readonly maxPrice: string;
+  /**
+   * Binance's per-side price band for this symbol. Optional because Binance does
+   * not publish the row on every symbol, the cached entries written before the
+   * field existed are parsed with an unvalidated cast, and there is no
+   * migration: a reader MUST treat absence as "band unknown" and impose no
+   * constraint, never as "no order is placeable".
+   *
+   * Explicitly `| undefined` because the producer is a zod projection in
+   * `@app/contracts`, whose optional key infers as `T | undefined`; under
+   * `exactOptionalPropertyTypes` a bare `?: T` would reject it. Absent and
+   * explicitly-undefined carry the same meaning here, so both are accepted.
+   */
+  readonly percentPriceBySide?: PercentPriceBySideFilter | undefined;
 }
 
 export interface SymbolInfo {

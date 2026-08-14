@@ -117,10 +117,34 @@ const FilterDecimalString = z
   .regex(/^(0|[1-9][0-9]*)(\.[0-9]+)?$/, 'filter value must be a positive decimal-string');
 
 /**
+ * Binance's `PERCENT_PRICE_BY_SIDE` band: the multipliers that bound how far an
+ * order's price may sit from a reference price, per side. Binance refuses a BUY
+ * outside `[ref × bidMultiplierDown, ref × bidMultiplierUp]` and a SELL outside
+ * `[ref × askMultiplierDown, ref × askMultiplierUp]` with -1013, so a resting
+ * protective stop priced under the ask floor can never be placed however often
+ * it is retried. `avgPriceMins` is the averaging window Binance derives the
+ * reference over (0 = last trade price), carried so a refusal can name it.
+ */
+export const PercentPriceBySide = z.object({
+  bidMultiplierUp: FilterDecimalString,
+  bidMultiplierDown: FilterDecimalString,
+  askMultiplierUp: FilterDecimalString,
+  askMultiplierDown: FilterDecimalString,
+  avgPriceMins: z.number().int().nonnegative(),
+});
+/** TS type derived from {@link PercentPriceBySide} so consumers don't re-run z.infer at every call site. */
+export type PercentPriceBySide = z.infer<typeof PercentPriceBySide>;
+
+/**
  * The seven Binance filter thresholds a strategy needs to size and price an
  * order, mirroring `SymbolFilters` in `@app/strategy-core`. Each value is a
  * decimal-string (trailing zeros preserved) so a consumer can read tick/step
  * precision straight off the string.
+ *
+ * `percentPriceBySide` is OPTIONAL and parsed independently of those seven:
+ * absence means the band is UNKNOWN, never "no band", so a consumer reading it
+ * fails open. Binance does not publish the row on every symbol, cached entries
+ * written before the field existed omit it, and there is no migration.
  */
 export const SymbolFilters = z.object({
   minNotional: FilterDecimalString,
@@ -130,6 +154,7 @@ export const SymbolFilters = z.object({
   maxQty: FilterDecimalString,
   minPrice: FilterDecimalString,
   maxPrice: FilterDecimalString,
+  percentPriceBySide: PercentPriceBySide.optional(),
 });
 /** TS type derived from {@link SymbolFilters} so consumers don't re-run z.infer at every call site. */
 export type SymbolFilters = z.infer<typeof SymbolFilters>;
@@ -145,6 +170,11 @@ interface RawSymbolFilter {
   readonly maxQty?: string;
   readonly stepSize?: string;
   readonly minNotional?: string;
+  readonly bidMultiplierUp?: string;
+  readonly bidMultiplierDown?: string;
+  readonly askMultiplierUp?: string;
+  readonly askMultiplierDown?: string;
+  readonly avgPriceMins?: number;
 }
 
 /**
@@ -155,6 +185,14 @@ interface RawSymbolFilter {
  * trailing zeros survive. Returns `null` when a required filter group is absent
  * or any value is not a positive decimal-string, so a partial upstream row can
  * never produce a half-populated filter set.
+ *
+ * `PERCENT_PRICE_BY_SIDE` is parsed SEPARATELY and spread in only on success,
+ * because the two carry opposite failure meanings. A missing sizing threshold
+ * must void the whole set (a half-populated one sizes a bad order), whereas a
+ * missing or garbled band must degrade to "unknown" and leave the seven intact:
+ * folding it into the same all-or-nothing parse would turn every symbol Binance
+ * publishes no band for into a null filter set, which is a far larger outage
+ * than the band it was meant to add.
  */
 export const projectSymbolFilters = (
   filters: readonly RawSymbolFilter[] | undefined,
@@ -173,7 +211,13 @@ export const projectSymbolFilters = (
     minPrice: price?.minPrice,
     maxPrice: price?.maxPrice,
   });
-  return parsed.success ? parsed.data : null;
+  if (!parsed.success) return null;
+  // Only the by-side band is projected. Binance still documents a legacy
+  // `PERCENT_PRICE` filter carrying the same -1013, but no listed spot symbol
+  // publishes it (all 3641 carry `PERCENT_PRICE_BY_SIDE` instead), so mapping it
+  // would be dead code guarding a case that cannot arrive.
+  const band = PercentPriceBySide.safeParse(find('PERCENT_PRICE_BY_SIDE'));
+  return band.success ? { ...parsed.data, percentPriceBySide: band.data } : parsed.data;
 };
 
 /**

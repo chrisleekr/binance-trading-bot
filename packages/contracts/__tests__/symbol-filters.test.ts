@@ -60,6 +60,53 @@ describe('projectSymbolFilters', () => {
   });
 });
 
+describe('projectSymbolFilters — PERCENT_PRICE_BY_SIDE', () => {
+  const notional = { filterType: 'NOTIONAL', minNotional: '10' };
+  const band = {
+    filterType: 'PERCENT_PRICE_BY_SIDE',
+    bidMultiplierUp: '1.1',
+    bidMultiplierDown: '0.5',
+    askMultiplierUp: '2',
+    askMultiplierDown: '0.9',
+    avgPriceMins: 5,
+  };
+
+  it('carries the multipliers and the averaging window through verbatim', () => {
+    expect(projectSymbolFilters([price, lot, notional, band])?.percentPriceBySide).toEqual({
+      bidMultiplierUp: '1.1',
+      bidMultiplierDown: '0.5',
+      askMultiplierUp: '2',
+      askMultiplierDown: '0.9',
+      avgPriceMins: 5,
+    });
+  });
+
+  it('omits the key when Binance publishes no band, leaving the seven intact', () => {
+    const projected = projectSymbolFilters([price, lot, notional]);
+    expect(projected).not.toBeNull();
+    expect(projected).not.toHaveProperty('percentPriceBySide');
+    expect(projected?.tickSize).toBe('0.01');
+  });
+
+  it('degrades a garbled band to "unknown" rather than voiding the whole set', () => {
+    // A band that failed the same all-or-nothing parse as the seven sizing
+    // thresholds would take every symbol's filters down with it, which is a far
+    // worse outage than the band it was meant to add.
+    const garbled = { ...band, askMultiplierDown: 'abc' };
+    const projected = projectSymbolFilters([price, lot, notional, garbled]);
+    expect(projected).not.toBeNull();
+    expect(projected).not.toHaveProperty('percentPriceBySide');
+    expect(projected?.minNotional).toBe('10');
+  });
+
+  it('degrades a band missing avgPriceMins the same way', () => {
+    const { avgPriceMins: _dropped, ...partial } = band;
+    const projected = projectSymbolFilters([price, lot, notional, partial]);
+    expect(projected).not.toBeNull();
+    expect(projected).not.toHaveProperty('percentPriceBySide');
+  });
+});
+
 describe('ProfileSymbolResponse save diagnostics', () => {
   const base = { symbol: 'BTCUSDT', overrideConfig: null, source: 'manual' as const };
 
