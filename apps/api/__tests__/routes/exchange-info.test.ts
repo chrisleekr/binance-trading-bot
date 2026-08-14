@@ -159,6 +159,56 @@ describe('loadOrFetchExchangeInfo', () => {
     });
   });
 
+  it('C10: keeps the tick readable when another required filter is present but invalid', async () => {
+    // Both projections read the SAME rows, and they answer differently on
+    // purpose: the tick extractor needs only PRICE_FILTER, while the sizing set
+    // is all-or-nothing. Feeding one payload to both is the only way to pin
+    // that divergence — separate fixtures would let a future all-or-nothing
+    // rewrite of the tick path pass while blanking every chart axis whose
+    // symbol publishes one garbled sizing row.
+    const fixture = makeStore();
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      okResponse({
+        timezone: 'UTC',
+        serverTime: 0,
+        symbols: [
+          {
+            symbol: 'GARBLEDUSDT',
+            baseAsset: 'GARBLED',
+            quoteAsset: 'USDT',
+            status: 'TRADING',
+            filters: [
+              {
+                filterType: 'PRICE_FILTER',
+                minPrice: '0.01000000',
+                maxPrice: '1000000.00000000',
+                tickSize: '0.01000000',
+              },
+              // Present, not absent: scientific notation is outside the
+              // decimal-string form, so the whole sizing set must void.
+              {
+                filterType: 'LOT_SIZE',
+                minQty: '1e-4',
+                maxQty: '9000.00000000',
+                stepSize: '1e-4',
+              },
+              { filterType: 'NOTIONAL', minNotional: '10.00000000' },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const body = await loadOrFetchExchangeInfo(
+      fixture.store,
+      'live',
+      fetchImpl as unknown as typeof fetch,
+    );
+
+    expect(body.symbols[0]?.filterTickSize).toBe('0.01000000');
+    expect(body.symbols[0]?.filters).toBeNull();
+  });
+
   it('treats an empty tickSize string as missing PRICE_FILTER', async () => {
     const fixture = makeStore();
     const fetchImpl = vi.fn().mockResolvedValueOnce(

@@ -201,8 +201,32 @@ export const createSymbolNotPermittedThrottle = (
   });
 
 /**
+ * Suppression window for the `protective-stop-blocked` alert. Nothing is placed
+ * and nothing is refused here, so none of the prefixes above are ever touched:
+ * the stop is DEFERRED because the exchange band cannot admit its price. The
+ * band is re-evaluated every tick and refuses identically, which is the same
+ * repeat shape the windows above exist for. Keyed
+ * `(profile, symbol, escalation)`, so the "no price ever arms this" alert is
+ * never muted by the "the price has to come back" one.
+ */
+export const DEFAULT_PROTECTIVE_STOP_BLOCKED_WINDOW_MS = 3_600_000;
+
+export const PROTECTIVE_STOP_BLOCKED_KEY_PREFIX = 'protective-stop-blocked-throttle:';
+
+export const createProtectiveStopBlockedThrottle = (
+  deps: NotifierGapThrottleDeps,
+): NotifierGapThrottle =>
+  createRedisWindowThrottle({
+    redis: deps.redis,
+    logger: deps.logger,
+    prefix: PROTECTIVE_STOP_BLOCKED_KEY_PREFIX,
+    windowMs: deps.windowMs ?? DEFAULT_PROTECTIVE_STOP_BLOCKED_WINDOW_MS,
+    ...(deps.setTimeoutMs === undefined ? {} : { setTimeoutMs: deps.setTimeoutMs }),
+  });
+
+/**
  * The two tick-boundary self-heal records. Named here, beside the executor's
- * prefixes, because that adjacency is what makes a collision visible: these four
+ * prefixes, because that adjacency is what makes a collision visible: these
  * windows are all keyed `(profile, symbol)`, so two sharing a prefix would share
  * one Redis key and whichever fired first would mute the other for an hour.
  *

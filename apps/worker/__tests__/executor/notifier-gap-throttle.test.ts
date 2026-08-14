@@ -5,16 +5,20 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createNotifierGapThrottle,
   createOrderFailedThrottle,
+  createProtectiveStopBlockedThrottle,
   DEFAULT_NOTIFIER_GAP_WINDOW_MS,
   createSymbolNotPermittedThrottle,
   DEFAULT_ORDER_FAILED_WINDOW_MS,
+  DEFAULT_PROTECTIVE_STOP_BLOCKED_WINDOW_MS,
   DEFAULT_SYMBOL_NOT_PERMITTED_WINDOW_MS,
   ORDER_FAILED_KEY_PREFIX,
   ORDER_UNFUNDABLE_KEY_PREFIX,
-  SYMBOL_DELISTED_KEY_PREFIX,
+  PROTECTIVE_STOP_BLOCKED_KEY_PREFIX,
   SYMBOL_NOT_PERMITTED_KEY_PREFIX,
-  SYMBOL_NOT_PERMITTED_RETIRE_KEY_PREFIX,
 } from '../../src/executor/notifier-gap-throttle.js';
+import * as throttles from '../../src/executor/notifier-gap-throttle.js';
+import * as reconcileEnqueue from '../../src/executor/reconcile-enqueue.js';
+import * as discoveryHealth from '../../src/crons/discovery-health.cron.js';
 
 const fakeLogger = () => ({ warn: vi.fn() }) as unknown as Logger;
 
@@ -185,19 +189,66 @@ describe('createSymbolNotPermittedThrottle', () => {
   });
 });
 
+describe('createProtectiveStopBlockedThrottle', () => {
+  // C6. An unplaceable protective stop is now DEFERRED rather than attempted, so
+  // it raises no placement refusal and reaches none of the prefixes above. It
+  // repeats on exactly the same cadence though — the band is re-evaluated every
+  // tick and refuses the same way — so it needs the same suppression window on a
+  // namespace of its own.
+  it('C6: raises under its own key namespace, so no other alert cause can mute it', async () => {
+    const set = vi.fn<Redis['set']>().mockResolvedValue('OK');
+    const redis = { set } as unknown as Redis;
+    const t = createProtectiveStopBlockedThrottle({ redis, logger: fakeLogger() });
+
+    expect(await t.allow('p-1:LINKUSDT:terminal')).toBe(true);
+
+    expect(set).toHaveBeenCalledWith(
+      `${PROTECTIVE_STOP_BLOCKED_KEY_PREFIX}p-1:LINKUSDT:terminal`,
+      '1',
+      'PX',
+      DEFAULT_PROTECTIVE_STOP_BLOCKED_WINDOW_MS,
+      'NX',
+    );
+    expect(PROTECTIVE_STOP_BLOCKED_KEY_PREFIX).toBe('protective-stop-blocked-throttle:');
+  });
+
+  it('C6: a persistent refusal cannot suppress the terminal one on the same coin', async () => {
+    // Same split as the order-failed retry/final levels. The persistent alert says
+    // "the price has to come back"; the terminal one says "no price ever arms this
+    // stop, widen the offset". Same profile, same symbol, opposite advice.
+    const set = vi.fn<Redis['set']>().mockResolvedValue('OK');
+    const redis = { set } as unknown as Redis;
+    const t = createProtectiveStopBlockedThrottle({ redis, logger: fakeLogger() });
+
+    expect(await t.allow('p-1:LINKUSDT:persistent')).toBe(true);
+    expect(await t.allow('p-1:LINKUSDT:terminal')).toBe(true);
+    expect(set.mock.calls.map((c) => c[0])).toEqual([
+      `${PROTECTIVE_STOP_BLOCKED_KEY_PREFIX}p-1:LINKUSDT:persistent`,
+      `${PROTECTIVE_STOP_BLOCKED_KEY_PREFIX}p-1:LINKUSDT:terminal`,
+    ]);
+  });
+});
+
 describe('per-(profile, symbol) throttle namespaces', () => {
   it('gives every (profile, symbol) window its own prefix', () => {
-    // All four are keyed `${profileId}:${symbol}` on the same 1h window, so a
-    // duplicated prefix is a duplicated Redis key and the second caller is muted
-    // for an hour. Nothing else would catch that: each throttle passes its own
-    // unit tests while silently sharing a key with a sibling.
-    const prefixes = [
-      ORDER_FAILED_KEY_PREFIX,
-      ORDER_UNFUNDABLE_KEY_PREFIX,
-      SYMBOL_NOT_PERMITTED_KEY_PREFIX,
-      SYMBOL_DELISTED_KEY_PREFIX,
-      SYMBOL_NOT_PERMITTED_RETIRE_KEY_PREFIX,
-    ];
+    // Every window here is keyed on `${profileId}:${symbol}`, some with a further
+    // escalation suffix, so a duplicated prefix is a duplicated Redis key and
+    // whichever cause fires first mutes the rest for the whole window. Nothing
+    // else would catch that: each throttle passes its own unit tests while
+    // silently sharing a key with a sibling.
+    //
+    // ENUMERATED from every module that owns one, never hand-listed: a
+    // hand-written set stops covering the moment someone adds a prefix without
+    // editing this test, which is exactly when the guard is needed.
+    //
+    // Matched on the VALUE, not the export name: a prefix named off-convention
+    // would escape a name filter while still colliding in Redis, and the name is
+    // not what shares the keyspace.
+    const prefixes = [throttles, reconcileEnqueue, discoveryHealth]
+      .flatMap((m) => Object.values(m))
+      .filter((v): v is string => typeof v === 'string' && /^[a-z0-9-]+-throttle:$/.test(v));
+    // A walk that finds nothing would pass the set-size assertion vacuously.
+    expect(prefixes.length).toBeGreaterThanOrEqual(8);
     expect(new Set(prefixes).size).toBe(prefixes.length);
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';
 import type { MarketDataPort } from '@app/binance';
@@ -543,20 +543,50 @@ describe('buildTickInput', () => {
         .map((c) => c[0] as { condition: string })
         .filter((c) => c.condition === condition);
 
+    // Three audited fields now share one writer, so a `mockResolvedValue` set for
+    // one case would answer for the other two and outlive the test that set it.
+    const DEFAULT_RECORD_RESULT = { changed: true as const, previousCode: null, sinceMs: 0 };
+    afterEach(() => {
+      recordSpy.mockReset();
+      recordSpy.mockResolvedValue(DEFAULT_RECORD_RESULT);
+    });
+
     const builtCommit = async (
       stubs: Stubs,
       symbol: string,
       prevState: unknown,
       nextState: unknown,
-    ): Promise<void> => {
+    ) => {
       stubs.loadForTick.mockResolvedValueOnce({ state: prevState, commit: stubs.stateCommit });
       const built = await buildTickInput(
         stubs.deps,
         buildArgs({ profile: makeProfile({ symbol }) }),
       );
       if (built.kind !== 'ready') throw new Error('expected ready');
-      await built.commit(nextState, 5000);
+      return built.commit(nextState, 5000);
     };
+
+    // The refusal a deferred protective stop leaves on state. `terminal`,
+    // `guarded` and `bound` are the three fields that change what the operator
+    // must do; everything else moves with the market on every tick.
+    const bandBlocker = (
+      over: Partial<{ terminal: boolean; guarded: boolean; bound: string; price: string }> = {},
+    ) => ({
+      protectiveStopBlocker: {
+        reason: 'price-outside-exchange-band',
+        detail: {
+          symbol: 'LINKUSDT',
+          stopPrice: '11.5',
+          price: over.price ?? '11.386',
+          reference: '12.7',
+          floor: '11.43',
+          ceiling: '25.4',
+          bound: over.bound ?? 'floor',
+          terminal: over.terminal ?? false,
+          guarded: over.guarded ?? false,
+        },
+      },
+    });
 
     it('records the condition ONCE when the entry-blocker reason changes', async () => {
       recordSpy.mockClear();
@@ -630,7 +660,14 @@ describe('buildTickInput', () => {
             entryBlocker: { reason: 'min-notional' },
           },
         ),
-      ).resolves.toBeUndefined();
+        // `.resolves` is the assertion that matters: the wrapper must not reject
+        // into the tick path. The row it hands back reports the lost write as an
+        // unknown span start rather than a fabricated one.
+      ).resolves.toContainEqual({
+        condition: 'entry-blocked',
+        code: 'min-notional',
+        sinceMs: null,
+      });
       expect(stubs.logger.warn).toHaveBeenCalled();
     });
 
@@ -772,6 +809,133 @@ describe('buildTickInput', () => {
         expect(call).not.toHaveProperty('changeKey');
         expect(call).toMatchObject({ code: 'sell-disabled' });
       }
+    });
+
+    // A protective stop the exchange band refuses is now DEFERRED rather than
+    // placed, so the position can sit unguarded while nothing is attempted, and
+    // nothing fails. No order result, no audit row, no alert: the condition row
+    // is the only durable record that the coin is naked, which is why the
+    // assembler has to audit this field alongside the two entry/exit ones.
+    it('C1: records a protective-stop-blocked condition when the committed state carries the blocker', async () => {
+      recordSpy.mockClear();
+      const stubs = makeStubs();
+      await builtCommit(stubs, 'BANDUSDT', { protectiveStopBlocker: null }, bandBlocker());
+
+      expect(callsFor('protective-stop-blocked')).toHaveLength(1);
+      expect(callsFor('protective-stop-blocked')[0]).toMatchObject({
+        condition: 'protective-stop-blocked',
+        symbol: 'BANDUSDT',
+        code: 'price-outside-exchange-band',
+        detail: { bound: 'floor', guarded: false, terminal: false },
+      });
+    });
+
+    it('C1: clears the protective-stop-blocked condition when the blocker is gone', async () => {
+      recordSpy.mockClear();
+      const stubs = makeStubs();
+      await builtCommit(stubs, 'CLEARBANDUSDT', bandBlocker(), { protectiveStopBlocker: null });
+
+      expect(callsFor('protective-stop-blocked')).toHaveLength(1);
+      expect(callsFor('protective-stop-blocked')[0]).toMatchObject({
+        condition: 'protective-stop-blocked',
+        symbol: 'CLEARBANDUSDT',
+        code: null,
+      });
+    });
+
+    it('C1: a guarded-to-naked flip moves the changeKey under an unchanged reason', async () => {
+      // Identical reason, opposite consequence: a working stop still covers the
+      // position on the first offer and covers nothing on the second. Keying on
+      // the reason alone would drop the flip as a no-op, leaving `detail` saying
+      // "guarded" for the whole span while the coin sat unprotected.
+      recordSpy.mockClear();
+      const stubs = makeStubs();
+      await builtCommit(
+        stubs,
+        'FLIPUSDT',
+        bandBlocker({ guarded: true }),
+        bandBlocker({ guarded: true }),
+      );
+      await builtCommit(
+        stubs,
+        'FLIPUSDT',
+        bandBlocker({ guarded: true }),
+        bandBlocker({ guarded: false }),
+      );
+
+      const keys = callsFor('protective-stop-blocked').map(
+        (c) => (c as { changeKey?: string }).changeKey,
+      );
+      expect(keys).toHaveLength(2);
+      expect(keys[0]).toBeTypeOf('string');
+      expect(keys[1]).not.toBe(keys[0]);
+    });
+
+    it('C1: holds the changeKey steady while the live price moves under an unchanged guard state', async () => {
+      // The detail carries the live price and the recomputed floor, so keying on
+      // the whole record would open a new span every tick and make "unguarded for
+      // 40 minutes" unanswerable — which is the exact number the alert is gated on.
+      recordSpy.mockClear();
+      const stubs = makeStubs();
+      await builtCommit(
+        stubs,
+        'STEADYBANDUSDT',
+        bandBlocker({ price: '11.386' }),
+        bandBlocker({ price: '11.386' }),
+      );
+      await builtCommit(
+        stubs,
+        'STEADYBANDUSDT',
+        bandBlocker({ price: '11.386' }),
+        bandBlocker({ price: '11.401' }),
+      );
+
+      const keys = callsFor('protective-stop-blocked').map(
+        (c) => (c as { changeKey?: string }).changeKey,
+      );
+      expect(keys).toHaveLength(2);
+      expect(keys[1]).toBe(keys[0]);
+    });
+
+    it('C1: commit reports the conditions it wrote, with the span start each one carries', async () => {
+      // The alert decision needs the span's age, and it must NOT live in here: this
+      // seam swallows its own failures, so a notify hung off it would be dropped by
+      // the same catch that is meant to protect the tick from a lost condition row.
+      recordSpy.mockClear();
+      recordSpy.mockResolvedValue({ changed: true as const, previousCode: null, sinceMs: 8_000 });
+      const stubs = makeStubs();
+      const written = await builtCommit(
+        stubs,
+        'REPORTUSDT',
+        { protectiveStopBlocker: null },
+        bandBlocker(),
+      );
+
+      expect(written).toContainEqual({
+        condition: 'protective-stop-blocked',
+        code: 'price-outside-exchange-band',
+        sinceMs: 8_000,
+      });
+    });
+
+    it('C1: reports a null span start when the condition write was swallowed', async () => {
+      // The write failed, so nothing knows how long the coin has been naked. The
+      // caller has to be told that rather than handed a fabricated age.
+      recordSpy.mockClear();
+      recordSpy.mockRejectedValue(new Error('record boom'));
+      const stubs = makeStubs();
+      const written = await builtCommit(
+        stubs,
+        'SWALLOWBANDUSDT',
+        { protectiveStopBlocker: null },
+        bandBlocker(),
+      );
+
+      expect(written).toContainEqual({
+        condition: 'protective-stop-blocked',
+        code: 'price-outside-exchange-band',
+        sinceMs: null,
+      });
     });
   });
 

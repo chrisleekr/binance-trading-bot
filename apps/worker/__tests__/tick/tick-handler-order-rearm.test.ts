@@ -24,6 +24,22 @@ import { createRegistry, type Decision, type Strategy, type SymbolInfo } from '@
 import { z } from 'zod';
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 
+// The blocker audit resolves its condition writer off the scope. Mock the
+// binding so a test can read exactly which conditions a withheld-commit tick
+// wrote, without a real Postgres.
+const recordSpy = vi.fn(async (_input: { condition: string; code: string | null }) => ({
+  changed: true as const,
+  previousCode: null,
+  sinceMs: 0,
+}));
+vi.mock('@app/db', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@app/db')>();
+  return {
+    ...actual,
+    profileRepoFromScope: () => ({ conditionStates: { recordCondition: recordSpy } }),
+  };
+});
+
 import { createChainByKey } from '../../src/lib/chain-by-key.js';
 import { buildProfileTickMetaKey } from '../../src/executor/redis-namespace.js';
 import { createTickHandler, type TickHandlerDeps } from '../../src/tick/tick-handler.js';
@@ -72,7 +88,7 @@ const STOP: Decision = {
 /** The state the strategy WOULD advance to. Committing it is what buries a failed order. */
 const NEXT_STATE = { schemaVersion: '1.0.0', stopArmed: true };
 
-const buildStubStrategy = (decisions: readonly Decision[]): Strategy =>
+const buildStubStrategy = (decisions: readonly Decision[], nextState: unknown): Strategy =>
   ({
     name: 'stub-rearm',
     version: '1.0.0',
@@ -89,7 +105,7 @@ const buildStubStrategy = (decisions: readonly Decision[]): Strategy =>
     // stub must satisfy the required contract field without constraining shape.
     bundleSchema: z.object({}),
     initialState: () => ({ schemaVersion: '1.0.0' }),
-    tick: () => ({ nextState: NEXT_STATE, decisions, logs: [], metrics: [] }),
+    tick: () => ({ nextState, decisions, logs: [], metrics: [] }),
   }) as unknown as Strategy;
 
 /** The result `applyAll` stamps on a decision behind a broken chain. Nothing was sent. */
@@ -132,10 +148,13 @@ interface RunOpts {
   readonly redisDel?: (key: string) => unknown;
   /** Replaces the tick clock so a test can throw from inside a payload build. */
   readonly clock?: { readonly nowMs: () => number };
+  /** The body the strategy would advance to, for the blocker fields it carries. */
+  readonly nextState?: unknown;
 }
 
 const run = async (opts: RunOpts) => {
   const decisions = opts.decisions ?? [STOP];
+  recordSpy.mockClear();
   const setCalls: unknown[][] = [];
   const delCalls: string[] = [];
   const commit = vi.fn(async () => undefined);
@@ -192,7 +211,7 @@ const run = async (opts: RunOpts) => {
   } as unknown as import('ioredis').Redis;
 
   const registry = createRegistry();
-  registry.register(buildStubStrategy(decisions));
+  registry.register(buildStubStrategy(decisions, opts.nextState ?? NEXT_STATE));
 
   const profile = {
     operatorId: OPERATOR,
@@ -296,6 +315,7 @@ const run = async (opts: RunOpts) => {
     auditPayload,
     warnings,
     result,
+    recordedConditions: recordSpy.mock.calls.map((c) => c[0]),
   };
 };
 
@@ -401,6 +421,61 @@ describe('tick handler — a failed order is re-issued by NOT advancing the stat
       orderResult: { ok: false, retryable: false, phase: 'accepted', reason: 'bookkeeping failed' },
     });
     expect(delCalls).not.toContain(REARM_KEY);
+  });
+});
+
+describe('tick handler — a withheld commit still records OPEN blockers, never a clear', () => {
+  /** Provably never executed: the shape that withholds the commit. */
+  const WITHHELD: OrderFailure = {
+    ok: false,
+    retryable: true,
+    phase: 'pre-call',
+    reason: 'weight-limit-throttle',
+  };
+
+  it('records an open protective-stop blocker even though the body was thrown away', async () => {
+    // The refusal is a fact about the position regardless of whether the body
+    // persisted, and it is what dates the span the persistence alert measures.
+    const { commit, recordedConditions } = await run({
+      orderResult: WITHHELD,
+      nextState: {
+        schemaVersion: '1.0.0',
+        protectiveStopBlocker: {
+          reason: 'price-outside-exchange-band',
+          detail: { bound: 'floor', guarded: false, terminal: true },
+        },
+      },
+    });
+
+    expect(commit).not.toHaveBeenCalled();
+    expect(recordedConditions).toContainEqual(
+      expect.objectContaining({
+        condition: 'protective-stop-blocked',
+        code: 'price-outside-exchange-band',
+      }),
+    );
+  });
+
+  it('records NO clear when the discarded body nulled the blocker — the position is still held', async () => {
+    // REGRESSION. A strategy nulls its blocker fields the moment it emits an
+    // exit, before the SELL is known to have landed. When that SELL is deferred
+    // or rejected the body is discarded, so writing the clear would delete the
+    // condition row and log "protective stop can be placed again" for a coin
+    // that is still held with nothing under it.
+    const { commit, recordedConditions } = await run({
+      orderResult: WITHHELD,
+      nextState: {
+        schemaVersion: '1.0.0',
+        protectiveStopBlocker: null,
+        exitBlocker: null,
+        entryBlocker: null,
+      },
+    });
+
+    expect(commit).not.toHaveBeenCalled();
+    expect(recordedConditions).not.toContainEqual(
+      expect.objectContaining({ condition: 'protective-stop-blocked', code: null }),
+    );
   });
 });
 

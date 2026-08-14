@@ -8,6 +8,7 @@
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
 
+import { humanizeDuration } from '@app/contracts';
 import { GLOBAL_KEYS, profileRepoFromScope, type Database } from '@app/db';
 
 import { strategies as strategiesRegistry } from 'strategies.js';
@@ -33,6 +34,7 @@ import type { QueueSet } from 'queues/queue-set.js';
 import type { BootEnv } from '../boot-env.js';
 import type { MarketData } from './market-data.js';
 import type { StatePersistence } from './state-persistence.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 import type { Notifiers } from './notifiers.js';
 import type { Audit } from './audit.js';
 
@@ -47,10 +49,11 @@ export interface TickHandlerDeps {
   readonly coldLoad: StatePersistence['coldLoad'];
   readonly symbolInfoCache: StatePersistence['symbolInfoCache'];
   readonly statePort: StatePort;
-  readonly metrics: StatePersistence['metrics'];
+  readonly metrics: MetricsSink;
   readonly klineFetcher: MarketData['klineFetcher'];
   readonly notifyEvent: NotifyEvent;
   readonly orderFailedThrottle: Notifiers['orderFailedThrottle'];
+  readonly protectiveStopBlockedThrottle: Notifiers['protectiveStopBlockedThrottle'];
   readonly auditShipper: Audit['auditShipper'];
 }
 
@@ -74,6 +77,7 @@ export const buildTickHandler = ({
   klineFetcher,
   notifyEvent,
   orderFailedThrottle,
+  protectiveStopBlockedThrottle,
   auditShipper,
 }: TickHandlerDeps): TickHandlerSlice => {
   const bundleProvider = createTickBundleProvider({ redis, logger });
@@ -186,6 +190,57 @@ export const buildTickHandler = ({
             value: input.decisionType === 'place-order' ? 'Place order' : 'Cancel order',
           },
           { label: 'Reason', value: input.result.reason },
+        ],
+      });
+    },
+    // Nothing was sent here, so there is no refusal to report: the exchange's
+    // price band would reject the stop, and the strategy defers it rather than
+    // burning every tick on an order it knows will be refused. The position can
+    // therefore sit with nothing under it while every screen looks normal.
+    notifyProtectiveStopBlocked: async (input) => {
+      // The escalation level is part of the key, same split as the order-failed
+      // retry/final levels: "wait for the price to come back" and "no price ever
+      // arms this stop, widen the offset" are different instructions, and the
+      // recoverable one fires first.
+      const allowed = await protectiveStopBlockedThrottle.allow(
+        `${input.profileId}:${input.symbol}:${input.terminal ? 'terminal' : 'persistent'}`,
+      );
+      if (!allowed) return;
+      // Which side of the band was breached decides the whole message. A stop
+      // priced ABOVE the ceiling is fixed by waiting, never by widening the
+      // offset — that pushes it further out — and quoting a floor at that
+      // operator would send them the wrong way. `terminal` is only ever derived
+      // from a floor breach, so the ceiling case is always the recoverable one.
+      const ceiling = input.detail['bound'] === 'ceiling';
+      await notifyEvent({
+        category: 'order-failed',
+        operatorId: input.operatorId,
+        accountId: input.accountId,
+        profileId: input.profileId,
+        symbol: input.symbol,
+        body: ceiling
+          ? 'The bot has been unable to place a protective stop on this position: the stop it wants is priced too HIGH for the range Binance accepts right now. It keeps trying every cycle and will place it once the price catches up — do NOT widen the stop offset, that moves it further out of range. The position is unguarded until then.'
+          : input.terminal
+            ? 'The bot cannot place a protective stop on this position: Binance will not accept a stop this far from the current price, and no price it could pick would be accepted. The position is unguarded until you widen the stop offset or close it by hand.'
+            : 'The bot has been unable to place a protective stop on this position: Binance will not accept a stop this far from the current price. It keeps trying every cycle, but the position is unguarded until the price moves back or you widen the stop offset.',
+        fields: [
+          { label: 'Reason', value: input.reason },
+          ...(typeof input.detail['stopPrice'] === 'string'
+            ? [{ label: 'Wanted stop', value: input.detail['stopPrice'] }]
+            : []),
+          ...(ceiling
+            ? typeof input.detail['ceiling'] === 'string'
+              ? [{ label: 'Highest Binance allows', value: input.detail['ceiling'] }]
+              : []
+            : typeof input.detail['floor'] === 'string'
+              ? [{ label: 'Lowest Binance allows', value: input.detail['floor'] }]
+              : []),
+          // How long this has held is the operator's first question. The span
+          // measures the REFUSAL's age, not the position's exposure, so it reads
+          // "Blocked for".
+          ...(input.sinceMs === null
+            ? []
+            : [{ label: 'Blocked for', value: humanizeDuration(Date.now() - input.sinceMs) }]),
         ],
       });
     },

@@ -40,9 +40,9 @@ export const ProfileNotifyEvents = z.object({
   // Default OFF: the highest-frequency category. An active grid fills several
   // times a day, so a fresh profile stays quiet until the operator opts in.
   'order-filled': z.boolean().default(false),
-  // Default ON: an order the bot could not place (or could not cancel) is the
-  // bot failing to do the one thing it exists to do, and it is usually the
-  // protective stop. The operator must hear about it.
+  // Default ON: an order the bot could not place (or could not cancel, or would
+  // not be allowed to place) is the bot failing to do the one thing it exists to
+  // do, and it is usually the protective stop. The operator must hear about it.
   'order-failed': z.boolean().default(true),
   'override-unresolved': z.boolean().default(true),
 });
@@ -117,7 +117,7 @@ export const PROFILE_NOTIFY_EVENT_CATALOG: readonly NotifyEventMeta[] = [
     category: 'order-failed',
     label: 'Order could not be placed',
     description:
-      'When the bot tried to place or cancel an order and the exchange refused it. Often the protective stop-loss, so the position may be unguarded — worth a look.',
+      'When the exchange refused an order, or would refuse the protective stop-loss the bot wants to place, so it never sent it. Either way the position may be unguarded — worth a look.',
     severity: 'error',
   },
   {

@@ -176,6 +176,29 @@ export interface TickHandlerDeps {
     readonly willRetry: boolean;
   }) => Promise<void>;
   /**
+   * Tells the operator a protective stop could not be placed at all. Distinct
+   * from {@link notifyOrderFailed}: nothing was sent, so there is no failure to
+   * report. The exchange's price band cannot admit the stop, the strategy defers
+   * the re-arm rather than burning retries on a refusal it cannot clear, and the
+   * position may be sitting with nothing under it while every screen looks
+   * normal. `terminal` says whether any price could ever arm it, which is what
+   * splits "wait for the price to come back" from "widen the offset", and what
+   * keeps the two on separate suppression windows. Owns its own repeat
+   * suppression; the tick fires it and does not wait.
+   */
+  readonly notifyProtectiveStopBlocked?: (input: {
+    readonly operatorId: UserId;
+    readonly accountId: AccountId;
+    readonly profileId: ProfileId;
+    readonly symbol: string;
+    readonly reason: string;
+    /** The strategy's own live record: prices, band bounds, and which side was breached. */
+    readonly detail: Readonly<Record<string, unknown>>;
+    readonly terminal: boolean;
+    /** When the block opened, or null when no condition row could date it. */
+    readonly sinceMs: number | null;
+  }) => Promise<void>;
+  /**
    * Reap a (profile, symbol) binding that can never trade again — Binance no
    * longer lists the symbol, or the account holds no permission for it — but
    * ONLY when it is safe to abandon: discovery-owned (`source=auto`) AND flat.

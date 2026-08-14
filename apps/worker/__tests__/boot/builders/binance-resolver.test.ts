@@ -31,16 +31,23 @@ const publishAll = (rows: unknown[]): void => {
   publishedRows.live = rows;
   publishedRows.test = rows;
 };
+// Both refresh closures are built inside the resolver and reachable nowhere
+// else, so the deps they were handed are the only place the metrics forwarding
+// is observable.
+const refreshDeps: Record<string, unknown>[] = [];
 vi.mock('../../../src/crons/exchange-info-refresh.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../src/crons/exchange-info-refresh.js')>()),
-  createExchangeInfoRefresh: (opts?: { mode?: 'live' | 'test' }) => () =>
-    Promise.resolve({
-      fetched: 0,
-      written: 0,
-      skipped: 0,
-      deleted: 0,
-      orderRateLimits: parseOrderRateLimits(publishedRows[opts?.mode ?? 'live']),
-    }),
+  createExchangeInfoRefresh: (deps: { mode?: 'live' | 'test' } & Record<string, unknown>) => {
+    refreshDeps.push(deps);
+    return () =>
+      Promise.resolve({
+        fetched: 0,
+        written: 0,
+        skipped: 0,
+        deleted: 0,
+        orderRateLimits: parseOrderRateLimits(publishedRows[deps.mode ?? 'live']),
+      });
+  },
 }));
 
 const ORDERS_ROWS = [
@@ -50,6 +57,7 @@ const ORDERS_ROWS = [
 
 beforeEach(() => {
   publishAll([]);
+  refreshDeps.length = 0;
 });
 
 describe('buildBinanceResolver', () => {
@@ -70,6 +78,29 @@ describe('buildBinanceResolver', () => {
     expect(typeof r.resolveBinanceClient).toBe('function');
     expect(typeof r.exchangeInfoRefresh).toBe('function');
     expect(typeof r.orderGovernorFor).toBe('function');
+  });
+
+  it('forwards the metrics sink into BOTH exchange-info refreshes', () => {
+    // `metrics` is optional on the deps, so dropping the argument still
+    // type-checks and both parse-health counters would read a flat zero
+    // forever. Live and test are separate closures over separate Binance
+    // environments, and a payload only one of them sees is exactly the one
+    // nobody is watching.
+    const metrics = { record: () => undefined, forget: () => undefined };
+    buildBinanceResolver({
+      db: fakeDb(),
+      redis: fakeRedis(),
+      logger: silentLogger(),
+      weightGovernor: anyProxy(),
+      metrics,
+    });
+
+    expect(refreshDeps).toHaveLength(2);
+    expect(refreshDeps[0]?.['metrics']).toBe(metrics);
+    expect(refreshDeps[1]?.['metrics']).toBe(metrics);
+    // ...and they are the two environments, not the same one twice.
+    expect(refreshDeps[0]?.['mode']).toBeUndefined();
+    expect(refreshDeps[1]?.['mode']).toBe('test');
   });
 
   // `resolveBinanceFull` builds a FRESH REST client per call, so a governor

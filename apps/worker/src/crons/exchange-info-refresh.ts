@@ -24,6 +24,7 @@ import {
 import { projectPermissionSets, projectSymbolFilters, type RawSymbolFilter } from '@app/contracts';
 import type { SymbolInfo } from '@app/strategy-core';
 import { buildSymbolInfoKey } from 'executor/redis-namespace.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 
 interface RawSymbol {
   readonly symbol: string;
@@ -69,18 +70,108 @@ const ZERO_FILTERS: SymbolInfo['filters'] = {
   minNotional: '0',
 };
 
-const projectSymbol = (raw: RawSymbol): SymbolInfo => {
+// How many symbol names ride the aggregated drift line. The count sits beside
+// them, so the truncation is never silent.
+const DRIFT_SAMPLE_LIMIT = 20;
+
+/** Symbols this run projected with something missing, accumulated for one log line. */
+interface FilterDrift {
+  readonly unparseable: string[];
+  readonly bandDropped: string[];
+}
+
+/**
+ * Record a symbol that PUBLISHED filter data the projection could not read.
+ *
+ * Two distinct drifts, and neither can see the other:
+ *
+ *  - The projection answers `null` for both an absent list and an unreadable
+ *    one, and both collapse to {@link ZERO_FILTERS}, so from the cache alone the
+ *    two are the same row. They are not the same event. An absent list is a dust
+ *    pair behaving normally and is silent by design, whereas an unreadable
+ *    non-empty list means Binance changed a shape the bot parses, and every tick
+ *    from then on skips the symbol for unsizeable filters without saying why.
+ *  - `PERCENT_PRICE_BY_SIDE` is parsed separately and spread in only on success,
+ *    so a garbled or renamed band leaves a NON-NULL filter set that the first
+ *    check cannot see. Downstream that band reads as absent, the band refusal
+ *    fails open, and the cancel/re-place pair resumes into the same -1013 —
+ *    exactly the loop this drift signal exists to catch.
+ *
+ * Counted per mode only; a symbol label would be one series per listed pair.
+ * Only the LOG is deferred to the end of the run: the projection is
+ * all-or-nothing, so one upstream field change voids thousands of symbols at
+ * once and a per-symbol warn would bury itself.
+ */
+const recordFilterDrift = (
+  deps: ExchangeInfoRefreshDeps,
+  mode: BinanceMode,
+  raw: RawSymbol,
+  filters: ReturnType<typeof projectSymbolFilters>,
+  drift: FilterDrift,
+): void => {
+  if (filters === null) {
+    if (!Array.isArray(raw.filters) || raw.filters.length === 0) return;
+    deps.metrics?.record('exchange_info_filters_unparseable_total', 1, { mode });
+    drift.unparseable.push(raw.symbol);
+    return;
+  }
+  if (
+    filters.percentPriceBySide === undefined &&
+    Array.isArray(raw.filters) &&
+    raw.filters.some((f) => f?.filterType === 'PERCENT_PRICE_BY_SIDE')
+  ) {
+    deps.metrics?.record('exchange_info_band_unparseable_total', 1, { mode });
+    drift.bandDropped.push(raw.symbol);
+  }
+};
+
+/** One bounded line per refresh run, per drift kind, or nothing when the run was clean. */
+const reportFilterDrift = (
+  deps: ExchangeInfoRefreshDeps,
+  mode: BinanceMode,
+  drift: FilterDrift,
+): void => {
+  if (drift.unparseable.length > 0) {
+    deps.logger.warn(
+      {
+        mode,
+        symbols: drift.unparseable.length,
+        sample: drift.unparseable.slice(0, DRIFT_SAMPLE_LIMIT),
+      },
+      'exchange-info-refresh: symbols published filters that could not be projected; they will be treated as unsizeable and skipped',
+    );
+  }
+  if (drift.bandDropped.length > 0) {
+    deps.logger.warn(
+      {
+        mode,
+        symbols: drift.bandDropped.length,
+        sample: drift.bandDropped.slice(0, DRIFT_SAMPLE_LIMIT),
+      },
+      'exchange-info-refresh: symbols published a PERCENT_PRICE_BY_SIDE band that could not be projected; their protective stops lose the band check',
+    );
+  }
+};
+
+const projectSymbol = (
+  deps: ExchangeInfoRefreshDeps,
+  mode: BinanceMode,
+  raw: RawSymbol,
+  drift: FilterDrift,
+): SymbolInfo => {
   // Omit the key entirely when the payload is absent or malformed. An empty
   // array would read as "no sets published", which the tradability check
   // treats as permitted, so an all-or-nothing projection keeps the absent
   // case and the unreadable case identically fail-open.
   const permissionSets = projectPermissionSets(raw.permissionSets);
+  const filters = projectSymbolFilters(raw.filters);
+  recordFilterDrift(deps, mode, raw, filters, drift);
   return {
     symbol: raw.symbol,
     baseAsset: raw.baseAsset,
     quoteAsset: raw.quoteAsset,
     status: raw.status,
-    filters: projectSymbolFilters(raw.filters) ?? ZERO_FILTERS,
+    filters: filters ?? ZERO_FILTERS,
     ...(permissionSets === null ? {} : { permissionSets }),
   };
 };
@@ -93,6 +184,8 @@ export interface ExchangeInfoRefreshDeps {
   // Which Binance environment to fetch and which keyspace to write. Defaults
   // to `live` so existing callers are unchanged.
   readonly mode?: BinanceMode;
+  /** Optional / no-op when unwired, same as every other injection point. */
+  readonly metrics?: MetricsSink;
 }
 
 export interface ExchangeInfoRefreshResult {
@@ -180,6 +273,7 @@ export const createExchangeInfoRefresh = (
     const currentKeys = new Set<string>();
     const queued: string[] = []; // parallel to pipe.set() ordering for error reporting
     let skipped = 0;
+    const drift: FilterDrift = { unparseable: [], bandDropped: [] };
     const pipe = deps.redis.pipeline();
     for (const raw of symbols) {
       if (!raw?.symbol || !TICKER_OK.test(raw.symbol)) {
@@ -187,10 +281,11 @@ export const createExchangeInfoRefresh = (
         continue;
       }
       const key = buildSymbolInfoKey(raw.symbol, mode);
-      pipe.set(key, JSON.stringify(projectSymbol(raw)));
+      pipe.set(key, JSON.stringify(projectSymbol(deps, mode, raw, drift)));
       currentKeys.add(key);
       queued.push(key);
     }
+    reportFilterDrift(deps, mode, drift);
     // Inspect every per-command reply. A partial pipeline failure
     // (OOM, MOVED in cluster, broken connection mid-stream) would
     // otherwise be invisible: `currentKeys` would claim the symbol

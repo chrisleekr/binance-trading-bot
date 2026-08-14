@@ -19,7 +19,7 @@ import type { Redis } from 'ioredis';
 
 import { repo, type Database } from '@app/db';
 import type { ProfileId } from '@app/contracts';
-import type { MetricsRegistry } from '@app/observability';
+import { createMetricsRegistry, type MetricsRegistry } from '@app/observability';
 import type { MarketDataPort, WeightGovernor } from '@app/binance';
 import type { SymbolInfo } from '@app/strategy-core';
 
@@ -41,6 +41,7 @@ import type { FillAdopter } from 'executor/fill-adopter.js';
 import type { FillBackfiller } from 'executor/fill-backfiller.js';
 import type { AuditDrainer } from 'audit-shipper/audit-shipper.js';
 import type { MetricsSink } from 'metrics/catalog.js';
+import { createWorkerMetricsSink } from './metrics-sink.js';
 import { loadWorkerEnv, type WorkerEnv } from 'env.js';
 import type { Component } from 'lib/component.js';
 
@@ -257,6 +258,7 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     accountNotifyBatch,
     notifierGapThrottle,
     orderFailedThrottle,
+    protectiveStopBlockedThrottle,
     notifyEvent,
   } = buildNotifiers({ db, redis, logger, liveDemo, queueSet });
 
@@ -270,12 +272,20 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
 
   const { loadEnabledProfiles, profileManager } = buildProfileManagerSlice({ db, logger });
 
+  // Process-wide metrics registry + the catalogue-typed sink over it. Minted
+  // here, ahead of every builder that records, because a builder that owned it
+  // would leave the builders running before it recording onto a second registry
+  // the admin /metrics route never serves.
+  const metricsRegistry = createMetricsRegistry({ service: 'worker' });
+  const metrics = createWorkerMetricsSink(metricsRegistry);
+
   const { resolveBinanceFull, resolveBinanceClient, exchangeInfoRefresh, orderGovernorFor } =
     buildBinanceResolver({
       db,
       redis,
       logger,
       weightGovernor,
+      metrics,
     });
 
   const {
@@ -283,8 +293,6 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     persistSymbolState,
     coldLoad,
     symbolInfoCache,
-    metricsRegistry,
-    metrics,
     statePort,
     fillAdopter,
     fillBackfiller,
@@ -298,6 +306,7 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     resolveBinanceClient,
     queueSet,
     notifyEvent,
+    metrics,
   });
 
   const { eventRouter, userStreamPool } = buildEventStream({
@@ -351,6 +360,7 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     klineFetcher,
     notifyEvent,
     orderFailedThrottle,
+    protectiveStopBlockedThrottle,
     auditShipper,
   });
 

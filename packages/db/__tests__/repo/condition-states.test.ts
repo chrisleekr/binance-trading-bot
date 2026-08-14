@@ -10,7 +10,13 @@
 
 import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeEach, beforeAll, describe, expect, it } from 'vitest';
-import { conditionStates, scopeProfile, type ProfileScope } from '../../src/repo/index.js';
+import {
+  conditionStates,
+  scopeProfile,
+  withTx,
+  type Database,
+  type ProfileScope,
+} from '../../src/repo/index.js';
 import { actionLogs as actionLogsTable } from '../../src/schema/action-logs.js';
 import { conditionStates as conditionStatesTable } from '../../src/schema/condition-states.js';
 import { setupFixture, TEST_DB_URL, type IsolationFixture } from '../isolation/_helpers.js';
@@ -98,7 +104,7 @@ describeIfDb('condition-states repo', () => {
         code: 'knife-guard',
         now,
       });
-      expect(again).toEqual({ changed: false });
+      expect(again).toEqual({ changed: false, sinceMs: T0.getTime() });
     }
 
     expect(await logs()).toHaveLength(1);
@@ -171,7 +177,7 @@ describeIfDb('condition-states repo', () => {
         now: T1,
       });
 
-      expect(again).toEqual({ changed: false });
+      expect(again).toEqual({ changed: false, sinceMs: T0.getTime() });
       expect(await logs()).toHaveLength(1);
       const rows = await states();
       expect(rows[0]?.detail).toEqual({ armPrice: '105' });
@@ -219,9 +225,69 @@ describeIfDb('condition-states repo', () => {
         code: 'awaiting-sell-arm',
         now: T2,
       });
-      expect(again).toEqual({ changed: false });
+      expect(again).toEqual({ changed: false, sinceMs: T0.getTime() });
       expect(await logs()).toHaveLength(2);
       expect((await states())[0]?.changeKey).toBeNull();
+    });
+  });
+
+  // The unchanged arm is the per-tick hot path, and it is also the arm on which
+  // the caller has to decide whether a condition has been open long enough to
+  // alert on. Returning only `{changed:false}` forced that caller into a second
+  // `findOne` for a span start this function already had in hand.
+  describe('span start on the unchanged arm', () => {
+    /** Counts `select()` calls so "no extra query" is measured, not asserted in prose. */
+    const countingScope = (): { scope: ProfileScope; selects: () => number } => {
+      let selects = 0;
+      // Prototype-delegating rather than a Proxy: every drizzle method the repo
+      // reaches for stays live on the chain, only `select` is instrumented.
+      const db = Object.create(fx.db) as Database;
+      db.select = ((...args: unknown[]) => {
+        selects += 1;
+        return (fx.db.select as unknown as (...a: unknown[]) => unknown)(...args);
+      }) as Database['select'];
+      return { scope: withTx(scope, db), selects: () => selects };
+    };
+
+    it('C2: reports when the span started without issuing a second query', async () => {
+      await conditionStates.recordCondition(scope, {
+        condition: 'protective-stop-blocked',
+        symbol: 'LINKUSDT',
+        code: 'price-outside-exchange-band',
+        changeKey: 'price-outside-exchange-band|floor|naked',
+        now: T0,
+      });
+
+      const counted = countingScope();
+      const again = await conditionStates.recordCondition(counted.scope, {
+        condition: 'protective-stop-blocked',
+        symbol: 'LINKUSDT',
+        code: 'price-outside-exchange-band',
+        changeKey: 'price-outside-exchange-band|floor|naked',
+        // The live price moved; the identity did not.
+        detail: { price: '11.401' },
+        now: T1,
+      });
+
+      expect(again).toEqual({ changed: false, sinceMs: T0.getTime() });
+      // Exactly the point lookup the dedup already performs. A second read here
+      // would put one extra query on every tick of every blocked symbol.
+      expect(counted.selects()).toBe(1);
+      // Still a no-op write: reporting the span must not have cost a row.
+      expect(await logs()).toHaveLength(1);
+      expect((await states())[0]?.detail).toBeNull();
+    });
+
+    it('C2: reports a null span start when the condition is not open', async () => {
+      // Nothing to clear and nothing to date. The caller must be able to tell
+      // "open since T0" from "not open at all" on the same unchanged verdict.
+      const result = await conditionStates.recordCondition(scope, {
+        condition: 'protective-stop-blocked',
+        symbol: 'LINKUSDT',
+        code: null,
+        now: T0,
+      });
+      expect(result).toEqual({ changed: false, sinceMs: null });
     });
   });
 
@@ -280,7 +346,7 @@ describeIfDb('condition-states repo', () => {
       code: null,
       now: T0,
     });
-    expect(result).toEqual({ changed: false });
+    expect(result).toEqual({ changed: false, sinceMs: null });
     expect(await logs()).toHaveLength(0);
     expect(await states()).toHaveLength(0);
   });

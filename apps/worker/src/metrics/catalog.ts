@@ -89,7 +89,9 @@ export type MetricName =
   | 'audit_entries_reclaimed'
   | 'audit_read_no_body'
   | 'audit_entries_stuck'
-  | 'audit_poison_entries_dropped';
+  | 'audit_poison_entries_dropped'
+  | 'exchange_info_filters_unparseable_total'
+  | 'exchange_info_band_unparseable_total';
 
 /**
  * The spec behind each name. Exhaustive by construction: a name in the union with
@@ -321,6 +323,29 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     kind: 'counter',
     help: 'Audit entries acknowledged away without ever being written. cause=rejected means all three of: the entry had been redelivered past the delivery ceiling, the solo re-persist the bisect isolated it to failed with a row-deterministic error, and a sibling row was written to Postgres in the same pass, capped at 8 per stream per pass so a systematic rejection cannot destroy a whole backlog in one go; cause=corrupt-json means the entry body would not parse, or parsed without the fields action_logs needs, so no backend could ever accept it; cause=no-body means the reclaim kept claiming an entry whose fields carry no body at all until it passed the delivery ceiling. A rejected or corrupt-json drop is an action_logs row that will never exist; a no-body drop most likely is not, because no body ever reached the drainer to become one.',
     labelNames: ['stream', 'cause'],
+  },
+  // A symbol whose published filter list the projection could not read. Every
+  // such symbol silently gets the all-zero fallback, which the sizing path reads
+  // as invalid-filters and skips, so the coin quietly stops trading. Symbols that
+  // publish NO filters are excluded: those are untradeable dust pairs behaving
+  // normally and would drown the signal. Labelled by mode only, deliberately not
+  // by symbol: Binance lists thousands of spot pairs, and a per-symbol label
+  // turns one counter into a cardinality incident.
+  exchange_info_filters_unparseable_total: {
+    kind: 'counter',
+    help: 'Symbols whose exchangeInfo filters array was present and non-empty but could not be projected into the full filter set, per Binance mode. Each one falls back to all-zero filters, which makes the symbol unsizeable and therefore untraded.',
+    labelNames: ['mode'],
+  },
+  // The band is projected separately and spread in only on success, so a garbled
+  // one still yields a complete filter set and the counter above stays at zero.
+  // Its own series because the consequence is its own: the symbol keeps trading,
+  // but the protective-stop band check reads "no band published" and fails open,
+  // so the cancel/re-place pair goes back out into a -1013 the exchange will keep
+  // refusing. Same mode-only labelling, same cardinality reason.
+  exchange_info_band_unparseable_total: {
+    kind: 'counter',
+    help: 'Symbols that published a PERCENT_PRICE_BY_SIDE filter which could not be projected, per Binance mode. The rest of the filter set survives, so the symbol keeps trading while its protective stop loses the price-band check and re-arms into rejections.',
+    labelNames: ['mode'],
   },
 };
 

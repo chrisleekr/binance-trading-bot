@@ -2,14 +2,14 @@
 //
 // ColdLoad and StatePort are hoisted ahead of the consumers that need them
 // (fillAdopter, tickHandler) so ONE `statePort` instance is shared end-to-end.
-// The metrics registry is minted here so the tick and state-commit paths record
-// onto the same registry the admin /metrics route serves.
+// The metrics sink arrives as a dep: builders that run BEFORE this one also
+// record, so the registry cannot be owned here without splitting the process
+// into two registries, only one of which /metrics serves.
 
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
 
 import { profileRepoFromScope, type Database, type ProfileScope } from '@app/db';
-import { createMetricsRegistry, type MetricsRegistry } from '@app/observability';
 
 import { strategies as strategiesRegistry } from 'strategies.js';
 import type { NotifyEvent } from 'notifiers/notify-event.js';
@@ -26,7 +26,7 @@ import type { QueueSet } from 'queues/queue-set.js';
 import { createProductionColdLoad } from 'tick/cold-load.js';
 import { createSymbolInfoCache } from 'tick/symbol-info-cache.js';
 import { createStatePort, type StatePort } from 'state/state-port.js';
-import { createWorkerMetricsSink } from '../metrics-sink.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 
 import type { ResolveBinanceClient } from './binance-resolver.js';
 
@@ -52,6 +52,7 @@ export interface StatePersistenceDeps {
   readonly resolveBinanceClient: ResolveBinanceClient;
   readonly queueSet: QueueSet;
   readonly notifyEvent: NotifyEvent;
+  readonly metrics: MetricsSink;
 }
 
 export interface StatePersistence {
@@ -59,8 +60,6 @@ export interface StatePersistence {
   readonly persistSymbolState: PersistSymbolState;
   readonly coldLoad: ReturnType<typeof createProductionColdLoad>;
   readonly symbolInfoCache: ReturnType<typeof createSymbolInfoCache>;
-  readonly metricsRegistry: MetricsRegistry;
-  readonly metrics: ReturnType<typeof createWorkerMetricsSink>;
   readonly statePort: StatePort;
   readonly fillAdopter: FillAdopter;
   readonly fillBackfiller: FillBackfiller;
@@ -76,6 +75,7 @@ export const buildStatePersistence = ({
   resolveBinanceClient,
   queueSet,
   notifyEvent,
+  metrics,
 }: StatePersistenceDeps): StatePersistence => {
   // Single-statement Postgres write so state + version land atomically. The
   // commit path's `withTimeout` enforces the per-query SLA and the executor-side
@@ -143,13 +143,11 @@ export const buildStatePersistence = ({
   const symbolInfoCache = createSymbolInfoCache({
     redis,
     logger,
+    // Its miss-recovery refresh parses the same exchangeInfo the cron does, so
+    // it must count the same drift; without the sink the counter reads healthy
+    // while every recovery refresh is dropping filters.
+    metrics,
   });
-
-  // Process-wide metrics registry + the record() sink the tick and state-commit
-  // paths emit through. Built before the handlers so they record onto the same
-  // registry the admin /metrics route serves.
-  const metricsRegistry = createMetricsRegistry({ service: 'worker' });
-  const metrics = createWorkerMetricsSink(metricsRegistry);
 
   const statePort = createStatePort({
     redis,
@@ -204,8 +202,6 @@ export const buildStatePersistence = ({
     persistSymbolState,
     coldLoad,
     symbolInfoCache,
-    metricsRegistry,
-    metrics,
     statePort,
     fillAdopter,
     fillBackfiller,

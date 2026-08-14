@@ -3,6 +3,7 @@
 // invents a cause, and the same inputs always produce the same report.
 
 import { describe, expect, it } from 'vitest';
+import { CONDITION_SEVERITY } from '../src/condition.js';
 import {
   buildProfileDiagnosis,
   DIAGNOSIS_STEPS,
@@ -680,6 +681,97 @@ describe('rung 10: exit protection', () => {
 
   it('skips when nothing is held', () => {
     expect(runDiagnosisStep('exit-protection', input()).status).toBe('skipped');
+  });
+
+  // A protective stop the exchange band refuses is DEFERRED, not attempted, so
+  // it produces no failed order, no exit-blocked reason and no alert of its own.
+  // The condition row is the only thing that knows the coin is unguarded, and
+  // this is the rung the operator reads to find that out.
+  describe('protective stop blocked', () => {
+    const stopBlocked = (over: Partial<OpenCondition> = {}): OpenCondition =>
+      cond({
+        condition: 'protective-stop-blocked',
+        symbol: 'LINKUSDT',
+        code: 'price-outside-exchange-band',
+        detail: { bound: 'floor', terminal: false, guarded: false, price: '11.386' },
+        ...over,
+      });
+
+    it('C7: is degraded, not blocking — the profile still trades, one position is naked', () => {
+      // `blocking` would flip the whole-profile verdict to "blocked" and claim the
+      // bot has stopped, which is false and is the reading that gets ignored.
+      expect(CONDITION_SEVERITY['protective-stop-blocked']).toBe('degraded');
+    });
+
+    it('C7: raises the finding even when no exit-blocked condition exists', () => {
+      // The naked position need not be waiting on an exit at all: the stop was
+      // never placed, so nothing on the exit side ever reported it.
+      const r = runDiagnosisStep('exit-protection', input({ conditions: [stopBlocked()] }));
+
+      expect(r.status).toBe('finding');
+      const item = r.items.find((i) => i.condition === 'protective-stop-blocked');
+      expect(item).toBeDefined();
+      expect(item?.code).toBe('price-outside-exchange-band');
+      expect(item?.severity).toBe('degraded');
+      expect(item?.symbols).toEqual([{ symbol: 'LINKUSDT', sinceMs: NOW - DAY }]);
+    });
+
+    it('merges its headline with the held-coin exit finding and keeps both items', () => {
+      // Two independent failures on one rung: the stop the exchange refused, and
+      // a held coin whose only exit is above its entry. Neither line replaces the
+      // other, and neither item may be dropped — the combined branch is the one
+      // an operator with a genuinely bad position actually sees.
+      const r = runDiagnosisStep(
+        'exit-protection',
+        input({
+          conditions: [
+            stopBlocked(),
+            exitCond({
+              symbol: 'ETHBTC',
+              detail: { armPrice: '0.032', currentPrice: '0.0302', hasDownsideExit: false },
+            }),
+          ],
+        }),
+      );
+
+      expect(r.status).toBe('finding');
+      expect(r.line).toContain('protective stop');
+      expect(r.line).toContain('can only be closed at a profit or by you');
+      expect(r.items.map((i) => i.id)).toEqual([
+        'protective-stop-blocked:price-outside-exchange-band',
+        'exit-blocked:no-downside-exit',
+      ]);
+    });
+
+    it('keeps a guarded row on the rung instead of filtering it out', () => {
+      // `guarded` rows stay ON this rung deliberately — they are the amber
+      // reading, a position drifting away from the stop that covers it. Filtering
+      // them as "already protected" is the tempting simplification, and it would
+      // hide the drift until the stop is far enough behind to be worthless.
+      const r = runDiagnosisStep(
+        'exit-protection',
+        input({
+          conditions: [
+            stopBlocked({
+              detail: { bound: 'floor', terminal: false, guarded: true, price: '11.386' },
+            }),
+          ],
+        }),
+      );
+
+      expect(r.status).toBe('finding');
+      expect(r.items.map((i) => i.id)).toContain(
+        'protective-stop-blocked:price-outside-exchange-band',
+      );
+    });
+
+    it('C7: reports it in the assembled diagnosis without calling the profile blocked', () => {
+      const i = input({ conditions: [stopBlocked()] });
+      const report = buildProfileDiagnosis(i, runAll(i));
+
+      expect(report.items.some((it) => it.condition === 'protective-stop-blocked')).toBe(true);
+      expect(report.verdict).toBe('idle-by-design');
+    });
   });
 });
 

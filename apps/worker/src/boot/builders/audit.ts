@@ -24,7 +24,7 @@ import {
 import { buildAuditStreamKey } from 'executor/redis-namespace.js';
 import type { ProfileManager } from 'profile-manager/profile-manager.js';
 
-import type { StatePersistence } from './state-persistence.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 
 /**
  * Pull the SQLSTATE out of a rejected query. drizzle wraps every query error in
@@ -99,7 +99,7 @@ export interface AuditDeps {
   readonly db: Database;
   readonly redis: Redis;
   readonly logger: Logger;
-  readonly metrics: StatePersistence['metrics'];
+  readonly metrics: MetricsSink;
   readonly profileManager: ProfileManager;
 }
 
