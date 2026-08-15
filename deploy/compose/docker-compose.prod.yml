@@ -24,8 +24,9 @@
 
 services:
   postgres:
-    # Pinned: timescale/timescaledb:latest-pg17 @ 2026-05-10
-    image: timescale/timescaledb:latest-pg17@sha256:dfbf3c54f03e01d9a6fe7eeb736b513064a849606ca5acd7edcf51fdcab76a5e
+    # TimescaleDB 2.27.1. Shared with both CI db-isolation lanes and packages/testcontainers so the deployed server and every migration-replay lane are one image; packages/testcontainers/__tests__/timescaledb-image-pin.test.ts fails if they drift.
+    # Stay below 2.28.0 until the migration lane stops needing a row to survive an insert under `timescaledb.restoring`, which 2.28.0 discards.
+    image: timescale/timescaledb:2.27.1-pg17@sha256:6e4b469dee0395a8a6d8c818384b0226a749997a29a312f314413f98e4161f82
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-binance_trading_bot}
