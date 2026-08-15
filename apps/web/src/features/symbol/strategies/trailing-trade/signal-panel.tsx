@@ -201,6 +201,9 @@ function entryGates(
  * regular sell-arm uses). The status branches follow
  * `evaluateTechnicalsForceSell`'s signal-dependent guards.
  *
+ * `lbp` is the position's **average entry price**, not the last buy price its
+ * name suggests — it is what every level below is anchored on.
+ *
  * Some of the worker's guards are deliberately NOT mirrored, so a `would-fire`
  * reading is an upper bound rather than a promise. The in-loss branch compares
  * against the bare entry price, while the worker floors the exit at
@@ -667,6 +670,7 @@ function nearestExitKey(rows: readonly LadderRow[]): string | null {
   return best?.key ?? null;
 }
 
+/** One exit-ladder row: its price, the gap to spot, its status, and the nearest/next-gate markers. */
 function LadderRowView({
   row,
   isNearest,
@@ -960,6 +964,7 @@ function FlatView({
   );
 }
 
+/** The held-position panel: the exit ladder, the add conditions, and the time-stop, regime, and bull-hold rows. */
 function HoldingView({
   view,
   regime,
