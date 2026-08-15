@@ -554,6 +554,41 @@ describe('createFillAdopter', () => {
       ).toHaveLength(1);
     });
 
+    it('does not repeat the strand row when Binance replays the terminal report', async () => {
+      reset();
+      // Same strand as above, but a replay: `resolveSell` still reports `set`,
+      // so an ungated write would hand the operator a second row for one strand
+      // and imply a second incident.
+      repoMocks.appliedFillsTryRecord.mockResolvedValue(false);
+      const { adopter, logs, store } = makeAdopter('0.0001', true);
+      repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+        avgEntryPrice: '60000',
+        quantity: '0.001',
+      });
+      repoMocks.symbolStatesFindBySymbol.mockResolvedValue(
+        defaultSymbolRow({ schemaVersion: '2.0.0', avgEntryPrice: '60000', highSinceBuy: '65000' }),
+      );
+
+      await adopter.adopt(
+        mkFill({ side: 'SELL', orderId: 33, tradeId: 33, cumQty: '0.00099', cumQuoteQty: '62370' }),
+      );
+
+      // The replay still converges state off the persisted LBP, which is what
+      // makes the resolution a `set` — the premise the silence below depends on.
+      // Without it the two empty assertions would also pass on a fill that never
+      // reached the strand gate at all.
+      const updated = JSON.parse(
+        String(store.get(buildSymbolStateKey(ACCOUNT_ID, PROFILE_ID, SYMBOL))),
+      ) as Record<string, unknown>;
+      expect(updated['avgEntryPrice']).toBe('60000');
+
+      const msgs = repoMocks.actionLogsAppend.mock.calls.map((c) => (c[0] as { msg: string }).msg);
+      expect(msgs.filter((m) => m.includes('Could not confirm'))).toHaveLength(0);
+      expect(
+        logs.filter((l) => l.level === 'error' && l.msg.includes('could not be checked against')),
+      ).toHaveLength(0);
+    });
+
     it('keeps the position when the SELL residual is at or above one LOT_SIZE step', async () => {
       reset();
       // Residual 0.0002 >= step 0.0001 ⇒ a real partial: reduce, do not flatten.

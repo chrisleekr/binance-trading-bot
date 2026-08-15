@@ -174,11 +174,15 @@ const TIME_IN_FORCE = {
   FOK: true,
 } as const satisfies Record<NonNullable<OrderRequestIdentity['timeInForce']>, true>;
 
+// Own-property, not `in`: `in` walks the prototype chain, so a persisted value
+// of `toString` or `constructor` would pass the guard and be handed on as a
+// member of the union. The state is JSON read back from Redis, so the reader
+// cannot assume the writer produced it.
 const isRequestType = (v: unknown): v is OrderRequestIdentity['type'] =>
-  typeof v === 'string' && v in REQUEST_TYPES;
+  typeof v === 'string' && Object.hasOwn(REQUEST_TYPES, v);
 
 const isTimeInForce = (v: unknown): v is NonNullable<OrderRequestIdentity['timeInForce']> =>
-  typeof v === 'string' && v in TIME_IN_FORCE;
+  typeof v === 'string' && Object.hasOwn(TIME_IN_FORCE, v);
 
 const parseRequest = (value: unknown): OrderRequestIdentity | null => {
   const r = recordOf(value);

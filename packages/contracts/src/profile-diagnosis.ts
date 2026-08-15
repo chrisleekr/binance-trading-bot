@@ -1305,15 +1305,28 @@ const DIAGNOSIS_LADDER: readonly {
 export const runDiagnosisStep = (
   id: DiagnosisStepId,
   input: ProfileDiagnosisInput,
+  // Handed the throw the operator line deliberately drops. This package is pure,
+  // so it cannot log; without a caller taking the error a rung that throws every
+  // run is invisible in both the report and the logs.
+  onError?: (id: DiagnosisStepId, err: unknown) => void,
 ): DiagnosisStepResult => {
   const rung = DIAGNOSIS_LADDER.find((s) => s.id === id);
   if (!rung) return { status: 'unknown', line: 'Unknown check.', items: [] };
   try {
     return rung.run(input);
-  } catch {
+  } catch (err) {
     // A fixed sentence, not the throw's message. This line is persisted into the
     // run row and served by the GETs that stay open under LIVE_DEMO, and it is
-    // read by an operator who cannot act on a stack-shaped string anyway.
+    // read by an operator who cannot act on a stack-shaped string anyway. The
+    // message still has to reach someone, so it goes to `onError`. Guarded
+    // because the reporter is presentational: letting a caller's logger throw
+    // out of here would escape to the run-level catch and fail the whole
+    // ladder, which is the outcome this function exists to prevent.
+    try {
+      onError?.(id, err);
+    } catch {
+      // Nothing left to report to.
+    }
     return { status: 'unknown', line: 'This check could not be completed.', items: [] };
   }
 };

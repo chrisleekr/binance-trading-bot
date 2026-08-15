@@ -176,7 +176,7 @@ Steps ahead of the normal sell ladder when Technicals calls a downturn:
 
 1. The profile has a held position (`avgEntryPrice` set).
 2. Current price is below the configured sell-trigger price (the same trigger the normal grid-sell branch uses — force-sell only fires when the regular ladder has not already armed).
-3. The position is in profit by at least the configured floor: `currentPrice > avgEntryPrice × (1 + sell.forceSellMinProfitPercent/100)`. The rule never sells at a loss, and `forceSellMinProfitPercent` (default `'0'` = any profit) lets the operator require a gain larger than the round-trip fee so a force-sell cannot book a sub-fee "win".
+3. The position is in profit by at least the effective floor: `currentPrice > avgEntryPrice × (1 + max(sell.forceSellMinProfitPercent, roundTripFeePercent)/100)`. The rule never sells at a loss, and the round-trip fee is applied as a floor automatically, so a force-sell cannot book a sub-fee "win" even at the default `forceSellMinProfitPercent` of `'0'`; raising that value asks for a gain above break-even-after-fees.
 4. Any configured interval's signal recommendation is in that interval's force-sell trigger set.
 5. The matched signal is fresh per `useOnlyWithinMin`. Stale signals never trigger a force-sell, even under `ifExpires: 'allow-anyway'` — the asymmetry is intentional: `ifExpires` is a buy-side stance only.
 

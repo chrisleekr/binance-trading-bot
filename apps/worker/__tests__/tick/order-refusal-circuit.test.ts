@@ -183,6 +183,27 @@ describe('order-refusal state round-trip', () => {
     };
     expect(parseOrderRefusalState(JSON.stringify(withBadType))).toBeNull();
   });
+
+  // Names carried on `Object.prototype`, which an `in` membership test answers
+  // true for. The state is JSON read back from Redis, so a guard that accepts
+  // them would hand an inherited member on as a union value.
+  it.each(['toString', 'constructor', 'hasOwnProperty'])(
+    'rejects the inherited member %s as an order type',
+    (type) => {
+      const state = countThree();
+      const inherited = { ...state, request: { ...state.request, type } };
+      expect(parseOrderRefusalState(JSON.stringify(inherited))).toBeNull();
+    },
+  );
+
+  it.each(['toString', 'constructor'])(
+    'rejects the inherited member %s as a time-in-force',
+    (timeInForce) => {
+      const state = countThree();
+      const inherited = { ...state, request: { ...state.request, timeInForce } };
+      expect(parseOrderRefusalState(JSON.stringify(inherited))).toBeNull();
+    },
+  );
 });
 
 describe('order-refusal transitions', () => {

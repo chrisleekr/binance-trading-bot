@@ -22,7 +22,14 @@ import { RedisContainer, type StartedRedisContainer } from '@testcontainers/redi
  *
  * When the production compose bumps its digest, this pin moves in
  * lockstep — the `# Pinned: <tag> @ <date>` line in the compose file is
- * the source of truth.
+ * the source of truth. Two CI `db-isolation` service images are locked to
+ * the same digest as well; `__tests__/timescaledb-image-pin.test.ts` fails
+ * if any of the four drifts, and it also refuses a CI reference whose *tag*
+ * names TimescaleDB 2.28.0 or later, where the migration lane's root-heap
+ * fixture can no longer be built. A bump across that line has to split the
+ * pins, not carry all four along. Nothing offline can resolve a digest, so
+ * keep the CI tags honest: swap a digest without its tag and only
+ * `action-logs-root-heap-migration` will notice, at runtime.
  */
 const POSTGRES_IMAGE =
   'timescale/timescaledb:latest-pg17@sha256:dfbf3c54f03e01d9a6fe7eeb736b513064a849606ca5acd7edcf51fdcab76a5e';

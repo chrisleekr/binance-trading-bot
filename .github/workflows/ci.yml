@@ -247,15 +247,22 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       postgres:
-        # Pinned to the TimescaleDB version the deployed database runs, unlike
-        # the other jobs' moving `latest-pg17`. This job replays migrations, and
-        # the hypertable root-heap behaviour they have to survive is
+        # The digest deploy/compose/docker-compose.prod.yml and
+        # packages/testcontainers both pin (TimescaleDB 2.26.4), not the other
+        # jobs' moving `latest-pg17`. This job replays migrations, and the
+        # hypertable root-heap behaviour they have to survive is
         # version-specific: through 2.27.x a row inserted while
         # `timescaledb.restoring` is on stays in the parent heap, from 2.28.0 it
         # is discarded. A migration suite pointed at `latest` validates a
-        # database nobody runs and cannot build that fixture at all. Bump this
-        # when the deployed version moves, not before.
-        image: timescale/timescaledb:2.27.1-pg17@sha256:6e4b469dee0395a8a6d8c818384b0226a749997a29a312f314413f98e4161f82
+        # database nobody runs and cannot build that fixture at all. One digest
+        # across every lane so this job, its twin in .gitlab-ci.yml, and the
+        # hermetic testcontainers lane cannot disagree; move it when the compose
+        # pin moves, not before. The tag is spelled with its version rather than
+        # `latest-pg17` so the reference describes itself. The digest is what
+        # resolves either way; the version is there so that dropping the digest
+        # lands this lane on 2.26.4 rather than on the floating `latest-pg17`
+        # the other jobs use, which is already past 2.28.0.
+        image: timescale/timescaledb:2.26.4-pg17@sha256:dfbf3c54f03e01d9a6fe7eeb736b513064a849606ca5acd7edcf51fdcab76a5e
         env:
           POSTGRES_DB: binance_trading_bot_test
           POSTGRES_USER: postgres

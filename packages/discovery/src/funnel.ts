@@ -13,8 +13,10 @@ import type { DiscoveryDiff } from './types.js';
  *   quote-matched ticker set — every symbol the cron saw this cycle, not just the
  *   handful it fetched klines for. Monotone non-increasing within the segment.
  * - Candidate/kline segment (`probed` … `eligible`): counts over the kline
- *   candidates (the shortlist ∪ held auto, minus pinned). Monotone non-increasing
- *   within the segment.
+ *   candidates (the shortlist ∪ held auto, minus pinned) — except `probed`,
+ *   which counts only those a window was actually fetched for. Monotone
+ *   non-increasing within the segment: a candidate with no window fails the age
+ *   cut for want of data, so `age <= probed` still holds.
  *
  * There is NO monotonicity across the boundary: `changeBand` counts the whole
  * exchange's change-band survivors while `probed` counts only the few candidates
@@ -79,9 +81,10 @@ const STAGES: readonly DiscoveryFilterName[] = [
  * an empty `passed`, and it is not eligible. `kept` = desired minus new adds =
  * retained survivors.
  *
- * `probed` is passed in rather than taken as `candidates.length` because the two
- * differ whenever a kline fetch failed: such a candidate is scored as failing the
- * age cut, and counting it as probed would attribute a data outage to a filter.
+ * `probed` is passed in rather than taken as `candidates.length` because a
+ * candidate no window was fetched for still appears in `candidates`, scored as
+ * failing the age cut. Counting it as probed would attribute the caller's own
+ * fetch cap, or a kline outage, to a filter.
  */
 export const projectFunnel = (
   candidates: readonly CandidateExplain[],

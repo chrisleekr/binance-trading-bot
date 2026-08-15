@@ -194,15 +194,35 @@ function entryGates(
 }
 
 /**
- * Builds the Technicals force-sell status for a held position.
+ * Build the force-sell-on-Technicals view, or null when the rule has nothing
+ * to do for this profile. The trigger price formula is `avgEntryPrice *
+ * sell.triggerPercentage` — identical to the strategy's
+ * `technicalsForceSellTriggerPriceOf` (which is the same expression the
+ * regular sell-arm uses). The status branches follow
+ * `evaluateTechnicalsForceSell`'s signal-dependent guards.
  *
- * @param config - Strategy configuration containing Technicals sell rules
- * @param lbp - Average entry price
- * @param current - Current market price, if available
- * @param sellTrigger - Configured force-sell price multiplier
- * @param signals - Latest Technicals signals and freshness settings
- * @param nowMs - Current time used to assess signal freshness
- * @returns The force-sell view, or `null` when no Technicals sell rule is configured
+ * Some of the worker's guards are deliberately NOT mirrored, so a `would-fire`
+ * reading is an upper bound rather than a promise. The in-loss branch compares
+ * against the bare entry price, while the worker floors the exit at
+ * `avgEntryPrice * (1 + max(sell.forceSellMinProfitPercent, roundTripFee)/100)`
+ * — inside that band the panel says it fires and the worker refuses. The worker
+ * also requires the trigger to hold for `confirmMinutes` before it emits, which
+ * the panel has no clock for. Re-deriving either here would mean a second
+ * implementation of the fee and confirm math that could drift from the ladder
+ * the worker actually runs, which is the failure this panel exists to avoid.
+ *
+ * `signals` carries the per-interval signals + the freshness window when the
+ * caller has them (the query lands a moment after the panel mounts); when
+ * absent we can still answer the three signal-independent branches.
+ *
+ * The guard that switches the rule off entirely for a discovery single-entry is
+ * applied by the caller, which has that flag in hand.
+ *
+ * One gap is wider than this row and not closed here: the worker wraps its whole
+ * sell ladder in `sell.enabled`, and no exit row in this panel reads that flag,
+ * so with selling paused every drawn exit is inert. The worker already publishes
+ * the verdict as `exitBlocker.reason === 'sell-disabled'`; wiring it through is a
+ * change to the whole holding view, not to this one row.
  */
 function forceSellViewOf(
   config: Record<string, unknown>,
@@ -264,15 +284,14 @@ function forceSellViewOf(
 }
 
 /**
- * Builds the signal-panel view for a symbol's current strategy state.
+ * Replay the trailing-trade thresholds for one symbol into the panel's view.
  *
- * @param strategy - The strategy configuration and state
- * @param holding - The symbol's average entry price
- * @param currentPrice - The current market price
- * @param exitBlocker - The worker's recorded downside-exit status
- * @param signals - Current Technicals signals used for force-sell status
- * @param nowMs - Timestamp used to determine signal freshness
- * @returns The signal view for an unavailable, flat, or held position
+ * `exitBlocker` is the projection field of the same name, the worker's own "why
+ * this position did not sell" record. Its `hasDownsideExit` flag is read
+ * straight through rather than re-derived from config: a second implementation
+ * of "is anything configured below the entry" could disagree with the ladder the
+ * worker actually runs, and the whole point of the warning is that it is true.
+ * `null` means no record, which renders as neither warning nor reassurance.
  */
 export function deriveSignal(
   strategy: SymbolStateResponse['strategy'],
@@ -393,14 +412,23 @@ export function deriveSignal(
   const hasDownsideExit = exitBlocker?.detail?.['hasDownsideExit'];
   const noDownsideExit = typeof hasDownsideExit === 'boolean' ? !hasDownsideExit : null;
 
-  const forceSell = forceSellViewOf(config, lbp, current, sellTrigger, signals, nowMs);
+  // A discovery single-entry never force-sells on technicals — the strategy
+  // short-circuits that rule for `discoveryEntry` and exits via the ATR trail or
+  // the time/hard stop instead. Rendering the row anyway promises an exit that
+  // can never fire.
+  const forceSell = discoveryEntry
+    ? null
+    : forceSellViewOf(config, lbp, current, sellTrigger, signals, nowMs);
 
   // Bull pyramid: "N of M adds" plus the next-add trigger price. The next add is
   // spaced one step above the last add (or avgEntryPrice for the first add),
   // mirroring the worker's evaluator; null once the cap is reached.
   const pyramidCfg = asRecord(asRecord(asRecord(config['regime'])?.['onBull'])?.['pyramid']);
   let pyramid: Extract<SignalView, { kind: 'holding' }>['pyramid'] = null;
-  if (pyramidCfg?.['enabled'] === true) {
+  // The evaluator noops on `discoveryEntry` for the up-adds too, and the panel
+  // already tells the operator this position never averages. A next-add price
+  // beside that sentence contradicts it.
+  if (!discoveryEntry && pyramidCfg?.['enabled'] === true) {
     const maxAdds = parseNum(pyramidCfg['maxAdds']) ?? 0;
     const step = parseNum(pyramidCfg['stepPercentage']);
     const addCount = parseNum(state['bullAddCount']) ?? 0;
@@ -639,13 +667,6 @@ function nearestExitKey(rows: readonly LadderRow[]): string | null {
   return best?.key ?? null;
 }
 
-/**
- * Renders an exit-ladder row with its price, gap, status, and relevant marker.
- *
- * @param row - The exit-ladder row to display
- * @param isNearest - Whether the row is nearest to the current price
- * @returns The rendered exit-ladder row
- */
 function LadderRowView({
   row,
   isNearest,
@@ -803,14 +824,9 @@ const bullHoldToneClass: Record<'good' | 'muted', string> = {
 };
 
 /**
- * Renders entry conditions for flat positions and exit conditions for held positions, including configured regime and Technicals signals.
- *
- * @param profileId - The profile identifier used to load market data
- * @param symbol - The symbol whose signal is displayed
- * @param strategy - The strategy configuration and state
- * @param holding - The average entry price for the position
- * @param currentPrice - The current market price
- * @param exitBlocker - The worker-recorded downside-exit status
+ * Renders the derived signal. Flat profiles get the entry-gate explainer (plus
+ * a regime-block notice when bearish); held positions get the exit map plus the
+ * Technicals and regime exits.
  */
 export function SymbolSignalPanel({
   profileId,
@@ -944,15 +960,6 @@ function FlatView({
   );
 }
 
-/**
- * Renders the signal panel for a held position, including exit levels, add conditions, and applicable
- * time-stop, regime, and bull-hold status.
- *
- * @param view - Derived holding-position signal data.
- * @param regime - Current regime-exit status.
- * @param bullHold - Current bull-hold status.
- * @returns The rendered holding-position signal view.
- */
 function HoldingView({
   view,
   regime,
@@ -991,7 +998,9 @@ function HoldingView({
 
       {view.discoveryEntry ? (
         <p className="px-1 text-xs text-muted-fg" data-testid="symbol-signal-discovery-note">
-          Single-entry discovery position — no grid re-buys (a discovery pick never averages down).
+          Single-entry discovery position — no grid re-buys and no pyramid adds (a discovery pick
+          never averages, up or down), and no Technicals force-sell: it exits on the trailing stop,
+          the stop-loss, or the discovery time-stop.
         </p>
       ) : view.nextBuy === null ? (
         <p className="px-1 text-xs text-muted-fg">Highest buy level reached — no further adds.</p>

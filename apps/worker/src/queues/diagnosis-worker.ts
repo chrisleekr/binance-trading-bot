@@ -186,7 +186,12 @@ export function registerDiagnosisWorker(queueSet: QueueSet, deps: DiagnosisWorke
           // an old funnel as a live measurement is the one outcome to avoid.
           if (probed) input = { ...input, liveFunnel: probed };
         }
-        results.set(id, runDiagnosisStep(id, input));
+        results.set(
+          id,
+          runDiagnosisStep(id, input, (stepId, err) =>
+            deps.logger.error({ runId, stepId, err }, 'diagnosis: rung threw; reported as unknown'),
+          ),
+        );
         await publish(null);
       }
       await p.diagnosisRuns.finish(runId, buildProfileDiagnosis(input, results), endedAt());

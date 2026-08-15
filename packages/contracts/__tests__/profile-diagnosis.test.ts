@@ -959,6 +959,39 @@ describe('a rung that throws', () => {
     expect(r.line).toBe('This check could not be completed.');
     expect(r.line).not.toMatch(/column missing/);
   });
+
+  it('hands the withheld error to the caller so it is not lost with the line', () => {
+    // The operator line drops the message on purpose. Dropping it everywhere
+    // would leave a rung that throws on every run invisible in the logs too.
+    const hostile = input();
+    Object.defineProperty(hostile.profile, 'maxAutoSymbols', {
+      get() {
+        throw new Error('column missing');
+      },
+    });
+    const seen: Array<[string, unknown]> = [];
+    runDiagnosisStep('symbol-slots', hostile, (id, err) => seen.push([id, err]));
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.[0]).toBe('symbol-slots');
+    expect((seen[0]?.[1] as Error).message).toBe('column missing');
+  });
+
+  it('still answers unknown when the reporter itself throws', () => {
+    // The reporter is presentational. Letting it escape would reach the run-level
+    // catch and fail the whole ladder, which is the outcome converting the throw
+    // into `unknown` exists to prevent.
+    const hostile = input();
+    Object.defineProperty(hostile.profile, 'maxAutoSymbols', {
+      get() {
+        throw new Error('column missing');
+      },
+    });
+    expect(
+      runDiagnosisStep('symbol-slots', hostile, () => {
+        throw new Error('log transport down');
+      }),
+    ).toEqual({ status: 'unknown', line: 'This check could not be completed.', items: [] });
+  });
 });
 
 describe('buildProfileDiagnosis', () => {
