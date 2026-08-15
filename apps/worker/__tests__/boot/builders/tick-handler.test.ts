@@ -93,8 +93,9 @@ const refusalDetail = (bound: 'floor' | 'ceiling'): Readonly<Record<string, unkn
     reference: REFERENCE,
     band: BAND,
     // Floor: the limit leg sits under `ref × 0.9` at a 0.98 offset. Ceiling: the
-    // trigger clears `ref × 2` while the limit stays inside it, which is the only
-    // shape that reaches the ceiling branch at all.
+    // trigger clears `ref × 2`, which is the bound only the trigger is tested
+    // against; this fixture prices the limit above it too, so the pair also
+    // stands for a stop that has run away from the reference on both legs.
     desired:
       bound === 'floor'
         ? { stopPrice: '91.24', price: '89.4152', quantity: '3.13' }

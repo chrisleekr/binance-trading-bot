@@ -183,8 +183,12 @@ const buildProtectiveStopRow = (
   const ps = (input.config as { protectiveStop?: RawProtectiveStop }).protectiveStop;
   if (ps?.enabled !== true) return null;
   if (stopBase === null) return null;
-  const offset = decOrNull(ps.limitOffsetPercentage) ?? new Decimal(DEFAULT_LIMIT_OFFSET);
-  if (offset.lte(0) || offset.gte(1)) return null;
+  // Default applied INSIDE the read, so only an absent key falls back. An
+  // unparseable one reads as null here exactly as it does in the arm, which
+  // returns no level at all: defaulting it would draw a row for a stop that
+  // never goes out.
+  const offset = decOrNull(ps.limitOffsetPercentage ?? DEFAULT_LIMIT_OFFSET);
+  if (offset === null || offset.lte(0) || offset.gte(1)) return null;
   const limit = stopBase.mul(offset);
 
   // Under `native-trail` a stop the band refuses goes out as a trailing

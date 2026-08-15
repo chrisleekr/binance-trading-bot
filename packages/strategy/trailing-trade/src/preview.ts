@@ -158,9 +158,13 @@ const projectSells = (
     // in-process stop-loss line above as the level the exchange is holding.
     const ps = narrowProtectiveStop(sell?.protectiveStop);
     if (ps?.enabled === true && ps.onBandBlock === 'native-trail') {
-      const offset = decOrNull(ps.limitOffsetPercentage) ?? new Decimal(DEFAULT_LIMIT_OFFSET);
+      // Default applied INSIDE the read, so only an absent key falls back. An
+      // unparseable one reads as null here exactly as it does in the arm, which
+      // refuses to place anything: defaulting it would draw a backup-stop row
+      // for an order that never goes out.
+      const offset = decOrNull(ps.limitOffsetPercentage ?? DEFAULT_LIMIT_OFFSET);
       const note =
-        offset.gt(0) && offset.lte(1)
+        offset !== null && offset.gt(0) && offset.lte(1)
           ? nativeTrailPreviewNote({
               stop,
               limit: stop.mul(offset),

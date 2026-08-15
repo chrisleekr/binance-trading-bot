@@ -160,22 +160,23 @@ const armOut = (
   input: TickInput<MomentumConfig, MomentumState, MomentumBundle>,
   state: MomentumState,
   high: Decimal,
-): ReturnType<typeof evaluateProtectiveStopArm> =>
-  evaluateProtectiveStopArm(
-    input,
-    state,
-    resolveStopLevel(
-      input.config,
-      new Decimal(state.entryPrice ?? '0'),
-      high,
-      decOrNull(state.profitHigh),
-      (input.market.candlesByInterval[input.config.candleInterval] ?? []).filter((c) => c.isClosed),
-      {
-        reference: input.market.currentPrice,
-        band: input.market.symbolInfo.filters.percentPriceBySide,
-      },
-    ).stop,
+): ReturnType<typeof evaluateProtectiveStopArm> => {
+  const level = resolveStopLevel(
+    input.config,
+    new Decimal(state.entryPrice ?? '0'),
+    high,
+    decOrNull(state.profitHigh),
+    (input.market.candlesByInterval[input.config.candleInterval] ?? []).filter((c) => c.isClosed),
+    {
+      reference: input.market.currentPrice,
+      band: input.market.symbolInfo.filters.percentPriceBySide,
+    },
   );
+  // `floorClamped` comes from the same resolve, not a hand-written false: a clamp
+  // widens the re-arm drift band, so passing false would exercise the operator
+  // band on levels the tick would have clamped.
+  return evaluateProtectiveStopArm(input, state, level.stop, level.floorClamped);
+};
 
 /**
  * The arm evaluator returns decisions AND (when it refuses) a blocker. Most cases

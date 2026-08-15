@@ -72,7 +72,7 @@ const marketDataPort = { loadWindow: async () => [] } as unknown as MarketDataPo
  * name, a name carrying a promoted `reason`, a repeated name that has to
  * accumulate, and one carrying tags the series does not declare.
  */
-const buildStrategy = (): Strategy =>
+const buildStrategy = (metrics?: readonly unknown[]): Strategy =>
   ({
     name: STRATEGY,
     version: '1.0.0',
@@ -93,7 +93,7 @@ const buildStrategy = (): Strategy =>
       nextState: { schemaVersion: '1.0.0' },
       decisions: [],
       logs: [],
-      metrics: [
+      metrics: metrics ?? [
         metric('momentum.entry'),
         metric('momentum.skip', { side: 'BUY', reason: 'cooldown' }),
         metric('momentum.skip', { side: 'BUY', reason: 'cooldown' }),
@@ -102,12 +102,12 @@ const buildStrategy = (): Strategy =>
     }),
   }) as unknown as Strategy;
 
-const run = async (): Promise<string> => {
+const run = async (metrics?: readonly unknown[]): Promise<string> => {
   appendSpy.mockClear();
   // `version` is pinned so the exposition does not depend on npm_package_version.
   const promRegistry = createMetricsRegistry({ service: 'worker-test', version: 'test' });
   const registry = createRegistry();
-  registry.register(buildStrategy());
+  registry.register(buildStrategy(metrics));
 
   const profile: ProfileTickContext = {
     operatorId: OPERATOR,
@@ -213,6 +213,24 @@ describe('tick handler — strategy metric drain', () => {
     expect(sample).toContain(`symbol="${SYMBOL}"`);
     expect(sample).not.toContain('WRONGUSDT');
     expect(sample).not.toContain('cap=');
+  });
+
+  it('drops an unusable value instead of letting it abort the tick', async () => {
+    // prom-client throws on a negative or infinite counter increment, and stores
+    // NaN without complaint. The drain runs before the decisions are dispatched,
+    // so a throw here would kill the tick and — the strategy being deterministic
+    // — every retry of it, stranding the symbol over a metric. The good entry
+    // alongside proves the drain kept going rather than bailing on the batch.
+    const body = await run([
+      { name: 'bad.negative', value: -1 },
+      { name: 'bad.infinite', value: Number.POSITIVE_INFINITY },
+      { name: 'bad.nan', value: Number.NaN },
+      metric('good.after'),
+    ]);
+    expect(sampleFor(body, 'bad.negative')).toBe('');
+    expect(sampleFor(body, 'bad.infinite')).toBe('');
+    expect(sampleFor(body, 'bad.nan')).toBe('');
+    expect(sampleFor(body, 'good.after')).toMatch(/\}\s+1$/);
   });
 
   it('registers the series as a counter under its catalogued name', async () => {

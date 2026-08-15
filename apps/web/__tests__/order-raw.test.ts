@@ -106,8 +106,22 @@ describe('orderDisplayPrice', () => {
     // A STOP_LOSS placed with a trailingDelta carries no limit leg, so Binance
     // reports `price: "0"`. Rendering that tells the operator their protective
     // stop sits at a price of nothing.
-    const o = { ...base, raw: { type: 'STOP_LOSS', price: '0', origQty: '0.5' } };
+    const o = {
+      ...base,
+      raw: { type: 'STOP_LOSS', price: '0', origQty: '0.5', trailingDelta: 150 },
+    };
     expect(orderDisplayPrice(o)).toBe('TRAIL');
+  });
+
+  it('shows the trigger of a fixed STOP_LOSS rather than calling it a trail', () => {
+    // Only `trailingDelta` makes a STOP_LOSS follow the market. One placed by
+    // hand carries a fixed stopPrice, and labelling it TRAIL would tell the
+    // operator a static stop is tracking price.
+    const o = {
+      ...base,
+      raw: { type: 'STOP_LOSS', price: '0', stopPrice: '91.24', origQty: '0.5' },
+    };
+    expect(orderDisplayPrice(o)).toBe('STOP @ 91.24');
   });
 
   it('handles sub-1 dust prices (e.g. SHIB) without dropping to bare MKT', () => {

@@ -393,6 +393,20 @@ export const createTickHandler = (
         // no closed union can cover them and an uncatalogued name is dropped
         // silently by the sink.
         for (const entry of output.metrics) {
+          // The value is plugin-authored and reaches prom-client's counter, which
+          // throws on a negative or infinite increment. This drain runs BEFORE the
+          // decisions are dispatched, so an unusable value would abort the tick,
+          // rethrow, and — the strategy being deterministic — fail every retry,
+          // stranding the symbol unmanaged over an observability side-channel.
+          // NaN is dropped too: prom-client stores it without complaint, which
+          // poisons the series for good.
+          if (!Number.isFinite(entry.value) || entry.value < 0) {
+            deps.logger.warn(
+              { profileId, symbol, strategy: profile.strategyName, name: entry.name },
+              'dropped an unusable strategy metric value',
+            );
+            continue;
+          }
           // Entry tags first, canonical attribution second, so a strategy tag that
           // happens to be called `symbol` cannot misattribute the series. Of the
           // free-form tags only `reason` is declared on the metric; `side`, `cap`,

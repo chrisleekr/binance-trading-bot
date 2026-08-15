@@ -1301,6 +1301,15 @@ describe('nativeTrailPreviewNote', () => {
     expect(note({ reference: null })).toBeNull();
   });
 
+  it('is null on a ceiling breach, which the arm refuses to trail out of', () => {
+    // Ceiling is 2.0 at this reference. The trigger clears it, so the arm falls
+    // through to the blocker and rests nothing — a trail sentence here would
+    // promise an order that is never sent. A usable delta is deliberately in
+    // scope so only the bound decides the outcome.
+    const ceiling = { stop: new Decimal('2.6'), limit: new Decimal('2.5'), reference: '1' };
+    expect(note({ ...ceiling, tick: null })).toBeNull();
+  });
+
   it('is null when no usable delta exists, so no row claims a trail that cannot be placed', () => {
     expect(note({ trailing: undefined })).toBeNull();
     expect(note({ trailing: { ...TRAILING, maxTrailingBelowDelta: 1000 } })).toBeNull();

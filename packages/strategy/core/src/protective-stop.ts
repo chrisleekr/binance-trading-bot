@@ -583,8 +583,9 @@ export const nativeTrailingDelta = (params: {
  * instead.
  *
  * Null on the same terms the arm falls back on: the band accepts the priced stop,
- * or no usable delta could be derived. The percentage quoted is read back OUT of
- * the delta, so the sentence cannot claim a distance the order does not carry.
+ * the breach is the ceiling rather than the floor, or no usable delta could be
+ * derived. The percentage quoted is read back OUT of the delta, so the sentence
+ * cannot claim a distance the order does not carry.
  *
  * Takes the symbol's tick size because the arm judges the band against
  * tick-rounded legs, and rounding moves the limit leg across the floor on the
@@ -615,6 +616,10 @@ export const nativeTrailPreviewNote = (params: {
     guarded: false,
   });
   if (refused === null) return null;
+  // Same bound the arm restricts the escape to. A ceiling breach falls through to
+  // the refusal there and rests nothing, so printing the trail sentence on one
+  // would promise the operator an order Binance is never asked for.
+  if (refused.detail['bound'] !== 'floor') return null;
   const delta = nativeTrailingDelta({ stopDistancePct, filter: trailing });
   if (delta === null) return null;
   const pct = new Decimal(delta).div(100).toString();
