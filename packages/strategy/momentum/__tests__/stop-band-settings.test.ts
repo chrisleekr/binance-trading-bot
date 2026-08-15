@@ -51,6 +51,23 @@ describe('momentumStopBandSettings', () => {
     ).toBeNull();
   });
 
+  it('is null on a limit offset the resting order would not use', () => {
+    // The default covers an ABSENT key only. A stored value that will not parse,
+    // or one at or below zero, leaves no price to judge the floor against — the
+    // arm refuses the same input, so a warning derived here would describe a
+    // stop that never goes out.
+    for (const limitOffsetPercentage of ['abc', '0', '-0.5']) {
+      expect(
+        momentumStopBandSettings(
+          cfg({
+            trailingStopPct: '0.15',
+            protectiveStop: { enabled: true, limitOffsetPercentage },
+          }),
+        ),
+      ).toBeNull();
+    }
+  });
+
   it('is null on a trail fraction the trail itself would not use', () => {
     // `resolveStopLevel` ignores a fraction outside (0, 1) rather than
     // substituting one, so there is no distance to judge a band against.
