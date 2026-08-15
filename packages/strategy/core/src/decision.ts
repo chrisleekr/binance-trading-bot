@@ -1,6 +1,6 @@
 import type { ZodType } from 'zod';
 import type { StrategyEventMap } from './contract.js';
-import type { OrderSide, TimeInForce } from './contract.js';
+import type { OrderSide, OrderType, TimeInForce } from './contract.js';
 
 export interface OrderIntent {
   readonly symbol: string;
@@ -53,10 +53,22 @@ export interface OrderIntent {
 }
 
 export interface OrderParams {
-  readonly type: 'LIMIT' | 'MARKET' | 'STOP_LOSS_LIMIT';
+  readonly type: OrderType;
   readonly price?: string;
   readonly stopPrice?: string;
   readonly quantity: string;
+  /**
+   * Exchange-native trailing distance in basis points, for a `STOP_LOSS` that
+   * carries NO `stopPrice`: Binance then tracks the high-water mark itself and
+   * triggers a MARKET sell this far below it.
+   *
+   * The one order param that is a `number` rather than a decimal-string, and
+   * deliberately so — the money-math rule binds prices, quantities and amounts.
+   * Binance types `trailingDelta` as a `LONG`, and it is a RATIO, not a price:
+   * there is no sub-unit precision to lose and nothing here is ever summed
+   * against money.
+   */
+  readonly trailingDelta?: number;
   readonly timeInForce?: TimeInForce;
 }
 

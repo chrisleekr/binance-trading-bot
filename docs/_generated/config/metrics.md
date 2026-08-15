@@ -17,6 +17,7 @@
 | `decision_count` | counter | `profileId`, `symbol` | Strategy decisions emitted, accumulated across ticks. |
 | `exchange_info_band_unparseable_total` | counter | `mode` | Symbols that published a PERCENT_PRICE_BY_SIDE filter which could not be projected, per Binance mode. The rest of the filter set survives, so the symbol keeps trading while its protective stop loses the price-band check and re-arms into rejections. |
 | `exchange_info_filters_unparseable_total` | counter | `mode` | Symbols whose exchangeInfo filters array was present and non-empty but could not be projected into the full filter set, per Binance mode. Each one falls back to all-zero filters, which makes the symbol unsizeable and therefore untraded. |
+| `exchange_info_trailing_delta_unparseable_total` | counter | `mode` | Symbols that published a TRAILING_DELTA filter which could not be projected, per Binance mode. The rest of the filter set survives, so the symbol keeps trading while onBandBlock native-trail silently stops being placeable and falls back to refusing the stop. |
 | `order_budget_deferred` | counter | `profileId`, `symbol` | Order batches skipped for this tick because the account had no Binance ORDERS headroom. |
 | `pg_pool_idle` | gauge | — | Postgres pool connections currently idle. |
 | `pg_pool_total` | gauge | — | Postgres pool connections currently open, idle and in use together. |
@@ -27,6 +28,7 @@
 | `state_commit_latch_merged` | counter | `profileId`, `symbol` | Tick latch fields were successfully grafted onto the concurrent CAS winner. |
 | `state_commit_persist_error` | counter | `profileId`, `symbol` | Symbol-state PG persist rejected on the tick commit path (degrade-to-warn). |
 | `state_commit_persist_timeout` | counter | `profileId`, `symbol` | Symbol-state PG persist exceeded the tick commit timeout (degrade-to-warn). |
+| `strategy_metric_total` | counter | `strategy`, `name`, `profileId`, `symbol`, `reason` | Strategy-emitted metric entries drained from each tick, by strategy and entry name. Event-counted: every entry increments once per occurrence, never once per tick spent in the state it describes, so a rate is a rate of things happening and not a measure of how long a condition has held. |
 | `tick_failures_total` | counter | `profileId`, `symbol` | Tick handler invocations that threw. Throttled skips are not failures and are excluded. |
 | `tick_latency_ms` | histogram | `profileId`, `symbol` | Tick handler wall-clock latency in milliseconds. |
 | `tick_throttled_kill_switch` | counter | `profileId`, `symbol` | Ticks short-circuited because the profile kill-switch was engaged. |

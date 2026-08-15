@@ -73,6 +73,14 @@ const MomentumProtectiveStopSchema = z.object({
     .describe(
       '@ui:percent-of How far the stop level must move before the order held at Binance is rewritten. Higher means fewer orders sent, at the cost of the resting order lagging the in-app stop by up to this much. 0.1 rewrites on every tenth of a percent.',
     ),
+  // What to do when Binance's per-side price band refuses the stop. Defaulted to
+  // `notify` so an existing profile behaves exactly as it did.
+  onBandBlock: z
+    .enum(['notify', 'clamp', 'native-trail'])
+    .default('notify')
+    .describe(
+      'What to do when Binance refuses your backup stop for sitting too far below the market. "Notify" leaves it unplaced and alerts you. "Clamp" moves the stop up to the closest level Binance will accept, which on a typical symbol at the default limit offset is about 7.2% below the current price. That level is anchored to the market rather than to your high-water mark, so it follows the price both up and down, and it never sits below the trail you set. A gradual pullback therefore moves it back down instead of triggering it: what it buys is a resting order that catches a fast drop where "notify" would leave none. The exact figure depends on the symbol\'s own price band. "Native trail" hands the stop to Binance to trail for you at your full distance, so nothing gets tightened; the trade-offs are that it sells at market price rather than at a limit, and it measures its distance from the highest price seen since the order was placed rather than from your entry.',
+    ),
 });
 
 /**

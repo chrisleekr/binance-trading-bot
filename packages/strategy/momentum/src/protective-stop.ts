@@ -2,15 +2,18 @@ import { Decimal, roundToTick } from '@app/money';
 import {
   evaluateProtectiveStopArm as coreEvaluateProtectiveStopArm,
   findRestingProtectiveStop as coreFindRestingProtectiveStop,
+  clampedStopDrift,
   decOrNull,
   ownRestingSellBase,
   parseFilters,
 } from '@app/strategy-core';
 import type {
   Decision,
+  DesiredNativeTrailingStop,
   DesiredProtectiveStop,
   OpenOrder,
   ProtectiveStopArm,
+  ProtectiveStopBandSettings,
   ProtectiveStopLevel,
   TickInput,
 } from '@app/strategy-core';
@@ -21,8 +24,10 @@ import type { MomentumBundle, MomentumConfig, MomentumState } from './schema.js'
 type MomentumInput = TickInput<MomentumConfig, MomentumState, MomentumBundle>;
 
 // Default limit offset when a stored config predates the field: 2% below the
-// trigger so a tripped STOP_LOSS_LIMIT crosses the book.
-const DEFAULT_LIMIT_OFFSET = '0.98';
+// trigger so a tripped STOP_LOSS_LIMIT crosses the book. Exported because the
+// stop resolver needs the same fallback to derive the exchange price floor, and
+// two copies of it would floor at two different prices.
+export const DEFAULT_LIMIT_OFFSET = '0.98';
 
 // `new Decimal` throws on malformed input; a protective-stop input that fails to
 // parse must skip (no arm), never crash the tick.
@@ -55,6 +60,16 @@ export { findForeignRestingSell } from '@app/strategy-core';
 // The shared arm's blocker shape is exactly this strategy's persisted
 // `protectiveStopBlocker` field, so tick() assigns it straight into nextState.
 export type { ProtectiveStopArm } from '@app/strategy-core';
+
+/**
+ * The shared arm's outcome plus whether a band refusal was answered with an
+ * exchange-native trailing stop. A substitution leaves no blocker — nothing was
+ * refused in the end — so without this flag the swap is invisible to the tick
+ * that has to report it.
+ */
+export interface MomentumProtectiveStopArm extends ProtectiveStopArm {
+  readonly nativeTrailed: boolean;
+}
 
 /**
  * Round the caller's resolved trail level onto the symbol's tick grid and derive
@@ -120,6 +135,36 @@ const placeDecision = (
   },
 });
 
+/**
+ * The exchange-native trailing form of the same protective stop: a `STOP_LOSS`
+ * carrying only a size and a trailing distance. No `stopPrice` and no `price` —
+ * both would be banded, and a limit price fixed today cannot fill after the drop
+ * it is meant to catch. Binance triggers a MARKET sell instead, which is the cost
+ * the operator accepts by choosing this mode.
+ *
+ * Same clientOrderId as the priced form, so the two occupy one slot: the arm
+ * finds, re-arms and cancels either through the same id.
+ */
+const nativeTrailPlaceDecision = (
+  input: MomentumInput,
+  desired: DesiredNativeTrailingStop,
+  rearm: boolean,
+): Decision => ({
+  type: 'place-order',
+  intent: {
+    symbol: input.market.symbol,
+    side: 'SELL',
+    reason: 'protective-stop',
+    clientOrderId: protectiveStopClientOrderId(input.profile.id, input.market.symbol),
+    ...(rearm ? { deferrable: true } : {}),
+  },
+  params: {
+    type: 'STOP_LOSS',
+    quantity: desired.quantity,
+    trailingDelta: desired.trailingDelta,
+  },
+});
+
 const cancelDecision = (resting: OpenOrder, symbol: string): Decision => ({
   type: 'cancel-order',
   orderId: resting.orderId,
@@ -142,6 +187,51 @@ export const protectiveStopCancelDecisions = (input: MomentumInput): Decision[] 
 };
 
 /**
+ * What this config asks of a symbol's price band, for a caller checking a bind
+ * before any position exists.
+ *
+ * The distance quoted is `trailingStopPct`, the fixed retrace fraction below the
+ * high-water mark, and it is the only leg this can quote: it is the one distance
+ * derivable from config alone. The ATR leg overrides it whenever
+ * `atrTrailingStop` is enabled and the profit trail overrides both once armed,
+ * and each of those sits at a distance that moves with live candles. So on a
+ * profile using either, this describes the fixed leg rather than the leg in
+ * force — a shallower ATR stop is warned about too conservatively, a deeper one
+ * not conservatively enough.
+ *
+ * That is a deliberate trade, not an oversight, because the same fraction also
+ * sizes the exchange-native trailing delta. A delta re-derived from the live
+ * level would change on every ATR reading, and since the re-arm test compares
+ * deltas, each change cancels and re-places the order — which restarts Binance's
+ * own high-water mark and destroys the tracking the trail exists for.
+ *
+ * Null when nothing rests at the exchange, or when the fraction is outside the
+ * range the trail itself accepts.
+ *
+ * Read defensively throughout: the API hands this a parsed config, but the same
+ * reader must hold for a stored config saved before `onBandBlock` existed.
+ */
+export const momentumStopBandSettings = (
+  config: MomentumConfig,
+): ProtectiveStopBandSettings | null => {
+  const ps = config.protectiveStop;
+  if (ps?.enabled !== true) return null;
+  const stopDistancePct = decOrNull(config.trailingStopPct);
+  if (stopDistancePct === null || stopDistancePct.lte(0) || stopDistancePct.gte(1)) return null;
+  const limitOffsetPct = decOrNull(ps.limitOffsetPercentage ?? DEFAULT_LIMIT_OFFSET);
+  // Upper bound too, matching the arm: an offset at or above 1 prices the limit
+  // at or above the trigger and arms nothing, so a warning built from it would
+  // describe a stop the exchange is never asked to hold.
+  if (limitOffsetPct === null || limitOffsetPct.lte(0) || limitOffsetPct.gte(1)) return null;
+  return {
+    stopDistancePct,
+    limitOffsetPct,
+    onBandBlock: ps.onBandBlock ?? 'notify',
+    path: ['trailingStopPct'],
+  };
+};
+
+/**
  * Arm or re-arm the exchange-side protective stop while holding, by resolving
  * momentum's seams — the ATR/trail level, its own reclaimable resting base, its
  * `-ps` clientOrderId, and its place/cancel builders — and handing them to the
@@ -153,7 +243,8 @@ export const evaluateProtectiveStopArm = (
   input: MomentumInput,
   state: MomentumState,
   rawStop: Decimal | null,
-): ProtectiveStopArm => {
+  floorClamped: boolean,
+): MomentumProtectiveStopArm => {
   const symbol = input.market.symbol;
   const ourId = protectiveStopClientOrderId(input.profile.id, symbol);
   // Optional chaining tolerates a stored config that predates the field (the
@@ -161,8 +252,25 @@ export const evaluateProtectiveStopArm = (
   // computed only when enabled, mirroring the pre-refactor short-circuit.
   const enabled = input.config.protectiveStop?.enabled === true;
   const rawBand = decOrNull(input.config.protectiveStop?.minRearmDriftPct);
-  const driftBand = rawBand !== null && rawBand.gt(0) && rawBand.lt(1) ? rawBand : null;
-  return coreEvaluateProtectiveStopArm({
+  const operatorBand = rawBand !== null && rawBand.gt(0) && rawBand.lt(1) ? rawBand : null;
+  // A clamped level tracks the market, so the operator's band (or the shared
+  // default) would re-place the order on nearly every tick for as long as the
+  // exchange floor is what is holding the stop up.
+  const driftBand = floorClamped ? clampedStopDrift(operatorBand) : operatorBand;
+  // Same optional-chaining discipline: a stored config saved before this leaf
+  // existed carries no `onBandBlock` key, which reads as the `notify` default.
+  // Routed through the band settings so the trail distance and the operator
+  // warning quote ONE derivation of `trailingStopPct`; null here means the
+  // fraction is unusable, which is a reason not to offer the escape at all.
+  const bandSettings = momentumStopBandSettings(input.config);
+  const nativeTrail = bandSettings !== null && bandSettings.onBandBlock === 'native-trail';
+  // Set from inside the builder rather than inferred from the returned
+  // decisions: the shared arm calls it EXACTLY when it substitutes a trail for a
+  // band-refused priced stop, which is the fact worth reporting. Reading the
+  // decisions back would re-derive that from the order shape and drift the day
+  // the trail gains another use.
+  let nativeTrailed = false;
+  const arm = coreEvaluateProtectiveStopArm({
     input,
     enabled,
     // A null level is "no usable trail this tick", which the shared arm answers
@@ -177,6 +285,20 @@ export const evaluateProtectiveStopArm = (
     // orders. Absent / unparseable falls back to the shared default.
     ...(driftBand === null ? {} : { minStopDrift: driftBand }),
     buildPlace: (desired, rearm) => placeDecision(input, desired, rearm),
+    // Supplied only under `native-trail`: its presence is what tells the shared
+    // arm a band refusal has an escape rather than being a dead end.
+    ...(nativeTrail && bandSettings !== null
+      ? {
+          nativeTrail: {
+            stopDistancePct: bandSettings.stopDistancePct,
+            build: (desired: DesiredNativeTrailingStop, rearm: boolean) => {
+              nativeTrailed = true;
+              return nativeTrailPlaceDecision(input, desired, rearm);
+            },
+          },
+        }
+      : {}),
     buildCancel: (resting) => cancelDecision(resting, symbol),
   });
+  return { ...arm, nativeTrailed };
 };

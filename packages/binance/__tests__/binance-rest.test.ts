@@ -167,6 +167,33 @@ describe('createBinanceRest — request shape', () => {
     expect(params.get('signature')).not.toBeNull();
   });
 
+  it('sends a trailing STOP_LOSS with a delta and no price legs at all', async () => {
+    // Binance's mandatory params for STOP_LOSS are quantity plus `stopPrice` OR
+    // `trailingDelta`. The delta form is the one that escapes
+    // PERCENT_PRICE_BY_SIDE, and only because it carries no banded price: a
+    // stopPrice smuggled alongside would put the refusal straight back.
+    const spy = makeFetchSpy(
+      jsonResponse({ orderId: 3, clientOrderId: 'c-3', status: 'NEW' }, { weight: '5' }),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+    await client.placeOrder({
+      symbol: 'BTCUSDT',
+      side: 'SELL',
+      type: 'STOP_LOSS',
+      quantity: '0.001',
+      trailingDelta: 1551,
+      newClientOrderId: 'c-3',
+    });
+    const params = new URLSearchParams(spy.nth(0).body ?? '');
+    expect(params.get('type')).toBe('STOP_LOSS');
+    // Serialised as a plain integer: Binance types it a LONG, and it is a ratio
+    // in basis points, not money.
+    expect(params.get('trailingDelta')).toBe('1551');
+    expect(params.get('stopPrice')).toBeNull();
+    expect(params.get('price')).toBeNull();
+    expect(params.get('timeInForce')).toBeNull();
+  });
+
   it('consumes an ACK-shape placeOrder response (no status/fills) without throwing', async () => {
     const spy = makeFetchSpy(jsonResponse({ orderId: 99, clientOrderId: 'c-9' }, { weight: '5' }));
     const client = createBinanceRest(options({ fetchImpl: spy.fetch }));

@@ -91,7 +91,9 @@ export type MetricName =
   | 'audit_entries_stuck'
   | 'audit_poison_entries_dropped'
   | 'exchange_info_filters_unparseable_total'
-  | 'exchange_info_band_unparseable_total';
+  | 'exchange_info_band_unparseable_total'
+  | 'exchange_info_trailing_delta_unparseable_total'
+  | 'strategy_metric_total';
 
 /**
  * The spec behind each name. Exhaustive by construction: a name in the union with
@@ -346,6 +348,42 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     kind: 'counter',
     help: 'Symbols that published a PERCENT_PRICE_BY_SIDE filter which could not be projected, per Binance mode. The rest of the filter set survives, so the symbol keeps trading while its protective stop loses the price-band check and re-arms into rejections.',
     labelNames: ['mode'],
+  },
+  // Projected and dropped the same way, and it needs its own series for the same
+  // reason the band does: the consequence is specific. `native-trail` is the one
+  // escape from a band refusal, and it derives its distance from these bounds —
+  // without them the strategy falls back to refusing, so an escape the operator
+  // deliberately turned on turns itself off. Nothing else reports it: the symbol
+  // keeps trading and its ordinary priced stop is unaffected.
+  exchange_info_trailing_delta_unparseable_total: {
+    kind: 'counter',
+    help: 'Symbols that published a TRAILING_DELTA filter which could not be projected, per Binance mode. The rest of the filter set survives, so the symbol keeps trading while onBandBlock native-trail silently stops being placeable and falls back to refusing the stop.',
+    labelNames: ['mode'],
+  },
+  // The one series behind every `MetricEntry` a strategy puts on its tick output.
+  // Strategy names are dotted, per-plugin, and partly built at runtime, so they
+  // cannot be members of this union — and a name that is not a member reaches no
+  // registry at all. Carrying the strategy's own name as a LABEL is what lets the
+  // catalogue stay closed while the entries still export.
+  //
+  // Label set is deliberately narrow. `name` is bounded by an exact-set gate over
+  // the emitting call sites; every other tag a strategy attaches (side, cap,
+  // level, regime, addIndex) is dropped by the sink's label projection rather than
+  // promoted, because each one would multiply the series count for a dimension
+  // only one strategy has.
+  //
+  // `reason` is the one promoted free-form tag and it carries NO such gate. Every
+  // call site today passes a literal-union value (`SellSkipReason`,
+  // `RebalancePlan['reason']`, the two band-adjustment causes), which is why the
+  // cardinality is small — but `MetricEntry.tags` is `Record<string, string>`, so
+  // that is a property of the current call sites and not something the sink or a
+  // test enforces. A strategy that passes an id, a symbol or an error string here
+  // grows one series per distinct value, per profile, per symbol. Check the tag's
+  // value type when adding a `reason` to a strategy metric.
+  strategy_metric_total: {
+    kind: 'counter',
+    help: 'Strategy-emitted metric entries drained from each tick, by strategy and entry name. Event-counted: every entry increments once per occurrence, never once per tick spent in the state it describes, so a rate is a rate of things happening and not a measure of how long a condition has held.',
+    labelNames: ['strategy', 'name', 'profileId', 'symbol', 'reason'],
   },
 };
 

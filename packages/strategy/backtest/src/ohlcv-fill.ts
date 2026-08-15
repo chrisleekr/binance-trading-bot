@@ -11,6 +11,24 @@ import type {
 
 const BPS = new Decimal(10_000);
 
+/**
+ * Refuse an order type this model cannot simulate.
+ *
+ * A `STOP_LOSS` carrying a `trailingDelta` has no price of any kind: Binance
+ * tracks the high-water mark and derives the trigger itself, which is exchange
+ * state this replay does not model. Every price path here falls back to `'0'` on
+ * a missing price, so simulating it would fill at zero — a fictional, wildly
+ * profitable exit that would make a backtest recommend the setting. Failing loud
+ * is the only honest option until the model can trail.
+ */
+const assertSupportedType = (type: string): void => {
+  if (type === 'STOP_LOSS') {
+    throw new Error(
+      'ohlcv-fill: STOP_LOSS (exchange-native trailing stop) is not supported by the backtest fill model — the trail is exchange-side state this replay does not simulate',
+    );
+  }
+};
+
 export interface OhlcvFillModelOptions {
   /** Fee on resting LIMIT fills (provides liquidity), basis points of notional. */
   readonly makerBps: number;
@@ -105,6 +123,7 @@ export class OhlcvFillModel implements FillModel {
    */
   reserve(input: ReserveInput): FillReservation {
     const { intent, params, symbolInfo } = input;
+    assertSupportedType(params.type);
     const qty = new Decimal(params.quantity);
     if (intent.side === 'SELL') return { asset: symbolInfo.baseAsset, amount: qty };
     const price = new Decimal(params.price ?? params.stopPrice ?? '0').mul(
@@ -117,6 +136,7 @@ export class OhlcvFillModel implements FillModel {
   }
 
   fill(input: FillInput): FillOutcome {
+    assertSupportedType(input.params.type);
     // Placement never fills on the same candle — defer to the resting book.
     if ((input.phase ?? 'place') === 'place') return { kind: 'rest' };
 

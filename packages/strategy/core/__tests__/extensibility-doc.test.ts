@@ -20,6 +20,20 @@ const doc = read('../../../../docs/architecture/extensibility.md');
 const unionBody = decisionSrc.slice(decisionSrc.indexOf('export type Decision'));
 const actualVariants = [...unionBody.matchAll(/readonly type: '([a-z-]+)'/g)].map((m) => m[1]);
 
+// The `Strategy` members as they actually compile. Anchored at the interface's
+// own indentation so a nested object literal in a method's parameter type is not
+// mistaken for a member. Same reason the variants above are scraped: a
+// hand-listed set of members fails OPEN — adding a hook and forgetting the doc
+// leaves the table silently describing a smaller contract than the one authors
+// have to implement.
+const strategyBody = (() => {
+  const from = contractSrc.slice(contractSrc.indexOf('export interface Strategy<'));
+  return from.slice(0, from.indexOf('\n}\n'));
+})();
+const actualMembers = [
+  ...strategyBody.matchAll(/^ {2}(?:readonly )?([A-Za-z][A-Za-z0-9]*)(\??)[?:(<]/gm),
+].map((m) => `${m[1]}${m[2]}`);
+
 describe('extensibility.md stays in sync with the strategy-core contract', () => {
   it('scrapes the real Decision variants (guards the scraper itself)', () => {
     expect(new Set(actualVariants)).toEqual(
@@ -38,6 +52,29 @@ describe('extensibility.md stays in sync with the strategy-core contract', () =>
     for (const v of actualVariants) expect(doc).toContain(`\`${v}\``);
   });
 
+  it('scrapes the real Strategy members (guards the scraper itself)', () => {
+    // An empty or truncated scrape would make the coverage assertion below pass
+    // over nothing at all. Pinned at both ends of the interface so a member
+    // added in the middle is caught by the coverage test, not by this one.
+    expect(actualMembers.length).toBeGreaterThan(20);
+    expect(actualMembers).toContain('name');
+    expect(actualMembers).toContain('tick');
+    expect(actualMembers).toContain('protectiveStopBandSettings?');
+  });
+
+  it('documents every Strategy member the interface exposes', () => {
+    // Optional members are written with their `?` in the table, so either
+    // spelling counts — the assertion is that the member is described, not how
+    // its optionality was typed on the page.
+    for (const m of actualMembers) {
+      const bare = m.replace('?', '');
+      expect(
+        doc.includes(`\`${m}\``) || doc.includes(`\`${bare}\``),
+        `extensibility.md documents no Strategy member \`${m}\``,
+      ).toBe(true);
+    }
+  });
+
   it('keeps the load-bearing contract sections and authoritative anchors', () => {
     // Pins the structural promises (issue #384 criteria 1 and 4) so a future
     // edit that guts a section fails loudly instead of silently re-stubbing.
@@ -51,6 +88,11 @@ describe('extensibility.md stays in sync with the strategy-core contract', () =>
       'packages/contracts/src/operator-actions.ts',
       'buildStrategyRegistry',
       'replayFixture',
+      // The metric-name step is the one checklist item with no compile-time
+      // backstop: an undeclared name exports under a label nobody watches, and
+      // only this instruction points at the gate that catches it.
+      'strategy_metric_total',
+      'strategy-metric-names.test.ts',
     ]) {
       expect(doc, `missing anchor: ${anchor}`).toContain(anchor);
     }

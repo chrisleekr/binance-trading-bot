@@ -582,6 +582,47 @@ describe('placeOrderHandler', () => {
     expect(delKeys.some((k) => /open-orders/.test(k))).toBe(false);
   });
 
+  it('sends a native trailing stop as a STOP_LOSS with a delta and no prices, and caches it that way', async () => {
+    const binance = fakeBinance({
+      placeOrder: vi.fn(async () => ({ orderId: 77, clientOrderId: 'client-1', status: 'NEW' })),
+    } as unknown as Partial<BinanceRestClient>);
+    const bindings = buildBindings({ binance });
+    const redis = fakeRedis();
+    const deps = { ...buildDeps(bindings, redis), accountId: ACCOUNT };
+
+    const trail: Extract<Decision, { type: 'place-order' }> = {
+      type: 'place-order',
+      intent: {
+        symbol: 'BTCUSDT',
+        side: 'SELL',
+        reason: 'protective-stop',
+        clientOrderId: 'client-1',
+      },
+      params: { type: 'STOP_LOSS', quantity: '0.001', trailingDelta: 1551 },
+    };
+
+    expect(await placeOrderHandler(deps, CTX, trail)).toEqual({ ok: true });
+    expect(binance.placeOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'STOP_LOSS', trailingDelta: 1551 }),
+    );
+    const sent = (binance.placeOrder as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      Record<string, unknown> | undefined;
+    // Binance rejects a trailing STOP_LOSS that also carries a trigger, and the
+    // whole point of the order is that it has no banded price to refuse.
+    expect(sent).not.toHaveProperty('stopPrice');
+    expect(sent).not.toHaveProperty('price');
+
+    const upsert = (redis.eval as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => c[3] === 'upsert',
+    );
+    const cached = JSON.parse(String(upsert?.[4])) as Record<string, unknown>;
+    expect(cached.trailingDelta).toBe(1551);
+    // NOT '0'. A zero here is what renders a stop priced at nothing in the UI;
+    // the empty string is the same "absent" sentinel a missing stopPrice uses,
+    // and every reader parses it to unknown rather than to a real price.
+    expect(cached.price).toBe('');
+  });
+
   it('forwards intent.meta to persistOrder so strategy order metadata lands in orders.meta', async () => {
     const binance = fakeBinance({
       placeOrder: vi.fn(async () => ({ orderId: 7, clientOrderId: 'client-1', status: 'NEW' })),

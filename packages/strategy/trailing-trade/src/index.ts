@@ -20,6 +20,7 @@ import { ttReasonAttribution, ttAttributeOrder } from './attribution.js';
 import { lintTTConfig } from './lint.js';
 import { checkTTOrderFeasibility } from './feasibility.js';
 import { ttPreviewLevels, ttPreviewDataNeeds } from './preview.js';
+import { ttStopBandSettings } from './stop-level.js';
 
 export { trailingTradePositionAdapter } from './position-adapter.js';
 export { ttPreviewLevels, ttPreviewDataNeeds } from './preview.js';
@@ -78,6 +79,11 @@ export {
   type ForceSellGuardInput,
   type ForceSellGuards,
 } from './force-sell-guards.js';
+// The exit path builds its metric name from this union at runtime, so the set of
+// `tt_*_emit` series it can produce is not readable as literals in the source.
+// Exported so the observability gate can enumerate that set from the type rather
+// than from a copy of it that would silently rot when a reason is added.
+export type { SellEmissionReason } from './branches/sell-gate.js';
 
 /**
  * Domain events trailing-trade emits. Each entry pairs an `emit-event`
@@ -205,6 +211,11 @@ export const trailingTrade: Strategy<TTConfig, TTState, TTBundle> = {
   // symbol's exchange minimums, or whose grid the balance cannot fully fund.
   // Needs filters + price + balance, so it's separate from the pure lint above.
   checkOrderFeasibility: checkTTOrderFeasibility,
+  // Lets a caller holding the symbol's filters warn at BIND time that the
+  // configured stop-loss is deeper than the symbol's price band will hold,
+  // instead of the operator learning it from the first tick that could not arm
+  // a stop against a position already open.
+  protectiveStopBandSettings: ttStopBandSettings,
   // Reason-code → config-setting attribution, so the backtest UI names the lever
   // behind each entry-blocker off this declaration (core invariant #1).
   reasonAttribution: ttReasonAttribution,

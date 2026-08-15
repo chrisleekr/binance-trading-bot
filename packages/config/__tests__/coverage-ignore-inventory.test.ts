@@ -163,7 +163,7 @@ const REVIEWED_IGNORES: Record<string, readonly string[]> = {
 };
 
 const REVIEWED_IDENTITY_DIGESTS: Record<string, string> = {
-  'packages/binance/src/binance-rest.ts': '0ca545e166c20db9',
+  'packages/binance/src/binance-rest.ts': 'babf06aaec1757ec',
   'packages/binance/src/market-data/fake-port.ts': '64e259fdba0be49f',
   'packages/binance/src/market-data/kline-fetcher.ts': '8bc0a3461d279b30',
   'packages/binance/src/public-klines.ts': '009866645bd7ee6e',
@@ -180,9 +180,9 @@ const REVIEWED_IDENTITY_DIGESTS: Record<string, string> = {
   'packages/indicators/src/index.ts': '8fb4495c172df93a',
   'packages/strategy/core/src/replay.ts': '0bce841953ec4aed',
   'packages/strategy/rebalance/src/momentum.ts': '6061dccad62477d7',
-  'packages/strategy/trailing-trade/src/schema.ts': '9463593c0ee84865',
-  'packages/strategy/trailing-trade/src/tick.ts': '3b4fb3c021741c38',
-  'packages/strategy/trailing-trade/src/decisions.ts': '808cb59efc8eb679',
+  'packages/strategy/trailing-trade/src/schema.ts': '46e2fd3326ca1e54',
+  'packages/strategy/trailing-trade/src/tick.ts': 'a2a7cfe9f8b8fee7',
+  'packages/strategy/trailing-trade/src/decisions.ts': 'fc4538821d696187',
   'packages/strategy/trailing-trade/src/branches/grid-buy.ts': '2d1b05abe70d76b9',
   'packages/strategy/trailing-trade/src/branches/first-entry.ts': '7f054f05a0b4b551',
 };

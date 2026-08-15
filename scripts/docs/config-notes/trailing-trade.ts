@@ -204,6 +204,11 @@ export const trailingTradeNotes: FieldNotes = {
     expect:
       "A wide gap fills reliably in a fast drop at a worse price; a tiny gap risks the stop triggering and never filling, leaving you holding through the fall. `0.995` puts the limit 0.5% below the trigger. There is also a hard floor under this value: at or below the symbol's Binance `askMultiplierDown` the stop cannot be placed at all, and the symbol reports a terminal blocker until you raise it.",
   },
+  'sell.protectiveStop.onBandBlock': {
+    when: 'Only when the protective stop is on. Change it if your stop-loss sits more than about 8.6% below the market and you keep being told the backup stop could not be placed.',
+    expect:
+      'Binance refuses a resting sell priced too far below the market, and this picks what happens then. `notify` alerts you and leaves the position with no resting stop behind it. `clamp` raises the stop to the deepest level Binance will take, roughly 8.6% below the market at the default `0.995` limit offset. That level is anchored to the market rather than to your entry, so it follows the price both up and down and never sits below the stop-loss you set: a gradual pullback moves it back down instead of triggering it, so it is not a trailing exit but a resting order that catches a fast drop. While the exchange floor is what is holding the stop up, the order is rewritten only once the level has moved 1%, so following the market does not burn your order allowance. `native-trail` hands Binance a trailing stop at your full distance instead, so nothing is tightened — the costs are that it sells at whatever the market pays rather than at a limit price, and Binance measures the distance from the highest price seen since the order was placed rather than from your entry, so there is no fixed trigger price for the app to show you.',
+  },
   'sell.breakEven.enabled': {
     when: 'Turn it on when trades keep popping into small profit, stalling, and then running all the way down to the stop-loss.',
     expect:

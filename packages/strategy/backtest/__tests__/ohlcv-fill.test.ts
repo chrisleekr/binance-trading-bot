@@ -569,3 +569,28 @@ describe('OhlcvFillModel volume-participation cap', () => {
     }
   });
 });
+
+describe('OhlcvFillModel — exchange-native trailing stop', () => {
+  const params: OrderParams = { type: 'STOP_LOSS', quantity: '1', trailingDelta: 1551 };
+
+  it('refuses to fill a STOP_LOSS rather than pricing it at zero', () => {
+    // The trigger is exchange-side state — a high-water mark that starts when the
+    // order reaches Binance — and this replay has no way to reproduce it. The
+    // fill path derives a price from `price ?? stopPrice ?? '0'`, so a silent
+    // pass would sell the whole position at zero and report the loss as strategy
+    // performance.
+    expect(() => model.fill(input({ side: 'SELL', params, detail: [bar('90', '110')] }))).toThrow(
+      /STOP_LOSS/,
+    );
+  });
+
+  it('refuses to reserve for one as well, so the failure cannot be reached half-way', () => {
+    expect(() =>
+      model.reserve({
+        intent: { symbol: SYMBOL, side: 'SELL', reason: 'protective-stop', clientOrderId: 'c1' },
+        params,
+        symbolInfo: SYMBOL_INFO,
+      }),
+    ).toThrow(/not supported/);
+  });
+});

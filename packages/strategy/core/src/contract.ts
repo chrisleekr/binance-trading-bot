@@ -6,7 +6,10 @@ import type { Decision } from './decision.js';
 
 export type OrderSide = 'BUY' | 'SELL';
 
-export type OrderType = 'LIMIT' | 'MARKET' | 'STOP_LOSS_LIMIT';
+// `STOP_LOSS` is the market-on-trigger stop. It is the ONLY order type that can
+// carry a `trailingDelta` without also carrying a banded limit price, which is
+// what lets an exchange-native trailing stop escape `PERCENT_PRICE_BY_SIDE`.
+export type OrderType = 'LIMIT' | 'MARKET' | 'STOP_LOSS' | 'STOP_LOSS_LIMIT';
 
 export type OrderStatus =
   'NEW' | 'PARTIALLY_FILLED' | 'FILLED' | 'CANCELED' | 'PENDING_CANCEL' | 'REJECTED' | 'EXPIRED';
@@ -48,6 +51,20 @@ export interface PercentPriceBySideFilter {
   readonly avgPriceMins: number;
 }
 
+/**
+ * Binance's `TRAILING_DELTA` filter: the inclusive bounds, in basis points, on
+ * the `trailingDelta` an order may carry. The bounds are PER SYMBOL — there is
+ * no universal range — and the two `Below` bounds are the ones that govern a
+ * SELL `STOP_LOSS`, which trails DOWN from the high-water mark. Plain integers,
+ * not money: a delta is a ratio Binance types as a `LONG`.
+ */
+export interface TrailingDeltaFilter {
+  readonly minTrailingAboveDelta: number;
+  readonly maxTrailingAboveDelta: number;
+  readonly minTrailingBelowDelta: number;
+  readonly maxTrailingBelowDelta: number;
+}
+
 export interface SymbolFilters {
   readonly minNotional: string;
   readonly tickSize: string;
@@ -69,6 +86,18 @@ export interface SymbolFilters {
    * explicitly-undefined carry the same meaning here, so both are accepted.
    */
   readonly percentPriceBySide?: PercentPriceBySideFilter | undefined;
+  /**
+   * Binance's per-symbol `trailingDelta` bounds. Optional and fail-open on the
+   * same terms as {@link SymbolFilters.percentPriceBySide}: Binance does not
+   * publish the row on every symbol and cached entries predating the field are
+   * revived with an unvalidated cast. Absence means "bounds unknown", which a
+   * reader answers by NOT deriving a delta at all — an out-of-bounds delta is
+   * rejected outright by the exchange, so guessing one buys nothing.
+   *
+   * Explicitly `| undefined` for the `exactOptionalPropertyTypes` reason spelled
+   * out on `percentPriceBySide`.
+   */
+  readonly trailingDelta?: TrailingDeltaFilter | undefined;
 }
 
 export interface SymbolInfo {
@@ -116,6 +145,13 @@ export interface OpenOrder {
   readonly executedQty: string;
   readonly cummulativeQuoteQty: string;
   readonly stopPrice?: string;
+  /**
+   * Trailing distance in basis points, present only on a resting trailing-stop
+   * order (Binance reports it back on the order row). A trailing order has NO
+   * readable trigger — the exchange moves it — so this is the only field that
+   * can tell a reader the resting order still matches the configured distance.
+   */
+  readonly trailingDelta?: number;
   readonly timeInForce?: TimeInForce;
   readonly transactTimeMs: number;
   readonly updateTimeMs: number;
@@ -247,6 +283,28 @@ export interface ConfigDiagnostic {
   readonly code: string;
   readonly message: string;
   readonly path?: readonly string[];
+}
+
+/**
+ * What a strategy's loss-side stop asks of Binance's `PERCENT_PRICE_BY_SIDE`
+ * band, reduced to the three numbers the band arithmetic needs plus the field to
+ * point an operator at. Numbers and a config path only — deliberately no prose,
+ * because the host mints the operator copy from these and a mutation success
+ * body must carry no plugin-authored text.
+ *
+ * Every strategy resting an exchange-side stop expresses the same two ratios,
+ * whatever its own config spells them: how far below the market the trigger
+ * sits, and how far below the trigger its limit leg sits.
+ */
+export interface ProtectiveStopBandSettings {
+  /** Trigger distance below the reference price, as a fraction: `0.03` = 3% below. */
+  readonly stopDistancePct: Decimal;
+  /** Limit leg as a fraction of the trigger: `0.995` = half a percent under it. */
+  readonly limitOffsetPct: Decimal;
+  /** What the profile does when the exchange refuses the stop. */
+  readonly onBandBlock: 'notify' | 'clamp' | 'native-trail';
+  /** Config path of the stop-distance setting, so a form can locate it. */
+  readonly path: readonly string[];
 }
 
 export interface LogEntry {
@@ -780,6 +838,22 @@ export interface Strategy<
     readonly price: string;
     readonly availableQuote?: string;
   }): readonly ConfigDiagnostic[];
+
+  /**
+   * What this config asks of the symbol's price band, so a caller holding the
+   * symbol's filters can tell the operator BEFORE the position exists that the
+   * stop they configured is deeper than the exchange will accept. Without it the
+   * first news of an unplaceable stop arrives from the tick that could not arm
+   * one, which is after real money is committed.
+   *
+   * Numbers only — the caller derives the maximum and writes the copy — so the
+   * finding is host-minted and safe to ride back on a mutation response.
+   * `null` when the profile rests no exchange-side stop, which imposes nothing.
+   *
+   * Pure and symbol-independent: the band belongs to the symbol, this is the
+   * config half. Absent on strategies that rest no protective stop.
+   */
+  protectiveStopBandSettings?(config: Config): ProtectiveStopBandSettings | null;
 
   /**
    * Static map from a decision reason/metric code (the strings this strategy

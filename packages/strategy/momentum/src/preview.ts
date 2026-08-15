@@ -1,6 +1,6 @@
 import { Decimal } from '@app/money';
 import { ema, sma } from '@app/indicators';
-import { decOrNull } from '@app/strategy-core';
+import { decOrNull, nativeTrailPreviewNote } from '@app/strategy-core';
 import type {
   AccountSnapshot,
   AccountSnapshotWire,
@@ -16,10 +16,9 @@ import { coerceInt } from './config-coerce.js';
 import type { MomentumConfig, MomentumState } from './schema.js';
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
 import { resolveStopLevel } from './stop-level.js';
+import { DEFAULT_LIMIT_OFFSET } from './protective-stop.js';
 import { resolveEntryBudget } from './sizing.js';
 import { computeEntryQuantity } from './quantity.js';
-
-const DEFAULT_LIMIT_OFFSET = '0.98';
 
 /**
  * Revive a wire account (decimal-string balances) to the Decimal
@@ -115,6 +114,10 @@ export const momentumPreviewLevels = (
     refHigh,
     flat ? null : decOrNull(input.state?.profitHigh),
     candles,
+    // The clamp must run here too: the replay drift gate throws for any tick
+    // where the emitted level cleared a preview row the projection left
+    // unclamped, so skipping it is a hard failure, not a cosmetic mismatch.
+    { reference: input.currentPrice, band: input.filters?.percentPriceBySide },
   ).stop;
 
   const entryRows: PreviewRow[] = [buildEntryRow(input, bandStr)];
@@ -131,7 +134,7 @@ export const momentumPreviewLevels = (
 
   const sections: PreviewSection[] = [{ title: 'Entry', rows: entryRows }];
 
-  const protectiveRow = buildProtectiveStopRow(config, stopBase);
+  const protectiveRow = buildProtectiveStopRow(input, stopBase);
   const trendRow = buildTrendRow(config, candles);
   const extensionRow = buildExtensionRow(config, candles);
   const exitRows: PreviewRow[] = [];
@@ -167,26 +170,67 @@ const buildEntryRow = (
   return 'skip' in sized ? { ...base, skip: sized.skip } : { ...base, quantity: sized.quantity };
 };
 
+interface RawProtectiveStop {
+  readonly enabled?: unknown;
+  readonly limitOffsetPercentage?: unknown;
+  readonly onBandBlock?: unknown;
+}
+
 const buildProtectiveStopRow = (
-  config: MomentumConfig,
+  input: PreviewInput<MomentumConfig, MomentumState>,
   stopBase: Decimal | null,
 ): PreviewRow | null => {
-  if ((config as { protectiveStop?: { enabled?: unknown } }).protectiveStop?.enabled !== true) {
-    return null;
-  }
+  const ps = (input.config as { protectiveStop?: RawProtectiveStop }).protectiveStop;
+  if (ps?.enabled !== true) return null;
   if (stopBase === null) return null;
-  const offset =
-    decOrNull(
-      (config as { protectiveStop?: { limitOffsetPercentage?: unknown } }).protectiveStop
-        ?.limitOffsetPercentage,
-    ) ?? new Decimal(DEFAULT_LIMIT_OFFSET);
-  if (offset.lte(0) || offset.gte(1)) return null;
+  // Default applied INSIDE the read, so only an absent key falls back. An
+  // unparseable one reads as null here exactly as it does in the arm, which
+  // returns no level at all: defaulting it would draw a row for a stop that
+  // never goes out.
+  const offset = decOrNull(ps.limitOffsetPercentage ?? DEFAULT_LIMIT_OFFSET);
+  if (offset === null || offset.lte(0) || offset.gte(1)) return null;
+  const limit = stopBase.mul(offset);
+
+  // Under `native-trail` a stop the band refuses goes out as a trailing
+  // STOP_LOSS, which has NO trigger price at all — the exchange derives one from
+  // a high-water mark that starts at placement. Printing the configured level
+  // would name a price nothing acts on, so the row carries a sentence instead.
+  if (ps.onBandBlock === 'native-trail') {
+    // The CONFIGURED distance, matching what the arm hands Binance — a distance
+    // re-measured against the live price would print a percentage the resting
+    // order does not carry. An unparseable one leaves the profit trail as the
+    // only leg holding the stop, and no distance to hand Binance means no trail:
+    // the row falls through to the priced level the arm will actually send,
+    // exactly as it does when the symbol publishes no usable trailing bounds.
+    const stopDistancePct = decOrNull(input.config.trailingStopPct);
+    const note =
+      stopDistancePct === null
+        ? null
+        : nativeTrailPreviewNote({
+            stop: stopBase,
+            limit,
+            tick: decOrNull(input.filters?.tickSize),
+            reference: input.currentPrice,
+            stopDistancePct,
+            band: input.filters?.percentPriceBySide,
+            trailing: input.filters?.trailingDelta,
+          });
+    if (note !== null) {
+      return {
+        code: 'protective-stop',
+        label: 'Protective stop (exchange trail)',
+        tone: 'stop',
+        note,
+      };
+    }
+  }
+
   return {
     code: 'protective-stop',
     label: 'Protective stop',
     tone: 'stop',
     price: stopBase.toString(),
-    limitPrice: stopBase.mul(offset).toString(),
+    limitPrice: limit.toString(),
     triggerWhen: 'below',
     chartLine: true,
   };

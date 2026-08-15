@@ -1,14 +1,17 @@
 import { Decimal } from '@app/money';
-import { decOrNull } from '@app/strategy-core';
+import { decOrNull, nativeTrailPreviewNote } from '@app/strategy-core';
 import type {
   Candle,
   PreviewInput,
   PreviewModel,
   PreviewRow,
   PreviewSection,
+  StopBandContext,
+  TrailingDeltaFilter,
 } from '@app/strategy-core';
 
 import type { TTConfig, TTState } from './schema.js';
+import { DEFAULT_LIMIT_OFFSET, narrowProtectiveStop, resolveTTStopLevel } from './stop-level.js';
 import { REGIME_INTERVAL } from './branches/regime-filter.js';
 import { classifyRegimeFromDaily } from './branches/regime.js';
 
@@ -94,13 +97,21 @@ const unarmedTrailNote = (trailPct: Decimal, sellArm: Decimal | null): string =>
  * intra-tick and the `grid-sell` reason is shared by the ATR path at a different
  * level, so triggering them could disagree with a real exit.
  */
-const projectSells = (config: TTConfig, state: TTState | null, lbp: Decimal): PreviewRow[] => {
+const projectSells = (
+  config: TTConfig,
+  state: TTState | null,
+  lbp: Decimal,
+  band: StopBandContext,
+  trailingFilter: TrailingDeltaFilter | undefined,
+  tick: Decimal | null,
+): PreviewRow[] => {
   const sell = (
     config as {
       sell?: {
         triggerPercentage?: unknown;
         stopLossPercentage?: unknown;
         trailingStopPercentage?: unknown;
+        protectiveStop?: unknown;
       };
     }
   ).sell;
@@ -122,15 +133,60 @@ const projectSells = (config: TTConfig, state: TTState | null, lbp: Decimal): Pr
 
   const stopPct = decOrNull(sell?.stopLossPercentage);
   if (stopPct !== null && stopPct.gt(0) && stopPct.lte(1)) {
+    // Through the same resolver the sell gate uses. The drift gate throws for any
+    // tick whose emitted stop-loss cleared a row this projection left unclamped,
+    // so skipping the clamp here is a hard replay failure, not a display drift.
+    const { stop } = resolveTTStopLevel({
+      avgEntry: lbp,
+      stopPct,
+      protectiveStop: sell?.protectiveStop,
+      bandContext: band,
+    });
     rows.push({
       code: 'grid-stop-loss',
       label: 'Stop-loss',
       tone: 'stop',
-      price: lbp.mul(stopPct).toString(),
+      price: stop.toString(),
       triggerWhen: 'below',
       chartLine: true,
       ...(held ? { trigger: true as const } : {}),
     });
+
+    // Under `native-trail` the backup order resting at Binance is NOT this priced
+    // level: the band refuses it, so it goes out as a trailing STOP_LOSS with no
+    // trigger price at all. Its own row, so the operator does not read the
+    // in-process stop-loss line above as the level the exchange is holding.
+    const ps = narrowProtectiveStop(sell?.protectiveStop);
+    if (ps?.enabled === true && ps.onBandBlock === 'native-trail') {
+      // Default applied INSIDE the read, so only an absent key falls back. An
+      // unparseable one reads as null here exactly as it does in the arm, which
+      // refuses to place anything: defaulting it would draw a backup-stop row
+      // for an order that never goes out.
+      const offset = decOrNull(ps.limitOffsetPercentage ?? DEFAULT_LIMIT_OFFSET);
+      const note =
+        offset !== null && offset.gt(0) && offset.lte(1)
+          ? nativeTrailPreviewNote({
+              stop,
+              limit: stop.mul(offset),
+              tick,
+              reference: band.reference,
+              // The CONFIGURED distance, matching what the arm hands Binance —
+              // a distance re-measured against the live price would print a
+              // percentage the resting order does not carry.
+              stopDistancePct: new Decimal(1).minus(stopPct),
+              band: band.band,
+              trailing: trailingFilter,
+            })
+          : null;
+      if (note !== null) {
+        rows.push({
+          code: 'protective-stop',
+          label: 'Backup stop at Binance (exchange trail)',
+          tone: 'stop',
+          note,
+        });
+      }
+    }
   }
 
   const trailPct = decOrNull(sell?.trailingStopPercentage);
@@ -313,7 +369,14 @@ export const ttPreviewLevels = (input: PreviewInput<TTConfig, TTState>): Preview
   const sections: PreviewSection[] = [];
   const ladder = projectLadder(input.config, lbp);
   if (ladder.length > 0) sections.push({ title: 'Grid ladder', rows: ladder });
-  const sells = projectSells(input.config, input.state, lbp);
+  const sells = projectSells(
+    input.config,
+    input.state,
+    lbp,
+    { reference: input.currentPrice, band: input.filters?.percentPriceBySide },
+    input.filters?.trailingDelta,
+    decOrNull(input.filters?.tickSize),
+  );
   if (sells.length > 0) sections.push({ title: 'Sell targets', rows: sells });
   const regime = projectRegime(input.config, dailyWindow(input.candles), input.currentPrice, lbp);
   if (regime.length > 0) sections.push({ title: 'Regime', rows: regime });

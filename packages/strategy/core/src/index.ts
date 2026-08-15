@@ -7,6 +7,7 @@ export type {
   RNG,
   Candle,
   PercentPriceBySideFilter,
+  TrailingDeltaFilter,
   SymbolFilters,
   SymbolInfo,
   ApiLimits,
@@ -20,6 +21,7 @@ export type {
   TriggerEvent,
   Issue,
   ConfigDiagnostic,
+  ProtectiveStopBandSettings,
   LogEntry,
   MetricEntry,
   Capabilities,
@@ -86,24 +88,33 @@ export { parseFilters, finalise } from './sizing.js';
 export type { SizeFilters } from './sizing.js';
 export { log, metric } from './emit.js';
 export { resolveCandleWindow } from './window.js';
+export { explainProtectiveStopBandRefusal } from './protective-stop-gloss.js';
+export type { ProtectiveStopBandExplanation } from './protective-stop-gloss.js';
 export {
   PROTECTIVE_STOP_BLOCKER_REASONS,
   armableBaseQuantity,
   classifyProtectiveStopRefusal,
+  clampStopToExchangeFloor,
+  clampedStopDrift,
   evaluateProtectiveStopArm,
   findForeignRestingSell,
   findRestingProtectiveStop,
+  nativeTrailPreviewNote,
   ownRestingSellBase,
   percentPriceBySideRefusal,
+  protectiveStopBandAdjustment,
+  protectiveStopBandWarning,
   protectiveStopNeedsRearm,
 } from './protective-stop.js';
 export type {
+  DesiredNativeTrailingStop,
   DesiredProtectiveStop,
   ProtectiveStopArm,
   ProtectiveStopArmParams,
   ProtectiveStopBlocker,
   ProtectiveStopBlockerReason,
   ProtectiveStopLevel,
+  StopBandContext,
 } from './protective-stop.js';
 export { freeBalance, sizableBase, decOrNull, accountEquity } from './balances.js';
 export type { SizableBase } from './balances.js';

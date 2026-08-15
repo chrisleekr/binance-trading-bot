@@ -208,6 +208,13 @@ export interface OpenOrderDto {
   readonly status: string;
   /** Decimal-as-string. Empty for non-stop orders. */
   readonly stopPrice: string;
+  /**
+   * Trailing distance in basis points. Binance returns it only on trailing-stop
+   * orders, so absence is the normal case and means "not a trailing order".
+   * Reading it back is what makes a resting trailing stop's distance decidable —
+   * it carries no trigger price to compare against.
+   */
+  readonly trailingDelta?: number;
   /** Server-side timestamp; useful for staleness checks during reconciliation. */
   readonly time: number;
   /** Server-side last-modification timestamp. Equal to `time` for never-touched orders. */
@@ -245,11 +252,17 @@ export interface AccountDto {
 export interface PlaceOrderParams {
   readonly symbol: string;
   readonly side: 'BUY' | 'SELL';
-  /** STOP_LOSS_LIMIT is included so trailing-trade can place its stop-loss leg through the same code path. */
-  readonly type: 'LIMIT' | 'MARKET' | 'STOP_LOSS_LIMIT';
+  /** STOP_LOSS_LIMIT is included so trailing-trade can place its stop-loss leg through the same code path. STOP_LOSS is the market-on-trigger form, the only one that accepts a `trailingDelta` with no price. */
+  readonly type: 'LIMIT' | 'MARKET' | 'STOP_LOSS' | 'STOP_LOSS_LIMIT';
   readonly price?: string;
   readonly stopPrice?: string;
   readonly quantity: string;
+  /**
+   * Trailing distance in basis points. Binance accepts a `STOP_LOSS` with
+   * `trailingDelta` and NO `stopPrice`, which starts tracking price the moment
+   * it is placed. An integer, not a decimal-string: Binance types it `LONG`.
+   */
+  readonly trailingDelta?: number;
   readonly timeInForce?: 'GTC' | 'IOC' | 'FOK';
   /** Required by us, not by Binance. Drives idempotent retry across worker restarts. */
   readonly newClientOrderId: string;
@@ -1009,6 +1022,7 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
           type: params.type,
           price: params.price,
           stopPrice: params.stopPrice,
+          trailingDelta: params.trailingDelta,
           quantity: params.quantity,
           timeInForce: params.timeInForce,
           newClientOrderId: params.newClientOrderId,

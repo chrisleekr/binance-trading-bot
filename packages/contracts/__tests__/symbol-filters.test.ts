@@ -107,6 +107,56 @@ describe('projectSymbolFilters — PERCENT_PRICE_BY_SIDE', () => {
   });
 });
 
+describe('projectSymbolFilters — TRAILING_DELTA', () => {
+  const notional = { filterType: 'NOTIONAL', minNotional: '10' };
+  const trailing = {
+    filterType: 'TRAILING_DELTA',
+    minTrailingAboveDelta: 10,
+    maxTrailingAboveDelta: 2000,
+    minTrailingBelowDelta: 10,
+    maxTrailingBelowDelta: 2000,
+  };
+
+  it('carries the four basis-point bounds through verbatim', () => {
+    // The bounds are per symbol — there is no universal range — so a strategy
+    // deriving a trailing distance has to read the symbol's own row.
+    expect(projectSymbolFilters([price, lot, notional, trailing])?.trailingDelta).toEqual({
+      minTrailingAboveDelta: 10,
+      maxTrailingAboveDelta: 2000,
+      minTrailingBelowDelta: 10,
+      maxTrailingBelowDelta: 2000,
+    });
+  });
+
+  it('omits the key when Binance publishes no bounds, leaving the seven intact', () => {
+    const projected = projectSymbolFilters([price, lot, notional]);
+    expect(projected).not.toBeNull();
+    expect(projected).not.toHaveProperty('trailingDelta');
+    expect(projected?.tickSize).toBe('0.01');
+  });
+
+  it('degrades a garbled row to "unknown" rather than voiding the whole set', () => {
+    // Same all-or-nothing reasoning as the band: an unreadable optional filter
+    // must never take a symbol's sizing thresholds down with it.
+    const projected = projectSymbolFilters([
+      price,
+      lot,
+      notional,
+      { ...trailing, maxTrailingBelowDelta: '2000' },
+    ]);
+    expect(projected).not.toBeNull();
+    expect(projected).not.toHaveProperty('trailingDelta');
+    expect(projected?.minNotional).toBe('10');
+  });
+
+  it('degrades a row missing a bound the same way', () => {
+    const { minTrailingBelowDelta: _dropped, ...partial } = trailing;
+    const projected = projectSymbolFilters([price, lot, notional, partial]);
+    expect(projected).not.toBeNull();
+    expect(projected).not.toHaveProperty('trailingDelta');
+  });
+});
+
 describe('ProfileSymbolResponse save diagnostics', () => {
   const base = { symbol: 'BTCUSDT', overrideConfig: null, source: 'manual' as const };
 

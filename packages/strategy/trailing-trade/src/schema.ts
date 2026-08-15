@@ -389,6 +389,17 @@ export const TTProtectiveStopSchema = withParsedDefault(
       .describe(
         '@ui:percent-below The backup order triggers at your stop price, then sells down to a limit price. This sets how far below the trigger that limit sits: a bigger gap makes it far more likely to actually sell in a fast drop, a tiny gap risks not filling at all. 0.5 means 0.5% below.',
       ),
+    // What to do when Binance's per-side price band refuses the stop. Defaulted
+    // to `notify` so an existing profile behaves exactly as it did. `clamp` is
+    // semantic here, not just tighter: this level anchors on the entry price, so
+    // clamping converts it into a trailing stop measured off the market once the
+    // position is far enough ahead.
+    onBandBlock: z
+      .enum(['notify', 'clamp', 'native-trail'])
+      .default('notify')
+      .describe(
+        'What to do when Binance refuses your backup stop for sitting too far below the market. "Notify" leaves it unplaced and alerts you. "Clamp" moves the stop up to the closest level Binance will accept, which on a typical symbol at the default limit offset is about 8.6% below the current price. That level is anchored to the market rather than to your entry, so it follows the price both up and down, and it never sits below the stop-loss you set. A gradual pullback therefore moves it back down instead of triggering it: this is not a trailing exit, it is a resting order that catches a fast drop where "notify" would leave none. The exact figure depends on the symbol\'s own price band. "Native trail" hands the stop to Binance to trail for you at your full distance, so nothing gets tightened; the trade-offs are that it sells at market price rather than at a limit, and it measures its distance from the highest price seen since the order was placed rather than from your entry.',
+      ),
   }),
 );
 

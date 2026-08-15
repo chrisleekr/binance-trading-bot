@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
+import { explainProtectiveStopBandRefusal, percentPriceBySideRefusal } from '@app/strategy-core';
 
 import type { BootEnv } from '../../../src/boot/boot-env.js';
 import type { TickHandlerDeps } from '../../../src/tick/tick-types.js';
@@ -68,6 +69,46 @@ const build = (allowStop = true): Built => {
   return { slice, deps, events, stopKeys };
 };
 
+const BAND = {
+  bidMultiplierUp: '1.1',
+  bidMultiplierDown: '0.5',
+  askMultiplierUp: '2',
+  askMultiplierDown: '0.9',
+  avgPriceMins: 5,
+};
+const REFERENCE = '100';
+
+/**
+ * A refusal detail as the strategy package actually mints it, per breached bound.
+ *
+ * Built rather than typed out because the two branches differ in a number a
+ * hand-written bag is free to invent: a ceiling breach prices the trigger ABOVE
+ * the reference, so its `requiredStopDistancePct` is negative — the reason the
+ * gloss withholds it — while a hand-written positive one would let this file
+ * assert a message shape the code can never produce.
+ */
+const refusalDetail = (bound: 'floor' | 'ceiling'): Readonly<Record<string, unknown>> => {
+  const blocker = percentPriceBySideRefusal({
+    symbol: SYMBOL,
+    reference: REFERENCE,
+    band: BAND,
+    // Floor: the limit leg sits under `ref × 0.9` at a 0.98 offset. Ceiling: the
+    // trigger clears `ref × 2`, which is the bound only the trigger is tested
+    // against; this fixture prices the limit above it too, so the pair also
+    // stands for a stop that has run away from the reference on both legs.
+    desired:
+      bound === 'floor'
+        ? { stopPrice: '91.24', price: '89.4152', quantity: '3.13' }
+        : { stopPrice: '260', price: '250', quantity: '3.13' },
+    guarded: false,
+  });
+  if (blocker === null) throw new Error(`the band did not refuse the ${bound} fixture`);
+  if (blocker.detail['bound'] !== bound) {
+    throw new Error(`the ${bound} fixture breached ${String(blocker.detail['bound'])} instead`);
+  }
+  return blocker.detail;
+};
+
 /**
  * `bound` and `sinceMs` are overridable because they select whole branches of
  * the message, not just wording: the ceiling body carries the OPPOSITE
@@ -75,19 +116,14 @@ const build = (allowStop = true): Built => {
  */
 const blocked = (
   terminal: boolean,
-  overrides: { readonly bound?: string; readonly sinceMs?: number | null } = {},
+  overrides: { readonly bound?: 'floor' | 'ceiling'; readonly sinceMs?: number | null } = {},
 ) => ({
   operatorId: OPERATOR,
   accountId: ACCOUNT,
   profileId: PROFILE,
   symbol: SYMBOL,
   reason: 'price-outside-exchange-band',
-  detail: {
-    stopPrice: '11.5',
-    floor: '11.43',
-    ceiling: '25.4',
-    bound: overrides.bound ?? 'floor',
-  },
+  detail: refusalDetail(overrides.bound ?? 'floor'),
   terminal,
   sinceMs: overrides.sinceMs ?? null,
 });
@@ -140,10 +176,10 @@ describe('buildTickHandler — the protective-stop-blocked notifier', () => {
     expect(events[0]).toMatchObject({ category: 'order-failed', symbol: SYMBOL });
   });
 
-  it('tells the operator NOT to widen the offset on a ceiling breach, and quotes the ceiling', async () => {
-    // The floor copy says "widen the stop offset". Applied to a stop priced
-    // ABOVE the band that pushes it further out of range, so the ceiling case
-    // carries the opposite instruction and quotes the opposite bound.
+  it('tells the operator NOT to tighten the stop on a ceiling breach, and quotes the ceiling', async () => {
+    // Every remedy on the floor side makes a ceiling breach worse: a smaller stop
+    // distance sits higher still. So the ceiling case carries the opposite
+    // instruction, quotes the opposite bound, and names no setting at all.
     const { deps, events } = build();
     const notify = deps.notifyProtectiveStopBlocked;
     if (!notify) throw new Error('the builder did not wire notifyProtectiveStopBlocked');
@@ -151,12 +187,38 @@ describe('buildTickHandler — the protective-stop-blocked notifier', () => {
     await notify(blocked(false, { bound: 'ceiling' }));
 
     const event = events[0] as { body: string; fields: { label: string; value: string }[] };
-    expect(event.body).toContain('priced too HIGH for the range Binance accepts right now');
-    expect(event.body).toContain(
-      'do NOT widen the stop offset, that moves it further out of range',
-    );
-    expect(event.fields).toContainEqual({ label: 'Highest Binance allows', value: '25.4' });
-    expect(event.fields).not.toContainEqual({ label: 'Lowest Binance allows', value: '11.43' });
+    expect(event.body).toContain('priced too HIGH for the range Binance accepts on this pair');
+    expect(event.body).toContain('Do not tighten the stop to fix this');
+    expect(event.body).not.toContain('trailingStopPct');
+    expect(event.body).not.toContain('onBandBlock');
+    expect(event.fields).toContainEqual({ label: 'Highest Binance allows', value: '200' });
+    expect(event.fields).not.toContainEqual({ label: 'Lowest Binance allows', value: '90' });
+    expect(event.fields.map((f) => f.label)).not.toContain('Widest Binance allows');
+    // `1 - trigger / reference` is negative once the trigger clears the ceiling.
+    // The field is dropped rather than rendered, so the operator is never asked
+    // to act on "asking for -160%".
+    expect(event.fields.map((f) => f.label)).not.toContain('Stop distance asked for');
+  });
+
+  it('quotes the same two stop distances the symbol screen shows, and names the same knobs', async () => {
+    // The operator reads this on a phone and then opens the app. Two different
+    // explanations of one refusal is worse than either alone, so both surfaces
+    // render the strategy package's sentences rather than their own.
+    const { deps, events } = build();
+    const notify = deps.notifyProtectiveStopBlocked;
+    if (!notify) throw new Error('the builder did not wire notifyProtectiveStopBlocked');
+
+    await notify(blocked(false));
+
+    const event = events[0] as { body: string; fields: { label: string; value: string }[] };
+    const shared = explainProtectiveStopBandRefusal(blocked(false).detail);
+    expect(event.body).toContain(shared.situation);
+    expect(event.body).toContain(shared.remedy);
+    expect(event.body).toContain('trailingStopPct');
+    expect(event.body).toContain('sell.stopLossPercentage');
+    expect(event.body).toContain('onBandBlock');
+    expect(event.fields).toContainEqual({ label: 'Widest Binance allows', value: '8.16%' });
+    expect(event.fields).toContainEqual({ label: 'Stop distance asked for', value: '8.76%' });
   });
 
   it('reports how long the refusal has held when the span is known', async () => {

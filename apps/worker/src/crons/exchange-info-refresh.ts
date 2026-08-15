@@ -78,6 +78,7 @@ const DRIFT_SAMPLE_LIMIT = 20;
 interface FilterDrift {
   readonly unparseable: string[];
   readonly bandDropped: string[];
+  readonly trailingDeltaDropped: string[];
 }
 
 /**
@@ -123,6 +124,14 @@ const recordFilterDrift = (
     deps.metrics?.record('exchange_info_band_unparseable_total', 1, { mode });
     drift.bandDropped.push(raw.symbol);
   }
+  if (
+    filters.trailingDelta === undefined &&
+    Array.isArray(raw.filters) &&
+    raw.filters.some((f) => f?.filterType === 'TRAILING_DELTA')
+  ) {
+    deps.metrics?.record('exchange_info_trailing_delta_unparseable_total', 1, { mode });
+    drift.trailingDeltaDropped.push(raw.symbol);
+  }
 };
 
 /** One bounded line per refresh run, per drift kind, or nothing when the run was clean. */
@@ -149,6 +158,16 @@ const reportFilterDrift = (
         sample: drift.bandDropped.slice(0, DRIFT_SAMPLE_LIMIT),
       },
       'exchange-info-refresh: symbols published a PERCENT_PRICE_BY_SIDE band that could not be projected; their protective stops lose the band check',
+    );
+  }
+  if (drift.trailingDeltaDropped.length > 0) {
+    deps.logger.warn(
+      {
+        mode,
+        symbols: drift.trailingDeltaDropped.length,
+        sample: drift.trailingDeltaDropped.slice(0, DRIFT_SAMPLE_LIMIT),
+      },
+      'exchange-info-refresh: symbols published a TRAILING_DELTA filter that could not be projected; onBandBlock native-trail cannot place a stop on them',
     );
   }
 };
@@ -273,7 +292,7 @@ export const createExchangeInfoRefresh = (
     const currentKeys = new Set<string>();
     const queued: string[] = []; // parallel to pipe.set() ordering for error reporting
     let skipped = 0;
-    const drift: FilterDrift = { unparseable: [], bandDropped: [] };
+    const drift: FilterDrift = { unparseable: [], bandDropped: [], trailingDeltaDropped: [] };
     const pipe = deps.redis.pipeline();
     for (const raw of symbols) {
       if (!raw?.symbol || !TICKER_OK.test(raw.symbol)) {

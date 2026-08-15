@@ -13,6 +13,7 @@ import {
   resolveExitBlocker,
   type ExitCandidates,
 } from '../exit-blocker.js';
+import { resolveTTStopLevel } from '../stop-level.js';
 import { classifyRegime } from './regime.js';
 import { parseDecimal, safeDecimal } from './safe-decimal.js';
 
@@ -126,6 +127,22 @@ export const closedBarsSinceEntry = (
 ): number =>
   (market.candlesByInterval[interval] ?? []).filter((c) => c.isClosed && c.closeTimeMs > sinceMs)
     .length;
+
+/**
+ * Why an emitted sell fired. Closed, and named rather than inlined at the one
+ * signature that takes it, because {@link sellEmissionOrSkip} derives the exit's
+ * metric name from the member string at runtime: this union IS the set of
+ * `tt_*_emit` series the exit path can ever produce, so anything asserting over
+ * that series set has to be able to name it.
+ */
+export type SellEmissionReason =
+  | 'grid-sell'
+  | 'grid-stop-loss'
+  | 'technicals-force-sell'
+  | 'regime-exit'
+  | 'discovery-time-stop'
+  | 'break-even-stop'
+  | 'time-stop';
 
 export interface SellGateEmit {
   readonly kind: 'emit';
@@ -280,7 +297,15 @@ const runSellLadder = (
     if (!stopLossParse.ok) return stopLossParse.skip;
     const stopLoss = stopLossParse.value;
     if (stopLoss.gt(0) && stopLoss.lte(1)) {
-      const stopPrice = lbp.times(stopLoss);
+      const { stop: stopPrice } = resolveTTStopLevel({
+        avgEntry: lbp,
+        stopPct: stopLoss,
+        protectiveStop: input.config.sell.protectiveStop,
+        bandContext: {
+          reference: input.market.currentPrice,
+          band: input.market.symbolInfo.filters.percentPriceBySide,
+        },
+      });
       if (price.lte(stopPrice)) {
         return sellEmissionOrSkip(
           input,
@@ -729,14 +754,7 @@ export const reclaimableOwnSellBase = (input: TickInput<TTConfig, TTState, TTBun
 export const sellEmissionOrSkip = (
   input: TickInput<TTConfig, TTState, TTBundle>,
   state: TTState,
-  reason:
-    | 'grid-sell'
-    | 'grid-stop-loss'
-    | 'technicals-force-sell'
-    | 'regime-exit'
-    | 'discovery-time-stop'
-    | 'break-even-stop'
-    | 'time-stop',
+  reason: SellEmissionReason,
   messagePrefix: string,
   clientOrderIdSeed: string,
   // Extra emit-log context. Omitted (undefined) on every existing call so the

@@ -11,13 +11,18 @@ import type {
   ProtectiveStopLevel,
   SizeFilters,
   SymbolFilters,
+  TrailingDeltaFilter,
 } from '../src/index.js';
 import {
   armableBaseQuantity,
   classifyProtectiveStopRefusal,
+  clampStopToExchangeFloor,
+  clampedStopDrift,
   evaluateProtectiveStopArm,
   findForeignRestingSell,
   findRestingProtectiveStop,
+  nativeTrailPreviewNote,
+  nativeTrailingDelta,
   ownRestingSellBase,
   percentPriceBySideRefusal,
   protectiveStopNeedsRearm,
@@ -214,6 +219,29 @@ describe('protectiveStopNeedsRearm', () => {
     expect(protectiveStopNeedsRearm(order({ stopPrice: undefined }), '96.00', '2')).toBe(false);
     expect(protectiveStopNeedsRearm(order({ stopPrice: 'x' }), '96.00', '2')).toBe(false);
     expect(protectiveStopNeedsRearm(order({ origQty: 'x' }), '96.00', '2')).toBe(false);
+  });
+
+  it('re-arms a resting TRAIL unconditionally once a priced stop is wanted', () => {
+    // The wrong ORDER TYPE, not a stale price — and it reports no stopPrice, so
+    // the drift test above reads it as unparseable and would leave it resting for
+    // the life of the position with nothing raising a blocker.
+    const trail = order({ stopPrice: undefined, trailingDelta: 400 });
+    expect(protectiveStopNeedsRearm(trail, '96.00', '2')).toBe(true);
+  });
+});
+
+describe('clampedStopDrift', () => {
+  it('is a whole percent when the plugin sets no band of its own', () => {
+    // The shared 0.1% default rewrites a floor-clamped stop on almost every tick:
+    // the level is a fraction of the current price, so it moves with the market.
+    expect(clampedStopDrift(null).toString()).toBe('0.01');
+  });
+
+  it('never narrows a band the plugin deliberately widened', () => {
+    // A plugin widens its band to bound its own order rate. A clamp is a reason
+    // to send fewer orders, never more.
+    expect(clampedStopDrift(new Decimal('0.05')).toString()).toBe('0.05');
+    expect(clampedStopDrift(new Decimal('0.002')).toString()).toBe('0.01');
   });
 });
 
@@ -540,6 +568,18 @@ describe('evaluateProtectiveStopArm — PERCENT_PRICE_BY_SIDE band', () => {
     expect(out.blocker?.reason).toBe('price-outside-exchange-band');
   });
 
+  it('refuses BOTH halves of the re-arm when only the TRIGGER breaches the ask ceiling', () => {
+    // reference 3.7 * askMultiplierUp 2 = 7.4. The trigger 7.462 is over it while
+    // the limit 7.312 is inside, and the trigger is always the higher leg, so this
+    // is the ONLY way a protective stop breaches the ceiling. Binance bands the
+    // trigger too, so the replacement can only come back -1013.
+    const out = run({ input: armInput('3.7', true, [resting()]) });
+    expect(out.blocker?.reason).toBe('price-outside-exchange-band');
+    // The absent cancel is the point: emitting it strips the live stop to make
+    // room for an order the exchange will never accept, leaving the position naked.
+    expect(out.decisions).toEqual([]);
+  });
+
   it('re-arms again once the reference falls back inside the band (no operator action)', () => {
     // 7.312 / 0.9 = 8.1244 is the highest reference that still admits this stop.
     const out = run({ input: armInput('8.10', true, [resting()]) });
@@ -699,13 +739,18 @@ describe('percentPriceBySideRefusal', () => {
     expect(out?.detail).toMatchObject({ ceiling: '6', bound: 'ceiling', terminal: false });
   });
 
-  it('bands the limit price only, never the trigger', () => {
-    // `PRICE_FILTER` spells out that it covers price AND stopPrice;
-    // PERCENT_PRICE_BY_SIDE names only the order price. Banding the trigger as
-    // well would defer a stop the exchange accepts, and a deferred first arm is
-    // an unguarded position waiting on a rule Binance does not enforce.
+  it('bands the trigger as well as the limit price', () => {
+    // Binance applies PERCENT_PRICE_BY_SIDE to BOTH legs: a SELL STOP_LOSS whose
+    // only price is a stopPrice outside the band is refused -1013, as is a
+    // STOP_LOSS_LIMIT whose stopPrice is outside while its price is inside.
+    // Judging the limit alone therefore passes an order the exchange rejects.
     // ceiling = 3.7 * 2 = 7.4: the trigger 7.462 is over it, the limit 7.312 is not.
-    expect(refuse(BAND, '3.7')).toBeNull();
+    const out = refuse(BAND, '3.7');
+    expect(out?.reason).toBe('price-outside-exchange-band');
+    // Only the trigger can breach the ceiling — it is always the higher leg — so
+    // the gloss must quote the ceiling, and no offset change can fix a ceiling
+    // breach.
+    expect(out?.detail).toMatchObject({ ceiling: '7.4', bound: 'ceiling', terminal: false });
   });
 
   it('imposes no constraint when the band is absent, null, or not an object', () => {
@@ -745,6 +790,84 @@ describe('percentPriceBySideRefusal', () => {
   });
 });
 
+describe('clampStopToExchangeFloor', () => {
+  const BAND = {
+    askMultiplierUp: '2',
+    askMultiplierDown: '0.9',
+    bidMultiplierUp: '1.1',
+    bidMultiplierDown: '0.5',
+    avgPriceMins: 5,
+  };
+
+  const clamp = (
+    over: {
+      stop?: Decimal | null;
+      reference?: string;
+      band?: unknown;
+      limitOffset?: Decimal;
+    } = {},
+  ): ReturnType<typeof clampStopToExchangeFloor> =>
+    clampStopToExchangeFloor({
+      stop: new Decimal('7.462'),
+      reference: '8.8320',
+      band: BAND,
+      limitOffset: new Decimal('0.98'),
+      ...over,
+    } as Parameters<typeof clampStopToExchangeFloor>[0]);
+
+  it('raises a stop below the floor to the lowest trigger the band accepts', () => {
+    const out = clamp();
+    expect(out.clamped).toBe(true);
+    expect(out.stop?.toString()).toBe('8.1921306122448979592');
+    // The property that actually matters: the LIMIT leg, not the trigger, is what
+    // the floor binds, so the clamped level must send a limit at or above
+    // `reference * askMultiplierDown`.
+    expect(out.stop?.mul('0.98').gte(new Decimal('8.8320').mul('0.9'))).toBe(true);
+  });
+
+  it('is the identity on every input it cannot evaluate', () => {
+    const cases: Array<[string, Parameters<typeof clamp>[0]]> = [
+      ['band absent', { band: undefined }],
+      ['band null', { band: null }],
+      ['band not an object', { band: 'PERCENT_PRICE_BY_SIDE' }],
+      ['band is a number', { band: 42 }],
+      ['unparseable multiplier', { band: { ...BAND, askMultiplierDown: 'n/a' } }],
+      ['zero multiplier', { band: { ...BAND, askMultiplierDown: '0' } }],
+      ['unparseable reference', { reference: 'not-a-price' }],
+      ['zero reference', { reference: '0' }],
+      ['unparseable offset', { limitOffset: new Decimal(NaN) }],
+      ['zero offset', { limitOffset: new Decimal('0') }],
+      ['negative offset', { limitOffset: new Decimal('-0.98') }],
+    ];
+    for (const [label, over] of cases) {
+      const out = clamp(over);
+      expect(out.clamped, label).toBe(false);
+      expect(out.stop?.toString(), label).toBe('7.462');
+    }
+  });
+
+  it('leaves a null stop null rather than inventing a level', () => {
+    // Null means "no trail this tick". Clamping it would manufacture a stop the
+    // operator never configured out of an exchange filter.
+    expect(clamp({ stop: null })).toEqual({ stop: null, clamped: false });
+  });
+
+  it('leaves a stop that already clears the floor exactly where it is', () => {
+    const settled = clamp({ stop: new Decimal('8.5') });
+    expect(settled).toEqual({ stop: new Decimal('8.5'), clamped: false });
+  });
+
+  it('refuses to clamp when the floor is not strictly below the reference', () => {
+    // askMultiplierDown 0.99 against a 0.98 offset puts the floor above the
+    // market. That is the terminal, config-shaped case: clamping there would rest
+    // a trigger at or above the current price, which fires on contact — a market
+    // sell wearing a stop's name.
+    const out = clamp({ band: { ...BAND, askMultiplierDown: '0.99' } });
+    expect(out.clamped).toBe(false);
+    expect(out.stop?.toString()).toBe('7.462');
+  });
+});
+
 describe('stillGuarding', () => {
   it('reads an unquantifiable resting stop as NOT covering the position', () => {
     // This flag decides whether the operator is told the position is naked, so
@@ -756,5 +879,450 @@ describe('stillGuarding', () => {
     expect(stillGuarding(order(), 'n/a')).toBe(false);
     expect(stillGuarding(order(), '0')).toBe(false);
     expect(stillGuarding(order(), '2')).toBe(true);
+  });
+});
+
+describe('nativeTrailingDelta', () => {
+  const BOUNDS: TrailingDeltaFilter = {
+    minTrailingAboveDelta: 10,
+    maxTrailingAboveDelta: 2000,
+    minTrailingBelowDelta: 10,
+    maxTrailingBelowDelta: 2000,
+  };
+
+  const delta = (over: { stopDistancePct?: Decimal; filter?: unknown } = {}) =>
+    nativeTrailingDelta({
+      stopDistancePct: new Decimal('0.15'),
+      filter: BOUNDS,
+      ...over,
+    } as Parameters<typeof nativeTrailingDelta>[0]);
+
+  it('is the CONFIGURED stop distance in basis points, rounded to a whole delta', () => {
+    // Binance takes only whole basis points, so 15% goes out as 1500 — and it is
+    // read off the setting, never off the live price, because the exchange
+    // already measures the distance from its own high-water mark.
+    expect(delta()).toBe(1500);
+    expect(delta({ stopDistancePct: new Decimal('0.15505434') })).toBe(1551);
+  });
+
+  it('does not move when the price does, so a resting trail is never re-armed for drift', () => {
+    // The delta reads no price at all. This is the property the whole mode rests
+    // on: a delta re-derived per tick would differ by a basis point on almost
+    // every tick, and each replacement restarts the high-water mark Binance has
+    // been accumulating — the trail would track nothing.
+    expect(delta()).toBe(delta());
+  });
+
+  it('reads only the Below bounds, which are the ones a SELL stop trails within', () => {
+    // An Above pair that would reject the delta must not: it governs a trailing
+    // BUY, and applying it here would refuse a distance the symbol accepts.
+    expect(delta({ filter: { ...BOUNDS, minTrailingAboveDelta: 9000 } })).toBe(1500);
+  });
+
+  it('returns null rather than clamping a delta outside the symbol bounds', () => {
+    // Clamping would rest a stop at a distance the operator never chose while
+    // reporting success. Null hands the caller back to the ordinary refusal,
+    // which at least says out loud that no stop could be armed.
+    expect(delta({ filter: { ...BOUNDS, maxTrailingBelowDelta: 1000 } })).toBeNull();
+    expect(delta({ filter: { ...BOUNDS, minTrailingBelowDelta: 2000 } })).toBeNull();
+  });
+
+  it('is null on every input it cannot evaluate', () => {
+    const cases: Array<[string, Parameters<typeof delta>[0]]> = [
+      ['filter absent', { filter: undefined }],
+      ['filter null', { filter: null }],
+      ['filter not an object', { filter: 'TRAILING_DELTA' }],
+      ['non-integer bounds', { filter: { ...BOUNDS, minTrailingBelowDelta: 10.5 } }],
+      ['string bounds', { filter: { ...BOUNDS, maxTrailingBelowDelta: '2000' } }],
+      // A distance at or below zero is not a stop, and one at or above 1 puts the
+      // trigger at or below zero. Both read as "no usable delta" rather than
+      // being clamped into range, so a nonsense setting falls back to the refusal.
+      ['zero distance', { stopDistancePct: new Decimal(0) }],
+      ['negative distance', { stopDistancePct: new Decimal('-0.15') }],
+      ['whole distance', { stopDistancePct: new Decimal(1) }],
+      ['distance beyond 1', { stopDistancePct: new Decimal('1.5') }],
+      ['non-finite distance', { stopDistancePct: new Decimal(NaN) }],
+    ];
+    for (const [label, over] of cases) {
+      expect(delta(over), label).toBeNull();
+    }
+  });
+});
+
+describe('evaluateProtectiveStopArm — exchange-native trailing escape', () => {
+  // The same live LINKUSDT refusal, with `onBandBlock: 'native-trail'` chosen:
+  // the priced stop cannot be accepted, so the arm hands the distance to Binance
+  // instead of leaving the position on last tick's level.
+  const LINK_OURS = 'mom-p1-linkusdt-ps';
+
+  const FILTERS: SizeFilters = {
+    step: new Decimal('0.01'),
+    minQty: new Decimal('0.01'),
+    minNotional: new Decimal('5'),
+  };
+
+  const symbolFilters = (withTrailing: boolean): SymbolFilters => ({
+    minNotional: '5',
+    tickSize: '0.001',
+    stepSize: '0.01',
+    minQty: '0.01',
+    maxQty: '92141578',
+    minPrice: '0.001',
+    maxPrice: '10000',
+    percentPriceBySide: {
+      askMultiplierUp: '2',
+      askMultiplierDown: '0.9',
+      bidMultiplierUp: '1.1',
+      bidMultiplierDown: '0.5',
+      avgPriceMins: 5,
+    },
+    ...(withTrailing
+      ? {
+          trailingDelta: {
+            minTrailingAboveDelta: 10,
+            maxTrailingAboveDelta: 2000,
+            minTrailingBelowDelta: 10,
+            maxTrailingBelowDelta: 2000,
+          },
+        }
+      : {}),
+  });
+
+  const stopLevel = (over: Partial<ProtectiveStopLevel> = {}): ProtectiveStopLevel => ({
+    stop: new Decimal('7.462'),
+    limit: new Decimal('7.312'),
+    held: new Decimal('3.13'),
+    filters: FILTERS,
+    tick: new Decimal('0.001'),
+    ...over,
+  });
+
+  type Params = ProtectiveStopArmParams<unknown, unknown, Record<string, never>>;
+
+  const linkAccount = (): AccountSnapshot => ({
+    balances: {
+      LINK: { asset: 'LINK', free: new Decimal('0'), locked: new Decimal('3.13') } as Balance,
+    },
+    readable: true,
+  });
+
+  const armInput = (
+    currentPrice: string,
+    withTrailing: boolean,
+    openOrders: OpenOrder[],
+  ): Params['input'] =>
+    ({
+      openOrders,
+      account: linkAccount(),
+      market: {
+        symbol: 'LINKUSDT',
+        currentPrice,
+        symbolInfo: {
+          baseAsset: 'LINK',
+          quoteAsset: 'USDT',
+          filters: symbolFilters(withTrailing),
+        },
+      },
+    }) as unknown as Params['input'];
+
+  const buildPlace = (desired: DesiredProtectiveStop): Decision => ({
+    type: 'place-order',
+    intent: {
+      symbol: 'LINKUSDT',
+      side: 'SELL',
+      reason: 'protective-stop',
+      clientOrderId: LINK_OURS,
+    },
+    params: {
+      type: 'STOP_LOSS_LIMIT',
+      stopPrice: desired.stopPrice,
+      price: desired.price,
+      quantity: desired.quantity,
+      timeInForce: 'GTC',
+    },
+  });
+
+  const buildCancel = (r: OpenOrder): Decision => ({
+    type: 'cancel-order',
+    orderId: r.orderId,
+    symbol: 'LINKUSDT',
+    reason: 'superseded',
+  });
+
+  // The plugin seam the worker really uses: a STOP_LOSS with a distance and no
+  // prices at all.
+  const buildNativeTrailPlace = (desired: {
+    quantity: string;
+    trailingDelta: number;
+  }): Decision => ({
+    type: 'place-order',
+    intent: {
+      symbol: 'LINKUSDT',
+      side: 'SELL',
+      reason: 'protective-stop',
+      clientOrderId: LINK_OURS,
+    },
+    params: {
+      type: 'STOP_LOSS',
+      quantity: desired.quantity,
+      trailingDelta: desired.trailingDelta,
+    },
+  });
+
+  const priced = (): OpenOrder =>
+    order({
+      orderId: 4242,
+      clientOrderId: LINK_OURS,
+      symbol: 'LINKUSDT',
+      price: '7.154',
+      stopPrice: '7.300',
+      origQty: '3.13',
+      executedQty: '0',
+    });
+
+  const trailing = (trailingDelta: number, origQty = '3.13'): OpenOrder =>
+    order({
+      orderId: 4243,
+      clientOrderId: LINK_OURS,
+      symbol: 'LINKUSDT',
+      type: 'STOP_LOSS',
+      // What Binance reports for a trailing stop: no limit leg, no trigger.
+      price: '0',
+      stopPrice: undefined,
+      trailingDelta,
+      origQty,
+      executedQty: '0',
+    });
+
+  const run = (over: Partial<Params>): ReturnType<typeof evaluateProtectiveStopArm> =>
+    evaluateProtectiveStopArm({
+      input: armInput('8.8320', true, [priced()]),
+      enabled: true,
+      level: stopLevel(),
+      reclaimableBase: new Decimal('3.13'),
+      ourClientOrderId: LINK_OURS,
+      buildPlace,
+      buildCancel,
+      nativeTrail: { stopDistancePct: new Decimal('0.1551'), build: buildNativeTrailPlace },
+      ...over,
+    } as Params);
+
+  it('places a STOP_LOSS carrying only a trailing distance when the band refuses the priced stop', () => {
+    const out = run({ input: armInput('8.8320', true, []) });
+    expect(out.blocker).toBeNull();
+    expect(out.decisions).toEqual([
+      buildNativeTrailPlace({ quantity: '3.13', trailingDelta: 1551 }),
+    ]);
+    // The three absences ARE the escape: Binance bands a trigger and a limit
+    // price, so an order carrying neither is accepted at the operator's full
+    // distance instead of being tightened to whatever the floor allows.
+    const [place] = out.decisions;
+    const params = place?.type === 'place-order' ? place.params : undefined;
+    expect(params?.stopPrice).toBeUndefined();
+    expect(params?.price).toBeUndefined();
+    expect(params?.type).toBe('STOP_LOSS');
+  });
+
+  it('swaps a refused priced stop for the trail, cancelling the old one in the same batch', () => {
+    const out = run({});
+    expect(out.blocker).toBeNull();
+    expect(out.decisions).toEqual([
+      buildCancel(priced()),
+      buildNativeTrailPlace({ quantity: '3.13', trailingDelta: 1551 }),
+    ]);
+  });
+
+  it('falls back to the ordinary refusal when the symbol publishes no TRAILING_DELTA bounds', () => {
+    // Absent bounds are unknown bounds. Guessing a delta would send an order the
+    // exchange may reject; the refusal at least tells the operator the truth.
+    const out = run({ input: armInput('8.8320', false, [priced()]) });
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker?.reason).toBe('price-outside-exchange-band');
+  });
+
+  it('falls back to the ordinary refusal when the configured distance is outside the symbol bounds', () => {
+    const out = run({
+      nativeTrail: { stopDistancePct: new Decimal('0.25'), build: buildNativeTrailPlace },
+    });
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker?.reason).toBe('price-outside-exchange-band');
+  });
+
+  it('takes the trail only on a FLOOR breach, never on a ceiling one', () => {
+    // A ceiling breach means the trigger sits above the market by more than the
+    // band allows — an exit meant to fire almost at once. A stop trailing 15.51%
+    // DOWN from a high-water mark expresses the opposite, so the escape does not
+    // apply and the operator gets told the truth instead.
+    const out = run({ input: armInput('3.7', true, [priced()]) });
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker?.reason).toBe('price-outside-exchange-band');
+    expect(out.blocker?.detail.bound).toBe('ceiling');
+  });
+
+  it('leaves a resting trail alone while its distance still matches the configuration', () => {
+    // Price moves every tick; the trail moves with it. Cancel + re-place would
+    // reset the high-water mark Binance has been accumulating and hand back a
+    // stop measured from a lower peak — strictly worse protection, for free.
+    const out = run({ input: armInput('9.50', true, [trailing(1551)]) });
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker).toBeNull();
+  });
+
+  it('re-arms a resting trail only when the CONFIGURED distance differs from the resting one', () => {
+    const out = run({ input: armInput('8.8320', true, [trailing(900)]) });
+    expect(out.decisions).toEqual([
+      buildCancel(trailing(900)),
+      buildNativeTrailPlace({ quantity: '3.13', trailingDelta: 1551 }),
+    ]);
+  });
+
+  it('re-sizes an undersized resting trail even though its distance still matches', () => {
+    // A trail armed while a foreign order held part of the base protects only
+    // that partial quantity. Nothing else ever resizes it, so skipping the
+    // quantity band for trails leaves the position permanently under-protected.
+    const out = run({ input: armInput('8.8320', true, [trailing(1551, '1.00')]) });
+    expect(out.decisions).toEqual([
+      buildCancel(trailing(1551, '1.00')),
+      buildNativeTrailPlace({ quantity: '3.13', trailingDelta: 1551 }),
+    ]);
+  });
+
+  it('retires a resting trail when the operator leaves native-trail', () => {
+    // Switching back to a priced stop must actually reach the exchange. A trail
+    // reports no `stopPrice`, so a drift test alone reads it as unparseable and
+    // leaves it resting for the life of the position while the arm reports
+    // nothing wrong.
+    const out = evaluateProtectiveStopArm({
+      input: armInput('8.10', true, [trailing(1551)]),
+      enabled: true,
+      level: stopLevel(),
+      reclaimableBase: new Decimal('3.13'),
+      ourClientOrderId: LINK_OURS,
+      buildPlace,
+      buildCancel,
+    } as Params);
+    expect(out.blocker).toBeNull();
+    expect(out.decisions).toEqual([
+      buildCancel(trailing(1551)),
+      buildPlace({ stopPrice: '7.462', price: '7.312', quantity: '3.13' }),
+    ]);
+  });
+
+  it('keeps a resting trail when no delta can be derived at all', () => {
+    // The symbol stopped publishing its bounds, or the operator switched the mode
+    // back. Either way the live order is real protection: tearing it down for an
+    // order this tick cannot place is the failure mode the whole band fix exists
+    // to prevent.
+    const out = run({ input: armInput('8.8320', false, [trailing(1551)]) });
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker).toBeNull();
+  });
+
+  it('behaves exactly as the priced arm does when the operator did not opt in', () => {
+    // An absent `nativeTrail` bundle is `onBandBlock: notify` (and an unset key on
+    // an existing profile row). Nothing about the trail may leak into that path.
+    const notify = evaluateProtectiveStopArm({
+      input: armInput('8.8320', true, [priced()]),
+      enabled: true,
+      level: stopLevel(),
+      reclaimableBase: new Decimal('3.13'),
+      ourClientOrderId: LINK_OURS,
+      buildPlace,
+      buildCancel,
+    } as Params);
+    expect(notify.decisions).toEqual([]);
+    expect(notify.blocker?.reason).toBe('price-outside-exchange-band');
+  });
+
+  it('places the ordinary priced stop when the band accepts it, trail opted in or not', () => {
+    // The escape is a fallback, never a preference: a market-on-trigger sell has
+    // no price protection at all, so it is only worth taking when the alternative
+    // is no stop.
+    const out = run({ input: armInput('8.10', true, [priced()]) });
+    expect(out.blocker).toBeNull();
+    expect(out.decisions).toEqual([
+      buildCancel(priced()),
+      buildPlace({ stopPrice: '7.462', price: '7.312', quantity: '3.13' }),
+    ]);
+  });
+});
+
+describe('nativeTrailPreviewNote', () => {
+  const BAND = {
+    askMultiplierUp: '2',
+    askMultiplierDown: '0.9',
+    bidMultiplierUp: '1.1',
+    bidMultiplierDown: '0.5',
+    avgPriceMins: 5,
+  };
+
+  const TRAILING: TrailingDeltaFilter = {
+    minTrailingAboveDelta: 10,
+    maxTrailingAboveDelta: 2000,
+    minTrailingBelowDelta: 10,
+    maxTrailingBelowDelta: 2000,
+  };
+
+  const note = (
+    over: {
+      stop?: Decimal;
+      limit?: Decimal;
+      tick?: Decimal | null;
+      reference?: string | null;
+      stopDistancePct?: Decimal;
+      band?: unknown;
+      trailing?: unknown;
+    } = {},
+  ): string | null =>
+    nativeTrailPreviewNote({
+      stop: new Decimal('7.462'),
+      limit: new Decimal('7.312'),
+      tick: new Decimal('0.001'),
+      reference: '8.8320',
+      stopDistancePct: new Decimal('0.15505434'),
+      band: BAND,
+      trailing: TRAILING,
+      ...over,
+    } as Parameters<typeof nativeTrailPreviewNote>[0]);
+
+  it('quotes the distance read back OUT of the delta the order will carry', () => {
+    // 1551 bips is 15.51%, not the 15.505434% configured: the rounding to whole
+    // basis points is real, and the sentence has to describe the order that
+    // rests, not the setting that produced it.
+    expect(note()).toContain('15.51%');
+    expect(note()).toContain('highest price seen since it was placed');
+  });
+
+  it('is null whenever the priced stop is what will actually rest', () => {
+    // Inside the band, or no band published: the ordinary row with its trigger
+    // price is correct, and this note would contradict it.
+    expect(note({ reference: '8.10' })).toBeNull();
+    expect(note({ band: undefined })).toBeNull();
+    expect(note({ reference: null })).toBeNull();
+  });
+
+  it('is null on a ceiling breach, which the arm refuses to trail out of', () => {
+    // Ceiling is 2.0 at this reference. The trigger clears it, so the arm falls
+    // through to the blocker and rests nothing — a trail sentence here would
+    // promise an order that is never sent. A usable delta is deliberately in
+    // scope so only the bound decides the outcome.
+    const ceiling = { stop: new Decimal('2.6'), limit: new Decimal('2.5'), reference: '1' };
+    expect(note({ ...ceiling, tick: null })).toBeNull();
+  });
+
+  it('is null when no usable delta exists, so no row claims a trail that cannot be placed', () => {
+    expect(note({ trailing: undefined })).toBeNull();
+    expect(note({ trailing: { ...TRAILING, maxTrailingBelowDelta: 1000 } })).toBeNull();
+  });
+
+  it('judges the band on the tick grid, the way the arm does', () => {
+    // Floor is 9.0. The raw limit sits 0.0004 under it, so unrounded the band
+    // refuses and this row claims a trail; on the 0.001 grid the same leg rounds
+    // to 9.000 and the band accepts, which is what the arm sends. Rounding here
+    // is not cosmetic: it decides which of two contradictory rows is printed on
+    // the tick the market sits on the boundary.
+    const boundary = { stop: new Decimal('9.1'), limit: new Decimal('8.9996'), reference: '10' };
+    expect(note({ ...boundary, tick: null })).not.toBeNull();
+    expect(note({ ...boundary, tick: new Decimal('0.001') })).toBeNull();
   });
 });

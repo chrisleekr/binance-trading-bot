@@ -10,6 +10,7 @@ import type { Redis } from 'ioredis';
 
 import { humanizeDuration } from '@app/contracts';
 import { GLOBAL_KEYS, profileRepoFromScope, type Database } from '@app/db';
+import { explainProtectiveStopBandRefusal } from '@app/strategy-core';
 
 import { strategies as strategiesRegistry } from 'strategies.js';
 import {
@@ -200,41 +201,45 @@ export const buildTickHandler = ({
     notifyProtectiveStopBlocked: async (input) => {
       // The escalation level is part of the key, same split as the order-failed
       // retry/final levels: "wait for the price to come back" and "no price ever
-      // arms this stop, widen the offset" are different instructions, and the
-      // recoverable one fires first.
+      // arms this stop" are different instructions, and the recoverable one
+      // fires first.
       const allowed = await protectiveStopBlockedThrottle.allow(
         `${input.profileId}:${input.symbol}:${input.terminal ? 'terminal' : 'persistent'}`,
       );
       if (!allowed) return;
-      // Which side of the band was breached decides the whole message. A stop
-      // priced ABOVE the ceiling is fixed by waiting, never by widening the
-      // offset — that pushes it further out — and quoting a floor at that
-      // operator would send them the wrong way. `terminal` is only ever derived
-      // from a floor breach, so the ceiling case is always the recoverable one.
-      const ceiling = input.detail['bound'] === 'ceiling';
+      // The words come from the strategy package that owns the refusal, and the
+      // symbol screen reads the same ones. An operator who checks the phone alert
+      // and then the app must not find two explanations of one block, and copy
+      // maintained in two files is how that happened.
+      const copy = explainProtectiveStopBandRefusal(input.detail);
       await notifyEvent({
         category: 'order-failed',
         operatorId: input.operatorId,
         accountId: input.accountId,
         profileId: input.profileId,
         symbol: input.symbol,
-        body: ceiling
-          ? 'The bot has been unable to place a protective stop on this position: the stop it wants is priced too HIGH for the range Binance accepts right now. It keeps trying every cycle and will place it once the price catches up — do NOT widen the stop offset, that moves it further out of range. The position is unguarded until then.'
-          : input.terminal
-            ? 'The bot cannot place a protective stop on this position: Binance will not accept a stop this far from the current price, and no price it could pick would be accepted. The position is unguarded until you widen the stop offset or close it by hand.'
-            : 'The bot has been unable to place a protective stop on this position: Binance will not accept a stop this far from the current price. It keeps trying every cycle, but the position is unguarded until the price moves back or you widen the stop offset.',
+        body: `${copy.situation} ${copy.exposure}${copy.remedy === '' ? '' : ` ${copy.remedy}`}`,
         fields: [
           { label: 'Reason', value: input.reason },
           ...(typeof input.detail['stopPrice'] === 'string'
             ? [{ label: 'Wanted stop', value: input.detail['stopPrice'] }]
             : []),
-          ...(ceiling
+          ...(copy.ceiling
             ? typeof input.detail['ceiling'] === 'string'
               ? [{ label: 'Highest Binance allows', value: input.detail['ceiling'] }]
               : []
             : typeof input.detail['floor'] === 'string'
               ? [{ label: 'Lowest Binance allows', value: input.detail['floor'] }]
               : []),
+          // The two numbers that decide what the operator changes, quoted rather
+          // than re-derived: the stop this profile asks for against the deepest
+          // one the symbol's band will take.
+          ...(copy.requiredStopDistance === null
+            ? []
+            : [{ label: 'Stop distance asked for', value: copy.requiredStopDistance }]),
+          ...(copy.ceiling || copy.maxStopDistance === null
+            ? []
+            : [{ label: 'Widest Binance allows', value: copy.maxStopDistance }]),
           // How long this has held is the operator's first question. The span
           // measures the REFUSAL's age, not the position's exposure, so it reads
           // "Blocked for".

@@ -62,12 +62,47 @@ describe('glossProtectiveStopBlocker', () => {
     expect(line).toMatch(/automatic sell that caps a loss/i);
     expect(line).toMatch(/last 5 minutes/);
     expect(line).toMatch(/7\.9488/);
-    expect(line).toMatch(/nothing for you to do/i);
-    // The opposite advice would be actively wrong here: no setting is at fault.
+    expect(line).toMatch(/moves back into range/i);
+    // Raising the offset is not the remedy for a recoverable block, and naming a
+    // knob at all invites an operator to change one while nothing is wrong.
     expect(line).not.toMatch(/limitOffsetPercentage/);
   });
 
-  it('names the setting to change when no market move can ever arm the stop', () => {
+  it('quotes the widest stop the symbol takes and names the settings that fix it', () => {
+    const line = glossProtectiveStopBlocker({
+      reason: 'price-outside-exchange-band',
+      detail: {
+        price: '7.312',
+        floor: '7.9488',
+        avgPriceMins: 5,
+        askMultiplierDown: '0.9',
+        maxStopDistancePct: '0.081633',
+        requiredStopDistancePct: '0.0876',
+        terminal: false,
+      },
+    });
+    // The number the operator has to compare their setting against, quoted from
+    // the refusal rather than re-derived on this screen.
+    expect(line).toMatch(/8\.16%/);
+    expect(line).toMatch(/8\.76%/);
+    // The knob that actually controls stop distance, for either strategy, plus
+    // the escape that keeps the operator's distance intact.
+    expect(line).toMatch(/trailingStopPct/);
+    expect(line).toMatch(/sell\.stopLossPercentage/);
+    expect(line).toMatch(/onBandBlock/);
+    expect(line).toMatch(/native-trail/);
+  });
+
+  it('offers only the remedies that work once the pair accepts no stop at all', () => {
+    // Terminal means the maximum placeable stop distance is already <= 0, so the
+    // ordinary advice inverts: tightening reaches nothing, and "clamp" returns the
+    // level untouched rather than rest a trigger that fires on contact, so
+    // offering it would promise a fallback that does nothing. Raising the offset
+    // is what lifts the maximum off zero — but 1 - askMultiplierDown = 10% is the
+    // deepest stop this pair can EVER take, reached only with the limit price
+    // sitting at the trigger, and 15.5% is past it. So the offset is named as
+    // necessary AND as insufficient on its own; saying either half alone costs the
+    // operator an afternoon.
     const line = glossProtectiveStopBlocker({
       reason: 'price-outside-exchange-band',
       detail: {
@@ -75,16 +110,27 @@ describe('glossProtectiveStopBlocker', () => {
         floor: '7.9488',
         avgPriceMins: 5,
         askMultiplierDown: '0.9',
+        maxStopDistancePct: '-0.020408',
+        requiredStopDistancePct: '0.155',
         terminal: true,
       },
     });
     expect(line).toMatch(/limitOffsetPercentage/);
-    expect(line).toMatch(/0\.9/);
-    expect(line).toMatch(/waiting will not fix it/i);
-    // Raising the offset restores the possibility of arming, not the arming
-    // itself: the stop still needs the market back near its trigger. Promising
-    // the next check invites the operator to raise it again when nothing happens.
-    expect(line).not.toMatch(/arms itself on the next check/i);
+    expect(line).toMatch(/not be enough on its own/i);
+    expect(line).toMatch(/no more than 10%/);
+    // Terminal means no price ever arms it, so the recoverable copy must not leak
+    // in and promise that waiting helps.
+    expect(line).toMatch(/no price move/i);
+    expect(line).not.toMatch(/moves back into range/i);
+    // A negative maximum is not a target to aim at.
+    expect(line).not.toMatch(/-2\.04%/);
+    // The escape the band does not govern is still offered; the two that cannot
+    // work here are not. Clamp in particular is inert at a non-positive maximum,
+    // so naming it would tell the operator a fallback is covering them.
+    expect(line).toMatch(/native-trail/);
+    expect(line).toMatch(/no level to clamp to/);
+    expect(line).not.toMatch(/trailingStopPct/);
+    expect(line).not.toMatch(/deepest level Binance does accept/);
   });
 
   it('says the last trade price, not a 0-minute average, when avgPriceMins is 0', () => {
@@ -122,10 +168,24 @@ describe('glossProtectiveStopBlocker', () => {
     // that was actually breached.
     const line = glossProtectiveStopBlocker({
       reason: 'price-outside-exchange-band',
-      detail: { price: '7.312', floor: '2.7', ceiling: '6', bound: 'ceiling', avgPriceMins: 5 },
+      detail: {
+        price: '7.312',
+        floor: '2.7',
+        ceiling: '6',
+        bound: 'ceiling',
+        avgPriceMins: 5,
+        maxStopDistancePct: '0.081633',
+        requiredStopDistancePct: '0.0876',
+      },
     });
     expect(line).toMatch(/highest allowed sell of 6/i);
     expect(line).not.toMatch(/2\.7/);
+    // A stop priced too HIGH is not fixed by any setting, and every remedy on the
+    // floor side makes it worse: a smaller stop distance sits higher still.
+    expect(line).toMatch(/priced too HIGH/);
+    expect(line).not.toMatch(/trailingStopPct/);
+    expect(line).not.toMatch(/onBandBlock/);
+    expect(line).not.toMatch(/8\.16%/);
   });
 
   it('does not present the estimated floor as the exact rejection point', () => {

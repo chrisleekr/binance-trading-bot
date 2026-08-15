@@ -8,7 +8,13 @@
 import { describe, expect, it } from 'vitest';
 import { Decimal } from '@app/money';
 import { PROTECTIVE_STOP_BLOCKER_REASONS } from '@app/strategy-core';
-import type { Decision, OpenOrder, PercentPriceBySideFilter, TickInput } from '@app/strategy-core';
+import type {
+  Decision,
+  OpenOrder,
+  PercentPriceBySideFilter,
+  TickInput,
+  TrailingDeltaFilter,
+} from '@app/strategy-core';
 
 import {
   trailingTrade,
@@ -37,7 +43,11 @@ type TechnicalsConfig = TTConfig['technicals'];
 type Signal = NonNullable<TTBundle['technicals']['signals'][number]['signal']>;
 
 interface BuildOpts {
-  readonly protectiveStop?: { enabled: boolean; limitOffsetPercentage?: string };
+  readonly protectiveStop?: {
+    enabled: boolean;
+    limitOffsetPercentage?: string;
+    onBandBlock?: 'notify' | 'clamp' | 'native-trail';
+  };
   readonly stopLossPercentage?: string;
   readonly trailingStopPercentage?: string;
   readonly avgEntryPrice?: string | null;
@@ -48,6 +58,7 @@ interface BuildOpts {
   readonly tickSize?: string;
   readonly stepSize?: string;
   readonly percentPriceBySide?: PercentPriceBySideFilter;
+  readonly trailingDelta?: TrailingDeltaFilter;
   // Sell-side trigger / technicals / regime knobs needed to drive each closing
   // path to its terminal MARKET sell in the ordering tests below.
   readonly technicals?: TechnicalsConfig;
@@ -150,6 +161,7 @@ const buildInput = (o: BuildOpts = {}): TickInput<TTConfig, TTState, TTBundle> =
           minPrice: '0.01',
           maxPrice: '1000000',
           ...(o.percentPriceBySide ? { percentPriceBySide: o.percentPriceBySide } : {}),
+          ...(o.trailingDelta ? { trailingDelta: o.trailingDelta } : {}),
         },
       },
     },
@@ -782,6 +794,9 @@ describe('TTConfigSchema — protectiveStop defaults', () => {
     });
     expect(parsed.sell.protectiveStop.enabled).toBe(false);
     expect(parsed.sell.protectiveStop.limitOffsetPercentage).toBe('0.995');
+    // `notify` is the pre-existing behaviour, so a profile that never set this
+    // leaf keeps replaying byte-identically.
+    expect(parsed.sell.protectiveStop.onBandBlock).toBe('notify');
   });
 });
 
@@ -1066,6 +1081,59 @@ describe('protective stop — outside Binance’s PERCENT_PRICE_BY_SIDE band', (
     ).toThrow();
   });
 
+  it('onBandBlock notify is the default and leaves the refusal in place', () => {
+    // Pinned so the default can never drift to a mode that changes what an
+    // existing profile does the moment it is deployed.
+    const parsed = TTConfigSchema.parse({
+      symbol: SYMBOL,
+      buy: {
+        enabled: true,
+        entrySizing: { mode: 'fixed', amount: '50' },
+        avgEntryPriceRemoveThreshold: '0',
+      },
+      sell: { enabled: true, stopLossPercentage: '0.96', triggerPercentage: '1.05' },
+    });
+    expect(parsed.sell.protectiveStop.onBandBlock).toBe('notify');
+  });
+
+  it('onBandBlock clamp raises the stop until the exchange will take the order', () => {
+    const out = trailingTrade.tick(
+      buildInput({
+        percentPriceBySide: BAND,
+        protectiveStop: { enabled: true, limitOffsetPercentage: '0.995', onBandBlock: 'clamp' },
+        openOrders: [restingProtectiveStop({ stopPrice: '80.00' })],
+      }),
+    );
+    expect(blockerOf(out.nextState)).toBeNull();
+    const place = out.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
+    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
+    const params = place.params as { stopPrice: string; price: string };
+    // The trigger moved off the configured `100 × 0.96` to the exchange floor.
+    expect(params.stopPrice).toBe('101.25');
+    // The criterion that decides whether Binance accepts it: the LIMIT leg, the
+    // lower of the two, must clear `reference × askMultiplierDown`. The trigger
+    // is floored onto the tick grid AFTER the clamp, so this also proves that
+    // rounding cannot drop it back under the floor.
+    expect(new Decimal(params.price).gte(new Decimal('105').mul('0.95'))).toBe(true);
+  });
+
+  it('onBandBlock clamp leaves a stop the band already accepts exactly where it is', () => {
+    // The configured 100 × 0.96 = 96 clears a floor of 99 × 0.95 ÷ 0.995 × 1.01
+    // ≈ 95.47, so the clamp is inert. The operator's stop must not creep upward
+    // on a mode that exists only to rescue a refusal.
+    const out = trailingTrade.tick(
+      buildInput({
+        percentPriceBySide: BAND,
+        currentPrice: '99.00',
+        protectiveStop: { enabled: true, limitOffsetPercentage: '0.995', onBandBlock: 'clamp' },
+        openOrders: [restingProtectiveStop({ stopPrice: '80.00' })],
+      }),
+    );
+    const place = out.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
+    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
+    expect((place.params as { stopPrice: string }).stopPrice).toBe('96.00');
+  });
+
   it('arms unchanged on a symbol Binance publishes no band for', () => {
     const out = trailingTrade.tick(
       buildInput({ openOrders: [restingProtectiveStop({ stopPrice: '80.00' })] }),
@@ -1074,5 +1142,198 @@ describe('protective stop — outside Binance’s PERCENT_PRICE_BY_SIDE band', (
     expect(out.decisions.some((d) => isPlace(d) && d.intent.reason === 'protective-stop')).toBe(
       true,
     );
+  });
+
+  const TRAIL_BOUNDS: TrailingDeltaFilter = {
+    minTrailingAboveDelta: 10,
+    maxTrailingAboveDelta: 2000,
+    minTrailingBelowDelta: 10,
+    maxTrailingBelowDelta: 2000,
+  };
+
+  const nativeTrail = (over: BuildOpts = {}): ReturnType<typeof trailingTrade.tick> =>
+    trailingTrade.tick(
+      buildInput({
+        percentPriceBySide: BAND,
+        trailingDelta: TRAIL_BOUNDS,
+        protectiveStop: {
+          enabled: true,
+          limitOffsetPercentage: '0.995',
+          onBandBlock: 'native-trail',
+        },
+        openOrders: [restingProtectiveStop({ stopPrice: '80.00' })],
+        ...over,
+      }),
+    );
+
+  it('onBandBlock native-trail places a STOP_LOSS carrying only the distance', () => {
+    const out = nativeTrail();
+    expect(blockerOf(out.nextState)).toBeNull();
+    const place = out.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
+    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
+    // `sell.stopLossPercentage: 0.96` is a 4% stop, so 400 bips go to Binance —
+    // the configured distance, where `clamp` would have moved the trigger up to
+    // 101.25 and left under 4%.
+    expect(place.params).toEqual({
+      type: 'STOP_LOSS',
+      quantity: '2.0000',
+      trailingDelta: 400,
+    });
+    // The old priced stop goes in the same batch — leaving both would double the
+    // sell size the moment either triggers.
+    expect(out.decisions.some(isCancel)).toBe(true);
+  });
+
+  it('falls back to the refusal when the symbol publishes no TRAILING_DELTA bounds', () => {
+    const { trailingDelta: _dropped, ...noBounds } = {
+      trailingDelta: TRAIL_BOUNDS,
+      percentPriceBySide: BAND,
+    };
+    const out = trailingTrade.tick(
+      buildInput({
+        ...noBounds,
+        protectiveStop: {
+          enabled: true,
+          limitOffsetPercentage: '0.995',
+          onBandBlock: 'native-trail',
+        },
+        openOrders: [restingProtectiveStop({ stopPrice: '80.00' })],
+      }),
+    );
+    expect(blockerOf(out.nextState)?.reason).toBe('price-outside-exchange-band');
+    expect(out.decisions.some((d) => isPlace(d) && d.intent.reason === 'protective-stop')).toBe(
+      false,
+    );
+  });
+
+  it('leaves a resting trail alone while its distance still matches, re-arms when it does not', () => {
+    // Cancel + re-place resets the high-water mark Binance has been tracking, so
+    // a matching trail must be left exactly where it is.
+    const trailing = (delta: number): OpenOrder =>
+      restingProtectiveStop({
+        type: 'STOP_LOSS',
+        price: '0',
+        stopPrice: undefined,
+        trailingDelta: delta,
+      });
+
+    const settled = nativeTrail({ openOrders: [trailing(400)] });
+    expect(settled.decisions.some((d) => isPlace(d) && d.intent.reason === 'protective-stop')).toBe(
+      false,
+    );
+    expect(settled.decisions.some(isCancel)).toBe(false);
+
+    const stale = nativeTrail({ openOrders: [trailing(500)] });
+    const place = stale.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
+    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
+    expect(place.params).toMatchObject({ trailingDelta: 400 });
+  });
+  // Both escapes leave no blocker behind — nothing was refused in the end — so a
+  // metric is the only trace that the order resting at Binance is not the one
+  // the operator configured.
+  it('reports the clamp as a band adjustment on the metric series', () => {
+    const out = trailingTrade.tick(
+      buildInput({
+        percentPriceBySide: BAND,
+        protectiveStop: { enabled: true, limitOffsetPercentage: '0.995', onBandBlock: 'clamp' },
+        openOrders: [restingProtectiveStop({ stopPrice: '80.00' })],
+      }),
+    );
+    expect(out.metrics).toContainEqual({
+      name: 'protective_stop_band_adjusted',
+      value: 1,
+      tags: { symbol: SYMBOL, reason: 'floor-clamped' },
+    });
+  });
+
+  it('reports the native-trail substitution on the same series', () => {
+    expect(nativeTrail().metrics).toContainEqual({
+      name: 'protective_stop_band_adjusted',
+      value: 1,
+      tags: { symbol: SYMBOL, reason: 'native-trail' },
+    });
+  });
+
+  it('counts adjustments applied, not ticks spent holding an adjusted stop', () => {
+    // The clamp still binds on this tick, but the clamped stop is already resting
+    // at exactly the level the arm would send, so nothing goes out. The level is
+    // read back off the arm rather than written down, so the fixture cannot drift
+    // away from the clamp it is meant to settle on.
+    const clamp = (openOrders: readonly OpenOrder[]) =>
+      trailingTrade.tick(
+        buildInput({
+          percentPriceBySide: BAND,
+          protectiveStop: { enabled: true, limitOffsetPercentage: '0.995', onBandBlock: 'clamp' },
+          openOrders,
+        }),
+      );
+    const armed = clamp([restingProtectiveStop({ stopPrice: '80.00' })]);
+    const place = armed.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
+    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
+    const params = place.params as { stopPrice: string; price: string; quantity: string };
+
+    const settled = clamp([
+      restingProtectiveStop({
+        stopPrice: params.stopPrice,
+        price: params.price,
+        origQty: params.quantity,
+      }),
+    ]);
+    expect(settled.decisions.some((d) => isPlace(d) && d.intent.reason === 'protective-stop')).toBe(
+      false,
+    );
+    expect(settled.metrics.map((m) => m.name)).not.toContain('protective_stop_band_adjusted');
+  });
+
+  it('widens the re-arm band while the exchange floor is what holds the stop up', () => {
+    // The clamped level is a fraction of the CURRENT price, so it moves whenever
+    // the market does. At the shared 0.1% default that rewrites the resting order
+    // on almost every tick for as long as the band binds; a whole percent is what
+    // makes that quiet without letting a materially stale level stand.
+    const clamp = (openOrders: readonly OpenOrder[]) =>
+      trailingTrade.tick(
+        buildInput({
+          percentPriceBySide: BAND,
+          protectiveStop: { enabled: true, limitOffsetPercentage: '0.995', onBandBlock: 'clamp' },
+          openOrders,
+        }),
+      );
+    const armed = clamp([restingProtectiveStop({ stopPrice: '80.00' })]);
+    const place = armed.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
+    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
+    const params = place.params as { stopPrice: string; price: string; quantity: string };
+    const drifted = (by: string): OpenOrder =>
+      restingProtectiveStop({
+        stopPrice: new Decimal(params.stopPrice).mul(by).toFixed(4),
+        price: params.price,
+        origQty: params.quantity,
+      });
+
+    const held = clamp([drifted('1.005')]);
+    expect(held.decisions.some((d) => isPlace(d) && d.intent.reason === 'protective-stop')).toBe(
+      false,
+    );
+
+    const rewritten = clamp([drifted('1.02')]);
+    expect(
+      rewritten.decisions.some((d) => isPlace(d) && d.intent.reason === 'protective-stop'),
+    ).toBe(true);
+  });
+
+  it('stays silent while the band leaves the configured stop alone', () => {
+    // The default `notify` mode substitutes nothing: its refusal is already a
+    // blocker on state, and a stop the band accepts is not an adjustment at all.
+    const refused = trailingTrade.tick(
+      buildInput({
+        percentPriceBySide: BAND,
+        openOrders: [restingProtectiveStop({ stopPrice: '80.00' })],
+      }),
+    );
+    const armed = trailingTrade.tick(
+      buildInput({ openOrders: [restingProtectiveStop({ stopPrice: '80.00' })] }),
+    );
+    for (const out of [refused, armed]) {
+      expect(out.metrics.map((m) => m.name)).not.toContain('protective_stop_band_adjusted');
+    }
   });
 });
