@@ -120,6 +120,11 @@ export interface AppliedDecision {
   readonly result: DecisionResult;
 }
 
+export interface ApplyAllOptions {
+  /** Withhold the ordered batch because its placement refusal circuit is closed. */
+  readonly deferRepeatedRefusal?: true;
+}
+
 /**
  * A single tick emitted more than one place-order. The retry model cannot
  * express partial-placement progress: a failed apply leaves the (profile,
@@ -166,6 +171,7 @@ export interface LiveExecutor {
     decisions: readonly Decision[],
     scope?: ProfileScope,
     resolved?: ProfileResolved,
+    options?: ApplyAllOptions,
   ): Promise<readonly AppliedDecision[]>;
 }
 
@@ -207,6 +213,15 @@ const DEFERRED: DecisionResult = {
   // steady state under load, and precisely when a noisy channel is most costly.
   deferred: true,
   reason: 'deferred: no Binance order-rate headroom; the resting order still protects the position',
+};
+
+const REPEATED_REFUSAL_DEFERRED: DecisionResult = {
+  ok: false,
+  retryable: true,
+  phase: 'pre-call',
+  deferred: true,
+  reason:
+    'deferred: Binance rejected this exact order three times; the bot probes it once per minute',
 };
 
 /** The decisions that reach the exchange as orders. */
@@ -342,7 +357,7 @@ export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
 
   return {
     apply,
-    async applyAll(ctx, accountId, decisions, scope, resolved) {
+    async applyAll(ctx, accountId, decisions, scope, resolved, options) {
       const decisionDeps: DecisionDeps = {
         ...baseDeps,
         accountId,
@@ -370,6 +385,13 @@ export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
         throw new MultiPlacementError(ctx.profileId, placements);
       }
 
+      // A general refusal circuit cannot reuse the order-budget shortcut below.
+      // A decision after the first order may assume that order landed, so the
+      // circuit executes only the non-order prefix and withholds the complete
+      // suffix, including a paired cancel and any state/event decisions.
+      const refusalDeferredFrom =
+        options?.deferRepeatedRefusal === true ? decisions.findIndex(isOrder) : -1;
+
       // A deferrable placement is a REPRICE of something already resting, so it
       // is worth skipping but never worth waiting for. Waiting would hold this
       // (profile, symbol)'s chain lock and delay the next tick's exit check —
@@ -386,7 +408,7 @@ export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
       // client, when an order actually goes out.
       const placement = decisions.find((d) => d.type === 'place-order');
       let deferred = false;
-      if (placement?.intent.deferrable === true) {
+      if (refusalDeferredFrom < 0 && placement?.intent.deferrable === true) {
         // Memoised, so the handlers below reuse this resolve rather than paying
         // a second one.
         const bindings = await decisionDeps.resolveProfile(
@@ -409,7 +431,11 @@ export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
 
       const out: AppliedDecision[] = [];
       let broken = false;
-      for (const d of decisions) {
+      for (const [index, d] of decisions.entries()) {
+        if (refusalDeferredFrom >= 0 && index >= refusalDeferredFrom) {
+          out.push({ decision: d, result: REPEATED_REFUSAL_DEFERRED });
+          continue;
+        }
         // Only the ORDER decisions are budget-bound; a KV write or event in the
         // same batch is unaffected and still runs.
         // Cancels are shed with the placement even though they cost no ORDERS

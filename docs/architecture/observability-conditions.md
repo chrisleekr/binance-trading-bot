@@ -42,7 +42,7 @@ A **condition** is a named thing currently true of a subject, with a start time:
 
 | Field | Meaning |
 | --- | --- |
-| `condition` | the named condition (`entry-blocked`, `exit-blocked`, `protective-stop-blocked`, `discovery-stale`, `discovery-breadth-blocked`, `config-invalid`) |
+| `condition` | the named condition (`entry-blocked`, `exit-blocked`, `order-refusal-loop`, `protective-stop-blocked`, `discovery-stale`, `discovery-breadth-blocked`, `config-invalid`) |
 | `symbol` | the subject within the profile; empty string means the profile itself |
 | `code` | the specific reason inside that condition, e.g. `knife-guard` |
 | `detail` | whatever structured payload the producer already carries, verbatim |
@@ -120,14 +120,17 @@ The ladder is both the ranking and the progress display. The first rung to find 
 | 1   | `worker-alive`      | presence of the self-expiring `worker:status` key                  |
 | 2   | `profile-active`    | `profiles.enabled`, plus the daily-loss halt flag in Redis         |
 | 3   | `config-valid`      | the same zod schema the form uses                                  |
-| 4   | `discovery-running` | `assessDiscoveryHealth`                                            |
-| 5   | `market-breadth`    | the same function's full-window rule                               |
-| 6   | `candidate-funnel`  | largest proportional drop within each ladder                       |
-| 7   | `symbol-slots`      | auto-symbol count vs `maxAutoSymbols`                              |
-| 8   | `entry-blockers`    | open `entry-blocked` rows and their `since`                        |
-| 9   | `exit-blockers`     | open `exit-blocked` rows, grouped by reason code                   |
-| 10  | `exit-protection`   | `detail.hasDownsideExit`, plus open `protective-stop-blocked` rows |
-| 11  | `config-levers`     | `reasonAttribution` lookup, reason code → config path              |
+| 4   | `order-execution`   | open `order-refusal-loop` rows and their exact request/rejection   |
+| 5   | `discovery-running` | `assessDiscoveryHealth`                                            |
+| 6   | `market-breadth`    | the same function's full-window rule                               |
+| 7   | `candidate-funnel`  | largest proportional drop within each ladder                       |
+| 8   | `symbol-slots`      | auto-symbol count vs `maxAutoSymbols`                              |
+| 9   | `entry-blockers`    | open `entry-blocked` rows and their `since`                        |
+| 10  | `exit-blockers`     | open `exit-blocked` rows, grouped by reason code                   |
+| 11  | `exit-protection`   | `detail.hasDownsideExit`, plus open `protective-stop-blocked` rows |
+| 12  | `config-levers`     | `reasonAttribution` lookup, reason code → config path              |
+
+`order-execution` appears before discovery because a profile already producing orders has passed the earlier configuration question; an exchange refusal is more direct than a later explanation of why another entry was not selected. Each open row becomes its own finding even when two rows carry the same Binance code. The code is only one half of the rejection identity, and two symbols or order shapes can require different operator action.
 
 A finding carries a **lever**: the settings field that armed it, its current value, and which page owns it, so the drawer can link straight to the field. Two maps answer that lookup. The strategy's own `reasonAttribution` covers its blockers. Discovery's codes — the breadth guard, the symbol cap, every funnel stage — are answered by a platform-owned table in `@app/contracts`, because discovery is not a strategy: it has its own config column and its own settings page, and no strategy's map names a funnel stage. Without that table every discovery finding rendered with no link at all, which is the one thing those findings exist to offer. Discovery lever paths are relative to the discovery config, matching the element ids its form renders, and the surface is fixed to `discovery` rather than inferred from a path prefix. `universe`, `probed`, `quote`, and `eligible` deliberately have no lever: the first two are denominators, `quote` follows the profile's quote asset, and `eligible` is the outcome of every filter above it. A discovery config that did not parse keeps the link and drops the value, since rendering an unread setting as "off" would state a choice the operator never made.
 
@@ -149,7 +152,7 @@ A model would make the verdict non-reproducible, untestable, and capable of conf
 
 ### Why a background run, then
 
-Because one rung is genuinely slow. Steps 1–5 and 7–11 are local reads finishing well under a second. Step 6 optionally re-derives the funnel against the **live** Binance REST API — exchangeInfo, 24h tickers, and klines per candidate — which takes seconds to tens of seconds and spends per-account request weight. It queues behind live trading on the shared weight governor.
+Because one rung is genuinely slow. Steps 1–6 and 8–12 are local reads finishing well under a second. Step 7 optionally re-derives the funnel against the **live** Binance REST API — exchangeInfo, 24h tickers, and klines per candidate — which takes seconds to tens of seconds and spends per-account request weight. It queues behind live trading on the shared weight governor.
 
 That probe is what turns "the bot says so" into "verified": independently re-deriving the counts and getting the same answer is what proves the funnel code correct. The rung is published as _running_ before the weight is spent, so the operator sees where the seconds go. A probe that fails leaves the run on the stored scan **and says it is a stored scan** — silently presenting an old funnel as a live measurement is the one outcome to avoid.
 

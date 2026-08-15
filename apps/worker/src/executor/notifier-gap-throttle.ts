@@ -157,6 +157,22 @@ export const createOrderFailedThrottle = (deps: NotifierGapThrottleDeps): Notifi
     ...(deps.setTimeoutMs === undefined ? {} : { setTimeoutMs: deps.setTimeoutMs }),
   });
 
+export const DEFAULT_ORDER_REFUSAL_LOOP_WINDOW_MS = 3_600_000;
+
+/** Separate from ordinary failures so the preceding alert cannot mute the loop escalation. */
+export const ORDER_REFUSAL_LOOP_KEY_PREFIX = 'order-refusal-loop-throttle:';
+
+export const createOrderRefusalLoopThrottle = (
+  deps: NotifierGapThrottleDeps,
+): NotifierGapThrottle =>
+  createRedisWindowThrottle({
+    redis: deps.redis,
+    logger: deps.logger,
+    prefix: ORDER_REFUSAL_LOOP_KEY_PREFIX,
+    windowMs: deps.windowMs ?? DEFAULT_ORDER_REFUSAL_LOOP_WINDOW_MS,
+    ...(deps.setTimeoutMs === undefined ? {} : { setTimeoutMs: deps.setTimeoutMs }),
+  });
+
 /**
  * Suppression window for the `order-unfundable` alert. A pre-flight refusal leaves
  * the strategy's state un-advanced ON PURPOSE (the order is not lost, it is

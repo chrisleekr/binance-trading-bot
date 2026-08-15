@@ -99,6 +99,8 @@ const buildDeps = (): TickHandlerDeps => {
     klineFetcher: anyProxy(),
     notifyEvent: async () => undefined,
     orderFailedThrottle: { allow: async () => true } as never,
+    orderRefusalLoopThrottle: { allow: async () => true } as never,
+    protectiveStopBlockedThrottle: { allow: async () => true } as never,
     auditShipper: anyProxy(),
   });
   const deps = captured.deps;

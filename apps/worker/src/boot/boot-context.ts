@@ -258,6 +258,7 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     accountNotifyBatch,
     notifierGapThrottle,
     orderFailedThrottle,
+    orderRefusalLoopThrottle,
     protectiveStopBlockedThrottle,
     notifyEvent,
   } = buildNotifiers({ db, redis, logger, liveDemo, queueSet });
@@ -360,6 +361,7 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     klineFetcher,
     notifyEvent,
     orderFailedThrottle,
+    orderRefusalLoopThrottle,
     protectiveStopBlockedThrottle,
     auditShipper,
   });

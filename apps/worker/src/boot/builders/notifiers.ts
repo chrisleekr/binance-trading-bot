@@ -15,6 +15,7 @@ import { createNotifyEvent, type NotifyEvent } from 'notifiers/notify-event.js';
 import {
   createNotifierGapThrottle,
   createOrderFailedThrottle,
+  createOrderRefusalLoopThrottle,
   createProtectiveStopBlockedThrottle,
   type NotifierGapThrottle,
 } from 'executor/notifier-gap-throttle.js';
@@ -39,6 +40,7 @@ export interface Notifiers {
   readonly accountNotifyBatch: ReturnType<typeof createAccountNotifyEventBatch>;
   readonly notifierGapThrottle: NotifierGapThrottle;
   readonly orderFailedThrottle: ReturnType<typeof createOrderFailedThrottle>;
+  readonly orderRefusalLoopThrottle: ReturnType<typeof createOrderRefusalLoopThrottle>;
   readonly protectiveStopBlockedThrottle: ReturnType<typeof createProtectiveStopBlockedThrottle>;
   readonly notifyEvent: NotifyEvent;
 }
@@ -70,6 +72,8 @@ export const buildNotifiers = ({
   // Its own key namespace and its own (shorter) window: the notifier-gap trace is
   // a once-an-hour visibility record, an order failure is an operator emergency.
   const orderFailedThrottle = createOrderFailedThrottle({ redis, logger });
+  // The loop escalation must not be muted by the ordinary failure that precedes it.
+  const orderRefusalLoopThrottle = createOrderRefusalLoopThrottle({ redis, logger });
   // A third namespace, not the order-failed one: the refused stop is never sent,
   // so it raises no placement failure, and sharing that key would let one cause
   // mute the other for the whole window.
@@ -141,6 +145,7 @@ export const buildNotifiers = ({
     accountNotifyBatch,
     notifierGapThrottle,
     orderFailedThrottle,
+    orderRefusalLoopThrottle,
     protectiveStopBlockedThrottle,
     notifyEvent,
   };

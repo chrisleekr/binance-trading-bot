@@ -141,6 +141,9 @@ export const PROFILE_KEYS = {
   // the durable `symbol_states` PG row. Keyed per symbol so symbols on a shared
   // profile never clobber each other's strategy state.
   symbolState: (symbol: string): string => `symbol-state:${symbol}`,
+  // Runtime guard against re-sending an exchange-confirmed structural refusal
+  // on every tick. The symbol suffix keeps manual symbol wipes complete.
+  orderRefusal: (symbol: string): string => `order-refusal:${symbol}`,
   // Operational metadata stamped by the worker after every tick attempt:
   // {lastTickAt, lastTickLatencyMs, lastTickError}. Held in its own key so
   // writes do not collide with the strategy's `symbol-state` blob — strategies

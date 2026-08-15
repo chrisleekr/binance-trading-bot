@@ -21,6 +21,7 @@ import type { MetricsSink, StatePort } from 'state/state-port.js';
 import type { SymbolInfoCache } from './symbol-info-cache.js';
 import type { ProfileTickContext } from './build-tick-input.js';
 import type { FrameRecorder } from './frame-recorder.js';
+import type { OrderRejectionIdentity, OrderRequestIdentity } from './order-refusal-circuit.js';
 
 /** The failure arm of a {@link DecisionResult} — the one that carries `phase`. */
 export type DecisionFailure = Extract<DecisionResult, { ok: false }>;
@@ -174,6 +175,29 @@ export interface TickHandlerDeps {
     readonly decisionType: 'place-order' | 'cancel-order';
     readonly result: DecisionFailure;
     readonly willRetry: boolean;
+  }) => Promise<void>;
+  /** Records the durable diagnosis surface after the Redis circuit state is known durable. */
+  readonly recordOrderRefusalCondition?: (
+    scope: ProfileScope,
+    input: {
+      readonly symbol: string;
+      readonly code: string | null;
+      readonly changeKey?: string;
+      readonly detail?: unknown;
+      readonly now: Date;
+      readonly msg: string;
+    },
+  ) => Promise<void>;
+  /** Sends the dedicated trip or probe alert. Repeat suppression belongs to the caller. */
+  readonly notifyOrderRefusalLoop?: (input: {
+    readonly operatorId: UserId;
+    readonly accountId: AccountId;
+    readonly profileId: ProfileId;
+    readonly symbol: string;
+    readonly identityKey: string;
+    readonly request: OrderRequestIdentity;
+    readonly rejection: OrderRejectionIdentity;
+    readonly probe: boolean;
   }) => Promise<void>;
   /**
    * Tells the operator a protective stop could not be placed at all. Distinct

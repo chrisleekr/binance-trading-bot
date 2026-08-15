@@ -155,6 +155,44 @@ describe('LiveExecutor.applyAll — chain short-circuit', () => {
   });
 });
 
+describe('LiveExecutor.applyAll — repeated-refusal circuit', () => {
+  it('executes only the non-order prefix and defers the whole suffix from the first order', async () => {
+    const applied = await buildExecutor().applyAll(
+      CTX,
+      ACCOUNT,
+      [EMIT, CANCEL, PLACE, SET_KV],
+      undefined,
+      undefined,
+      { deferRepeatedRefusal: true },
+    );
+
+    expect(emitEventSpy).toHaveBeenCalledOnce();
+    expect(cancelOrderSpy).not.toHaveBeenCalled();
+    expect(placeOrderSpy).not.toHaveBeenCalled();
+    expect(setKvSpy).not.toHaveBeenCalled();
+    expect(applied[0]?.result).toEqual(OK);
+    for (const item of applied.slice(1)) {
+      expect(item.result).toMatchObject({
+        ok: false,
+        retryable: true,
+        phase: 'pre-call',
+        deferred: true,
+      });
+      expect(item.result.ok === false && item.result.reason).toMatch(/once per minute/i);
+    }
+  });
+
+  it('keeps the multi-placement contract fail-closed before circuit deferral', async () => {
+    await expect(
+      buildExecutor().applyAll(CTX, ACCOUNT, [PLACE, PLACE_2], undefined, undefined, {
+        deferRepeatedRefusal: true,
+      }),
+    ).rejects.toThrow(/more than one|multi.?placement|place-order/i);
+
+    expect(placeOrderSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe('LiveExecutor.applyAll — multi-placement fail-closed', () => {
   // The retry model re-emits the WHOLE decision array on a failed apply (the tick
   // leaves per-(profile,symbol) state un-advanced). If a tick emits two placements

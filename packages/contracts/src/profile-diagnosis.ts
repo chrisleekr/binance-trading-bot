@@ -27,6 +27,7 @@ export const DIAGNOSIS_STEPS = [
   'worker-alive',
   'profile-active',
   'config-valid',
+  'order-execution',
   'discovery-running',
   'market-breadth',
   'candidate-funnel',
@@ -43,6 +44,7 @@ export const DIAGNOSIS_STEP_LABELS: Record<DiagnosisStepId, string> = {
   'worker-alive': 'Is the trading engine running?',
   'profile-active': 'Is this profile switched on?',
   'config-valid': 'Are the settings valid?',
+  'order-execution': "Is Binance accepting this profile's orders?",
   'discovery-running': 'Is auto-discovery scanning?',
   'market-breadth': 'Is the market broad enough to buy into?',
   'candidate-funnel': 'Where do candidate coins drop out?',
@@ -586,6 +588,104 @@ const stepConfigValid = (input: ProfileDiagnosisInput): DiagnosisStepResult => {
     lever: null,
   }));
   return { status: 'finding', line: 'The stored settings fail validation.', items };
+};
+
+interface OrderRefusalDetail {
+  readonly request: {
+    readonly symbol: string;
+    readonly side: string;
+    readonly type: string;
+    readonly quantity: string;
+  };
+  readonly rejection: { readonly msg: string };
+  readonly threshold: number;
+  readonly probeEveryMs: number;
+}
+
+const readOrderRefusalDetail = (detail: unknown): OrderRefusalDetail | null => {
+  if (typeof detail !== 'object' || detail === null) return null;
+  const d = detail as Record<string, unknown>;
+  const request =
+    typeof d['request'] === 'object' && d['request'] !== null
+      ? (d['request'] as Record<string, unknown>)
+      : null;
+  const rejection =
+    typeof d['rejection'] === 'object' && d['rejection'] !== null
+      ? (d['rejection'] as Record<string, unknown>)
+      : null;
+  if (
+    request === null ||
+    rejection === null ||
+    typeof request['symbol'] !== 'string' ||
+    typeof request['side'] !== 'string' ||
+    typeof request['type'] !== 'string' ||
+    typeof request['quantity'] !== 'string' ||
+    typeof rejection['msg'] !== 'string' ||
+    // Finite, not merely numeric: both values are printed and one is divided.
+    // A JSON number too large for a double parses back as Infinity, which would
+    // reach the operator as "once every Infinity seconds" instead of falling to
+    // the generic evidence branch below. `typeof` stays for the narrowing;
+    // `Number.isFinite` is not a type guard.
+    typeof d['threshold'] !== 'number' ||
+    !Number.isFinite(d['threshold']) ||
+    typeof d['probeEveryMs'] !== 'number' ||
+    !Number.isFinite(d['probeEveryMs'])
+  ) {
+    return null;
+  }
+  return {
+    request: {
+      symbol: request['symbol'],
+      side: request['side'],
+      type: request['type'],
+      quantity: request['quantity'],
+    },
+    rejection: { msg: rejection['msg'] },
+    threshold: d['threshold'],
+    probeEveryMs: d['probeEveryMs'],
+  };
+};
+
+const stepOrderExecution = (input: ProfileDiagnosisInput): DiagnosisStepResult => {
+  const open = openOf(input, 'order-refusal-loop');
+  if (open.length === 0) {
+    return {
+      status: 'ok',
+      line: 'No repeated Binance order refusal is currently recorded.',
+      items: [],
+    };
+  }
+  const items = open.map((condition): DiagnosisItem => {
+    const detail = readOrderRefusalDetail(condition.detail);
+    return {
+      id: `order-refusal-loop:${condition.symbol}`,
+      condition: 'order-refusal-loop',
+      code: condition.code,
+      severity: severityOf('order-refusal-loop'),
+      title: `Binance keeps refusing ${condition.symbol} orders`,
+      detail:
+        'The bot slowed this exact request to one probe per minute after repeated exchange refusals.',
+      sinceMs: condition.sinceMs,
+      evidence:
+        detail === null
+          ? [
+              `Binance error code: ${condition.code}.`,
+              'The exact request and Binance message were not recorded.',
+            ]
+          : [
+              `Action: ${detail.request.side} ${detail.request.type} ${detail.request.quantity} ${detail.request.symbol}.`,
+              `Binance ${condition.code}: ${detail.rejection.msg}`,
+              `Binance refused this exact order ${detail.threshold} times. The bot now probes it once every ${Math.round(detail.probeEveryMs / 1000)} seconds.`,
+            ],
+      symbols: [{ symbol: condition.symbol, sinceMs: condition.sinceMs }],
+      lever: null,
+    };
+  });
+  return {
+    status: 'finding',
+    line: `${items.length} order refusal loop${items.length === 1 ? ' is' : 's are'} open.`,
+    items,
+  };
 };
 
 /** Pull the producer's `{ issues: string[] }` payload back out, tolerantly. */
@@ -1186,6 +1286,7 @@ const DIAGNOSIS_LADDER: readonly {
   { id: 'worker-alive', run: stepWorkerAlive },
   { id: 'profile-active', run: stepProfileActive },
   { id: 'config-valid', run: stepConfigValid },
+  { id: 'order-execution', run: stepOrderExecution },
   { id: 'discovery-running', run: stepDiscoveryRunning },
   { id: 'market-breadth', run: stepMarketBreadth },
   { id: 'candidate-funnel', run: stepCandidateFunnel },

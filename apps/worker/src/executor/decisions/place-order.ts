@@ -665,7 +665,7 @@ export const placeOrderHandler = async (
         ],
       });
     }
-    return classified.result;
+    return classified.result.ok ? classified.result : { ...classified.result, cause: err };
   }
 
   // Order accepted by Binance. Bookkeeping failures must NOT trigger a retry,

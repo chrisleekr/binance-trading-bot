@@ -23,6 +23,7 @@ describe('buildNotifiers', () => {
       'notifierGapThrottle',
       'notifyEvent',
       'orderFailedThrottle',
+      'orderRefusalLoopThrottle',
       'protectiveStopBlockedThrottle',
     ]);
     expect(typeof n.accountNotify).toBe('function');

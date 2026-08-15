@@ -36,6 +36,7 @@ import {
   buildAccountInfoKey,
   buildOpenOrdersKey,
   buildKillSwitchKey,
+  buildOrderRefusalKey,
   buildSymbolStateKey,
   buildWeightKey,
 } from '../../src/executor/redis-namespace.js';
@@ -75,6 +76,7 @@ export const makeFakeRedis = (tuple: FrameTuple): Redis => {
   store.set(buildAccountInfoKey(accountId, profileId), tuple.raw.accountInfo);
   store.set(buildOpenOrdersKey(accountId, profileId, symbol), tuple.raw.openOrders);
   store.set(buildKillSwitchKey(accountId, profileId), tuple.raw.killSwitch);
+  store.set(buildOrderRefusalKey(accountId, profileId, symbol), tuple.raw.orderRefusal ?? null);
   store.set(
     buildWeightKey(accountId, profileId, minuteBucketOf(NOW_MS)),
     String(tuple.raw.weightUsed1m),
