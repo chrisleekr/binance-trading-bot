@@ -88,7 +88,9 @@ Docs build in a **uv-managed Python env** (`pyproject.toml`, `[dependency-groups
 6. Playwright lanes green. `browser-bootstrap` proves the four configured browser projects start and reports every skipped app execution with its reason; it does not claim critical-path app coverage. `app-e2e` boots a hermetic ROLE=all stack against a loopback Binance fixture and runs the P0 journey in all four projects; it fails on any skip and on any Binance traffic the fixture does not answer.
 7. `bun run compose:build` succeeds for every app.
 8. Migrations: hand-authored `NNNN_*.sql` applied in order by the checksum-tracked runner (`packages/db/src/migrate.ts`, tracked in `_app_migrations`); the `packages/db` suite runs `migrate()` against real Postgres.
-9. JSDoc quality is a review gate, not a lint gate: no name-restatements, no blank blocks.
+9. JSDoc quality is a review gate, not a lint gate. Every exported or non-trivial function carries a block with one `@param` line per parameter and a `@returns` line when it returns a value. The prose above the tags carries the WHY; each tag glosses what that value _means_ — no name-restatements (`@param symbol - The symbol`), no blank blocks. A name that is a misnomer or an easy misread makes its `@param` line the only place a reader is told, so it is required there even when the type looks self-evident.
+
+   **Do not hard-wrap comments.** One paragraph is one line, and one `@param` / `@returns` tag is one line, however long it runs — in JSDoc blocks and in `//` comments alike. This is the `proseWrap: 'never'` rule `prettier.config.mjs` already applies to Markdown, for the same reason: hard-wrapped prose turns every later edit into a multi-line reflow, so the diff hides the sentence that actually changed. Editors soft-wrap; diffs do not. Nothing enforces this — `printWidth` governs code only, and prettier never reflows a comment body — so it is a review gate, and existing wrapped comments are left alone until the code around them is touched. Line breaks are for meaning, not width: a bulleted list, a `- x:` table, or an ASCII diagram keeps its breaks.
 
 ## Anti-patterns to refuse
 

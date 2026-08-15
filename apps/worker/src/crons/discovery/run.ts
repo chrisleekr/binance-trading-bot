@@ -97,6 +97,11 @@ const buildEntryHintValue = (
  * Exported because the diagnosis re-probe fetches the same set: a probe that
  * chose its candidates differently would report a funnel the bot never had, and
  * the whole point of re-deriving it live is that the two agree.
+ *
+ * @param shortlist - Symbols that passed the ticker stage, already in rank order. Rank order is load-bearing: the cap keeps a prefix of it.
+ * @param autoSymbols - Symbols currently held by auto-discovery. Only those also present in `shortlist` are force-kept; membership alone does not exempt a symbol from the cap.
+ * @param maxAutoSymbols - The admit cap. The kline cap is `3 ×` this, not this.
+ * @returns The symbols to fetch windows for: held-first, then candidates in rank order, deduplicated, capped.
  */
 export const selectKlineTargets = (
   shortlist: readonly string[],

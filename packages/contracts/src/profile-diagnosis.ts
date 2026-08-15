@@ -1301,13 +1301,15 @@ const DIAGNOSIS_LADDER: readonly {
  * Run one rung, converting a throw into an `unknown` step rather than failing
  * the whole run. A rung that breaks must not be able to claim health it never
  * established, and it must not take the rest of the ladder down with it.
+ *
+ * @param id - Which rung to run. An id with no matching rung yields `unknown` rather than throwing, so a stale persisted id cannot fail the ladder.
+ * @param input - The full diagnosis input; each rung reads only its own slice.
+ * @param onError - Receives the throw that the operator-facing line deliberately drops. This package is pure and cannot log, so without a caller taking the error a rung that throws every run is invisible in the report AND the logs. Called at most once per throw, and its own throws are swallowed.
+ * @returns The rung's result, or an `unknown` step with a fixed operator sentence when the rung threw. Never throws.
  */
 export const runDiagnosisStep = (
   id: DiagnosisStepId,
   input: ProfileDiagnosisInput,
-  // Handed the throw the operator line deliberately drops. This package is pure,
-  // so it cannot log; without a caller taking the error a rung that throws every
-  // run is invisible in both the report and the logs.
   onError?: (id: DiagnosisStepId, err: unknown) => void,
 ): DiagnosisStepResult => {
   const rung = DIAGNOSIS_LADDER.find((s) => s.id === id);
