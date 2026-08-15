@@ -30,7 +30,7 @@ import { buildOrderRearmKey, buildProfileTickMetaKey } from 'executor/redis-name
 import type { AuditEntry } from 'audit-shipper/audit-shipper.js';
 import { mergeStrategyAudit } from './merge-strategy-audit.js';
 import { tickInputDigest } from './tick-input-digest.js';
-import { buildTickInput, type BuiltTick } from './build-tick-input.js';
+import { buildTickInput, type BuiltTick, type WrittenCondition } from './build-tick-input.js';
 import { errorMessage } from '@app/core/error';
 import type { DecisionFailure, TickHandlerDeps, TickResult } from './tick-types.js';
 import { applyDailyHalt } from './halt-filter.js';
@@ -64,6 +64,53 @@ const STAMP_TIMEOUT_MS = 100;
  * paused profile does not resume weeks later still claiming to be retrying.
  */
 const REARM_WINDOW_MS = 900_000;
+
+/**
+ * How long a RECOVERABLE protective-stop refusal has to hold before the operator
+ * hears about it. The exchange band tracks a moving reference price, so a stop
+ * that falls outside it can come back inside on its own within a few minutes,
+ * and paging on every excursion would make the channel unreadable. Measured off
+ * the condition span's start, never a tick count: tick cadence is per-profile,
+ * so a count would mean a different real duration on every profile.
+ *
+ * A TERMINAL refusal skips this entirely. No price arms that stop, so waiting
+ * cannot fix it and the wait is pure exposure.
+ */
+export const PROTECTIVE_STOP_BLOCKED_PERSISTENCE_MS = 900_000;
+
+/**
+ * The strategy's protective-stop blocker as the handler reads it off the state
+ * it just committed. Deliberately the LIVE record rather than the stored
+ * condition row: the row's `detail` freezes when the span opens, so its prices
+ * would be stale by exactly the interval the alert waits out.
+ */
+interface ProtectiveStopBlockerView {
+  readonly reason: string;
+  readonly detail: Readonly<Record<string, unknown>>;
+  /** No price can ever satisfy the band, so waiting is not a fix. */
+  readonly terminal: boolean;
+  /** A working stop is still resting on the exchange; only the re-arm is deferred. */
+  readonly guarded: boolean;
+}
+
+const readProtectiveStopBlocker = (state: unknown): ProtectiveStopBlockerView | null => {
+  if (typeof state !== 'object' || state === null) return null;
+  const raw = (state as Record<string, unknown>)['protectiveStopBlocker'];
+  if (typeof raw !== 'object' || raw === null) return null;
+  const reason = (raw as Record<string, unknown>)['reason'];
+  if (typeof reason !== 'string') return null;
+  const rawDetail = (raw as Record<string, unknown>)['detail'];
+  const detail: Readonly<Record<string, unknown>> =
+    typeof rawDetail === 'object' && rawDetail !== null
+      ? (rawDetail as Record<string, unknown>)
+      : {};
+  return {
+    reason,
+    detail,
+    terminal: detail['terminal'] === true,
+    guarded: detail['guarded'] === true,
+  };
+};
 
 export const createTickHandler = (
   deps: TickHandlerDeps,
@@ -267,7 +314,7 @@ export const createTickHandler = (
           return throttledSkip({ profileId, symbol, latencyMs: pauseLatencyMs });
         }
 
-        const { input: tickInput, commit } = built;
+        const { input: tickInput, commit, auditBlockers } = built;
 
         let output: TickOutput<unknown>;
         try {
@@ -451,6 +498,7 @@ export const createTickHandler = (
         const orderDidNotExecute =
           placementResult !== undefined &&
           (placementResult.phase === 'pre-call' || placementResult.phase === 'rejected');
+        let writtenConditions: readonly WrittenCondition[] = [];
 
         // Commit the per-symbol slice through the load handle: PG-first
         // two-column write stamped at the version the read settled on (the
@@ -486,6 +534,16 @@ export const createTickHandler = (
             },
             'tick-handler: an order never reached the exchange — state left un-advanced so the next tick re-issues it',
           );
+          // The blockers are still recorded even though the body is not. An OPEN
+          // blocker describes what the strategy EVALUATED this tick, so it is
+          // truthful on a deliberately un-advanced state — and withholding it
+          // would leave every span start unknown for as long as the placement
+          // keeps failing, which for a shed order budget is a designed steady
+          // state, not a blip. Only open ones, hence 'evaluated': the body was
+          // thrown away, and the exit paths null these fields optimistically
+          // before the order is known to have landed, so recording a clear would
+          // delete a row the persisted state still implies.
+          writtenConditions = await auditBlockers(output.nextState, 'evaluated');
           await raceDeadline(
             () => deps.redis.set(rearmKey, '1', 'PX', REARM_WINDOW_MS, 'NX'),
             REARM_TIMEOUT_MS,
@@ -503,7 +561,7 @@ export const createTickHandler = (
             },
           );
         } else {
-          await commit(output.nextState, persistTimeoutMs);
+          writtenConditions = await commit(output.nextState, persistTimeoutMs);
           // Every order decision this tick landed: the retry sequence, if there was
           // one, is over.
           if (failure === undefined) {
@@ -558,6 +616,61 @@ export const createTickHandler = (
               deps.logger.warn(
                 { profileId, symbol, err: err },
                 'tick-handler: could not notify the operator that an order failed',
+              );
+            });
+          }
+        }
+
+        // A protective stop the exchange band refuses is DEFERRED, not attempted,
+        // so nothing above can catch it: no order is sent, nothing fails, and the
+        // block above stays silent while the coin may be sitting with nothing
+        // under it. This is the only place that says so.
+        //
+        // `guarded` outranks `terminal`: a working stop is still resting on the
+        // exchange and only the re-arm is deferred, which is not an operator
+        // problem and would train them to ignore the naked case. Fire-and-forget
+        // for the same reasons as the order-failed alert above.
+        //
+        // Scoped to the BAND refusal, and only that one. The message below tells
+        // the operator to widen the stop offset, which is the wrong instruction
+        // for a base-sizing refusal — and only the band classifier publishes
+        // `guarded` / `terminal` at all, so on the three sizing reasons both read
+        // false: an absent `guarded` would be taken as "nothing is protecting
+        // this", while the sizing branch explicitly leaves any resting stop in
+        // place. The CONDITION row stays generic for all four reasons; it is the
+        // notification, whose copy tells one story, that is narrowed here.
+        const stopBlocker = readProtectiveStopBlocker(output.nextState);
+        if (
+          stopBlocker !== null &&
+          stopBlocker.reason === 'price-outside-exchange-band' &&
+          !stopBlocker.guarded &&
+          deps.notifyProtectiveStopBlocked
+        ) {
+          const sinceMs =
+            writtenConditions.find((w) => w.condition === 'protective-stop-blocked')?.sinceMs ??
+            null;
+          // Terminal fails OPEN on an unknown span: a lost condition write is a
+          // Postgres blip, and letting it mute an unguarded position would make
+          // the alert least reliable exactly when the system is already unwell.
+          const heldLongEnough =
+            sinceMs !== null && clock.nowMs() - sinceMs >= PROTECTIVE_STOP_BLOCKED_PERSISTENCE_MS;
+          if (stopBlocker.terminal || heldLongEnough) {
+            const notify = deps.notifyProtectiveStopBlocked;
+            void callAsync(() =>
+              notify({
+                operatorId,
+                accountId,
+                profileId,
+                symbol,
+                reason: stopBlocker.reason,
+                detail: stopBlocker.detail,
+                terminal: stopBlocker.terminal,
+                sinceMs,
+              }),
+            ).catch((err: unknown) => {
+              deps.logger.warn(
+                { profileId, symbol, err: err },
+                'tick-handler: could not notify the operator that a protective stop could not be placed',
               );
             });
           }

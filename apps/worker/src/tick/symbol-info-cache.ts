@@ -5,6 +5,7 @@ import type { SymbolInfo } from '@app/strategy-core';
 
 import { buildSymbolInfoKey } from 'executor/redis-namespace.js';
 import { createExchangeInfoRefresh } from 'crons/exchange-info-refresh.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 
 /**
  * A (symbol, mode) that Binance's exchangeInfo confirms it no longer lists: the
@@ -58,6 +59,12 @@ export interface SymbolInfoCacheDeps {
   // Overridable so unit tests can substitute the recovery path. Defaults to a
   // per-mode `createExchangeInfoRefresh`.
   readonly refreshExchangeInfo?: (mode: BinanceMode) => Promise<unknown>;
+  /**
+   * Forwarded to the default refresh closure. The miss-recovery refresh parses
+   * the same payload the cron does and drops filters the same way, so it must
+   * feed the same counters.
+   */
+  readonly metrics?: MetricsSink;
 }
 
 /**
@@ -88,10 +95,19 @@ export const SYMBOL_INFO_NEGATIVE_TTL_MS: number = SYMBOL_INFO_TTL_MS;
 export const createSymbolInfoCache = (deps: SymbolInfoCacheDeps): SymbolInfoCache => {
   // Per-mode refresh closure: a test-mode miss must prime testnet's keyspace
   // from testnet's host, not production's.
+  // Spread rather than `metrics: metrics`: the dep is optional, so passing an
+  // explicit undefined is not the same as omitting it.
+  const metricsDep: { metrics?: MetricsSink } =
+    deps.metrics === undefined ? {} : { metrics: deps.metrics };
   const refresh =
     deps.refreshExchangeInfo ??
     ((mode: BinanceMode) =>
-      createExchangeInfoRefresh({ redis: deps.redis, logger: deps.logger, mode })());
+      createExchangeInfoRefresh({
+        redis: deps.redis,
+        logger: deps.logger,
+        mode,
+        ...metricsDep,
+      })());
   // Concurrent misses in the SAME mode share one promise; once it settles the
   // sentinel clears so the next miss after a refresh failure tries again.
   // Keyed by mode so a live miss and a test miss don't collapse onto each other.

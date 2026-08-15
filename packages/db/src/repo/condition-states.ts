@@ -38,9 +38,17 @@ export interface RecordConditionInput {
   readonly msg?: string;
 }
 
-/** What a `recordCondition` call actually did, for callers that log or count. */
+/**
+ * What a `recordCondition` call actually did, for callers that log or count.
+ *
+ * Both arms carry the span start, because "unchanged" is exactly when a caller
+ * needs it: an alert gated on how long a condition has held asks on every tick
+ * that changes nothing. The unchanged arm reads it off the row the dedup
+ * already fetched, so answering costs no extra query. It is null only when
+ * nothing is open, which is not the same claim as "open since now".
+ */
 export type RecordConditionResult =
-  | { readonly changed: false }
+  | { readonly changed: false; readonly sinceMs: number | null }
   | { readonly changed: true; readonly previousCode: string | null; readonly sinceMs: number };
 
 /**
@@ -84,7 +92,9 @@ export async function recordCondition(
   // sides of this comparison mean the same thing for everyone.
   const previousKey = existing === undefined ? null : (existing.changeKey ?? existing.code);
   const nextKey = input.code === null ? null : (input.changeKey ?? input.code);
-  if (previousCode === input.code && previousKey === nextKey) return { changed: false };
+  if (previousCode === input.code && previousKey === nextKey) {
+    return { changed: false, sinceMs: existing?.since.getTime() ?? null };
+  }
 
   // A moved threshold under an unchanged code is the SAME span, so `since`
   // carries over. Restarting it would report a position blocked for nine days

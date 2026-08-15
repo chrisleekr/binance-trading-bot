@@ -177,8 +177,9 @@ export interface ProfileScope {
  * Rebinds a {@link ProfileScope} to a transactional connection. The ownership
  * check already ran on the parent scope, so this never re-checks — it swaps the
  * `db` handle for the caller's tx so scoped repo calls inside
- * `db.transaction(...)` join the same tx. Use only inside a transaction
- * callback; the returned scope shares the parent's brand.
+ * `db.transaction(...)` join the same tx. More generally it rebinds the scope to
+ * ANY connection handle — a transaction, or an instrumented one — and the
+ * returned scope shares the parent's brand either way.
  */
 export function withTx(scope: ProfileScope, tx: Database): ProfileScope {
   return {

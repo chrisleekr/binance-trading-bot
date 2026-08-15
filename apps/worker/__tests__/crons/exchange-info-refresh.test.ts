@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import pino from 'pino';
+import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
 import {
   combineExchangeInfoRefresh,
   createExchangeInfoRefresh,
 } from '../../src/crons/exchange-info-refresh.js';
+import { CATALOG, type MetricName, type MetricsSink } from '../../src/metrics/catalog.js';
 import { buildSymbolInfoKey } from '../../src/executor/redis-namespace.js';
 
 const silentLogger = pino({ level: 'silent' });
@@ -405,6 +407,231 @@ describe('createExchangeInfoRefresh', () => {
     const obs = JSON.parse(obsRaw) as { filters: Record<string, string> };
     expect(obs.filters.tickSize).toBe('0'); // safe fallback
     expect(obs.filters.minNotional).toBe('0');
+  });
+
+  // Both collapse to the same all-zero fallback, and until now both did it in
+  // total silence. They are not the same event: a symbol that publishes no
+  // filters is a dust pair behaving normally, while a symbol that publishes a
+  // filter list the projection cannot read is a payload change, and every tick
+  // that then sizes against a zero stepSize skips the symbol without saying why.
+  const capturingLogger = (): { logger: Logger; warns: { ctx: unknown; msg: string }[] } => {
+    const warns: { ctx: unknown; msg: string }[] = [];
+    return {
+      logger: {
+        info: () => undefined,
+        debug: () => undefined,
+        error: () => undefined,
+        warn: (ctx: unknown, msg: string) => {
+          warns.push({ ctx, msg });
+        },
+      } as unknown as Logger,
+      warns,
+    };
+  };
+
+  const metricsStub = (): MetricsSink =>
+    ({ record: vi.fn(), forget: vi.fn() }) as unknown as MetricsSink;
+
+  describe('present-but-unparseable filter payloads', () => {
+    // Declared as the catalogue's own type, so an uncatalogued name is a compile
+    // error here rather than a silently dropped series at the prom-client sink.
+    const UNPARSEABLE: MetricName = 'exchange_info_filters_unparseable_total';
+
+    const symbolWith = (filters: unknown) => ({
+      symbol: 'BROKENUSDT',
+      baseAsset: 'BROKEN',
+      quoteAsset: 'USDT',
+      status: 'TRADING',
+      ...(filters === undefined ? {} : { filters }),
+    });
+
+    it('C8: is per-mode only, never per-symbol', () => {
+      // 3641 listed spot pairs. A symbol label turns one counter into a series per
+      // pair, which is a cardinality incident, not observability.
+      expect(CATALOG[UNPARSEABLE].labelNames).toEqual(['mode']);
+      expect(CATALOG[UNPARSEABLE].kind).toBe('counter');
+    });
+
+    it('C8: logs and counts a symbol whose filters array is present but unreadable', async () => {
+      const redis = stubRedis();
+      const { logger, warns } = capturingLogger();
+      const metrics = metricsStub();
+      // A real filter list, but the LOT_SIZE and NOTIONAL rows the projection
+      // requires are missing, so the whole set voids.
+      const fetchImpl = vi.fn(async () =>
+        jsonResponse({
+          symbols: [symbolWith([{ filterType: 'PRICE_FILTER', tickSize: '0.001' }])],
+        }),
+      );
+
+      const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
+      await refresh();
+
+      expect(metrics.record).toHaveBeenCalledWith(UNPARSEABLE, 1, { mode: 'live' });
+      const warn = warns.find((w) => w.ctx !== null && typeof w.ctx === 'object');
+      expect(warn).toBeDefined();
+      expect(warn?.ctx).toMatchObject({ mode: 'live', symbols: 1, sample: ['BROKENUSDT'] });
+      // Still written, still all-zero: naming the problem must not also drop the
+      // symbol out of the cache and DLQ its first tick.
+      const raw = redis.writes.get(buildSymbolInfoKey('BROKENUSDT'));
+      if (!raw) throw new Error('test setup: BROKENUSDT not written');
+      expect((JSON.parse(raw) as { filters: Record<string, string> }).filters.tickSize).toBe('0');
+    });
+
+    it('C9: an absent filters array stays silent and uncounted', async () => {
+      const redis = stubRedis();
+      const { logger, warns } = capturingLogger();
+      const metrics = metricsStub();
+      const fetchImpl = vi.fn(async () => jsonResponse({ symbols: [symbolWith(undefined)] }));
+
+      const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
+      await refresh();
+
+      expect(metrics.record).not.toHaveBeenCalled();
+      expect(warns).toEqual([]);
+    });
+
+    it('C9: an empty filters array stays silent and uncounted', async () => {
+      // Indistinguishable from absent upstream, and several existing fixtures rely
+      // on it: counting it would make the signal fire on healthy dust pairs.
+      const redis = stubRedis();
+      const { logger, warns } = capturingLogger();
+      const metrics = metricsStub();
+      const fetchImpl = vi.fn(async () => jsonResponse({ symbols: [symbolWith([])] }));
+
+      const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
+      await refresh();
+
+      expect(metrics.record).not.toHaveBeenCalled();
+      expect(warns).toEqual([]);
+    });
+
+    it('C8: counts under the mode it fetched, so testnet drift is not read as live', async () => {
+      const redis = stubRedis();
+      const { logger } = capturingLogger();
+      const metrics = metricsStub();
+      const fetchImpl = vi.fn(async () =>
+        jsonResponse({
+          symbols: [symbolWith([{ filterType: 'PRICE_FILTER', tickSize: '0.001' }])],
+        }),
+      );
+
+      const refresh = createExchangeInfoRefresh({
+        redis,
+        logger,
+        fetchImpl,
+        metrics,
+        mode: 'test',
+      });
+      await refresh();
+
+      expect(metrics.record).toHaveBeenCalledWith(UNPARSEABLE, 1, { mode: 'test' });
+    });
+
+    it('collapses a whole-universe drift into ONE line carrying the count', async () => {
+      // The projection is all-or-nothing, so one renamed upstream field voids
+      // every symbol at once. A warn per symbol would be ~3.6k lines per mode
+      // every 5 minutes, burying the diagnostic it exists to surface. The metric
+      // stays per-symbol; only the log collapses, and the count rides the line so
+      // the sample's truncation is never silent.
+      const redis = stubRedis();
+      const { logger, warns } = capturingLogger();
+      const metrics = metricsStub();
+      const broken = Array.from({ length: 30 }, (_, i) => ({
+        symbol: `BROKEN${i}USDT`,
+        baseAsset: `BROKEN${i}`,
+        quoteAsset: 'USDT',
+        status: 'TRADING',
+        filters: [{ filterType: 'PRICE_FILTER', tickSize: '0.001' }],
+      }));
+      const fetchImpl = vi.fn(async () => jsonResponse({ symbols: broken }));
+
+      const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
+      await refresh();
+
+      expect(metrics.record).toHaveBeenCalledTimes(30);
+      expect(warns).toHaveLength(1);
+      expect(warns[0]?.ctx).toMatchObject({ mode: 'live', symbols: 30 });
+      expect((warns[0]?.ctx as { sample: string[] }).sample).toHaveLength(20);
+    });
+  });
+
+  // The band is parsed separately from the seven sizing filters and spread in
+  // only on success, so a garbled one leaves a NON-NULL filter set: the
+  // unparseable-filters signal above cannot see it. Downstream it reads as "no
+  // band published", the protective-stop band check fails open, and the
+  // cancel/re-place pair goes back out into the -1013 that drift exists to catch.
+  describe('a dropped PERCENT_PRICE_BY_SIDE band', () => {
+    const BAND_UNPARSEABLE: MetricName = 'exchange_info_band_unparseable_total';
+
+    const complete = (band: Record<string, unknown> | null) => ({
+      symbol: 'LINKUSDT',
+      baseAsset: 'LINK',
+      quoteAsset: 'USDT',
+      status: 'TRADING',
+      filters: [
+        { filterType: 'PRICE_FILTER', tickSize: '0.001', minPrice: '0.001', maxPrice: '1000' },
+        { filterType: 'LOT_SIZE', stepSize: '0.01', minQty: '0.01', maxQty: '9000' },
+        { filterType: 'NOTIONAL', minNotional: '10' },
+        ...(band === null ? [] : [band]),
+      ],
+    });
+
+    it('is per-mode only, same cardinality bound as its sibling counter', () => {
+      expect(CATALOG[BAND_UNPARSEABLE].labelNames).toEqual(['mode']);
+      expect(CATALOG[BAND_UNPARSEABLE].kind).toBe('counter');
+    });
+
+    it('counts and logs a published band the projection dropped', async () => {
+      const redis = stubRedis();
+      const { logger, warns } = capturingLogger();
+      const metrics = metricsStub();
+      // Published, and complete enough that the seven sizing filters survive —
+      // but the multipliers are numbers where Binance sends decimal strings.
+      const fetchImpl = vi.fn(async () =>
+        jsonResponse({
+          symbols: [
+            complete({
+              filterType: 'PERCENT_PRICE_BY_SIDE',
+              askMultiplierUp: 5,
+              askMultiplierDown: 0.2,
+              bidMultiplierUp: 5,
+              bidMultiplierDown: 0.2,
+              avgPriceMins: 5,
+            }),
+          ],
+        }),
+      );
+
+      const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
+      await refresh();
+
+      expect(metrics.record).toHaveBeenCalledWith(BAND_UNPARSEABLE, 1, { mode: 'live' });
+      expect(warns).toHaveLength(1);
+      expect(warns[0]?.ctx).toMatchObject({ mode: 'live', symbols: 1, sample: ['LINKUSDT'] });
+      // The rest of the filter set survives, which is exactly why this needs its
+      // own signal: nothing else reports the symbol as damaged.
+      const raw = redis.writes.get(buildSymbolInfoKey('LINKUSDT'));
+      if (!raw) throw new Error('test setup: LINKUSDT not written');
+      const persisted = JSON.parse(raw) as { filters: Record<string, unknown> };
+      expect(persisted.filters['stepSize']).toBe('0.01');
+      expect(persisted.filters['percentPriceBySide']).toBeUndefined();
+    });
+
+    it('stays silent when no band was published at all', async () => {
+      // Not every symbol carries one, and treating an absent band as drift would
+      // make the counter fire on healthy pairs.
+      const redis = stubRedis();
+      const { logger, warns } = capturingLogger();
+      const metrics = metricsStub();
+      const fetchImpl = vi.fn(async () => jsonResponse({ symbols: [complete(null)] }));
+
+      const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
+      await refresh();
+
+      expect(metrics.record).not.toHaveBeenCalled();
+      expect(warns).toEqual([]);
+    });
   });
 });
 

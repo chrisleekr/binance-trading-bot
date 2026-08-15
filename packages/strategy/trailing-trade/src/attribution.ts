@@ -199,6 +199,31 @@ export const ttReasonAttribution: ReasonAttribution = {
     gloss: 'This position has no exit below the entry price',
     kind: 'config',
   },
+  // Protective-stop refusals. The reason codes come from strategy-core's
+  // classifier, so they are shared across strategies, but the levers named here
+  // are trailing-trade's own config paths.
+  'price-outside-exchange-band': {
+    setting: 'Protective-stop limit offset',
+    paths: ['sell.protectiveStop.limitOffsetPercentage'],
+    note: "Binance refuses a sell priced outside its allowed range. A wider limit offset prices the stop further below the trigger, which is what pushes it under Binance's floor",
+    gloss: 'Binance will not accept the protective stop at this price',
+    kind: 'market',
+  },
+  'base-locked-by-foreign-order': {
+    note: 'another sell order resting on Binance holds the coins the stop needs; cancelling it there frees them',
+    gloss: 'The coins are locked by another order, so no protective stop could be placed',
+    kind: 'sizing',
+  },
+  'base-short-of-tracked-position': {
+    note: 'the wallet holds fewer coins than the tracked position, so there is nothing to place the stop against',
+    gloss: 'The wallet no longer backs this position, so no protective stop could be placed',
+    kind: 'sizing',
+  },
+  'base-below-exchange-minimum': {
+    note: "what is free to sell is under Binance's fixed minimum order size for this pair, which is not a setting you can lower",
+    gloss: 'Too few coins are free to meet the exchange minimum for a protective stop',
+    kind: 'sizing',
+  },
 };
 
 /**

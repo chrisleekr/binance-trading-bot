@@ -1056,7 +1056,55 @@ const stepExitBlockers = (input: ProfileDiagnosisInput): DiagnosisStepResult => 
   return { status: items.length === 0 ? 'ok' : 'finding', line, items };
 };
 
+/**
+ * Coins whose protective stop the exchange refuses. Not an `exit-blocked`
+ * record: the strategy did decide to guard the position, so nothing on the exit
+ * side ever reported it, and the order is deferred rather than placed and
+ * rejected. It belongs on this rung regardless, because this is the rung the
+ * operator reads to find out what is actually guarding a held coin.
+ */
+const protectiveStopItems = (input: ProfileDiagnosisInput): DiagnosisItem[] =>
+  [...byCode(openOf(input, 'protective-stop-blocked')).entries()].map(([code, group]) => {
+    const oldest = Math.min(...group.map((g) => g.sinceMs));
+    return {
+      id: `protective-stop-blocked:${code}`,
+      condition: 'protective-stop-blocked',
+      code,
+      severity: severityOf('protective-stop-blocked'),
+      title: input.reasonAttribution[code]?.gloss ?? 'A protective stop could not be placed',
+      detail:
+        input.reasonAttribution[code]?.note ??
+        'The exchange will not accept the stop at the price the strategy wants, so the position may be sitting with nothing below it.',
+      sinceMs: oldest,
+      evidence: [
+        `${group.length} coin${group.length === 1 ? '' : 's'} affected.`,
+        `Longest-running for ${humanizeDuration(input.nowMs - oldest)}.`,
+      ],
+      symbols: symbolRefs(group),
+      lever: leverFor(input, code),
+    };
+  });
+
 const stepExitProtection = (input: ProfileDiagnosisInput): DiagnosisStepResult => {
+  const stopItems = protectiveStopItems(input);
+  const base = stepHeldCoinDownsideExit(input);
+  if (stopItems.length === 0) return base;
+  const coins = stopItems.reduce((n, item) => n + item.symbols.length, 0);
+  const line = `${coins} coin${coins === 1 ? '' : 's'} ${coins === 1 ? 'does' : 'do'} not have the protective stop the bot wants on the exchange. An earlier stop may still be resting on some of them; others may have nothing below them.`;
+  // Always a finding when one is open, whatever the held coins' own exits say: a
+  // stop the exchange never accepted is not protecting at the level the strategy
+  // chose, and on the coins with nothing resting it is not protecting at all.
+  // Rows where a working stop still covers the position are deliberately NOT
+  // filtered out — they are the amber reading of this rung, and dropping them
+  // would hide a position drifting away from the stop that guards it.
+  return {
+    status: 'finding',
+    line: base.status === 'finding' ? `${line} ${base.line}` : line,
+    items: [...stopItems, ...base.items],
+  };
+};
+
+const stepHeldCoinDownsideExit = (input: ProfileDiagnosisInput): DiagnosisStepResult => {
   const open = openOf(input, 'exit-blocked');
   if (open.length === 0) {
     return { status: 'skipped', line: 'No held coin was reported.', items: [] };

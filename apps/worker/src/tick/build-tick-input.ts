@@ -171,7 +171,16 @@ export type BuiltTick =
       // Commits the strategy's next body stamped at the version the read
       // settled on, captured inside the closure. The handler calls this
       // after `strategy.tick`; it never sees or threads the version.
-      readonly commit: StateLoad['commit'];
+      readonly commit: AuditedCommit;
+      /**
+       * Records the audited blockers alone, for the branch that deliberately
+       * skips the commit. Called with `'evaluated'`, so only an OPEN blocker is
+       * recorded: the body was thrown away, and a clear would delete a row the
+       * persisted state still implies. `recordCondition` dedupes against the LAST
+       * WRITTEN ROW, not against the committed state, so a discarded body that
+       * differs from it does append an activity-feed edge.
+       */
+      readonly auditBlockers: BlockerAudit;
       /**
        * Remaining lifetime of the override key the bundle-builder consumed for
        * this tick, when it projected one. Rides on the worker-internal built tick
@@ -228,6 +237,39 @@ const readStateBlocker = (state: unknown, field: string): BlockerShape | null =>
 };
 
 /**
+ * Identity of a refused protective stop, for the field that carries live prices
+ * in `detail` and no `changeKey` of its own.
+ *
+ * The three fields are exactly the ones that change what the operator should do:
+ * which side of the band the stop fell outside, whether a working stop still
+ * covers the position, and whether any price could ever arm it. Everything else
+ * in `detail` (the price, the recomputed floor) moves every tick, and including
+ * it would rewrite the row and append one activity-feed edge PER TICK — write
+ * amplification and feed spam, not a lost span: `recordCondition` restarts
+ * `since` only when the CODE changes, so a moving key under one unchanged reason
+ * always carries the span over.
+ *
+ * The key is still load-bearing. Without it the writer compares codes alone, so
+ * a `guarded` → naked flip under the same reason is dropped as a no-op: `detail`
+ * freezes on the guarded reading and the operator sees no edge for the moment
+ * protection actually went away.
+ *
+ * A consequence worth naming: because the span survives that flip, the measured
+ * age is how long the REFUSAL has held, not how long the position has been
+ * naked. A flip therefore alerts on the refusal's existing age instead of
+ * restarting the wait — deliberate, and the safe direction.
+ *
+ * Derived here rather than in the strategy because the strategy cannot know this
+ * field is audited.
+ */
+const protectiveStopChangeKey = (blocker: BlockerShape): string => {
+  const detail: Readonly<Record<string, unknown>> = blocker.detail ?? {};
+  const flag = (name: string) => (detail[name] === true ? name : `not-${name}`);
+  const bound = typeof detail['bound'] === 'string' ? detail['bound'] : 'unknown';
+  return [blocker.reason, bound, flag('guarded'), flag('terminal')].join('|');
+};
+
+/**
  * The state fields the assembler audits into conditions. Naming the field and
  * its condition side by side keeps this strategy-agnostic: a strategy opts in by
  * adopting the convention on that field, and nothing here knows which strategy
@@ -247,12 +289,71 @@ const AUDITED_BLOCKERS = [
     resolved: (symbol: string) => `${symbol}: exit no longer blocked`,
     open: (symbol: string, reason: string) => `${symbol}: holding (${reason})`,
   },
+  {
+    field: 'protectiveStopBlocker',
+    condition: 'protective-stop-blocked',
+    resolved: (symbol: string) => `${symbol}: protective stop can be placed again`,
+    open: (symbol: string, reason: string) => `${symbol}: protective stop not placed (${reason})`,
+    changeKey: protectiveStopChangeKey,
+  },
 ] as const satisfies readonly {
   readonly field: string;
   readonly condition: Condition;
   readonly resolved: (symbol: string) => string;
   readonly open: (symbol: string, reason: string) => string;
+  /** Derives the identity for a field whose producer carries none. */
+  readonly changeKey?: (blocker: BlockerShape) => string;
 }[];
+
+/**
+ * One audited blocker as the commit found it, handed back so the caller can act
+ * on it. The caller is the tick handler, deliberately: this seam swallows its
+ * own write failures, so anything hung off it would be dropped by the same catch
+ * that keeps a lost condition row from failing the tick.
+ */
+export interface WrittenCondition {
+  readonly condition: Condition;
+  /** Null on the edge where the blocker cleared. */
+  readonly code: string | null;
+  /**
+   * When the span began, or null when the write was lost and no row can date
+   * it. Null is not "it just opened". A caller that measures age has to decide
+   * what an unknown age means for its own alert.
+   */
+  readonly sinceMs: number | null;
+}
+
+/**
+ * Commits the strategy's next body and reports the audited blockers it saw.
+ * Wider than {@link StateLoad}'s own `commit`, which only persists.
+ */
+export type AuditedCommit = (
+  nextState: unknown,
+  timeoutMs: number,
+) => Promise<readonly WrittenCondition[]>;
+
+/**
+ * Records the audited blockers of a strategy body WITHOUT persisting it.
+ *
+ * Separate from {@link AuditedCommit} because a blocker describes what the
+ * strategy EVALUATED this tick, not what the state persisted: on a tick that
+ * deliberately leaves the state un-advanced (an order that provably never
+ * reached the exchange) the blocker is still the truth about the position, and
+ * withholding it would leave every span start unknown for as long as the
+ * placement keeps failing.
+ *
+ * `mode` says how much of `nextState` is true:
+ * - `'committed'`: `nextState` is now the persisted truth, so a cleared blocker
+ *   is real and the clear is written.
+ * - `'evaluated'`: `nextState` was discarded. Only an OPEN blocker is a fact
+ *   about the position; a clear would delete a row the persisted state still
+ *   implies, so clears are skipped. Strategies null these fields optimistically
+ *   the moment they emit an exit, before the order is known to have landed.
+ */
+export type BlockerAudit = (
+  nextState: unknown,
+  mode: 'committed' | 'evaluated',
+) => Promise<readonly WrittenCondition[]>;
 
 /**
  * Wrap a {@link StateLoad}'s `commit` so every audited blocker change is
@@ -277,40 +378,64 @@ const AUDITED_BLOCKERS = [
  * re-reads the row and rewrites, so a lost write costs one tick of staleness and
  * needs no retry bookkeeping.
  */
-const wrapCommitWithBlockerAudit = (
-  load: StateLoad,
-  ctx: {
-    readonly scope: ProfileScope;
-    readonly symbol: string;
-    readonly profileId: ProfileId;
-    readonly clock: { nowMs(): number };
-    readonly logger: Logger;
-  },
-): StateLoad['commit'] => {
-  return async (nextState, timeoutMs) => {
-    await load.commit(nextState, timeoutMs);
+const createBlockerAudit = (ctx: {
+  readonly scope: ProfileScope;
+  readonly symbol: string;
+  readonly profileId: ProfileId;
+  readonly clock: { nowMs(): number };
+  readonly logger: Logger;
+}): BlockerAudit => {
+  return async (nextState, mode) => {
+    const written: WrittenCondition[] = [];
     for (const audited of AUDITED_BLOCKERS) {
       const next = readStateBlocker(nextState, audited.field);
+      // A clear read off a discarded body is not a fact about the position: the
+      // strategy nulls these fields as soon as it emits an exit, so writing it
+      // would delete the row and log "can be placed again" for a position that
+      // is still held and still unprotected.
+      if (next === null && mode === 'evaluated') {
+        written.push({ condition: audited.condition, code: null, sinceMs: null });
+        continue;
+      }
+      // The producer's own key wins when it has one; the fallback covers a field
+      // whose producer carries live detail and no identity for it.
+      const deriveChangeKey = 'changeKey' in audited ? audited.changeKey : undefined;
+      const changeKey = next === null ? undefined : (next.changeKey ?? deriveChangeKey?.(next));
+      let sinceMs: number | null = null;
       try {
-        await profileRepoFromScope(ctx.scope).conditionStates.recordCondition({
+        const result = await profileRepoFromScope(ctx.scope).conditionStates.recordCondition({
           condition: audited.condition,
           symbol: ctx.symbol,
           code: next?.reason ?? null,
           // Withhold the key and the writer would compare codes only, drop a
           // moved threshold as a no-op, and leave `detail` on the level the
           // position first waited at.
-          ...(next?.changeKey ? { changeKey: next.changeKey } : {}),
+          ...(changeKey ? { changeKey } : {}),
           ...(next?.detail ? { detail: next.detail } : {}),
           now: new Date(ctx.clock.nowMs()),
           msg: next === null ? audited.resolved(ctx.symbol) : audited.open(ctx.symbol, next.reason),
         });
+        sinceMs = result.sinceMs;
       } catch (err) {
         ctx.logger.warn(
-          { profileId: ctx.profileId, symbol: ctx.symbol, condition: audited.condition, err },
-          'blocker condition write failed (state already committed); retrying next tick',
+          { profileId: ctx.profileId, symbol: ctx.symbol, condition: audited.condition, mode, err },
+          'blocker condition write failed; retrying next tick',
         );
       }
+      written.push({ condition: audited.condition, code: next?.reason ?? null, sinceMs });
     }
+    return written;
+  };
+};
+
+/** Persist the strategy body, then record the blockers it evaluated. */
+const wrapCommitWithBlockerAudit = (
+  load: StateLoad,
+  auditBlockers: BlockerAudit,
+): AuditedCommit => {
+  return async (nextState, timeoutMs) => {
+    await load.commit(nextState, timeoutMs);
+    return auditBlockers(nextState, 'committed');
   };
 };
 
@@ -529,13 +654,14 @@ export const buildTickInput = async (
   if (bundleSettled.status === 'rejected') throw bundleSettled.reason;
 
   const finalState: unknown = stateSettled.value.state;
-  const commit: StateLoad['commit'] = wrapCommitWithBlockerAudit(stateSettled.value, {
+  const auditBlockers = createBlockerAudit({
     scope: profile.scope,
     symbol,
     profileId,
     clock,
     logger: deps.logger,
   });
+  const commit: AuditedCommit = wrapCommitWithBlockerAudit(stateSettled.value, auditBlockers);
   const { bundle, overrideTtlMs } = bundleSettled.value;
   const limits = apiLimitsFrom(raw.weightUsed1m, profile.weightLimit1m);
 
@@ -627,6 +753,7 @@ export const buildTickInput = async (
     kind: 'ready',
     input,
     commit,
+    auditBlockers,
     ...(overrideTtlMs === undefined ? {} : { overrideTtlMs }),
   };
 };

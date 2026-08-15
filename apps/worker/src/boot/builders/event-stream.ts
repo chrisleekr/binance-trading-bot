@@ -30,6 +30,7 @@ import type { QueueSet } from 'queues/queue-set.js';
 
 import type { MarketData } from './market-data.js';
 import type { StatePersistence } from './state-persistence.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 import type { ResolveBinanceFull } from './binance-resolver.js';
 
 export interface EventStreamDeps {
@@ -46,7 +47,7 @@ export interface EventStreamDeps {
   readonly notifierGapThrottle: NotifierGapThrottle;
   readonly enqueueSymbolReconcile: StatePersistence['enqueueSymbolReconcile'];
   /** Same sink the tick and commit paths hold, so the stream's own series land on one registry. */
-  readonly metrics: StatePersistence['metrics'];
+  readonly metrics: MetricsSink;
   readonly resolveBinanceFull: ResolveBinanceFull;
 }
 

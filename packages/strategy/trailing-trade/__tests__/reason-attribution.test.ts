@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PROTECTIVE_STOP_BLOCKER_REASONS } from '@app/strategy-core';
 import { EXIT_BLOCKER_REASONS, trailingTrade } from '../src/index.js';
 
 // The reason-code → config-path attribution moves from apps/web's hardcoded
@@ -46,6 +47,11 @@ describe('trailingTrade.reasonAttribution', () => {
         'stop-loss-not-hit',
         'time-stop-pending',
         'no-exit-configured',
+        // Protective-stop refusals: the "held, and has no safety net" half.
+        'price-outside-exchange-band',
+        'base-locked-by-foreign-order',
+        'base-short-of-tracked-position',
+        'base-below-exchange-minimum',
       ].sort(),
     );
   });
@@ -58,6 +64,24 @@ describe('trailingTrade.reasonAttribution', () => {
       expect(a?.gloss, reason).toBeDefined();
       expect(a?.kind, reason).toBeDefined();
     }
+  });
+
+  it('explains every protective-stop refusal strategy-core can classify', () => {
+    // An unattributed refusal renders as a bare code on the one panel that says
+    // the position is running without a stop, which is where legibility matters
+    // most.
+    for (const reason of PROTECTIVE_STOP_BLOCKER_REASONS) {
+      const a = trailingTrade.reasonAttribution?.[reason];
+      expect(a?.gloss, reason).toBeDefined();
+      expect(a?.kind, reason).toBeDefined();
+    }
+  });
+
+  it('names the limit offset as the lever for a banded protective stop', () => {
+    // The terminal case is the operator's to fix: a wide limit offset prices the
+    // stop under Binance's floor, and no amount of waiting clears that.
+    const a = trailingTrade.reasonAttribution?.['price-outside-exchange-band'];
+    expect(a?.paths).toEqual(['sell.protectiveStop.limitOffsetPercentage']);
   });
 
   it('points the unarmed-trail rung at the sell trigger, not the trailing stop', () => {

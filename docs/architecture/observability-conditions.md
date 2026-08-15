@@ -16,7 +16,7 @@ So the level is stored as a level.
 
 ```mermaid
 flowchart TD
-  TICK["worker tick<br/>resolveEntryBlocker and resolveExitBlocker"]:::src
+  TICK["worker tick<br/>audits entry, exit and protective-stop blockers"]:::src
   DISC["discovery-health cron<br/>assessDiscoveryHealth"]:::src
   CFGV["config validation"]:::src
   RECC["recordCondition<br/>one shared writer"]:::core
@@ -42,7 +42,7 @@ A **condition** is a named thing currently true of a subject, with a start time:
 
 | Field | Meaning |
 | --- | --- |
-| `condition` | the named condition (`entry-blocked`, `exit-blocked`, `discovery-stale`, `discovery-breadth-blocked`, `config-invalid`) |
+| `condition` | the named condition (`entry-blocked`, `exit-blocked`, `protective-stop-blocked`, `discovery-stale`, `discovery-breadth-blocked`, `config-invalid`) |
 | `symbol` | the subject within the profile; empty string means the profile itself |
 | `code` | the specific reason inside that condition, e.g. `knife-guard` |
 | `detail` | whatever structured payload the producer already carries, verbatim |
@@ -115,25 +115,25 @@ A snapshot with no `funnel` renders as **unknown, never zero**. The field is opt
 
 The ladder is both the ranking and the progress display. The first rung to find something owns the headline — a dead worker makes every later answer moot — but every finding is listed.
 
-| #   | Step                | Decided by                                                 |
-| --- | ------------------- | ---------------------------------------------------------- |
-| 1   | `worker-alive`      | presence of the self-expiring `worker:status` key          |
-| 2   | `profile-active`    | `profiles.enabled`, plus the daily-loss halt flag in Redis |
-| 3   | `config-valid`      | the same zod schema the form uses                          |
-| 4   | `discovery-running` | `assessDiscoveryHealth`                                    |
-| 5   | `market-breadth`    | the same function's full-window rule                       |
-| 6   | `candidate-funnel`  | largest proportional drop within each ladder               |
-| 7   | `symbol-slots`      | auto-symbol count vs `maxAutoSymbols`                      |
-| 8   | `entry-blockers`    | open `entry-blocked` rows and their `since`                |
-| 9   | `exit-blockers`     | open `exit-blocked` rows, grouped by reason code           |
-| 10  | `exit-protection`   | `detail.hasDownsideExit` on those same rows                |
-| 11  | `config-levers`     | `reasonAttribution` lookup, reason code → config path      |
+| #   | Step                | Decided by                                                         |
+| --- | ------------------- | ------------------------------------------------------------------ |
+| 1   | `worker-alive`      | presence of the self-expiring `worker:status` key                  |
+| 2   | `profile-active`    | `profiles.enabled`, plus the daily-loss halt flag in Redis         |
+| 3   | `config-valid`      | the same zod schema the form uses                                  |
+| 4   | `discovery-running` | `assessDiscoveryHealth`                                            |
+| 5   | `market-breadth`    | the same function's full-window rule                               |
+| 6   | `candidate-funnel`  | largest proportional drop within each ladder                       |
+| 7   | `symbol-slots`      | auto-symbol count vs `maxAutoSymbols`                              |
+| 8   | `entry-blockers`    | open `entry-blocked` rows and their `since`                        |
+| 9   | `exit-blockers`     | open `exit-blocked` rows, grouped by reason code                   |
+| 10  | `exit-protection`   | `detail.hasDownsideExit`, plus open `protective-stop-blocked` rows |
+| 11  | `config-levers`     | `reasonAttribution` lookup, reason code → config path              |
 
 A finding carries a **lever**: the settings field that armed it, its current value, and which page owns it, so the drawer can link straight to the field. Two maps answer that lookup. The strategy's own `reasonAttribution` covers its blockers. Discovery's codes — the breadth guard, the symbol cap, every funnel stage — are answered by a platform-owned table in `@app/contracts`, because discovery is not a strategy: it has its own config column and its own settings page, and no strategy's map names a funnel stage. Without that table every discovery finding rendered with no link at all, which is the one thing those findings exist to offer. Discovery lever paths are relative to the discovery config, matching the element ids its form renders, and the surface is fixed to `discovery` rather than inferred from a path prefix. `universe`, `probed`, `quote`, and `eligible` deliberately have no lever: the first two are denominators, `quote` follows the profile's quote asset, and `eligible` is the outcome of every filter above it. A discovery config that did not parse keeps the link and drops the value, since rendering an unread setting as "off" would state a choice the operator never made.
 
 Rung 1 has no staleness threshold, deliberately. The heartbeat key carries no last-beat timestamp; it is written with a TTL and refreshed on an interval, so expiry _is_ the threshold and absence is the only down signal. A rung that compared ages would need a timestamp nothing writes.
 
-The two exit rungs split one question in half. `exit-blockers` reports what every held coin is waiting on, with the rung's own threshold read straight off the producer's `detail`, but only raises a finding for a reason that is a fault (`sell-disabled`, `exit-unsellable`, `exit-config-invalid`) — a coin waiting for its sell trigger is a held position doing its job, and raising a finding for it would hand every healthy profile a headline about selling. `exit-protection` then asks the separate question of whether each held coin has any exit _below_ its entry price, which it reads from `detail.hasDownsideExit` rather than re-deriving, so the report and the bot cannot disagree about it.
+The two exit rungs split one question in half. `exit-blockers` reports what every held coin is waiting on, with the rung's own threshold read straight off the producer's `detail`, but only raises a finding for a reason that is a fault (`sell-disabled`, `exit-unsellable`, `exit-config-invalid`) — a coin waiting for its sell trigger is a held position doing its job, and raising a finding for it would hand every healthy profile a headline about selling. `exit-protection` then asks the separate question of whether each held coin is actually protected on the downside. That is two failures, not one: no exit configured below the entry price at all, read from `detail.hasDownsideExit` rather than re-derived so the report and the bot cannot disagree about it; and an exit that is configured but that the exchange will not accept, read from open `protective-stop-blocked` rows. The second raises a finding on its own, because a stop that was never placed leaves nothing on the exit side to report it.
 
 Each rung resolves to `ok`, `finding`, `skipped`, or `unknown`. `skipped` and `unknown` are kept apart deliberately: collapsing "not applicable" into "no problem found" is how a diagnostic ends up reporting health it never established. The three discovery rungs are where that distinction earns its keep: they answer `skipped` when auto-discovery is switched off, but `unknown` when the stored discovery config did not parse — calling an unreadable setting a deliberate switch-off states as chosen something the operator never chose.
 

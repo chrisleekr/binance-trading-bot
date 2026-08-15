@@ -15,6 +15,8 @@
 | `binance_ws_disconnects_total` | counter | `accountId` | User-data stream sockets closed for this account, counted once per close. A watchdog reconnect closes the stale socket itself, so it registers as the one disconnect it is. |
 | `bullmq_queue_wait_jobs` | gauge | `queue` | Jobs waiting in this BullMQ queue, sampled on the runtime-gauge interval. |
 | `decision_count` | counter | `profileId`, `symbol` | Strategy decisions emitted, accumulated across ticks. |
+| `exchange_info_band_unparseable_total` | counter | `mode` | Symbols that published a PERCENT_PRICE_BY_SIDE filter which could not be projected, per Binance mode. The rest of the filter set survives, so the symbol keeps trading while its protective stop loses the price-band check and re-arms into rejections. |
+| `exchange_info_filters_unparseable_total` | counter | `mode` | Symbols whose exchangeInfo filters array was present and non-empty but could not be projected into the full filter set, per Binance mode. Each one falls back to all-zero filters, which makes the symbol unsizeable and therefore untraded. |
 | `order_budget_deferred` | counter | `profileId`, `symbol` | Order batches skipped for this tick because the account had no Binance ORDERS headroom. |
 | `pg_pool_idle` | gauge | — | Postgres pool connections currently idle. |
 | `pg_pool_total` | gauge | — | Postgres pool connections currently open, idle and in use together. |

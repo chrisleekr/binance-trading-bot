@@ -24,6 +24,13 @@ export const CONDITIONS = [
   'discovery-breadth-blocked',
   /** Per profile: the stored config no longer satisfies its own schema. */
   'config-invalid',
+  /**
+   * Per (profile, symbol): the protective stop the strategy wants cannot be
+   * placed, so the position may be sitting with nothing guarding it. Distinct
+   * from `exit-blocked`, which says a held position chose not to sell; here the
+   * strategy did decide, and the exchange will not take the order.
+   */
+  'protective-stop-blocked',
 ] as const;
 
 export type Condition = (typeof CONDITIONS)[number];
@@ -46,6 +53,10 @@ export const CONDITION_SEVERITY: Record<Condition, ConditionSeverity> = {
   'discovery-stale': 'degraded',
   'discovery-breadth-blocked': 'degraded',
   'config-invalid': 'blocking',
+  // Not `blocking`: the profile keeps trading every other symbol, and only one
+  // position is exposed. Ranking it blocking would roll the whole-profile
+  // verdict up to "blocked", which claims the bot has stopped when it has not.
+  'protective-stop-blocked': 'degraded',
 };
 
 /**

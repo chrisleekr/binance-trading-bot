@@ -24,6 +24,7 @@ import {
   createExchangeInfoRefresh,
   type ExchangeInfoRefreshResult,
 } from 'crons/exchange-info-refresh.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 
 export type BinanceClient = ReturnType<typeof buildBinanceClient>;
 
@@ -53,6 +54,12 @@ export interface BinanceResolverDeps {
   readonly redis: Redis;
   readonly logger: Logger;
   readonly weightGovernor: WeightGovernor;
+  /**
+   * Records the exchangeInfo parse-health counters. Optional so the unit tests
+   * and any caller wiring no telemetry can omit it; absent, the refresh still
+   * warns on a garbled payload.
+   */
+  readonly metrics?: MetricsSink;
 }
 
 /** The account's ORDERS governor for a Binance environment, created on demand. */
@@ -76,6 +83,7 @@ export const buildBinanceResolver = ({
   redis,
   logger,
   weightGovernor,
+  metrics,
 }: BinanceResolverDeps): BinanceResolver => {
   // Latest ORDERS rows per environment, refreshed alongside the symbol cache.
   // Empty until the first SUCCESSFUL refresh, which is not guaranteed to have
@@ -193,9 +201,16 @@ export const buildBinanceResolver = ({
       return result;
     };
 
+  // Spread rather than `metrics: metrics`: the dep is optional, so passing an
+  // explicit undefined is not the same as omitting it.
+  const metricsDep: { metrics?: MetricsSink } = metrics === undefined ? {} : { metrics };
+
   const exchangeInfoRefresh = combineExchangeInfoRefresh(
-    captureOrderLimits('live', createExchangeInfoRefresh({ redis, logger })),
-    captureOrderLimits('test', createExchangeInfoRefresh({ redis, logger, mode: 'test' })),
+    captureOrderLimits('live', createExchangeInfoRefresh({ redis, logger, ...metricsDep })),
+    captureOrderLimits(
+      'test',
+      createExchangeInfoRefresh({ redis, logger, mode: 'test', ...metricsDep }),
+    ),
     logger,
   );
 
