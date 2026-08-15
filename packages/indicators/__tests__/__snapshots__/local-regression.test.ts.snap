@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`indicator parity — full rating over the canonical BTC 1h fixture > locks every moving-average value 1`] = `
+exports[`local rating regression over the canonical BTC 1h fixture > locks every moving-average value 1`] = `
 {
   "ema10": "77604.26091447665",
   "ema100": "77607.22259158822",
@@ -20,7 +20,7 @@ exports[`indicator parity — full rating over the canonical BTC 1h fixture > lo
 }
 `;
 
-exports[`indicator parity — full rating over the canonical BTC 1h fixture > locks every oscillator value 1`] = `
+exports[`local rating regression over the canonical BTC 1h fixture > locks every oscillator value 1`] = `
 {
   "adx": "14.1643463789421",
   "adxMinusDi": "0.2763824172517016",
@@ -41,7 +41,7 @@ exports[`indicator parity — full rating over the canonical BTC 1h fixture > lo
 }
 `;
 
-exports[`indicator parity — full rating over the canonical BTC 1h fixture > locks the aggregate verdicts and every per-indicator vote 1`] = `
+exports[`local rating regression over the canonical BTC 1h fixture > locks the aggregate verdicts and every per-indicator vote 1`] = `
 {
   "perIndicatorVotes": {
     "adx": 0,

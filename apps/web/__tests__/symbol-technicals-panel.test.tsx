@@ -173,14 +173,13 @@ describe('SymbolTechnicalsPanel', () => {
     // beneath it (visible on mobile/touch, not a hover-only title attribute).
     expect(screen.getByText(/Relative Strength Index/)).toBeInTheDocument();
     expect(screen.getByText(/Hull Moving Average/)).toBeInTheDocument();
-    // Operator-trust: cross-checking raw long-MA values against TradingView's
-    // full history is expected to diverge slightly, so the compare link's
-    // tooltip discloses the recent-candle window (#405).
-    expect(screen.getByTestId('symbol-tv-external-link')).toHaveAttribute(
+    const tradingViewLink = screen.getByTestId('symbol-tv-external-link');
+    expect(tradingViewLink).toHaveTextContent('Open on TradingView');
+    expect(tradingViewLink).toHaveAttribute(
       'title',
-      // Pin the load-bearing clauses, not just a fragment, so a future copy
-      // edit cannot silently drop the indicator-specific disclosure (#405).
-      expect.stringMatching(/EMA\/SMA 100 and 200.*recent-candle window.*signal still matches/s),
+      expect.stringMatching(
+        /exact Binance market.*last closed traded candle.*latest realtime value/s,
+      ),
     );
     expect(screen.getByTestId('symbol-technicals-staleness')).toHaveTextContent('0s ago');
     // Single-interval profiles keep the compact layout — no tab strip.

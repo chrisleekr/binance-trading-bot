@@ -1,9 +1,10 @@
-// Aggregator that produces the TradingView-style Technical Ratings from a
-// candle window. Per-indicator vote rules follow the documented TradingView
-// methodology at
+// Aggregator that produces TradingView-style Technical Ratings from a candle
+// window. Vote rules derive from the documented TradingView methodology at
 // https://www.tradingview.com/support/solutions/43000614331-technical-ratings/
-// — see also the published Pine reference at
+// and the published Pine reference at
 // https://www.tradingview.com/script/jDWyb5PG-TechnicalRating/.
+// Exact timestamp-aligned scanner captures are the arbiter where the live
+// scanner differs from that published source.
 //
 // Vote convention: -1 = Sell, 0 = Neutral, +1 = Buy. The two aggregates take
 // the mean of their constituent votes; the overall `recommendAll` is the mean
@@ -73,7 +74,7 @@ export interface TechnicalsRating {
 const NEUTRAL_VOTE: Vote = 0;
 
 const mean = (votes: Vote[]): Decimal => {
-  /* v8 ignore start -- reason: mean is only ever called with the fixed 10-osc and 15-ma vote arrays, which are never empty, so the length-0 guard is unreachable */
+  /* v8 ignore start -- reason: mean is only ever called with the fixed 11-osc and 15-ma vote arrays, which are never empty, so the length-0 guard is unreachable */
   if (votes.length === 0) return new Decimal(0);
   /* v8 ignore stop -- reason: end of the unreachable empty-votes guard above */
   let sum = 0;
@@ -123,11 +124,10 @@ export const adxVote = (
   if (adxVal === null || adxPrev === null || plus === null || minus === null) {
     return NEUTRAL_VOTE;
   }
-  // TradingView: a trend must be present (ADX > 20) and strengthening — ADX
-  // rising for a buy, falling for a sell — in the DI-implied direction.
-  if (!adxVal.greaterThan(20)) return 0;
-  if (plus.greaterThan(minus) && adxVal.greaterThan(adxPrev)) return 1;
-  if (minus.greaterThan(plus) && adxVal.lessThan(adxPrev)) return -1;
+  // The executable rating requires ADX to strengthen in either DI direction.
+  if (!adxVal.greaterThan(20) || !adxVal.greaterThan(adxPrev)) return 0;
+  if (plus.greaterThan(minus)) return 1;
+  if (minus.greaterThan(plus)) return -1;
   return 0;
 };
 
@@ -165,12 +165,10 @@ const macdVote = (macdVal: Decimal | null, signal: Decimal | null): Vote => {
   return 0;
 };
 
-export const stochRsiVote = (k: Decimal | null, d: Decimal | null): Vote => {
+export const stochRsiVote = (k: Decimal | null, d: Decimal | null, trend: Vote): Vote => {
   if (k === null || d === null) return NEUTRAL_VOTE;
-  // TradingView: oversold with %K leading %D → buy; overbought with %K trailing
-  // %D → sell. Same shape as the Stochastic rule, applied to the StochRSI lines.
-  if (k.lessThan(20) && d.lessThan(20) && k.greaterThan(d)) return 1;
-  if (k.greaterThan(80) && d.greaterThan(80) && k.lessThan(d)) return -1;
+  if (trend === -1 && k.lessThan(20) && d.lessThan(20) && k.greaterThan(d)) return 1;
+  if (trend === 1 && k.greaterThan(80) && d.greaterThan(80) && k.lessThan(d)) return -1;
   return 0;
 };
 
@@ -182,7 +180,7 @@ const williamsVote = (current: Decimal | null, prev: Decimal | null): Vote => {
 };
 
 /**
- * Bull/Bear Power. TradingView combines the pair with the EMA's trend
+ * Bull/Bear Power. TradingView combines the pair with the price trend
  * (`trend`: +1 up, -1 down, 0 flat): in an uptrend, buy when bear power is
  * still negative but recovering (bears weakening); in a downtrend, sell when
  * bull power is still positive but fading (bulls weakening).
@@ -211,35 +209,40 @@ export const uoVote = (current: Decimal | null): Vote => {
   return 0;
 };
 
-/** EMA-slope trend used by the Bull/Bear Power vote: +1 rising, -1 falling, 0 flat/unknown. */
-const emaTrend = (current: Decimal | null, prev: Decimal | null): Vote => {
-  if (current === null || prev === null) return 0;
-  if (current.greaterThan(prev)) return 1;
-  if (current.lessThan(prev)) return -1;
-  return 0;
-};
-
 /**
- * Ichimoku Cloud vote. TradingView's rating: price above the entire cloud with
- * bullish structure (conversion over base) → buy; price below the cloud with
- * bearish structure → sell. Anything in between is neutral.
+ * Ichimoku Cloud vote, transcribed from the published Technical Ratings rule
+ * `lead1[26] > lead2[26] and base > lead1[26] and con > base and close > con`.
+ *
+ * Both arms are unreachable for every cloud `ichimokuCloud` can emit, because
+ * it reports the undisplaced `leadA = (conversion + base) / 2`. Under that
+ * identity `base > leadA` reduces to `base > conversion`, contradicting the
+ * `conversion > base` term in the same arm, and symmetrically for the sell
+ * arm. The vote is therefore always Neutral.
+ *
+ * That is deliberate, not an oversight: TradingView's own `Rec.Ichimoku`
+ * scanner column is likewise 0 for every symbol sampled across crypto,
+ * equities and forex, so a constant Neutral is what keeps this rating aligned
+ * with the scanner it is checked against. Reintroducing the 26-bar
+ * displacement would make the arms reachable and diverge from the scanner on
+ * roughly a fifth of symbols, so do not "repair" this rule without new
+ * evidence that the scanner itself changed.
  */
-const ichimokuVote = (cloud: IchimokuCloud | null, price: Decimal | null): Vote => {
+export const ichimokuVote = (cloud: IchimokuCloud | null, price: Decimal | null): Vote => {
   if (cloud === null || price === null) return NEUTRAL_VOTE;
   const { conversion, base, leadA, leadB } = cloud;
   if (
-    leadA.lessThan(price) &&
-    price.greaterThan(leadB) &&
-    price.greaterThan(base) &&
-    conversion.greaterThan(base)
+    leadA.greaterThan(leadB) &&
+    base.greaterThan(leadA) &&
+    conversion.greaterThan(base) &&
+    price.greaterThan(conversion)
   ) {
     return 1;
   }
   if (
-    leadA.greaterThan(price) &&
-    price.lessThan(leadB) &&
-    price.lessThan(base) &&
-    conversion.lessThan(base)
+    leadA.lessThan(leadB) &&
+    base.lessThan(leadA) &&
+    conversion.lessThan(base) &&
+    price.lessThan(conversion)
   ) {
     return -1;
   }
@@ -270,9 +273,6 @@ export const computeTechnicalsRating = (w: CandleWindow): TechnicalsRating => {
   const { curr: wr, prev: wrPrev } = a.williamsCurrPrev(w);
   const bb = bbPower(w);
   const bbPrev = bbPower(prev);
-  // Bull/Bear Power uses a 13-period EMA; Elder reads that EMA's slope as the
-  // trend, so the trend gate uses the same period.
-  const { curr: bbEma, prev: bbEmaPrev } = a.emaCurrPrev(w, 13);
   const uo = ultimateOscillator(w);
 
   // Moving averages
@@ -291,6 +291,7 @@ export const computeTechnicalsRating = (w: CandleWindow): TechnicalsRating => {
   const vwma20 = a.vwma(w, 20);
   const hull9 = hullMa(w, 9);
   const cloud = ichimokuCloud(w);
+  const priceTrend = priceVsMa(price, ma50E);
 
   // Two separate strongly-typed vote groups so we can mean each independently
   // and still produce a single flat per-indicator map for downstream UI tones.
@@ -302,14 +303,14 @@ export const computeTechnicalsRating = (w: CandleWindow): TechnicalsRating => {
     ao: aoVote(aoCurr, aoPrev, aoPrev2),
     mom: momentumVote(momCurr, momPrev),
     macd: macdVote(macdVal?.macd ?? null, macdVal?.signal ?? null),
-    stochRsi: stochRsiVote(stochRsiVal?.k ?? null, stochRsiVal?.d ?? null),
+    stochRsi: stochRsiVote(stochRsiVal?.k ?? null, stochRsiVal?.d ?? null, priceTrend),
     wr: williamsVote(wr, wrPrev),
     bbPower: bbPowerVote(
       bb?.bull ?? null,
       bb?.bear ?? null,
       bbPrev?.bull ?? null,
       bbPrev?.bear ?? null,
-      emaTrend(bbEma, bbEmaPrev),
+      priceTrend,
     ),
     uo: uoVote(uo),
   } satisfies Record<string, Vote>;
