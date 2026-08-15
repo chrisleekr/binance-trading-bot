@@ -13,6 +13,7 @@ import type { TickJobData } from '../../src/queues/job-payloads.js';
 import type { ProfileTickContext } from '../../src/tick/build-tick-input.js';
 import {
   ORDER_REFUSAL_PROBE_MS,
+  ORDER_REFUSAL_TTL_MS,
   parseOrderRefusalState,
 } from '../../src/tick/order-refusal-circuit.js';
 import { createTickHandler } from '../../src/tick/tick-handler.js';
@@ -107,8 +108,13 @@ const buildHarness = (options: HarnessOptions = {}) => {
   let refusalWritesFail = options.refusalWriteError === true;
   const store = new Map<string, string>();
   const refusalKey = buildOrderRefusalKey(ACCOUNT, PROFILE, SYMBOL);
-  const set = vi.fn(async (key: string, value: string) => {
+  // Full argument list, not just key and value: the TTL is the only bound on a
+  // refusal key, so a dropped `PX` would leave one resting per (account,
+  // profile, symbol) forever and a two-argument double could not see it.
+  const setCalls: unknown[][] = [];
+  const set = vi.fn(async (key: string, value: string, ...rest: unknown[]) => {
     if (refusalWritesFail && key === refusalKey) throw new Error('refusal write failed');
+    setCalls.push([key, value, ...rest]);
     store.set(key, value);
     return 'OK';
   });
@@ -241,6 +247,7 @@ const buildHarness = (options: HarnessOptions = {}) => {
     },
     refusalKey,
     store,
+    setCalls,
     exchangeAttempts,
     applyOptions,
     commit,
@@ -268,6 +275,12 @@ describe('tick handler order-refusal circuit', () => {
 
     expect(h.exchangeAttempts).toHaveLength(3);
     expect(parseOrderRefusalState(h.store.get(h.refusalKey))).toMatchObject({ count: 3 });
+    expect(h.setCalls.filter((call) => call[0] === h.refusalKey).at(-1)).toEqual([
+      h.refusalKey,
+      expect.any(String),
+      'PX',
+      ORDER_REFUSAL_TTL_MS,
+    ]);
     expect(h.notifyOrderFailed).toHaveBeenCalledTimes(2);
     expect(h.notifyOrderRefusalLoop).toHaveBeenCalledTimes(1);
     expect(h.notifyOrderRefusalLoop).toHaveBeenLastCalledWith(

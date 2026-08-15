@@ -156,6 +156,30 @@ export const transitionOrderRefusal = (
 const recordOf = (value: unknown): Record<string, unknown> | null =>
   typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
 
+// Keyed rather than a `!==` chain, and `satisfies Record<union, true>` rather
+// than a plain literal: a member the writer can emit but the reader rejects
+// makes every persisted state read as absent, so the count restarts at one on
+// every tick and the circuit never trips. The record shape fails the build when
+// the emitted union grows, which a chain of comparisons cannot.
+const REQUEST_TYPES = {
+  LIMIT: true,
+  MARKET: true,
+  STOP_LOSS: true,
+  STOP_LOSS_LIMIT: true,
+} as const satisfies Record<OrderRequestIdentity['type'], true>;
+
+const TIME_IN_FORCE = {
+  GTC: true,
+  IOC: true,
+  FOK: true,
+} as const satisfies Record<NonNullable<OrderRequestIdentity['timeInForce']>, true>;
+
+const isRequestType = (v: unknown): v is OrderRequestIdentity['type'] =>
+  typeof v === 'string' && v in REQUEST_TYPES;
+
+const isTimeInForce = (v: unknown): v is NonNullable<OrderRequestIdentity['timeInForce']> =>
+  typeof v === 'string' && v in TIME_IN_FORCE;
+
 const parseRequest = (value: unknown): OrderRequestIdentity | null => {
   const r = recordOf(value);
   if (!r) return null;
@@ -164,14 +188,11 @@ const parseRequest = (value: unknown): OrderRequestIdentity | null => {
     typeof clientOrderId !== 'string' ||
     typeof symbol !== 'string' ||
     (side !== 'BUY' && side !== 'SELL') ||
-    (type !== 'LIMIT' && type !== 'MARKET' && type !== 'STOP_LOSS_LIMIT') ||
+    !isRequestType(type) ||
     typeof quantity !== 'string' ||
     (price !== null && typeof price !== 'string') ||
     (stopPrice !== null && typeof stopPrice !== 'string') ||
-    (timeInForce !== null &&
-      timeInForce !== 'GTC' &&
-      timeInForce !== 'IOC' &&
-      timeInForce !== 'FOK')
+    (timeInForce !== null && !isTimeInForce(timeInForce))
   ) {
     return null;
   }

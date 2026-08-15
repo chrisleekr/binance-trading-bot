@@ -151,6 +151,40 @@ describe('order-refusal gate', () => {
   });
 });
 
+describe('order-refusal state round-trip', () => {
+  // Every order type the strategies can emit, because a type the writer emits
+  // and the reader rejects reads back as "no state": the count restarts at one
+  // on every tick and the circuit never trips. `STOP_LOSS` is the exchange-native
+  // trailing protective stop, exactly the order a price band keeps refusing.
+  it.each(['LIMIT', 'MARKET', 'STOP_LOSS', 'STOP_LOSS_LIMIT'] as const)(
+    'survives a %s request through storage',
+    (type) => {
+      const state = countThree({
+        ...PLACE,
+        params: { ...PLACE.params, type },
+      } as Placement);
+      expect(parseOrderRefusalState(JSON.stringify(state))).toEqual(state);
+    },
+  );
+
+  it.each(['GTC', 'IOC', 'FOK'] as const)('survives a %s time-in-force', (timeInForce) => {
+    const state = countThree({
+      ...PLACE,
+      params: { ...PLACE.params, timeInForce },
+    } as Placement);
+    expect(parseOrderRefusalState(JSON.stringify(state))).toEqual(state);
+  });
+
+  it('rejects a request field storage should never hold', () => {
+    const state = countThree();
+    const withBadType = {
+      ...state,
+      request: { ...state.request, type: 'OCO' },
+    };
+    expect(parseOrderRefusalState(JSON.stringify(withBadType))).toBeNull();
+  });
+});
+
 describe('order-refusal transitions', () => {
   it('trips only after three identical request and rejection pairs', () => {
     const one = transitionOrderRefusal(null, resultOutcome(PLACE, rejected()), NOW);

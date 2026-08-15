@@ -621,8 +621,15 @@ const readOrderRefusalDetail = (detail: unknown): OrderRefusalDetail | null => {
     typeof request['type'] !== 'string' ||
     typeof request['quantity'] !== 'string' ||
     typeof rejection['msg'] !== 'string' ||
+    // Finite, not merely numeric: both values are printed and one is divided.
+    // A JSON number too large for a double parses back as Infinity, which would
+    // reach the operator as "once every Infinity seconds" instead of falling to
+    // the generic evidence branch below. `typeof` stays for the narrowing;
+    // `Number.isFinite` is not a type guard.
     typeof d['threshold'] !== 'number' ||
-    typeof d['probeEveryMs'] !== 'number'
+    !Number.isFinite(d['threshold']) ||
+    typeof d['probeEveryMs'] !== 'number' ||
+    !Number.isFinite(d['probeEveryMs'])
   ) {
     return null;
   }
@@ -676,7 +683,7 @@ const stepOrderExecution = (input: ProfileDiagnosisInput): DiagnosisStepResult =
   });
   return {
     status: 'finding',
-    line: `${items.length} order refusal loop${items.length === 1 ? '' : 's'} is open.`,
+    line: `${items.length} order refusal loop${items.length === 1 ? ' is' : 's are'} open.`,
     items,
   };
 };

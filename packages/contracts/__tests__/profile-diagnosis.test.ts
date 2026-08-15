@@ -270,6 +270,16 @@ describe('rung 4: order execution', () => {
       'Binance -2010: Account has insufficient balance for requested action.',
       'Binance -2010: Market is closed.',
     ]);
+    expect(r.line).toBe('2 order refusal loops are open.');
+  });
+
+  it('agrees in number when exactly one loop is open', () => {
+    const r = runDiagnosisStep(
+      'order-execution',
+      input({ conditions: [refusal('BTCUSDT', 'Market is closed.')] }),
+    );
+
+    expect(r.line).toBe('1 order refusal loop is open.');
   });
 
   it('does not invent request evidence from malformed detail', () => {
@@ -282,6 +292,34 @@ describe('rung 4: order execution', () => {
     expect(r.items[0]?.evidence).toContain(
       'The exact request and Binance message were not recorded.',
     );
+  });
+
+  it('falls back rather than printing a non-finite threshold or cadence', () => {
+    // A JSON number beyond a double parses back as Infinity, and both values
+    // reach the operator as text. The generic branch is the honest answer.
+    const request = {
+      clientOrderId: 'client-1',
+      symbol: 'BTCUSDT',
+      side: 'BUY',
+      type: 'STOP_LOSS_LIMIT',
+      quantity: '0.010',
+      price: '50000',
+      stopPrice: '50100',
+      timeInForce: 'GTC',
+    };
+    const rejection = { code: -2010, msg: 'Market is closed.' };
+    for (const detail of [
+      { request, rejection, threshold: Number.POSITIVE_INFINITY, probeEveryMs: 60_000 },
+      { request, rejection, threshold: 3, probeEveryMs: Number.NaN },
+    ]) {
+      const r = runDiagnosisStep(
+        'order-execution',
+        input({ conditions: [refusal('BTCUSDT', 'unused', detail)] }),
+      );
+      expect(r.items[0]?.evidence).toContain(
+        'The exact request and Binance message were not recorded.',
+      );
+    }
   });
 
   it('adds the degraded finding without changing the existing verdict taxonomy', () => {
