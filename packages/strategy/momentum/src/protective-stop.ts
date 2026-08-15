@@ -219,7 +219,10 @@ export const momentumStopBandSettings = (
   const stopDistancePct = decOrNull(config.trailingStopPct);
   if (stopDistancePct === null || stopDistancePct.lte(0) || stopDistancePct.gte(1)) return null;
   const limitOffsetPct = decOrNull(ps.limitOffsetPercentage ?? DEFAULT_LIMIT_OFFSET);
-  if (limitOffsetPct === null || limitOffsetPct.lte(0)) return null;
+  // Upper bound too, matching the arm: an offset at or above 1 prices the limit
+  // at or above the trigger and arms nothing, so a warning built from it would
+  // describe a stop the exchange is never asked to hold.
+  if (limitOffsetPct === null || limitOffsetPct.lte(0) || limitOffsetPct.gte(1)) return null;
   return {
     stopDistancePct,
     limitOffsetPct,

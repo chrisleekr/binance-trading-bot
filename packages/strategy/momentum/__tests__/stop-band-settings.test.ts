@@ -52,11 +52,12 @@ describe('momentumStopBandSettings', () => {
   });
 
   it('is null on a limit offset the resting order would not use', () => {
-    // The default covers an ABSENT key only. A stored value that will not parse,
-    // or one at or below zero, leaves no price to judge the floor against — the
-    // arm refuses the same input, so a warning derived here would describe a
-    // stop that never goes out.
-    for (const limitOffsetPercentage of ['abc', '0', '-0.5']) {
+    // The default covers an ABSENT key only. Anything else outside (0, 1) leaves
+    // no price to judge the floor against: below the range there is nothing to
+    // parse or nothing positive, and at or above it the limit prices at or over
+    // the trigger. `computeProtectiveStopLevel` refuses all of them, so a warning
+    // derived here would describe a stop that never goes out.
+    for (const limitOffsetPercentage of ['abc', '0', '-0.5', '1', '1.5']) {
       expect(
         momentumStopBandSettings(
           cfg({

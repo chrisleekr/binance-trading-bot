@@ -189,8 +189,12 @@ export const resolveStopLevel = (
   const ps = config.protectiveStop;
   const unclamped = { profitHigh, stop, floorClamped: false };
   if (ps?.enabled !== true || ps.onBandBlock !== 'clamp') return unclamped;
+  // The same window `computeProtectiveStopLevel` arms in. The clamp exists to
+  // keep the in-process level and the resting order on one number, so an offset
+  // that resolves to no order must not move the level: outside (0, 1) it would
+  // tighten the operator's exit to satisfy a band nothing is ever judged against.
   const limitOffset = decOrNull(ps.limitOffsetPercentage ?? DEFAULT_LIMIT_OFFSET);
-  if (limitOffset === null) return unclamped;
+  if (limitOffset === null || limitOffset.lte(0) || limitOffset.gte(1)) return unclamped;
 
   const clamped = clampStopToExchangeFloor({
     stop,

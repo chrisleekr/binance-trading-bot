@@ -328,6 +328,26 @@ describe('stop-level — resolveStopLevel', () => {
       expect(out.stop?.toString()).toBe('114');
     });
 
+    it('leaves the level alone on an offset that arms no order at all', () => {
+      // `computeProtectiveStopLevel` refuses an offset at or above 1 — the limit
+      // would price at or over the trigger — so nothing rests at the exchange and
+      // there is no order for the clamp to keep the level aligned with. Clamping
+      // anyway tightens the operator's in-process exit to satisfy a band that is
+      // never judged: at '1' the floor is 115.14 and the untouched trail is 114.
+      for (const limitOffsetPercentage of ['1', '1.5']) {
+        const out = resolveStopLevel(
+          rawCfg(clamp({ limitOffsetPercentage })),
+          entry,
+          high,
+          null,
+          [],
+          BAND,
+        );
+        expect(out.floorClamped).toBe(false);
+        expect(out.stop?.toString()).toBe('114');
+      }
+    });
+
     it('leaves the level alone when the band has no reference price to sit against', () => {
       // The band is published but the tick carries no price to apply it to, which
       // is the fail-open case every other band guard already takes.
