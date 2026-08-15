@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.1.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.0.0...v1.1.0) (2026-08-15)
+
+
+### Features
+
+* archive cost-basis integrity, symbol permissions, dust cancel, discovery admission ([#735](https://github.com/chrisleekr/binance-trading-bot/issues/735)) ([0e6dbf2](https://github.com/chrisleekr/binance-trading-bot/commit/0e6dbf28de992c330978165d6886a48dfab8ee8f))
+* **binance:** add a per-account ORDERS rate governor and deferrable order intents ([#734](https://github.com/chrisleekr/binance-trading-bot/issues/734)) ([4fb27ef](https://github.com/chrisleekr/binance-trading-bot/commit/4fb27efff160bf61c73535558652b2f2dbd12da3))
+* **db:** store open conditions in condition_states and harden scoped repo binding ([#731](https://github.com/chrisleekr/binance-trading-bot/issues/731)) ([d84b09f](https://github.com/chrisleekr/binance-trading-bot/commit/d84b09fec20ed2dcb6af500f18d7868ebbf09a2e))
+* **profile:** add on-demand profile diagnosis and discovery funnel ([#736](https://github.com/chrisleekr/binance-trading-bot/issues/736)) ([0b0295d](https://github.com/chrisleekr/binance-trading-bot/commit/0b0295d80e676166e7fbcd5aaccdce1023cc5fc7))
+* **retention:** move log retention into a config table and add the log surfaces ([#733](https://github.com/chrisleekr/binance-trading-bot/issues/733)) ([7db1faf](https://github.com/chrisleekr/binance-trading-bot/commit/7db1faf050e49d1a69aaac1012570dd67353085e))
+* **strategy:** add the price-outside-exchange-band protective-stop blocker ([#737](https://github.com/chrisleekr/binance-trading-bot/issues/737)) ([fb0bffc](https://github.com/chrisleekr/binance-trading-bot/commit/fb0bffc7d5d8f93514dce1730ae373898b8c2164))
+* **strategy:** clamp or natively trail a protective stop Binance's price band refuses ([#741](https://github.com/chrisleekr/binance-trading-bot/issues/741)) ([5242ee7](https://github.com/chrisleekr/binance-trading-bot/commit/5242ee7f0908b7a0ba3280aa32cbb092e212a111))
+
+
+### Bug Fixes
+
+* **ci:** resolve audit and release formatting drift ([#745](https://github.com/chrisleekr/binance-trading-bot/issues/745)) ([8147787](https://github.com/chrisleekr/binance-trading-bot/commit/814778750efa2bdcd258d47a011c66c79e7ad1c3))
+* **technicals:** align the rating window and vote rules with TradingView ([#739](https://github.com/chrisleekr/binance-trading-bot/issues/739)) ([a85b135](https://github.com/chrisleekr/binance-trading-bot/commit/a85b1354216c2b84d430c4c94f2d868418911292))
+* **web:** hold scroll position while loading and polling, and gate phantom alert metrics ([#716](https://github.com/chrisleekr/binance-trading-bot/issues/716)) ([dbe1157](https://github.com/chrisleekr/binance-trading-bot/commit/dbe1157d6b5116a136903ed353b541e47fab1021))
+* **web:** reserve height for every loading branch, gate regressions in CI ([#718](https://github.com/chrisleekr/binance-trading-bot/issues/718)) ([9d14544](https://github.com/chrisleekr/binance-trading-bot/commit/9d14544f7d1983b932167202f2558db010e0af83))
+* **worker,contracts,web:** harden diagnosis ladder, discovery funnel, and signal panel ([#744](https://github.com/chrisleekr/binance-trading-bot/issues/744)) ([cdf4c1f](https://github.com/chrisleekr/binance-trading-bot/commit/cdf4c1f0bd3c62e380471284a58fa0540c22a1f7))
+* **worker,contracts:** alert when a protective stop never reaches the exchange ([#740](https://github.com/chrisleekr/binance-trading-bot/issues/740)) ([f57791d](https://github.com/chrisleekr/binance-trading-bot/commit/f57791d0100cbcb360c93c30e0b3369111065dd3))
+* **worker:** break the retry loop on an order Binance keeps refusing ([#742](https://github.com/chrisleekr/binance-trading-bot/issues/742)) ([ac603db](https://github.com/chrisleekr/binance-trading-bot/commit/ac603db078df0dd08ab090acdc4a0ee85f2d1427))
+
 ## 1.0.0 (2026-08-01)
 
 Complete rewrite. Shares a name and a purpose with the v0.x line and nothing else.
