@@ -432,6 +432,19 @@ describe('runDiscoveryForProfile', () => {
     });
   });
 
+  it('counts only the candidates a window was actually fetched for as probed', async () => {
+    // ZZZUSDT is held but has fallen out of the ticker feed, so it is a
+    // candidate (the explain unions the shortlist with the held set) that
+    // `selectKlineTargets` never walked. Counting it as probed inflates the
+    // candidate ladder's own denominator, and `largestDrop` then charges the
+    // whole gap to the age cut below it — pointing the operator at a filter
+    // that never ran instead of at the missing price history.
+    const port = fakePort({ listAutoSymbols: async () => ['ZZZUSDT'] });
+    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const snap = (port.persistSnapshot as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(snap.funnel.probed).toBe(1);
+  });
+
   it('persists a snapshot even on a no-op (empty universe) cycle (#436)', async () => {
     const port = fakePort({ getAllTickers: async () => [] });
     await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
@@ -582,6 +595,12 @@ describe('runDiscoveryForProfile', () => {
     expect(fetched).toContain('S00USDT'); // top-ranked candidate fetched
     expect(fetched).toContain('HELDUSDT'); // held symbol fetched despite last rank
     expect(fetched).not.toContain('S20USDT'); // beyond the cap → skipped this cycle
+    // 41 candidates but 16 windows: the segment's denominator is the windows the
+    // cap allowed, not the candidate count, or a cap would read as a filter.
+    const snapshot = (port.persistSnapshot as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      funnel: { probed: number };
+    };
+    expect(snapshot.funnel.probed).toBe(16);
   });
 });
 

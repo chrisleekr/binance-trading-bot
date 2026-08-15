@@ -83,18 +83,25 @@ const buildEntryHintValue = (
   });
 
 /**
- * The symbols to fetch klines for this cycle: every held auto symbol (their
- * klines decide keep-vs-fade, so the cap must never drop them) plus the
- * top-ranked add candidates, capped at `3 × maxAutoSymbols`. A broad rally can
- * pass dozens-to-hundreds of symbols through the ticker stage but only
- * `maxAutoSymbols` can ever be admitted, so 3× the admit cap is ample headroom
- * for candidates that fail the age/trend filter; lower-ranked ones wait for a
- * future cycle. Held symbols keep their original shortlist order; the helper
+ * The symbols to fetch klines for this cycle: every held auto symbol still in
+ * the shortlist (their klines decide keep-vs-fade, so the cap must never drop
+ * them) plus the top-ranked add candidates, capped at `3 × maxAutoSymbols`. A
+ * held symbol the ticker stage already rejected is not in the shortlist, so it
+ * gets no window and fades for want of a passing candidate, never on the cap.
+ * A broad rally can pass dozens-to-hundreds of symbols through the ticker stage
+ * but only `maxAutoSymbols` can ever be admitted, so 3× the admit cap is ample
+ * headroom for candidates that fail the age/trend filter; lower-ranked ones
+ * wait for a future cycle. Held symbols keep their original shortlist order; the helper
  * preserves it (held-first, then candidates in rank order).
  *
  * Exported because the diagnosis re-probe fetches the same set: a probe that
  * chose its candidates differently would report a funnel the bot never had, and
  * the whole point of re-deriving it live is that the two agree.
+ *
+ * @param shortlist - Symbols that passed the ticker stage, already in rank order. Rank order is load-bearing: the cap keeps a prefix of it.
+ * @param autoSymbols - Symbols currently held by auto-discovery. Only those also present in `shortlist` are force-kept; membership alone does not exempt a symbol from the cap.
+ * @param maxAutoSymbols - The admit cap. The kline cap is `3 ×` this, not this.
+ * @returns The symbols to fetch windows for: held-first, then candidates in rank order, deduplicated, capped.
  */
 export const selectKlineTargets = (
   shortlist: readonly string[],
@@ -315,9 +322,14 @@ export const runDiscoveryForProfile = async (
       diff,
       marketBreadthOk(tickers, cfg),
       tickerStageCounts(tickers, cfg),
-      // Every candidate was measured: the kline fetch above is fail-fast, so a
-      // cycle that reaches here has a window for every symbol it walked.
-      candidates.length,
+      // Only the candidates that actually got a window, the same expression the
+      // live re-probe uses. `candidates` is the shortlist UNION the held auto
+      // set, while `selectKlineTargets` walks the shortlist and caps non-held
+      // entries — so a held symbol that fell out of the shortlist, and anything
+      // past the cap, is a candidate that was never fetched. Counting those as
+      // probed inflates the ladder's own denominator, and `largestDrop` then
+      // charges the whole gap to the age cut below it.
+      candidates.filter((c) => Object.hasOwn(klinesBySymbol, c.symbol)).length,
     ),
     configDigest: {
       quoteAsset: cfg.quoteAsset,

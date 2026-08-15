@@ -13,8 +13,10 @@ import type { DiscoveryDiff } from './types.js';
  *   quote-matched ticker set — every symbol the cron saw this cycle, not just the
  *   handful it fetched klines for. Monotone non-increasing within the segment.
  * - Candidate/kline segment (`probed` … `eligible`): counts over the kline
- *   candidates (the shortlist ∪ held auto, minus pinned). Monotone non-increasing
- *   within the segment.
+ *   candidates (the shortlist ∪ held auto, minus pinned) — except `probed`,
+ *   which counts only those a window was actually fetched for. Monotone
+ *   non-increasing within the segment: a candidate with no window fails the age
+ *   cut for want of data, so `age <= probed` still holds.
  *
  * There is NO monotonicity across the boundary: `changeBand` counts the whole
  * exchange's change-band survivors while `probed` counts only the few candidates
@@ -79,9 +81,12 @@ const STAGES: readonly DiscoveryFilterName[] = [
  * an empty `passed`, and it is not eligible. `kept` = desired minus new adds =
  * retained survivors.
  *
- * `probed` is passed in rather than taken as `candidates.length` because the two
- * differ whenever a kline fetch failed: such a candidate is scored as failing the
- * age cut, and counting it as probed would attribute a data outage to a filter.
+ * @param candidates - Per-candidate filter traces for the kline segment. Every candidate the cycle considered, including ones no window was fetched for.
+ * @param diff - The cycle's resolved add/remove/desired sets, source of the `added` / `kept` / `removed` tail.
+ * @param breadthOk - The market-breadth gate's verdict this cycle. Recorded, not applied: it gates admission elsewhere and is surfaced here for the reader.
+ * @param ticker - Survivor counts for the ticker segment, over a different denominator than everything derived from `candidates`.
+ * @param probed - How many candidates a window was actually fetched for. Passed in rather than taken as `candidates.length` because a candidate with no window still appears in `candidates`, scored as failing the age cut, so using the length would attribute the caller's fetch cap or a kline outage to a filter.
+ * @returns The single-row funnel projection for this cycle.
  */
 export const projectFunnel = (
   candidates: readonly CandidateExplain[],

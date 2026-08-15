@@ -814,12 +814,16 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
     // misses, and the response-header reconciliation is what corrects it.
     //
     // Ahead of the weight reservation because both governors are
-    // consume-and-decay with no release path, and this is the only one that can
-    // refuse. Charging weight first would bill the SHARED per-IP budget for a
-    // call that never goes out, throttling every other account in the process
-    // until it decays. Reversing that only holds while the weight governor
-    // cannot itself refuse; give it a throw path and the two need a real
-    // two-phase commit.
+    // consume-and-decay with no release path, so whichever runs first is the
+    // budget billed for a call that never goes out. Charging weight first bills
+    // the SHARED per-IP budget, throttling every other account until it decays;
+    // charging ORDERS first bills one unfilled-order slot on this account
+    // alone. Neither is free — the weight governor can refuse too (an aborted
+    // admission wait, or a cost above the soft ceiling) and nothing refunds the
+    // ORDERS unit — but the per-account leak is the smaller blast radius, and it
+    // fails closed: an over-count defers a later placement, it never admits an
+    // extra one. Undoing the leak entirely needs a real two-phase commit, which
+    // no observed failure rate justifies.
     if (chargesOrderBudget && opts.orderGovernor) {
       await opts.orderGovernor.reserve(1, { signal });
     }

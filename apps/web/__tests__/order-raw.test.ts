@@ -124,6 +124,16 @@ describe('orderDisplayPrice', () => {
     expect(orderDisplayPrice(o)).toBe('STOP @ 91.24');
   });
 
+  it('falls back to a bare STOP when neither a trigger nor a trail is reported', () => {
+    // The only branch that can render a stop with no level at all. It must still
+    // not echo the request-side `price: "0"`, which reads as a stop at nothing.
+    const o = {
+      ...base,
+      raw: { type: 'STOP_LOSS', price: '0', origQty: '0.5' },
+    };
+    expect(orderDisplayPrice(o)).toBe('STOP');
+  });
+
   it('handles sub-1 dust prices (e.g. SHIB) without dropping to bare MKT', () => {
     // 2.8 / 100_000 = 2.8e-5 — sub-1 path uses up to 8 fraction digits.
     const o = {

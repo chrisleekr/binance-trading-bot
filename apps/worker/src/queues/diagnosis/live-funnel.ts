@@ -165,7 +165,7 @@ export const probeLiveFunnel = async (
       // Only the candidates that actually got a window. A partial fetch leaves
       // the rest scored as failing the age cut, and counting them here would
       // report a Binance outage as a filter the operator should loosen.
-      explained.candidates.filter((c) => klinesBySymbol[c.symbol] !== undefined).length,
+      explained.candidates.filter((c) => Object.hasOwn(klinesBySymbol, c.symbol)).length,
     );
   } catch (err) {
     deps.logger.warn({ err: err }, 'diagnosis: live funnel probe failed; using the stored funnel');

@@ -612,7 +612,35 @@ describe('SymbolSignalPanel', () => {
     const arm = screen.getByTestId('exit-row-sell-arm');
     expect(arm).not.toHaveAttribute('data-next-gate');
     expect(arm).toHaveTextContent('armed');
+    // `toHaveTextContent` matches substrings, so a bare 'armed' assertion also
+    // passes on the ATR wording below. Pin that this is the plain armed row.
+    expect(arm).not.toHaveTextContent('not mirrored here');
     expect(screen.getByTestId('exit-row-trailing')).toHaveTextContent('active exit');
+  });
+
+  it('says the level is not mirrored when the trail arms off the ATR', () => {
+    // Armed (highSinceBuy set) with no fixed retrace percentage: the level lives
+    // in the worker's closed-candle ATR, which the panel is not given. Saying
+    // only "armed" would send the operator hunting for a level not on the page.
+    const cfg = {
+      ...ttConfig,
+      sell: {
+        ...ttConfig.sell,
+        trailingStopPercentage: '0',
+        atrTrailing: { enabled: true },
+      },
+    };
+    const state = { avgEntryPrice: '100', currentGridTradeIndex: 0, highSinceBuy: '110' };
+    renderPanel({
+      strategy: strategyOf(cfg, state),
+      holding: holdingOf('100'),
+      currentPrice: '108',
+    });
+    const arm = screen.getByTestId('exit-row-sell-arm');
+    expect(arm).not.toHaveAttribute('data-next-gate');
+    expect(arm).toHaveTextContent('armed — trailed from the ATR, level not mirrored here');
+    // No fixed retrace percentage means no level to draw.
+    expect(screen.queryByTestId('exit-row-trailing')).not.toBeInTheDocument();
   });
 
   it('does not name the sell arm as the gate when no trail is configured', () => {
@@ -811,6 +839,19 @@ describe('SymbolSignalPanel', () => {
     expect(pyramid).toHaveTextContent('Add cap reached');
   });
 
+  it('does not show the pyramid row for a discovery single-entry', () => {
+    // `evaluateBullPyramid` noops on `discoveryEntry`, so a next-add price here
+    // would contradict the discovery note printed on the same screen.
+    const state = { avgEntryPrice: '100', bullAddCount: 1, discoveryEntry: true };
+    renderPanel({
+      strategy: strategyOf(pyramidConfig(3, '0.05'), state),
+      holding: holdingOf('100'),
+      currentPrice: '104',
+    });
+    expect(screen.queryByTestId('symbol-signal-pyramid')).toBeNull();
+    expect(screen.getByTestId('symbol-signal-discovery-note')).toHaveTextContent('no pyramid adds');
+  });
+
   it('does not show the pyramid row when the pyramid is disabled', () => {
     renderPanel({
       strategy: strategyOf(ttConfig, { avgEntryPrice: '100', currentGridTradeIndex: 0 }),
@@ -953,6 +994,25 @@ describe('SymbolSignalPanel', () => {
     const status = screen.getByTestId('symbol-signal-force-sell-status');
     expect(status).toHaveAttribute('data-status', 'would-fire');
     expect(status).toHaveTextContent('FIRES NOW · STRONG_SELL on 1h');
+  });
+
+  it('hides the force-sell row entirely for a discovery single-entry', () => {
+    // Same inputs as the FIRES NOW case above. The strategy turns this rule off
+    // for a discovery entry, so drawing the row would promise an exit that can
+    // never happen.
+    const state = { avgEntryPrice: '100', currentGridTradeIndex: 0, discoveryEntry: true };
+    renderPanel({
+      strategy: strategyOf(forceSellConfig({ whenStrongSell: true }), state),
+      holding: holdingOf('100'),
+      currentPrice: '103',
+      technicalsResponse: technicalsResponse('1h', 'STRONG_SELL', 5_000),
+    });
+    expect(screen.queryByTestId('symbol-signal-force-sell')).toBeNull();
+    // The row vanishing has to be explained where the operator is looking, or it
+    // reads as a broken panel rather than a rule that is off for this position.
+    expect(screen.getByTestId('symbol-signal-discovery-note')).toHaveTextContent(
+      'no Technicals force-sell',
+    );
   });
 
   it('ignores a stale signal — falls back to waiting-signal', () => {

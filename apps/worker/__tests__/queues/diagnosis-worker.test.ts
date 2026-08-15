@@ -124,7 +124,7 @@ const JOB: DiagnosisJobData = {
   liveProbe: true,
 };
 
-function harness() {
+function harness(logger: typeof silentLogger = silentLogger) {
   let processor: Processor<DiagnosisJobData> | undefined;
   const queueSet = {
     registerWorker: <T>(_name: string, p: Processor<T>) => {
@@ -135,7 +135,7 @@ function harness() {
   registerDiagnosisWorker(queueSet, {
     db: {} as never,
     redis: {} as never,
-    logger: silentLogger,
+    logger,
     strategies: { get: () => undefined } as never,
     weightGovernor: {} as never,
     nowMs: () => NOW,
@@ -173,6 +173,38 @@ beforeEach(() => {
 });
 
 describe('diagnosis worker', () => {
+  it('logs the error a rung withheld from the operator line', async () => {
+    // The rung runner takes the callback; nothing else proves THIS worker passes
+    // one. Drop the third argument and the report still reads `unknown` while the
+    // cause goes back to being invisible, which is the state the hand-off exists
+    // to end.
+    const lines: { stepId?: string; err?: unknown; msg?: string }[] = [];
+    const recording = pino(
+      { level: 'error' },
+      { write: (line: string) => lines.push(JSON.parse(line)) },
+    );
+    const hostile = gathered();
+    Object.defineProperty(hostile.input.profile, 'maxAutoSymbols', {
+      get() {
+        throw new Error('column missing');
+      },
+    });
+    gatherMocks.gatherDiagnosisInput.mockResolvedValue(hostile);
+
+    await harness(recording)();
+
+    // The run still completes; one broken rung does not fail the ladder.
+    expect(repoMocks.fail).not.toHaveBeenCalled();
+    const report = repoMocks.finish.mock.calls[0]?.[1] as {
+      steps: { id: string; status: string }[];
+    };
+    expect(report.steps.find((s) => s.id === 'symbol-slots')?.status).toBe('unknown');
+
+    const logged = lines.find((l) => l.stepId === 'symbol-slots');
+    expect(logged).toBeDefined();
+    expect((logged?.err as { message?: string } | undefined)?.message).toBe('column missing');
+  });
+
   it('walks every rung and stores the report', async () => {
     await harness()();
     expect(repoMocks.fail).not.toHaveBeenCalled();
