@@ -20,6 +20,8 @@ bash "$(dirname "$0")/no-busybox-incompatible-grep.sh"
 bash "$(dirname "$0")/turbo-sees-strategy.sh"
 bash "$(dirname "$0")/no-stale-comment-refs.sh"
 bash "$(dirname "$0")/no-stale-migration-doc.sh"
+bash "$(dirname "$0")/no-mutated-applied-migration.selftest.sh"
+bash "$(dirname "$0")/no-mutated-applied-migration.sh"
 bash "$(dirname "$0")/no-stale-config-table.selftest.sh"
 bash "$(dirname "$0")/no-stale-config-table.sh"
 # Self-test first, same reasoning as the pairs below: the gate is a single
