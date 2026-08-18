@@ -43,6 +43,7 @@ const payload = (tag: string): DiscoveryUniverseSnapshotPayload => ({
     activity: 1,
     spread: 1,
     changeBand: 1,
+    probed: 1,
     age: 1,
     trend: 1,
     eligible: 1,
