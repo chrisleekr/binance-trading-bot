@@ -59,12 +59,12 @@ if ! MIGRATIONS_DIR="$tmp/migrations" bash "$gate" >/dev/null 2>&1; then
   fails=1
 fi
 
-# The break that stopped the deployed migrate job: a body edit, comment or not.
+# The loud break: a body edit, comment or not, moves the digest and the runner throws.
 seed_fixture
 printf -- '-- a clarifying comment\n' >> "$tmp/migrations/0001_alpha.sql"
 expect_reject "edited migration" "were edited"
 
-# The break that left an orphan ledger row: renumbering an applied file.
+# The silent break: renumbering an applied file orphans its ledger row and re-applies the body.
 seed_fixture
 mv "$tmp/migrations/0001_alpha.sql" "$tmp/migrations/0003_alpha.sql"
 expect_reject "renamed migration" "renamed or deleted"

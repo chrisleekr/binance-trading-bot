@@ -12,9 +12,13 @@
 # CI cannot catch this on its own, and that is the whole reason this gate exists.
 # Every suite migrates a FRESH database, where a mutated file is indistinguishable
 # from a correct one — the drift is only observable against a database that already
-# holds the old checksum. This repo has been bitten twice: a renumber of an applied
-# 0051 left an orphan ledger row, and a later comment-only edit of 0076/0079/0083
-# stopped the deployed migrate job outright.
+# holds the old checksum.
+#
+# Both failure modes are real and neither is loud. An EDIT moves the digest and the
+# runner throws, blocking every later migration behind it. A RENAME is worse: the
+# ledger keys on name, so the file matches nothing, re-applies as new, and orphans
+# the old row — silently, on an `if not exists` body. `migrate-immutability.test.ts`
+# pins both against a real database.
 #
 # The oracle is `migrations/checksums.json` rather than a diff against the base branch, for two reasons. The durable one: re-pinning a digest leaves a changed hex string in the diff, which a reviewer reads as "someone is rewriting history" — a merge-base diff leaves no artifact at all once it is satisfied. The mechanical one: both CI providers clone shallow here, so a merge-base would resolve to nothing on exactly the pipelines that matter. Do not "fix" that by adding fetch-depth 0; the first reason is the one that holds.
 #

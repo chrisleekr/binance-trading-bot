@@ -74,9 +74,20 @@ begin
   end if;
 end$$;
 
+-- Cleanup only: nothing reads this GUC after the policy above is gone. Wrapped
+-- because `alter database ... reset` demands database ownership even when the
+-- parameter was never set, and on a managed instance the migration role usually
+-- owns the schema but not the database. Unguarded, a 42501 aborts the whole
+-- transaction and `retention_config` never gets created, which is the table the
+-- prune cron and the worker cache now require.
 do $$
 begin
-  execute format('alter database %I reset app.action_log_retention_days', current_database());
+  begin
+    execute format('alter database %I reset app.action_log_retention_days', current_database());
+  exception when insufficient_privilege then
+    raise notice 'left app.action_log_retention_days set: role % does not own database %',
+      current_user, current_database();
+  end;
 end$$;
 
 -- The last would-be owner. `profiles.action_log_retention_days` was a per-profile

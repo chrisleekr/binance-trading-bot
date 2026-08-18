@@ -75,12 +75,12 @@
   "0074_remove_paper_trading.sql": "b5340120c71784413da0030e1daa4e51e713ca977d419a956340d679cc524e1e",
   "0075_override_actions_picked_up_at.sql": "4a5d02b036f334e871cc3be9fdfc7997d5f50eb4e96a135bfbb3192fbf426c16",
   "0075a_action_logs_root_heap_drain.sql": "4677572a66e70f54a36672f82b649f74bf2031840cfb06e1d8b74afc41ac4918",
-  "0076_log_retention_config.sql": "50404a5241a43ad0be28490c3b59bf92dd5bf39e1914a510dc2d66b8a65ed112",
+  "0076_log_retention_config.sql": "d2c777b41a1f05a5c5d152a8267251c54341e4d562e3cf967f5af3d83a0d6d80",
   "0077_condition_states.sql": "1c896cb0b075e818142aea44ed9d68657ccc0dc859a870764ec7309a4faf5239",
-  "0078_diagnosis_runs.sql": "311ef49ae1173a048ecbecd33f014fb968f61aa3fe6d185caa91e6a6c413bde9",
-  "0079_action_log_row_cap.sql": "d3d97f567d2e30749d525927c9d96d56c4db28c1862338d5bfc2d794c3b7ead8",
+  "0079_action_log_row_cap.sql": "e6e9cf2bf8e33acf74697dd63faa518aa19aadad807028768113a4d7ba214c50",
   "0080_trade_archive_missing_cost_basis.sql": "9bc8b923ee6b81a85abb27cf208031bf778af7aaa3d0b4ca25a908b88a3ae3c2",
   "0081_backfill_attempts_symbol_unavailable.sql": "e62af48675c75ed8510813510a22299d43f8f381bb92b44ec9a97fa8d62d3054",
   "0082_condition_states_change_key.sql": "27cc30b999c8c1842eb647bc3dfda679295210c6921c7abad81ecb5824ef0a05",
-  "0083_orphan_per_symbol_state_cleanup.sql": "7b91f713a5d13d25cf68eae808bfda309cb305c6d96a5e9d95ad25670784972c"
+  "0083_orphan_per_symbol_state_cleanup.sql": "f5713ce7080ae740e039a88f4fac59ca6ac9220eafe3df9d8f7fae8ba4e22558",
+  "0084_diagnosis_runs.sql": "311ef49ae1173a048ecbecd33f014fb968f61aa3fe6d185caa91e6a6c413bde9"
 }
