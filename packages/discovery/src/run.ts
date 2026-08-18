@@ -9,6 +9,7 @@ import {
   meetsLiquidity,
   notBlacklisted,
   oldEnough,
+  passesAssetPolicy,
   trendConfirmed,
   withinChangeBand,
   withinSpread,
@@ -45,22 +46,20 @@ export const buildRankContext = (
   return { rankBySymbol, universeSize: universe.length };
 };
 
-/** The ticker-stage filter names (stages 1-6), in evaluation order. */
+/** The ticker-stage filter names (stages 1-7), in evaluation order. */
 export type TickerStageName =
-  'quote' | 'blacklist' | 'liquidity' | 'activity' | 'spread' | 'changeBand';
+  'quote' | 'assetPolicy' | 'blacklist' | 'liquidity' | 'activity' | 'spread' | 'changeBand';
 
 /**
- * The ordered ticker-stage chain (stages 1-6) — the single source of truth for
- * both the stage set AND its evaluation order. `shortlistByTicker`,
- * {@link tickerStageCounts}, and `explain.ts`'s per-candidate `evalFilters` all
- * walk this one list, so the shortlist, the funnel's ticker segment, and the
- * explain breakdown cannot drift on which filters run or in what order.
+ * The ordered ticker-stage chain (stages 1-7) — the single source of truth for both the stage set AND its evaluation order. `shortlistByTicker`, {@link tickerStageCounts}, `funnel.ts`'s stage list, and `explain.ts`'s per-candidate `evalFilters` all walk this one list, so the shortlist, the funnel's ticker segment, and the explain breakdown cannot drift on which filters run or in what order.
  */
 export const TICKER_STAGE_CHAIN: readonly [
   TickerStageName,
   (t: DiscoveryTicker, cfg: DiscoveryConfig, ctx: RankContext) => boolean,
 ][] = [
   ['quote', matchesQuote],
+  // Before the blocklist and before every tunable floor: the asset policy is the one cut no setting can relax, so a pegged asset must never be reported as dying at a filter the operator could widen.
+  ['assetPolicy', passesAssetPolicy],
   ['blacklist', notBlacklisted],
   ['liquidity', meetsLiquidity],
   ['activity', isActive],
@@ -69,8 +68,8 @@ export const TICKER_STAGE_CHAIN: readonly [
 ];
 
 /**
- * Generator + ticker-stage filters (1-6): keep the tickers that pass quote-match,
- * blacklist, liquidity, activity, spread, and the change band, then rank them by
+ * Generator + ticker-stage filters (1-7): keep the tickers that pass quote-match,
+ * asset policy, blacklist, liquidity, activity, spread, and the change band, then rank them by
  * 24h gain (descending; ties broken by symbol for determinism). Returns the
  * ranked symbol list. This is the cheap, kline-free prefix the Slice-3 cron runs
  * first so it only fetches klines for the shortlist.
@@ -96,6 +95,7 @@ export const shortlistByTicker = (
 export interface TickerStageCounts {
   readonly universe: number;
   readonly quote: number;
+  readonly assetPolicy: number;
   readonly blacklist: number;
   readonly liquidity: number;
   readonly activity: number;
@@ -117,6 +117,7 @@ export const tickerStageCounts = (
   const counts = {
     universe: tickers.length,
     quote: 0,
+    assetPolicy: 0,
     blacklist: 0,
     liquidity: 0,
     activity: 0,
@@ -214,7 +215,7 @@ export const maxPeerCorrelation = (
 };
 
 /**
- * Kline-stage filters (6-9) + the diff. Given the ranked ticker shortlist and
+ * Kline-stage filters (8-9) + the diff. Given the ranked ticker shortlist and
  * the per-symbol kline windows, applies age + trend-confirm to get the eligible
  * set, then resolves the desired auto-set against the current one under the slot
  * cap, the re-add cooldown, and the min-hold-before-reap rule.

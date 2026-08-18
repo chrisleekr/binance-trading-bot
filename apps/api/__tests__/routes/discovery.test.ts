@@ -3,6 +3,7 @@ import type { StoredDiscoveryConfig } from '@app/contracts';
 import { GLOBAL_KEYS, profileKey, profileRepo } from '@app/db';
 import { buildStrategyRegistry } from '@app/strategy-registry';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
+import { recordPoolCheckouts } from '../_pool-checkouts.js';
 
 /**
  * Integration coverage for the discovery operator-dashboard surface: the GET
@@ -112,6 +113,18 @@ describeIfInfra('discovery router', () => {
       profitPercent: '10',
       orders: [{ side: 'SELL' }],
       archivedAt: new Date('2026-05-12T00:00:00Z'),
+    });
+    // A cycle closed under a PREVIOUS quote asset, inside the same window. Every assertion below is written as if this row did not exist, so the scoreboard's quote filter is what holds them: drop it and the magnitudes move by 999. Without this row the suite cannot tell "reads the profile's quote" from "hardcodes USDT" from "does not filter at all", because the fixture profile also settles in USDT.
+    await p.tradeArchive.insert({
+      ...base,
+      symbol: 'ETHBTC',
+      baseAsset: 'ETH',
+      quoteAsset: 'BTC',
+      totalSellQuote: '999',
+      profit: '999',
+      profitPercent: '999',
+      orders: [{ side: 'SELL' }],
+      archivedAt: new Date('2026-05-13T00:00:00Z'),
     });
 
     const url = (period: string): string =>
@@ -231,14 +244,32 @@ describeIfInfra('discovery router', () => {
           {
             symbol: 'BLOCKUSDT',
             gainerScore: '22',
-            passed: ['quote', 'blacklist', 'liquidity', 'spread', 'changeBand', 'age', 'trend'],
+            passed: [
+              'quote',
+              'assetPolicy',
+              'blacklist',
+              'liquidity',
+              'spread',
+              'changeBand',
+              'age',
+              'trend',
+            ],
             failedAt: null,
             disposition: 'added',
           },
           {
             symbol: 'MANUALUSDT',
             gainerScore: '5',
-            passed: ['quote', 'blacklist', 'liquidity', 'spread', 'changeBand', 'age', 'trend'],
+            passed: [
+              'quote',
+              'assetPolicy',
+              'blacklist',
+              'liquidity',
+              'spread',
+              'changeBand',
+              'age',
+              'trend',
+            ],
             failedAt: null,
             disposition: 'rejected',
           },
@@ -363,6 +394,21 @@ describeIfInfra('discovery router', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { gauge: { maxAccountExposureQuote: string | null } };
     expect(body.gauge.maxAccountExposureQuote).toBe('500');
+  });
+
+  it('serves the dashboard on one pooled connection', async () => {
+    // The api shares a pool of ten. This route resolves its dashboard by firing its reads concurrently, and node-postgres takes one pooled connection per concurrent query, so a single dashboard load holds most of the pool while it runs and every other route queues behind it. Two operators on two tabs is then an app-wide stall, not a slow panel.
+    // Asserted from the pool rather than from the response: peak concurrent checkouts is the property that caps the blast radius, and it is invisible in a body that renders correctly either way.
+    const { peak } = await recordPoolCheckouts(fx.di.pool, async () => {
+      const res = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/discovery`,
+        { headers: headers(fx.alice.userId) },
+      );
+      expect(res.status).toBe(200);
+    });
+
+    // Not "at most one query" — the reads may be as many as they like, as long as one request cannot occupy more than one connection at a time.
+    expect(peak).toBe(1);
   });
 
   it('denies cross-account access to another user profile', async () => {

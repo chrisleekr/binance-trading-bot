@@ -28,6 +28,7 @@ import {
 import { fanOutBounded } from '@app/core/fan-out';
 import { toPureConfig } from 'crons/discovery/config.js';
 import type { SymbolAdmission } from 'crons/discovery/symbol-admission.js';
+import { validateAssetPolicy, type AssetPolicy } from 'crons/discovery/asset-policy.js';
 import { dropFormingCandle, selectKlineTargets } from 'crons/discovery/run.js';
 import {
   resolveQuoteUsdPrice,
@@ -47,6 +48,10 @@ export interface LiveFunnelDeps {
   readonly mode: BinanceMode;
   /** exchangeInfo admission facts per symbol, for the mode this profile trades in. */
   readonly symbolAdmission: () => Promise<ReadonlyMap<string, SymbolAdmission>>;
+  /** The LIVE exchangeInfo map, which the asset classification is cross-checked against whatever mode the profile trades in. Identical to `symbolAdmission` for a live account. */
+  readonly liveSymbolAdmission: () => Promise<ReadonlyMap<string, SymbolAdmission>>;
+  /** Binance's stablecoin/fiat classification, from the same per-process snapshot the cron reads, so the probe and the cron cannot classify an asset differently. */
+  readonly assetPolicy: () => Promise<AssetPolicy>;
   /**
    * Permission tags cached for the account. Empty means unknown, which keeps the
    * permission cut disabled, matching what the cron would have done.
@@ -84,22 +89,20 @@ export const probeLiveFunnel = async (
       return null;
     }
     const admission = await deps.symbolAdmission();
-    // Same fail-closed rule the discovery cron applies. An empty admission map
-    // leaves the universe UNFILTERED, which on testnet means scoring a testnet
-    // profile against the live exchange's coins — a confident second opinion
-    // about a universe it does not trade. The stored scan is the honest answer.
-    if (deps.mode === 'test' && admission.size === 0) {
+    // Same fail-closed rule the discovery cron applies, for the same reason: an empty admission map leaves the universe UNFILTERED, which is a confident second opinion about a universe the profile does not trade. The stored scan is the honest answer.
+    if (admission.size === 0) {
       deps.logger.warn(
-        {},
-        'diagnosis: testnet exchangeInfo not primed; using the stored funnel (fail closed)',
+        { mode: deps.mode },
+        'diagnosis: exchangeInfo not primed; using the stored funnel (fail closed)',
       );
       return null;
     }
-    // Must mirror the cron's cuts exactly, permission filter included: a probe
-    // that scored a symbol the cron never admits would report a candidate the
-    // operator can never get.
+    // Must mirror the cron's cuts exactly, permission filter and asset policy included: a probe that scored a symbol the cron never admits would report a candidate the operator can never get, and one that skipped the asset policy would report a funnel the cron never had.
+    const assetPolicy = await deps.assetPolicy();
+    validateAssetPolicy(assetPolicy, await deps.liveSymbolAdmission());
     const tickers = toDiscoveryTickers(rawTickers, cfg.quoteAsset, quoteUsdPrice, {
       admissionBySymbol: admission,
+      assetPolicy,
       accountPermissions: await deps.accountPermissions(),
       logger: deps.logger,
     });

@@ -8,6 +8,7 @@ import {
 } from '../../../src/crons/discovery/run.js';
 import type { SiblingConflict } from '../../../src/crons/sibling-conflict.js';
 import type { SymbolAdmission } from '../../../src/crons/discovery/symbol-admission.js';
+import type { DiscoveryProfileContext } from '../../../src/crons/discovery/run.js';
 
 const NOW = 1_700_000_000_000;
 const HOUR = 3_600_000;
@@ -62,6 +63,58 @@ const permissiveConfig = () =>
     },
   });
 
+/**
+ * Split a FIXTURE symbol into base and quote. Production never does this — it reads exchangeInfo, which is exactly why the admission map is required — but a fixture has to state the split somewhere, and the symbols here are all `<BASE><QUOTE>` with a quote drawn from this short list.
+ */
+const splitFixtureSymbol = (symbol: string): { baseAsset: string; quoteAsset: string } => {
+  for (const q of ['USDT', 'XYZ', 'BTC']) {
+    if (symbol.endsWith(q) && symbol.length > q.length) {
+      return { baseAsset: symbol.slice(0, -q.length), quoteAsset: q };
+    }
+  }
+  return { baseAsset: symbol, quoteAsset: 'USDT' };
+};
+
+/** Symbols every wake context admits on top of whatever the port's feed carries, so an empty-universe fixture still has a primed exchangeInfo map (an unprimed one is now a hard abort, tested on its own). */
+const BASELINE_SYMBOLS = ['AAAUSDT', 'BTCUSDT'] as const;
+
+/**
+ * Run one cycle with the exchange facts a wake supplies, derived from the port's own feed so the product/exchangeInfo completeness check passes and the only thing a test can move is what it overrides. Calls `getAllTickers` once more than production would; no assertion in this file counts that call.
+ *
+ * @param port - The cycle's injected I/O.
+ * @param stored - The profile's stored discovery settings.
+ * @param quoteAsset - The profile's settlement asset.
+ * @param over - Fields of the wake context to replace, for tests about the context itself.
+ * @returns The cycle's add/remove counts.
+ */
+const runCycle = async (
+  port: DiscoveryProfilePort,
+  stored: StoredDiscoveryConfig,
+  quoteAsset = 'USDT',
+  over: Partial<DiscoveryProfileContext> = {},
+): Promise<{ added: number; removed: number }> => {
+  const symbols = [
+    ...new Set([...BASELINE_SYMBOLS, ...(await port.getAllTickers()).map((t) => t.symbol)]),
+  ];
+  const admissionBySymbol = new Map<string, SymbolAdmission>(
+    symbols.map((sym) => [sym, { status: 'TRADING', ...splitFixtureSymbol(sym) }]),
+  );
+  return runDiscoveryForProfile(port, stored, quoteAsset, NOW, {
+    admissionBySymbol,
+    liveAdmission: admissionBySymbol,
+    assetPolicy: {
+      // Both routes live, so the classification is accepted as usable; no fixture
+      // symbol carries either base, so the stage is inert everywhere except where
+      // a test overrides the context.
+      stablecoinOrFiatBases: new Set(['PEG', 'ZWL']),
+      taggedStablecoinBases: new Set(['PEG']),
+      fiatQuoteAssets: new Set(['ZWL']),
+      tradingSymbols: new Set(symbols),
+    },
+    ...over,
+  });
+};
+
 const fakePort = (over: Partial<DiscoveryProfilePort> = {}): DiscoveryProfilePort => ({
   logger: { warn: vi.fn() },
   getAllTickers: async () => [ticker({ symbol: 'AAAUSDT' })],
@@ -113,7 +166,7 @@ describe('runDiscoveryForProfile — sibling account-level conflict (#661)', () 
     // still suppress the add and surface the reason.
     const port = fakePort();
     stubSiblingConflict(port, 'sibling-quotes-base');
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r).toEqual({ added: 0, removed: 0 });
     expect(port.addSymbol).not.toHaveBeenCalled();
     expect(port.emit).not.toHaveBeenCalledWith('AAAUSDT', 'add');
@@ -126,7 +179,7 @@ describe('runDiscoveryForProfile — sibling account-level conflict (#661)', () 
     // bound, and the explain records the structured reason, not a misleading 'added'.
     const port = fakePort();
     stubSiblingConflict(port, 'sibling-owns-base');
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r).toEqual({ added: 0, removed: 0 });
     expect(port.addSymbol).not.toHaveBeenCalled();
     expect(explainRowFor(port, 'AAAUSDT')?.disposition).toBe('sibling-owns-base');
@@ -135,7 +188,7 @@ describe('runDiscoveryForProfile — sibling account-level conflict (#661)', () 
   it('C3: a sibling-suppressed candidate carries an operator-visible reason in the persisted explain, never a misleading added/kept', async () => {
     const port = fakePort();
     stubSiblingConflict(port, 'sibling-owns-base');
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    await runCycle(port, permissiveConfig(), 'USDT');
     const disposition = explainRowFor(port, 'AAAUSDT')?.disposition;
     expect(disposition).not.toBe('added');
     expect(disposition).not.toBe('kept');
@@ -147,7 +200,7 @@ describe('runDiscoveryForProfile — sibling account-level conflict (#661)', () 
     // GREEN today and must stay GREEN after Phase B.
     const port = fakePort();
     stubSiblingConflict(port, null);
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r).toEqual({ added: 1, removed: 0 });
     expect(port.addSymbol).toHaveBeenCalledWith('AAAUSDT', NOW);
     expect(port.emit).toHaveBeenCalledWith('AAAUSDT', 'add');
@@ -158,7 +211,7 @@ describe('runDiscoveryForProfile — sibling account-level conflict (#661)', () 
 describe('runDiscoveryForProfile', () => {
   it('adds a fresh eligible symbol and enqueues one resync', async () => {
     const port = fakePort();
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r).toEqual({ added: 1, removed: 0 });
     // The add binds the row; the per-cycle refresh pass owns the hint hash.
     expect(port.addSymbol).toHaveBeenCalledWith('AAAUSDT', NOW);
@@ -215,14 +268,14 @@ describe('runDiscoveryForProfile', () => {
 
   it('drops the still-forming final candle so trend-confirm reads closed bars only', async () => {
     const port = fakePort({ getKlines: async () => [...fiveRisingClosed(), badBar(NOW + HOUR)] });
-    const r = await runDiscoveryForProfile(port, trendCfg(), 'USDT', NOW);
+    const r = await runCycle(port, trendCfg(), 'USDT');
     expect(r).toEqual({ added: 1, removed: 0 });
     expect(port.addSymbol).toHaveBeenCalledWith('AAAUSDT', NOW);
   });
 
   it('keeps a final candle that is already closed (trims by close time, not position)', async () => {
     const port = fakePort({ getKlines: async () => [...fiveRisingClosed(), badBar(NOW - HOUR)] });
-    const r = await runDiscoveryForProfile(port, trendCfg(), 'USDT', NOW);
+    const r = await runCycle(port, trendCfg(), 'USDT');
     expect(r).toEqual({ added: 0, removed: 0 });
     expect(port.addSymbol).not.toHaveBeenCalled();
   });
@@ -234,7 +287,7 @@ describe('runDiscoveryForProfile', () => {
       enterOnAdd: true,
       entryGuard: { maxDistanceFrom24hHighPercent: '3', knifeCandles: 3, knifeDropPercent: '5' },
     });
-    await runDiscoveryForProfile(port, cfg, 'USDT', NOW);
+    await runCycle(port, cfg, 'USDT');
     const call = (port.refreshEntryHint as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(call?.[0]).toBe('AAAUSDT');
     expect(JSON.parse(call?.[1] as string)).toEqual({
@@ -254,7 +307,7 @@ describe('runDiscoveryForProfile', () => {
       enterOnAdd: false,
       entryGuard: { maxDistanceFrom24hHighPercent: '3', knifeCandles: 0, knifeDropPercent: '0' },
     });
-    await runDiscoveryForProfile(port, cfg, 'USDT', NOW);
+    await runCycle(port, cfg, 'USDT');
     const call = (port.refreshEntryHint as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(call?.[0]).toBe('AAAUSDT');
     expect(JSON.parse(call?.[1] as string)).toMatchObject({
@@ -271,7 +324,7 @@ describe('runDiscoveryForProfile', () => {
       listAutoSymbols: async () => ['AAAUSDT'],
       getAllTickers: async () => [ticker({ symbol: 'AAAUSDT', highPrice: '999' })],
     });
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    await runCycle(port, permissiveConfig(), 'USDT');
     expect(port.addSymbol).not.toHaveBeenCalled();
     const call = (port.refreshEntryHint as ReturnType<typeof vi.fn>).mock.calls.find(
       (c) => c[0] === 'AAAUSDT',
@@ -282,7 +335,7 @@ describe('runDiscoveryForProfile', () => {
 
   it('a created add emits the INFO add line and not the re-add warn (#454)', async () => {
     const port = fakePort();
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    await runCycle(port, permissiveConfig(), 'USDT');
     expect(port.emit).toHaveBeenCalledWith('AAAUSDT', 'add');
     expect(port.emitReadd).not.toHaveBeenCalled();
   });
@@ -292,7 +345,7 @@ describe('runDiscoveryForProfile', () => {
     const port = fakePort({
       addSymbol: vi.fn(async () => ({ outcome: 'readded' as const, prevAddedAt: T0 })),
     });
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r.added).toBe(1);
     expect(port.emitReadd).toHaveBeenCalledWith('AAAUSDT', T0);
     expect(port.emit).not.toHaveBeenCalledWith('AAAUSDT', 'add');
@@ -310,7 +363,7 @@ describe('runDiscoveryForProfile', () => {
       listAutoSymbols: async () => [],
       lastFlattenBySymbol: async () => ({}),
     });
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    await runCycle(port, permissiveConfig(), 'USDT');
     expect(port.emitMembershipLost).toHaveBeenCalledTimes(1);
     expect(port.emitMembershipLost).toHaveBeenCalledWith('GHOSTUSDT', T0);
     expect(port.cleanupOrphanedAdded).toHaveBeenCalledWith('GHOSTUSDT');
@@ -323,7 +376,7 @@ describe('runDiscoveryForProfile', () => {
       listAutoSymbols: async () => [],
       lastFlattenBySymbol: async () => ({ GHOSTUSDT: T0 + HOUR }), // reaped after add
     });
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    await runCycle(port, permissiveConfig(), 'USDT');
     expect(port.emitMembershipLost).not.toHaveBeenCalled();
     expect(port.cleanupOrphanedAdded).not.toHaveBeenCalled();
   });
@@ -341,7 +394,7 @@ describe('runDiscoveryForProfile', () => {
       lastFlattenBySymbol: async () => ({}),
       addSymbol: vi.fn(async () => ({ outcome: 'readded' as const, prevAddedAt: T0 })),
     });
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r.added).toBe(1);
     expect(port.emitReadd).toHaveBeenCalledTimes(1);
     expect(port.emitReadd).toHaveBeenCalledWith('AAAUSDT', T0);
@@ -354,7 +407,7 @@ describe('runDiscoveryForProfile', () => {
     const port = fakePort({
       addSymbol: vi.fn(async () => ({ outcome: 'existing' as const })),
     });
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r.added).toBe(0);
     expect(port.emit).not.toHaveBeenCalledWith('AAAUSDT', 'add');
     expect(port.emitReadd).not.toHaveBeenCalled();
@@ -370,14 +423,14 @@ describe('runDiscoveryForProfile', () => {
       listAutoSymbols: async () => ['KEEPUSDT'],
       lastFlattenBySymbol: async () => ({}),
     });
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    await runCycle(port, permissiveConfig(), 'USDT');
     expect(port.emitMembershipLost).not.toHaveBeenCalled();
     expect(port.cleanupOrphanedAdded).not.toHaveBeenCalled();
   });
 
   it('persists the universe breakdown even when nothing rotates', async () => {
     const port = fakePort({ getAllTickers: async () => [] }); // empty universe, no changes
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    await runCycle(port, permissiveConfig(), 'USDT');
     expect(port.persistExplain).toHaveBeenCalledTimes(1);
     expect(port.enqueueResync).not.toHaveBeenCalled();
   });
@@ -385,7 +438,7 @@ describe('runDiscoveryForProfile', () => {
   it('logs a point-in-time universe snapshot every cycle with the expected shape (#436)', async () => {
     const cfg = permissiveConfig();
     const port = fakePort();
-    await runDiscoveryForProfile(port, cfg, 'USDT', NOW);
+    await runCycle(port, cfg, 'USDT');
     expect(port.persistSnapshot).toHaveBeenCalledTimes(1);
     const snap = (port.persistSnapshot as ReturnType<typeof vi.fn>).mock.calls[0][0];
     // Universe is the full quote-matched ranked ticker set, decimal-strings kept.
@@ -410,7 +463,7 @@ describe('runDiscoveryForProfile', () => {
 
   it('persists a per-cycle filter funnel on the snapshot (#629)', async () => {
     const port = fakePort();
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    await runCycle(port, permissiveConfig(), 'USDT');
     expect(port.persistSnapshot).toHaveBeenCalledTimes(1);
     const snap = (port.persistSnapshot as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(snap.funnel).toBeDefined();
@@ -440,14 +493,14 @@ describe('runDiscoveryForProfile', () => {
     // whole gap to the age cut below it — pointing the operator at a filter
     // that never ran instead of at the missing price history.
     const port = fakePort({ listAutoSymbols: async () => ['ZZZUSDT'] });
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    await runCycle(port, permissiveConfig(), 'USDT');
     const snap = (port.persistSnapshot as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(snap.funnel.probed).toBe(1);
   });
 
   it('persists a snapshot even on a no-op (empty universe) cycle (#436)', async () => {
     const port = fakePort({ getAllTickers: async () => [] });
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    await runCycle(port, permissiveConfig(), 'USDT');
     expect(port.persistSnapshot).toHaveBeenCalledTimes(1);
     const snap = (port.persistSnapshot as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(snap.universe).toEqual([]);
@@ -460,7 +513,7 @@ describe('runDiscoveryForProfile', () => {
   it('threads manual members so a pinned, still-qualifying symbol is not re-added (issue #435)', async () => {
     // The only ticker (AAAUSDT) qualifies, but the operator pinned it to manual.
     const port = fakePort({ listManualSymbols: async () => ['AAAUSDT'] });
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r).toEqual({ added: 0, removed: 0 });
     expect(port.addSymbol).not.toHaveBeenCalled();
     expect(port.enqueueResync).not.toHaveBeenCalled();
@@ -468,7 +521,7 @@ describe('runDiscoveryForProfile', () => {
 
   it('reaps a faded auto symbol past its min-hold', async () => {
     const port = fakePort({ listAutoSymbols: async () => ['OLDUSDT'] }); // not in the shortlist
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r.removed).toBe(1);
     expect(port.reapSymbol).toHaveBeenCalledWith('OLDUSDT', NOW);
     expect(port.emit).toHaveBeenCalledWith('OLDUSDT', 'remove');
@@ -479,7 +532,7 @@ describe('runDiscoveryForProfile', () => {
       listAutoSymbols: async () => ['OLDUSDT'],
       reapSymbol: vi.fn(async () => false), // held — flat-guard refused
     });
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r.removed).toBe(0);
     expect(port.emit).not.toHaveBeenCalledWith('OLDUSDT', 'remove');
   });
@@ -492,7 +545,7 @@ describe('runDiscoveryForProfile', () => {
       listAutoSymbols: async () => ['OLDUSDT'],
       heldOnExchange: vi.fn(async () => true),
     });
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r.removed).toBe(0);
     expect(port.reapSymbol).not.toHaveBeenCalled();
     expect(port.emit).not.toHaveBeenCalledWith('OLDUSDT', 'remove');
@@ -505,7 +558,7 @@ describe('runDiscoveryForProfile', () => {
       listAutoSymbols: async () => ['OLDUSDT'],
       heldOnExchange: vi.fn(async () => null),
     });
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r.removed).toBe(0);
     expect(port.reapSymbol).not.toHaveBeenCalled();
   });
@@ -526,7 +579,7 @@ describe('runDiscoveryForProfile', () => {
       listAutoSymbols: async () => ['OLDUSDT'],
       heldOnExchange: vi.fn(async (symbol) => symbol === 'OLDUSDT'),
     });
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'BTC', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'BTC');
     expect(r.removed).toBe(0);
     expect(port.reapSymbol).not.toHaveBeenCalled();
     expect(port.emit).not.toHaveBeenCalledWith('OLDUSDT', 'remove');
@@ -537,7 +590,7 @@ describe('runDiscoveryForProfile', () => {
     // an unknown scale and silently reject the universe. Fail loudly instead; the
     // caller's per-profile catch then leaves the symbol set untouched.
     const port = fakePort({ getAllTickers: async () => [ticker({ symbol: 'AAAXYZ' })] });
-    await expect(runDiscoveryForProfile(port, permissiveConfig(), 'XYZ', NOW)).rejects.toThrow(
+    await expect(runCycle(port, permissiveConfig(), 'XYZ')).rejects.toThrow(
       /cannot price quote asset XYZ/,
     );
     expect(port.reapSymbol).not.toHaveBeenCalled();
@@ -558,9 +611,7 @@ describe('runDiscoveryForProfile', () => {
         throw new Error('kline boom');
       }),
     });
-    await expect(runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW)).rejects.toThrow(
-      'kline boom',
-    );
+    await expect(runCycle(port, permissiveConfig(), 'USDT')).rejects.toThrow('kline boom');
     expect(port.reapSymbol).not.toHaveBeenCalled();
     expect(port.addSymbol).not.toHaveBeenCalled();
     expect(port.enqueueResync).not.toHaveBeenCalled();
@@ -568,7 +619,7 @@ describe('runDiscoveryForProfile', () => {
 
   it('enqueues no resync when nothing changes', async () => {
     const port = fakePort({ getAllTickers: async () => [] }); // empty universe
-    const r = await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r).toEqual({ added: 0, removed: 0 });
     expect(port.enqueueResync).not.toHaveBeenCalled();
   });
@@ -589,7 +640,7 @@ describe('runDiscoveryForProfile', () => {
         return eligibleKlines();
       },
     });
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW);
+    await runCycle(port, permissiveConfig(), 'USDT');
     // 3 * maxAutoSymbols(5) = 15 top non-held candidates + the 1 held symbol.
     expect(fetched).toHaveLength(16);
     expect(fetched).toContain('S00USDT'); // top-ranked candidate fetched
@@ -604,15 +655,120 @@ describe('runDiscoveryForProfile', () => {
   });
 });
 
+describe('runDiscoveryForProfile — an untrustworthy asset classification aborts the cycle', () => {
+  // The classification's failure mode is silent and total: every degraded form
+  // of it reads as "no asset is a stablecoin", which looks exactly like a
+  // healthy policy while admitting every one of them. So the cycle refuses to
+  // run rather than run without it — and refusing must cost nothing, meaning no
+  // add, no reap, no resync, and no kline weight spent finding that out.
+  const heldPort = (): DiscoveryProfilePort =>
+    fakePort({
+      getAllTickers: async () => [ticker({ symbol: 'AAAUSDT' })],
+      listAutoSymbols: async () => ['OLDUSDT'],
+      getKlines: vi.fn(async () => eligibleKlines()),
+    });
+
+  const expectUntouched = (port: DiscoveryProfilePort): void => {
+    expect(port.addSymbol).not.toHaveBeenCalled();
+    expect(port.reapSymbol).not.toHaveBeenCalled();
+    expect(port.enqueueResync).not.toHaveBeenCalled();
+    // Before ranking AND before the kline walk: an abort that had already spent
+    // per-symbol request weight would make a broken feed expensive as well as
+    // useless.
+    expect(port.getKlines).not.toHaveBeenCalled();
+  };
+
+  it('aborts when the stablecoin tag route classified nothing, even with the fiat route full', async () => {
+    // The merged veto set is NON-empty here — a dozen national currencies still
+    // in it — so a "did we classify anything" floor would pass while every
+    // stablecoin on the exchange became admissible. Each route is checked alone.
+    const port = heldPort();
+    await expect(
+      runCycle(port, permissiveConfig(), 'USDT', {
+        assetPolicy: {
+          stablecoinOrFiatBases: new Set(['EUR', 'TRY']),
+          taggedStablecoinBases: new Set(),
+          fiatQuoteAssets: new Set(['EUR', 'TRY']),
+          tradingSymbols: new Set(['AAAUSDT', 'BTCUSDT']),
+        },
+      }),
+    ).rejects.toThrow(/stablecoin tag route classified nothing/i);
+    expectUntouched(port);
+  });
+
+  it('aborts when the fiat route classified nothing, even with the tag route full', async () => {
+    const port = heldPort();
+    await expect(
+      runCycle(port, permissiveConfig(), 'USDT', {
+        assetPolicy: {
+          stablecoinOrFiatBases: new Set(['PEG']),
+          taggedStablecoinBases: new Set(['PEG']),
+          fiatQuoteAssets: new Set(),
+          tradingSymbols: new Set(['AAAUSDT', 'BTCUSDT']),
+        },
+      }),
+    ).rejects.toThrow(/fiat parent-market route classified nothing/i);
+    expectUntouched(port);
+  });
+
+  it('aborts when a live trading symbol has no product row', async () => {
+    const port = heldPort();
+    await expect(
+      runCycle(port, permissiveConfig(), 'USDT', {
+        assetPolicy: {
+          stablecoinOrFiatBases: new Set(['PEG', 'ZWL']),
+          taggedStablecoinBases: new Set(['PEG']),
+          fiatQuoteAssets: new Set(['ZWL']),
+          tradingSymbols: new Set(['AAAUSDT']), // BTCUSDT is trading but unlisted
+        },
+      }),
+    ).rejects.toThrow(/mismatch.*BTCUSDT/s);
+    expectUntouched(port);
+  });
+
+  it('aborts when the exchangeInfo map is unprimed, rather than scoring an unfiltered universe', async () => {
+    const port = heldPort();
+    await expect(
+      runCycle(port, permissiveConfig(), 'USDT', {
+        admissionBySymbol: new Map(),
+        liveAdmission: new Map(),
+      }),
+    ).rejects.toThrow(/symbol-admission/i);
+    expectUntouched(port);
+  });
+});
+
 describe('runDiscoveryForProfile — the permission cut explains itself', () => {
   // Drives the real per-profile path, not `toDiscoveryTickers` directly. The
   // cut is silent (the symbol simply stops appearing), so the warn is the
   // operator's only explanation — and the logger it lands on has to be the one
   // production threads through the port, not one a test invents.
   const admissionBySymbol = new Map<string, SymbolAdmission>([
-    ['AAAUSDT', { status: 'TRADING', permissionSets: [['SPOT']] }],
-    ['CRCLBUSDT', { status: 'TRADING', permissionSets: [['TRD_GRP_005']] }],
+    [
+      'AAAUSDT',
+      { status: 'TRADING', baseAsset: 'AAA', quoteAsset: 'USDT', permissionSets: [['SPOT']] },
+    ],
+    [
+      'CRCLBUSDT',
+      {
+        status: 'TRADING',
+        baseAsset: 'CRCLB',
+        quoteAsset: 'USDT',
+        permissionSets: [['TRD_GRP_005']],
+      },
+    ],
   ]);
+  const permissionWake: Partial<DiscoveryProfileContext> = {
+    admissionBySymbol,
+    liveAdmission: admissionBySymbol,
+    assetPolicy: {
+      stablecoinOrFiatBases: new Set(['PEG', 'ZWL']),
+      taggedStablecoinBases: new Set(['PEG']),
+      fiatQuoteAssets: new Set(['ZWL']),
+      tradingSymbols: new Set(admissionBySymbol.keys()),
+    },
+    accountPermissions: ['SPOT'],
+  };
 
   it('warns on the port’s logger, naming how many symbols the account may not trade', async () => {
     const warn = vi.fn();
@@ -620,9 +776,7 @@ describe('runDiscoveryForProfile — the permission cut explains itself', () => 
       logger: { warn },
       getAllTickers: async () => [ticker({ symbol: 'AAAUSDT' }), ticker({ symbol: 'CRCLBUSDT' })],
     });
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW, admissionBySymbol, [
-      'SPOT',
-    ]);
+    await runCycle(port, permissiveConfig(), 'USDT', permissionWake);
     // CRCLBUSDT never reaches the funnel, so the explain cannot mention it.
     expect(explainRowFor(port, 'CRCLBUSDT')).toBeUndefined();
     expect(explainRowFor(port, 'AAAUSDT')).toBeDefined();
@@ -638,9 +792,7 @@ describe('runDiscoveryForProfile — the permission cut explains itself', () => 
       logger: { warn },
       getAllTickers: async () => [ticker({ symbol: 'AAAUSDT' })],
     });
-    await runDiscoveryForProfile(port, permissiveConfig(), 'USDT', NOW, admissionBySymbol, [
-      'SPOT',
-    ]);
+    await runCycle(port, permissiveConfig(), 'USDT', permissionWake);
     expect(warn).not.toHaveBeenCalled();
   });
 });

@@ -419,6 +419,7 @@ describe('tickerStageCounts (issue #636)', () => {
     expect(counts).toEqual({
       universe: 0,
       quote: 0,
+      assetPolicy: 0,
       blacklist: 0,
       liquidity: 0,
       activity: 0,
@@ -433,6 +434,7 @@ describe('tickerStageCounts (issue #636)', () => {
     const tickers = [
       ticker({ symbol: 'PASSUSDT', priceChangePercent: '12' }), // passes every stage
       ticker({ symbol: 'QUOTEBTC', quoteAsset: 'BTC' }), // dies at quote
+      ticker({ symbol: 'PEGUSDT', baseAsset: 'PEG', isStablecoinOrFiat: true }), // dies at assetPolicy
       ticker({ symbol: 'BLACKUSDT' }), // dies at blacklist
       ticker({ symbol: 'THINUSDT', pairVolumeUsd: '1' }), // dies at liquidity
       ticker({ symbol: 'DEADUSDT', assetVolumeUsd: '100' }), // dies at activity
@@ -441,8 +443,9 @@ describe('tickerStageCounts (issue #636)', () => {
     ];
     const counts = tickerStageCounts(tickers, cfg({ blacklist: ['BLACKUSDT'] }));
     expect(counts).toEqual({
-      universe: 7,
-      quote: 6,
+      universe: 8,
+      quote: 7,
+      assetPolicy: 6,
       blacklist: 5,
       liquidity: 4,
       activity: 3,
@@ -453,6 +456,7 @@ describe('tickerStageCounts (issue #636)', () => {
     const seq = [
       counts.universe,
       counts.quote,
+      counts.assetPolicy,
       counts.blacklist,
       counts.liquidity,
       counts.activity,

@@ -298,6 +298,7 @@ export type DiscoveryGauge = z.infer<typeof DiscoveryGauge>;
 /** Filter-chain stage names; mirrors `@app/discovery`'s `DiscoveryFilterName`. */
 export const DiscoveryFilterName = z.enum([
   'quote',
+  'assetPolicy',
   'blacklist',
   'liquidity',
   'activity',

@@ -18,12 +18,22 @@ export const MIN_UNIVERSE_FOR_RANK = 10;
 export const matchesQuote = (t: DiscoveryTicker, cfg: DiscoveryConfig): boolean =>
   t.quoteAsset === cfg.quoteAsset;
 
-/** Filter 2 — blacklist: the operator never wants this symbol auto-added. */
+/**
+ * Filter 2 — asset policy: the base asset is not a stablecoin or a fiat currency. Non-configurable, and deliberately so. Discovery hunts 24h gainers, and a pegged asset has no gainer signal to read — its ordinary peg noise clears an inclusive `changeMinPercent >= 0` hurdle, so it enters on nothing and then sits there.
+ *
+ * The verdict is a fact the caller resolved from fresh Binance product metadata, not a rule evaluated here. This package holds no asset list: a code-owned registry is stale the day a new stablecoin lists, and no name or price heuristic can tell a peg from a coin that happens to trade near a dollar.
+ *
+ * @param t - The candidate ticker. Only `isStablecoinOrFiat` is read: the symbol text and the price are deliberately ignored, since neither can establish that an asset is pegged.
+ * @returns Whether the coin is eligible to go on to the remaining stages — true for an ordinary asset, false when Binance currently classifies its base a stablecoin or a fiat currency.
+ */
+export const passesAssetPolicy = (t: DiscoveryTicker): boolean => !t.isStablecoinOrFiat;
+
+/** Filter 3 — blacklist: the operator never wants this symbol auto-added. Runs after the asset policy, so a symbol on the blocklist for an unrelated reason is still reported against the rung that actually disqualifies it. */
 export const notBlacklisted = (t: DiscoveryTicker, cfg: DiscoveryConfig): boolean =>
   !cfg.blacklist.includes(t.symbol);
 
 /**
- * Filter 3 — liquidity: the pair's own 24h volume, in USD, clears the floor so
+ * Filter 4 — liquidity: the pair's own 24h volume, in USD, clears the floor so
  * fills don't slip. Denominated in USD rather than the quote asset because
  * slippage is a dollar cost regardless of what the profile settles in.
  *
@@ -35,7 +45,7 @@ export const meetsLiquidity = (t: DiscoveryTicker, cfg: DiscoveryConfig): boolea
   new Decimal(t.pairVolumeUsd).gte(cfg.min24hPairVolumeUsd);
 
 /**
- * Filter 4 — activity: the COIN is actively traded, measured on its USDT market
+ * Filter 5 — activity: the COIN is actively traded, measured on its USDT market
  * in USD, independent of the pair this profile would trade it on. Separate from
  * {@link meetsLiquidity} because a coin can be enormously active as an asset
  * while its BTC book is a ghost town, and one threshold cannot both admit that
@@ -48,7 +58,7 @@ export const isActive = (t: DiscoveryTicker, cfg: DiscoveryConfig): boolean =>
   t.assetVolumeUsd !== null && new Decimal(t.assetVolumeUsd).gte(cfg.min24hAssetVolumeUsd);
 
 /**
- * Filter 5 — spread: the bid/ask spread ratio `(ask - bid) / mid` is within
+ * Filter 6 — spread: the bid/ask spread ratio `(ask - bid) / mid` is within
  * the cap. A non-positive bid/ask or a crossed book (`ask < bid`) is treated as
  * untradable and rejected rather than producing a misleading ratio.
  *
@@ -65,7 +75,7 @@ export const withinSpread = (t: DiscoveryTicker, cfg: DiscoveryConfig): boolean 
 };
 
 /**
- * Filter 6 — change band (anti-pump), in two parts:
+ * Filter 7 — change band (anti-pump), in two parts:
  *
  * 1. An absolute hurdle: the 24h move against the quote clears `changeMinPercent`.
  *    At its '0' default this reads "the coin beat the asset I hold when flat",
@@ -106,7 +116,7 @@ export const withinChangeBand = (
 };
 
 /**
- * Filter 7 — age: the symbol has at least `minAgeDays` of kline history. Binance
+ * Filter 8 — age: the symbol has at least `minAgeDays` of kline history. Binance
  * spot exchangeInfo carries no listing date, so age is approximated from the
  * oldest candle in the window (klines are ascending by open time). An empty
  * window fails.
@@ -136,7 +146,7 @@ export const volumeSma = (klines: readonly Candle[], period: number): Decimal | 
 };
 
 /**
- * Filter 8 — trend-confirm: the candidate is in a confirmed up-move —
+ * Filter 9 — trend-confirm: the candidate is in a confirmed up-move —
  * ADX(adxPeriod) >= adxMin (directional strength), last close > EMA(emaPeriod)
  * (price above trend), and last volume > volMultiple x SMA(volSmaPeriod) of
  * volume (participation). Any indicator returning null (window too short) fails
@@ -158,10 +168,10 @@ export const trendConfirmed = (klines: readonly Candle[], cfg: DiscoveryConfig):
 };
 
 /**
- * Filter 10 — hysteresis cooldown: a symbol flattened (discovery drop OR manual
+ * Filter 11 — hysteresis cooldown: a symbol flattened (discovery drop OR manual
  * eject) within `minHoldMinutes` of now is on cooldown and must not be re-added,
  * preventing add/flatten/re-add thrash. A symbol with no flatten record is not
- * on cooldown. (Filter 9, the slot cap, is a cross-symbol concern and lives in
+ * on cooldown. (Filter 10, the slot cap, is a cross-symbol concern and lives in
  * `resolveDiscovery`, not here.)
  *
  * The cooldown deliberately reuses `minHoldMinutes` rather than a separate dial:

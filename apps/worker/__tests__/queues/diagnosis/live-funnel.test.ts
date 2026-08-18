@@ -10,9 +10,37 @@ import type { BinanceMode, Ticker24hrDto } from '@app/binance';
 import type { Logger } from 'pino';
 
 import type { SymbolAdmission } from '../../../src/crons/discovery/symbol-admission.js';
+import type { AssetPolicy } from '../../../src/crons/discovery/asset-policy.js';
 import { probeLiveFunnel, type LiveFunnelDeps } from '../../../src/queues/diagnosis/live-funnel.js';
 
 const stored = DiscoveryConfigSchema.parse({});
+
+/** exchangeInfo facts for one fixture symbol; base/quote are required, so a fixture states its own split. */
+const adm = (baseAsset: string, over: Partial<SymbolAdmission> = {}): SymbolAdmission => ({
+  status: 'TRADING',
+  baseAsset,
+  quoteAsset: 'USDT',
+  ...over,
+});
+
+/** An admission map plus the matching classification, derived from one symbol list so the completeness cross-check passes. */
+const primed = (
+  entries: readonly (readonly [string, SymbolAdmission])[],
+): { admission: Map<string, SymbolAdmission>; policy: AssetPolicy } => ({
+  admission: new Map(entries),
+  policy: {
+    stablecoinOrFiatBases: new Set(['RLUSD', 'ZWL']),
+    taggedStablecoinBases: new Set(['RLUSD']),
+    fiatQuoteAssets: new Set(['ZWL']),
+    tradingSymbols: new Set(entries.map(([symbol]) => symbol)),
+  },
+});
+
+const DEFAULT_PRIMED = primed([
+  ['AAAUSDT', adm('AAA')],
+  ['ETHUSDT', adm('ETH')],
+  ['BNBUSDT', adm('BNB')],
+]);
 
 const ticker = (over: Partial<Ticker24hrDto>): Ticker24hrDto => ({
   symbol: 'AAAUSDT',
@@ -33,7 +61,9 @@ const makeDeps = (over: Partial<LiveFunnelDeps> = {}): LiveFunnelDeps => ({
   getAllTickers: vi.fn(async () => []),
   getKlines: vi.fn(async () => []),
   mode: 'live' as BinanceMode,
-  symbolAdmission: vi.fn(async () => new Map<string, SymbolAdmission>()),
+  symbolAdmission: vi.fn(async () => DEFAULT_PRIMED.admission),
+  liveSymbolAdmission: vi.fn(async () => DEFAULT_PRIMED.admission),
+  assetPolicy: vi.fn(async () => DEFAULT_PRIMED.policy),
   accountPermissions: vi.fn(async () => []),
   autoSymbols: [],
   manualSymbols: [],
@@ -43,22 +73,36 @@ const makeDeps = (over: Partial<LiveFunnelDeps> = {}): LiveFunnelDeps => ({
 });
 
 describe('probeLiveFunnel', () => {
-  it('fails closed on testnet when exchangeInfo is not primed', async () => {
-    // An empty status map leaves the universe UNFILTERED, which on testnet
-    // means scoring a testnet profile against the live exchange's coins. That
-    // is a confident second opinion about a universe the profile cannot trade,
-    // and it is worse than no second opinion at all.
-    const deps = makeDeps({ mode: 'test', symbolAdmission: async () => new Map() });
-    expect(await probeLiveFunnel(deps, stored, 'USDT')).toBeNull();
-    expect(deps.logger.warn).toHaveBeenCalled();
+  it('fails closed when exchangeInfo is not primed, in either mode', async () => {
+    // An empty admission map leaves the universe UNFILTERED, which is a
+    // confident second opinion about a universe the profile does not trade. It
+    // was already the rule on testnet; it is no less wrong on live, where the
+    // unfiltered set carries every delisted pair and every stablecoin, and the
+    // cron itself now refuses to run on it.
+    for (const mode of ['test', 'live'] as const) {
+      const deps = makeDeps({ mode, symbolAdmission: async () => new Map() });
+      expect(await probeLiveFunnel(deps, stored, 'USDT')).toBeNull();
+      expect(deps.logger.warn).toHaveBeenCalled();
+    }
   });
 
-  it('still probes on live when exchangeInfo is not primed', async () => {
-    // The pin that keeps the guard mode-scoped. Live already tolerates an
-    // unfiltered universe (the cron's own fail-safe), so widening the bail-out
-    // to both modes would silently retire the probe on the account that has
-    // real money in it.
-    expect(await probeLiveFunnel(makeDeps({ mode: 'live' }), stored, 'USDT')).not.toBeNull();
+  it('returns null rather than a funnel the cron never had when the classification is untrustworthy', async () => {
+    // The probe exists so its ladder and the cron's agree. A classification the
+    // cron would have refused must not produce a ladder here either, or the
+    // operator is shown a measurement the bot never took.
+    const deps = makeDeps({
+      assetPolicy: async () => ({
+        // The merged set is non-empty; only the stablecoin route is dead. The
+        // cron refuses this, so the probe must refuse it too, or it reports a
+        // ladder the bot never produced.
+        stablecoinOrFiatBases: new Set(['ZWL']),
+        taggedStablecoinBases: new Set<string>(),
+        fiatQuoteAssets: new Set(['ZWL']),
+        tradingSymbols: new Set(['AAAUSDT']),
+      }),
+    });
+    expect(await probeLiveFunnel(deps, stored, 'USDT')).toBeNull();
+    expect(deps.logger.warn).toHaveBeenCalled();
   });
 
   it('returns null when the quote asset has no USD reference market', async () => {
@@ -75,11 +119,17 @@ describe('probeLiveFunnel', () => {
     const accountPermissions = vi.fn(async () => ['SPOT']);
     const deps = makeDeps({
       getAllTickers: async () => [ticker({ symbol: 'ETHUSDT' }), ticker({ symbol: 'CRCLBUSDT' })],
-      symbolAdmission: async () =>
-        new Map<string, SymbolAdmission>([
-          ['ETHUSDT', { status: 'TRADING', permissionSets: [['SPOT']] }],
-          ['CRCLBUSDT', { status: 'TRADING', permissionSets: [['TRD_GRP_005']] }],
-        ]),
+      ...(() => {
+        const p = primed([
+          ['ETHUSDT', adm('ETH', { permissionSets: [['SPOT']] })],
+          ['CRCLBUSDT', adm('CRCLB', { permissionSets: [['TRD_GRP_005']] })],
+        ]);
+        return {
+          symbolAdmission: async () => p.admission,
+          liveSymbolAdmission: async () => p.admission,
+          assetPolicy: async () => p.policy,
+        };
+      })(),
       accountPermissions,
     });
     const funnel = await probeLiveFunnel(deps, stored, 'USDT');

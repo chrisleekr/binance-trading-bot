@@ -1,5 +1,5 @@
 import type { CandidateExplain, DiscoveryFilterName } from './explain.js';
-import type { TickerStageCounts } from './run.js';
+import { TICKER_STAGE_CHAIN, type TickerStageCounts } from './run.js';
 import type { DiscoveryDiff } from './types.js';
 
 /**
@@ -27,6 +27,8 @@ export interface DiscoveryFunnel {
   /** Full quote-matched ticker set this cycle (the ticker segment's denominator). */
   readonly universe: number;
   readonly quote: number;
+  /** Survivors of the non-configurable stablecoin/fiat cut. No setting can move this rung, which is exactly why it is reported: an operator staring at a collapsed funnel must be able to see that this is not a knob they failed to widen. */
+  readonly assetPolicy: number;
   readonly blacklist: number;
   readonly liquidity: number;
   readonly activity: number;
@@ -54,14 +56,9 @@ export interface DiscoveryFunnel {
   readonly breadthOk: boolean;
 }
 
-// Evaluation order of the filter chain, mirroring explain.ts's DiscoveryFilterName.
+// Evaluation order of the whole filter chain. The ticker segment is DERIVED from TICKER_STAGE_CHAIN rather than restated: a hand-kept copy silently disagrees the first time a stage is added, and the only symptom would be `eligible` counting a candidate that skipped the new rung.
 const STAGES: readonly DiscoveryFilterName[] = [
-  'quote',
-  'blacklist',
-  'liquidity',
-  'activity',
-  'spread',
-  'changeBand',
+  ...TICKER_STAGE_CHAIN.map(([name]) => name),
   'age',
   'trend',
 ];
@@ -103,6 +100,7 @@ export const projectFunnel = (
   return {
     universe: ticker.universe,
     quote: ticker.quote,
+    assetPolicy: ticker.assetPolicy,
     blacklist: ticker.blacklist,
     liquidity: ticker.liquidity,
     activity: ticker.activity,

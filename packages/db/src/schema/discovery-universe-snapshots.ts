@@ -39,6 +39,8 @@ export const discoveryUniverseSnapshots = pgTable(
 export interface DiscoveryFunnel {
   readonly universe: number;
   readonly quote: number;
+  /** Survivors of the non-configurable stablecoin/fiat cut. */
+  readonly assetPolicy: number;
   readonly blacklist: number;
   readonly liquidity: number;
   readonly activity: number;

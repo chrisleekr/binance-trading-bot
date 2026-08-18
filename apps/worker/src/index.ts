@@ -356,6 +356,7 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
       logger,
       strategies: ctx.strategies,
       weightGovernor: ctx.weightGovernor,
+      getAssetPolicy: ctx.getAssetPolicy,
       nowMs: () => Date.now(),
     });
   }

@@ -11,6 +11,7 @@ import type { Logger } from 'pino';
 import { unwrapId, type StoredDiscoveryConfig } from '@app/contracts';
 import type { BinanceMode, Ticker24hrDto } from '@app/binance';
 import type { ActiveProfile } from 'profile-manager/profile-manager.js';
+import type { AssetPolicy } from './asset-policy.js';
 import type { SymbolAdmission } from './symbol-admission.js';
 
 /**
@@ -29,6 +30,14 @@ export interface LoadedDiscovery {
 /** Default an unresolved account mode to the most-restrictive testnet universe, never live. */
 export const withTestModeFallback = (mode: 'test' | 'live' | null): BinanceMode => mode ?? 'test';
 
+/** The per-wake exchange facts one profile's cycle runs against, resolved by the handler and shared across profiles that need the same ones. */
+export interface ProfileWakeContext {
+  readonly admissionBySymbol: ReadonlyMap<string, SymbolAdmission>;
+  readonly liveAdmission: ReadonlyMap<string, SymbolAdmission>;
+  readonly assetPolicy: AssetPolicy;
+  readonly accountPermissions: readonly string[];
+}
+
 /** Injected dependencies for {@link discoveryHandler} — all I/O behind functions. */
 export interface DiscoveryHandlerDeps {
   readonly logger: Logger;
@@ -46,8 +55,7 @@ export interface DiscoveryHandlerDeps {
     profileName: string,
     nowMs: number,
     getAllTickers: () => Promise<readonly Ticker24hrDto[]>,
-    getSymbolAdmission: () => Promise<ReadonlyMap<string, SymbolAdmission>>,
-    getAccountPermissions: () => Promise<readonly string[]>,
+    ctx: ProfileWakeContext,
   ) => Promise<{ added: number; removed: number }>;
   /** All-symbols 24h ticker fetch (exchange-account-wide); shared once per wake. */
   readonly fetchAllTickers: () => Promise<readonly Ticker24hrDto[]>;
@@ -64,6 +72,10 @@ export interface DiscoveryHandlerDeps {
    * permission cut disabled for that account this wake.
    */
   readonly fetchAccountPermissions: (p: ActiveProfile) => Promise<readonly string[]>;
+  /**
+   * Binance's stablecoin/fiat classification, held behind a per-process snapshot so one wake fetches at most once and a fully-gated wake fetches not at all.
+   */
+  readonly getAssetPolicy: () => Promise<AssetPolicy>;
   /** Resolves a profile's Binance environment, so its admission map is mode-correct. */
   readonly resolveBinanceMode: (p: ActiveProfile) => Promise<BinanceMode>;
   readonly clock?: { nowMs(): number };
@@ -93,8 +105,7 @@ export const discoveryHandler =
     // against live-only symbols), so profiles sharing a mode share one fetch.
     // The promise is memoized so each mode is fetched at most once even under
     // the sequential loop. `fetchSymbolAdmission` is best-effort (never throws;
-    // empty map on failure), so an empty result caches and the wake fails open
-    // on the status filter for that mode rather than re-scanning per profile.
+    // empty map on failure), so an unreadable keyspace caches its empty map once rather than re-scanning per profile; the loop below then skips every profile on that mode.
     const admissionByMode = new Map<BinanceMode, Promise<ReadonlyMap<string, SymbolAdmission>>>();
     const getSymbolAdmission = (
       mode: BinanceMode,
@@ -124,36 +135,30 @@ export const discoveryHandler =
           mode = await deps.resolveBinanceMode(p);
           modeByAccount.set(accountKey, mode);
         }
-        // A test-mode profile's candidate universe is the live ticker feed, so
-        // the mode-scoped status map is the only gate removing live-only symbols.
-        // An empty map (testnet exchangeInfo unprimed) would fail open to the full
-        // live universe and re-admit symbols absent on testnet, DLQ-ing every tick.
-        // Fail closed: skip the profile this wake. Live profiles keep the #635
-        // fail-open — their candidate universe is the same environment.
-        if (mode === 'test' && (await getSymbolAdmission(mode)).size === 0) {
+        // One rule, not two. A profile whose exchangeInfo keyspace is unprimed has no status filter, no base/quote split, and no way to classify an asset, so its universe would be the raw ticker feed. That was already fail-closed for test mode (whose candidate universe is the LIVE feed, so an unfiltered run binds symbols testnet does not list and DLQs every tick); it is no less wrong for a live profile, and two spellings of one rule is how the live half stayed open.
+        const admissionBySymbol = await getSymbolAdmission(mode);
+        if (admissionBySymbol.size === 0) {
           deps.logger.warn(
-            { profileId: unwrapId(p.profileId) },
-            'cron discovery: testnet exchangeInfo not primed; skipping test-mode profile this wake (fail closed)',
+            { profileId: unwrapId(p.profileId), mode },
+            'cron discovery: exchangeInfo not primed; skipping profile this wake (fail closed)',
           );
           continue;
         }
-        const r = await deps.runForProfile(
-          p,
-          cfg,
-          quoteAsset,
-          name,
-          nowMs,
-          getAllTickers,
-          () => getSymbolAdmission(mode),
-          () => {
-            let cached = permissionsByAccount.get(accountKey);
-            if (cached === undefined) {
-              cached = deps.fetchAccountPermissions(p);
-              permissionsByAccount.set(accountKey, cached);
-            }
-            return cached;
-          },
-        );
+        // The classification is cross-checked against LIVE exchangeInfo whatever the profile's own mode, so a test-mode wake still needs the live map.
+        const liveAdmission =
+          mode === 'live' ? admissionBySymbol : await getSymbolAdmission('live');
+        let cachedPermissions = permissionsByAccount.get(accountKey);
+        if (cachedPermissions === undefined) {
+          cachedPermissions = deps.fetchAccountPermissions(p);
+          permissionsByAccount.set(accountKey, cachedPermissions);
+        }
+        const r = await deps.runForProfile(p, cfg, quoteAsset, name, nowMs, getAllTickers, {
+          admissionBySymbol,
+          liveAdmission,
+          // Lazy by construction: nothing above this line touches the network for the classification, so a wake where every profile is gated never fetches it.
+          assetPolicy: await deps.getAssetPolicy(),
+          accountPermissions: await cachedPermissions,
+        });
         if (r.added > 0 || r.removed > 0) {
           deps.logger.info(
             { profileId: unwrapId(p.profileId), added: r.added, removed: r.removed },

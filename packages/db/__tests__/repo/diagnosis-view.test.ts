@@ -22,6 +22,7 @@ const NOW_MS = T0.getTime() + 60_000;
 const funnel = {
   universe: 100,
   quote: 80,
+  assetPolicy: 79,
   blacklist: 78,
   liquidity: 40,
   activity: 30,

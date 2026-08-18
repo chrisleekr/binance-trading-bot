@@ -92,6 +92,7 @@ function Tile({
 
 const FILTER_LABEL: Record<DiscoveryFilterName, string> = {
   quote: 'quote asset',
+  assetPolicy: 'asset type',
   blacklist: 'blocklist',
   liquidity: 'liquidity',
   activity: 'coin activity',
@@ -124,6 +125,7 @@ export const DISPOSITION: Record<
  */
 const REJECT_REASON: Record<DiscoveryFilterName, string> = {
   quote: 'not quoted in the target asset',
+  assetPolicy: 'classified by Binance as a stablecoin or fiat asset',
   blacklist: 'on your blocklist',
   liquidity: 'this market is too quiet to fill without slipping',
   activity: 'the coin itself is barely traded anywhere',

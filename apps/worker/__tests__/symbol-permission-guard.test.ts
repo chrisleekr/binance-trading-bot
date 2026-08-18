@@ -31,6 +31,7 @@ import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 import { Decimal } from '@app/money';
 
 import { toDiscoveryTickers } from '../src/crons/discovery/quote-price.js';
+import type { AssetPolicy } from '../src/crons/discovery/asset-policy.js';
 import type { SymbolAdmission } from '../src/crons/discovery/symbol-admission.js';
 import { placeOrderHandler } from '../src/executor/decisions/place-order.js';
 import {
@@ -83,10 +84,27 @@ const UNIVERSE = [ticker(BLOCKED), ticker('BTCUSDT'), ticker('ETHUSDT')];
 // separate a tokenized equity from a real pair, so it must not be what keeps
 // these assertions honest.
 const ADMISSION = new Map<string, SymbolAdmission>([
-  [BLOCKED, { status: 'TRADING', permissionSets: BLOCKED_SETS }],
-  ['BTCUSDT', { status: 'TRADING', permissionSets: PERMITTED_SETS }],
-  ['ETHUSDT', { status: 'TRADING', permissionSets: PERMITTED_SETS }],
+  [
+    BLOCKED,
+    { status: 'TRADING', baseAsset: 'CRCLB', quoteAsset: 'USDT', permissionSets: BLOCKED_SETS },
+  ],
+  [
+    'BTCUSDT',
+    { status: 'TRADING', baseAsset: 'BTC', quoteAsset: 'USDT', permissionSets: PERMITTED_SETS },
+  ],
+  [
+    'ETHUSDT',
+    { status: 'TRADING', baseAsset: 'ETH', quoteAsset: 'USDT', permissionSets: PERMITTED_SETS },
+  ],
 ]);
+
+/** None of these three is a stablecoin or fiat, so the asset policy decides nothing here and the permission cut is the only thing that can move an assertion. */
+const NO_PEGGED_ASSETS: AssetPolicy = {
+  stablecoinOrFiatBases: new Set(),
+  taggedStablecoinBases: new Set(),
+  fiatQuoteAssets: new Set(),
+  tradingSymbols: new Set(ADMISSION.keys()),
+};
 
 const PLACE: Extract<Decision, { type: 'place-order' }> = {
   type: 'place-order',
@@ -188,6 +206,7 @@ describe('symbol-permission guard', () => {
   it('excludes CRCLBUSDT from the discovery universe when the account holds only TRD_GRP_025', () => {
     const out = toDiscoveryTickers(UNIVERSE, 'USDT', new Decimal(1), {
       admissionBySymbol: ADMISSION,
+      assetPolicy: NO_PEGGED_ASSETS,
       accountPermissions: ACCOUNT_PERMISSIONS,
       logger: { warn: vi.fn() },
     });
@@ -224,6 +243,7 @@ describe('symbol-permission guard', () => {
     // Binance stays the judge.
     const kept = toDiscoveryTickers(UNIVERSE, 'USDT', new Decimal(1), {
       admissionBySymbol: ADMISSION,
+      assetPolicy: NO_PEGGED_ASSETS,
       accountPermissions: [],
       logger: { warn: vi.fn() },
     });

@@ -29,6 +29,7 @@ import { profileRepo, repo as dbRepo, type Database } from '@app/db';
 import type { Redis } from 'ioredis';
 import type { StrategyRegistry } from '@app/strategy-core';
 import { fetchSymbolAdmission } from 'crons/discovery/symbol-admission.js';
+import type { AssetPolicy } from 'crons/discovery/asset-policy.js';
 import { parseAccountPermissions } from 'lib/account-permissions.js';
 import { buildAccountPermissionsKey } from 'executor/redis-namespace.js';
 import type { QueueSet } from './queue-set.js';
@@ -46,6 +47,8 @@ export interface DiagnosisWorkerDeps {
   readonly strategies: StrategyRegistry;
   /** Shared per-IP request-weight governor; the probe queues behind live trading. */
   readonly weightGovernor: WeightGovernor;
+  /** The SAME asset-classification snapshot the discovery cron reads, so the probe's funnel cannot classify an asset the cron classified differently. */
+  readonly getAssetPolicy: () => Promise<AssetPolicy>;
   readonly nowMs: () => number;
 }
 
@@ -168,6 +171,9 @@ export function registerDiagnosisWorker(queueSet: QueueSet, deps: DiagnosisWorke
                     mode,
                     symbolAdmission: () =>
                       fetchSymbolAdmission(deps.redis, deps.logger, mode, 'diagnosis'),
+                    liveSymbolAdmission: () =>
+                      fetchSymbolAdmission(deps.redis, deps.logger, 'live', 'diagnosis'),
+                    assetPolicy: deps.getAssetPolicy,
                     accountPermissions: async () =>
                       parseAccountPermissions(
                         await deps.redis.get(buildAccountPermissionsKey(accountId)),

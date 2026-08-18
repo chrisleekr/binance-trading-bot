@@ -1068,12 +1068,46 @@ describe('buildProfileDiagnosis', () => {
     expect(report.funnel?.history[0]?.atMs).toBe(NOW - 1000);
   });
 
+  it('renders the assetPolicy rung once a scan recorded it, in evaluation order', () => {
+    const i = input({ snapshots: [snapshot({ funnel: funnel({ assetPolicy: 220 }) })] });
+    const report = buildProfileDiagnosis(i, runAll(i));
+    expect(report.funnel?.ticker.map((s) => s.stage)).toEqual([
+      'universe',
+      'quote',
+      'assetPolicy',
+      'blacklist',
+      'liquidity',
+      'activity',
+      'spread',
+      'changeBand',
+    ]);
+    expect(report.funnel?.ticker.find((s) => s.stage === 'assetPolicy')?.survivors).toBe(220);
+  });
+
+  it('offers no lever for the assetPolicy choke, because no setting can relax it', () => {
+    // Every other funnel finding links to the setting that armed it. This one
+    // has none: the asset's classification is Binance's, not the operator's, so
+    // a "Fix this" link would promise a change that does not exist.
+    const i = input({
+      snapshots: [
+        snapshot({ funnel: funnel({ quote: 231, assetPolicy: 0, eligible: 0, added: 0 }) }),
+      ],
+    });
+    const r = runDiagnosisStep('candidate-funnel', i);
+    expect(r.items[0]?.code).toBe('assetPolicy');
+    expect(r.items[0]?.title).toBe('No coin gets past "Not a stablecoin or fiat asset"');
+    expect(r.items[0]?.lever).toBeNull();
+  });
+
   it('labels a stored-only funnel as stored', () => {
     const i = input();
     expect(buildProfileDiagnosis(i, runAll(i)).funnel?.source).toBe('stored');
   });
 
   it('keeps the two funnel ladders separate in the projection', () => {
+    // The base fixture predates the assetPolicy stage, so its rung is OMITTED
+    // rather than drawn as zero — the same rule `probed` follows. A fabricated
+    // zero would show a rung where every coin died on a scan that never ran it.
     const i = input();
     const report = buildProfileDiagnosis(i, runAll(i));
     expect(report.funnel?.ticker.map((s) => s.stage)).toEqual([

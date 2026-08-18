@@ -16,7 +16,7 @@ The **Where candidates drop out** panel shows the last scan as two ladders of fi
 
 There are **two** ladders because there are two different starting sets, and reading them as one would be misleading:
 
-- The first counts every coin priced in your quote coin, narrowing through your blocklist, volume, movement, spread, and gainers band.
+- The first counts every coin priced in your quote coin, narrowing through the asset-type check, your blocklist, volume, movement, spread, and gainers band. The asset-type check drops **stablecoins** — coins deliberately pinned to a fixed value, usually one US dollar, such as USDC or FDUSD — along with national currencies like the euro. The bot picks coins that are climbing, and a coin designed never to move has nothing to climb, so it would be picked up on the tiny wobble around its peg and then sit in a slot doing nothing. Binance decides which coins count as pegged, and the bot re-reads that list every few minutes, so this is the one row on the ladder with no setting behind it: there is nothing here for you to adjust.
 - The second starts from only the shortlist the bot fetched price history for, and narrows through listing age, trend confirmation, and final eligibility.
 
 The second ladder's top row is therefore much smaller than the first ladder's bottom row. That is by design, not a collapse, so each ladder is drawn against its own starting count and captioned with what it counted.

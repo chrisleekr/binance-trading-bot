@@ -23,12 +23,16 @@ describe('fetchSymbolAdmission', () => {
       'symbol-info:live:BTCUSDT': JSON.stringify({
         symbol: 'BTCUSDT',
         status: 'TRADING',
+        baseAsset: 'BTC',
+        quoteAsset: 'USDT',
         permissionSets: [['SPOT', 'TRD_GRP_025']],
       }),
     });
     const out = await fetchSymbolAdmission(redis, silent, 'live', 'cron discovery');
     expect(out.get('BTCUSDT')).toEqual({
       status: 'TRADING',
+      baseAsset: 'BTC',
+      quoteAsset: 'USDT',
       permissionSets: [['SPOT', 'TRD_GRP_025']],
     });
   });
@@ -38,22 +42,59 @@ describe('fetchSymbolAdmission', () => {
     // permissionSets at all. Omitting the key keeps absent and unreadable
     // identical, and both fail open.
     const redis = scanRedis({
-      'symbol-info:live:OLDUSDT': JSON.stringify({ symbol: 'OLDUSDT', status: 'TRADING' }),
+      'symbol-info:live:OLDUSDT': JSON.stringify({
+        symbol: 'OLDUSDT',
+        status: 'TRADING',
+        baseAsset: 'OLD',
+        quoteAsset: 'USDT',
+      }),
       'symbol-info:live:BADUSDT': JSON.stringify({
         symbol: 'BADUSDT',
         status: 'TRADING',
+        baseAsset: 'BAD',
+        quoteAsset: 'USDT',
         permissionSets: 'SPOT',
       }),
     });
     const out = await fetchSymbolAdmission(redis, silent, 'live', 'cron discovery');
-    expect(out.get('OLDUSDT')).toEqual({ status: 'TRADING' });
-    expect(out.get('BADUSDT')).toEqual({ status: 'TRADING' });
+    expect(out.get('OLDUSDT')).toEqual({
+      status: 'TRADING',
+      baseAsset: 'OLD',
+      quoteAsset: 'USDT',
+    });
+    expect(out.get('BADUSDT')).toEqual({
+      status: 'TRADING',
+      baseAsset: 'BAD',
+      quoteAsset: 'USDT',
+    });
   });
 
   it('skips one unparseable value without blinding the whole read', async () => {
     const redis = scanRedis({
       'symbol-info:live:BTCUSDT': '{not json',
-      'symbol-info:live:ETHUSDT': JSON.stringify({ symbol: 'ETHUSDT', status: 'TRADING' }),
+      'symbol-info:live:ETHUSDT': JSON.stringify({
+        symbol: 'ETHUSDT',
+        status: 'TRADING',
+        baseAsset: 'ETH',
+        quoteAsset: 'USDT',
+      }),
+    });
+    const out = await fetchSymbolAdmission(redis, silent, 'live', 'cron discovery');
+    expect([...out.keys()]).toEqual(['ETHUSDT']);
+  });
+
+  it('skips an entry with no base/quote split rather than inventing one', async () => {
+    // Every refresh since the keyspace existed writes both, so this is a corrupt
+    // value. Guessing a split would mis-classify the asset it names, and the
+    // shrunken map then fails the caller's completeness check instead.
+    const redis = scanRedis({
+      'symbol-info:live:CUTUSDT': JSON.stringify({ symbol: 'CUTUSDT', status: 'TRADING' }),
+      'symbol-info:live:ETHUSDT': JSON.stringify({
+        symbol: 'ETHUSDT',
+        status: 'TRADING',
+        baseAsset: 'ETH',
+        quoteAsset: 'USDT',
+      }),
     });
     const out = await fetchSymbolAdmission(redis, silent, 'live', 'cron discovery');
     expect([...out.keys()]).toEqual(['ETHUSDT']);
