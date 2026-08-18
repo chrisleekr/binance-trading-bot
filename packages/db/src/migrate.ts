@@ -40,13 +40,29 @@ interface MigrationFile {
   checksum: string;
 }
 
-const sha256 = async (input: string): Promise<string> => {
+/**
+ * The digest `_app_migrations` stores for a migration body.
+ *
+ * Exported so `scripts/ci/no-mutated-applied-migration.sh` pins the digest THIS function computes rather than one a copy of it computes. A manifest pinning a value the runner does not produce would pin nothing, and a hand-copy makes that alignment a comment rather than a fact — change the algorithm here and the gate keeps passing against digests nothing checks against.
+ *
+ * @param input - A migration body, read as utf8.
+ * @returns Lowercase hex SHA-256.
+ */
+export const sha256 = async (input: string): Promise<string> => {
   const data = new TextEncoder().encode(input);
   const buf = await crypto.subtle.digest('SHA-256', data);
   return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
 };
 
-const loadMigrations = async (dir: string): Promise<MigrationFile[]> => {
+/**
+ * Every migration in `dir`, in apply order, with the digest the ledger compares against.
+ *
+ * Exported for the same reason as {@link sha256}: the immutability gate must walk migrations by the runner's own selection rule, not a re-implementation of it. Only top-level `*.sql` counts, so a subdirectory or a `.sql.bak` is not a migration.
+ *
+ * @param dir - The migrations directory.
+ * @returns One entry per migration, sorted by file name, each carrying its body and checksum.
+ */
+export const loadMigrations = async (dir: string): Promise<MigrationFile[]> => {
   const entries = readdirSync(dir, { withFileTypes: true })
     .filter((e) => e.isFile() && e.name.endsWith('.sql'))
     .map((e) => e.name)

@@ -21,11 +21,9 @@ alter table retention_config
 alter table retention_config alter column action_log_days set default 1;
 
 -- The default on the column governs no existing row, so the live singleton is
--- moved explicitly. Guarded on the old default so any other horizon survives,
--- which is a weaker promise than it looks: 0076 seeded the row at 7, so a
--- deliberate 7 is indistinguishable from an untouched one and gets moved too.
--- Accepted rather than solved (0076 records no "operator has edited this" bit,
--- and nothing is deployed yet to lose a setting); noted so a later reader does
--- not mistake the guard for full protection.
+-- moved explicitly. Guarded on the old default rather than set unconditionally:
+-- an operator who deliberately chose a horizon keeps it, and only an untouched
+-- 7 follows the new default. Stating it here because a silent stomp of a
+-- deliberate setting is exactly the class of surprise 0076 was written to end.
 update retention_config set action_log_days = 1, updated_at = now()
   where id = 1 and action_log_days = 7;

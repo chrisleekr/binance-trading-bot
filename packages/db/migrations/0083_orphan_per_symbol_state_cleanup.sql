@@ -3,9 +3,9 @@
 -- Until the unbind became a structural teardown, every path that dropped a
 -- `profile_symbols` row left the symbol's state behind. A `condition_states`
 -- row is closed only by the owning tick writing a null code, and an unbound
--- symbol never ticks again, so those rows can never close: they accumulate
--- without bound, and any reader of open conditions names coins the profile does
--- not hold. The reap made it systematic rather than rare, because it removes
+-- symbol never ticks again, so those rows can never close: the diagnosis read
+-- them back and named coins the profile does not hold as the reason it is not
+-- trading. The reap made it systematic rather than rare, because it removes
 -- exactly the symbols that never entered, and the reason they never entered IS
 -- the open condition row.
 --
