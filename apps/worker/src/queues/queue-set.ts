@@ -5,6 +5,7 @@
 
 import { Queue, type ConnectionOptions, type Job, type Processor, Worker } from 'bullmq';
 import type { Logger } from 'pino';
+import { redactDrizzleParamsMessage, redactDrizzleParamsText } from '@app/core/logger';
 import { QUEUE_NAMES, QUEUE_SPECS, type QueueName } from './queue-names.js';
 import type { DlqJobData } from './job-payloads.js';
 
@@ -38,21 +39,18 @@ const MAX_ERROR_MESSAGE_LEN = 600;
 const CREDENTIAL_URI = /(\/\/[^\s/:@]*:)[^\s/@]+@/g;
 
 /**
- * Fold an error's `cause` chain into a single message so the DLQ record and the
- * operator alert show WHY a job failed, not just the outermost wrapper. A
- * `RedisUnavailableError` carries the real Redis fault (eval-timeout vs
- * ECONNREFUSED) on `.cause`; a Drizzle "Failed query" wrapper carries the pg
- * error (connection terminated vs pool timeout) on `.cause`. The `failed`
- * handler below records only `err.message`, which drops that root — so an
- * incident reads as un-diagnosable. Walking `.cause` here restores it for every
- * wrapped error at one boundary. Bounded depth also breaks a cyclic chain.
+ * Folds a bounded `cause` chain into one diagnostic message after redacting each isolated message, so a Drizzle bind tail cannot consume a later driver cause when the parts are joined and a cyclic or pathological chain cannot grow the DLQ record without limit.
+ *
+ * @param err - The exhausted job error whose wrapper and bounded causes identify the failure.
+ * @returns The capped, credential-URI-redacted diagnostic message with Drizzle bind tails censored and useful cause text retained.
  */
 export const flattenErrorMessage = (err: Error): string => {
-  const parts = [err.message];
+  const parts = [redactDrizzleParamsMessage(err.message)];
   let cause: unknown = (err as { cause?: unknown }).cause;
   for (let depth = 0; cause != null && depth < MAX_CAUSE_DEPTH; depth += 1) {
     const c = cause as { name?: unknown; message?: unknown; cause?: unknown };
-    const msg = typeof c.message === 'string' ? c.message : String(cause);
+    const rawMessage = typeof c.message === 'string' ? c.message : String(cause);
+    const msg = redactDrizzleParamsMessage(rawMessage);
     const name = typeof c.name === 'string' && c.name !== 'Error' ? `${c.name}: ` : '';
     parts.push(`${name}${msg}`);
     cause = c.cause;
@@ -112,7 +110,7 @@ export const createQueueSet = ({ connection, logger }: CreateQueueSetOptions): Q
           // error), not just the wrapper. Without this the incident is opaque.
           errorMessage: flattenErrorMessage(err),
           originalData: job.data,
-          ...(err.stack !== undefined ? { stack: err.stack } : {}),
+          ...(err.stack !== undefined ? { stack: redactDrizzleParamsText(err.stack) } : {}),
           ...(userId !== undefined ? { userId } : {}),
           ...(profileId !== undefined ? { profileId } : {}),
         };

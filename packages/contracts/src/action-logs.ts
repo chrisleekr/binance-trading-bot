@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isBindableTimestamp } from './timestamp.js';
 
 /**
  * Single action-log row as exposed by `GET /profiles/:id/action-logs`.
@@ -95,6 +96,11 @@ export const ActionLogQuery = z.object({
       // rejected it at the edge with a 422.
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z\|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/,
       'cursor must be <isoMicroseconds>|<uuid>',
+    )
+    // The shape above counts digits; it does not read a calendar. Every field is two or four digits of anything, so year zero, month 99 and hour 99 all satisfy it, bind to `$n::timestamptz` and come back as a cast error the api's classifier has no case for — a 500 on a route whose only declared failure is 422. The regex still owns the microsecond precision the reader emits: a lower-precision cursor cannot address a row inside a shared microsecond, so honouring one would strand rows below the boundary silently.
+    .refine(
+      (v) => isBindableTimestamp(v.slice(0, v.indexOf('|'))),
+      'cursor timestamp must be a date Postgres can bind',
     )
     .optional(),
 });

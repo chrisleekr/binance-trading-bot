@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, vi } from 'vitest';
 import pino from 'pino';
 import type { Job, Queue, Worker } from 'bullmq';
@@ -16,8 +19,23 @@ import { technicalsComputeHandler } from '../../src/crons/technicals-compute.cro
 import type { QueueSet } from '../../src/queues/queue-set.js';
 import { QUEUE_NAMES } from '../../src/queues/queue-names.js';
 import type { ActiveProfile } from '../../src/profile-manager/profile-manager.js';
+import type { MetricName, MetricsSink } from '../../src/metrics/catalog.js';
 
 const silentLogger = pino({ level: 'silent' });
+
+const metricsStub = (): MetricsSink =>
+  ({ record: vi.fn(), forget: vi.fn() }) as unknown as MetricsSink;
+
+// Declared as the catalogue's own type, so a name the sink would silently drop is a compile error here rather than a series that never appears.
+const CRON_OVERRUN: MetricName = 'cron_overrun_total';
+
+const WORKER_ENTRYPOINT = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  'src',
+  'index.ts',
+);
 
 // Stub Redis for the retention-receipt write step. The handler only calls
 // `.set(key, value)` so a no-op stub is enough for the wiring assertions.
@@ -293,6 +311,65 @@ describe('registerCrons', () => {
 
     const delays = stub.added.filter((a) => a.queue === 'technicals-compute').map((a) => a.delay);
     expect(delays).toEqual([25_000, 0, 29_000]);
+  });
+
+  it('records an overrun when a run outlasts its self-reschedule period', async () => {
+    // The `Math.max(0, …)` floor absorbs an overrun silently: a run that spends longer than its period re-arms at 0 and is indistinguishable from a healthy back-to-back loop, so a cadence that has stopped holding produces no signal at all until somebody reads a duration by hand.
+    const crons = buildCrons();
+    const stub = buildStubQueueSet(crons.map((c) => c.queue));
+    stub.pendingCount['technicals-compute'] = 1; // suppress the boot seed
+    const metrics = metricsStub();
+
+    await registerCrons({
+      queueSet: stub.queueSet,
+      logger: silentLogger,
+      redis: opsRedis,
+      crons,
+      metrics,
+    });
+    const listeners = stub.workerListeners['technicals-compute'];
+    if (!listeners?.completed) throw new Error('completed listener not attached');
+
+    // 40s of work against the 30s period technicals-compute is defined with.
+    listeners.completed({ processedOn: 1_000, finishedOn: 41_000 });
+
+    expect(metrics.record).toHaveBeenCalledWith(CRON_OVERRUN, 1, { cron: 'technicals-compute' });
+    expect(metrics.record).toHaveBeenCalledTimes(1);
+  });
+
+  it('is handed the metrics sink at the boot call site', () => {
+    // `metrics` is optional on the deps, so deleting it from the boot call leaves every test in this file green while `cron_overrun_total` reads a flat zero forever. Reading the source is the only way to pin a wiring line that no unit test can reach.
+    const src = readFileSync(WORKER_ENTRYPOINT, 'utf8');
+    const call = /registerCrons\(\{([\s\S]*?)\}\)/.exec(src);
+    expect(
+      call,
+      'registerCrons is no longer called with an inline object literal; re-point this pin',
+    ).not.toBeNull();
+    // The PROPERTY, not the substring: `BootContext` also carries `metricsRegistry`, so a search for the letters alone stays green when the sink is swapped for the registry and the counter goes flat.
+    expect(call?.[1] ?? '').toMatch(/(^|[\s{,])metrics\s*:/);
+  });
+
+  it('records nothing when a run completes inside its period', async () => {
+    // A counter that also moves on healthy runs cannot carry an alert: the operator mutes it and the overrun it exists to report goes unseen.
+    const crons = buildCrons();
+    const stub = buildStubQueueSet(crons.map((c) => c.queue));
+    stub.pendingCount['technicals-compute'] = 1; // suppress the boot seed
+    const metrics = metricsStub();
+
+    await registerCrons({
+      queueSet: stub.queueSet,
+      logger: silentLogger,
+      redis: opsRedis,
+      crons,
+      metrics,
+    });
+    const listeners = stub.workerListeners['technicals-compute'];
+    if (!listeners?.completed) throw new Error('completed listener not attached');
+
+    // 5s of work against the same 30s period.
+    listeners.completed({ processedOn: 1_000, finishedOn: 6_000 });
+
+    expect(metrics.record).not.toHaveBeenCalled();
   });
 
   it('self-rescheduling cron does NOT re-arm on a non-terminal (will-retry) failure', async () => {

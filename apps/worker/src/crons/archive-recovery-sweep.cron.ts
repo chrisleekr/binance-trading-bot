@@ -19,8 +19,14 @@
 
 import type { Job, Queue } from 'bullmq';
 import type { Logger } from 'pino';
-import { profileRepo } from '@app/db';
+import {
+  isStatementTimeout,
+  poolCheckoutTimeoutKind,
+  profileRepo,
+  withStatementTimeout,
+} from '@app/db';
 import type { BootContext } from 'boot/boot-context.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 import type { ActiveProfile } from 'profile-manager/profile-manager.js';
 import { QUEUE_NAMES } from 'queues/queue-names.js';
 import { defineCron, type CronDef } from './define.js';
@@ -32,6 +38,29 @@ import { defineCron, type CronDef } from './define.js';
  * on the following runs, so the backlog drains at a bounded rate.
  */
 const MAX_SYMBOLS_PER_PROFILE_PER_RUN = 5;
+
+/** How long between passes. Named once because `PASS_BUDGET_MS` is derived from it: a budget hardcoded next to the period is free to drift away from it. */
+const SELF_RESCHEDULE_PERIOD_MS = 900_000;
+
+/**
+ * Execution budget for ONE STATEMENT of a profile's recoverable-symbol lookup, not for the lookup as a whole.
+ *
+ * This is NOT what keeps the pass inside its cadence, and it is not the repair for any query that has been slow in the past. A query that re-executed a subplan per candidate fill is what once made this sweep run for eight hours, and that was fixed in the query itself, by binding every outer reference in the coverage predicate to its immediate parent so the planner flattens it into an anti-join. That rewrite is asserted by a plan-shape test, and flattening is decided at rewrite time rather than by cost estimates, so it cannot come back through statistics drift.
+ *
+ * What this budget buys is narrower and structural: the loop is serial, so a statement that never returns parks the loop inside its `await`, and no per-pass deadline can even be evaluated while that is true. A server-side cancel is the only mechanism that hands control back WITHOUT stranding the connection, since racing a timer against the promise abandons the query and `pg` releases a pooled connection only when its query settles. So this bound exists to make `PASS_BUDGET_MS` reachable, for whatever unbounded await comes next: a lock wait, chunk growth, a predicate a later change adds.
+ *
+ * 30s bounds a stall rather than policing a slow but working query. The healthy query returns in roughly a tenth of a second, so only a query that has stopped behaving reaches this.
+ */
+const PER_STATEMENT_QUERY_BUDGET_MS = 30_000;
+
+/**
+ * Wall-clock budget for ONE PASS over the active profiles, checked before each profile is started.
+ *
+ * `statement_timeout` caps each STATEMENT, and one profile issues two that can stall, the ownership join minted by `scopeProfile` and `listRecoverableSymbols` itself. So the per-statement bound alone lets a pathological pass run for `2 x budget x active profiles`, and nothing bounds the active-profile count. Without a bound on the pass, the cron's own cadence is not held by any constant in this file, and the only thing that would report the breach is `cron_overrun_total` AFTER the run ends.
+ *
+ * Two thirds of the period. The check is made before a profile is started, not while one is running, so a pass can overshoot by one profile's worst case of `2 x PER_STATEMENT_QUERY_BUDGET_MS`: 600s of budget plus 60s of overshoot stays inside the 900s period, so a pass that exhausts its budget still re-arms with a positive delay instead of back to back. The remaining third also leaves room for the backfill jobs this pass enqueues, which run on the pipeline queue against the same database.
+ */
+const PASS_BUDGET_MS = (SELF_RESCHEDULE_PERIOD_MS * 2) / 3;
 
 /**
  * The run's slice of a profile's recoverable set, rotated by `offset` symbols.
@@ -60,6 +89,10 @@ export interface ArchiveRecoverySweepDeps {
   /** Closed cycles with no archive row and no still-valid backfill attempt. */
   readonly listRecoverable: (profile: ActiveProfile) => Promise<readonly string[]>;
   readonly enqueueBackfill: (profile: ActiveProfile, symbol: string) => Promise<void>;
+  /** Optional so a test or a caller that wires no metrics still runs the sweep; a missing sink loses the counts, never the repair. */
+  readonly metrics?: MetricsSink;
+  /** Wall-clock source for the pass budget. Optional because the default is a real clock, so the bound holds whether or not a caller wires one; tests inject a controllable clock to drive the budget deterministically. */
+  readonly clock?: { nowMs(): number };
 }
 
 export const archiveRecoverySweepHandler = (deps: ArchiveRecoverySweepDeps) => {
@@ -67,23 +100,44 @@ export const archiveRecoverySweepHandler = (deps: ArchiveRecoverySweepDeps) => {
   // a lock: the worker is single-replica, and a lost count after a restart only
   // re-picks the head, which is the pre-rotation behaviour rather than a fault.
   let run = 0;
+  // Resume cursor into the active-profile list, advanced by however many profiles a run actually reached. `listActive` returns a stable order, so a pass that stops at its budget stops at the same place every time; without resuming, the profiles past that point would never be swept at all. That is the starvation `rotatedBatch` prevents among one profile's symbols, one level up. In-process state, not a lock: the worker is single-replica, and a lost cursor after a restart only re-sweeps from the head.
+  let profileCursor = 0;
   return async (_job: Job): Promise<void> => {
+    const clock = deps.clock ?? { nowMs: () => Date.now() };
+    const startedMs = clock.nowMs();
     const offset = run * MAX_SYMBOLS_PER_PROFILE_PER_RUN;
     run += 1;
     const profiles = deps.listActive();
     if (profiles.length === 0) {
-      deps.logger.debug('cron archive-recovery-sweep: no active profiles; skipped');
+      // Reported rather than skipped silently. A run that emits neither a line nor a counter is indistinguishable from the cron not running at all, and the counter makes that worse rather than better, because the sink creates a series on first use and an all-idle deployment would never create one.
+      deps.logger.info(
+        { active: 0, swept: 0, failed: 0, timedOut: 0, unswept: 0, enqueued: 0, deferred: 0 },
+        'cron archive-recovery-sweep: complete; no active profiles',
+      );
       return;
+    }
+    // Rotated up front so the loop reads in one order and the cursor arithmetic below has one meaning. Same guard shape as `rotatedBatch`: the modulo can never land out of range, and skipping a hole rather than asserting keeps an impossible case from taking the whole pass down.
+    const start = profileCursor % profiles.length;
+    const rotated: ActiveProfile[] = [];
+    for (let i = 0; i < profiles.length; i += 1) {
+      const candidate = profiles[(start + i) % profiles.length];
+      if (candidate !== undefined) rotated.push(candidate);
     }
     let enqueued = 0;
     let deferred = 0;
-    for (const profile of profiles) {
+    let swept = 0;
+    let failed = 0;
+    let timedOut = 0;
+    let reached = 0;
+    for (const profile of rotated) {
+      // Before the work, not after: a profile the pass never started is not one it reached.
+      if (clock.nowMs() - startedMs >= PASS_BUDGET_MS) break;
+      reached += 1;
       // Per-profile isolation: one profile's DB or queue fault must not stop the
       // sweep from repairing every other profile's history.
       try {
         const symbols = await deps.listRecoverable(profile);
-        if (symbols.length === 0) continue;
-        const batch = rotatedBatch(symbols, offset);
+        const batch = symbols.length === 0 ? [] : rotatedBatch(symbols, offset);
         deferred += symbols.length - batch.length;
         for (const symbol of batch) {
           await deps.enqueueBackfill(profile, symbol);
@@ -93,14 +147,49 @@ export const archiveRecoverySweepHandler = (deps: ArchiveRecoverySweepDeps) => {
             'cron archive-recovery-sweep: closed cycle with no archive row; backfill enqueued',
           );
         }
+        // A profile with nothing to repair counts as reached, not as skipped: the question the counts answer is how far the pass got, not how much work it found.
+        swept += 1;
+        deps.metrics?.record('archive_recovery_sweep_profiles_total', 1, { outcome: 'swept' });
       } catch (err) {
+        // Three fault shapes, three counts. A cancelled query says the query has degraded until it no longer fits its budget; a broken one says it errored; a refused checkout says the pool was empty before this profile's work began. The third is the account-wide shape — every profile in the pass fails identically — and folding it into `failed` makes a starved pool indistinguishable from one profile's broken query. `withStatementTimeout` opens a transaction, so the checkout is now this sweep's first failure mode, not a theoretical one.
+        const outcome = poolCheckoutTimeoutKind(err)
+          ? 'checkout'
+          : isStatementTimeout(err)
+            ? 'timeout'
+            : 'failed';
+        if (outcome === 'timeout') timedOut += 1;
+        else failed += 1;
+        deps.metrics?.record('archive_recovery_sweep_profiles_total', 1, { outcome });
         deps.logger.warn(
-          { err: err, profileId: profile.profileId },
+          { err: err, profileId: profile.profileId, outcome },
           'cron archive-recovery-sweep: profile sweep failed (will retry next run)',
         );
       }
     }
-    deps.logger.info({ enqueued, deferred }, 'cron archive-recovery-sweep: complete');
+    // Advanced by what this pass reached, so the next one starts on the first profile this one did not.
+    profileCursor = start + reached;
+    const unswept = rotated.length - reached;
+    if (unswept > 0) {
+      // Counted by the profiles left behind rather than as one event, so the series answers "how much of the list is going unswept" instead of "did this happen".
+      deps.metrics?.record('archive_recovery_sweep_profiles_total', unswept, {
+        outcome: 'unswept',
+      });
+      deps.logger.warn(
+        {
+          active: rotated.length,
+          reached,
+          unswept,
+          budgetMs: PASS_BUDGET_MS,
+          elapsedMs: clock.nowMs() - startedMs,
+        },
+        'cron archive-recovery-sweep: pass budget exhausted; remaining profiles deferred to the next run',
+      );
+    }
+    // `enqueued` alone cannot separate "nothing needed repair" from "the pass never reached most of the list", which is what made an eight-hour run look like a quiet one.
+    deps.logger.info(
+      { active: rotated.length, swept, failed, timedOut, unswept, enqueued, deferred },
+      'cron archive-recovery-sweep: complete',
+    );
   };
 };
 
@@ -139,15 +228,17 @@ export const buildArchiveRecoverySweepCron = (ctx: BootContext): CronDef =>
     // 15 minutes, matching the other convergence backstops. A missing history
     // row is not time-critical (the money already moved and the fills are
     // recorded); what matters is that it heals without the operator noticing.
-    selfReschedulePeriodMs: 900_000,
+    selfReschedulePeriodMs: SELF_RESCHEDULE_PERIOD_MS,
     handler: archiveRecoverySweepHandler({
       logger: ctx.logger,
       listActive: ctx.listActive,
-      listRecoverable: async (p) => {
-        const scoped = await profileRepo(ctx.db, p.operatorId, p.accountId, p.profileId);
-        return scoped.tradeArchive.listRecoverableSymbols();
-      },
+      listRecoverable: (p) =>
+        withStatementTimeout(ctx.db, PER_STATEMENT_QUERY_BUDGET_MS, async (tx) => {
+          const scoped = await profileRepo(tx, p.operatorId, p.accountId, p.profileId);
+          return scoped.tradeArchive.listRecoverableSymbols();
+        }),
       enqueueBackfill: (p, symbol) =>
         enqueueBackfillJob(ctx.queueSet.queues[QUEUE_NAMES.pipeline], p, symbol),
+      metrics: ctx.metrics,
     }),
   });

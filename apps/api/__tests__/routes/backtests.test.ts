@@ -247,6 +247,34 @@ describeIfInfra('backtests routes', () => {
     }
   });
 
+  it('still accepts the legacy bare-ISO cursor, whose missing id keeps a same-timestamp group whole', async () => {
+    // The wire contract documents this shape as accepted, and the new schema-level gate sits in front of it, so it needs a test of its own: `z.iso.datetime()` is STRICTER than the `Number.isNaN(new Date(...))` guard it replaced — it rejects a `+00:00` offset a Date parses happily — and nothing else would notice the branch closing.
+    const fresh = await setupApp();
+    try {
+      for (let i = 0; i < 3; i++) {
+        const ok = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
+        expect(ok.status).toBe(202);
+      }
+      const url = `/api/accounts/${fresh.alice.accountId}/profiles/${fresh.alice.profileId}/backtests`;
+      const headers = { 'x-test-user-id': fresh.alice.userId };
+
+      const p1 = await fresh.app.request(`${url}?limit=2`, { headers });
+      const page1 = (await p1.json()) as { nextCursor: string | null };
+      // The timestamp half of a cursor the route itself emitted, sent WITHOUT its row id.
+      const bare = (page1.nextCursor as string).split('__')[0] as string;
+
+      const p2 = await fresh.app.request(`${url}?limit=2&cursor=${encodeURIComponent(bare)}`, {
+        headers,
+      });
+      expect(p2.status).toBe(200);
+      // A page, not an error envelope: the bare cursor has to page, not merely validate.
+      const page2 = (await p2.json()) as { items: { runId: string }[] };
+      expect(page2.items.length).toBeGreaterThan(0);
+    } finally {
+      await fresh.cleanup();
+    }
+  });
+
   it('GET list filters by outcome (profit / loss / error)', async () => {
     // Fresh profile so only the runs seeded here exist.
     const fresh = await setupApp();
@@ -331,6 +359,21 @@ describeIfInfra('backtests routes', () => {
     // Both cursor halves are guarded before the DB: an unparseable timestamp
     // and a non-uuid id would otherwise reach Postgres and 500.
     for (const bad of ['not-a-date', '2026-01-01T00:00:00.000Z__not-a-uuid']) {
+      const res = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/backtests?cursor=${encodeURIComponent(bad)}`,
+        { headers: { 'x-test-user-id': fx.alice.userId } },
+      );
+      expect(res.status).toBe(422);
+    }
+  });
+
+  it('rejects the two cursors a JS Date accepts and Postgres cannot bind', async () => {
+    // `Number.isNaN(new Date(...))` is not the same question as "will Postgres take this as a timestamptz". A JS Date has a year zero (it reads as 1 BC) and parses a fractional second of any length, so both of these survive the guard, reach `$n::timestamptz`, and come back as a cast error — neither a statement timeout nor a checkout timeout, so it falls through the classifier to an unhandled 500 on a route whose only declared failure is 422.
+    const id = '00000000-0000-4000-8000-0000000000c2';
+    for (const bad of [
+      `0000-01-01T00:00:00.000000Z__${id}`,
+      `2026-01-01T00:00:00.${'1'.repeat(200)}Z__${id}`,
+    ]) {
       const res = await fx.app.request(
         `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/backtests?cursor=${encodeURIComponent(bad)}`,
         { headers: { 'x-test-user-id': fx.alice.userId } },

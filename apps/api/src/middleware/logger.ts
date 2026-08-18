@@ -1,6 +1,20 @@
 import type { MiddlewareHandler } from 'hono';
 import pino, { type DestinationStream, type Logger } from 'pino';
+import { scrubDrizzleParams } from '@app/core/logger';
 import type { Env } from 'types.js';
+
+/**
+ * The `err` serializer both this logger and the worker's install: pino's own, followed by a pass that strips drizzle's bound query parameters out of the result.
+ *
+ * The identity check is what keeps the passthrough intact. pino's serializer returns the SAME reference when handed something that is not error-like — a plain `{ code: -1013 }` from the Binance client, say — and that value belongs to the caller, so scrubbing it would mutate a live object the request is still using. Only a value the serializer actually built is ours to edit.
+ *
+ * @param e - Whatever was logged under the `err` key, error-like or not.
+ * @returns The serialized record with any bind values redacted, or the original value untouched when pino declined to serialize it.
+ */
+const errSerializer = (e: unknown): unknown => {
+  const serialized: unknown = pino.stdSerializers.err(e as Error);
+  return serialized === e ? serialized : scrubDrizzleParams(serialized);
+};
 
 export const createLogger = (opts: {
   level: pino.Level;
@@ -9,7 +23,7 @@ export const createLogger = (opts: {
   pino(
     {
       level: opts.level,
-      serializers: { err: pino.stdSerializers.err },
+      serializers: { err: errSerializer },
       redact: {
         paths: [
           'key',

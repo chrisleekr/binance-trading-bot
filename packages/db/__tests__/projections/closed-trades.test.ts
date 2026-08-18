@@ -37,6 +37,7 @@ describeIfDb('getClosedTradesForPeriod', () => {
     const out = await getClosedTradesForPeriod(scope, {
       period: 'm',
       tz: 'UTC',
+      quoteAsset: 'USDT',
       from: new Date('2026-05-01T00:00:00Z'),
       to: new Date('2026-05-31T00:00:00Z'),
     });
@@ -50,6 +51,7 @@ describeIfDb('getClosedTradesForPeriod', () => {
     const out = await getClosedTradesForPeriod(scope, {
       period: 'd',
       tz: 'UTC',
+      quoteAsset: 'USDT',
       from: new Date('2026-05-17T00:00:00Z'),
       to: new Date('2026-05-18T00:00:00Z'),
     });
@@ -61,6 +63,7 @@ describeIfDb('getClosedTradesForPeriod', () => {
     const out = await getClosedTradesForPeriod(scope, {
       period: 'm',
       tz: 'UTC',
+      quoteAsset: 'USDT',
       from: new Date('2026-05-01T00:00:00Z'),
       to: new Date('2026-05-31T00:00:00Z'),
     });
@@ -72,6 +75,7 @@ describeIfDb('getClosedTradesForPeriod', () => {
     const out = await getClosedTradesForPeriod(scope, {
       period: 'd',
       tz: 'UTC',
+      quoteAsset: 'USDT',
       from: new Date('2026-05-17T00:00:00Z'),
       to: new Date('2026-05-18T00:00:00Z'),
     });

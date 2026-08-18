@@ -24,7 +24,7 @@ import { periodWindow } from 'lib/period-window.js';
 import { HttpError } from 'middleware/error.js';
 import { requireUser } from 'middleware/require-user.js';
 import { requireNotDemo } from 'middleware/require-not-demo.js';
-import { accountScopeOf, scopeOf } from 'route-helpers.js';
+import { accountScopeOf, requireOwnedProfile, scopeOf } from 'route-helpers.js';
 import { createApiHono, type ApiHono } from 'types.js';
 
 const ProfileIdParam = z.object({ profileId: z.uuid() });
@@ -237,7 +237,12 @@ export const dashboardRouter = (di: DI): ApiHono => {
   });
 
   app.openapi(closedTradesRoute, async (c) => {
-    const p = await scopeOf(c, di, asProfileId(c.req.valid('param').profileId));
+    // Needs the profile row, not just the scope: the archive spans every quote the profile has ever traded, so the widget has to name the one it is counting in.
+    const { p, profile } = await requireOwnedProfile(
+      c,
+      di,
+      asProfileId(c.req.valid('param').profileId),
+    );
     const { period, tz } = c.req.valid('query');
     const { from, to } = periodWindow(period, tz, new Date());
     const closedTrades = await projections.getClosedTradesForPeriod(p.scope, {
@@ -245,6 +250,7 @@ export const dashboardRouter = (di: DI): ApiHono => {
       tz,
       from,
       to,
+      quoteAsset: profile.quoteAsset,
     });
     return c.json(closedTrades, 200);
   });
@@ -253,7 +259,11 @@ export const dashboardRouter = (di: DI): ApiHono => {
     const p = await scopeOf(c, di, asProfileId(c.req.valid('param').profileId));
     const { from, to, limit } = c.req.valid('query');
     const profile = await p.profile.findById();
+    // `scopeOf` already proved the profile is reachable, so a missing row means it went away under this request. Substituting `''` would read the series in a currency nothing settles in, and the route would answer 200 with no points and an empty denomination label — "you have no equity history" in place of "gone", and a claim about currency the response cannot make.
+    if (!profile) throw new HttpError('NOT_FOUND', `profile ${p.scope.profileId}`);
     const rows = await p.equitySnapshots.listForProfileInRange(
+      // The response labels every point with this same value, so the series has to be READ in it too — otherwise a quote change leaves an old-currency tail plotted under the new label.
+      profile.quoteAsset,
       from ? new Date(from) : new Date(0),
       to ? new Date(to) : new Date(),
       limit,
@@ -261,10 +271,10 @@ export const dashboardRouter = (di: DI): ApiHono => {
     return c.json(
       {
         profileId: p.scope.profileId,
-        quoteAsset: profile?.quoteAsset ?? '',
+        quoteAsset: profile.quoteAsset,
         // Parse at the boundary (fail safe to 'btc') rather than asserting: the
         // column is plain text, guarded only by a DB CHECK on writes.
-        benchmarkMode: BenchmarkMode.catch('btc').parse(profile?.benchmarkMode),
+        benchmarkMode: BenchmarkMode.catch('btc').parse(profile.benchmarkMode),
         points: rows.map((r) => ({
           capturedAt: r.capturedAt.toISOString(),
           netPnlQuote: r.netPnlQuote as DecimalString,

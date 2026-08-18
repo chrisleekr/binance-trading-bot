@@ -47,6 +47,24 @@ describe('defaultQueryClientConfig', () => {
     expect(retry(0, new Error('x'))).toBe(true);
     expect(retry(2, new Error('x'))).toBe(false);
   });
+
+  it('fetches a 503 exactly once instead of three times', async () => {
+    // A 503 from this api means the pool refused a checkout or a read blew its execution budget — the server is already short of connections. Retrying triples the load the SPA puts on it at precisely the moment it has least to give, and every polling surface retries at once, so the retry storm is what turns a slow read into an outage. There is nothing to win either: unlike a dropped connection, this failure is the server declining on purpose.
+    // Counted through a real fetch rather than by calling the predicate, because the predicate is only half the behaviour — a `retryDelay` or a per-query override could still put a second request on the wire.
+    let calls = 0;
+    const client = createQueryClient();
+    await expect(
+      client.fetchQuery({
+        queryKey: ['pool-starved'],
+        queryFn: () => {
+          calls += 1;
+          return Promise.reject(new ApiError(503, 'SERVICE_UNAVAILABLE', 'pool exhausted'));
+        },
+        retryDelay: 0,
+      }),
+    ).rejects.toThrow('pool exhausted');
+    expect(calls).toBe(1);
+  });
 });
 
 describe('createQueryClient', () => {

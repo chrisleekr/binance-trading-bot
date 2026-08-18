@@ -142,17 +142,21 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
   // hidden state itself is server-side per profile).
   const [showHidden, setShowHidden] = useState(false);
 
-  const queryKey = ['profile', 'archive', profileId, period, page.cursor, timeZone];
+  // `'full'` is part of the key, not just of the request: a rollup response and a full one are different answers to the same URL, and this component renders a page. No collision exists today only because the rollup callers happen to use a different key root, which is not an invariant anything enforces.
+  const queryKey = ['profile', 'archive', profileId, period, page.cursor, timeZone, 'full'];
 
   const list = useQuery({
     queryKey,
-    queryFn: () => fetchProfileArchive(profileId, period, page.cursor, timeZone),
+    // The full view, explicitly: every default below depends on it.
+    queryFn: () => fetchProfileArchive(profileId, period, page.cursor, timeZone, 'full'),
     refetchInterval: recovering ? 3000 : false,
   });
 
+  // These two defaults are safe ONLY because the query above always asks for the full view, so a response reaching this component always carried a page. Under `rollup` they would be a lie of the kind the line below refuses: `[]` would claim the window holds no trades and `null` would claim end-of-stream, neither of which a rollup-only read checked. If this query ever takes its view from a prop, these have to branch on `undefined` too.
   const items = list.data?.items ?? [];
   const nextCursor = list.data?.nextCursor ?? null;
-  const recoverableSymbols = list.data?.recoverableSymbols ?? [];
+  // Left possibly-undefined on purpose, never defaulted to `[]`. Absent means this response did not compute the set; `[]` means it did and every coin is accounted for. Only the second is evidence a recovery finished, so collapsing them would let a response that answered a different question close out a recovery that has not happened.
+  const recoverableSymbols = list.data?.recoverableSymbols;
   const unreconstructableSymbols = list.data?.unreconstructableSymbols ?? [];
   const unreconstructableVisible = unreconstructableSymbols.filter((u) => !u.dismissed);
   const unreconstructableHidden = unreconstructableSymbols.filter((u) => u.dismissed);
@@ -164,7 +168,8 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
   // timeout re-arms whenever the set shrinks, so genuine progress keeps polling.
   useEffect(() => {
     if (!recovering) return;
-    if (recoverableSymbols.length === 0) {
+    // An empty ARRAY ends the recovery; an absent one does not.
+    if (recoverableSymbols?.length === 0) {
       setRecovering(false);
       // Don't paint over a partial-failure banner from onRecoverAll: if some
       // coins failed to enqueue, that error stays the visible message.
@@ -173,7 +178,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
     }
     const stop = setTimeout(() => setRecovering(false), 45_000);
     return () => clearTimeout(stop);
-  }, [recovering, recoverableSymbols.length]);
+  }, [recovering, recoverableSymbols?.length]);
 
   // Collapse the "Show hidden" reveal once the hidden set empties, so a future
   // hide doesn't re-open it already expanded from stale local state.
@@ -182,7 +187,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
   }, [unreconstructableHidden.length]);
 
   const onRecoverAll = async (): Promise<void> => {
-    if (recovering || recoverableSymbols.length === 0) return;
+    if (recovering || recoverableSymbols === undefined || recoverableSymbols.length === 0) return;
     const targets = recoverableSymbols;
     setRecovering(true);
     setBanner(null);
@@ -279,7 +284,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
       </div>
 
       {/* Actionable warning: only coins we haven't yet found unrecoverable. */}
-      {recoverableSymbols.length > 0 ? (
+      {recoverableSymbols !== undefined && recoverableSymbols.length > 0 ? (
         <Alert variant="warning" data-testid="archive-missing-nudge">
           <AlertTitle>Trade history incomplete</AlertTitle>
           <AlertDescription className="space-y-3">

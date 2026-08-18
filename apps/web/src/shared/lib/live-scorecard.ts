@@ -22,6 +22,8 @@ export function maxDrawdownQuote(points: readonly EquitySnapshotPoint[] | undefi
 
 /** The bucket fields the period rollups (by source / by intent) carry. */
 interface MergeableBucket {
+  /** The currency this bucket's money is denominated in. The server buckets by `(quoteAsset, dimension)`, so a profile whose quote was changed carries one bucket per currency. */
+  readonly quoteAsset: string;
   readonly tradeCount: number;
   readonly wins: number;
   readonly losses: number;
@@ -31,12 +33,19 @@ interface MergeableBucket {
 }
 
 /**
- * Sum per-source (or per-intent) rollup buckets into one overall bucket, so the
- * scorecard's headline win-rate / profit-factor / expectancy cover all of a
- * period's closed trades rather than one partition. Money fields are summed as
- * `number` — display only; the scorecard never feeds order math.
+ * Sum per-source (or per-intent) rollup buckets into one overall bucket, so the scorecard's headline win-rate / profit-factor / expectancy cover all of a period's closed trades rather than one partition. Money fields are summed as `number` — display only; the scorecard never feeds order math.
+ *
+ * `quoteAsset` is required rather than defaulted. The server buckets by `(quoteAsset, dimension)` and these consumers ask for the all-time window, so a profile whose quote was changed after it had closed cycles returns buckets in two currencies. Summing them would add a BTC figure to a USDT one and label the result with the profile's current quote — the same defect the server aggregates were just fixed for, and one that shows no error.
+ *
+ * @param buckets - Period rollup buckets, possibly spanning several currencies.
+ * @param quoteAsset - The currency to count in; buckets in any other are dropped. Compared case-folded because `profiles.quoteAsset` may be stored lower or mixed case while the archive carries Binance's upper casing.
+ * @returns One bucket denominated in `quoteAsset`, zeroed when no bucket matches.
  */
-export function mergeRollupBuckets(buckets: readonly MergeableBucket[]): RollupStatsBucket {
+export function mergeRollupBuckets(
+  buckets: readonly MergeableBucket[],
+  quoteAsset: string,
+): RollupStatsBucket {
+  const quote = quoteAsset.toUpperCase();
   let tradeCount = 0;
   let wins = 0;
   let losses = 0;
@@ -44,6 +53,7 @@ export function mergeRollupBuckets(buckets: readonly MergeableBucket[]): RollupS
   let grossLoss = 0;
   let totalFees = 0;
   for (const b of buckets) {
+    if (b.quoteAsset.toUpperCase() !== quote) continue;
     tradeCount += b.tradeCount;
     wins += b.wins;
     losses += b.losses;

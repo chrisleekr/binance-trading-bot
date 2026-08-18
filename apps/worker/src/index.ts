@@ -5,7 +5,7 @@
 //   2. Register crons (`buildCrons(ctx)` -> `registerCrons`).
 //   3. Prime exchangeInfo so the first tick reads a warm cache.
 //   4. Start lifecycle components.
-//   5. Register tick + pipeline workers (only after step 4 — see #213).
+//   5. Register tick + pipeline workers (only after step 4).
 //   6. Start admin server (readiness probe answers "ready" once everything
 //      above is up).
 //   7. Install SIGTERM/SIGINT graceful shutdown (≤10s drain).
@@ -127,7 +127,8 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
     ...(await startRuntimeGauges({ queues: queueSet.queues, pool, metrics: ctx.metrics, logger })),
   );
 
-  if (runsLive) await registerCrons({ queueSet, logger, redis, crons: buildCrons(ctx) });
+  if (runsLive)
+    await registerCrons({ queueSet, logger, redis, crons: buildCrons(ctx), metrics: ctx.metrics });
 
   // Typed ordering gate: prime exchangeInfo BEFORE any tick worker is
   // registered. Without this, BullMQ can dequeue a tick job between
@@ -248,7 +249,7 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
       symbolStateDeps: ctx.symbolStateDeps,
       // Re-elect stream ownership right after a subscribe/unsubscribe applies,
       // so the account's user-data stream opens/closes now instead of waiting
-      // for ownership's own interval (profileManager no longer opens it). #579.
+      // for ownership's own interval (profileManager no longer opens it).
       reconcileOwnership: () => ctx.subscriptionOwnership.reconcile(),
       // Retires the profile's own metric children when a teardown lands, so a
       // stopped profile stops exporting a live-looking reading.
@@ -377,7 +378,7 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
   // runs no userStreamPool (`subscriptionOwnership.start()` below is runsLive-
   // gated), so if it marked ready the HRW owner election could hand it an
   // account's user-data stream that nothing would ever open — an orphaned stream
-  // whose fills are never adopted (#640). Owner election considers only READY
+  // whose fills are never adopted. Owner election considers only READY
   // members, so leaving study un-ready excludes it from ownership by construction.
   if (runsLive) await memberRegistry.markReady();
 
@@ -386,7 +387,7 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
   // own, and re-run on the heartbeat cadence so a membership change re-homes.
   // Live role only — the study role has no user-data streams.
   if (runsLive) await ctx.subscriptionOwnership.start();
-  // Fleet-global enabled-set converge (#579): after ownership so its first
+  // Fleet-global enabled-set converge: after ownership so its first
   // pass re-elects over the boot membership, then keep membership fleet-wide as
   // runtime subscribe/unsubscribe jobs land on individual pods.
   if (runsLive) await ctx.enabledSetReconciler.start();

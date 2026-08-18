@@ -14,8 +14,10 @@ export const defaultQueryClientConfig: QueryClientConfig = {
       gcTime: THIRTY_MINUTES_MS,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
+      // 503 joins 401 as a status worth no retry, for the opposite reason. A 401 cannot succeed on a second try; a 503 from this api means the server declined on purpose — a pooled connection was refused or a read blew its execution budget — so it is already short of the exact resource a retry consumes more of. Every polling surface would retry at once, and that storm is what turns a slow read into an outage. A dropped connection or a 5xx from anything else still retries.
       retry: (failureCount, error) => {
-        if (error instanceof ApiError && error.status === 401) return false;
+        if (error instanceof ApiError && (error.status === 401 || error.status === 503))
+          return false;
         return failureCount < MAX_RETRIES;
       },
     },

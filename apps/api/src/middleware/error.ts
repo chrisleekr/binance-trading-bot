@@ -1,6 +1,8 @@
 import { errorCodeToStatus, type ErrorCode } from '@app/contracts';
 import {
   AccountNotOwnedError,
+  poolCheckoutTimeoutKind,
+  isStatementTimeout,
   ProfileNotOwnedError,
   SiblingQuoteConflictError,
   SymbolOwnershipConflictError,
@@ -92,6 +94,24 @@ const buildResponse = (err: unknown, logger: Logger, path: string): Response => 
     isConflictErrorShape(err)
   ) {
     return respond('CONFLICT', (err as { message: string }).message, undefined);
+  }
+  // Two database faults that mean "not right now" rather than "this code is broken", so they answer 503 and are logged at warn: an `unhandled` error line for a saturated pool reads as a defect and sends whoever is on call looking for one. Both classifiers are duck-typed predicates over the error shape (same rationale as above — the driver error crosses a package boundary and instanceof cannot be trusted), and both walk the `cause` chain because drizzle wraps what the driver threw.
+  // Every message differs so the operator can tell the bounds apart from the response alone, and the checkout case is split rather than collapsed: a pool that stayed full is capacity and is answered by more connections, while a handshake the database never completed is answered by fixing the database — raising the pool max there aims more concurrent attempts at a server already failing to answer. One sentence for both would send the operator the wrong way in exactly the half where it costs most.
+  const checkoutKind = poolCheckoutTimeoutKind(err);
+  if (checkoutKind !== null) {
+    const queueWait = checkoutKind === 'queue-wait';
+    logger.warn({ err, path }, queueWait ? 'db_pool_checkout_timeout' : 'db_connect_timeout');
+    return respond(
+      'SERVICE_UNAVAILABLE',
+      queueWait
+        ? 'database connections exhausted, retry shortly'
+        : 'database did not accept a connection, retry shortly',
+      undefined,
+    );
+  }
+  if (isStatementTimeout(err)) {
+    logger.warn({ err, path }, 'db_statement_timeout');
+    return respond('SERVICE_UNAVAILABLE', 'database query exceeded its time budget', undefined);
   }
   logger.error({ err, path }, 'unhandled');
   return respond('INTERNAL', 'internal server error', undefined);

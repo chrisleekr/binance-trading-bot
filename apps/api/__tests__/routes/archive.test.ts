@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
+import { recordPoolCheckouts } from '../_pool-checkouts.js';
 
 /**
  * The trade-archive backfill trigger. The route is strategy-agnostic (no
@@ -384,6 +385,35 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
     expect(res.status).toBe(422);
   });
 
+  // Three cursors that `z.iso.datetime()` accepts and Postgres does not, plus the value on the safe side of each bound. Every one of them would otherwise bind to `$n::timestamptz` and come back as a cast error — neither a statement timeout nor a checkout timeout, so it falls through the classifier to an unhandled 500 on a route whose declared failures are 422 and 503.
+  const ID = '11111111-1111-4111-8111-111111111111';
+  const cursorStatus = async (cursor: string): Promise<number> => {
+    const res = await fx.app.request(
+      `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive?cursor=${encodeURIComponent(cursor)}`,
+      { method: 'GET', headers: headers(fx.bob.userId) },
+    );
+    return res.status;
+  };
+
+  it('rejects the one ISO year Postgres cannot represent', async () => {
+    // AD/BC notation has no year zero, so this is SQLSTATE 22008 at the cast.
+    expect(await cursorStatus(`0000-01-01T00:00:00.000000Z__${ID}`)).toBe(422);
+    // The other side of the bound, so the guard stays a year-zero check rather than a lower bound someone widens later.
+    expect(await cursorStatus(`0001-01-01T00:00:00.000000Z__${ID}`)).toBe(200);
+  });
+
+  it('rejects a fractional second long enough to overrun the datetime parser', async () => {
+    // zod bounds the fraction at `\.\d+` — no upper limit — while Postgres parses datetime input through a fixed work buffer and refuses the literal outright once it overruns, rather than rounding the excess away as it does for a merely over-precise fraction.
+    expect(await cursorStatus(`2026-01-01T00:00:00.${'1'.repeat(200)}Z__${ID}`)).toBe(422);
+    // A hundred digits still fits the buffer and rounds to microseconds, so the bound must not be so tight that it rejects what the database would have taken.
+    expect(await cursorStatus(`2026-01-01T00:00:00.${'1'.repeat(6)}Z__${ID}`)).toBe(200);
+  });
+
+  it('rejects a bare timestamp cursor this route never emits', async () => {
+    // Not a widening the schema forgot: a cursor with no row id cannot address a row inside a shared timestamp, so honouring it would strand the rows below the boundary silently — the same failure the millisecond cursor caused. A 422 makes the client restart the walk instead.
+    expect(await cursorStatus('2026-01-01T00:00:00.000000Z')).toBe(422);
+  });
+
   it('surfaces missingCostBasis so an under-counted row is not read as a break-even', async () => {
     // `profit = 0` from a SELL with no cost basis is indistinguishable from a
     // genuine break-even on the wire. The count is what lets the UI say
@@ -459,5 +489,92 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
       },
     );
     expect(await dismissedOf()).toBe(false);
+  });
+
+  it('serves one page on one pooled connection, inside a statement-timeout transaction', async () => {
+    // The archive page is the single largest checkout burst in the api: its reads fan out concurrently, and node-postgres takes one pooled connection per concurrent query. Against a pool of ten, three of these page loads in flight is the whole pool, and the reads themselves have no execution bound, so a slow one holds its connection for as long as it runs. What makes that a whole-app outage rather than a slow page is that every OTHER route then queues behind it.
+    // Both halves are asserted from the pool itself rather than from the response: peak concurrent checkouts is the property that actually caps the blast radius, and the `set_config` on the acquired connection is the only direct evidence that the reads run under a budget at all.
+    const { peak, statements } = await recordPoolCheckouts(fx.di.pool, async () => {
+      const res = await fx.app.request(
+        `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive?limit=50`,
+        { method: 'GET', headers: headers(fx.bob.userId) },
+      );
+      expect(res.status).toBe(200);
+    });
+
+    // Soft so both properties report from one run: they fail for different reasons and fixing the fan-out without arming the budget would otherwise look like progress on a single line.
+    // Not "at most one query" — the reads may be as many as they like, as long as one request cannot occupy more than one connection at a time.
+    expect.soft(peak).toBe(1);
+    expect.soft(statements.some((s) => s.includes("set_config('statement_timeout'"))).toBe(true);
+  });
+
+  it('reads only the rollup source when the page asks for the rollup view', async () => {
+    // The dashboard's edge verdict and its live-vs-backtest card both want one field, `bySource`, over all time. They get it by loading the whole archive page: the paged list, the recoverable-coin scan and the unreconstructable-coin scan all run to build a response the dashboard discards, and both cards poll it every 60s. Only `listForProfileInRange` feeds the rollups, so a rollup-only request has no reason to touch anything else.
+    // Asserted on the statements rather than the response body because the cost is the reads, not the JSON: a projection that dropped the unused fields while still issuing the same four reads would be no cheaper, and would still pass a body-shaped assertion.
+    let body: Record<string, unknown> = {};
+    const { statements } = await recordPoolCheckouts(fx.di.pool, async () => {
+      const res = await fx.app.request(
+        `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive?view=rollup`,
+        { method: 'GET', headers: headers(fx.bob.userId) },
+      );
+      expect(res.status).toBe(200);
+      body = (await res.json()) as Record<string, unknown>;
+    });
+
+    // Asserted by KEY PRESENCE, not by value. Omission is the load-bearing half of the contract — absent and `[]` are different claims, and only absent is honest about a read that did not run — and nothing else enforces it: the openapi layer does not validate outgoing bodies, so the field disappears only because `JSON.stringify` drops an `undefined`. A `toBeUndefined()` would pass on a key that was serialised as `null`.
+    expect('items' in body).toBe(false);
+    expect('nextCursor' in body).toBe(false);
+    expect('recoverableSymbols' in body).toBe(false);
+    expect('unreconstructableSymbols' in body).toBe(false);
+    // The rollup the request actually asked for is still there, so the omissions above are not a response that failed to build.
+    expect(Array.isArray(body['bySource'])).toBe(true);
+    expect(Array.isArray(body['byIntent'])).toBe(true);
+
+    // `applied_fills` is read by the two coverage scans and by nothing else on this route, and the paged list is the only `trade_archive` read carrying a LIMIT, so the pair fingerprints every read the rollup view does not need.
+    const archiveReads = statements.filter(
+      (s) => s.includes('trade_archive') || s.includes('applied_fills'),
+    );
+    expect(archiveReads).toHaveLength(1);
+    expect(archiveReads[0]).not.toContain('limit');
+  });
+
+  it('pages past two rows whose timestamps differ only below the millisecond', async () => {
+    // The route half of the cursor fix. `archived_at` is timestamptz — microseconds — while the driver hands the row back as a JS `Date`, milliseconds. Emit the boundary from that `Date` and the row at `.123200` matches neither `< .123000` nor `= .123000`, so it is unreachable on every later page and nothing reports the loss. The db isolation test binds the token straight back and so never exercises this construction; only an end-to-end page walk does.
+    const seedAt = async (symbol: string, at: string): Promise<void> => {
+      await fx.di.pool.query(
+        `insert into trade_archive
+           (profile_id, symbol, base_asset, quote_asset, total_buy_quote,
+            total_sell_quote, profit, profit_percent, breakdown, orders, fees, archived_at)
+         values ($1,$2,$3,'USDT','100','105','5','5','{}'::jsonb,'[]'::jsonb,'{}'::jsonb,$4::timestamptz)`,
+        [fx.bob.profileId, symbol, symbol.replace('USDT', ''), at],
+      );
+    };
+    // Dated ahead of every other row in the fixture so the walk starts on this pair; the period filter is a lower bound only, so a future stamp stays in the window.
+    await seedAt('SUBMSAUSDT', '2027-01-01 00:00:00.123456+00');
+    await seedAt('SUBMSBUSDT', '2027-01-01 00:00:00.123200+00');
+
+    const url = `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive`;
+    const page = async (cursor?: string) => {
+      const res = await fx.app.request(
+        cursor === undefined
+          ? `${url}?limit=1`
+          : `${url}?limit=1&cursor=${encodeURIComponent(cursor)}`,
+        { method: 'GET', headers: headers(fx.bob.userId) },
+      );
+      return {
+        status: res.status,
+        body: (await res.json()) as { items: { symbol: string }[]; nextCursor: string | null },
+      };
+    };
+
+    const first = await page();
+    expect(first.status).toBe(200);
+    expect(first.body.items[0]?.symbol).toBe('SUBMSAUSDT');
+    // Six fractional digits: the boundary is emitted at the column's precision, not the driver's.
+    expect(first.body.nextCursor).toMatch(/\.\d{6}Z__/);
+
+    const second = await page(first.body.nextCursor ?? '');
+    expect(second.status).toBe(200);
+    expect(second.body.items[0]?.symbol).toBe('SUBMSBUSDT');
   });
 });

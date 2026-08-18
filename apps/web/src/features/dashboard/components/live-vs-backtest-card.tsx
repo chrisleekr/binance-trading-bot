@@ -32,8 +32,8 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
     queryFn: () => fetchProfile(profileId),
   });
   const archive = useQuery({
-    queryKey: ['trade-archive', profileId, 'a', timeZone, 'scorecard'],
-    queryFn: () => fetchProfileArchive(profileId, 'a', null, timeZone),
+    queryKey: ['trade-archive', profileId, 'a', timeZone, 'rollup', 'scorecard'],
+    queryFn: () => fetchProfileArchive(profileId, 'a', null, timeZone, 'rollup'),
     refetchInterval: 60_000,
   });
   const equity = useQuery({
@@ -48,8 +48,9 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
     enabled: baselineId !== null,
   });
 
-  const bucket = mergeRollupBuckets(archive.data?.bySource ?? []);
   const quote = profile.data?.quoteAsset ?? equity.data?.quoteAsset ?? '';
+  // Counted in the same currency the figures are labelled with, one line below. An all-time rollup spans every quote the profile has ever settled in.
+  const bucket = mergeRollupBuckets(archive.data?.bySource ?? [], quote);
   const liveWin = bucket.tradeCount > 0 ? winPct(bucket) : null;
   const livePf = bucket.tradeCount > 0 ? profitFactor(bucket) : null;
   const liveExp = expectancy(bucket);

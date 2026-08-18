@@ -52,6 +52,39 @@ describe('flattenErrorMessage', () => {
     );
   });
 
+  it('redacts a multiline Drizzle bind tail before preserving its driver cause', () => {
+    const sentinel = 'DRIZZLE-BIND-SENTINEL';
+    const sql = 'select "state" from "symbol_states" where "profile_id" = $1';
+    const driverRoot = 'driver-root-marker: connection terminated unexpectedly';
+    const error = new Error(
+      `Failed query: ${sql}\nparams: profile-1,operator label\n    at bind-value,${sentinel}`,
+    );
+    (error as { cause?: unknown }).cause = new Error(driverRoot);
+
+    const out = flattenErrorMessage(error);
+    expect(out).toContain(sql);
+    expect(out).toContain('\nparams: [redacted]');
+    expect(out).toContain(driverRoot);
+    expect(out).not.toContain(sentinel);
+  });
+
+  it('redacts a Drizzle-shaped cause without dropping the wrapper or driver root', () => {
+    const sentinel = 'NESTED-DRIZZLE-BIND-SENTINEL';
+    const sql = 'update "symbol_states" set "state" = $1 where "profile_id" = $2';
+    const driverRoot = new Error('nested-driver-root-marker: connection terminated unexpectedly');
+    const drizzle = new Error(`Failed query: ${sql}\nparams: state-json,profile-1,${sentinel}`);
+    (drizzle as { cause?: unknown }).cause = driverRoot;
+    const wrapper = new Error('symbol state persistence failed');
+    (wrapper as { cause?: unknown }).cause = drizzle;
+
+    const out = flattenErrorMessage(wrapper);
+    expect(out).toContain('symbol state persistence failed');
+    expect(out).toContain(sql);
+    expect(out).toContain('\nparams: [redacted]');
+    expect(out).toContain('nested-driver-root-marker: connection terminated unexpectedly');
+    expect(out).not.toContain(sentinel);
+  });
+
   it('terminates on a cyclic cause chain and bounds length', () => {
     const a = new Error('a');
     const b = new Error('b');

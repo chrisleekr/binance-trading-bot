@@ -359,7 +359,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     description: 'Maximum Postgres connections the api process opens.',
     when: 'When Postgres reports too many clients, or when the api queues behind its own pool under load.',
     expect:
-      'Read straight off the environment, and only a plain run of digits is accepted: `10.5`, `1e3` and `+5` all fail pool creation outright, while an empty or whitespace-only value falls back to the default. Every replica opens up to this many connections, so the server-side limit is this times the replica count.',
+      'Read straight off the environment, and only a plain run of digits is accepted: `10.5`, `1e3` and `+5` all fail pool creation outright, while an empty or whitespace-only value falls back to the default. Every replica opens up to this many connections, so the server-side limit is this times the replica count. Exhausting the pool no longer hangs: a checkout that waits longer than the 5s deadline in `packages/db/src/pool.ts` fails, and the request answers 503 `SERVICE_UNAVAILABLE` with a `db_pool_checkout_timeout` warn line naming the path — so raising this value is a response to those 503s, not to a silent stall. Raise it only for that log name. Its sibling `db_connect_timeout` is the same 5s deadline expiring on a new connection the database never finished accepting, which means the pool had room and more connections would only aim more concurrent attempts at a server already failing to answer.',
   },
   WORKER_DB_POOL_MAX: {
     group: 'Database',

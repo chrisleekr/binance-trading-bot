@@ -150,6 +150,18 @@ describeIfInfra('profile log surfaces', () => {
       expect(res.status).toBe(422);
     });
 
+    it('rejects a well-formed cursor naming a date Postgres has no representation for', async () => {
+      // The cursor regex checks digit COUNTS, so every calendar field is four or two digits of anything. Year zero and month 99 both satisfy it, bind to `$n::timestamptz`, and come back as a cast error the classifier has no case for — a 500 on a route whose only declared failure is 422. The digit-count check is what makes these reachable, so nothing downstream is going to catch them.
+      const id = '00000000-0000-4000-8000-0000000000c3';
+      for (const bad of [
+        `0000-01-01T00:00:00.000000Z|${id}`,
+        `2026-99-01T00:00:00.000000Z|${id}`,
+      ]) {
+        const res = await get(`${base}/logs?cursor=${encodeURIComponent(bad)}`);
+        expect(res.status).toBe(422);
+      }
+    });
+
     it('404s a profile belonging to another operator', async () => {
       const res = await get(
         `/api/accounts/${fx.alice.accountId}/profiles/${fx.bob.profileId}/logs`,

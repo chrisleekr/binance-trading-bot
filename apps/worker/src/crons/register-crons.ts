@@ -18,6 +18,7 @@ import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';
 import type { QueueSet } from 'queues/queue-set.js';
 import { QUEUE_SPECS } from 'queues/queue-names.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 import type { CronDef } from './define.js';
 import { withCronStatus } from './cron-status.js';
 
@@ -27,6 +28,8 @@ export interface RegisterCronsDeps {
   /** Records each cron's terminal run outcome for the ops health panel. */
   readonly redis: Redis;
   readonly crons: readonly CronDef[];
+  /** Optional so a caller that wires no metrics still boots; a missing sink loses the overrun signal, never the cron. */
+  readonly metrics?: MetricsSink;
 }
 
 const SELF_RESCHEDULE_OPTS = {
@@ -39,7 +42,7 @@ const SELF_RESCHEDULE_OPTS = {
  * No BullMQ Job Scheduler is created; instead the next run is enqueued only on
  * the current run's terminal state, so iterations can never overlap or backlog.
  * Removing any prior scheduler and draining the jobs it leaked lets a restart
- * heal a deployment whose fixed-cadence scheduler had already wedged (#361).
+ * heal a deployment whose fixed-cadence scheduler had already wedged.
  */
 const registerSelfReschedulingCron = async (
   queue: Queue,
@@ -71,7 +74,24 @@ const registerSelfReschedulingCron = async (
   // Hold the cadence start-to-start when runs are fast; collapse to back-to-back
   // (never overlapping) when a run overruns the period. `failed` re-arms too so
   // a stalled or failed run cannot silently stop the loop.
-  const reschedule = (elapsedMs: number): void => enqueueNext(periodMs - elapsedMs);
+  //
+  // Collapsing is the correct behaviour but it is also indistinguishable from a healthy fast loop: the delay floor absorbs any overrun, however large, and nothing downstream compares a run's duration to its period, which is why the overrun is reported here.
+  //
+  // The re-arm goes FIRST and the diagnostics run behind it under a catch-all. This function is the only place a self-rescheduling cron enqueues its successor, and the loop is seeded exactly once at boot, so a throw out of a log write or a metrics write ahead of `enqueueNext` would leave that cron silent until the next worker restart. An observability write must never change the cron's outcome.
+  const reschedule = (elapsedMs: number): void => {
+    enqueueNext(periodMs - elapsedMs);
+    if (elapsedMs <= periodMs) return;
+    try {
+      // Counter first: the sink cannot throw for a catalogued name, so the logger is the only plausible thrower here, and ordering it second means one broken log write cannot take the alert-bearing half of the signal with it.
+      deps.metrics?.record('cron_overrun_total', 1, { cron: def.name });
+      deps.logger.warn(
+        { cron: def.name, periodMs, elapsedMs },
+        'cron self-reschedule: run overran its period; next run starts immediately',
+      );
+    } catch {
+      // Nowhere left to escalate: the caller is a BullMQ event listener with no error channel, and the run this describes has already finished, so swallowing costs a diagnostic and nothing else.
+    }
+  };
   worker.on('completed', (job) => reschedule(elapsedOf(job)));
   // BullMQ emits `failed` on EVERY attempt, then retries the same job up to its
   // retry budget. Re-arm only on the terminal failure, else a retried run

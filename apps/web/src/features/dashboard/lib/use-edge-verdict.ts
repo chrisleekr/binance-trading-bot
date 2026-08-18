@@ -23,8 +23,8 @@ export function useEdgeVerdict(profileId: string): ReturnType<typeof assessEdgeD
     queryFn: () => fetchProfile(profileId),
   });
   const archive = useQuery({
-    queryKey: ['trade-archive', profileId, 'a', timeZone, 'scorecard'],
-    queryFn: () => fetchProfileArchive(profileId, 'a', null, timeZone),
+    queryKey: ['trade-archive', profileId, 'a', timeZone, 'rollup', 'scorecard'],
+    queryFn: () => fetchProfileArchive(profileId, 'a', null, timeZone, 'rollup'),
     refetchInterval: 60_000,
   });
   const baselineId = profile.data?.baselineBacktestRunId ?? null;
@@ -40,7 +40,8 @@ export function useEdgeVerdict(profileId: string): ReturnType<typeof assessEdgeD
   const monitor = profile.data?.enablementPolicy?.monitor;
   if (!monitor) return null;
 
-  const bucket = mergeRollupBuckets(archive.data?.bySource ?? []);
+  // The profile's own quote: a live profit factor built from two currencies added together is not a ratio of anything, and it gates entries.
+  const bucket = mergeRollupBuckets(archive.data?.bySource ?? [], profile.data?.quoteAsset ?? '');
   return assessEdgeDecay({
     policy: monitor,
     hasBaseline: baselineId !== null && !!baseline.data?.result,

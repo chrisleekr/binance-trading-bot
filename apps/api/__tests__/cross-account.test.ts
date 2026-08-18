@@ -145,6 +145,21 @@ describeIfInfra('cross-account HTTP penetration tests', () => {
       method: 'GET',
       path: () => bobsAccountAliceProfile(`/profiles/${fx.alice.profileId}/symbols`),
     },
+    // The archive reader mints its scope INSIDE a transaction, which is the one
+    // place the ownership error has something to travel through: drizzle rolls
+    // the transaction back and rethrows. Both legs, because a wrapped error
+    // would land as a 500 and neither the account nor the profile leg would say
+    // so on its own.
+    {
+      name: 'GET trade-archive',
+      method: 'GET',
+      path: () => underAlice(`/profiles/${fx.alice.profileId}/trade-archive`),
+    },
+    {
+      name: 'GET trade-archive via own account, foreign profileId',
+      method: 'GET',
+      path: () => bobsAccountAliceProfile(`/profiles/${fx.alice.profileId}/trade-archive`),
+    },
   ];
 
   for (const tc of cases) {

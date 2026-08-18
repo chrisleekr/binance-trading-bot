@@ -80,6 +80,37 @@ describeIfInfra('GET /profiles/:profileId/audit-logs', () => {
     expect(page2.status).toBe(200);
   });
 
+  it('still accepts the legacy bare-ISO cursor, whose missing id keeps a same-timestamp group whole', async () => {
+    // The wire contract documents this shape as accepted, and the new schema-level gate sits in front of it, so it needs a test of its own: `z.iso.datetime()` is STRICTER than the `Number.isNaN(new Date(...))` guard it replaced — it rejects a `+00:00` offset a Date parses happily — and nothing else would notice the branch closing.
+    // One statement, one explicit stamp. Three separate inserts are three transactions and `now()` is transaction time, so they would land microseconds apart and there would be no same-timestamp group to keep whole. Dated ahead so these are the newest rows whatever else the suite has written.
+    const seeded = await fx.di.pool.query<{ id: string }>(
+      `insert into audit_logs (operator_id, actor, event, payload, created_at)
+       select $1, 'web', 'add-symbol', jsonb_build_object('profileId', $2::text, 'symbol', s), $3::timestamptz
+         from unnest(array['B0', 'B1', 'B2']) as s
+       returning id`,
+      [fx.alice.userId, fx.alice.profileId, '2029-05-05T05:05:05.000Z'],
+    );
+    const seededIds = seeded.rows.map((r) => r.id);
+    expect(seededIds).toHaveLength(3);
+
+    const page1 = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/audit-logs?limit=2`,
+      { headers: { 'x-test-user-id': fx.alice.userId } },
+    );
+    const { nextCursor } = (await page1.json()) as { nextCursor: string | null };
+    // The timestamp half of a cursor the route itself emitted, sent WITHOUT its row id.
+    const bare = (nextCursor as string).split('__')[0] as string;
+    const res = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/audit-logs?limit=5&cursor=${encodeURIComponent(bare)}`,
+      { headers: { 'x-test-user-id': fx.alice.userId } },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { items: { id: string }[] };
+    // The whole group, not merely "a page". A missing id pairs with the maximum uuid, so the predicate reads as "everything before this instant, PLUS all of the group at it" — the row page 1 did not reach is re-shown rather than skipped. Asserting a non-empty page instead would pass on the suite's other rows while the third seeded row silently vanished.
+    const returned = new Set(body.items.map((r) => r.id));
+    for (const id of seededIds) expect(returned).toContain(id);
+  });
+
   it('returns 404 when the profile is not owned by the caller', async () => {
     const res = await fx.app.request(
       `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/audit-logs`,
@@ -106,6 +137,21 @@ describeIfInfra('GET /profiles/:profileId/audit-logs', () => {
     // Both cursor halves are guarded before the DB: an unparseable timestamp
     // and a non-uuid id would otherwise reach Postgres and 500.
     for (const bad of ['not-a-date', '2026-01-01T00:00:00.000Z__not-a-uuid']) {
+      const res = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/audit-logs?cursor=${encodeURIComponent(bad)}`,
+        { headers: { 'x-test-user-id': fx.alice.userId } },
+      );
+      expect(res.status).toBe(422);
+    }
+  });
+
+  it('rejects the two cursors a JS Date accepts and Postgres cannot bind', async () => {
+    // `Number.isNaN(new Date(...))` is not the same question as "will Postgres take this as a timestamptz". A JS Date has a year zero (it reads as 1 BC) and parses a fractional second of any length, so both of these survive the guard, reach `$n::timestamptz`, and come back as a cast error — neither a statement timeout nor a checkout timeout, so it falls through the classifier to an unhandled 500 on a route whose only declared failure is 422.
+    const id = '00000000-0000-4000-8000-0000000000c1';
+    for (const bad of [
+      `0000-01-01T00:00:00.000000Z__${id}`,
+      `2026-01-01T00:00:00.${'1'.repeat(200)}Z__${id}`,
+    ]) {
       const res = await fx.app.request(
         `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/audit-logs?cursor=${encodeURIComponent(bad)}`,
         { headers: { 'x-test-user-id': fx.alice.userId } },

@@ -28,11 +28,11 @@ export const equitySnapshots = pgTable(
     quoteAsset: text('quote_asset').notNull(),
     /** Cumulative net-of-fee profit = realisedNet + unrealised mark-to-market. */
     netPnlQuote: numeric38_18('net_pnl_quote').notNull(),
-    /** Cumulative realised net-of-fee profit from the trade archive. */
+    /** Cumulative realised net-of-fee profit from the trade archive, counted ONLY in this row's `quote_asset`: cycles closed under a previous quote are excluded, because this value is ADDED to position legs marked in that same quote. */
     realizedNetQuote: numeric38_18('realized_net_quote').notNull(),
-    /** Mark-to-market value of open positions (sum of currentPrice * heldQty). */
+    /** Mark-to-market value of open positions (sum of currentPrice * heldQty), counted only over positions settling in this row's `quote_asset` — a holding kept from before a quote change marks in its own currency and is excluded, not converted. */
     positionValueQuote: numeric38_18('position_value_quote').notNull(),
-    /** Cost basis of open positions (sum of avgEntryPrice * heldQty). */
+    /** Cost basis of open positions (sum of avgEntryPrice * heldQty), over the same quote-filtered set as `positionValueQuote` so the two subtract to a real unrealised figure. */
     positionCostQuote: numeric38_18('position_cost_quote').notNull(),
     /** Passive comparator, e.g. 'BTC'. The asset a buy-and-hold line tracks. */
     benchmarkAsset: text('benchmark_asset').notNull(),

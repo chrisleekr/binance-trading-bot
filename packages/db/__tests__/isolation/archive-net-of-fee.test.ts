@@ -62,7 +62,7 @@ describeIfDb('trade-archive net-of-fee aggregation', () => {
   });
 
   it('splits per source with net-classified wins/losses and fee totals', async () => {
-    const rows = await ap.tradeArchive.sumProfitInRangeBySource(FROM, TO);
+    const rows = await ap.tradeArchive.sumProfitInRangeBySource('USDT', FROM, TO);
     const auto = rows.find((r) => r.source === 'auto');
     const manual = rows.find((r) => r.source === 'manual');
 
@@ -82,7 +82,7 @@ describeIfDb('trade-archive net-of-fee aggregation', () => {
   });
 
   it('exposes net totals on the whole-period sum', async () => {
-    const out = await ap.tradeArchive.sumProfitInRange(FROM, TO);
+    const out = await ap.tradeArchive.sumProfitInRange('USDT', FROM, TO);
     expect(Number(out.totalProfit)).toBe(6); // 10 + 1 − 5
     expect(Number(out.totalFees)).toBe(6); // 2 + 3 + 1
     expect(Number(out.netProfit)).toBe(0); // 6 − 6
@@ -90,7 +90,7 @@ describeIfDb('trade-archive net-of-fee aggregation', () => {
   });
 
   it('counts a net win for the auto source on the for-source sum', async () => {
-    const out = await ap.tradeArchive.sumProfitInRangeForSource(FROM, TO, 'auto');
+    const out = await ap.tradeArchive.sumProfitInRangeForSource('USDT', FROM, TO, 'auto');
     expect(out.wins).toBe(1); // only the +10/−2-fee row is a net win
     expect(Number(out.netProfit)).toBe(6);
     expect(Number(out.totalFees)).toBe(5);

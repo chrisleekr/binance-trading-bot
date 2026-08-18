@@ -142,8 +142,10 @@ describeIfInfra('profiles router — quoteAsset', () => {
       fx.alice.accountId,
       asProfileId(fx.alice.profileId),
     );
+    // Seed in whatever quote the profile currently settles in: a sibling test in this block PATCHes it, and the series is READ in one quote, so a hardcoded 'USDT' here would make this test depend on execution order rather than on what it means to assert.
+    const currentQuote = (await repo.profile.findById())?.quoteAsset ?? 'USDT';
     const base = {
-      quoteAsset: 'USDT',
+      quoteAsset: currentQuote,
       netPnlQuote: '10',
       realizedNetQuote: '5',
       positionValueQuote: '110',

@@ -88,6 +88,20 @@ describeIfInfra('risk router', () => {
       orders: [{ side: 'SELL' }],
       archivedAt: new Date(now),
     });
+    // A same-day loss closed under a PREVIOUS quote asset. `todayRealizedPnl` is compared against a limit denominated in the CURRENT quote, so this row must not reach it — the -8 assertion below is the gate. Its magnitude is far from -8 so a dropped filter cannot pass by coincidence.
+    await p.tradeArchive.insert({
+      symbol: 'ETHBTC',
+      baseAsset: 'ETH',
+      quoteAsset: 'BTC',
+      totalBuyQuote: '1',
+      totalSellQuote: '0.5',
+      profit: '-500',
+      profitPercent: '-50',
+      breakdown: {},
+      source: 'manual',
+      orders: [{ side: 'SELL' }],
+      archivedAt: new Date(now),
+    });
     await p.profile.setRiskConfig({ dailyLossLimitQuote: '5' } as StoredRiskConfig);
     // The worker cron would set this; seed it directly to exercise the read path.
     await fx.di.redis

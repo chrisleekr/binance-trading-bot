@@ -16,7 +16,16 @@ import {
   unwrapId,
 } from '@app/contracts';
 import { Decimal } from '@app/money';
-import { GLOBAL_KEYS, profileKey, projections, repo, type ProfileRepo } from '@app/db';
+import {
+  GLOBAL_KEYS,
+  profileKey,
+  profileRepoFromScope,
+  projections,
+  repo,
+  withStatementTimeout,
+  withTx,
+  type ProfileRepo,
+} from '@app/db';
 import type { Logger } from 'pino';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
@@ -27,6 +36,15 @@ import { requireOwnedProfile, scopeOf } from 'route-helpers.js';
 import { createApiHono, type ApiHono } from 'types.js';
 
 const DAY_MS = 86_400_000;
+
+/**
+ * Per-statement execution budget for the dashboard's reads.
+ *
+ * The reads now share one pooled connection, so a single stalled statement holds that connection for as long as it runs and every other route queues behind it. Five seconds is the same figure the archive page uses, for the same reason: an operator is watching this one, and a read still running after five seconds has already lost the panel.
+ *
+ * Postgres applies `statement_timeout` per statement, and the transaction below issues seven in sequence, so the worst case one request can hold its pooled connection is 35 seconds, not five. That is stated rather than sized down: the arithmetic tidies up by dividing this across the seven, which would put each read under a second, and there is no production timing for `buildEntryBlockers` or the two archive sums against a large profile to say that is survivable. The bound exists to stop a pathological stall, and 35 seconds still bounds it where nothing did before.
+ */
+const DASHBOARD_READ_BUDGET_MS = 5_000;
 // Recent action-log rows scanned for discovery events, and the max surfaced.
 const ACTIVITY_SCAN = 200;
 const ACTIVITY_MAX = 20;
@@ -179,30 +197,51 @@ const buildDashboard = async (
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * DAY_MS);
   const epoch = new Date(0);
-  const [all, last7, deployed, symbols, logs, rawExplain, quoteCash] = await Promise.all([
-    p.tradeArchive.sumProfitInRangeForSource(epoch, now, 'auto'),
-    p.tradeArchive.sumProfitInRangeForSource(sevenDaysAgo, now, 'auto'),
-    // Scoped to this profile's mode + quote asset so the gauge's equity matches
-    // what the strategy enforces at tick time (a live profile's gauge must not
-    // count test-mode practice positions or a different quote unit).
-    repo.avgEntryPrices.sumDeployedQuoteForAccount(di.db, p.scope.accountId, profile.quoteAsset),
-    p.profileSymbols.listForProfile(),
-    // Narrow to discovery rows in SQL, not in `toActivity`. Scanning the newest
-    // 200 rows of every kind worked while `action_logs` held only actionable
-    // ticks; deep capture writes a row per tick per symbol, so 200 rows now
-    // covers a few minutes and the activity feed silently empties out.
-    p.actionLogs.listPage(ACTIVITY_SCAN, null, { source: 'auto' }),
+  // Redis first and concurrently: it is a different connection pool with a different failure mode, so holding these two outside the transaction costs nothing and keeps them off the one pooled Postgres connection below.
+  const [rawExplain, quoteCash] = await Promise.all([
     di.redis.raw().get(GLOBAL_KEYS.discoveryExplain(unwrapId(p.scope.profileId))),
     readQuoteCash(di, p, profile.quoteAsset),
   ]);
+  // One transaction on one pooled connection, reads issued in sequence. Run concurrently they took a connection each, and node-postgres takes one per concurrent query, so a single dashboard load held most of the api's pool of ten and every other route queued behind it — two operator tabs was an app-wide stall, not a slow panel. The trade is latency: concurrent cost this panel its slowest read, serial costs the sum of them.
+  const { all, last7, deployed, autoSymbols, logs, holdings, entryBlockers } =
+    await withStatementTimeout(di.db, DASHBOARD_READ_BUDGET_MS, async (tx) => {
+      // Rebound to the transaction handle so the reads run on that connection rather than checking out fresh ones from the pool. `withTx` swaps only the handle and carries the brand forward, so ownership stays proven exactly once — a spread would carry the same brand while letting `accountId` be rewritten in the same literal.
+      const ptx = profileRepoFromScope(withTx(p.scope, tx));
+      // Counted in the profile's CURRENT quote, matching the `deployed` gauge below: a net-edge figure summed across quotes would be a number in no currency.
+      const all = await ptx.tradeArchive.sumProfitInRangeForSource(
+        profile.quoteAsset,
+        epoch,
+        now,
+        'auto',
+      );
+      const last7 = await ptx.tradeArchive.sumProfitInRangeForSource(
+        profile.quoteAsset,
+        sevenDaysAgo,
+        now,
+        'auto',
+      );
+      // Scoped to this profile's mode + quote asset so the gauge's equity matches
+      // what the strategy enforces at tick time (a live profile's gauge must not
+      // count test-mode practice positions or a different quote unit).
+      const deployed = await repo.avgEntryPrices.sumDeployedQuoteForAccount(
+        tx,
+        p.scope.accountId,
+        profile.quoteAsset,
+      );
+      const symbols = await ptx.profileSymbols.listForProfile();
+      // Narrow to discovery rows in SQL, not in `toActivity`. Scanning the newest
+      // 200 rows of every kind worked while `action_logs` held only actionable
+      // ticks; deep capture writes a row per tick per symbol, so 200 rows now
+      // covers a few minutes and the activity feed silently empties out.
+      const logs = await ptx.actionLogs.listPage(ACTIVITY_SCAN, null, { source: 'auto' });
+      const autoSymbols = symbols.filter((sym) => sym.source === 'auto').map((sym) => sym.symbol);
+      const holdings = await buildHoldings(ptx, autoSymbols);
+      const entryBlockers = await buildEntryBlockers(ptx, autoSymbols);
+      return { all, last7, deployed, autoSymbols, logs, holdings, entryBlockers };
+    });
   // Account equity for resolving a percent exposure cap: quote cash + deployed
   // cost-basis (mirrors the strategy's tick-time equity).
   const equity = quoteCash.add(new Decimal(deployed));
-  const autoSymbols = symbols.filter((s) => s.source === 'auto').map((s) => s.symbol);
-  const [holdings, entryBlockers] = await Promise.all([
-    buildHoldings(p, autoSymbols),
-    buildEntryBlockers(p, autoSymbols),
-  ]);
   const autoSet = new Set(autoSymbols);
   // The Redis snapshot the cron writes has every candidate's entryBlocker null
   // (it predates per-symbol state); enrich auto candidates from live state here
@@ -256,6 +295,8 @@ const getRoute = createRoute({
       content: { 'application/json': { schema: DiscoveryDashboardResponse } },
     },
     404: { description: 'NOT_FOUND', content: { 'application/json': { schema: ErrorEnvelope } } },
+    // The reads run under a per-statement budget, so a stalled one is cancelled and answered rather than running unbounded. Declared because it is a real outcome of this route, not an infrastructure accident the client can ignore. It is not a bound on the request: seven statements each stalling just under the budget still hold the connection for the sum, which is why `DASHBOARD_READ_BUDGET_MS` states that total.
+    503: { description: 'UNAVAILABLE', content: { 'application/json': { schema: ErrorEnvelope } } },
   },
 });
 
@@ -273,6 +314,11 @@ const patchRoute = createRoute({
       content: { 'application/json': { schema: DiscoveryDashboardResponse } },
     },
     404: { description: 'NOT_FOUND', content: { 'application/json': { schema: ErrorEnvelope } } },
+    503: {
+      description:
+        'UNAVAILABLE — the dashboard this route echoes back could not be read within its statement budget. The config write commits in its own statement BEFORE that read and outside its transaction, so a 503 here does NOT mean the write was rejected: refetch the dashboard rather than retrying the PATCH, which would re-apply it.',
+      content: { 'application/json': { schema: ErrorEnvelope } },
+    },
   },
 });
 
@@ -311,11 +357,12 @@ export const discoveryRouter = (di: DI): ApiHono => {
     const profileId = asProfileId(c.req.valid('param').profileId);
     const { period, tz } = c.req.valid('query');
     const { from, to } = periodWindow(period, tz, new Date());
-    const p = await scopeOf(c, di, profileId);
+    // Needs the profile row for its quote asset — the scoreboard counts in one currency, and the archive can hold cycles closed under a previous quote.
+    const { p, profile } = await requireOwnedProfile(c, di, profileId);
     // One grouped pass yields every source's slice; the top-level fields stay
     // attributed to `auto` (discovery) so the existing strip cells are unchanged,
     // and the by-source band reads the whole array.
-    const ranged = await p.tradeArchive.sumProfitInRangeBySource(from, to);
+    const ranged = await p.tradeArchive.sumProfitInRangeBySource(profile.quoteAsset, from, to);
     const auto = ranged.find((r) => r.source === 'auto');
     return c.json(
       {

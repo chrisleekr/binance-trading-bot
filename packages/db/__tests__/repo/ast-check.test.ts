@@ -1,5 +1,7 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { collectRepoFiles, createRepoAstReader } from './_exported-fns.js';
+import { collectRepoFiles, createRepoAstReader, REPO_DIR } from './_exported-fns.js';
 
 const repoAst = createRepoAstReader();
 
@@ -74,6 +76,11 @@ const ACCOUNT_LEVEL_FUNCTIONS = new Set([
   // joined to `profiles` to bound to one account, replacing the per-profile
   // fan-out. Names the account, not a single profile.
   'projections/profile-aggregate.ts:rollupAllProfilesForAccount',
+  // Realised P/L for EVERY profile of one account in one grouped read, replacing
+  // a per-profile fan-out whose connection burst grew with the profile count.
+  // Left-joined from `profiles` so a profile that closed nothing still reports a
+  // zero, which is why it names the account rather than a single profile.
+  'projections/profile-aggregate.ts:rollupRealizedByProfileForAccount',
   // Delete-account guard: counts live orders + held positions across EVERY
   // profile of one account. It spans profiles by design (that is the exposure
   // the cascade would erase), so it names the account, not a single profile.
@@ -313,4 +320,73 @@ describe('repo layer scope-parameter enforcement', () => {
       }
     });
   }
+});
+
+/**
+ * A scope is minted by `scopeAccount` / `scopeProfile` and rebound by `withTx` / `withAccountTx`, and those are the only four constructions allowed to produce one.
+ *
+ * A spread is the exception that has to be refused by name. `{ ...scope, db: tx }` carries the ownership brand forward — the brand is an ordinary property, so a spread copies it — while the same object literal is free to overwrite `accountId` or `profileId` beside it. The result type-checks as a proven scope while naming an account nobody proved, which is precisely the guarantee CLAUDE.md states as "ownership proven exactly once at compile time". `withTx` swaps the handle and nothing else, so there is no case a spread is needed for.
+ *
+ * Matched only inside an object literal, so an array spread of an unrelated binding that happens to be called `scope` is not a hit, and matched over the whole file rather than line by line so a multi-line literal cannot hide one. The literal may carry one level of nesting before the spread (`{ meta: { x: 1 }, ...scope }`), which a brace-free run would have stopped at — deeper nesting is not reachable without a parser, and the shape that matters is a scope handed to a repo call, which is written flat.
+ *
+ * Scanned textually and repo-wide rather than through the AST reader above, which is bound to this package's TypeScript project: the two spreads this gate was written for lived in `apps/api`, so a check that could only see `packages/db/src/repo` would have passed while the defect was in the tree.
+ */
+const SCOPE_SPREAD = /\{(?:[^{}]|\{[^{}]*\})*\.\.\.[A-Za-z0-9_$.]*[Ss]cope\b/g;
+
+/** Every `.ts`/`.tsx` file under a `src/` tree, which is where the invariant binds. A test may legitimately build a malformed scope to prove a repo function refuses it. */
+const collectSourceFiles = (dir: string, inSrc: boolean): string[] => {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name.startsWith('.')) {
+      continue;
+    }
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...collectSourceFiles(full, inSrc || entry.name === 'src'));
+    } else if (inSrc && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))) {
+      out.push(full);
+    }
+  }
+  return out;
+};
+
+describe('scope construction', () => {
+  const WORKSPACE_ROOT = resolve(REPO_DIR, '..', '..', '..', '..');
+
+  it('detects a spread of a scope, so the sweep below cannot pass vacuously', () => {
+    // The sweep asserts an ABSENCE, which is also what a detector that can never match returns.
+    const hits = (source: string): boolean => new RegExp(SCOPE_SPREAD.source).test(source);
+    expect(hits('const s = { ...scope, db: tx };')).toBe(true);
+    expect(hits('const s = { ...p.scope, db: tx };')).toBe(true);
+    expect(hits('const s = {\n  ...a.scope,\n  db: tx,\n};')).toBe(true);
+    expect(hits('const s = { meta: { x: 1 }, ...p.scope };')).toBe(true);
+    expect(hits('const s = withTx(p.scope, tx);')).toBe(false);
+    // An array spread of an unrelated binding, and a plural that is not a scope.
+    expect(hits('const bars = [...scope.querySelectorAll(sel)];')).toBe(false);
+    expect(hits('const all = { ...scopes };')).toBe(false);
+  });
+
+  const sourceFiles = ['apps', 'packages'].flatMap((dirName) =>
+    collectSourceFiles(join(WORKSPACE_ROOT, dirName), false),
+  );
+
+  it('reaches the app source trees, so the sweep below is not walking an empty list', () => {
+    // The sweep asserts an ABSENCE, and an empty file list produces the same result as a clean tree. `readdirSync` only throws if `apps` or `packages` vanish entirely, which is not the realistic failure — a layout where sources stop living under a directory literally named `src` would silently retire the gate instead. `apps/api/src` is named specifically because both spreads this gate was written for lived there, and it is exactly the tree this package's AST reader cannot see.
+    expect(sourceFiles.length).toBeGreaterThan(0);
+    expect(sourceFiles.some((f) => f.includes(join('apps', 'api', 'src')))).toBe(true);
+  });
+
+  it('no source file rebuilds a scope by spreading one', () => {
+    const offenders: string[] = [];
+    for (const file of sourceFiles) {
+      const source = readFileSync(file, 'utf8');
+      for (const match of source.matchAll(SCOPE_SPREAD)) {
+        const line = source.slice(0, match.index).split('\n').length;
+        offenders.push(`${file.slice(WORKSPACE_ROOT.length + 1)}:${line}`);
+      }
+    }
+    expect(offenders, 'rebind a scope with withTx / withAccountTx instead of spreading it').toEqual(
+      [],
+    );
+  });
 });

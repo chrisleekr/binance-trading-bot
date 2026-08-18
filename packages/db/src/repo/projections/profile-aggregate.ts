@@ -6,7 +6,7 @@ import type {
   ProfileId,
 } from '@app/contracts';
 
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 
 import { accounts } from '../../schema/accounts.js';
 import { apiKeys } from '../../schema/api-keys.js';
@@ -14,6 +14,7 @@ import { avgEntryPrices } from '../../schema/avg-entry-prices.js';
 import { orders } from '../../schema/orders.js';
 import { profiles } from '../../schema/profiles.js';
 import { profileSymbols } from '../../schema/profile-symbols.js';
+import { tradeArchive } from '../../schema/trade-archive.js';
 import { dashboardAggregateCacheKey, GLOBAL_KEYS, profileKey } from '../../redis.js';
 import { type AccountScope } from '../_scoped.js';
 import * as profilesMod from '../profiles.js';
@@ -134,6 +135,64 @@ export const rollupAllProfilesForAccount = async (
     });
   }
   return rollups;
+};
+
+/** One profile's realised total for the window, in the currency it was summed in. */
+export interface RealizedByProfile {
+  /** The quote asset the figure is counted in, canonically upper-cased. The archive is keyed by the upper-cased asset while a profile row may hold any casing, so echoing the canonical form keeps the label and the figure from drifting apart. */
+  readonly quoteAsset: string;
+  /** GROSS realised profit over the window, fees NOT subtracted. `'0'` for a profile that closed nothing. */
+  readonly totalProfit: string;
+}
+
+/**
+ * Realised P/L over one window for EVERY profile of an account, as a single grouped read.
+ *
+ * Replaces a per-profile fan-out: the account-health bar summed each profile separately, and node-postgres takes one pooled connection per concurrent query, so the checkout burst grew with the profile count and an operator with a handful of profiles emptied the api's pool of ten on one poll of a bar that polls.
+ *
+ * A LEFT JOIN from `profiles`, not an inner one. A profile that closed nothing in the window still has to appear with a zero in its own currency — that is what the bar renders, and dropping the row would silently remove a live profile from the operator's view of the account rather than showing it flat.
+ *
+ * The quote match is case-folded in the join predicate only. `trade_archive.quote_asset` is written upper-cased while `profiles.quote_asset` may be lower or mixed by design, so the two sides genuinely differ in casing and the fold belongs where they meet. Neither column gets a CHECK constraint and no row is rewritten: normalising the stored data would be a migration in service of a join, and the profile casing is operator-facing.
+ *
+ * @param scope - Ownership-proven account scope; the `profiles` filter below is bounded by its `accountId`.
+ * @param since - Inclusive lower bound on `archived_at`; the caller owns the day boundary, so the repo carries no timezone story.
+ * @param until - Exclusive upper bound on `archived_at`.
+ * @returns One entry per profile of the account, keyed by profile id, including profiles with nothing closed in the window.
+ */
+export const rollupRealizedByProfileForAccount = async (
+  scope: AccountScope,
+  since: Date,
+  until: Date,
+): Promise<Map<ProfileId, RealizedByProfile>> => {
+  const { db, accountId } = scope;
+  const canonicalQuote = sql<string>`upper(${profiles.quoteAsset})`;
+  const rows = await db
+    .select({
+      profileId: profiles.id,
+      quoteAsset: canonicalQuote,
+      totalProfit: sql<string>`coalesce(sum(${tradeArchive.profit}), 0)::text`,
+    })
+    .from(profiles)
+    .leftJoin(
+      tradeArchive,
+      and(
+        eq(tradeArchive.profileId, profiles.id),
+        eq(tradeArchive.quoteAsset, canonicalQuote),
+        gte(tradeArchive.archivedAt, since),
+        lt(tradeArchive.archivedAt, until),
+      ),
+    )
+    .where(eq(profiles.accountId, accountId))
+    .groupBy(profiles.id, profiles.quoteAsset);
+
+  const out = new Map<ProfileId, RealizedByProfile>();
+  for (const row of rows) {
+    out.set(asProfileId(row.profileId), {
+      quoteAsset: row.quoteAsset,
+      totalProfit: row.totalProfit,
+    });
+  }
+  return out;
 };
 
 /**
