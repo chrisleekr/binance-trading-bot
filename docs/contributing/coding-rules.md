@@ -202,7 +202,11 @@ oxlint hard-fails on a misspelled rule or an unknown plugin prefix, so those nee
 
 ### A shipped migration is immutable
 
-`_app_migrations` keys on the migration's file name and stores its body's SHA-256. Rename, renumber, delete, or edit a file that has already been applied — a comment is enough to move the digest — and the runner throws `already applied with a different checksum. Refusing to mutate history.` against every database that already holds the old value.
+`_app_migrations` keys on the migration's file name and stores its body's SHA-256. The two ways to break that key fail in opposite directions, and only one of them is loud.
+
+**Editing** a file that has already been applied — a comment is enough to move the digest — makes the runner throw `already applied with a different checksum. Refusing to mutate history.` against every database that already holds the old value. Loud, and fatal.
+
+**Renaming, renumbering, or deleting** one is worse, because the runner cannot see it at all. The lookup is by name, so a renamed file matches no ledger row, is treated as brand new, and its body is applied a second time; the row for the old name is left behind pointing at a file that no longer exists. On a migration written `if not exists` that succeeds in silence and the ledger is permanently wrong. Nothing in the runner rejects this, which is why the CI manifest gate has to.
 
 Two properties make this worse than an ordinary failed gate. It throws **at that file**, so every later migration is blocked behind it, including ones the running code now depends on. And the checksum map is read once, before the apply loop, so a repair migration can never execute itself out of the hole no matter how it is numbered — recovery means restoring the original bytes or hand-editing the ledger on every deployment. To change what a shipped migration did, write a new one.
 
