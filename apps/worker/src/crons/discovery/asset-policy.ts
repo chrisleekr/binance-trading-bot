@@ -36,6 +36,13 @@ export const SNAPSHOT_MAX_AGE_MS: number = 5 * 60_000;
  */
 const MAX_CROSS_CHECK_GAP_SHARE = 0.02;
 
+/**
+ * How long a FAILED fetch is remembered before another is attempted.
+ *
+ * Well under the 60s cron period, so a failure never survives into the next wake and no operator action is needed to clear it — it exists only to stop one unresponsive endpoint being dialled once per due profile within a single wake.
+ */
+const FAILURE_MEMO_MS = 30_000;
+
 /** The tag Binance puts on every product row whose BASE asset is a stablecoin. */
 const STABLECOIN_TAG = 'stablecoin';
 
@@ -307,6 +314,8 @@ const fetchAssetPolicy = async (fetchImpl: typeof fetch): Promise<AssetPolicy> =
  *
  * A stale snapshot is refetched, and a failed refetch propagates. Serving the stale one instead would be the quiet failure mode this whole module exists to avoid: the operator would see discovery running normally while it acted on a classification of unknown age.
  *
+ * A FAILED fetch is remembered for {@link FAILURE_MEMO_MS} and rethrown, which is not a weaker contract — every caller still fails closed, it just fails closed immediately. The fetch takes no per-profile input, so a second profile in the same wake asking again is a plain retry of the identical request against the identical endpoint a moment later, and against an unresponsive host it costs another {@link FETCH_TIMEOUT_MS} to reach the same answer. Ten due profiles turned one bad endpoint into 150 seconds of a 60-second wake. The window is far shorter than the cron period, so the next wake always retries.
+ *
  * @param deps - Injected fetch, clock, and logger.
  * @returns An accessor resolving to a classification no older than {@link SNAPSHOT_MAX_AGE_MS}, or rejecting.
  */
@@ -315,12 +324,16 @@ export const createAssetPolicyResolver = (
 ): (() => Promise<AssetPolicy>) => {
   const fetchImpl = deps.fetchImpl ?? fetch;
   let snapshot: { policy: AssetPolicy; observedAtMs: number } | null = null;
+  let failure: { error: unknown; atMs: number } | null = null;
   // The cron's profile loop is sequential, but the diagnosis queue worker shares this accessor and runs concurrently in the same process. Without a memo of the in-flight fetch the two refresh separately and can hold classifications built from different payloads, which is exactly what sharing one accessor is meant to prevent.
   let inFlight: Promise<AssetPolicy> | null = null;
   return async () => {
     if (snapshot !== null && deps.clock.nowMs() - snapshot.observedAtMs < SNAPSHOT_MAX_AGE_MS) {
       return snapshot.policy;
     }
+    // Checked after the snapshot, never before it: a fresh snapshot is a real answer and must not be shadowed by a stale failure.
+    if (failure !== null && deps.clock.nowMs() - failure.atMs < FAILURE_MEMO_MS)
+      throw failure.error;
     if (inFlight !== null) return inFlight;
     inFlight = refresh();
     try {
@@ -331,7 +344,16 @@ export const createAssetPolicyResolver = (
   };
 
   async function refresh(): Promise<AssetPolicy> {
-    const policy = await fetchAssetPolicy(fetchImpl);
+    let policy: AssetPolicy;
+    try {
+      policy = await fetchAssetPolicy(fetchImpl);
+    } catch (err) {
+      // Stamped after the failure for the same reason the success is: on a 15s timeout the window has to start when the answer arrived, not when the request left.
+      failure = { error: err, atMs: deps.clock.nowMs() };
+      throw err;
+    }
+    // A success clears the memo outright rather than waiting it out, so a recovered endpoint is served on the very next call.
+    failure = null;
     // Stamped AFTER the load resolves, so the age measured later is the age of the data in hand. Stamping before the await dates the snapshot from the request instead, which on a slow response is born already expired.
     snapshot = { policy, observedAtMs: deps.clock.nowMs() };
     deps.logger.info(

@@ -381,12 +381,36 @@ describe('createAssetPolicyResolver', () => {
 
   it('does not cache a 200 whose body carries no usable rows; the next wake refetches', async () => {
     // `projectProducts` yields nothing for `{ data: null }`, and that is not a failure the fetch would otherwise notice — so the empty classification would be stamped fresh and reused for five minutes while every cycle rejected it. One bad body costs one wake.
+    const clock = fakeClock();
     const fetchImpl = vi.fn(async () => okResponse({ code: '000000', success: false, data: null }));
-    const getAssetPolicy = resolverWith(fetchImpl, fakeClock());
+    const getAssetPolicy = resolverWith(fetchImpl, clock);
 
     await expect(getAssetPolicy()).rejects.toThrow(/no usable product rows/i);
+    // Past the failure memo, so this is the next wake genuinely refetching rather than the memo replaying the first rejection.
+    clock.advance(MINUTE_MS);
     await expect(getAssetPolicy()).rejects.toThrow(/no usable product rows/i);
 
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('replays a recent failure without refetching, then refetches once the memo lapses', async () => {
+    // One wake fans out over every due profile, and the fetch takes no per-profile input, so a failure repeated per profile is the identical request aimed at an upstream that just refused it. The memo is short enough that a real recovery is picked up on the next wake.
+    const clock = fakeClock();
+    let call = 0;
+    const fetchImpl = vi.fn(async () => {
+      call += 1;
+      if (call === 1) throw new Error('upstream boom');
+      return okResponse(productsPayload(PRODUCT_ROWS));
+    });
+    const getAssetPolicy = resolverWith(fetchImpl, clock);
+
+    await expect(getAssetPolicy()).rejects.toThrow(/boom/);
+    clock.advance(1_000);
+    await expect(getAssetPolicy()).rejects.toThrow(/boom/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+    clock.advance(MINUTE_MS);
+    await expect(getAssetPolicy()).resolves.toBeDefined();
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
@@ -505,7 +529,8 @@ describe('createAssetPolicyResolver', () => {
     await getAssetPolicy();
     clock.advance(5 * MINUTE_MS);
     await expect(getAssetPolicy()).rejects.toThrow(/boom/);
-    // Still no stale service on the following call, and no silent fallback to the cached snapshot.
+    // Still no stale service on the following call, and no silent fallback to the cached snapshot. Advanced past the failure memo so the second rejection is a fresh fetch failing again, not the memo replaying the first.
+    clock.advance(MINUTE_MS);
     await expect(getAssetPolicy()).rejects.toThrow(/boom/);
     expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
