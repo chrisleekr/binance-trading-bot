@@ -76,6 +76,8 @@ export interface DiscoveryTickerOptions {
   readonly admissionBySymbol: ReadonlyMap<string, SymbolAdmission>;
   /** Binance's current stablecoin/fiat classification, already validated against live exchangeInfo by the caller. */
   readonly assetPolicy: AssetPolicy;
+  /** Symbols trading live that the product feed did not classify, from the caller's `validateAssetPolicy`. Never empty in normal operation for long — the two caches are five minutes apart — and refused while they are unclassified, because "we do not know whether this base is pegged" is not a reason to admit it. */
+  readonly unclassifiedSymbols?: ReadonlySet<string>;
   /**
    * Permission tags the account holds. Empty means unknown, which disables the
    * permission cut rather than rejecting everything.
@@ -102,7 +104,7 @@ export const toDiscoveryTickers = (
   quoteUsdPrice: Decimal,
   opts: DiscoveryTickerOptions,
 ): DiscoveryTicker[] => {
-  const { admissionBySymbol, assetPolicy, accountPermissions, logger } = opts;
+  const { admissionBySymbol, assetPolicy, unclassifiedSymbols, accountPermissions, logger } = opts;
   if (admissionBySymbol.size === 0) {
     throw new Error(
       'discovery: empty symbol-admission map (exchangeInfo not primed?); refusing to score an unfiltered universe',
@@ -131,7 +133,10 @@ export const toDiscoveryTickers = (
       symbol: t.symbol,
       baseAsset: base,
       quoteAsset,
-      isStablecoinOrFiat: assetPolicy.stablecoinOrFiatBases.has(base),
+      // An unclassified symbol is cut on the asset-policy rung rather than dropped silently: the operator sees the stage that could not clear it, which is true — the classification has no answer for this coin yet — instead of watching it vanish from the universe count with no rung to point at.
+      isStablecoinOrFiat:
+        assetPolicy.stablecoinOrFiatBases.has(base) ||
+        (unclassifiedSymbols?.has(t.symbol) ?? false),
       priceChangePercent: t.priceChangePercent,
       quoteVolume: t.quoteVolume,
       pairVolumeUsd: new Decimal(t.quoteVolume).times(quoteUsdPrice).toString(),

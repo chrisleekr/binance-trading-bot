@@ -9,7 +9,9 @@
 //
 // Neither route is redundant. `EURUSDT` carries EMPTY tags, so EUR is reachable only through the second, and a stablecoin quoted only against USDT is reachable only through the first. Neither is a fallback for the other either: each is checked for liveness on its own, because the fiat route alone always yields a dozen national currencies and would keep a merged floor satisfied while the stablecoin route was dead.
 //
-// The feed is a different service from the REST API the rest of the worker talks to, and it is unauthenticated, so it is treated as untrusted: hand-projected over its short keys, size-capped, then cross-checked against live exchangeInfo before any cycle acts on it. Missing, stale, malformed, or incomplete classification aborts the profile cycle — no add and no remove — because a policy that silently degrades to "nothing is a stablecoin" is exactly the failure it exists to prevent.
+// The feed is a different service from the REST API the rest of the worker talks to, and it is unauthenticated, so it is treated as untrusted: hand-projected over its short keys, byte-capped as it streams and row-capped after parsing, then cross-checked against live exchangeInfo before any cycle acts on it. Missing, stale, or malformed classification aborts the profile cycle — no add and no remove — because a policy that silently degrades to "nothing is a stablecoin" is exactly the failure it exists to prevent.
+//
+// Incompleteness is fail-closed at two granularities, because the two sources are cached independently and a handful of symbols routinely differ between them. A bulk disagreement is the gutted-feed signal and aborts the cycle; a per-symbol one means only that this coin was never classified, so that coin alone is refused and the rest of the wake proceeds. Collapsing the two would take the feature down for minutes after every listing.
 
 import { SymbolName } from '@app/contracts';
 import type { Logger } from 'pino';
@@ -21,12 +23,18 @@ const PRODUCTS_URL =
 const FETCH_TIMEOUT_MS = 15_000;
 
 /**
- * How long one fetched classification may be reused. Discovery wakes every 60s and each profile
- * runs on its own refresh period, so a per-wake fetch would hammer a public endpoint that changes
- * about as often as a coin lists. Five minutes bounds how long a newly listed stablecoin can be
- * admitted; the exchangeInfo cross-check bounds the far worse case, a feed that stopped moving.
+ * How long one fetched classification may be reused. Discovery wakes every 60s and each profile runs on its own refresh period, so a per-wake fetch would hammer a public endpoint that changes about as often as a coin lists. Five minutes bounds how long a newly listed stablecoin can be admitted; the exchangeInfo cross-check bounds the far worse case, a feed that stopped moving.
  */
 export const SNAPSHOT_MAX_AGE_MS: number = 5 * 60_000;
+
+/**
+ * How far the product feed and live exchangeInfo may disagree before the classification is refused.
+ *
+ * Exact equality is the wrong test, because the two sources are cached on independent five-minute cycles: the admission map is rewritten by `exchange-info-refresh` every five minutes and this snapshot is held for five, so every listing and delisting puts them out of step for up to that long. Under exact equality one halted pair takes discovery down for every profile until both caches turn over, and one product row that fails projection takes it down for as long as the row stays unreadable. Neither is the condition this check exists to catch.
+ *
+ * What it exists to catch is a gutted or renamed feed, and that is a bulk condition. Two percent of the ~1360 live spot pairs is roughly 27 symbols: far above any single listing event or handful of malformed rows, and far below a feed that stopped answering. The gap is counted in both directions and against the live set, which is the one whose size is independently known.
+ */
+const MAX_CROSS_CHECK_GAP_SHARE = 0.02;
 
 /** The tag Binance puts on every product row whose BASE asset is a stablecoin. */
 const STABLECOIN_TAG = 'stablecoin';
@@ -34,15 +42,14 @@ const STABLECOIN_TAG = 'stablecoin';
 /** The `pm`/`pn` value marking a row whose QUOTE side is a fiat currency. */
 const FIAT_MARKET = 'FIAT';
 
-/** Roughly ten times the observed live payload. A cheap early-out only: it reads `content-length`, which a chunked response omits entirely and a compressed one reports in encoded bytes, so it rejects an obviously-wrong body without bounding the allocation. The abort timeout is what always bounds a body the upstream refuses to size honestly. */
+/** Roughly ten times the observed live payload, applied twice. `content-length` is only a cheap early-out: a chunked response omits it entirely and a compressed one reports encoded bytes, so it rejects an obviously-wrong body before a socket read but proves nothing. The same figure then bounds the bytes actually read, because `res.json()` would buffer the whole stream before the row cap could see a single row — an upstream bug serving an endless chunked body would OOM the worker, which is a worse outcome than the one the abort timeout prevents. */
 const MAX_DECLARED_BODY_BYTES = 8 * 1024 * 1024;
 
 /** Roughly ten times the observed live row count, for the same reason. */
 const MAX_ROWS = 20_000;
 
 /**
- * One product row, narrowed to the short keys this module reads. The live payload carries ~35 keys
- * per row; the rest are none of discovery's business and are dropped at the projection boundary.
+ * One product row, narrowed to the short keys this module reads. The live payload carries ~35 keys per row; the rest are none of discovery's business and are dropped at the projection boundary.
  */
 export interface RawProduct {
   /** Symbol, e.g. `RLUSDUSDT`. */
@@ -158,16 +165,16 @@ export const deriveAssetPolicy = (rows: readonly RawProduct[]): AssetPolicy => {
  *
  * The live universe is the reference even for a test-mode wake. Testnet lists a small, arbitrary subset and would pass a check against itself while the live feed was gutted; and testnet-only pairs have no product row at all, so they cannot be required to have one. Live pairs that are not `TRADING` are skipped for the same reason — the feed publishes trading products only.
  *
- * Throws rather than returning a verdict: every caller's only correct response is to abandon the cycle, and a boolean invites one of them to log it and continue.
+ * Throws rather than returning a verdict for the conditions that make the whole snapshot unusable: every caller's only correct response there is to abandon the cycle, and a boolean invites one of them to log it and continue. A per-symbol gap is different — it is expected, bounded, and returned so the caller can fail closed on those symbols alone rather than on the feature.
  *
  * @param policy - The classification just derived from the feed.
  * @param liveAdmission - Symbol to exchangeInfo facts for the LIVE environment, the independent record of what is actually trading.
- * @returns Nothing; it throws on any condition that makes the policy unsafe to act on.
+ * @returns The live-trading symbols the feed did not classify, which the caller must refuse to admit; it throws instead when the disagreement is bulk rather than per-symbol.
  */
 export const validateAssetPolicy = (
   policy: AssetPolicy,
   liveAdmission: ReadonlyMap<string, SymbolAdmission>,
-): void => {
+): ReadonlySet<string> => {
   if (policy.tradingSymbols.size === 0) {
     throw new Error('discovery asset-policy: no product rows survived projection (schema drift?)');
   }
@@ -189,22 +196,27 @@ export const validateAssetPolicy = (
       'discovery asset-policy: empty symbol-admission map; cannot verify the classification is complete',
     );
   }
+  // Trading live with no product row: its base was never classified, so nothing here can say whether it is pegged. Returned rather than thrown on, and the caller refuses to admit exactly these.
+  const unclassified = new Set<string>();
   for (const symbol of liveTrading) {
-    if (!policy.tradingSymbols.has(symbol)) {
-      throw new Error(
-        `discovery asset-policy: product/exchangeInfo mismatch; ${symbol} is trading but has no product row`,
-      );
-    }
+    if (!policy.tradingSymbols.has(symbol)) unclassified.add(symbol);
   }
+  const staleInFeed = new Set<string>();
   for (const symbol of policy.tradingSymbols) {
-    // Symbols the bot cannot represent are skipped, not treated as drift. The admission map is not exchangeInfo itself: the refresh cron drops every ticker failing the same upper-case-alphanumeric character class, and Binance does list CJK-tickered pairs, so demanding they appear here would abort every cycle forever over a pair discovery could never bind anyway. `SymbolName` additionally bounds length, which is the stricter test and the right one for "a symbol this bot can represent"; no listed spot pair is near either bound.
+    // Symbols the bot cannot represent are skipped, not treated as drift. The admission map is not exchangeInfo itself: the refresh cron drops every ticker failing the same upper-case-alphanumeric character class, and Binance does list CJK-tickered pairs, so demanding they appear here would count a pair discovery could never bind anyway. `SymbolName` additionally bounds length, which is the stricter test and the right one for "a symbol this bot can represent"; no listed spot pair is near either bound.
     if (!SymbolName.safeParse(symbol).success) continue;
-    if (!liveTrading.has(symbol)) {
-      throw new Error(
-        `discovery asset-policy: product/exchangeInfo mismatch; ${symbol} has a product row but is not trading`,
-      );
-    }
+    if (!liveTrading.has(symbol)) staleInFeed.add(symbol);
   }
+  // Both directions against the live count. The feed's own size is not the denominator: a feed that returned three rows would make three mismatches look like a total failure and thirty look fine, which is backwards.
+  const gap = unclassified.size + staleInFeed.size;
+  if (gap > liveTrading.size * MAX_CROSS_CHECK_GAP_SHARE) {
+    const sample = [...unclassified, ...staleInFeed].slice(0, 10).join(', ');
+    throw new Error(
+      `discovery asset-policy: product/exchangeInfo gap ${gap}/${liveTrading.size} exceeds ${MAX_CROSS_CHECK_GAP_SHARE * 100}%; the feed is stale or its schema moved (sample: ${sample})`,
+    );
+  }
+  // A stale row on the feed's side needs no per-symbol handling: the admission map already refuses a symbol it does not list, so such a pair never reaches a ticker.
+  return unclassified;
 };
 
 /** Everything {@link createAssetPolicyResolver} needs from the world, injected so the snapshot logic is testable without a network or a wall clock. */
@@ -221,6 +233,40 @@ export interface AssetPolicyResolverDeps {
  * @param fetchImpl - The `fetch` implementation to call.
  * @returns The classification derived from this response; unvalidated, since completeness is checked per cycle against the mode-correct admission map.
  */
+/**
+ * Read and parse a response body, counting bytes as they arrive.
+ *
+ * `Response.json()` reads the stream to completion first, so on a chunked response — which carries no `content-length` for the declared-size check to read — the allocation is entirely the upstream's choice for the whole abort window. Counting as we go is the only bound that holds without a declared size.
+ *
+ * @param res - The response whose body to read; its stream is cancelled as soon as the budget is passed, so nothing further is buffered.
+ * @returns The parsed JSON body, still entirely unvalidated.
+ */
+const readCapped = async (res: Response): Promise<unknown> => {
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('discovery asset-policy: upstream sent no body');
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_DECLARED_BODY_BYTES) {
+      await reader.cancel();
+      throw new Error(
+        `discovery asset-policy: upstream body passed ${MAX_DECLARED_BODY_BYTES}B while streaming`,
+      );
+    }
+    chunks.push(value);
+  }
+  const joined = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    joined.set(c, at);
+    at += c.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(joined));
+};
+
 const fetchAssetPolicy = async (fetchImpl: typeof fetch): Promise<AssetPolicy> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -240,7 +286,14 @@ const fetchAssetPolicy = async (fetchImpl: typeof fetch): Promise<AssetPolicy> =
         `discovery asset-policy: upstream body ${declaredBytes}B exceeds ${MAX_DECLARED_BODY_BYTES}B`,
       );
     }
-    return deriveAssetPolicy(projectProducts(await res.json()));
+    const policy = deriveAssetPolicy(projectProducts(await readCapped(res)));
+    // Refused here, not left to the per-cycle validation. `projectProducts` yields no rows for `{}`, `{ data: null }` or a `success: false` envelope, and a 200 carrying one of those is not a failure the fetch would otherwise notice — so the empty classification would be STAMPED as a fresh snapshot and reused for five minutes, while the resolver logged a success-shaped line and every cycle rejected it. One transient bad body should cost one wake, not five minutes.
+    if (policy.tradingSymbols.size === 0) {
+      throw new Error(
+        'discovery asset-policy: upstream answered 200 with no usable product rows (schema drift?)',
+      );
+    }
+    return policy;
   } finally {
     clearTimeout(timer);
   }

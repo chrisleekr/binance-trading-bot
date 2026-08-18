@@ -951,6 +951,8 @@ const stepCandidateFunnel = (input: ProfileDiagnosisInput): DiagnosisStepResult 
       items: [],
     };
   }
+  // Resolved once so the detail sentence and the lever field cannot disagree about whether there is anything to adjust.
+  const chokeLever = leverFor(input, choke.stage);
   return {
     status: 'finding',
     line: `Candidates run out at "${funnelStageLabel(choke.stage)}" (${asOf}).`,
@@ -961,15 +963,18 @@ const stepCandidateFunnel = (input: ProfileDiagnosisInput): DiagnosisStepResult 
         code: choke.stage,
         severity: 'degraded',
         title: `No coin gets past "${funnelStageLabel(choke.stage)}"`,
+        // Branched on whether a lever exists, because the generic sentence promises one. `assetPolicy` deliberately has no lever — it is a fact about the coins, not a setting — so an operator told to loosen it would look for a control that is not there and find no "Fix this" link either.
         detail:
-          'This is the filter that removes the most candidates. Loosening it is the most direct way to widen the funnel.',
+          chokeLever === null
+            ? 'This is the filter that removes the most candidates. It reads what the coins are rather than a setting you chose, so there is nothing here to adjust.'
+            : 'This is the filter that removes the most candidates. Loosening it is the most direct way to widen the funnel.',
         sinceMs: null,
         evidence: [
           `${choke.before} coin${choke.before === 1 ? '' : 's'} reached this filter, ${choke.after} got past it.`,
           `0 coins came out eligible (${asOf}).`,
         ],
         symbols: [],
-        lever: leverFor(input, choke.stage),
+        lever: chokeLever,
       },
     ],
   };

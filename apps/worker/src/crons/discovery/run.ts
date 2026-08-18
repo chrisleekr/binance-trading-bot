@@ -248,11 +248,12 @@ export const runDiscoveryForProfile = async (
     );
   }
   // Before ranking and before a single kline is fetched: a classification that cannot be trusted must cost nothing and change nothing. The throw aborts the cycle in the caller's per-profile catch, which adds and removes nothing.
-  validateAssetPolicy(ctx.assetPolicy, ctx.liveAdmission);
+  const unclassifiedSymbols = validateAssetPolicy(ctx.assetPolicy, ctx.liveAdmission);
   const tickers = toDiscoveryTickers(rawTickers, cfg.quoteAsset, quoteUsdPrice, {
     logger: port.logger,
     admissionBySymbol: ctx.admissionBySymbol,
     assetPolicy: ctx.assetPolicy,
+    unclassifiedSymbols,
     // Spread only when supplied: `exactOptionalPropertyTypes` rejects an
     // explicit `undefined` on an optional property.
     ...(ctx.accountPermissions === undefined ? {} : { accountPermissions: ctx.accountPermissions }),

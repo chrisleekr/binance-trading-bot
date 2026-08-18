@@ -99,10 +99,13 @@ export const probeLiveFunnel = async (
     }
     // Must mirror the cron's cuts exactly, permission filter and asset policy included: a probe that scored a symbol the cron never admits would report a candidate the operator can never get, and one that skipped the asset policy would report a funnel the cron never had.
     const assetPolicy = await deps.assetPolicy();
-    validateAssetPolicy(assetPolicy, await deps.liveSymbolAdmission());
+    // One keyspace read when the account is already live, mirroring the cron. Two scans of ~1400 keys are not just wasted round trips: `exchange-info-refresh` can land between them, and the probe would then validate against a different snapshot from the one it filtered the universe with.
+    const live = deps.mode === 'live' ? admission : await deps.liveSymbolAdmission();
+    const unclassifiedSymbols = validateAssetPolicy(assetPolicy, live);
     const tickers = toDiscoveryTickers(rawTickers, cfg.quoteAsset, quoteUsdPrice, {
       admissionBySymbol: admission,
       assetPolicy,
+      unclassifiedSymbols,
       accountPermissions: await deps.accountPermissions(),
       logger: deps.logger,
     });

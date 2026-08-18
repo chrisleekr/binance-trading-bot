@@ -711,7 +711,8 @@ describe('runDiscoveryForProfile — an untrustworthy asset classification abort
     expectUntouched(port);
   });
 
-  it('aborts when a live trading symbol has no product row', async () => {
+  it('aborts when the feed and exchangeInfo disagree in bulk', async () => {
+    // Half the live set unlisted is the gutted-feed shape, not a listing event. The bound is a share, and with two live symbols one missing is already half.
     const port = heldPort();
     await expect(
       runCycle(port, permissiveConfig(), 'USDT', {
@@ -722,7 +723,31 @@ describe('runDiscoveryForProfile — an untrustworthy asset classification abort
           tradingSymbols: new Set(['AAAUSDT']), // BTCUSDT is trading but unlisted
         },
       }),
-    ).rejects.toThrow(/mismatch.*BTCUSDT/s);
+    ).rejects.toThrow(/gap 1\/2 exceeds/i);
+    expectUntouched(port);
+  });
+
+  it('validates the classification against the LIVE map, never the profile mode map', async () => {
+    // A testnet profile checked against its own small universe would pass while the live feed was gutted. The two maps are the same object everywhere else in this file, so only a case where they genuinely differ can tell the two arguments apart.
+    const port = heldPort();
+    const liveAdmission = new Map<string, SymbolAdmission>([
+      ['AAAUSDT', { status: 'TRADING', baseAsset: 'AAA', quoteAsset: 'USDT' }],
+      ['BTCUSDT', { status: 'TRADING', baseAsset: 'BTC', quoteAsset: 'USDT' }],
+      // Live-only, and absent from both the mode map and the feed. Checking against the mode map would never see it.
+      ['SOLUSDT', { status: 'TRADING', baseAsset: 'SOL', quoteAsset: 'USDT' }],
+      ['XRPUSDT', { status: 'TRADING', baseAsset: 'XRP', quoteAsset: 'USDT' }],
+    ]);
+    await expect(
+      runCycle(port, permissiveConfig(), 'USDT', {
+        liveAdmission,
+        assetPolicy: {
+          stablecoinOrFiatBases: new Set(['PEG', 'ZWL']),
+          taggedStablecoinBases: new Set(['PEG']),
+          fiatQuoteAssets: new Set(['ZWL']),
+          tradingSymbols: new Set(['AAAUSDT', 'BTCUSDT']),
+        },
+      }),
+    ).rejects.toThrow(/gap 2\/4 exceeds/i);
     expectUntouched(port);
   });
 

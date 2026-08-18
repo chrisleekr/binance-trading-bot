@@ -20,19 +20,15 @@ const PRODUCTS_URL =
 
 const MINUTE_MS = 60_000;
 
-const noopLogger = (): { warn: ReturnType<typeof vi.fn>; info: ReturnType<typeof vi.fn> } => ({
-  warn: vi.fn(),
-  info: vi.fn(),
-});
+const noopLogger = (): { info: ReturnType<typeof vi.fn> } => ({ info: vi.fn() });
 
-/** A minimal `fetch` result: only `ok`/`status`/`statusText`/`headers`/`json` are read. */
-const okResponse = (body: unknown, headers: Record<string, string> = {}): unknown => ({
-  ok: true,
-  status: 200,
-  statusText: 'OK',
-  headers: new Headers(headers),
-  json: async () => body,
-});
+/** A real `Response`, not a shape: the fetch path reads the body as a STREAM to bound the bytes it buffers, so a hand-rolled object with only `json()` would exercise a path production never takes. */
+const okResponse = (body: unknown, headers: Record<string, string> = {}): unknown =>
+  new Response(JSON.stringify(body), {
+    status: 200,
+    statusText: 'OK',
+    headers: new Headers({ 'content-type': 'application/json', ...headers }),
+  });
 
 /** A hand-driven clock, so a test can move time DURING a fetch and observe which side of the await the freshness stamp was taken on. */
 const fakeClock = (
@@ -52,6 +48,22 @@ const sortedBases = (policy: { stablecoinOrFiatBases: ReadonlySet<string> }): st
 
 const policyFrom = (rows: readonly ProductRowFixture[]): ReturnType<typeof deriveAssetPolicy> =>
   deriveAssetPolicy(projectProducts(productsPayload(rows)));
+
+// The gap bound is a SHARE of the live set, so it can only be exercised against a set the size of a real exchange. The ten hand-written rows lead so both classification routes stay alive — the liveness floors run before the gap check and would otherwise fire first — and the padding exists purely to make the denominator realistic.
+const bulkRows = (n: number): ProductRowFixture[] => [
+  ...PRODUCT_ROWS,
+  ...Array.from({ length: n - PRODUCT_ROWS.length }, (_, i) => ({
+    ...(PRODUCT_ROWS[0] as ProductRowFixture),
+    s: `SYM${i}USDT`,
+    b: `SYM${i}`,
+    q: 'USDT',
+    tags: [] as string[],
+  })),
+];
+
+const bulkPolicy = (n: number): ReturnType<typeof deriveAssetPolicy> => policyFrom(bulkRows(n));
+
+const bulkAdmission = (n: number): Map<string, SymbolAdmission> => liveAdmission(bulkRows(n));
 
 describe('projectProducts', () => {
   it('reads the feed short keys and ignores every other key on the row', () => {
@@ -155,10 +167,7 @@ describe('deriveAssetPolicy', () => {
   });
 
   it('ignores a non-TRADING row entirely, as a symbol and as a veto source', () => {
-    // The feed publishes only TRADING products today, so no fixture row exercises
-    // this branch. It still has to hold: a halted row describes a market
-    // discovery could not enter, and counting its symbol would make the
-    // completeness cross-check demand a live pairing that does not exist.
+    // The feed publishes only TRADING products today, so no fixture row exercises this branch. It still has to hold: a halted row describes a market discovery could not enter, and counting its symbol would make the completeness cross-check demand a live pairing that does not exist.
     const halted = {
       s: 'HALTEDUSDT',
       st: 'BREAK',
@@ -176,8 +185,7 @@ describe('deriveAssetPolicy', () => {
   });
 
   it('requires pm AND pn to agree before reading a row as fiat', () => {
-    // The conjunction is the guard against a single renamed field promoting an
-    // ordinary market to fiat and vetoing its quote asset across the exchange.
+    // The conjunction is the guard against a single renamed field promoting an ordinary market to fiat and vetoing its quote asset across the exchange.
     const halfMarked = [
       { s: 'ADAXAU', st: 'TRADING', b: 'ADA', q: 'XAU', pm: 'FIAT', pn: 'ALTS', tags: [] },
       { s: 'AVAXXAU', st: 'TRADING', b: 'AVAX', q: 'XAU', pm: 'ALTS', pn: 'FIAT', tags: [] },
@@ -239,20 +247,42 @@ describe('validateAssetPolicy', () => {
     );
   });
 
-  it('aborts when a live TRADING symbol has no product row', () => {
-    const admission = liveAdmission();
+  it('returns a live TRADING symbol with no product row instead of aborting on it', () => {
+    // The two sources are cached on independent five-minute cycles, so every listing puts them out of step for up to that long. Aborting would take discovery down for every profile over one pair; the symbol is returned so the caller refuses that coin alone.
+    const admission = bulkAdmission(200);
     admission.set('SOLUSDT', { status: 'TRADING', baseAsset: 'SOL', quoteAsset: 'USDT' });
-    expect(() => validateAssetPolicy(policyFrom(PRODUCT_ROWS), admission)).toThrow(
-      /mismatch.*SOLUSDT|SOLUSDT.*mismatch/is,
-    );
+
+    const unclassified = validateAssetPolicy(bulkPolicy(200), admission);
+
+    expect([...unclassified]).toEqual(['SOLUSDT']);
   });
 
-  it('aborts when a product row has no live TRADING symbol', () => {
-    const admission = liveAdmission();
-    admission.delete('ETHUSDT');
-    expect(() => validateAssetPolicy(policyFrom(PRODUCT_ROWS), admission)).toThrow(
-      /mismatch.*ETHUSDT|ETHUSDT.*mismatch/is,
+  it('aborts when the two sources disagree in bulk, which is the gutted-feed shape', () => {
+    // One pair is a listing event; a fifth of the exchange is a feed that stopped answering or renamed its keys, and only the second is worth taking the feature down for.
+    const admission = bulkAdmission(200);
+    for (let i = 0; i < 40; i += 1) {
+      admission.set(`GAP${i}USDT`, { status: 'TRADING', baseAsset: `GAP${i}`, quoteAsset: 'USDT' });
+    }
+    expect(() => validateAssetPolicy(bulkPolicy(200), admission)).toThrow(/gap 40\/240 exceeds/i);
+  });
+
+  it('counts the feed-side direction toward the same bound', () => {
+    // A feed still listing pairs exchangeInfo has dropped is the same staleness seen from the other side. One is tolerated; a bulk of them is not.
+    const admission = bulkAdmission(200);
+    for (let i = 0; i < 40; i += 1) admission.delete(`SYM${i}USDT`);
+    expect(() => validateAssetPolicy(bulkPolicy(200), admission)).toThrow(/gap 40\/160 exceeds/i);
+  });
+
+  it('drops one unreadable product row without taking the whole snapshot down', () => {
+    // `projectProducts` skips a row missing any of the seven keys. Under exact equality one such row aborted every cycle for as long as it stayed unreadable, discarding a perfectly good classification of the other 1360.
+    const broken = bulkRows(200).map((r) => (r.s === 'SYM100USDT' ? { ...r, tags: null } : r));
+
+    const unclassified = validateAssetPolicy(
+      deriveAssetPolicy(projectProducts(productsPayload(broken))),
+      bulkAdmission(200),
     );
+
+    expect([...unclassified]).toEqual(['SYM100USDT']);
   });
 
   it('aborts on an empty admission map rather than admitting the whole universe', () => {
@@ -288,9 +318,8 @@ describe('validateAssetPolicy', () => {
       quoteAsset: 'USDT',
     });
     expect(() => validateAssetPolicy(policyFrom(PRODUCT_ROWS), liveAdmission())).not.toThrow();
-    expect(() => validateAssetPolicy(policyFrom(PRODUCT_ROWS), testModeAdmission)).toThrow(
-      /mismatch/i,
-    );
+    // The testnet map is a single pair plus a testnet-only one, so nine of the ten live products are missing from it and one testnet pair has no product row — bulk by any measure, and exactly the shape a check against the wrong map produces.
+    expect(() => validateAssetPolicy(policyFrom(PRODUCT_ROWS), testModeAdmission)).toThrow(/gap/i);
   });
 });
 
@@ -307,9 +336,7 @@ describe('createAssetPolicyResolver', () => {
   };
 
   it('refuses a body whose declared size is past the ceiling, before parsing it', async () => {
-    // Node's fetch has no built-in body cap, so without this the allocation size
-    // is the upstream's choice. The rejection has to happen on the header, not
-    // after `json()`, or the ceiling costs the very memory it exists to bound.
+    // Node's fetch has no built-in body cap, so without this the allocation size is the upstream's choice. The rejection has to happen on the header, not after `json()`, or the ceiling costs the very memory it exists to bound.
     const json = vi.fn(async () => productsPayload(PRODUCT_ROWS));
     const fetchImpl = vi.fn(async () => ({
       ok: true,
@@ -323,18 +350,48 @@ describe('createAssetPolicyResolver', () => {
   });
 
   it('accepts a body whose declared size is within the ceiling', async () => {
-    // The other half of the boundary: a real payload declares a content-length
-    // too, and a ceiling that rejected it would take the whole feed offline.
+    // The other half of the boundary: a real payload declares a content-length too, and a ceiling that rejected it would take the whole feed offline.
     const fetchImpl = vi.fn(async () =>
       okResponse(productsPayload(PRODUCT_ROWS), { 'content-length': String(645 * 1024) }),
     );
     await expect(resolverWith(fetchImpl, fakeClock())()).resolves.toBeDefined();
   });
 
+  it('stops reading a chunked body that passes the ceiling with no content-length to declare it', async () => {
+    // The declared-size check is a header read, and a chunked response has no header to read. Without a bound on the bytes actually streamed, an upstream bug serving an endless body OOMs the worker inside the abort window — worse than the stall the timeout guards.
+    let cancelled = false;
+    const chunk = new Uint8Array(1024 * 1024);
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(chunk);
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const fetchImpl = vi.fn(
+      async () => new Response(body, { status: 200, statusText: 'OK', headers: new Headers() }),
+    );
+
+    await expect(resolverWith(fetchImpl, fakeClock())()).rejects.toThrow(/while streaming/i);
+
+    // Cancelled rather than drained: leaving the stream open keeps the upstream sending into a body nothing will read.
+    expect(cancelled).toBe(true);
+  });
+
+  it('does not cache a 200 whose body carries no usable rows; the next wake refetches', async () => {
+    // `projectProducts` yields nothing for `{ data: null }`, and that is not a failure the fetch would otherwise notice — so the empty classification would be stamped fresh and reused for five minutes while every cycle rejected it. One bad body costs one wake.
+    const fetchImpl = vi.fn(async () => okResponse({ code: '000000', success: false, data: null }));
+    const getAssetPolicy = resolverWith(fetchImpl, fakeClock());
+
+    await expect(getAssetPolicy()).rejects.toThrow(/no usable product rows/i);
+    await expect(getAssetPolicy()).rejects.toThrow(/no usable product rows/i);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
   it('aborts a hung request at the timeout instead of stalling the wake', async () => {
-    // The likeliest real failure on an unauthenticated public endpoint is a
-    // request that neither answers nor fails. Nothing else here would notice:
-    // the cron would simply stop rotating, silently, for as long as it hung.
+    // The likeliest real failure on an unauthenticated public endpoint is a request that neither answers nor fails. Nothing else here would notice: the cron would simply stop rotating, silently, for as long as it hung.
     vi.useFakeTimers();
     try {
       const fetchImpl = vi.fn(
@@ -404,9 +461,7 @@ describe('createAssetPolicyResolver', () => {
   });
 
   it('reuses a snapshot up to the last millisecond of its max age', async () => {
-    // Both boundary cases read the constant rather than restating it, so raising
-    // or lowering the max age moves the pins with it instead of leaving two
-    // literals asserting a window the code no longer has.
+    // Both boundary cases read the constant rather than restating it, so raising or lowering the max age moves the pins with it instead of leaving two literals asserting a window the code no longer has.
     const clock = fakeClock();
     const fetchImpl = okFetch([productsPayload(PRODUCT_ROWS)]);
     const getAssetPolicy = resolverWith(fetchImpl, clock);

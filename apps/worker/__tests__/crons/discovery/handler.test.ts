@@ -411,29 +411,35 @@ describe('discoveryHandler', () => {
   });
 
   it('fetches the asset classification at most once per wake, shared across due profiles', async () => {
-    const fetchImpl = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      // Required since the fetch path reads `content-length`: a stub without
-      // headers throws inside the resolver, which the per-profile catch would
-      // then swallow into a green-looking wake that ran no profile at all.
-      headers: new Headers(),
-      json: async () => ({
-        data: [
-          { s: 'AAAUSDT', st: 'TRADING', b: 'AAA', q: 'USDT', pm: 'USDT', pn: 'USDT', tags: [] },
-          {
-            s: 'RLUSDUSDT',
-            st: 'TRADING',
-            b: 'RLUSD',
-            q: 'USDT',
-            pm: 'USDT',
-            pn: 'USDT',
-            tags: ['stablecoin'],
-          },
-        ],
-      }),
-    }));
+    // A real `Response`, not a shape with a `json()` on it: the fetch path reads `content-length` and then streams the body under a byte budget, so a stub missing either would throw inside the resolver and the per-profile catch would swallow it into a green-looking wake that ran no profile at all.
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            data: [
+              {
+                s: 'AAAUSDT',
+                st: 'TRADING',
+                b: 'AAA',
+                q: 'USDT',
+                pm: 'USDT',
+                pn: 'USDT',
+                tags: [],
+              },
+              {
+                s: 'RLUSDUSDT',
+                st: 'TRADING',
+                b: 'RLUSD',
+                q: 'USDT',
+                pm: 'USDT',
+                pn: 'USDT',
+                tags: ['stablecoin'],
+              },
+            ],
+          }),
+          { status: 200, statusText: 'OK', headers: new Headers() },
+        ),
+    );
     const getAssetPolicy = createAssetPolicyResolver({
       fetchImpl: fetchImpl as unknown as typeof fetch,
       clock: { nowMs: () => NOW },

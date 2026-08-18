@@ -1,10 +1,6 @@
 // Binance product-metadata fixture for the asset-policy resolver.
 //
-// The rows below are verbatim (short-key) captures from
-// `GET https://www.binance.com/bapi/asset/v2/public/asset-service/product/get-products?includeEtf=true`
-// taken 2026-08-18, trimmed to the seven keys the projector reads. The live payload carries 35 keys
-// per row and every one of its 1361 rows is `st: 'TRADING'`; the extra keys are dropped here so a
-// test asserting on a projected row cannot accidentally assert on a key the projector never promised.
+// The rows below are verbatim (short-key) captures from `GET https://www.binance.com/bapi/asset/v2/public/asset-service/product/get-products?includeEtf=true` taken 2026-08-18, trimmed to the seven keys the projector reads. The live payload carries 35 keys per row and every one of its 1361 rows is `st: 'TRADING'`; the extra keys are dropped here so a test asserting on a projected row cannot accidentally assert on a key the projector never promised.
 //
 // Two rows carry the traps this fixture exists for:
 //
