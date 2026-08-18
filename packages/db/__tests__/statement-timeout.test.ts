@@ -47,12 +47,15 @@ describe('withStatementTimeout argument guards', () => {
   // A pool-backed handle is identified by `$client`, which the node-postgres driver assigns only on the handle it creates from a pool.
   const poolHandle = { $client: {}, transaction: async () => undefined } as unknown as Database;
 
-  it('refuses a budget of zero, which Postgres reads as no limit', async () => {
-    // The dangerous case is a caller deriving the budget from an unset config value: without this the helper would emit a valid statement, apply no bound at all, and report nothing.
-    await expect(withStatementTimeout(poolHandle, 0, async () => undefined)).rejects.toThrow(
-      /positive safe integer/,
-    );
-  });
+  // Zero is the dangerous case: a caller deriving the budget from an unset config value would otherwise emit a valid statement, apply no bound at all, and report nothing, because Postgres reads `statement_timeout = 0` as no limit. The rest pin the other half of the guard — dropping `Number.isSafeInteger` leaves the zero case green on its own.
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    'refuses a budget of %s',
+    async (ms) => {
+      await expect(withStatementTimeout(poolHandle, ms, async () => undefined)).rejects.toThrow(
+        /positive safe integer/,
+      );
+    },
+  );
 
   it('refuses a handle that is not pool-backed', async () => {
     // Nested, drizzle opens a SAVEPOINT, and releasing a savepoint does not revert a transaction-local setting, so the budget would silently bind the rest of the caller's transaction.

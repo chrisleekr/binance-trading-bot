@@ -12,21 +12,45 @@ const STACK_FRAME = /^\s*at\s/;
 const CAUSE_JOINT = 'caused by: ';
 
 /**
- * Replaces the Drizzle bind tail in one error message. An isolated message has no stack frames, so its end is the only boundary a parameter value cannot forge.
+ * Cuts out the exact substring drizzle interpolated, rather than scanning for where it ends. `DrizzleQueryError` builds its message as `Failed query: ${query}\nparams: ${params}`, and `${params}` on an array is a comma join, so `String(params)` reproduces that substring byte for byte. Removing it is the only redaction a bind value cannot defeat: every textual boundary the fallbacks look for — a V8 frame, the chained-cause joint, a newline — is itself text a parameter can contain, and `api_keys.label` is operator free text bound in column order BEFORE the key and the secret. A label reading `my key\n    at rotation` forges a frame, ends the block early, and leaves the credentials that follow it in the log.
+ *
+ * Returns null when the caller has no bind array to match with, or when the substring is not present because this text carries some OTHER error's flattened bind list. Both cases fall back to the boundary rules below.
+ *
+ * @param value - Message or stack text that may carry a bind list.
+ * @param bindText - The bind array as drizzle stringified it, from the same serialized record.
+ * @returns The text with exactly that bind list censored, or null when it does not appear.
+ */
+const censorExactBindList = (value: string, bindText: string): string | null => {
+  const needle = `\nparams: ${bindText}`;
+  const at = value.indexOf(needle);
+  if (at === -1) return null;
+  return `${value.slice(0, at)}\nparams: ${CENSOR}${value.slice(at + needle.length)}`;
+};
+
+/**
+ * Replaces the Drizzle bind tail in one error message. Without `bindText` an isolated message has no stack frames, so its end is the only boundary a parameter value cannot forge — which also costs any chained-cause message that follows. With `bindText` the cut is exact, so the driver's own message ("duplicate key value violates…") survives, and that is the line an operator actually needs.
  *
  * @param value - One error message before it is joined to a cause or embedded in a stack.
- * @returns The message with its bind tail replaced by the shared censor value.
+ * @param bindText - The bind array as drizzle stringified it, when the caller holds the serialized record it came from. Omitted by callers that only have loose text.
+ * @returns The message with its bind list replaced by the shared censor value.
  */
-export const redactDrizzleParamsMessage = (value: string): string =>
-  value.replace(PARAMS_MESSAGE_TAIL, `$1 ${CENSOR}`);
+export const redactDrizzleParamsMessage = (value: string, bindText?: string): string => {
+  const exact = bindText ? censorExactBindList(value, bindText) : null;
+  return exact ?? value.replace(PARAMS_MESSAGE_TAIL, `$1 ${CENSOR}`);
+};
 
 /**
  * Replaces Drizzle bind lists in finalized stack or chained text while preserving the known V8 frame and chained-cause boundaries. Use {@link redactDrizzleParamsMessage} for an isolated `Error.message`, whose bind tail has no trustworthy intermediate boundary.
  *
+ * Pass `bindText` whenever the serialized record is at hand. Those boundaries are forgeable — a bind value containing `\n    at x` ends the block early and leaves the credentials bound after it in the log — and the exact cut is not. The scan below stays as the fallback for text whose bind list belongs to an error the caller does not hold, such as an inner query flattened into a wrapper's stack.
+ *
  * @param value - Finalized stack or chained text whose structural boundaries must survive redaction.
+ * @param bindText - The bind array as drizzle stringified it, when the caller holds the serialized record it came from. Omitted by callers that only have loose text.
  * @returns The text with each bind list replaced by the shared censor value.
  */
-export const redactDrizzleParamsText = (value: string): string => {
+export const redactDrizzleParamsText = (value: string, bindText?: string): string => {
+  const exact = bindText ? censorExactBindList(value, bindText) : null;
+  if (exact !== null) return exact;
   if (!value.includes('\nparams:')) return value;
   // Walked line by line rather than matched with one lazy regex. A bind block has to run to the NEXT boundary, not to the end of its line, because a bind value may itself contain a newline: `api_keys.label` is free text bound in column order BEFORE the key and the secret, so a label carrying a line break pushes the live credential onto a later line. Expressing "shortest run up to a frame, a cause joint, or the end" as `[\s\S]*?` with a lookahead makes the engine re-scan that run once per candidate boundary, which is polynomial in the number of `params:` blocks — and the text here is partly attacker-influenced, so a crafted value could stall the logger on the error path. One pass over the lines is linear and says the same thing.
   const lines = value.split('\n');
@@ -65,12 +89,15 @@ const scrub = (value: unknown, seen: WeakSet<object>): void => {
 
   const record = value as Record<string, unknown>;
   // A sibling string `query` is what identifies this level as a failed statement rather than some unrelated object that happens to carry a `params` key. Without that pairing the rule would blank any field named `params` anywhere in a log record, including ones an operator needs.
-  if (typeof record['query'] === 'string' && 'params' in record) record['params'] = CENSOR;
+  const isFailedStatement = typeof record['query'] === 'string' && 'params' in record;
+  // Read BEFORE the array is censored: it is the exact text drizzle interpolated into its own message, and matching on it is what stops a bind value forging the boundary the scans below have to trust.
+  const bindText = isFailedStatement ? String(record['params']) : undefined;
+  if (isFailedStatement) record['params'] = CENSOR;
   if (typeof record['message'] === 'string')
-    record['message'] = redactDrizzleParamsMessage(record['message']);
+    record['message'] = redactDrizzleParamsMessage(record['message'], bindText);
   // The stack is the leak that survives every obvious fix: the serializer builds it from the message of this error AND of every cause behind it, so a wrapper whose own message is clean still carries the inner query's bind values verbatim.
   if (typeof record['stack'] === 'string')
-    record['stack'] = redactDrizzleParamsText(record['stack']);
+    record['stack'] = redactDrizzleParamsText(record['stack'], bindText);
 
   for (const key of Object.keys(record)) scrub(record[key], seen);
 };

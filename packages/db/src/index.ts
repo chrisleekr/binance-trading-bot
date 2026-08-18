@@ -1,6 +1,5 @@
 export {
   createPool,
-  isPoolCheckoutTimeout,
   poolCheckoutTimeoutKind,
   POOL_CHECKOUT_TIMEOUT_MS,
   type CreatePoolOptions,

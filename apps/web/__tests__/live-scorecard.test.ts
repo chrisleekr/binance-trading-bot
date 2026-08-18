@@ -34,6 +34,7 @@ describe('maxDrawdownQuote', () => {
 
 describe('mergeRollupBuckets', () => {
   const b = (over: Partial<Parameters<typeof mergeRollupBuckets>[0][number]>) => ({
+    quoteAsset: 'USDT',
     tradeCount: 0,
     wins: 0,
     losses: 0,
@@ -44,7 +45,7 @@ describe('mergeRollupBuckets', () => {
   });
 
   it('returns a zero bucket for no buckets', () => {
-    expect(mergeRollupBuckets([])).toEqual({
+    expect(mergeRollupBuckets([], 'USDT')).toEqual({
       tradeCount: 0,
       wins: 0,
       losses: 0,
@@ -55,22 +56,70 @@ describe('mergeRollupBuckets', () => {
   });
 
   it('sums counts and money fields across buckets', () => {
-    const out = mergeRollupBuckets([
-      b({
-        tradeCount: 3,
-        wins: 2,
-        losses: 1,
-        grossProfit: '50',
-        grossLoss: '20',
-        totalFees: '1.5',
-      }),
-      b({ tradeCount: 2, wins: 1, losses: 1, grossProfit: '10', grossLoss: '5', totalFees: '0.5' }),
-    ]);
+    const out = mergeRollupBuckets(
+      [
+        b({
+          tradeCount: 3,
+          wins: 2,
+          losses: 1,
+          grossProfit: '50',
+          grossLoss: '20',
+          totalFees: '1.5',
+        }),
+        b({
+          tradeCount: 2,
+          wins: 1,
+          losses: 1,
+          grossProfit: '10',
+          grossLoss: '5',
+          totalFees: '0.5',
+        }),
+      ],
+      'USDT',
+    );
     expect(out.tradeCount).toBe(5);
     expect(out.wins).toBe(3);
     expect(out.losses).toBe(2);
     expect(Number(out.grossProfit)).toBe(60);
     expect(Number(out.grossLoss)).toBe(25);
     expect(Number(out.totalFees)).toBe(2);
+  });
+
+  it('counts only the asked-for currency when a profile changed its quote', () => {
+    // The all-time rollup the scorecard requests spans every quote the profile has ever settled in. Magnitudes are orders of magnitude apart so a dropped filter cannot pass by coincidence.
+    const out = mergeRollupBuckets(
+      [
+        b({
+          tradeCount: 4,
+          wins: 3,
+          losses: 1,
+          grossProfit: '500',
+          grossLoss: '100',
+          totalFees: '2',
+        }),
+        b({
+          quoteAsset: 'BTC',
+          tradeCount: 7,
+          wins: 5,
+          losses: 2,
+          grossProfit: '0.004',
+          grossLoss: '0.001',
+          totalFees: '0.00002',
+        }),
+      ],
+      'USDT',
+    );
+    expect(out.tradeCount).toBe(4);
+    expect(out.wins).toBe(3);
+    expect(Number(out.grossProfit)).toBe(500);
+    expect(Number(out.grossLoss)).toBe(100);
+    expect(Number(out.totalFees)).toBe(2);
+  });
+
+  it('case-folds the currency it is asked to count', () => {
+    // `profiles.quoteAsset` may be stored lower or mixed case while the archive carries Binance's upper casing. A raw compare would drop every bucket and read the scorecard as a profile that has never traded.
+    const out = mergeRollupBuckets([b({ tradeCount: 3, grossProfit: '50' })], 'usdt');
+    expect(out.tradeCount).toBe(3);
+    expect(Number(out.grossProfit)).toBe(50);
   });
 });

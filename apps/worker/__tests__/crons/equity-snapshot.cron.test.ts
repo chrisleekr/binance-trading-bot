@@ -139,6 +139,32 @@ describe('equitySnapshotHandler', () => {
     expect(pricesOf).toHaveBeenCalledWith(['BTCUSDT', 'BTCUSDT']);
   });
 
+  it('builds the benchmark symbol from the canonical quote, not the stored casing', async () => {
+    // `profiles.quote_asset` is allowed to be stored lower or mixed case. Ticker keys carry Binance's upper casing, so a raw concat asks for `BTCusdt`, misses the cache, and records a zero benchmark price — the "vs holding" comparator flatlines while every other leg of the same row is correct.
+    const pricesOf = vi.fn(async () => new Map([['BTCUSDT', '110']]));
+    const record = vi.fn(async () => undefined);
+    await equitySnapshotHandler(
+      deps({
+        pricesOf,
+        record,
+        load: async () => ({
+          quoteAsset: 'usdt',
+          positions: [{ symbol: 'BTCUSDT', avgEntryPrice: '100', quantity: '1' }],
+          realizedNetQuote: '5',
+        }),
+      }),
+    )(job);
+    expect(pricesOf).toHaveBeenCalledWith(['BTCUSDT', 'BTCUSDT']);
+    const [, , , payload] = record.mock.calls[0] as [
+      UserId,
+      AccountId,
+      ProfileId,
+      EquitySnapshotPayload,
+    ];
+    expect(payload.benchmarkPriceQuote).toBe('110');
+    expect(payload.quoteAsset).toBe('USDT');
+  });
+
   it('skips a profile that has gone (load returns null) without recording', async () => {
     const record = vi.fn(async () => undefined);
     await equitySnapshotHandler(deps({ load: async () => null, record }))(job);

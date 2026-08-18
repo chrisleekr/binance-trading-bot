@@ -86,12 +86,23 @@ describeIfDb('trade-archive aggregates are scoped to one quote asset', () => {
 
   it('matches a lower/mixed-case stored quote against the archive’s exchangeInfo casing', async () => {
     // `profiles.quote_asset` is allowed to be stored lower or mixed case (the base-asset exclusivity suite pins that on purpose), while the archive column always carries Binance's upper casing. A raw compare would match nothing and report a clean zero — and on the daily-loss breaker a silent zero is a risk control failing open, not a cosmetic bug.
+    // All three aggregates in the one loop: they hold the fold through three separate `canonicalQuote` calls, and a future edit that drops it from one leaves the other two green.
     for (const stored of ['usdt', 'Usdt', 'USDT']) {
       const out = await ap.tradeArchive.sumProfitInRange(stored, FROM, TO);
       expect(out.tradeCount).toBe(1);
       expect(Number(out.totalProfit)).toBe(10);
       // The echo is canonical, so a consumer bucketing by it cannot end up with two keys for one currency.
       expect(out.quoteAsset).toBe('USDT');
+
+      const forSource = await ap.tradeArchive.sumProfitInRangeForSource(stored, FROM, TO, 'auto');
+      expect(forSource.tradeCount).toBe(1);
+      expect(Number(forSource.totalProfit)).toBe(10);
+      expect(forSource.quoteAsset).toBe('USDT');
+
+      const bySource = await ap.tradeArchive.sumProfitInRangeBySource(stored, FROM, TO);
+      expect(bySource.map((r) => r.source)).toEqual(['auto']);
+      expect(bySource[0]?.quoteAsset).toBe('USDT');
+      expect(Number(bySource[0]?.totalProfit)).toBe(10);
     }
   });
 

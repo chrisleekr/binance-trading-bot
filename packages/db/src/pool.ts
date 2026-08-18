@@ -111,12 +111,3 @@ export const poolCheckoutTimeoutKind = (err: unknown): PoolCheckoutTimeout | nul
   }
   return null;
 };
-
-/**
- * Whether `err` is a checkout that never got a connection, by either deadline.
- *
- * @param err - Anything caught around a query or an explicit `pool.connect()`; no shape is assumed.
- * @returns True when {@link poolCheckoutTimeoutKind} names a deadline. Callers that report the fault to an operator should use that function instead — the two causes take opposite remedies.
- */
-export const isPoolCheckoutTimeout = (err: unknown): boolean =>
-  poolCheckoutTimeoutKind(err) !== null;

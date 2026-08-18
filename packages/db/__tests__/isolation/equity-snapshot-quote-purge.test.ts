@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { asProfileId } from '@app/contracts';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -10,7 +12,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
 /**
  * Migration 0085 DELETEs rows, and `migrate()` running against an empty table proves only that the SQL parses. This pins WHICH rows it takes, because every clause is load-bearing and each is easy to drop by accident, and the rows cannot be recomputed — an over-broad predicate is unrecoverable.
  *
- * Three cases are seeded per profile and one across profiles: a snapshot captured BEFORE any foreign-quote cycle (clean, kept by the `archived_at < captured_at` bound), one captured after (contaminated, taken), one stamped with a PREVIOUS quote (correct when written, kept on disk because the reader filters by quote instead), and one on a sibling profile (kept by the `t.profile_id = e.profile_id` join, which is only exercised when the sibling's own snapshot is otherwise a live candidate).
+ * Three cases are seeded per profile and one across profiles: a snapshot captured BEFORE any foreign-quote cycle (clean, kept by the `archived_at < captured_at` bound), one captured after (contaminated, taken), one stamped with a PREVIOUS quote (correct when written, kept on disk because the reader filters by quote instead), and one on a sibling profile (kept by the `t.profile_id = e.profile_id` join, which is only exercised when the sibling's own snapshot is otherwise a live candidate). A fifth case covers the backfill exclusion, whose absence is the one way this migration destroys months of correct curve rather than a handful of points.
  *
  * The real migration artifact is executed, never a hand-copied predicate, so this test cannot drift from what the migration actually runs.
  *
@@ -136,6 +138,53 @@ describeIfDb('0085 cross-quote equity-snapshot purge', () => {
       100,
     );
     expect(remaining.map((r) => r.id)).toContain(lowerCased!.id);
+  });
+
+  it('spares snapshots a BACKFILLED foreign-quote row only appears to precede', async () => {
+    // The backfill stamps `archived_at` with the cycle's real closing time on Binance, not with its insert time, so a run today lands a row dated months ago. Without the exclusion, `archived_at < captured_at` matches every snapshot taken since that old date — all of them computed before the row existed, and therefore clean — and the migration deletes months of correct curve to remove the few points the backfill actually contaminated. A profile settling in BTC that holds one backdated USDT cycle must keep its whole series.
+    // Its own profile under Alice's account, because the cases above already gave both fixture profiles a forward-archived foreign-quote row that would take this snapshot for the right reason and hide the wrong one. Cleaned up by the fixture's cascade from `users`.
+    const backfillProfile = asProfileId(randomUUID());
+    await fx.db.insert(profiles).values({
+      id: backfillProfile,
+      accountId: fx.alice.accountId,
+      name: 'backfill-case',
+      strategyName: 'trailing-trade',
+      strategyVersion: '2.0.0',
+      quoteAsset: 'BTC',
+      config: {},
+      state: {},
+    });
+    const cp = await profileRepo(fx.db, fx.alice.userId, fx.alice.accountId, backfillProfile);
+    await cp.tradeArchive.insert({
+      symbol: 'ETHUSDT',
+      baseAsset: 'ETH',
+      quoteAsset: 'USDT',
+      totalBuyQuote: '100',
+      totalSellQuote: '110',
+      // The marker the exclusion keys on, written by `reconstruct-round-trips` and by nothing else.
+      breakdown: { 'backfill:BUY': '100', 'backfill:SELL': '110' },
+      profit: '10',
+      profitPercent: '10',
+      orders: [{ side: 'SELL' as const }],
+      feesQuote: '1',
+      source: 'auto',
+      archivedAt: new Date('2029-02-01T00:00:00Z'),
+    });
+    const [afterBackdate] = await fx.db
+      .insert(equitySnapshots)
+      // Captured long after the row's `archived_at` but long before the backfill inserted it. Drop the exclusion and this row goes.
+      .values(snapshotRow(backfillProfile, '2029-08-01T00:00:00Z', 'BTC'))
+      .returning();
+
+    await fx.db.execute(sql.raw(migration0085()));
+
+    const remaining = await cp.equitySnapshots.listForProfileInRange(
+      'BTC',
+      RANGE_FROM,
+      RANGE_TO,
+      100,
+    );
+    expect(remaining.map((r) => r.id)).toContain(afterBackdate!.id);
   });
 
   it('leaves a sibling profile untouched — the exists-clause joins on profile_id', async () => {

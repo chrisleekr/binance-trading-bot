@@ -48,8 +48,9 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
     enabled: baselineId !== null,
   });
 
-  const bucket = mergeRollupBuckets(archive.data?.bySource ?? []);
   const quote = profile.data?.quoteAsset ?? equity.data?.quoteAsset ?? '';
+  // Counted in the same currency the figures are labelled with, one line below. An all-time rollup spans every quote the profile has ever settled in.
+  const bucket = mergeRollupBuckets(archive.data?.bySource ?? [], quote);
   const liveWin = bucket.tradeCount > 0 ? winPct(bucket) : null;
   const livePf = bucket.tradeCount > 0 ? profitFactor(bucket) : null;
   const liveExp = expectancy(bucket);

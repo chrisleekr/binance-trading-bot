@@ -191,6 +191,71 @@ describe('LiveVsBacktestCard', () => {
     expect(new URL(archiveUrl, 'http://localhost').searchParams.get('view')).toBe('rollup');
   });
 
+  it('fetches the archive once for the card and the edge badge together', async () => {
+    // The card renders `useEdgeVerdict`, so both consumers are mounted here. They share one cache only because the two five-element key arrays are spelled identically in two files; break either and the dashboard silently doubles a 60s poll with nothing red.
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return jsonOf(archiveBody);
+        if (url.includes('/backtests/')) return jsonOf(runDetailBody);
+        return jsonOf(profileBody(null));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText('75.00%')).toBeInTheDocument());
+    expect(urls.filter((u) => u.includes('/trade-archive'))).toHaveLength(1);
+  });
+
+  it('counts only the profile’s own quote when the rollup spans two currencies', async () => {
+    // The window these consumers ask for is all time, so a profile whose quote was changed gets one bucket per currency. Summing them would add a BTC figure into a USDT one and label the result with the current quote — the same defect the server aggregates were fixed for, and it shows no error.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive'))
+          return jsonOf({
+            ...archiveBody,
+            bySource: [
+              ...archiveBody.bySource,
+              {
+                quoteAsset: 'BTC',
+                source: 'auto',
+                tradeCount: 40,
+                wins: 40,
+                losses: 0,
+                profitSum: '0.5',
+                netProfit: '0.5',
+                grossProfit: '0.5',
+                grossLoss: '0',
+                totalFees: '0.001',
+              },
+            ],
+          });
+        if (url.includes('/backtests/')) return jsonOf(runDetailBody);
+        return jsonOf(profileBody(null));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+
+    // The USDT bucket alone: win 75% (3/4), PF 3.00 (60/20). Merging the BTC bucket in would read 97.73% and a PF with no losses at all.
+    await waitFor(() => expect(screen.getByText('75.00%')).toBeInTheDocument());
+    expect(screen.getByText('3.00')).toBeInTheDocument();
+  });
+
   it('shows live win-rate / profit-factor / max-drawdown and a pin hint when no baseline is set', async () => {
     renderCard(null);
     // Win 75% (3/4), PF 3.00 (60/20).

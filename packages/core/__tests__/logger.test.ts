@@ -65,6 +65,39 @@ describe('scrubDrizzleParams', () => {
     expect(scrubbed.stack).toContain('at Object.query');
   });
 
+  it('redacts a bind value that forges a stack frame to end the block early', () => {
+    // `api_keys.label` is operator free text and is bound BEFORE the key, so a label carrying a newline plus `    at ` looks exactly like the V8 frame the boundary scan trusts. Matched on the bind array instead, which is the same substring drizzle interpolated and is not forgeable.
+    const label = 'my key\n    at rotation';
+    const record = {
+      type: 'Error',
+      query: 'insert into "api_keys" ("label", "api_key") values ($1, $2)',
+      params: [label, SECRET],
+      message: `Failed query: q\nparams: ${label},${SECRET}`,
+      stack: `Error: Failed query: q\nparams: ${label},${SECRET}\n    at Object.query`,
+    };
+
+    const scrubbed = scrubDrizzleParams(record);
+
+    expect(JSON.stringify(scrubbed)).not.toContain(SECRET);
+    // The frames after the bind list survive the exact cut, unlike a scan that has to consume to the end of the string to stay safe.
+    expect(scrubbed.stack).toContain('at Object.query');
+  });
+
+  it('keeps the driver cause the message carries after the bind list', () => {
+    // `messageWithCauses` appends the cause with `: `, so the boundary-scan fallback destroys "duplicate key value violates…" along with the binds. The exact cut keeps it, and that line is the one an operator acts on.
+    const record = {
+      type: 'Error',
+      query: QUERY,
+      params: ['acct-1', SECRET],
+      message: `Failed query: ${QUERY}\nparams: acct-1,${SECRET}: duplicate key value violates unique constraint`,
+    };
+
+    const scrubbed = scrubDrizzleParams(record);
+
+    expect(JSON.stringify(scrubbed)).not.toContain(SECRET);
+    expect(scrubbed.message).toContain('duplicate key value violates unique constraint');
+  });
+
   it('leaves a params key that names no query alone', () => {
     // Blanking every field called `params` would take operator-facing job payloads with it, and those are what make a failed tick readable.
     const job = { message: 'tick failed', params: { symbol: 'BTCUSDT', limit: 25 } };

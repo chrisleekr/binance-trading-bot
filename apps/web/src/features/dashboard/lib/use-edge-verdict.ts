@@ -40,7 +40,8 @@ export function useEdgeVerdict(profileId: string): ReturnType<typeof assessEdgeD
   const monitor = profile.data?.enablementPolicy?.monitor;
   if (!monitor) return null;
 
-  const bucket = mergeRollupBuckets(archive.data?.bySource ?? []);
+  // The profile's own quote: a live profit factor built from two currencies added together is not a ratio of anything, and it gates entries.
+  const bucket = mergeRollupBuckets(archive.data?.bySource ?? [], profile.data?.quoteAsset ?? '');
   return assessEdgeDecay({
     policy: monitor,
     hasBaseline: baselineId !== null && !!baseline.data?.result,

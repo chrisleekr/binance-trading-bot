@@ -62,6 +62,23 @@ describeIfInfra('account-health router', () => {
     expect(body.todayRealized.some((r) => r.quoteAsset === 'BTC')).toBe(false);
   });
 
+  it('matches a lower-case stored quote against the archive’s exchangeInfo casing', async () => {
+    // The grouped read LEFT JOINs the archive, so a dropped `upper()` on the profiles side does not error and does not lose the row: the join simply fails to match and the bar reports a flat day for a profile that lost money. That is the same figure the daily-loss limit is measured against. Reachable because `profiles.insert` stores `quoteAsset` verbatim while `update` upper-cases it.
+    await fx.di.pool.query(`update profiles set quote_asset='usdt' where id=$1`, [
+      fx.alice.profileId,
+    ]);
+    try {
+      const body = await get();
+      // The USDT cycle seeded above, still counted, and still labelled canonically.
+      const usdt = body.todayRealized.find((r) => r.quoteAsset === 'USDT');
+      expect(Number(usdt?.realizedQuote)).toBe(-8);
+    } finally {
+      await fx.di.pool.query(`update profiles set quote_asset='USDT' where id=$1`, [
+        fx.alice.profileId,
+      ]);
+    }
+  });
+
   it('aggregates the per-profile daily-loss halt Redis flag', async () => {
     const raw = fx.di.redis.raw();
     try {

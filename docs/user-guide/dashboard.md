@@ -40,7 +40,7 @@ What that change does to the numbers on this page:
 - **Realised profit or loss counts only cycles closed in the profile's current quote asset.** Trades it completed under the old quote drop out of today's P/L, the closed-trades card, the KPI strip, and the discovery scoreboard. They are still in the trade archive — just not added in, because a profit in USDT and a profit in BTC cannot be summed into a number that means anything. Expect the figures to drop the moment you switch.
 - **The daily loss limit is measured in the new quote too**, so a switch part-way through a UTC day effectively resets that day's loss budget.
 - **Holdings in the old quote are kept, not sold** — but they stop counting toward the profile's open-position value for the same reason. Sell them yourself if you want them out.
-- **The equity curve restarts** from the next 15-minute capture. Points recorded in the old currency are not plotted under the new one — there is no exchange rate that would make them comparable. They are kept, not deleted, so switching the quote back brings that history straight back.
+- **The equity curve restarts** from the next 15-minute capture. Points recorded in the old currency are not plotted under the new one — there is no exchange rate that would make them comparable. They are kept, not deleted, so switching the quote back brings that history straight back. One exception, once: if you changed the quote asset before this version, the first stretch of the new curve was recorded with the old currency's profits mixed in and could not be corrected, so those points were removed. The curve is accurate from there on.
 
 If you want the old history to keep counting, use a separate profile for the new quote asset instead of changing this one.
 

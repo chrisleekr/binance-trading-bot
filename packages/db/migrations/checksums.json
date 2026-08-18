@@ -83,6 +83,6 @@
   "0082_condition_states_change_key.sql": "27cc30b999c8c1842eb647bc3dfda679295210c6921c7abad81ecb5824ef0a05",
   "0083_orphan_per_symbol_state_cleanup.sql": "f5713ce7080ae740e039a88f4fac59ca6ac9220eafe3df9d8f7fae8ba4e22558",
   "0084_diagnosis_runs.sql": "311ef49ae1173a048ecbecd33f014fb968f61aa3fe6d185caa91e6a6c413bde9",
-  "0085_purge_cross_quote_equity_snapshots.sql": "046345d7a971662fa10a7a365c953eb674317300e7a280c0d47240992cd063b2",
-  "0086_trade_archive_profile_archived_id.sql": "339918dc3fd5a3fd81a227157288c3f66b4336f7b19265200667a2d143aa883e"
+  "0085_purge_cross_quote_equity_snapshots.sql": "5483e595d07d7e5fe4172f63b37b6cf2508d3668e530bd304dc6948c830afd02",
+  "0086_trade_archive_profile_archived_id.sql": "bb2b4ddb3eed587f77029f16ab2a118e5ba6800fb9271bd55d6a54fd44aa0505"
 }

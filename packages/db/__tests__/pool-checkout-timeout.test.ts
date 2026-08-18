@@ -9,7 +9,7 @@ import { Pool } from 'pg';
 import net from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { isPoolCheckoutTimeout, poolCheckoutTimeoutKind } from '../src/pool.js';
+import { poolCheckoutTimeoutKind } from '../src/pool.js';
 
 /** Short enough that the suite does not sit on it, long enough that a loaded CI box still reaches the deadline by way of the deadline rather than by way of a scheduling stall. */
 const DEADLINE_MS = 300;
@@ -65,14 +65,14 @@ describe('pg-pool checkout deadlines', () => {
     expect(errorMessage((coldConnectErr as { cause?: unknown }).cause)).toBe(
       'Connection terminated unexpectedly',
     );
-    expect(isPoolCheckoutTimeout(coldConnectErr)).toBe(true);
+    expect(poolCheckoutTimeoutKind(coldConnectErr)).toBe('cold-connect');
   });
 
   it('fails a checkout that waits past the deadline for a busy pool', () => {
     // The path the api pool takes under load, and the one that has no timer of its own: pg-pool only arms one when `connectionTimeoutMillis` is set, so unset means this checkout waits forever with nothing to report.
     expect(errorMessage(queueWaitErr)).toBe('timeout exceeded when trying to connect');
     expect((queueWaitErr as { cause?: unknown }).cause).toBeUndefined();
-    expect(isPoolCheckoutTimeout(queueWaitErr)).toBe(true);
+    expect(poolCheckoutTimeoutKind(queueWaitErr)).toBe('queue-wait');
   });
 
   it('tells the two deadlines apart, against the errors the real library raised', () => {
@@ -88,31 +88,31 @@ describe('pg-pool checkout deadlines', () => {
   });
 });
 
-describe('isPoolCheckoutTimeout: negatives', () => {
+describe('poolCheckoutTimeoutKind: negatives', () => {
   it('does not read an unrelated failure as a checkout timeout', () => {
     // A relabelled connection refusal would answer 503 "come back later" for a database that is down and will not come back, and would hide it from the unhandled-error log.
     expect(
-      isPoolCheckoutTimeout(
+      poolCheckoutTimeoutKind(
         Object.assign(new Error('connect ECONNREFUSED'), {
           code: 'ECONNREFUSED',
         }),
       ),
-    ).toBe(false);
-    expect(isPoolCheckoutTimeout(new Error('timeout'))).toBe(false);
+    ).toBeNull();
+    expect(poolCheckoutTimeoutKind(new Error('timeout'))).toBeNull();
   });
 
   it('does not match an error whose message merely contains the literal', () => {
     // Substring matching would classify by whatever text happens to travel with an error — a failed query whose parameter quotes the phrase, a wrapper that appends context — so the match is on the whole message.
     expect(
-      isPoolCheckoutTimeout(
+      poolCheckoutTimeoutKind(
         new Error('query failed: timeout exceeded when trying to connect (retry 3)'),
       ),
-    ).toBe(false);
+    ).toBeNull();
     expect(
-      isPoolCheckoutTimeout(
+      poolCheckoutTimeoutKind(
         new Error('Connection terminated due to connection timeout; giving up'),
       ),
-    ).toBe(false);
+    ).toBeNull();
   });
 
   it('does not read a cancelled statement as a checkout timeout', () => {
@@ -122,26 +122,26 @@ describe('isPoolCheckoutTimeout: negatives', () => {
         code: '57014',
       }),
     });
-    expect(isPoolCheckoutTimeout(cancelled)).toBe(false);
+    expect(poolCheckoutTimeoutKind(cancelled)).toBeNull();
   });
 
   it('returns false for a value that is not an error object', () => {
-    expect(isPoolCheckoutTimeout('timeout exceeded when trying to connect')).toBe(false);
-    expect(isPoolCheckoutTimeout(null)).toBe(false);
-    expect(isPoolCheckoutTimeout(undefined)).toBe(false);
+    expect(poolCheckoutTimeoutKind('timeout exceeded when trying to connect')).toBeNull();
+    expect(poolCheckoutTimeoutKind(null)).toBeNull();
+    expect(poolCheckoutTimeoutKind(undefined)).toBeNull();
     // `null` rather than a kind, so a caller switching on the kind cannot read a non-timeout as one.
     expect(poolCheckoutTimeoutKind(null)).toBeNull();
     expect(poolCheckoutTimeoutKind(new Error('timeout'))).toBeNull();
   });
 });
 
-describe('isPoolCheckoutTimeout: cause chain', () => {
+describe('poolCheckoutTimeoutKind: cause chain', () => {
   it('finds the literal one level down the cause chain', () => {
     // What a caller actually catches when the checkout happened inside drizzle: the driver error is wrapped and the original travels on `cause`.
     const wrapped = new Error('Failed query', {
       cause: new Error('timeout exceeded when trying to connect'),
     });
-    expect(isPoolCheckoutTimeout(wrapped)).toBe(true);
+    expect(poolCheckoutTimeoutKind(wrapped)).toBe('queue-wait');
   });
 
   it('stops walking past the depth bound', () => {
@@ -149,7 +149,7 @@ describe('isPoolCheckoutTimeout: cause chain', () => {
     let deep: Error = new Error('timeout exceeded when trying to connect');
     for (let i = 0; i < 12; i += 1) deep = new Error('wrapper', { cause: deep });
 
-    expect(isPoolCheckoutTimeout(deep)).toBe(false);
+    expect(poolCheckoutTimeoutKind(deep)).toBeNull();
   });
 
   it('terminates on a self-referencing cause chain', () => {
@@ -157,6 +157,6 @@ describe('isPoolCheckoutTimeout: cause chain', () => {
     const loop = new Error('cycle');
     Object.defineProperty(loop, 'cause', { value: loop });
 
-    expect(isPoolCheckoutTimeout(loop)).toBe(false);
+    expect(poolCheckoutTimeoutKind(loop)).toBeNull();
   });
 });

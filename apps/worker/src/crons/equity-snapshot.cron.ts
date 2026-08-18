@@ -58,11 +58,13 @@ export const equitySnapshotHandler = (deps: EquitySnapshotDeps) => {
       async (profile) => {
         const loaded = await deps.load(profile.operatorId, profile.accountId, profile.profileId);
         if (!loaded) return 'skipped';
-        const benchmarkSymbol = `${BENCHMARK_ASSET}${loaded.quoteAsset}`;
+        // Canonical before the symbol is built. Ticker keys carry Binance's upper casing while `profiles.quote_asset` may be stored lower or mixed case, so a raw concat yields `BTCusdt`, misses the cache, and flatlines the "vs holding" comparator at zero while every other leg of the same row is computed correctly.
+        const quoteAsset = loaded.quoteAsset.toUpperCase();
+        const benchmarkSymbol = `${BENCHMARK_ASSET}${quoteAsset}`;
         const wanted = [...loaded.positions.map((p) => p.symbol), benchmarkSymbol];
         const prices = await deps.pricesOf(wanted);
         const payload = computeEquitySnapshot({
-          quoteAsset: loaded.quoteAsset,
+          quoteAsset,
           positions: loaded.positions,
           priceOf: (symbol) => prices.get(symbol) ?? null,
           realizedNetQuote: loaded.realizedNetQuote,
