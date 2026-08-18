@@ -140,8 +140,7 @@ function harness(logger: typeof silentLogger = silentLogger) {
     logger,
     strategies: { get: () => undefined } as never,
     weightGovernor: {} as never,
-    // The probe never gets far enough here to read it; the live-funnel suite owns
-    // the classification's own behaviour.
+    // The probe never gets far enough here to read it; the live-funnel suite owns the classification's own behaviour.
     getAssetPolicy: async () => ({
       stablecoinOrFiatBases: new Set(['RLUSD', 'ZWL']),
       taggedStablecoinBases: new Set(['RLUSD']),

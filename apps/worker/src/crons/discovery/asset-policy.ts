@@ -147,8 +147,9 @@ export const deriveAssetPolicy = (rows: readonly RawProduct[]): AssetPolicy => {
     tradingSymbols.add(r.s);
     // Case-folded because the tag vocabulary is undocumented and already mixes conventions inside one payload (`stablecoin` and `pos` alongside `Payments` and `RWA`), so an exact match would turn a capitalisation change upstream into a silent loss of the entire veto.
     if (r.tags.some((tag) => tag.toLowerCase() === STABLECOIN_TAG)) taggedStablecoinBases.add(r.b);
-    // The quote, never the base: `ADAEUR` is a FIAT row whose base is ordinary ADA.
-    if (r.pm === FIAT_MARKET && r.pn === FIAT_MARKET) fiatQuoteAssets.add(r.q);
+    // The quote, never the base: `ADAEUR` is a FIAT row whose base is ordinary ADA. Case-folded for the same reason as the tag above — `pm`/`pn` are as undocumented as the tag vocabulary, and the failure mode of an exact match is the silent loss of a whole route rather than an error.
+    if (r.pm.toUpperCase() === FIAT_MARKET && r.pn.toUpperCase() === FIAT_MARKET)
+      fiatQuoteAssets.add(r.q);
   }
   return {
     stablecoinOrFiatBases: new Set([...taggedStablecoinBases, ...fiatQuoteAssets]),

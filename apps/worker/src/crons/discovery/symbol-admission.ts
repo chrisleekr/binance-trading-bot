@@ -74,7 +74,15 @@ export const fetchSymbolAdmission = async (
               quoteAsset?: string;
               permissionSets?: unknown;
             };
-            // An entry missing the base/quote split is skipped rather than defaulted. Every refresh since the keyspace existed writes both, so this only fires on a corrupt value, and inventing a split there would silently mis-classify the asset it names.
+            // An entry missing the base/quote split is skipped rather than defaulted. Every refresh since the keyspace existed writes both, so this only fires on a corrupt value, and inventing a split there would silently mis-classify the asset it names. Typed rather than merely truthy, because `JSON.parse(...) as {...}` is an assertion and nothing has checked it: a cached object or array in `baseAsset` is truthy, survives to the ticker, and then misses `stablecoinOrFiatBases.has(...)` — which fails OPEN, admitting the one class of asset this whole path exists to refuse.
+            if (
+              typeof info.symbol !== 'string' ||
+              typeof info.status !== 'string' ||
+              typeof info.baseAsset !== 'string' ||
+              typeof info.quoteAsset !== 'string'
+            ) {
+              continue;
+            }
             if (!info.symbol || !info.status || !info.baseAsset || !info.quoteAsset) continue;
             const permissionSets = projectPermissionSets(info.permissionSets);
             admission.set(info.symbol, {
