@@ -3,15 +3,13 @@
  */
 const CENSOR = '[redacted]';
 
-/**
- * The bind-value block drizzle appends to its error message, and therefore to the stack that message opens.
- *
- * It consumes to the next real boundary rather than to the end of the line, because a bind value can itself contain a newline and nothing forbids one: `api_keys.label` is free text bound in column order BEFORE the key and the secret, so a label carrying a line break pushes the live credential onto a line an end-of-line match would never reach. Only three things can legitimately follow the bind list — a V8 stack frame, the `\ncaused by: ` joint the serializer inserts between chained stacks, and the end of the string — so those are the terminators, and the match is lazy so it stops at the first of them.
- *
- * Global, because a stack that chains causes carries one such block per wrapped query.
- */
-const PARAMS_LINE = /(\nparams:)[\s\S]*?(?=\n\s*at\s|\ncaused by: |$)/g;
 const PARAMS_MESSAGE_TAIL = /(\nparams:)[\s\S]*$/;
+
+/** A V8 stack frame, one of the two boundaries that can legitimately end a bind block. */
+const STACK_FRAME = /^\s*at\s/;
+
+/** The joint the serializer inserts between chained stacks, the other legitimate boundary. */
+const CAUSE_JOINT = 'caused by: ';
 
 /**
  * Replaces the Drizzle bind tail in one error message. An isolated message has no stack frames, so its end is the only boundary a parameter value cannot forge.
@@ -28,8 +26,31 @@ export const redactDrizzleParamsMessage = (value: string): string =>
  * @param value - Finalized stack or chained text whose structural boundaries must survive redaction.
  * @returns The text with each bind list replaced by the shared censor value.
  */
-export const redactDrizzleParamsText = (value: string): string =>
-  value.replace(PARAMS_LINE, `$1 ${CENSOR}`);
+export const redactDrizzleParamsText = (value: string): string => {
+  if (!value.includes('\nparams:')) return value;
+  // Walked line by line rather than matched with one lazy regex. A bind block has to run to the NEXT boundary, not to the end of its line, because a bind value may itself contain a newline: `api_keys.label` is free text bound in column order BEFORE the key and the secret, so a label carrying a line break pushes the live credential onto a later line. Expressing "shortest run up to a frame, a cause joint, or the end" as `[\s\S]*?` with a lookahead makes the engine re-scan that run once per candidate boundary, which is polynomial in the number of `params:` blocks — and the text here is partly attacker-influenced, so a crafted value could stall the logger on the error path. One pass over the lines is linear and says the same thing.
+  const lines = value.split('\n');
+  const out: string[] = [];
+  let inBindBlock = false;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] as string;
+    if (inBindBlock) {
+      // Only a frame or a cause joint ends the block; every other line is still bind text and is dropped.
+      if (!STACK_FRAME.test(line) && !line.startsWith(CAUSE_JOINT)) continue;
+      inBindBlock = false;
+      out.push(line);
+      continue;
+    }
+    // `i > 0` keeps this equivalent to the old `\nparams:`: a string that OPENS with `params:` has no preceding newline and was never a bind block.
+    if (i > 0 && line.startsWith('params:')) {
+      out.push(`params: ${CENSOR}`);
+      inBindBlock = true;
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join('\n');
+};
 
 /** Walks one already-serialized value, redacting in place. `seen` makes a self-referential error terminate instead of recursing forever — a serialized record is not guaranteed acyclic, and a log call must never be the thing that kills the process. */
 const scrub = (value: unknown, seen: WeakSet<object>): void => {
