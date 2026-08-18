@@ -170,7 +170,9 @@ export const buildPortfolioRiskCron = (ctx: BootContext): CronDef =>
         );
         const limitQuote = parsed.success ? parsed.data.dailyLossLimitQuote : '0';
         if (new Decimal(limitQuote || '0').lte(0)) return null;
+        // Counted in the quote `limitQuote` is denominated in, or the breaker would compare a limit against a total in some other currency.
         const { totalProfit } = await repo.tradeArchive.sumProfitInRange(
+          row.quoteAsset,
           new Date(sinceMs),
           new Date(untilMs),
         );

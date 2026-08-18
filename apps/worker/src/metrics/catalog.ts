@@ -93,7 +93,9 @@ export type MetricName =
   | 'exchange_info_filters_unparseable_total'
   | 'exchange_info_band_unparseable_total'
   | 'exchange_info_trailing_delta_unparseable_total'
-  | 'strategy_metric_total';
+  | 'strategy_metric_total'
+  | 'cron_overrun_total'
+  | 'archive_recovery_sweep_profiles_total';
 
 /**
  * The spec behind each name. Exhaustive by construction: a name in the union with
@@ -384,6 +386,18 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     kind: 'counter',
     help: 'Strategy-emitted metric entries drained from each tick, by strategy and entry name. Event-counted: every entry increments once per occurrence, never once per tick spent in the state it describes, so a rate is a rate of things happening and not a measure of how long a condition has held.',
     labelNames: ['strategy', 'name', 'profileId', 'symbol', 'reason'],
+  },
+  // A self-rescheduling cron that overruns its period re-arms at delay 0, which is byte-identical to a healthy fast loop from outside: same queue depth, same completed jobs, same cron-status row. One sweep therefore ran for eight hours against a fifteen minute cadence and emitted nothing. Labelled by cron because the remedy is per cron, and a single unlabelled number could not say which one is late.
+  cron_overrun_total: {
+    kind: 'counter',
+    help: 'Self-rescheduling cron runs whose elapsed time exceeded the configured period, by cron. A non-zero rate means that cron no longer holds its cadence.',
+    labelNames: ['cron'],
+  },
+  // The sweep walks profiles serially, so a run that stalled on the third of ten profiles reported the same tail log as a run where the other seven had nothing to repair. Outcome is a closed set of swept | failed | timeout: `timeout` separates a profile whose query hit the per-profile budget (the starvation shape) from one whose query simply errored, because the two need different responses. No profileId label: the count is a fleet-level health signal and the per-profile identity already rides the warn log.
+  archive_recovery_sweep_profiles_total: {
+    kind: 'counter',
+    help: 'Profiles the archive-recovery sweep accounted for in a run, by outcome. `swept`: the profile was walked, whether or not it had anything to repair. `failed`: the profile query OR one of its backfill enqueues threw. `timeout`: the database cancelled a statement for that profile, which the budget is the expected cause of. `unswept`: the pass ran out of its wall-clock budget before reaching the profile, so the next run resumes there. A sustained non-zero `unswept` rate means the active-profile count has outgrown one pass.',
+    labelNames: ['outcome'],
   },
 };
 

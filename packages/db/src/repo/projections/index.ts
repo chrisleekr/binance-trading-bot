@@ -13,7 +13,12 @@ export {
   invalidateProfileDashboard,
   PROFILE_DASHBOARD_TTL_S,
 } from './profile-dashboard.js';
-export { getAggregateForAccount, invalidateDashboardCaches } from './profile-aggregate.js';
+export {
+  getAggregateForAccount,
+  invalidateDashboardCaches,
+  rollupRealizedByProfileForAccount,
+  type RealizedByProfile,
+} from './profile-aggregate.js';
 export { countOpenExposure } from './profile-exposure.js';
 export { countAccountOpenExposure } from './account-exposure.js';
 export { getClosedTradesForPeriod } from './closed-trades.js';

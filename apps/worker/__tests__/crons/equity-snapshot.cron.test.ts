@@ -40,6 +40,28 @@ describe('computeEquitySnapshot', () => {
     expect(out.benchmarkPrices).toEqual({ BTCUSDT: '120', ETHUSDT: '40' });
   });
 
+  it('excludes a holding that settles in another quote rather than converting it', () => {
+    // The live shape after a quote change: the switch deliberately does not force-sell, so the old-quote holding stays in the ledger and keeps marking in its own currency. Adding its USDT-scale value into a BTC-denominated row is the cross-currency defect this snapshot exists to report, not commit.
+    const out = computeEquitySnapshot({
+      quoteAsset: 'BTC',
+      positions: [
+        { symbol: 'ETHBTC', avgEntryPrice: '0.03', quantity: '2' },
+        { symbol: 'ETHUSDT', avgEntryPrice: '2000', quantity: '5' },
+      ],
+      priceOf: (s) => (s === 'ETHBTC' ? '0.04' : '2500'),
+      realizedNetQuote: '0',
+      benchmarkAsset: 'BTC',
+      benchmarkPriceQuote: '0',
+    });
+    // Only the BTC leg counts: cost 0.03*2 = 0.06, value 0.04*2 = 0.08.
+    expect(out.positionCostQuote).toBe('0.06');
+    expect(out.positionValueQuote).toBe('0.08');
+    // Were the USDT leg admitted, net would be ~2500 rather than 0.02.
+    expect(out.netPnlQuote).toBe('0.02');
+    // The excluded leg contributes no basket mark either, or the benchmark index would carry a foreign-currency price.
+    expect(out.benchmarkPrices).toEqual({ ETHBTC: '0.04' });
+  });
+
   it('marks a position with no cached ticker at cost (zero unrealised for that leg)', () => {
     const out = computeEquitySnapshot({
       quoteAsset: 'USDT',
@@ -61,23 +83,24 @@ describe('computeEquitySnapshot', () => {
   it('skips positions missing avg/qty or with non-positive quantity', () => {
     const out = computeEquitySnapshot({
       quoteAsset: 'USDT',
+      // Real pair names, not bare letters: the ledger only ever holds symbols, and a leg is now admitted only when its symbol settles in `quoteAsset`.
       positions: [
-        { symbol: 'A', avgEntryPrice: null, quantity: '2' },
-        { symbol: 'B', avgEntryPrice: '10', quantity: null },
-        { symbol: 'C', avgEntryPrice: '10', quantity: '0' },
-        { symbol: 'D', avgEntryPrice: '10', quantity: '5' },
+        { symbol: 'AUSDT', avgEntryPrice: null, quantity: '2' },
+        { symbol: 'BUSDT', avgEntryPrice: '10', quantity: null },
+        { symbol: 'CUSDT', avgEntryPrice: '10', quantity: '0' },
+        { symbol: 'DUSDT', avgEntryPrice: '10', quantity: '5' },
       ],
       priceOf: () => '12',
       realizedNetQuote: '0',
       benchmarkAsset: 'BTC',
       benchmarkPriceQuote: '1',
     });
-    // Only D contributes: cost 50, value 60, unrealised 10.
+    // Only DUSDT contributes: cost 50, value 60, unrealised 10.
     expect(out.positionCostQuote).toBe('50');
     expect(out.positionValueQuote).toBe('60');
     expect(out.netPnlQuote).toBe('10');
     // Only the contributing leg with a real price reaches the basket index.
-    expect(out.benchmarkPrices).toEqual({ D: '12' });
+    expect(out.benchmarkPrices).toEqual({ DUSDT: '12' });
   });
 });
 

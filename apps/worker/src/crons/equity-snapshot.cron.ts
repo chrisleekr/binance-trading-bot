@@ -108,7 +108,8 @@ export const buildEquitySnapshotCron = (ctx: BootContext): CronDef =>
         if (!row) return null;
         const [positions, realized] = await Promise.all([
           repo.avgEntryPrices.listForProfile(),
-          repo.tradeArchive.sumProfitInRange(EPOCH, new Date()),
+          // The realised leg MUST be counted in the same quote the positions are marked in: the snapshot adds the two, and an unfiltered sum let a profile's pre-quote-change USDT history land in a BTC-denominated row.
+          repo.tradeArchive.sumProfitInRange(row.quoteAsset, EPOCH, new Date()),
         ]);
         return {
           quoteAsset: row.quoteAsset,

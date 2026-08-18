@@ -50,7 +50,12 @@ const buildRisk = async (
   }
   const now = Date.now();
   const [today, halted] = await Promise.all([
-    p.tradeArchive.sumProfitInRange(new Date(startOfUtcDayMs(now)), new Date(now)),
+    // Same quote the card renders `limitQuote` in, so the two are comparable.
+    p.tradeArchive.sumProfitInRange(
+      profile.quoteAsset,
+      new Date(startOfUtcDayMs(now)),
+      new Date(now),
+    ),
     isEntryHalted(di, p.scope),
   ]);
   const limitOff = new Decimal(config.dailyLossLimitQuote || '0').lte(0);

@@ -2,6 +2,7 @@
 
 | Metric | Kind | Labels | What it measures |
 | --- | --- | --- | --- |
+| `archive_recovery_sweep_profiles_total` | counter | `outcome` | Profiles the archive-recovery sweep accounted for in a run, by outcome. `swept`: the profile was walked, whether or not it had anything to repair. `failed`: the profile query OR one of its backfill enqueues threw. `timeout`: the database cancelled a statement for that profile, which the budget is the expected cause of. `unswept`: the pass ran out of its wall-clock budget before reaching the profile, so the next run resumes there. A sustained non-zero `unswept` rate means the active-profile count has outgrown one pass. |
 | `audit_batch_size` | histogram | — | Audit entries persisted in one drain pass, summed across all streams. |
 | `audit_consumer_lag` | gauge | `stream` | Entries on this audit stream the drainer consumer group has not yet read. Not refreshed on a pass whose probe failed, whose consumer group was absent, or whose lag came back null. |
 | `audit_consumer_lag_unknown` | counter | `stream`, `cause` | Drain passes that could not put a number on this stream backlog. cause=probe-failed means the XINFO GROUPS probe errored; cause=trimmed-past-group means Redis reported trimming dropped entries the group never read; cause=group-missing means the reply carried no such consumer group, so nothing is draining the stream. |
@@ -14,6 +15,7 @@
 | `binance_api_weight` | gauge | `profileId` | Binance used request weight in the last 1m window, as reported on the tick response. |
 | `binance_ws_disconnects_total` | counter | `accountId` | User-data stream sockets closed for this account, counted once per close. A watchdog reconnect closes the stale socket itself, so it registers as the one disconnect it is. |
 | `bullmq_queue_wait_jobs` | gauge | `queue` | Jobs waiting in this BullMQ queue, sampled on the runtime-gauge interval. |
+| `cron_overrun_total` | counter | `cron` | Self-rescheduling cron runs whose elapsed time exceeded the configured period, by cron. A non-zero rate means that cron no longer holds its cadence. |
 | `decision_count` | counter | `profileId`, `symbol` | Strategy decisions emitted, accumulated across ticks. |
 | `exchange_info_band_unparseable_total` | counter | `mode` | Symbols that published a PERCENT_PRICE_BY_SIDE filter which could not be projected, per Binance mode. The rest of the filter set survives, so the symbol keeps trading while its protective stop loses the price-band check and re-arms into rejections. |
 | `exchange_info_filters_unparseable_total` | counter | `mode` | Symbols whose exchangeInfo filters array was present and non-empty but could not be projected into the full filter set, per Binance mode. Each one falls back to all-zero filters, which makes the symbol unsizeable and therefore untraded. |

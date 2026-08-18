@@ -97,6 +97,41 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     );
   });
 
+  it('does not call a recovery finished when the response never reported the missing set', async () => {
+    // A rollup-only archive response carries no `recoverableSymbols` at all — it did not compute the set. That is a different fact from an empty set, which is the archive saying every coin is accounted for, and only the empty set may end a recovery. Collapsing the two lets a response that answered a different question declare the operator's recovery complete, and the nudge stays gone until something else re-renders it.
+    const withoutRecoverable: ProfileArchiveListResponse = {
+      items: [],
+      nextCursor: null,
+      unreconstructableSymbols: [],
+      byIntent: [],
+      bySource: [],
+    };
+    fetchProfileArchive
+      .mockResolvedValueOnce(response(['BTCUSDT']))
+      .mockResolvedValue(withoutRecoverable);
+    renderPanel();
+
+    await userEvent.click(await screen.findByTestId('recover-all'));
+    await waitFor(() => expect(backfillTradeArchive).toHaveBeenCalledTimes(1));
+
+    // Nothing to name, so no nudge — but no completion claim either.
+    await waitFor(() =>
+      expect(screen.queryByTestId('archive-missing-nudge')).not.toBeInTheDocument(),
+    );
+    expect(toastSuccess).not.toHaveBeenCalledWith('Recovery finished.');
+  });
+
+  it('does report a recovery finished when the response says the set is empty', async () => {
+    // The positive control for the case above. Without it, deleting the success branch or renaming the message leaves that negative assertion passing while the behaviour it guards is gone — an absence assertion cannot tell "correctly silent" from "never speaks".
+    fetchProfileArchive
+      .mockResolvedValueOnce(response(['BTCUSDT']))
+      .mockResolvedValue(response([]));
+    renderPanel();
+
+    await userEvent.click(await screen.findByTestId('recover-all'));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Recovery finished.'));
+  });
+
   it('surfaces a partial-failure banner, and does not paint over it with success', async () => {
     // The missing set stays non-empty (worker archived nothing), so the
     // fan-out's error banner is the message the operator keeps seeing — the

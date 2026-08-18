@@ -11,6 +11,7 @@
     "./fan-out": "./src/fan-out/index.ts",
     "./git-sha": "./src/git-sha/index.ts",
     "./hrw": "./src/hrw/index.ts",
+    "./logger": "./src/logger/index.ts",
     "./queue": "./src/queue/index.ts",
     "./role": "./src/role/index.ts",
     "./shutdown": "./src/shutdown/index.ts",

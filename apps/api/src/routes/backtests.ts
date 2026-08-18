@@ -23,6 +23,7 @@ import {
   type BacktestStatus,
 } from '@app/contracts';
 import type { BacktestRunRow } from '@app/db';
+import { compositeCursor, splitCompositeCursor } from 'lib/cursor.js';
 import {
   AdvisorConfigStaleError,
   buildImproveConfigManualPrompt,
@@ -220,14 +221,18 @@ const extractJsonObject = (raw: string): unknown | null => {
   }
 };
 
-// Past-runs list query: composite cursor parsed in the handler (the
-// `<createdAt-iso>__<id>` wire format the handler also emits). The page default
+/** Delimiter of the token this reader emits. Two characters, so it cannot occur inside either half. */
+const CURSOR_SEPARATOR = '__';
+
+// Past-runs list query: composite cursor in the `<createdAt-iso>__<id>` wire
+// format the handler also emits. The page default
 // is the shared contract constant — the mobile-first runs table's default
 // rows-per-page — so the web client can omit `limit` for the common case and
 // keep the canonical URL param-free without the two defaults drifting.
 const BacktestListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(BACKTEST_LIST_DEFAULT_PAGE_SIZE),
-  cursor: z.string().optional(),
+  // Both halves are gated here rather than in the handler: an unbindable timestamp or a non-uuid id reaches Postgres as an uncastable literal and surfaces as a 500 on a route whose only declared failure is 422. A bare-iso cursor stays accepted — its missing id lets a same-timestamp group surface in full on the next page rather than dropping rows.
+  cursor: compositeCursor({ separator: CURSOR_SEPARATOR, allowBareTimestamp: true }).optional(),
   // Optional runs-table outcome filter (profit/loss/error); absent = every run.
   filter: BacktestRunListFilter.optional(),
 });
@@ -748,35 +753,11 @@ export const backtestsRouter = (di: DI): ApiHono => {
     const profileId = asProfileId(c.req.valid('param').profileId);
     const { limit, cursor, filter } = c.req.valid('query');
     const p = await scopeOf(c, di, profileId);
-    // Cursor wire format is `<createdAt-iso>__<id>`. A bare-iso cursor keeps
-    // working: the missing `id` lets a same-timestamp group surface in full
-    // on the next page (no rows dropped).
+    // The query schema has already proven both halves and the separator, so the split cannot fail here.
     let cursorObj: { createdAt: string; id: string } | null = null;
     if (cursor !== undefined) {
-      const sep = cursor.indexOf('__');
-      if (sep > 0) {
-        const id = cursor.slice(sep + 2);
-        // The id half lands on a uuid column; a non-uuid (or empty) segment
-        // would reach Postgres as an uncastable literal and surface as a 500
-        // instead of a clean 422.
-        if (!z.uuid().safeParse(id).success) {
-          throw new HttpError('VALIDATION_FAILED', 'invalid cursor');
-        }
-        // Keep the timestamp half as the original string: the repo casts it
-        // back to timestamptz, so a `new Date()` round-trip (ms-only) would
-        // drop the microsecond fraction the cursor exists to preserve.
-        cursorObj = { createdAt: cursor.slice(0, sep), id };
-      } else {
-        cursorObj = {
-          createdAt: cursor,
-          id: 'ffffffff-ffff-ffff-ffff-ffffffffffff',
-        };
-      }
-      // A hand-crafted cursor with an unparseable timestamp would otherwise
-      // reach the DB as an uncastable literal and surface as a 500.
-      if (Number.isNaN(new Date(cursorObj.createdAt).getTime())) {
-        throw new HttpError('VALIDATION_FAILED', 'invalid cursor');
-      }
+      const { timestamp, id } = splitCompositeCursor(cursor, CURSOR_SEPARATOR);
+      cursorObj = { createdAt: timestamp, id };
     }
     const [runs, total] = await Promise.all([
       p.backtestRuns.list({ limit, cursor: cursorObj, filter }),
@@ -784,7 +765,9 @@ export const backtestsRouter = (di: DI): ApiHono => {
     ]);
     const last = runs.at(-1);
     const nextCursor =
-      runs.length === limit && last !== undefined ? `${last.cursorToken}__${last.id}` : null;
+      runs.length === limit && last !== undefined
+        ? `${last.cursorToken}${CURSOR_SEPARATOR}${last.id}`
+        : null;
     return c.json(
       {
         items: runs.map((r) => {

@@ -14,7 +14,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { ENV_CATALOGUE } from '@app/core/env';
 
-import { resolvePoolMax, type PoolKind } from '../src/pool.js';
+import {
+  createPool,
+  POOL_CHECKOUT_TIMEOUT_MS,
+  resolvePoolMax,
+  type PoolKind,
+} from '../src/pool.js';
 
 const POOLS: readonly (readonly [PoolKind, string, number])[] = [
   ['api', 'API_DB_POOL_MAX', 10],
@@ -88,6 +93,29 @@ describe('resolvePoolMax: a bad value fails loudly', () => {
       expect(() => resolvePoolMax(kind)).toThrow(/positive integer/);
     },
   );
+});
+
+describe('createPool: every pool gets a checkout deadline', () => {
+  // Unlike `max` above, this read-back is NOT vacuous. pg-pool's own default for `connectionTimeoutMillis` is `undefined` — an unset value means "queue this checkout with no timer at all" — so a number here can only have come from our config object. Deleting the setting turns these assertions red rather than leaving them green against a library default that happens to agree.
+  const NEVER_DIALLED = 'postgres://unused:unused@127.0.0.1:1/unused';
+
+  it.each(POOLS)('%s pool is created with a positive connectionTimeoutMillis', async (kind) => {
+    const pool = createPool({ kind, connectionString: NEVER_DIALLED });
+    try {
+      expect(pool.options.connectionTimeoutMillis).toBe(POOL_CHECKOUT_TIMEOUT_MS);
+      expect(POOL_CHECKOUT_TIMEOUT_MS).toBeGreaterThan(0);
+    } finally {
+      // Constructing a Pool opens nothing, but ending it is what keeps a future change to that from leaking a handle out of this suite.
+      await pool.end();
+    }
+  });
+
+  it('the operator reference states the deadline the code actually applies', () => {
+    // The other half of the binding, and the same job the catalogue check below does for the pool sizes: the deadline is a constant with no zod schema, so the only thing stopping `API_DB_POOL_MAX`'s prose from telling an operator "5s" while the code waits ten is this assertion. Retuning the constant now fails here until the reference is retuned with it.
+    expect(ENV_CATALOGUE['API_DB_POOL_MAX']?.expect).toContain(
+      `${POOL_CHECKOUT_TIMEOUT_MS / 1_000}s deadline`,
+    );
+  });
 });
 
 describe('resolvePoolMax: catalogue prose matches the code', () => {

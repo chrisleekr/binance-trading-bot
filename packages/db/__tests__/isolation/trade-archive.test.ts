@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { profileRepo, type ProfileRepo } from '../../src/repo/index.js';
 import { accounts } from '../../src/schema/accounts.js';
 import { appliedFills } from '../../src/schema/applied-fills.js';
+import { backfillAttempts } from '../../src/schema/backfill-attempts.js';
 import { profiles } from '../../src/schema/profiles.js';
 import { tradeArchive } from '../../src/schema/trade-archive.js';
 import { users } from '../../src/schema/users.js';
@@ -126,7 +127,7 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
     const first = page1[0];
     if (!first) throw new Error('page1 should have one row');
     const page2 = await ap.tradeArchive.listForProfilePaginated(1, null, {
-      archivedAt: first.archivedAt,
+      archivedAt: first.cursorToken,
       id: first.id,
     });
     expect(page2).toHaveLength(1);
@@ -143,6 +144,7 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
       archivedAt: new Date('2026-05-11T00:02:00Z'),
     });
     const aliceTotals = await ap.tradeArchive.sumProfitInRange(
+      'USDT',
       new Date('2026-01-01T00:00:00Z'),
       new Date('2027-01-01T00:00:00Z'),
     );
@@ -227,7 +229,7 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
       archivedAt: at(3),
     });
 
-    const rows = await ap.tradeArchive.sumProfitInRangeBySource(from, to);
+    const rows = await ap.tradeArchive.sumProfitInRangeBySource('USDT', from, to);
     // Only this test seeds the window, so exactly the two sources appear,
     // ordered deterministically (auto < manual).
     expect(rows.map((r) => r.source)).toEqual(['auto', 'manual']);
@@ -305,6 +307,86 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
     const bob = await bp.tradeArchive.listRecoverableSymbols();
     expect(bob).toContain('DOGEUSDT');
     expect(bob).not.toContain('AAVEUSDT'); // Alice's, cross-profile
+  });
+
+  it('covers a SELL named in the MIDDLE of a multi-element archived orders array', async () => {
+    // Coverage is a membership test over `orders`, so it must hold wherever the id sits in the array. Live rows are overwhelmingly multi-element (the longest runs to 155 entries) while every other fixture here uses one or two, so a coverage test that only ever looked at the head or the tail would still pass this suite and drop real cycles back into the actionable list forever.
+    const SYMBOL = 'NEARUSDT';
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 81, tradeId: 81, side: 'BUY' });
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 82, tradeId: 82, side: 'SELL' });
+    await settleFills(fx.alice.profileId, SYMBOL);
+    // Actionable BEFORE the archive lands. Without this the closing assertion is ambiguous: an unsettled SELL, or a fill that never recorded, would also leave the symbol absent and read as coverage.
+    expect(await ap.tradeArchive.listRecoverableSymbols()).toContain(SYMBOL);
+    await ap.tradeArchive.insert({
+      ...seedTrade('near-cycle'),
+      symbol: SYMBOL,
+      baseAsset: 'NEAR',
+      orders: [
+        { binanceOrderId: '80', side: 'BUY' as const },
+        { binanceOrderId: '81', side: 'BUY' as const },
+        { binanceOrderId: '82', side: 'SELL' as const },
+        { binanceOrderId: '83', side: 'SELL' as const },
+      ],
+    });
+
+    expect(await ap.tradeArchive.listRecoverableSymbols()).not.toContain(SYMBOL);
+  });
+
+  it('an archived order element with no usable binanceOrderId covers nothing', async () => {
+    // Pre-backfill rows and manual closes carry order elements with no exchange id at all, or an explicit null one. `->>` yields SQL NULL for both a missing key and a JSON null, and NULL never equals the fill's id, so the cycle stays uncovered and actionable. The reverse case is unrepresentable: `applied_fills.order_id` is part of the primary key and cannot be null.
+    const SYMBOL = 'ATOMUSDT';
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 91, tradeId: 91, side: 'BUY' });
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 92, tradeId: 92, side: 'SELL' });
+    await settleFills(fx.alice.profileId, SYMBOL);
+    await ap.tradeArchive.insert({
+      ...seedTrade('atom-idless'),
+      symbol: SYMBOL,
+      baseAsset: 'ATOM',
+      orders: [{ side: 'BUY' as const }, { binanceOrderId: null, side: 'SELL' as const }],
+    });
+
+    expect(await ap.tradeArchive.listRecoverableSymbols()).toContain(SYMBOL);
+
+    // Control: the same shape carrying the SELL's real id DOES cover, so the unusable id is the only variable. Without it the assertion above passes whether or not the archive row landed at all.
+    await ap.tradeArchive.insert({
+      ...seedTrade('atom-with-id'),
+      symbol: SYMBOL,
+      baseAsset: 'ATOM',
+      orders: [{ binanceOrderId: '92', side: 'SELL' as const }],
+    });
+    expect(await ap.tradeArchive.listRecoverableSymbols()).not.toContain(SYMBOL);
+  });
+
+  it('keeps a covered cycle out of the unreconstructable note even with a zero-recovery marker', async () => {
+    // The note reader shares the coverage helper with the actionable list, and that shared predicate is the only thing keeping the two lists disjoint. Every other marker fixture here has no covering archive row, so the coverage clause could be dropped from the note reader and no behavioural test would notice.
+    const SYMBOL = 'FILUSDT';
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 95, tradeId: 95, side: 'BUY' });
+    await ap.appliedFills.tryRecord({ symbol: SYMBOL, orderId: 96, tradeId: 96, side: 'SELL' });
+    await settleFills(fx.alice.profileId, SYMBOL);
+    await ap.tradeArchive.recordBackfillAttempt({
+      symbol: SYMBOL,
+      roundTrips: 0,
+      skippedOrphanSells: 0,
+      droppedOvershoot: 0,
+    });
+
+    // Control: with the marker but nothing covering the cycle, the coin IS in the note. Without it the closing assertion is ambiguous, because the round-trip, has-fills and staleness clauses each exclude a symbol on their own.
+    const before = await ap.tradeArchive.listUnreconstructableSymbols();
+    expect(before.map((u) => u.symbol)).toContain(SYMBOL);
+
+    await ap.tradeArchive.insert({
+      ...seedTrade('fil-cycle'),
+      symbol: SYMBOL,
+      baseAsset: 'FIL',
+      orders: [
+        { binanceOrderId: '95', side: 'BUY' as const },
+        { binanceOrderId: '96', side: 'SELL' as const },
+      ],
+    });
+
+    // Coverage is now the only thing that changed, so this can only be the shared helper doing the work.
+    const after = await ap.tradeArchive.listUnreconstructableSymbols();
+    expect(after.map((u) => u.symbol)).not.toContain(SYMBOL);
   });
 
   it('recordBackfillAttempt moves a coin from recoverable to unreconstructable, scoped', async () => {
@@ -513,6 +595,35 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
     ).not.toContain(SYMBOL);
   });
 
+  it('attemptBoundary hands back a Date the marker column encodes, not the driver text form', async () => {
+    // Every other test in this file supplies its own `new Date(...)` for `attemptedAt`, so the boundary's REAL type met the `attempted_at` column nowhere but production, where a raw `execute` had returned Postgres' text form and drizzle's timestamp encoder called `toISOString` on a string. Every backfill job that got past the symbol-info check died on that TypeError and dead-lettered, so the recovery sweep enqueued repairs that could not land.
+    const boundary = await ap.tradeArchive.attemptBoundary();
+    expect(boundary).toBeInstanceOf(Date);
+    // `instanceof` alone also accepts the two plausible wrong answers: an Invalid Date from a parse that failed, and an epoch-0 Date from a numeric coercion of the wrong cell.
+    expect(boundary.getTime()).toBeGreaterThan(Date.now() - 300_000);
+    expect(boundary.getTime()).toBeLessThan(Date.now() + 300_000);
+
+    // The half that reproduces the outage: the value has to survive the encoder for the timestamptz column the marker is written to, and land as the same instant.
+    const SYMBOL = 'BOUNDUSDT';
+    await ap.tradeArchive.recordBackfillAttempt({
+      symbol: SYMBOL,
+      roundTrips: 0,
+      skippedOrphanSells: 0,
+      droppedOvershoot: 0,
+      attemptedAt: boundary,
+    });
+    const [stored] = await fx.db
+      .select({ attemptedAt: backfillAttempts.attemptedAt })
+      .from(backfillAttempts)
+      .where(
+        and(
+          eq(backfillAttempts.profileId, fx.alice.profileId),
+          eq(backfillAttempts.symbol, SYMBOL),
+        ),
+      );
+    expect(stored?.attemptedAt.getTime()).toBe(boundary.getTime());
+  });
+
   it('setUnreconstructableDismissed hides + reveals a coin, scoped', async () => {
     const bp = await profileRepo(fx.db, fx.bob.userId, fx.bob.accountId, fx.bob.profileId);
     await ap.appliedFills.tryRecord({ symbol: 'XLMUSDT', orderId: 31, tradeId: 31, side: 'BUY' });
@@ -564,7 +675,7 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
     // Belt-and-braces scan: every row must FK-resolve to a profile that still
     // exists. Catches a hypothetical migration regression that orphans rows.
     //
-    // Regression for #487 (same flake class fixed in orders.test.ts): the
+    // Regression for the cross-file flake class already fixed in orders.test.ts: the
     // isolation files share one `binance_test` DB and run in parallel (see
     // _helpers.ts), so an unscoped `SELECT * FROM trade_archive` captures rows
     // owned by OTHER files' fixtures. When such a file's afterAll cleanup()
@@ -738,5 +849,51 @@ describeIfDb('trade-archive cycle dedup (competing consumers)', () => {
     expect(b).not.toBeNull();
     const rows = await ap.tradeArchive.listForSymbol('LEGACYARCH', 100);
     expect(rows).toHaveLength(2);
+  });
+});
+
+// Isolated fixture: these two rows are pinned to hand-written timestamps and have to be the only ones in the account for the walk to start on them.
+describeIfDb('trade-archive pagination across a sub-millisecond boundary', () => {
+  let fx: IsolationFixture;
+  let ap: ProfileRepo;
+
+  beforeAll(async () => {
+    fx = await setupFixture();
+    ap = await profileRepo(fx.db, fx.alice.userId, fx.alice.accountId, fx.alice.profileId);
+  });
+
+  afterAll(async () => {
+    if (fx) await fx.cleanup();
+  });
+
+  it('reaches a row whose timestamp differs from the page boundary only below the millisecond', async () => {
+    // The keyset cursor is built from `archivedAt` as the driver hands it back: a JS `Date`, milliseconds. Store the column at microsecond precision and a row that is strictly older than the page-1 boundary satisfies neither half of the predicate — not `archived_at < .123000`, not `archived_at = .123000` — so no later page can ever surface it and nothing reports the loss. This pins the PREDICATE, binding a full-precision token straight back; the route-level test pins the other half — that the emitted cursor carries that precision at all. Neither covers the other, so both stay.
+    const a = await ap.tradeArchive.insert({ ...seedTrade('sub-ms-a'), symbol: 'SUBMSUSDT' });
+    const b = await ap.tradeArchive.insert({ ...seedTrade('sub-ms-b'), symbol: 'SUBMSUSDT' });
+    if (!a || !b) throw new Error('both seed rows should land');
+
+    // Written as raw SQL because the insert path cannot express microseconds — a JS `Date` is exactly the precision under test.
+    await fx.db.execute(
+      sql`update trade_archive set archived_at = '2026-09-01 00:00:00.123456+00' where id = ${a.id}`,
+    );
+    await fx.db.execute(
+      sql`update trade_archive set archived_at = '2026-09-01 00:00:00.123200+00' where id = ${b.id}`,
+    );
+
+    const page1 = await ap.tradeArchive.listForProfilePaginated(1, null, null);
+    expect(page1).toHaveLength(1);
+    const boundary = page1[0];
+    if (!boundary) throw new Error('page 1 should hold one row');
+
+    const page2 = await ap.tradeArchive.listForProfilePaginated(1, null, {
+      archivedAt: boundary.cursorToken,
+      id: boundary.id,
+    });
+
+    // Asserted as a set rather than a fixed order: which row leads follows from the stamps, and what must hold is that the walk reaches both, so neither is stranded.
+    expect(page2).toHaveLength(1);
+    const second = page2[0];
+    if (!second) throw new Error('page 2 should surface the sibling row');
+    expect(new Set([boundary.id, second.id])).toEqual(new Set([a.id, b.id]));
   });
 });

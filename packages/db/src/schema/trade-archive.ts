@@ -100,6 +100,16 @@ export const tradeArchive = pgTable(
       table.source,
       table.archivedAt.desc(),
     ),
+    // Mirrors migration 0086 (documentation only; the hand-written SQL owns the
+    // DDL). Serves the archive page's keyset: the column order matches its
+    // `archived_at desc, id desc` sort exactly, so the page is an index-ordered
+    // read of `limit` rows and the row-comparison cursor becomes the scan's
+    // start position instead of a per-row filter.
+    index('trade_archive_profile_archived_id').on(
+      table.profileId,
+      table.archivedAt.desc(),
+      table.id.desc(),
+    ),
     check('trade_archive_source_chk', sql`${table.source} in ('manual', 'auto')`),
   ],
 );

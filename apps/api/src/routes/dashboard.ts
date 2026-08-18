@@ -24,7 +24,7 @@ import { periodWindow } from 'lib/period-window.js';
 import { HttpError } from 'middleware/error.js';
 import { requireUser } from 'middleware/require-user.js';
 import { requireNotDemo } from 'middleware/require-not-demo.js';
-import { accountScopeOf, scopeOf } from 'route-helpers.js';
+import { accountScopeOf, requireOwnedProfile, scopeOf } from 'route-helpers.js';
 import { createApiHono, type ApiHono } from 'types.js';
 
 const ProfileIdParam = z.object({ profileId: z.uuid() });
@@ -237,7 +237,12 @@ export const dashboardRouter = (di: DI): ApiHono => {
   });
 
   app.openapi(closedTradesRoute, async (c) => {
-    const p = await scopeOf(c, di, asProfileId(c.req.valid('param').profileId));
+    // Needs the profile row, not just the scope: the archive spans every quote the profile has ever traded, so the widget has to name the one it is counting in.
+    const { p, profile } = await requireOwnedProfile(
+      c,
+      di,
+      asProfileId(c.req.valid('param').profileId),
+    );
     const { period, tz } = c.req.valid('query');
     const { from, to } = periodWindow(period, tz, new Date());
     const closedTrades = await projections.getClosedTradesForPeriod(p.scope, {
@@ -245,6 +250,7 @@ export const dashboardRouter = (di: DI): ApiHono => {
       tz,
       from,
       to,
+      quoteAsset: profile.quoteAsset,
     });
     return c.json(closedTrades, 200);
   });
@@ -254,6 +260,8 @@ export const dashboardRouter = (di: DI): ApiHono => {
     const { from, to, limit } = c.req.valid('query');
     const profile = await p.profile.findById();
     const rows = await p.equitySnapshots.listForProfileInRange(
+      // The response labels every point with this same value, so the series has to be READ in it too — otherwise a quote change leaves an old-currency tail plotted under the new label.
+      profile?.quoteAsset ?? '',
       from ? new Date(from) : new Date(0),
       to ? new Date(to) : new Date(),
       limit,

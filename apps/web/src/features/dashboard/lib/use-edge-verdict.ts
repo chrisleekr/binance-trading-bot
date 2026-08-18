@@ -23,8 +23,8 @@ export function useEdgeVerdict(profileId: string): ReturnType<typeof assessEdgeD
     queryFn: () => fetchProfile(profileId),
   });
   const archive = useQuery({
-    queryKey: ['trade-archive', profileId, 'a', timeZone, 'scorecard'],
-    queryFn: () => fetchProfileArchive(profileId, 'a', null, timeZone),
+    queryKey: ['trade-archive', profileId, 'a', timeZone, 'rollup', 'scorecard'],
+    queryFn: () => fetchProfileArchive(profileId, 'a', null, timeZone, 'rollup'),
     refetchInterval: 60_000,
   });
   const baselineId = profile.data?.baselineBacktestRunId ?? null;

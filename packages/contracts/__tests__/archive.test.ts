@@ -3,6 +3,7 @@ import {
   type ArchiveRollupItem,
   coerceArchivedOrders,
   deriveExitIntent,
+  ProfileArchiveListResponse,
   rollupByExitIntent,
   rollupBySource,
 } from '../src/archive.js';
@@ -290,5 +291,22 @@ describe('rollupByExitIntent net-of-fee classification', () => {
     // Both still net-positive → 2 wins, gross winners net of their own fees.
     expect(b?.wins).toBe(2);
     expect(b?.grossProfit).toBe('4.5');
+  });
+});
+
+describe('ProfileArchiveListResponse', () => {
+  /** The minimum a producer must send. The optional-with-default fields are omitted so each assertion below decides what their absence means. */
+  const minimal = { items: [], nextCursor: null };
+
+  it('leaves recoverableSymbols undefined when the producer omitted it', () => {
+    // `[]` and "absent" are different facts and the recovery UX acts on both: an empty list is the archive telling the operator every coin is accounted for, and it is what stops a running recover-all and reports "Recovery finished.". A default that manufactures `[]` out of silence lets a response that never computed the set close out a recovery that has not happened. Absent must stay absent so the consumer can tell them apart.
+    const parsed = ProfileArchiveListResponse.parse(minimal);
+    expect(parsed.recoverableSymbols).toBeUndefined();
+  });
+
+  it('still carries an explicitly empty recoverableSymbols through as empty', () => {
+    // The other half of the same distinction: a producer that DID compute the set and found nothing must not be flattened into "absent" either, or the fix would trade one ambiguity for its mirror image.
+    const parsed = ProfileArchiveListResponse.parse({ ...minimal, recoverableSymbols: [] });
+    expect(parsed.recoverableSymbols).toEqual([]);
   });
 });

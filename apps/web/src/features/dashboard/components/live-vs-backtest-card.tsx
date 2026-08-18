@@ -32,8 +32,8 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
     queryFn: () => fetchProfile(profileId),
   });
   const archive = useQuery({
-    queryKey: ['trade-archive', profileId, 'a', timeZone, 'scorecard'],
-    queryFn: () => fetchProfileArchive(profileId, 'a', null, timeZone),
+    queryKey: ['trade-archive', profileId, 'a', timeZone, 'rollup', 'scorecard'],
+    queryFn: () => fetchProfileArchive(profileId, 'a', null, timeZone, 'rollup'),
     refetchInterval: 60_000,
   });
   const equity = useQuery({

@@ -1,7 +1,16 @@
-export { createPool, type CreatePoolOptions, type PoolKind } from './pool.js';
+export {
+  createPool,
+  isPoolCheckoutTimeout,
+  poolCheckoutTimeoutKind,
+  POOL_CHECKOUT_TIMEOUT_MS,
+  type CreatePoolOptions,
+  type PoolCheckoutTimeout,
+  type PoolKind,
+} from './pool.js';
 export { createDb, type Database } from './db.js';
 export { migrate, type MigrateOptions, type MigrateResult } from './migrate.js';
 export { assertTestDatabaseUrl } from './test-guard.js';
+export { withStatementTimeout, isStatementTimeout } from './statement-timeout.js';
 export { intervalToMs, computeMissingRanges, type MsRange } from './candle-intervals.js';
 export * as schema from './schema/index.js';
 export type {

@@ -1,7 +1,7 @@
 import { asProfileId, AuditLogListResponse, ErrorEnvelope } from '@app/contracts';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
-import { HttpError } from 'middleware/error.js';
+import { compositeCursor, splitCompositeCursor } from 'lib/cursor.js';
 import { requireUser } from 'middleware/require-user.js';
 import { scopeOf } from 'route-helpers.js';
 import { createApiHono, type ApiHono } from 'types.js';
@@ -26,12 +26,13 @@ const AuditEventFilter = z
   // — Postgres IN (...) is case-sensitive on text columns.
   .regex(/^[a-z0-9-]+$/, 'event filter must be lowercase kebab-case');
 
+/** Delimiter of the token this reader emits. Two characters, so it cannot occur inside either half. */
+const CURSOR_SEPARATOR = '__';
+
 const AuditLogQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(25),
-  // Opaque pagination token. The handler emits `<createdAt-iso>__<id>` and
-  // also accepts a legacy bare-iso cursor, so the shape is parsed there, not
-  // gated here — a stricter schema rejects the handler's own `nextCursor`.
-  cursor: z.string().optional(),
+  // Opaque pagination token. The handler emits `<createdAt-iso>__<id>` and also accepts a legacy bare-iso cursor, whose missing id lets a same-timestamp group surface in full on the next page rather than dropping rows. Both halves are gated here rather than in the handler: an unbindable timestamp or a non-uuid id reaches Postgres as an uncastable literal and surfaces as a 500 on a route whose only declared failure is 422.
+  cursor: compositeCursor({ separator: CURSOR_SEPARATOR, allowBareTimestamp: true }).optional(),
   // Event-kind filter. Repeatable: `?event=manual-order&event=kill-switch-on`.
   // A single `?event=...` is normalised to a one-element array; an empty
   // filter means "all events" and is the default UI state. Zod 4 coerces
@@ -84,43 +85,18 @@ export const auditLogsRouter = (di: DI): ApiHono => {
     const profileId = asProfileId(c.req.valid('param').profileId);
     const { limit, cursor, event } = c.req.valid('query');
     const p = await scopeOf(c, di, profileId);
-    // Cursor wire format is `<createdAt-iso>__<id>`. Older single-iso
-    // cursors keep working: missing `id` lets a same-timestamp group
-    // surface in full on the next page (no rows are dropped).
+    // The query schema has already proven both halves and the separator, so the split cannot fail here.
     let cursorObj: { createdAt: string; id: string } | null = null;
     if (cursor !== undefined) {
-      const sep = cursor.indexOf('__');
-      if (sep > 0) {
-        const id = cursor.slice(sep + 2);
-        // The id half lands on a uuid column; a non-uuid (or empty) segment
-        // would reach Postgres as an uncastable literal and surface as a 500
-        // instead of a clean 422.
-        if (!z.uuid().safeParse(id).success) {
-          throw new HttpError('VALIDATION_FAILED', 'invalid cursor');
-        }
-        // Keep the timestamp half as the original string: the repo casts it
-        // back to timestamptz, so a `new Date()` round-trip (ms-only) would
-        // drop the microsecond fraction the cursor exists to preserve.
-        cursorObj = {
-          createdAt: cursor.slice(0, sep),
-          id,
-        };
-      } else {
-        cursorObj = {
-          createdAt: cursor,
-          id: 'ffffffff-ffff-ffff-ffff-ffffffffffff',
-        };
-      }
-      // A hand-crafted cursor with an unparseable timestamp would otherwise
-      // reach the DB as an uncastable literal and surface as a 500.
-      if (Number.isNaN(new Date(cursorObj.createdAt).getTime())) {
-        throw new HttpError('VALIDATION_FAILED', 'invalid cursor');
-      }
+      const { timestamp, id } = splitCompositeCursor(cursor, CURSOR_SEPARATOR);
+      cursorObj = { createdAt: timestamp, id };
     }
     const rows = await p.auditLogs.listForProfile(limit, cursorObj, event ?? []);
     const last = rows.at(-1);
     const nextCursor =
-      rows.length === limit && last !== undefined ? `${last.cursorToken}__${last.id}` : null;
+      rows.length === limit && last !== undefined
+        ? `${last.cursorToken}${CURSOR_SEPARATOR}${last.id}`
+        : null;
     return c.json(
       {
         items: rows.map((r) => ({

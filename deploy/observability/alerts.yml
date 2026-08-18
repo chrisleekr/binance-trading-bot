@@ -382,6 +382,27 @@ groups:
         # starvation stated directly: nothing waits on a pool with a connection
         # to give. Any waiter at all is already the condition, hence `> 0`.
         #
+        # Scope, which the name does not give away: this series is sampled by
+        # the WORKER, over the worker pool, and only there. The api pool has
+        # never had a gauge, so api-side starvation has always been invisible
+        # here — it is not something the checkout deadline changed.
+        #
+        # What the deadline did change, for the pool this rule does watch:
+        # every pool is now created with a 5s `connectionTimeoutMillis`, so a
+        # worker waiter is ejected rather than queueing indefinitely. The gauge
+        # is an instantaneous `waitingCount`, so it never accumulated; it used
+        # to STAY high, and now a real episode is less likely to hold it
+        # non-zero across five consecutive one-minute samples. Neither `expr`
+        # nor `for` is retuned for that: any waiter is still genuinely the
+        # condition, and loosening the hold without production data would trade
+        # a sensitivity loss for alert noise.
+        #
+        # The api's equivalent signal is `http_requests_total{status="503"}`,
+        # which an ejected checkout now raises. That is a different pool in a
+        # different process, so a 503 rate with this alert silent is a DIFFERENT
+        # incident — unless Postgres itself has run out of connection slots, in
+        # which case both pools starve at once.
+        #
         # The idle/total ratio this rule originally wanted is NOT used, for two
         # reasons. An idle pool reads 0/0 and the ratio is NaN, which no
         # threshold can classify. And a small pool that is fully busy but
@@ -395,7 +416,7 @@ groups:
           severity: critical
         annotations:
           summary: 'Postgres pool has queued waiters for 5m'
-          description: 'Something has been waiting for a Postgres connection for five minutes straight, so every database-touching path is serialised behind the pool. Compare pg_pool_idle against pg_pool_total to see whether the pool is simply too small for the active profile count, or whether connections are being held by slow queries.'
+          description: 'Something has been waiting for a Postgres connection for five minutes straight, so every database-touching path is serialised behind the pool. Compare pg_pool_idle against pg_pool_total to see whether the pool is simply too small for the active profile count, or whether connections are being held by slow queries. Scope: this gauge is sampled by the worker over the WORKER pool only, and the api pool has never had one, so api-side starvation is invisible here and always was. Since checkouts gained a 5s deadline a worker waiter is ejected rather than queueing, so this can stay silent through a real episode. The api equivalent is http_requests_total{status="503"} — a separate pool in a separate process, so a 503 rate with this alert silent is a different incident unless Postgres itself is out of connection slots.'
 
       - alert: WSDisconnectsHigh
         # Counted at socket CLOSE, once per account, so a flapping stream shows

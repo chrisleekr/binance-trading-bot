@@ -25,9 +25,19 @@ export async function record(
  * The profile's snapshots within `[from, to]`, oldest first so a chart can plot
  * the series directly. `limit` caps the row count (newest kept) for an unbounded
  * range; the result is still returned oldest-first.
+ *
+ * `quoteAsset` is required because the caller labels the whole series with ONE currency. A profile's quote can be changed, and rows recorded under the old one stay on disk (they were correct when written), so an unfiltered read hands the chart two currencies on one axis under the newer label. They are filtered out rather than deleted: the operator switching back makes that history readable again, and nothing is lost meanwhile.
+ *
+ * @param scope - Ownership-proven profile scope.
+ * @param quoteAsset - The currency to read the series in, normally the profile's current one. Rows recorded under any other quote are omitted.
+ * @param from - Inclusive lower bound on `captured_at`.
+ * @param to - Inclusive upper bound on `captured_at`.
+ * @param limit - Maximum rows; the NEWEST are kept when the range holds more.
+ * @returns The matching rows, oldest-first for direct plotting. Empty when the profile has no series in this quote.
  */
 export async function listForProfileInRange(
   scope: ProfileScope,
+  quoteAsset: string,
   from: Date,
   to: Date,
   limit: number,
@@ -38,6 +48,8 @@ export async function listForProfileInRange(
     .where(
       and(
         eq(equitySnapshots.profileId, scope.profileId),
+        // Case-insensitive on BOTH sides, unlike the trade-archive filter: this column is stamped from the profile's own quote, which may be stored lower or mixed case, so neither the stored value nor the argument is guaranteed canonical.
+        eq(sql`upper(${equitySnapshots.quoteAsset})`, quoteAsset.toUpperCase()),
         gte(equitySnapshots.capturedAt, from),
         lte(equitySnapshots.capturedAt, to),
       ),

@@ -166,6 +166,31 @@ const renderCard = (baselineRunId: string | null): void => {
 describe('LiveVsBacktestCard', () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it('asks the archive for the rollup only, not a page of trades it never renders', async () => {
+    // This card and the edge-verdict badge beside it both read one field, `bySource`, over all time — and both poll it every 60s. The all-time archive page they ask for also builds a page of rows, a recoverable-coin scan and an unreconstructable-coin scan, none of which reach this render. The request has to say what it wants, or the server has no way to serve less.
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return jsonOf(archiveBody);
+        if (url.includes('/backtests/')) return jsonOf(runDetailBody);
+        return jsonOf(profileBody(null));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(urls.some((u) => u.includes('/trade-archive'))).toBe(true));
+    const archiveUrl = urls.find((u) => u.includes('/trade-archive')) as string;
+    expect(new URL(archiveUrl, 'http://localhost').searchParams.get('view')).toBe('rollup');
+  });
+
   it('shows live win-rate / profit-factor / max-drawdown and a pin hint when no baseline is set', async () => {
     renderCard(null);
     // Win 75% (3/4), PF 3.00 (60/20).

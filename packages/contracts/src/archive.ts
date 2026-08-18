@@ -356,18 +356,24 @@ export const UnreconstructableReason = z.enum([
 export type UnreconstructableReason = z.infer<typeof UnreconstructableReason>;
 
 /**
- * Cursor-paginated profile-level archive response. `nextCursor` is opaque
- * (composite `<archivedAt-iso>__<id>` so a same-timestamp group is paged
- * stably); the client treats it as a string and echoes it back via
- * `?cursor=`. Null when the page came up shorter than the requested
- * limit.
+ * Profile-level archive response, in one of two shapes selected by the request's `view`.
+ *
+ * Under `view=full` (the default) every field below is present. Under `view=rollup` the server runs only the read that feeds `byIntent` and `bySource`, and the four fields the other reads would have filled are OMITTED — `items`, `nextCursor`, `recoverableSymbols`, `unreconstructableSymbols`. That is why they are optional here rather than defaulted, the same shape `SaveDiagnostics` uses for the same reason: the field's ABSENCE is the signal, and a default would manufacture an answer out of silence.
+ *
+ * A consumer must branch on that absence and must never default it. Each of the four has a value that reads as a positive claim the rollup response never checked: `[]` for `items` says the window holds no trades, `null` for `nextCursor` says end-of-stream, `[]` for `recoverableSymbols` says every coin is accounted for — which is what ends a running recovery — and `[]` for `unreconstructableSymbols` says nothing failed to rebuild. `byIntent` and `bySource` keep their `.default([])` because the rollup read always runs, so an empty array there genuinely means "no trades in this window".
+ *
+ * `nextCursor` is opaque when present: the composite `<archivedAt-iso>__<id>` the route emits, so a same-timestamp group is paged stably. The client treats it as a string and echoes it back via `?cursor=`, and it is null when the page came up shorter than the requested limit.
  */
 export const ProfileArchiveListResponse = z.object({
-  items: z.array(TradeArchiveResponse),
-  nextCursor: z.string().nullable(),
+  // Optional and omitted, never `[]` or `null`, on a response that did not page the archive — the same shape `SaveDiagnostics` uses, and for the same reason: the field's ABSENCE is itself the signal. `[]` says "the archive holds no trades in this window", which a rollup-only response has no basis to claim.
+  items: z.array(TradeArchiveResponse).optional(),
+  nextCursor: z.string().nullable().optional(),
   // Coins with fills, no archive row, and not yet backfilled — the actionable
   // "may have unsaved P/L, recover it" set. Drives the recover-all nudge.
-  recoverableSymbols: z.array(z.string()).default([]),
+  // Absent means the response never computed the set; `[]` means it did and every
+  // coin is accounted for. Only the second may end a running recovery, so the two
+  // cannot collapse into one value.
+  recoverableSymbols: z.array(z.string()).optional(),
   // Coins a backfill already tried and could not reconstruct (no complete
   // buy→sell cycle). Surfaced as a quiet, non-actionable note with a reason, so
   // a coin that can never be rebuilt explains itself instead of nagging in the
@@ -378,7 +384,7 @@ export const ProfileArchiveListResponse = z.object({
     .array(
       z.object({ symbol: z.string(), reason: UnreconstructableReason, dismissed: z.boolean() }),
     )
-    .default([]),
+    .optional(),
   // Period-scoped P/L grouped by exit intent over EVERY trade in the selected
   // period (not just the visible page), so the operator sees which exit reason
   // is winning or bleeding across the whole window. `.default([])` keeps older
