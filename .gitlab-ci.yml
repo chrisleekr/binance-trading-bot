@@ -411,9 +411,9 @@ docker-build:
   # A push image build must run to completion, not be cancelled mid-push by a
   # newer commit (overrides `default.interruptible`).
   interruptible: false
-  image: docker:28-cli
+  image: docker:29-cli
   services:
-    - docker:28-dind
+    - docker:29-dind
   variables:
     DOCKER_HOST: tcp://docker:2376
     DOCKER_TLS_CERTDIR: /certs
