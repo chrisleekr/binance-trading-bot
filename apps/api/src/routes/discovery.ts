@@ -41,6 +41,8 @@ const DAY_MS = 86_400_000;
  * Per-statement execution budget for the dashboard's reads.
  *
  * The reads now share one pooled connection, so a single stalled statement holds that connection for as long as it runs and every other route queues behind it. Five seconds is the same figure the archive page uses, for the same reason: an operator is watching this one, and a read still running after five seconds has already lost the panel.
+ *
+ * Postgres applies `statement_timeout` per statement, and the transaction below issues seven in sequence, so the worst case one request can hold its pooled connection is 35 seconds, not five. That is stated rather than sized down: the arithmetic tidies up by dividing this across the seven, which would put each read under a second, and there is no production timing for `buildEntryBlockers` or the two archive sums against a large profile to say that is survivable. The bound exists to stop a pathological stall, and 35 seconds still bounds it where nothing did before.
  */
 const DASHBOARD_READ_BUDGET_MS = 5_000;
 // Recent action-log rows scanned for discovery events, and the max surfaced.
@@ -293,7 +295,7 @@ const getRoute = createRoute({
       content: { 'application/json': { schema: DiscoveryDashboardResponse } },
     },
     404: { description: 'NOT_FOUND', content: { 'application/json': { schema: ErrorEnvelope } } },
-    // The reads run under a per-statement budget, so a stalled one is answered rather than left holding a pooled connection. Declared because it is a real outcome of this route, not an infrastructure accident the client can ignore.
+    // The reads run under a per-statement budget, so a stalled one is cancelled and answered rather than running unbounded. Declared because it is a real outcome of this route, not an infrastructure accident the client can ignore. It is not a bound on the request: seven statements each stalling just under the budget still hold the connection for the sum, which is why `DASHBOARD_READ_BUDGET_MS` states that total.
     503: { description: 'UNAVAILABLE', content: { 'application/json': { schema: ErrorEnvelope } } },
   },
 });

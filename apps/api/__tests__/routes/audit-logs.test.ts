@@ -82,13 +82,17 @@ describeIfInfra('GET /profiles/:profileId/audit-logs', () => {
 
   it('still accepts the legacy bare-ISO cursor, whose missing id keeps a same-timestamp group whole', async () => {
     // The wire contract documents this shape as accepted, and the new schema-level gate sits in front of it, so it needs a test of its own: `z.iso.datetime()` is STRICTER than the `Number.isNaN(new Date(...))` guard it replaced — it rejects a `+00:00` offset a Date parses happily — and nothing else would notice the branch closing.
-    for (let i = 0; i < 3; i++) {
-      await fx.di.pool.query(
-        `insert into audit_logs (operator_id, actor, event, payload, created_at)
-         values ($1, 'web', 'add-symbol', $2::jsonb, now())`,
-        [fx.alice.userId, JSON.stringify({ profileId: fx.alice.profileId, symbol: `B${i}` })],
-      );
-    }
+    // One statement, one explicit stamp. Three separate inserts are three transactions and `now()` is transaction time, so they would land microseconds apart and there would be no same-timestamp group to keep whole. Dated ahead so these are the newest rows whatever else the suite has written.
+    const seeded = await fx.di.pool.query<{ id: string }>(
+      `insert into audit_logs (operator_id, actor, event, payload, created_at)
+       select $1, 'web', 'add-symbol', jsonb_build_object('profileId', $2::text, 'symbol', s), $3::timestamptz
+         from unnest(array['B0', 'B1', 'B2']) as s
+       returning id`,
+      [fx.alice.userId, fx.alice.profileId, '2029-05-05T05:05:05.000Z'],
+    );
+    const seededIds = seeded.rows.map((r) => r.id);
+    expect(seededIds).toHaveLength(3);
+
     const page1 = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/audit-logs?limit=2`,
       { headers: { 'x-test-user-id': fx.alice.userId } },
@@ -97,13 +101,14 @@ describeIfInfra('GET /profiles/:profileId/audit-logs', () => {
     // The timestamp half of a cursor the route itself emitted, sent WITHOUT its row id.
     const bare = (nextCursor as string).split('__')[0] as string;
     const res = await fx.app.request(
-      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/audit-logs?limit=2&cursor=${encodeURIComponent(bare)}`,
+      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/audit-logs?limit=5&cursor=${encodeURIComponent(bare)}`,
       { headers: { 'x-test-user-id': fx.alice.userId } },
     );
     expect(res.status).toBe(200);
-    // A page, not an error envelope: the bare cursor has to page, not merely validate.
     const body = (await res.json()) as { items: { id: string }[] };
-    expect(body.items.length).toBeGreaterThan(0);
+    // The whole group, not merely "a page". A missing id pairs with the maximum uuid, so the predicate reads as "everything before this instant, PLUS all of the group at it" — the row page 1 did not reach is re-shown rather than skipped. Asserting a non-empty page instead would pass on the suite's other rows while the third seeded row silently vanished.
+    const returned = new Set(body.items.map((r) => r.id));
+    for (const id of seededIds) expect(returned).toContain(id);
   });
 
   it('returns 404 when the profile is not owned by the caller', async () => {

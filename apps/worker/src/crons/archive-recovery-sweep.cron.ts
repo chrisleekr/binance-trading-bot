@@ -19,7 +19,12 @@
 
 import type { Job, Queue } from 'bullmq';
 import type { Logger } from 'pino';
-import { isStatementTimeout, profileRepo, withStatementTimeout } from '@app/db';
+import {
+  isStatementTimeout,
+  poolCheckoutTimeoutKind,
+  profileRepo,
+  withStatementTimeout,
+} from '@app/db';
 import type { BootContext } from 'boot/boot-context.js';
 import type { MetricsSink } from 'metrics/catalog.js';
 import type { ActiveProfile } from 'profile-manager/profile-manager.js';
@@ -146,8 +151,12 @@ export const archiveRecoverySweepHandler = (deps: ArchiveRecoverySweepDeps) => {
         swept += 1;
         deps.metrics?.record('archive_recovery_sweep_profiles_total', 1, { outcome: 'swept' });
       } catch (err) {
-        // A cancelled query and a broken one need different responses: the first says the query has degraded until it no longer fits its budget, the second says it errored. Counting them together would hide the shape that starves every profile behind this one.
-        const outcome = isStatementTimeout(err) ? 'timeout' : 'failed';
+        // Three fault shapes, three counts. A cancelled query says the query has degraded until it no longer fits its budget; a broken one says it errored; a refused checkout says the pool was empty before this profile's work began. The third is the account-wide shape — every profile in the pass fails identically — and folding it into `failed` makes a starved pool indistinguishable from one profile's broken query. `withStatementTimeout` opens a transaction, so the checkout is now this sweep's first failure mode, not a theoretical one.
+        const outcome = poolCheckoutTimeoutKind(err)
+          ? 'checkout'
+          : isStatementTimeout(err)
+            ? 'timeout'
+            : 'failed';
         if (outcome === 'timeout') timedOut += 1;
         else failed += 1;
         deps.metrics?.record('archive_recovery_sweep_profiles_total', 1, { outcome });
