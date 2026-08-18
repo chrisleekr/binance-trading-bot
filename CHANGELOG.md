@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.1.0...v1.2.0) (2026-08-18)
+
+
+### Features
+
+* **discovery:** exclude stablecoins and fiat using Binance's own classification ([#750](https://github.com/chrisleekr/binance-trading-bot/issues/750)) ([ee336e3](https://github.com/chrisleekr/binance-trading-bot/commit/ee336e33f2ae77b421b0cfc11e5f5f4651144d93))
+
+
+### Bug Fixes
+
+* **api,db,web:** bound pool checkouts and statements, scope archive sums by quote ([#749](https://github.com/chrisleekr/binance-trading-bot/issues/749)) ([b0e951b](https://github.com/chrisleekr/binance-trading-bot/commit/b0e951b1dfc4a566574aa269379a09b33ea14415))
+
 ## [1.1.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.0.0...v1.1.0) (2026-08-15)
 
 
