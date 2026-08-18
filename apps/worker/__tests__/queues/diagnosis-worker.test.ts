@@ -72,6 +72,7 @@ const healthyInput = (): ProfileDiagnosisInput => ({
       funnel: {
         universe: 400,
         quote: 400,
+        assetPolicy: 400,
         blacklist: 400,
         liquidity: 200,
         activity: 100,
@@ -93,6 +94,7 @@ const healthyInput = (): ProfileDiagnosisInput => ({
 const LIVE_FUNNEL = {
   universe: 401,
   quote: 401,
+  assetPolicy: 401,
   blacklist: 401,
   liquidity: 201,
   activity: 101,
@@ -138,6 +140,13 @@ function harness(logger: typeof silentLogger = silentLogger) {
     logger,
     strategies: { get: () => undefined } as never,
     weightGovernor: {} as never,
+    // The probe never gets far enough here to read it; the live-funnel suite owns the classification's own behaviour.
+    getAssetPolicy: async () => ({
+      stablecoinOrFiatBases: new Set(['RLUSD', 'ZWL']),
+      taggedStablecoinBases: new Set(['RLUSD']),
+      fiatQuoteAssets: new Set(['ZWL']),
+      tradingSymbols: new Set(['BTCUSDT']),
+    }),
     nowMs: () => NOW,
   });
   return (data: DiagnosisJobData = JOB): Promise<unknown> => {

@@ -38,6 +38,7 @@ const EXPECTED_FIELDS = [
   'exchangeInfoRefresh',
   'fillAdopter',
   'fillBackfiller',
+  'getAssetPolicy',
   'getSymbolInfo',
   'lifecycles',
   'listActive',

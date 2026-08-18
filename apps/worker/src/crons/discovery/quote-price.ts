@@ -10,6 +10,7 @@ import type { Ticker24hrDto } from '@app/binance';
 import { isSymbolPermittedForAccount } from '@app/contracts';
 import type { DiscoveryTicker } from '@app/discovery';
 import type { Logger } from 'pino';
+import type { AssetPolicy } from './asset-policy.js';
 import type { SymbolAdmission } from './symbol-admission.js';
 
 /**
@@ -51,110 +52,101 @@ export const resolveQuoteUsdPrice = (
 };
 
 /**
- * Map raw 24h tickers to the pure-chain ticker shape, keeping only symbols
- * quoted in the configured asset. Quote-asset is matched by symbol suffix —
- * dependency-free and correct for the USDT/BTC/etc universe; the pure
- * quote-match filter then trivially re-affirms it.
+ * Map raw 24h tickers to the pure-chain ticker shape, keeping only the symbols this profile may actually trade in its configured quote asset.
  *
- * Resolves the two USD volumes the filter chain reads, both out of this same
- * payload so the cycle costs no extra Binance calls:
+ * Base and quote come from `admissionBySymbol` — the exchangeInfo facts the refresh cron cached — never from slicing the quote off the symbol. Suffix matching is not merely inelegant, it is wrong: quote `USD` also suffix-matches the `FDUSD` and `RLUSD` markets, so `BTCFDUSD` reads as base `BTCFD`, a base that has no USDT market and therefore no `assetVolumeUsd` and no asset classification. Those rows used to survive into the ranked universe and die later at the activity filter, which is the wrong rung and the wrong reason.
+ *
+ * Resolves the two USD volumes the filter chain reads, both out of this same payload so the cycle costs no extra Binance calls:
  *
  * - `pairVolumeUsd` scales the pair's own quote volume by `quoteUsdPrice`.
- * - `assetVolumeUsd` is looked up on the coin's `<base>USDT` market — a
- *   different row of this payload, and the row itself when the profile already
- *   quotes in USDT. `null` when the coin has no USDT market at all.
+ * - `assetVolumeUsd` is looked up on the coin's `<base>USDT` market — a different row of this payload, and the row itself when the profile already quotes in USDT. `null` when the coin has no USDT market at all.
  *
- * Suffix matching assumes no configured quote is a proper suffix of another
- * listed quote. Binance breaks that once: quote `USD` also suffix-matches the
- * `FDUSD` and `RLUSD` markets, whose base would then be mis-read (`BTCFDUSD` ->
- * `BTCFD`). Those rows survive here but die at the activity filter, because the
- * mis-read base has no `<base>USDT` market and `assetVolumeUsd` is null, which
- * `isActive` fails closed. They still inflate the ranked universe, so resolving
- * base/quote from exchangeInfo would be the complete fix.
+ * Three cuts run here rather than as funnel stages, because all three are exchange or account facts while every funnel stage is a filter the operator can tune:
  *
- * `admissionBySymbol` (exchangeInfo facts per symbol, mode-scoped) drives two
- * cuts:
+ * - `status` keeps only `TRADING` markets: Binance still returns a 24h-ticker row for a delisted/halted pair, and a delisting removes the symbol's exchangeInfo key entirely, so a symbol absent from the map is excluded too.
+ * - `quoteAsset` keeps only markets settling in the profile's quote, matched against exchangeInfo rather than the symbol text.
+ * - `permissionSets` keeps only symbols this account may actually trade. A symbol is tradable only when the account holds at least one tag from EVERY published set, so an account without `SPOT` cannot trade a tokenised-equity pair no matter its status. Binding one anyway makes every tick re-derive an order Binance refuses with -2010 forever, and the retry burns the account's whole request-weight budget.
  *
- * - `status` keeps only `TRADING` markets: Binance still returns a 24h-ticker
- *   row for a delisted/halted pair, and a delisting removes the symbol's
- *   exchangeInfo key entirely, so a symbol absent from the map is excluded too.
- * - `permissionSets` keeps only symbols this account may actually trade. A
- *   symbol is tradable only when the account holds at least one tag from EVERY
- *   published set, so an account without `SPOT` cannot trade a tokenised-equity
- *   pair no matter its status. Binding one anyway makes every tick re-derive an
- *   order Binance refuses with -2010 forever, and the retry burns the account's
- *   whole request-weight budget.
+ * The asset classification is stamped onto each ticker rather than cut here, because it IS a funnel stage: the operator needs to see how many candidates it removed. It is still not a lever — see the pure chain's `passesAssetPolicy`.
  *
- * Fail-safe throughout: an absent or empty map (exchangeInfo not primed / Redis
- * miss) skips both filters and warns, and an empty `accountPermissions` skips
- * the permission filter, keeping the quote-matched universe rather than
- * emptying it. A signal that cannot be read is never a refusal.
+ * `admissionBySymbol` and `assetPolicy` are both REQUIRED. An earlier version defaulted an empty admission map to "keep the quote-matched universe unfiltered", which reads as fail-safe and is not: it admits delisted pairs, pairs the account cannot trade, and — now that the base/quote split and the classification both hang off it — every stablecoin on the exchange. An unreadable signal is a reason to stop, not a reason to proceed with the filters switched off. An empty `accountPermissions` still disables only the permission cut, which is a genuine unknown rather than a missing input.
  */
 export interface DiscoveryTickerOptions {
-  readonly admissionBySymbol?: ReadonlyMap<string, SymbolAdmission>;
+  /** exchangeInfo facts per symbol for the profile's mode: status, the base/quote split, and the permission sets. Throws when empty — see above. */
+  readonly admissionBySymbol: ReadonlyMap<string, SymbolAdmission>;
+  /** Binance's current stablecoin/fiat classification, already validated against live exchangeInfo by the caller. */
+  readonly assetPolicy: AssetPolicy;
+  /** Symbols trading live that the product feed did not classify, from the caller's `validateAssetPolicy`. Never empty in normal operation for long — the two caches are five minutes apart — and refused while they are unclassified, because "we do not know whether this base is pegged" is not a reason to admit it. */
+  readonly unclassifiedSymbols?: ReadonlySet<string>;
   /**
    * Permission tags the account holds. Empty means unknown, which disables the
    * permission cut rather than rejecting everything.
    */
   readonly accountPermissions?: readonly string[];
   /**
-   * Required, not optional: both cuts below are silent by construction (a symbol
+   * Required, not optional: the cuts below are silent by construction (a symbol
    * simply stops appearing), so the warn is the operator's only explanation. An
    * optional logger let every production caller omit it and the warn never fired.
    */
   readonly logger: Pick<Logger, 'warn'>;
 }
 
+/**
+ * @param raw - The whole-exchange 24h ticker payload, one row per listed market.
+ * @param quoteAsset - The profile's settlement asset; only markets whose exchangeInfo quote equals it survive.
+ * @param quoteUsdPrice - Price of one unit of `quoteAsset` in USD, for denominating the volume floors.
+ * @param opts - The admission map, the asset classification, the account's permission tags, and the logger the silent cuts report through.
+ * @returns The pure-chain tickers for this profile's universe, each carrying its exchangeInfo base and its stablecoin/fiat verdict.
+ */
 export const toDiscoveryTickers = (
   raw: readonly Ticker24hrDto[],
   quoteAsset: string,
   quoteUsdPrice: Decimal,
   opts: DiscoveryTickerOptions,
 ): DiscoveryTicker[] => {
-  const { admissionBySymbol, accountPermissions, logger } = opts;
-  const applyStatus = admissionBySymbol !== undefined && admissionBySymbol.size > 0;
-  if (admissionBySymbol !== undefined && admissionBySymbol.size === 0) {
-    logger.warn(
-      {},
-      'discovery: empty symbol-admission map; keeping the quote-matched universe unfiltered (fail-safe)',
+  const { admissionBySymbol, assetPolicy, unclassifiedSymbols, accountPermissions, logger } = opts;
+  if (admissionBySymbol.size === 0) {
+    throw new Error(
+      'discovery: empty symbol-admission map (exchangeInfo not primed?); refusing to score an unfiltered universe',
     );
   }
-  const applyPermissions = applyStatus && (accountPermissions?.length ?? 0) > 0;
+  const applyPermissions = (accountPermissions?.length ?? 0) > 0;
   const usdVolumeBySymbol = new Map(raw.map((t) => [t.symbol, t.quoteVolume]));
   let notPermitted = 0;
-  const kept = raw
-    .filter((t) => {
-      if (!t.symbol.endsWith(quoteAsset) || t.symbol.length <= quoteAsset.length) return false;
-      if (!applyStatus) return true;
-      const admission = admissionBySymbol?.get(t.symbol);
-      if (admission?.status !== 'TRADING') return false;
-      if (!applyPermissions) return true;
-      const permitted = isSymbolPermittedForAccount({
+  const kept: DiscoveryTicker[] = [];
+  for (const t of raw) {
+    const admission = admissionBySymbol.get(t.symbol);
+    if (admission === undefined || admission.status !== 'TRADING') continue;
+    if (admission.quoteAsset !== quoteAsset) continue;
+    if (
+      applyPermissions &&
+      !isSymbolPermittedForAccount({
         permissionSets: admission.permissionSets,
         accountPermissions,
-      });
-      if (!permitted) notPermitted += 1;
-      return permitted;
-    })
-    .map((t) => {
-      const base = t.symbol.slice(0, t.symbol.length - quoteAsset.length);
-      return {
-        symbol: t.symbol,
-        quoteAsset,
-        priceChangePercent: t.priceChangePercent,
-        quoteVolume: t.quoteVolume,
-        pairVolumeUsd: new Decimal(t.quoteVolume).times(quoteUsdPrice).toString(),
-        assetVolumeUsd: usdVolumeBySymbol.get(`${base}${USD_REFERENCE_QUOTE}`) ?? null,
-        lastPrice: t.lastPrice,
-        bidPrice: t.bidPrice,
-        askPrice: t.askPrice,
-      };
+      })
+    ) {
+      notPermitted += 1;
+      continue;
+    }
+    const base = admission.baseAsset;
+    kept.push({
+      symbol: t.symbol,
+      baseAsset: base,
+      quoteAsset,
+      // An unclassified symbol is cut on the asset-policy rung rather than dropped silently: the operator sees the stage that could not clear it, which is true — the classification has no answer for this coin yet — instead of watching it vanish from the universe count with no rung to point at.
+      isStablecoinOrFiat:
+        assetPolicy.stablecoinOrFiatBases.has(base) ||
+        (unclassifiedSymbols?.has(t.symbol) ?? false),
+      priceChangePercent: t.priceChangePercent,
+      quoteVolume: t.quoteVolume,
+      pairVolumeUsd: new Decimal(t.quoteVolume).times(quoteUsdPrice).toString(),
+      assetVolumeUsd: usdVolumeBySymbol.get(`${base}${USD_REFERENCE_QUOTE}`) ?? null,
+      lastPrice: t.lastPrice,
+      bidPrice: t.bidPrice,
+      askPrice: t.askPrice,
     });
-  // Cut here rather than as a funnel stage, for the same reason `status` is:
-  // both are exchange admission facts, while every funnel stage is a filter the
-  // operator can tune. A stage would also be the only one no config change can
-  // relax. That leaves the funnel's universe count silently smaller, so log the
-  // real count — otherwise a symbol the operator expects vanishes unexplained.
+  }
+  // The permission cut leaves the funnel's universe count silently smaller, so log the real count — otherwise a symbol the operator expects vanishes with no explanation anywhere.
   if (notPermitted > 0) {
     logger.warn(
       { quoteAsset, notPermitted, kept: kept.length },

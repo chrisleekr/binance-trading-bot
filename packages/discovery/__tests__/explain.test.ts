@@ -81,9 +81,10 @@ describe('explainDiscovery', () => {
     ]);
     // A vanished held symbol has no score and no filter trail.
     expect(map['FADEDUSDT']).toMatchObject({ gainerScore: null, passed: [], failedAt: null });
-    // An eligible symbol passed all eight filters.
+    // An eligible symbol passed all nine filters.
     expect(map['WINUSDT']?.passed).toEqual([
       'quote',
+      'assetPolicy',
       'blacklist',
       'liquidity',
       'activity',
@@ -179,6 +180,7 @@ describe('explainDiscovery', () => {
     const input: DiscoveryInput = {
       tickers: [
         ticker({ symbol: 'QUOTEUSDT', quoteAsset: 'BTC' }), // fails quote
+        ticker({ symbol: 'PEGUSDT', baseAsset: 'PEG', isStablecoinOrFiat: true }), // fails assetPolicy
         ticker({ symbol: 'BLKUSDT' }), // fails blacklist
         ticker({ symbol: 'ILLIQUSDT', pairVolumeUsd: '1000' }), // fails liquidity
         ticker({ symbol: 'SPRDUSDT', bidPrice: '110', askPrice: '100' }), // crossed -> fails spread
@@ -186,6 +188,7 @@ describe('explainDiscovery', () => {
       ],
       klinesBySymbol: {
         QUOTEUSDT: eligibleKlines,
+        PEGUSDT: eligibleKlines,
         BLKUSDT: eligibleKlines,
         ILLIQUSDT: eligibleKlines,
         SPRDUSDT: eligibleKlines,
@@ -193,6 +196,7 @@ describe('explainDiscovery', () => {
       },
       currentAuto: [
         held('QUOTEUSDT'),
+        held('PEGUSDT'),
         held('BLKUSDT'),
         held('ILLIQUSDT'),
         held('SPRDUSDT'),
@@ -208,10 +212,14 @@ describe('explainDiscovery', () => {
       passed: [],
       disposition: 'faded-held',
     });
-    expect(map['BLKUSDT']).toMatchObject({ failedAt: 'blacklist', passed: ['quote'] });
+    expect(map['PEGUSDT']).toMatchObject({ failedAt: 'assetPolicy', passed: ['quote'] });
+    expect(map['BLKUSDT']).toMatchObject({
+      failedAt: 'blacklist',
+      passed: ['quote', 'assetPolicy'],
+    });
     expect(map['ILLIQUSDT']).toMatchObject({
       failedAt: 'liquidity',
-      passed: ['quote', 'blacklist'],
+      passed: ['quote', 'assetPolicy', 'blacklist'],
     });
     expect(map['SPRDUSDT']?.failedAt).toBe('spread');
     expect(map['BANDUSDT']?.failedAt).toBe('changeBand');
@@ -247,7 +255,15 @@ describe('explainDiscovery', () => {
     const map = bySymbol(explainDiscovery(input).candidates);
     expect(map['MISSUSDT']).toMatchObject({
       failedAt: 'age',
-      passed: ['quote', 'blacklist', 'liquidity', 'activity', 'spread', 'changeBand'],
+      passed: [
+        'quote',
+        'assetPolicy',
+        'blacklist',
+        'liquidity',
+        'activity',
+        'spread',
+        'changeBand',
+      ],
       disposition: 'rejected',
     });
   });

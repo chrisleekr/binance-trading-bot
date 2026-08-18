@@ -18,12 +18,18 @@ import type {
 import type { Candle } from '@app/strategy-core';
 
 /**
- * The filter chain's named stages, in evaluation order. The first six are the
- * ticker-stage filters (no klines); `age` + `trend` are the kline stage. A
- * candidate's `passed` list is this sequence truncated at its first failure.
+ * The filter chain's named stages, in evaluation order. The first seven are the ticker-stage filters (no klines); `age` + `trend` are the kline stage. A candidate's `passed` list is this sequence truncated at its first failure.
  */
 export type DiscoveryFilterName =
-  'quote' | 'blacklist' | 'liquidity' | 'activity' | 'spread' | 'changeBand' | 'age' | 'trend';
+  | 'quote'
+  | 'assetPolicy'
+  | 'blacklist'
+  | 'liquidity'
+  | 'activity'
+  | 'spread'
+  | 'changeBand'
+  | 'age'
+  | 'trend';
 
 /**
  * A candidate blocked by account-level symbol exclusivity: a sibling profile on
@@ -76,11 +82,7 @@ export interface DiscoveryExplain {
 }
 
 /**
- * Run the eight filters in order, short-circuiting at the first failure exactly
- * as the chain does. Returns the filters passed and the one that failed (null =
- * all passed = eligible). The ticker stages (1-6) walk the shared
- * {@link TICKER_STAGE_CHAIN} so this breakdown cannot drift from the shortlist /
- * funnel on which filters run or in what order.
+ * Run the nine filters in order, short-circuiting at the first failure exactly as the chain does. Returns the filters passed and the one that failed (null = all passed = eligible). The ticker stages (1-7) walk the shared {@link TICKER_STAGE_CHAIN} so this breakdown cannot drift from the shortlist / funnel on which filters run or in what order.
  */
 const evalFilters = (
   t: DiscoveryTicker,

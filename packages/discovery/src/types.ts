@@ -1,30 +1,23 @@
 import type { Candle } from '@app/strategy-core';
 
 /**
- * One symbol's 24h ticker snapshot, the generator + ticker-stage filters' only
- * input. Money fields are decimal-strings (wire format); the filters revive
- * them to `Decimal`. `quoteAsset` is resolved by the caller (Slice 3 joins the
- * ticker to exchangeInfo) so the quote-match filter needs no symbol parsing.
- * `bidPrice`/`askPrice` come from the full `/api/v3/ticker/24hr` payload and
- * drive the spread filter.
+ * One symbol's 24h ticker snapshot, the generator + ticker-stage filters' only input. Money fields are decimal-strings (wire format); the filters revive them to `Decimal`. `bidPrice`/`askPrice` come from the full `/api/v3/ticker/24hr` payload and drive the spread filter.
  *
- * The two USD-denominated volumes are resolved by the caller, not derived here,
- * because they need the whole-exchange ticker payload:
+ * `baseAsset`/`quoteAsset` are resolved by the caller from exchangeInfo, so no filter here parses a symbol. Slicing a quote suffix off `symbol` is not equivalent: it is wrong whenever one listed quote is a proper suffix of another, which Binance does list (under quote `USD`, `BTCFDUSD` slices to base `BTCFD`).
  *
- * - `pairVolumeUsd` is THIS pair's own 24h volume converted to USD. It answers
- *   "can I fill on this book without slipping" — a dollar question, since
- *   slippage is a dollar cost whatever the profile settles in.
- * - `assetVolumeUsd` is the coin's 24h volume on its USDT market, regardless of
- *   the profile's quote asset. It answers "is this a real, actively traded coin
- *   or a dead microcap". `null` when the coin has no USDT market at all.
+ * The two USD-denominated volumes are resolved by the caller, not derived here, because they need the whole-exchange ticker payload:
  *
- * Under `quoteAsset: 'USDT'` the two coincide. Under any other quote they do
- * not, and conflating them is what makes a single volume floor unable to admit
- * an active coin on a thin venue while still rejecting a dead one.
+ * - `pairVolumeUsd` is THIS pair's own 24h volume converted to USD. It answers "can I fill on this book without slipping" — a dollar question, since slippage is a dollar cost whatever the profile settles in.
+ * - `assetVolumeUsd` is the coin's 24h volume on its USDT market, regardless of the profile's quote asset. It answers "is this a real, actively traded coin or a dead microcap". `null` when the coin has no USDT market at all.
+ *
+ * Under `quoteAsset: 'USDT'` the two coincide. Under any other quote they do not, and conflating them is what makes a single volume floor unable to admit an active coin on a thin venue while still rejecting a dead one.
  */
 export interface DiscoveryTicker {
   readonly symbol: string;
+  readonly baseAsset: string;
   readonly quoteAsset: string;
+  /** Whether Binance currently classifies `baseAsset` as a stablecoin or a fiat currency. Resolved by the caller from fresh Binance product metadata, never inferred from the name or the price: a peg is a claim about the issuer, and any rule this package could apply to guess one would go stale the day a new stablecoin lists. */
+  readonly isStablecoinOrFiat: boolean;
   readonly priceChangePercent: string;
   readonly quoteVolume: string;
   readonly pairVolumeUsd: string;

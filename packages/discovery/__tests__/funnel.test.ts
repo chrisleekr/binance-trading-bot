@@ -10,6 +10,7 @@ import type { DiscoveryDiff } from '../src/types.js';
 
 const STAGES: readonly DiscoveryFilterName[] = [
   'quote',
+  'assetPolicy',
   'blacklist',
   'liquidity',
   'activity',
@@ -37,6 +38,7 @@ const emptyDiff: DiscoveryDiff = { add: [], remove: [], desired: [] };
 const zeroTicker: TickerStageCounts = {
   universe: 0,
   quote: 0,
+  assetPolicy: 0,
   blacklist: 0,
   liquidity: 0,
   activity: 0,
@@ -49,6 +51,7 @@ describe('projectFunnel', () => {
     expect(projectFunnel([], emptyDiff, false, zeroTicker, 0)).toEqual({
       universe: 0,
       quote: 0,
+      assetPolicy: 0,
       blacklist: 0,
       liquidity: 0,
       activity: 0,
@@ -72,6 +75,7 @@ describe('projectFunnel', () => {
     const ticker: TickerStageCounts = {
       universe: 9,
       quote: 8,
+      assetPolicy: 8,
       blacklist: 7,
       liquidity: 6,
       activity: 5,
@@ -82,6 +86,7 @@ describe('projectFunnel', () => {
     // Ticker segment: from the counts.
     expect(f.universe).toBe(9);
     expect(f.quote).toBe(8);
+    expect(f.assetPolicy).toBe(8);
     expect(f.blacklist).toBe(7);
     expect(f.liquidity).toBe(6);
     expect(f.activity).toBe(5);
@@ -98,6 +103,7 @@ describe('projectFunnel', () => {
     const ticker: TickerStageCounts = {
       universe: 5,
       quote: 4,
+      assetPolicy: 4,
       blacklist: 3,
       liquidity: 2,
       activity: 1,
@@ -106,6 +112,7 @@ describe('projectFunnel', () => {
     };
     const f = projectFunnel([], emptyDiff, true, ticker, 0);
     expect(f.quote).toBe(4);
+    expect(f.assetPolicy).toBe(4);
     expect(f.blacklist).toBe(3);
     expect(f.liquidity).toBe(2);
     expect(f.activity).toBe(1);
@@ -129,6 +136,7 @@ describe('projectFunnel', () => {
     const ticker: TickerStageCounts = {
       universe: 3,
       quote: 3,
+      assetPolicy: 3,
       blacklist: 3,
       liquidity: 3,
       activity: 3,
@@ -164,6 +172,7 @@ describe('projectFunnel', () => {
     const ticker: TickerStageCounts = {
       universe: 250,
       quote: 200,
+      assetPolicy: 200,
       blacklist: 195,
       liquidity: 120,
       activity: 90,
@@ -201,6 +210,7 @@ describe('projectFunnel', () => {
     const ticker: TickerStageCounts = {
       universe: 9,
       quote: 8,
+      assetPolicy: 8,
       blacklist: 7,
       liquidity: 6,
       activity: 5,

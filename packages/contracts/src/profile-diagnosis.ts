@@ -266,6 +266,13 @@ export interface DiagnosisSnapshot extends SnapshotHealth {
   readonly funnel?: {
     readonly universe: number;
     readonly quote: number;
+    /**
+     * Survivors of the non-configurable stablecoin/fiat cut. Optional for the
+     * same reason `probed` is: a scan recorded before the stage existed did not
+     * measure it, and {@link ladder} drops a rung it has no number for rather
+     * than drawing a zero that would read as "everything died here".
+     */
+    readonly assetPolicy?: number;
     readonly blacklist: number;
     readonly liquidity: number;
     readonly activity: number;
@@ -393,7 +400,9 @@ const severityOf = (condition: string): ConditionSeverity =>
  *
  * Stages with no entry are deliberate, not omissions: `universe` and `probed`
  * are denominators, `quote` follows the profile's quote asset rather than a
- * discovery setting, and `eligible` is the outcome of every filter above it.
+ * discovery setting, `assetPolicy` is a fact about the asset that no setting can
+ * relax (offering a lever for it would promise a fix that does not exist), and
+ * `eligible` is the outcome of every filter above it.
  */
 const DISCOVERY_LEVERS: ReasonAttributionMap = {
   'discovery-breadth': { setting: 'Market breadth floor', paths: ['marketBreadthMinPercent'] },
@@ -834,6 +843,7 @@ const stepMarketBreadth = (input: ProfileDiagnosisInput): DiagnosisStepResult =>
 const TICKER_STAGES = [
   'universe',
   'quote',
+  'assetPolicy',
   'blacklist',
   'liquidity',
   'activity',
@@ -852,6 +862,7 @@ const CANDIDATE_STAGES = ['probed', 'age', 'trend', 'eligible'] as const;
 const STAGE_LABELS: Record<string, string> = {
   universe: 'All coins on the exchange',
   quote: 'Priced in your quote coin',
+  assetPolicy: 'Not a stablecoin or fiat asset',
   blacklist: 'Not on your blocklist',
   liquidity: 'Enough trading volume',
   activity: 'Moving enough to trade',
@@ -940,6 +951,8 @@ const stepCandidateFunnel = (input: ProfileDiagnosisInput): DiagnosisStepResult 
       items: [],
     };
   }
+  // Resolved once so the detail sentence and the lever field cannot disagree about whether there is anything to adjust.
+  const chokeLever = leverFor(input, choke.stage);
   return {
     status: 'finding',
     line: `Candidates run out at "${funnelStageLabel(choke.stage)}" (${asOf}).`,
@@ -950,15 +963,18 @@ const stepCandidateFunnel = (input: ProfileDiagnosisInput): DiagnosisStepResult 
         code: choke.stage,
         severity: 'degraded',
         title: `No coin gets past "${funnelStageLabel(choke.stage)}"`,
+        // Branched on whether a lever exists, because the generic sentence promises one. `assetPolicy` deliberately has no lever — it is a fact about the coins, not a setting — so an operator told to loosen it would look for a control that is not there and find no "Fix this" link either.
         detail:
-          'This is the filter that removes the most candidates. Loosening it is the most direct way to widen the funnel.',
+          chokeLever === null
+            ? 'This is the filter that removes the most candidates. It reads what the coins are rather than a setting you chose, so there is nothing here to adjust.'
+            : 'This is the filter that removes the most candidates. Loosening it is the most direct way to widen the funnel.',
         sinceMs: null,
         evidence: [
           `${choke.before} coin${choke.before === 1 ? '' : 's'} reached this filter, ${choke.after} got past it.`,
           `0 coins came out eligible (${asOf}).`,
         ],
         symbols: [],
-        lever: leverFor(input, choke.stage),
+        lever: chokeLever,
       },
     ],
   };

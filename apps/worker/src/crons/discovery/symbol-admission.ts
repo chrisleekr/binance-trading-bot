@@ -1,6 +1,6 @@
 // Per-symbol admission facts, read from the symbol-info keyspace the
 // exchange-info-refresh cron writes for one mode: the exchangeInfo `status`,
-// and the permission sets that decide whether this account may trade it at all.
+// the authoritative base/quote split, and the permission sets that decide whether this account may trade it at all.
 //
 // Shared by the discovery cron and the diagnosis re-probe. The map decides which
 // symbols `toDiscoveryTickers` keeps, so a probe reading it differently would
@@ -21,6 +21,10 @@ const SCAN_COUNT = 500;
 /** What one cached symbol-info entry contributes to the admission decision. */
 export interface SymbolAdmission {
   readonly status: string;
+  /** exchangeInfo's own base asset. Required, because it is the only correct split: `AAABBB` cannot be cut into base and quote by string length once one listed quote is a proper suffix of another. */
+  readonly baseAsset: string;
+  /** exchangeInfo's own quote asset, the counterpart of {@link SymbolAdmission.baseAsset} and the value the quote-match filter compares against. */
+  readonly quoteAsset: string;
   /**
    * Absent when the cached entry predates permission-set capture or carries a
    * malformed value. Readers treat absent as "no constraint published", which
@@ -30,10 +34,15 @@ export interface SymbolAdmission {
 }
 
 /**
- * Best-effort: a Redis error or an unprimed keyspace returns an empty map, and
- * `toDiscoveryTickers` then keeps the quote-matched universe unfiltered rather
- * than emptying it. Blinding the admission filters costs precision; emptying the
- * universe would look like a market with nothing in it.
+ * Read the whole mode-scoped admission map.
+ *
+ * Best-effort at THIS layer only: a Redis error or an unprimed keyspace returns an empty map rather than throwing, so the caller sees one uniform "nothing published" answer instead of two failure shapes. The caller does not fail open on it — an empty map aborts the cycle, because an unfiltered universe admits delisted symbols, symbols the account cannot trade, and (since the base/quote split lives here) symbols whose base was never classified.
+ *
+ * @param redis - Redis client, used only for the SCAN + MGET over the symbol-info keyspace.
+ * @param logger - Where an unreadable or unprimed keyspace is reported; the cuts are otherwise silent.
+ * @param mode - The Binance environment whose keyspace to read; a testnet profile admitted against the live universe binds symbols that do not exist on testnet.
+ * @param logPrefix - Caller tag for those warns, so the cron and the diagnosis probe are distinguishable in the log.
+ * @returns Symbol to admission facts; empty when the keyspace could not be read or has not been primed.
  */
 export const fetchSymbolAdmission = async (
   redis: Pick<Redis, 'scan' | 'mget'>,
@@ -61,12 +70,25 @@ export const fetchSymbolAdmission = async (
             const info = JSON.parse(v) as {
               symbol?: string;
               status?: string;
+              baseAsset?: string;
+              quoteAsset?: string;
               permissionSets?: unknown;
             };
-            if (!info.symbol || !info.status) continue;
+            // An entry missing the base/quote split is skipped rather than defaulted. Every refresh since the keyspace existed writes both, so this only fires on a corrupt value, and inventing a split there would silently mis-classify the asset it names. Typed rather than merely truthy, because `JSON.parse(...) as {...}` is an assertion and nothing has checked it: a cached object or array in `baseAsset` is truthy, survives to the ticker, and then misses `stablecoinOrFiatBases.has(...)` — which fails OPEN, admitting the one class of asset this whole path exists to refuse.
+            if (
+              typeof info.symbol !== 'string' ||
+              typeof info.status !== 'string' ||
+              typeof info.baseAsset !== 'string' ||
+              typeof info.quoteAsset !== 'string'
+            ) {
+              continue;
+            }
+            if (!info.symbol || !info.status || !info.baseAsset || !info.quoteAsset) continue;
             const permissionSets = projectPermissionSets(info.permissionSets);
             admission.set(info.symbol, {
               status: info.status,
+              baseAsset: info.baseAsset,
+              quoteAsset: info.quoteAsset,
               ...(permissionSets === null ? {} : { permissionSets }),
             });
           } catch {
@@ -78,15 +100,12 @@ export const fetchSymbolAdmission = async (
   } catch (err) {
     logger.warn(
       { err: err, mode },
-      `${logPrefix}: symbol-admission fetch failed; status filter skipped`,
+      `${logPrefix}: symbol-admission fetch failed; the caller decides whether it can proceed`,
     );
     return new Map();
   }
   if (admission.size === 0) {
-    logger.warn(
-      { mode },
-      `${logPrefix}: symbol-admission map empty (exchangeInfo not primed?); status filter skipped`,
-    );
+    logger.warn({ mode }, `${logPrefix}: symbol-admission map empty (exchangeInfo not primed?)`);
   }
   return admission;
 };

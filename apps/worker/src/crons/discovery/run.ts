@@ -21,6 +21,7 @@ import type { StoredDiscoveryConfig } from '@app/contracts';
 import type { Logger } from 'pino';
 import type { SiblingConflict } from '../sibling-conflict.js';
 import { toPureConfig } from './config.js';
+import { validateAssetPolicy, type AssetPolicy } from './asset-policy.js';
 import { resolveQuoteUsdPrice, toDiscoveryTickers, USD_REFERENCE_QUOTE } from './quote-price.js';
 import type { SymbolAdmission } from './symbol-admission.js';
 import type { DiscoveryAddOutcome } from './apply.js';
@@ -206,19 +207,34 @@ export interface DiscoveryProfilePort {
   persistSnapshot(snapshot: DiscoveryUniverseSnapshotPayload): Promise<void>;
 }
 
+/** The exchange-wide facts a cycle needs but does not fetch itself, resolved once per wake and shared by every due profile. */
+export interface DiscoveryProfileContext {
+  /** exchangeInfo facts for the profile's OWN mode: which symbols are trading, their base/quote split, and what the account may trade. */
+  readonly admissionBySymbol: ReadonlyMap<string, SymbolAdmission>;
+  /** Binance's stablecoin/fiat classification. Validated here, per cycle, before it is allowed to veto anything. */
+  readonly assetPolicy: AssetPolicy;
+  /** The LIVE exchangeInfo map the classification is cross-checked against. Live even for a test-mode profile: testnet lists an arbitrary subset that would pass a check against itself while the feed was gutted. */
+  readonly liveAdmission: ReadonlyMap<string, SymbolAdmission>;
+  /** Permission tags the account holds; empty disables the permission cut. */
+  readonly accountPermissions?: readonly string[];
+}
+
 /**
- * One profile's discovery cycle: fetch the market, run the pure chain, and
- * apply the diff. The fetch of klines is bounded to the shortlist so the cheap
- * ticker stage gates the expensive per-symbol fetch. Enqueues exactly one
- * resync when anything changed. Returns the applied add/remove counts.
+ * One profile's discovery cycle: fetch the market, run the pure chain, and apply the diff. The fetch of klines is bounded to the shortlist so the cheap ticker stage gates the expensive per-symbol fetch. Enqueues exactly one resync when anything changed.
+ *
+ * @param port - Every I/O this cycle performs, injected.
+ * @param stored - The profile's stored discovery settings, as written on its settings page.
+ * @param quoteAsset - The profile's settlement asset, its own first-class column rather than part of the config.
+ * @param nowMs - The wake's timestamp, shared by every profile so one wake reads as one moment.
+ * @param ctx - The per-wake exchange facts: admission map, asset classification, live cross-check reference, and account permissions.
+ * @returns How many symbols were added and removed, for the caller's rotation log line.
  */
 export const runDiscoveryForProfile = async (
   port: DiscoveryProfilePort,
   stored: StoredDiscoveryConfig,
   quoteAsset: string,
   nowMs: number,
-  admissionBySymbol?: ReadonlyMap<string, SymbolAdmission>,
-  accountPermissions?: readonly string[],
+  ctx: DiscoveryProfileContext,
 ): Promise<{ added: number; removed: number }> => {
   const cfg = toPureConfig(stored, quoteAsset);
   const rawTickers = await port.getAllTickers();
@@ -231,12 +247,16 @@ export const runDiscoveryForProfile = async (
       `discovery: cannot price quote asset ${cfg.quoteAsset} in ${USD_REFERENCE_QUOTE} (no ${cfg.quoteAsset}${USD_REFERENCE_QUOTE} market)`,
     );
   }
+  // Before ranking and before a single kline is fetched: a classification that cannot be trusted must cost nothing and change nothing. The throw aborts the cycle in the caller's per-profile catch, which adds and removes nothing.
+  const unclassifiedSymbols = validateAssetPolicy(ctx.assetPolicy, ctx.liveAdmission);
   const tickers = toDiscoveryTickers(rawTickers, cfg.quoteAsset, quoteUsdPrice, {
     logger: port.logger,
+    admissionBySymbol: ctx.admissionBySymbol,
+    assetPolicy: ctx.assetPolicy,
+    unclassifiedSymbols,
     // Spread only when supplied: `exactOptionalPropertyTypes` rejects an
     // explicit `undefined` on an optional property.
-    ...(admissionBySymbol === undefined ? {} : { admissionBySymbol }),
-    ...(accountPermissions === undefined ? {} : { accountPermissions }),
+    ...(ctx.accountPermissions === undefined ? {} : { accountPermissions: ctx.accountPermissions }),
   });
   // 24h high per symbol, captured for the enter-on-add anti-chase guard (#473).
   const highBySymbol: Record<string, string> = {};

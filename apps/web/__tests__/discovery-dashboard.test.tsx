@@ -115,7 +115,16 @@ describe('DiscoveryDashboard', () => {
     expect(warning).toHaveTextContent(/not being applied/i);
   });
 
-  const ALL = ['quote', 'blacklist', 'liquidity', 'spread', 'changeBand', 'age', 'trend'];
+  const ALL = [
+    'quote',
+    'assetPolicy',
+    'blacklist',
+    'liquidity',
+    'spread',
+    'changeBand',
+    'age',
+    'trend',
+  ];
   const rich = {
     ...dashboard,
     universe: {
@@ -145,8 +154,16 @@ describe('DiscoveryDashboard', () => {
         {
           symbol: 'PUMPUSDT',
           gainerScore: '80',
-          passed: ['quote', 'blacklist', 'liquidity', 'spread'],
+          passed: ['quote', 'assetPolicy', 'blacklist', 'liquidity', 'spread'],
           failedAt: 'changeBand',
+          disposition: 'rejected',
+          entryBlocker: null,
+        },
+        {
+          symbol: 'RLUSDUSDT',
+          gainerScore: '0.02',
+          passed: ['quote'],
+          failedAt: 'assetPolicy',
           disposition: 'rejected',
           entryBlocker: null,
         },
@@ -179,7 +196,12 @@ describe('DiscoveryDashboard', () => {
     expect(within(u).getByText(/24h move outside the gain band/)).toBeInTheDocument();
     // The filters a failed candidate cleared are listed so the operator sees how far it got.
     expect(
-      within(u).getByText('passed quote asset, blocklist, liquidity, spread'),
+      within(u).getByText('passed quote asset, asset type, blocklist, liquidity, spread'),
+    ).toBeInTheDocument();
+    // A pegged asset says WHY in the operator's language: not "failed a filter",
+    // but who classified it and as what.
+    expect(
+      within(u).getByText('classified by Binance as a stablecoin or fiat asset'),
     ).toBeInTheDocument();
   });
 

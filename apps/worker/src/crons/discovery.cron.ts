@@ -53,6 +53,7 @@ import {
   discoveryHandler,
   withTestModeFallback,
   type LoadedDiscovery,
+  type ProfileWakeContext,
 } from './discovery/handler.js';
 
 // Re-exported so `discovery-health.cron` and the cron registry keep importing
@@ -94,14 +95,12 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
     weightGovernor: ctx.weightGovernor,
   });
 
-  // exchangeInfo `status` for every listed symbol, read from the symbol-info
+  // exchangeInfo facts for every listed symbol, read from the symbol-info
   // keyspace the exchange-info-refresh cron writes for that mode. The admission
   // map must match the profile-account environment: a testnet profile admitted
   // against the live universe binds symbols that do not exist on testnet, and
   // every one of its ticks then DLQs. SCAN+MGET so a single Redis round of
-  // batches covers the whole universe. Best-effort: a Redis error or an unprimed
-  // keyspace returns an empty map, and `toDiscoveryTickers` then keeps the
-  // quote-matched universe unfiltered rather than emptying it (#635).
+  // batches covers the whole universe. An unreadable or unprimed keyspace yields an empty map, which the handler treats as a reason to skip the profile.
   const fetchSymbolAdmission = (mode: BinanceMode): Promise<ReadonlyMap<string, SymbolAdmission>> =>
     readSymbolAdmission(ctx.redis, ctx.logger, mode, 'cron discovery');
 
@@ -153,8 +152,7 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
     profileName: string,
     nowMs: number,
     getAllTickers: () => Promise<readonly Ticker24hrDto[]>,
-    getSymbolAdmission: () => Promise<ReadonlyMap<string, SymbolAdmission>>,
-    getAccountPermissions: () => Promise<readonly string[]>,
+    wake: ProfileWakeContext,
   ): Promise<{ added: number; removed: number }> => {
     const repo = await profileRepo(ctx.db, p.operatorId, p.accountId, p.profileId);
     const pid = unwrapId(p.profileId);
@@ -374,14 +372,7 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
           discoveryResyncRequest(p),
         ),
     };
-    return runDiscoveryForProfile(
-      port,
-      cfg,
-      quoteAsset,
-      nowMs,
-      await getSymbolAdmission(),
-      await getAccountPermissions(),
-    );
+    return runDiscoveryForProfile(port, cfg, quoteAsset, nowMs, wake);
   };
 
   return defineCron({
@@ -396,6 +387,8 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
       runForProfile,
       fetchAllTickers: () => rest.getAllTickers24hr(),
       fetchSymbolAdmission,
+      // The process-wide snapshot, not a cron-local one: the diagnosis re-probe reads the same accessor, and two snapshots could classify one asset two ways at the same instant.
+      getAssetPolicy: ctx.getAssetPolicy,
       fetchAccountPermissions: (p) =>
         readAccountPermissions(ctx.redis, ctx.logger, p.accountId, 'cron discovery'),
       resolveBinanceMode: async (p) =>

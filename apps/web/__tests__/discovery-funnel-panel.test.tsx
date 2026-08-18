@@ -25,7 +25,8 @@ const funnel = (over: Partial<DiagnosisFunnel> = {}): DiagnosisFunnel => ({
   ticker: [
     { stage: 'universe', survivors: 489 },
     { stage: 'quote', survivors: 231 },
-    { stage: 'blacklist', survivors: 231 },
+    { stage: 'assetPolicy', survivors: 220 },
+    { stage: 'blacklist', survivors: 220 },
     { stage: 'liquidity', survivors: 120 },
     { stage: 'activity', survivors: 12 },
     { stage: 'spread', survivors: 12 },

@@ -37,11 +37,13 @@ const payload = (tag: string): DiscoveryUniverseSnapshotPayload => ({
   funnel: {
     universe: 1,
     quote: 1,
+    assetPolicy: 1,
     blacklist: 1,
     liquidity: 1,
     activity: 1,
     spread: 1,
     changeBand: 1,
+    probed: 1,
     age: 1,
     trend: 1,
     eligible: 1,

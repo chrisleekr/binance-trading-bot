@@ -41,7 +41,11 @@ export const cfg = (over: Partial<DiscoveryConfig> = {}): DiscoveryConfig => ({
 /** A ticker that passes every ticker-stage filter under baseConfig; override to fail one. */
 export const ticker = (over: Partial<DiscoveryTicker> = {}): DiscoveryTicker => ({
   symbol: 'AAAUSDT',
+  baseAsset: 'AAA',
   quoteAsset: 'USDT',
+  // Ordinary asset by default: the asset-policy stage is inert for every fixture
+  // that is not exercising it, so no existing expectation moves.
+  isStablecoinOrFiat: false,
   priceChangePercent: '12',
   quoteVolume: '50000000',
   // Under a USDT quote the pair IS the coin's USD market, so both volumes agree.

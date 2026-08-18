@@ -18,6 +18,7 @@ export {
   MIN_UNIVERSE_FOR_RANK,
   notBlacklisted,
   oldEnough,
+  passesAssetPolicy,
   trendConfirmed,
   volumeSma,
   withinChangeBand,

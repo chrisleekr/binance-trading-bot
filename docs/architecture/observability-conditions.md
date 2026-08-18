@@ -98,8 +98,10 @@ Discovery computes stage counts on every scan and persists them to `discovery_un
 
 | Ladder | Stages | Counted over |
 | --- | --- | --- |
-| Ticker | `universe → quote → blacklist → liquidity → activity → spread → changeBand` | every quote-matched symbol in the 24h ticker set |
+| Ticker | `universe → quote → assetPolicy → blacklist → liquidity → activity → spread → changeBand` | every quote-matched symbol in the 24h ticker set |
 | Candidate | `probed → age → trend → eligible` | only the shortlist that klines were fetched for |
+
+`assetPolicy` is the one rung on either ladder with no operator setting behind it — it drops coins Binance itself classifies as stablecoins or fiat, so the diagnosis names it as a choke like any other stage but deliberately offers no "Fix this" lever for it. Scans recorded before the stage existed carry no count for it and the ladder omits that rung rather than drawing a zero.
 
 `probed` is far below `changeBand` by design — the second ladder starts from a smaller set, it does not represent a collapse. So each ladder is drawn against **its own head**, each is captioned with what it counted over, and the choke stage is searched within each ladder separately.
 

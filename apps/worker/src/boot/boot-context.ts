@@ -34,6 +34,7 @@ import type { ChainByKey } from 'lib/chain-by-key.js';
 import { createQueueSet, type QueueSet } from 'queues/queue-set.js';
 import type { SymbolReconcileRequest } from 'queues/symbol-reconcile-enqueue.js';
 import type { AccountSnapshotStore } from 'crons/account-snapshot.js';
+import { createAssetPolicyResolver, type AssetPolicy } from 'crons/discovery/asset-policy.js';
 import type { MutateSymbolStateDeps } from 'state/version-aware-mutate.js';
 import type { StatePort } from 'state/state-port.js';
 import type { LiveExecutor } from 'executor/live-executor.js';
@@ -153,6 +154,10 @@ export interface BootContext {
    */
   readonly accountSnapshotStore: AccountSnapshotStore;
   readonly weightGovernor: WeightGovernor;
+  /**
+   * Binance's stablecoin/fiat classification, behind one process-wide five-minute snapshot. Shared rather than built per consumer so the discovery cron and the diagnosis re-probe can never classify the same asset differently, and so N consumers cost one fetch. Lazy: nothing is requested until a due profile or a probe asks.
+   */
+  readonly getAssetPolicy: () => Promise<AssetPolicy>;
   /** Symbol filters/precision lookup (cached); used by the backtest runner. */
   readonly getSymbolInfo: (symbol: string) => Promise<SymbolInfo>;
   /**
@@ -264,6 +269,12 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
   } = buildNotifiers({ db, redis, logger, liveDemo, queueSet });
 
   const chain = buildChain();
+
+  // Built once per process so the five-minute snapshot survives every 60s discovery wake and is shared with the diagnosis probe. Lazy — no request leaves the process until a due profile or a probe actually asks, which is what keeps the hermetic e2e stack from reaching www.binance.com.
+  const getAssetPolicy = createAssetPolicyResolver({
+    clock: { nowMs: () => Date.now() },
+    logger,
+  });
 
   const { wsFactory, weightGovernor, klineFetcher, indicatorComputer } = buildMarketData({
     env,
@@ -471,6 +482,7 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     listActive: () => profileManager.listActive(),
     accountSnapshotStore,
     weightGovernor,
+    getAssetPolicy,
     getSymbolInfo: (symbol: string) => symbolInfoCache.get(symbol),
     marketDataPort: klineFetcher,
     strategies: strategiesRegistry,
