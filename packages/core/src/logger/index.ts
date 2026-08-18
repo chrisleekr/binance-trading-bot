@@ -42,18 +42,18 @@ export const redactDrizzleParamsMessage = (value: string, bindText?: string): st
 /**
  * Replaces Drizzle bind lists in finalized stack or chained text while preserving the known V8 frame and chained-cause boundaries. Use {@link redactDrizzleParamsMessage} for an isolated `Error.message`, whose bind tail has no trustworthy intermediate boundary.
  *
- * Pass `bindText` whenever the serialized record is at hand. Those boundaries are forgeable — a bind value containing `\n    at x` ends the block early and leaves the credentials bound after it in the log — and the exact cut is not. The scan below stays as the fallback for text whose bind list belongs to an error the caller does not hold, such as an inner query flattened into a wrapper's stack.
+ * Pass `bindText` whenever the serialized record is at hand. Those boundaries are forgeable — a bind value containing `\n    at x` ends the block early and leaves the credentials bound after it in the log — and the exact cut is not. It is applied FIRST and the scan then runs over its result, because the exact cut removes at most the one block whose values the caller holds: a chained stack carries the inner statement's `params:` too, with different values, and only the scan can reach that one. Returning early on a successful cut would leave the inner secrets in the line.
  *
  * @param value - Finalized stack or chained text whose structural boundaries must survive redaction.
  * @param bindText - The bind array as drizzle stringified it, when the caller holds the serialized record it came from. Omitted by callers that only have loose text.
  * @returns The text with each bind list replaced by the shared censor value.
  */
 export const redactDrizzleParamsText = (value: string, bindText?: string): string => {
-  const exact = bindText ? censorExactBindList(value, bindText) : null;
-  if (exact !== null) return exact;
-  if (!value.includes('\nparams:')) return value;
+  // Falls through to the scan on its own output, never instead of it.
+  const text = (bindText ? censorExactBindList(value, bindText) : null) ?? value;
+  if (!text.includes('\nparams:')) return text;
   // Walked line by line rather than matched with one lazy regex. A bind block has to run to the NEXT boundary, not to the end of its line, because a bind value may itself contain a newline: `api_keys.label` is free text bound in column order BEFORE the key and the secret, so a label carrying a line break pushes the live credential onto a later line. Expressing "shortest run up to a frame, a cause joint, or the end" as `[\s\S]*?` with a lookahead makes the engine re-scan that run once per candidate boundary, which is polynomial in the number of `params:` blocks — and the text here is partly attacker-influenced, so a crafted value could stall the logger on the error path. One pass over the lines is linear and says the same thing.
-  const lines = value.split('\n');
+  const lines = text.split('\n');
   const out: string[] = [];
   let inBindBlock = false;
   for (let i = 0; i < lines.length; i += 1) {

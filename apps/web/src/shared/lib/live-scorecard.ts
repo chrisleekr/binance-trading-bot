@@ -33,17 +33,9 @@ interface MergeableBucket {
 }
 
 /**
- * Sum per-source (or per-intent) rollup buckets into one overall bucket, so the
- * scorecard's headline win-rate / profit-factor / expectancy cover all of a
- * period's closed trades rather than one partition. Money fields are summed as
- * `number` — display only; the scorecard never feeds order math.
+ * Sum per-source (or per-intent) rollup buckets into one overall bucket, so the scorecard's headline win-rate / profit-factor / expectancy cover all of a period's closed trades rather than one partition. Money fields are summed as `number` — display only; the scorecard never feeds order math.
  *
- * `quoteAsset` is required rather than defaulted. The server buckets by
- * `(quoteAsset, dimension)` and these consumers ask for the all-time window, so
- * a profile whose quote was changed after it had closed cycles returns buckets
- * in two currencies. Summing them would add a BTC figure to a USDT one and
- * label the result with the profile's current quote — the same defect the
- * server aggregates were just fixed for, and one that shows no error.
+ * `quoteAsset` is required rather than defaulted. The server buckets by `(quoteAsset, dimension)` and these consumers ask for the all-time window, so a profile whose quote was changed after it had closed cycles returns buckets in two currencies. Summing them would add a BTC figure to a USDT one and label the result with the profile's current quote — the same defect the server aggregates were just fixed for, and one that shows no error.
  *
  * @param buckets - Period rollup buckets, possibly spanning several currencies.
  * @param quoteAsset - The currency to count in; buckets in any other are dropped. Compared case-folded because `profiles.quoteAsset` may be stored lower or mixed case while the archive carries Binance's upper casing.

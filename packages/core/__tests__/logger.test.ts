@@ -83,6 +83,32 @@ describe('scrubDrizzleParams', () => {
     expect(scrubbed.stack).toContain('at Object.query');
   });
 
+  it('redacts an inner statement’s bind list too, whose values the record does not carry', () => {
+    // The exact cut can only remove the block whose values this record holds. A wrapper around a failed query carries the INNER statement’s bind list in its chained stack with different values, so the boundary scan still has to run afterwards — returning early on a successful cut leaves the inner secret in the line.
+    const INNER = 'SECRET-INNER-KEY';
+    const record = {
+      type: 'Error',
+      query: QUERY,
+      params: ['acct-1', SECRET],
+      stack: [
+        `Error: Failed query: ${QUERY}`,
+        `params: acct-1,${SECRET}`,
+        '    at Object.query',
+        `caused by: Error: Failed query: update "api_keys" set "api_key" = $1`,
+        `params: ${INNER}`,
+        '    at Inner.query',
+      ].join('\n'),
+    };
+
+    const scrubbed = scrubDrizzleParams(record);
+
+    expect(JSON.stringify(scrubbed)).not.toContain(SECRET);
+    expect(JSON.stringify(scrubbed)).not.toContain(INNER);
+    // Both frames survive: the outer through the exact cut, the inner through the scan’s frame boundary.
+    expect(scrubbed.stack).toContain('at Object.query');
+    expect(scrubbed.stack).toContain('at Inner.query');
+  });
+
   it('keeps the driver cause the message carries after the bind list', () => {
     // `messageWithCauses` appends the cause with `: `, so the boundary-scan fallback destroys "duplicate key value violates…" along with the binds. The exact cut keeps it, and that line is the one an operator acts on.
     const record = {
