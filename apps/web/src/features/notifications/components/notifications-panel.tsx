@@ -7,7 +7,7 @@
 // query; the host only supplies profileId and the drawer chrome.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { AutoForm } from '@/shared/forms';
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
@@ -115,18 +115,10 @@ function ProviderEditor({
     queryKey: ['notify-provider-saved', profileId, provider.name],
     queryFn: () => fetchNotifyProviderSavedConfig(profileId, provider.name),
   });
-  const [enabled, setEnabled] = useState(true);
+  const [enabledOverride, setEnabled] = useState<boolean | null>(null);
   const [secrets, setSecrets] = useState<Record<string, string>>({});
   const [banner, setBanner] = useState<ActionBannerState | null>(null);
-
-  // Hydrate the enabled flag once the GET completes; reset secret inputs so a
-  // stale draft from a previous provider does not leak across selection.
-  // `enabled` is null when no row has been saved yet — leave the local default
-  // (true) for the unconfigured form.
-  useEffect(() => {
-    if (saved.data?.enabled != null) setEnabled(saved.data.enabled);
-    setSecrets({});
-  }, [saved.data]);
+  const enabled = enabledOverride ?? saved.data?.enabled ?? true;
 
   const save = useMutation({
     mutationFn: (config: ConfigObject) => {
@@ -177,12 +169,13 @@ function ProviderEditor({
         err instanceof ApiError ? `${err.code}: ${err.message}` : ((err as Error).message ?? '');
       setBanner({ kind: 'err', message: message || 'toggle failed' });
     },
-    onSuccess: (res) => {
+    onSuccess: async (res) => {
       setEnabled(res.enabled);
       setBanner({ kind: 'ok', message: res.enabled ? 'Enabled.' : 'Disabled.' });
-      void queryClient.invalidateQueries({
+      await queryClient.invalidateQueries({
         queryKey: ['notify-provider-saved', profileId, provider.name],
       });
+      setEnabled(null);
     },
   });
 
@@ -365,7 +358,7 @@ export function NotificationsPanel({
 
       <ul className="space-y-6">
         {(list.data ?? []).map((provider: NotifyProviderDescriptor) => (
-          <li key={provider.name}>
+          <li key={`${profileId}:${provider.name}`}>
             <ProviderEditor profileId={profileId} provider={provider} />
           </li>
         ))}

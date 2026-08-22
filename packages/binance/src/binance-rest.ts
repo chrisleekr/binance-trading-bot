@@ -871,11 +871,8 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
       }
       let qs = buildQs(merged);
       if (needsSignature) {
-        qs =
-          qs.length > 0
-            ? `${qs}&signature=${sign(qs)}`
-            : /* v8 ignore next -- reason: signed calls always set recvWindow+timestamp in `merged`, so `qs` is never empty here; this empty-qs arm is unreachable */
-              `signature=${sign('')}`;
+        // Signed requests always added recvWindow and timestamp above.
+        qs = `${qs}&signature=${sign(qs)}`;
       }
       const url =
         method === 'GET' || method === 'DELETE'

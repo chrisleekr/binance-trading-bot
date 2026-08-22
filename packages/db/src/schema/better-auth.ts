@@ -1,17 +1,9 @@
 import { boolean, index, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 /**
- * Better Auth's drizzle adapter resolves model names against this schema map by
- * matching the table's *exported variable name*, not the SQL identifier; the
- * variables therefore stay singular (`user`, `session`, `account`,
- * `verification`) to match Better Auth's internal model names while the SQL
- * tables (defined in migration 0007_better_auth.sql) also use the singular
- * camelCase columns Better Auth emits by default.
+ * Better Auth's drizzle adapter resolves model names against this schema map by matching the table's *exported variable name*, not the SQL identifier; the variables therefore stay singular (`user`, `session`, `account`, `verification`) to match Better Auth's internal model names while the SQL tables (created in migration 0007_better_auth.sql and upgraded for the 1.7 account identity in 0087_better_auth_account_issuer.sql) also use the singular camelCase columns Better Auth emits by default.
  *
- * Domain code MUST NOT read or write these tables directly; all access is
- * funnelled through the Better Auth API. They are exported solely to give the
- * drizzle adapter a typed schema so the runtime does not throw
- * "model 'user' was not found in the schema object".
+ * Domain code MUST NOT read or write these tables directly; all access is funnelled through the Better Auth API. They are exported solely to give the drizzle adapter a typed schema so the runtime does not throw "model 'user' was not found in the schema object".
  */
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -51,6 +43,7 @@ export const account = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     providerId: text('providerId').notNull(),
+    issuer: text('issuer').notNull(),
     accountId: text('accountId').notNull(),
     password: text('password'),
     accessToken: text('accessToken'),
@@ -63,7 +56,7 @@ export const account = pgTable(
     updatedAt: timestamp('updatedAt', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('account_provider_uniq').on(t.providerId, t.accountId),
+    uniqueIndex('account_issuer_accountId_uidx').on(t.issuer, t.accountId),
     index('account_user_id_idx').on(t.userId),
   ],
 );

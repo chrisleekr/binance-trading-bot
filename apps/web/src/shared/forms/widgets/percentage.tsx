@@ -24,7 +24,8 @@ import type { WidgetProps } from './types';
  */
 export function PercentageWidget({ name, fieldDef }: WidgetProps) {
   const { control } = useFormContext();
-  const { field, fieldState } = useController({ name, control });
+  const { field: controller, fieldState } = useController({ name, control });
+  const { value, onChange, onBlur, name: inputName, ref: inputRef } = controller;
   const isNumber = fieldDef.kind === 'number';
   return (
     <div className="relative flex items-center">
@@ -36,9 +37,9 @@ export function PercentageWidget({ name, fieldDef }: WidgetProps) {
         min={isNumber ? fieldDef.minimum : undefined}
         max={isNumber ? fieldDef.maximum : undefined}
         autoComplete="off"
-        value={field.value ?? ''}
+        value={value ?? ''}
         onChange={(e) =>
-          field.onChange(
+          onChange(
             isNumber
               ? e.target.value === ''
                 ? undefined
@@ -46,9 +47,9 @@ export function PercentageWidget({ name, fieldDef }: WidgetProps) {
               : e.target.value,
           )
         }
-        onBlur={field.onBlur}
-        name={field.name}
-        ref={field.ref}
+        onBlur={onBlur}
+        name={inputName}
+        ref={inputRef}
         aria-invalid={fieldState.invalid || undefined}
         className={cn('pr-9')}
       />

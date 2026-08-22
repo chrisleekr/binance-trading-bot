@@ -122,7 +122,7 @@ How the rows got there was not established. The one documented way to reach the 
 
 **Any migration adding a constraint to a hypertable column must drain the root heap first.** When a backfill claims success and the constraint still fails, compare `from <hypertable>` against `from only <hypertable>` before theorising about concurrent writers.
 
-One measured subtlety: the parent is excluded from the plan only once the hypertable owns **at least one chunk**, so a backfill on a chunkless hypertable does reach the root heap. No regression test covers this — the insert has to be made under `timescaledb.restoring`, which survives in the parent through **2.27.1** and is discarded from **2.28.0**, so the fixture cannot be built on the deployed **2.29.1** image.
+One measured subtlety: the parent is excluded from the plan only once the hypertable owns **at least one chunk**, so a backfill on a chunkless hypertable does reach the root heap. No regression test covers this — the insert has to be made under `timescaledb.restoring`, which survives in the parent through **2.27.1** and is discarded from **2.28.0**, so the fixture cannot be built on the deployed **2.29.2** image.
 
 ## Pool checkout deadlines
 

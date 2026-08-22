@@ -352,8 +352,12 @@ export const useOverrideOutcome = (profileId: string, symbol: string): OverrideO
   useEffect(() => {
     if (!watched) return;
     const verdict = classifyWatch(readState(), watched);
-    if (verdict === 'gone') clear();
-    else if (verdict === 'replaced') setUnresolved('replaced');
+    if (verdict === 'resolvable') return;
+    const transition = setTimeout(() => {
+      if (verdict === 'gone') clear();
+      else setUnresolved('replaced');
+    }, 0);
+    return () => clearTimeout(transition);
   }, [watched, query.dataUpdatedAt, query.data, readState, clear]);
 
   return { outcome: settled, unresolved, watch, clear };

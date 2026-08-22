@@ -1,4 +1,5 @@
-import type React from 'react';
+import { createElement, type ReactNode } from 'react';
+import type * as React from 'react';
 import { useController, useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { titleCase, type FormField } from '@app/contracts';
@@ -49,7 +50,7 @@ export function FieldGrid({
   advancedDefaultOpen = false,
 }: {
   fields: readonly FormField[];
-  renderChild: (field: FormField) => React.ReactNode;
+  renderChild: (field: FormField) => ReactNode;
   /** Open the Advanced disclosure on first render (e.g. reviewing a past run). */
   advancedDefaultOpen?: boolean;
 }): React.JSX.Element {
@@ -76,7 +77,7 @@ export function AdvancedFold({
   defaultOpen = false,
 }: {
   fields: readonly FormField[];
-  renderChild: (field: FormField) => React.ReactNode;
+  renderChild: (field: FormField) => ReactNode;
   defaultOpen?: boolean;
 }): React.JSX.Element | null {
   if (fields.length === 0) return null;
@@ -108,7 +109,7 @@ export function FieldCells({
   renderChild,
 }: {
   fields: readonly FormField[];
-  renderChild: (field: FormField) => React.ReactNode;
+  renderChild: (field: FormField) => ReactNode;
 }): React.JSX.Element {
   return (
     <div className="grid gap-y-4">
@@ -148,11 +149,11 @@ export function FieldRenderer({
           <span className="text-sm font-medium text-fg">{field.label}</span>
           {field.description ? <FieldHelp>{field.description}</FieldHelp> : null}
           <div className="mt-auto">
-            <ObjectWidget
-              name={field.path}
-              fieldDef={field}
-              renderChild={(child) => <FieldRenderer field={child} />}
-            />
+            {createElement(ObjectWidget, {
+              name: field.path,
+              fieldDef: field,
+              renderChild: (child) => <FieldRenderer field={child} />,
+            })}
           </div>
         </div>
       );
@@ -221,10 +222,10 @@ function FieldControl({
   renderChild,
 }: {
   field: FormField;
-  renderChild: (field: FormField) => React.ReactNode;
+  renderChild: (field: FormField) => ReactNode;
 }) {
   const Widget = lookupWidget(field.widget);
-  if (Widget) return <Widget name={field.path} fieldDef={field} renderChild={renderChild} />;
+  if (Widget) return createElement(Widget, { name: field.path, fieldDef: field, renderChild });
   switch (field.kind) {
     case 'string':
       return <DefaultStringInput field={field} />;
@@ -243,17 +244,18 @@ function FieldControl({
 
 function DefaultStringInput({ field }: { field: FormField & { kind: 'string' } }) {
   const { control } = useFormContext();
-  const { field: f, fieldState } = useController({ name: field.path, control });
+  const { field: controller, fieldState } = useController({ name: field.path, control });
+  const { value, onChange, onBlur, name, ref: inputRef } = controller;
   return (
     <Input
       id={field.path}
       type="text"
       autoComplete="off"
-      value={f.value ?? ''}
-      onChange={(e) => f.onChange(e.target.value)}
-      onBlur={f.onBlur}
-      name={f.name}
-      ref={f.ref}
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      name={name}
+      ref={inputRef}
       aria-invalid={fieldState.invalid || undefined}
     />
   );
@@ -261,7 +263,8 @@ function DefaultStringInput({ field }: { field: FormField & { kind: 'string' } }
 
 function DefaultNumberInput({ field }: { field: FormField & { kind: 'number' } }) {
   const { control } = useFormContext();
-  const { field: f, fieldState } = useController({ name: field.path, control });
+  const { field: controller, fieldState } = useController({ name: field.path, control });
+  const { value, onChange, onBlur, name, ref: inputRef } = controller;
   return (
     <Input
       id={field.path}
@@ -269,11 +272,11 @@ function DefaultNumberInput({ field }: { field: FormField & { kind: 'number' } }
       step={field.integer ? 1 : 'any'}
       min={field.minimum}
       max={field.maximum}
-      value={f.value ?? ''}
-      onChange={(e) => f.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
-      onBlur={f.onBlur}
-      name={f.name}
-      ref={f.ref}
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+      onBlur={onBlur}
+      name={name}
+      ref={inputRef}
       aria-invalid={fieldState.invalid || undefined}
     />
   );
@@ -281,7 +284,8 @@ function DefaultNumberInput({ field }: { field: FormField & { kind: 'number' } }
 
 function DefaultBooleanInput({ field }: { field: FormField & { kind: 'boolean' } }) {
   const { control } = useFormContext();
-  const { field: f } = useController({ name: field.path, control });
+  const { field: controller } = useController({ name: field.path, control });
+  const { value, onChange, onBlur, name } = controller;
   // Radix Switch renders a <button>. A sibling <label htmlFor> names <input>/
   // <select> but NOT a <button> (accessible-name spec), so without this the
   // toggle is nameless to screen readers and tests. Name it from the field
@@ -290,25 +294,26 @@ function DefaultBooleanInput({ field }: { field: FormField & { kind: 'boolean' }
     <Switch
       id={field.path}
       aria-label={field.label}
-      checked={Boolean(f.value)}
-      onCheckedChange={(v) => f.onChange(v)}
-      onBlur={f.onBlur}
-      name={f.name}
+      checked={Boolean(value)}
+      onCheckedChange={(v) => onChange(v)}
+      onBlur={onBlur}
+      name={name}
     />
   );
 }
 
 function DefaultEnumSelect({ field }: { field: FormField & { kind: 'enum' } }) {
   const { control } = useFormContext();
-  const { field: f, fieldState } = useController({ name: field.path, control });
+  const { field: controller, fieldState } = useController({ name: field.path, control });
+  const { value, onChange, onBlur, name, ref: inputRef } = controller;
   return (
     <select
       id={field.path}
-      value={f.value ?? ''}
-      onChange={(e) => f.onChange(e.target.value)}
-      onBlur={f.onBlur}
-      name={f.name}
-      ref={f.ref}
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      name={name}
+      ref={inputRef}
       aria-invalid={fieldState.invalid || undefined}
       className={cn(
         'flex h-11 w-full rounded-xs border border-border bg-surface-alt px-3 py-2 text-sm text-fg focus-visible:border-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',

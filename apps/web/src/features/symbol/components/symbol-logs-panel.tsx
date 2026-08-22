@@ -136,6 +136,8 @@ export function SymbolLogsPanel({
   liveFrame,
   clock = Date.now,
 }: SymbolLogsPanelProps): React.JSX.Element {
+  'use no memo';
+
   const initialRange = useMemo(() => {
     const to = new Date(clock());
     const from = new Date(to.getTime() - SYMBOL_LOGS_INITIAL_WINDOW_MS);
@@ -196,6 +198,7 @@ export function SymbolLogsPanel({
   }, [loadingOlder, profileId, symbol]);
 
   const parentRef = useRef<HTMLDivElement | null>(null);
+  // oxlint-disable-next-line react/incompatible-library -- TanStack Virtual is not compiler-memoizable.
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,

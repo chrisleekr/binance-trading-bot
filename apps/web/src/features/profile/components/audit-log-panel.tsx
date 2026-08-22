@@ -245,7 +245,7 @@ function RetentionFooter(): React.JSX.Element | null {
     );
   }
   const failed = q.data.auditPrune?.ok === false || q.data.actionLogPrune?.ok === false;
-  const now = Date.now();
+  const now = q.dataUpdatedAt;
   return (
     <p
       className={cn('pt-2 text-xs', failed ? 'text-danger' : 'text-muted-fg')}

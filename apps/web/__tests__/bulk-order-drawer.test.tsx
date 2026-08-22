@@ -65,8 +65,9 @@ interface FetchCall {
   body?: unknown;
 }
 
-const setUp = () => {
+const setUp = (initialDashboard: typeof dashboardBody = dashboardBody) => {
   const calls: FetchCall[] = [];
+  let currentDashboard = initialDashboard;
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
       typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
@@ -81,7 +82,7 @@ const setUp = () => {
     }
     calls.push({ url, method, body });
     if (url.endsWith(`/profiles/${PROFILE_ID}/dashboard`) && method === 'GET')
-      return json(dashboardBody);
+      return json(currentDashboard);
     if (url.endsWith(`/profiles/${PROFILE_ID}/manual-order-all`) && method === 'POST')
       return json({
         scheduled: 2,
@@ -98,7 +99,13 @@ const setUp = () => {
       <BulkOrderDrawer profileId={PROFILE_ID} />
     </QueryClientProvider>,
   );
-  return { calls };
+  return {
+    calls,
+    queryClient,
+    setDashboard: (next: typeof dashboardBody): void => {
+      currentDashboard = next;
+    },
+  };
 };
 
 afterEach(() => {
@@ -115,7 +122,8 @@ describe('BulkOrderDrawer', () => {
     const { calls } = setUp();
 
     // The quote select hydrates from the dashboard symbols (USDT).
-    await waitFor(() => expect(screen.getByLabelText('Quote')).toHaveValue('USDT'));
+    await screen.findByRole('option', { name: 'USDT' });
+    expect(screen.getByLabelText('Quote')).toHaveValue('USDT');
 
     await user.type(screen.getByLabelText('Amount'), '50');
     await user.click(screen.getByRole('button', { name: /review order/i }));
@@ -143,7 +151,8 @@ describe('BulkOrderDrawer', () => {
     const user = userEvent.setup();
     const { calls } = setUp();
 
-    await waitFor(() => expect(screen.getByLabelText('Quote')).toHaveValue('USDT'));
+    await screen.findByRole('option', { name: 'USDT' });
+    expect(screen.getByLabelText('Quote')).toHaveValue('USDT');
     await user.type(screen.getByLabelText('Amount'), '50');
     await user.click(screen.getByRole('button', { name: /review order/i }));
 
@@ -157,11 +166,66 @@ describe('BulkOrderDrawer', () => {
     const user = userEvent.setup();
     const { calls } = setUp();
 
-    await waitFor(() => expect(screen.getByLabelText('Quote')).toHaveValue('USDT'));
+    await screen.findByRole('option', { name: 'USDT' });
+    expect(screen.getByLabelText('Quote')).toHaveValue('USDT');
     // The review button is disabled until an amount is entered.
     expect(screen.getByRole('button', { name: /review order/i })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: /review order/i }));
     expect(screen.queryByTestId('bulk-order-review')).toBeNull();
     expect(hasOrderPost(calls)).toBe(false);
+  });
+
+  it('uses the profile quote when the form default is not available', async () => {
+    const btcDashboard = {
+      ...dashboardBody,
+      quoteAsset: 'BTC',
+      balances: [{ asset: 'BTC', free: '1', locked: '0' }],
+      symbols: dashboardBody.symbols.map((row, index) => ({
+        ...row,
+        symbol: index === 0 ? 'ETHBTC' : 'SOLBTC',
+      })),
+    };
+    const user = userEvent.setup();
+    const { calls } = setUp(btcDashboard);
+
+    await waitFor(() => expect(screen.getByLabelText('Quote')).toHaveValue('BTC'));
+    await user.type(screen.getByLabelText('Amount'), '0.01');
+    await user.click(screen.getByRole('button', { name: /review order/i }));
+    expect(screen.getByTestId('bulk-order-review-summary')).toHaveTextContent(
+      /Buy 0.01 BTC worth on every BTC symbol/i,
+    );
+    await user.click(screen.getByTestId('bulk-order-confirm'));
+
+    await waitFor(() => expect(hasOrderPost(calls)).toBe(true));
+    const post = calls.find((c) => c.url.endsWith(`/profiles/${PROFILE_ID}/manual-order-all`));
+    expect(post?.body).toMatchObject({ quote: 'BTC', side: 'buy', quoteAmount: '0.01' });
+  });
+
+  it('invalidates the amount when its selected quote disappears before review', async () => {
+    const mixedDashboard = {
+      ...dashboardBody,
+      symbols: [...dashboardBody.symbols, { ...dashboardBody.symbols[0], symbol: 'ETHBTC' }],
+    };
+    const usdtOnlyDashboard = { ...dashboardBody, quoteAsset: 'USDT' };
+    const user = userEvent.setup();
+    const { queryClient, setDashboard } = setUp(mixedDashboard);
+
+    await screen.findByRole('option', { name: 'BTC' });
+    expect(screen.getByLabelText('Quote')).toHaveValue('USDT');
+    await user.selectOptions(screen.getByLabelText('Quote'), 'BTC');
+    await user.type(screen.getByLabelText('Amount'), '50');
+    setDashboard(usdtOnlyDashboard);
+    await queryClient.invalidateQueries();
+    await waitFor(() => expect(screen.getByLabelText('Quote')).toHaveValue(''));
+    expect(screen.getByLabelText('Amount')).toBeDisabled();
+    expect(screen.getByLabelText('Amount')).toHaveValue('');
+    expect(screen.getByRole('button', { name: /review order/i })).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText('Quote'), 'USDT');
+    await user.type(screen.getByLabelText('Amount'), '50');
+    await user.click(screen.getByRole('button', { name: /review order/i }));
+    expect(screen.getByTestId('bulk-order-review-summary')).toHaveTextContent(
+      /Buy 50 USDT worth on every USDT symbol/i,
+    );
   });
 });

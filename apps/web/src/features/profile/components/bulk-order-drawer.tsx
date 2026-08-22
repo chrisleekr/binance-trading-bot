@@ -9,7 +9,7 @@
 // read those symbols; the route only hands it a profileId.
 
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
 import { Button } from '@/shared/components/ui/button';
@@ -29,14 +29,15 @@ import { asDecimalString } from '@app/contracts';
 import type { ManualOrderAllRequest, ManualOrderAllResponse } from '@app/contracts';
 
 interface BulkOrderForm {
-  quote: string;
+  // Null follows the server default until an amount freezes the quote as that number's unit.
+  quote: string | null;
   side: 'buy' | 'sell';
   mode: 'quoteAmount' | 'marketQuantity';
   amount: string;
 }
 
 const initialBulkForm = (): BulkOrderForm => ({
-  quote: 'USDT',
+  quote: null,
   side: 'buy',
   mode: 'quoteAmount',
   amount: '',
@@ -67,20 +68,15 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
   });
   const data = dashboard.data;
 
-  // Quote selector options — derived from the profile's actual symbols so a
-  // typo can't target a non-existent set. Normalise `form.quote` to the
-  // profile's own quote asset when available, else the first option, when the
-  // current value isn't in the derived list.
+  // Deriving quote options from actual symbols prevents a typo from targeting a non-existent set.
   const quoteOptions = useMemo(() => (data ? distinctQuotes(data.symbols) : []), [data?.symbols]);
-  useEffect(() => {
-    if (quoteOptions.length > 0 && !quoteOptions.includes(form.quote)) {
-      const next =
-        data && quoteOptions.includes(data.quoteAsset)
-          ? data.quoteAsset
-          : (quoteOptions[0] as string);
-      setForm((f) => ({ ...f, quote: next }));
-    }
-  }, [quoteOptions, form.quote, data]);
+  const defaultQuote =
+    data && quoteOptions.includes(data.quoteAsset)
+      ? data.quoteAsset
+      : (quoteOptions[0] ?? data?.quoteAsset ?? 'USDT');
+  const selectedQuote = form.quote ?? defaultQuote;
+  const quoteNeedsReselection =
+    form.quote !== null && quoteOptions.length > 0 && !quoteOptions.includes(form.quote);
 
   const submit = useMutation({
     mutationFn: (body: ManualOrderAllRequest): Promise<ManualOrderAllResponse> =>
@@ -101,18 +97,15 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
   // Step 1: build the order from the form and open the review step. No POST.
   const onSubmitBulk = (event: React.FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    if (!form.amount) return;
-    if (quoteOptions.length > 0 && !quoteOptions.includes(form.quote)) {
-      setBanner({
-        kind: 'err',
-        message: 'That quote currency is no longer available — pick another.',
-      });
+    if (!form.amount || !dashboard.isSuccess) return;
+    if (quoteOptions.length > 0 && !quoteOptions.includes(selectedQuote)) {
+      setBanner({ kind: 'err', message: 'Choose an available quote currency again.' });
       return;
     }
     setBanner(null);
     const amount = asDecimalString(form.amount);
     setPending({
-      quote: form.quote.toUpperCase(),
+      quote: selectedQuote.toUpperCase(),
       side: form.side,
       ...(form.mode === 'quoteAmount' ? { quoteAmount: amount } : { marketQuantity: amount }),
     });
@@ -176,10 +169,16 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
               <select
                 id="bulk-quote"
                 className="h-11 w-full rounded-xs border border-border bg-surface-alt px-3 text-sm"
-                value={form.quote}
-                onChange={(e) => setForm((f) => ({ ...f, quote: e.target.value }))}
+                value={quoteNeedsReselection ? '' : selectedQuote}
+                onChange={(e) => setForm((f) => ({ ...f, quote: e.target.value, amount: '' }))}
+                disabled={!dashboard.isSuccess}
                 required
               >
+                {quoteNeedsReselection ? (
+                  <option value="" disabled>
+                    Choose a quote again
+                  </option>
+                ) : null}
                 {quoteOptions.map((q) => (
                   <option key={q} value={q}>
                     {q}
@@ -192,8 +191,9 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
               // disabling the form.
               <Input
                 id="bulk-quote"
-                value={form.quote}
-                onChange={(e) => setForm((f) => ({ ...f, quote: e.target.value }))}
+                value={selectedQuote}
+                onChange={(e) => setForm((f) => ({ ...f, quote: e.target.value, amount: '' }))}
+                disabled={!dashboard.isSuccess}
                 required
                 maxLength={8}
               />
@@ -233,18 +233,23 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
             <Input
               id="bulk-amount"
               inputMode="decimal"
-              value={form.amount}
-              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+              value={quoteNeedsReselection ? '' : form.amount}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, quote: selectedQuote, amount: e.target.value }))
+              }
+              disabled={!dashboard.isSuccess || quoteNeedsReselection}
               required
             />
           </div>
           <p id="bulk-submit-hint" className="text-xs text-muted-fg">
-            Enter an amount above to enable review.
+            {quoteNeedsReselection
+              ? 'The available quotes changed. Choose a quote and enter the amount again.'
+              : 'Enter an amount above to enable review.'}
           </p>
           <Button
             type="submit"
             variant="primary"
-            disabled={!form.amount}
+            disabled={!dashboard.isSuccess || quoteNeedsReselection || !form.amount}
             aria-describedby="bulk-submit-hint"
             className="w-full sm:w-56"
           >

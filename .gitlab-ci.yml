@@ -244,7 +244,7 @@ db-isolation:
     - apk add --no-cache nodejs
   services:
     # The DEPLOYED server, identical to deploy/compose/docker-compose.prod.yml and the Testcontainers runtime pin; the pin test enforces all three. This lane replays every migration in packages/db, so it has to run the version that actually ships — a migration suite pointed anywhere else validates a database nobody runs.
-    - name: timescale/timescaledb:2.29.1-pg17@sha256:981e3016a2810fec47515e3828ad70ae97b84f4c9ef63d032180b54f61566fd6
+    - name: timescale/timescaledb:2.29.2-pg17@sha256:bc8527e62f70f0766b29515077965025872fabb5349db421565f69ee273baf2d
       alias: postgres
   variables:
     POSTGRES_DB: binance_trading_bot_test

@@ -84,27 +84,44 @@ export function useBacktestRun({
   runsFilterParam,
   runsKindParam,
 }: BacktestRunArgs) {
-  // Live progress pushed over the profile WebSocket — a low-latency overlay on
-  // the polled run row. Reset when the active run changes so a prior run's phase
-  // cannot bleed into the next.
-  const [liveProgress, setLiveProgress] = useState<BacktestProgressPayload | null>(null);
-  // Wall-clock at the first replay frame, the honest origin for the ETA: the
-  // run's startedAt precedes backfill + warm-up, so dividing elapsed-since-start
-  // by replay ticks would over-estimate by the whole load time. Null until the
-  // first replay frame, and reset per run.
-  const replayStartMsRef = useRef<number | null>(null);
-  useEffect(() => {
-    setLiveProgress(null);
-    replayStartMsRef.current = null;
-  }, [activeRunId]);
+  // Keeping the selected run with its live progress prevents a prior run's final frame from bleeding into the next run.
+  type LiveProgress = {
+    payload: BacktestProgressPayload;
+    receivedAtMs: number;
+    replayStartedAtMs: number | null;
+  };
+  const [liveProgressState, setLiveProgressState] = useState<{
+    selectedRunId: string | null;
+    progress: LiveProgress | null;
+  }>(() => ({ selectedRunId: activeRunId, progress: null }));
+  if (liveProgressState.selectedRunId !== activeRunId) {
+    setLiveProgressState({ selectedRunId: activeRunId, progress: null });
+  }
+  const liveProgress =
+    liveProgressState.selectedRunId === activeRunId ? liveProgressState.progress : null;
+  const launchedRunIdRef = useRef<string | null>(null);
   const handleBacktestFrame = useCallback(
     (frame: SocketFrame): void => {
       if (frame.topic === 'backtest-progress') {
         if (activeRunId && frame.payload.runId === activeRunId) {
-          if (frame.payload.phase === 'replay' && replayStartMsRef.current === null) {
-            replayStartMsRef.current = Date.now();
-          }
-          setLiveProgress(frame.payload);
+          setLiveProgressState((previousState) => {
+            const receivedAtMs = Date.now();
+            const previous =
+              previousState.selectedRunId === activeRunId ? previousState.progress : null;
+            const sameRun = previous?.payload.runId === frame.payload.runId;
+            const replayStartedAtMs =
+              frame.payload.phase === 'replay'
+                ? sameRun
+                  ? (previous.replayStartedAtMs ?? receivedAtMs)
+                  : receivedAtMs
+                : sameRun
+                  ? previous.replayStartedAtMs
+                  : null;
+            return {
+              selectedRunId: activeRunId,
+              progress: { payload: frame.payload, receivedAtMs, replayStartedAtMs },
+            };
+          });
         }
       } else if (frame.topic === 'backtest-complete') {
         if (activeRunId && frame.payload.runId === activeRunId) {
@@ -138,24 +155,36 @@ export function useBacktestRun({
   // an empty Results view instead of a permanent "loading". 404 only.
   const activeRunError = activeRun.error;
   useEffect(() => {
-    if (activeRunId && activeRunError instanceof ApiError && activeRunError.status === 404) {
+    if (!activeRunId || !(activeRunError instanceof ApiError) || activeRunError.status !== 404) {
+      return;
+    }
+    const handleMissing = setTimeout(() => {
       setBanner({ kind: 'err', message: 'That backtest run no longer exists.' });
       showRun(null);
-    }
+    }, 0);
+    return () => clearTimeout(handleMissing);
   }, [activeRunId, activeRunError, showRun, setBanner]);
 
   const status = activeRun.data?.status;
   const viewedDone = status === 'done';
   const parentRunId = activeRun.data?.parentRunId ?? null;
+  const previousRunRef = useRef({ runId: activeRunId, status });
 
   useEffect(() => {
-    if (status === 'done' || status === 'error') {
-      // A new terminal run shifts the head of the list; snap back to the first
-      // page so the cursor stack stays coherent with the new insert.
+    const previous = previousRunRef.current;
+    previousRunRef.current = { runId: activeRunId, status };
+    if (status !== 'done' && status !== 'error') return;
+    const observedTransition =
+      previous.runId === activeRunId &&
+      (previous.status === 'queued' || previous.status === 'running');
+    if (!observedTransition && launchedRunIdRef.current !== activeRunId) return;
+    launchedRunIdRef.current = null;
+    const refreshHistory = setTimeout(() => {
       setPage({ cursor: null, history: [] });
       void queryClient.invalidateQueries({ queryKey: ['backtest', 'list', profileId] });
-    }
-  }, [status, profileId, queryClient, setPage]);
+    }, 0);
+    return () => clearTimeout(refreshHistory);
+  }, [activeRunId, status, profileId, queryClient, setPage]);
 
   const launch = useMutation({
     mutationFn: ({ body, force }: { body: BacktestParams; force?: boolean }) =>
@@ -167,6 +196,7 @@ export function useBacktestRun({
         setPendingDedup({ runId: created.runId, params: body });
         return;
       }
+      launchedRunIdRef.current = created.runId;
       showRun(created.runId);
       setBanner({ kind: 'ok', message: 'Backtest queued.' });
       notifySaveDiagnostics(created.diagnostics);
@@ -219,6 +249,7 @@ export function useBacktestRun({
   const retry = useMutation({
     mutationFn: (runId: string) => retryBacktest(profileId, runId),
     onSuccess: (created) => {
+      launchedRunIdRef.current = created.runId;
       showRun(created.runId);
       setBanner({ kind: 'ok', message: 'Backtest re-queued.' });
       setPage({ cursor: null, history: [] });
@@ -227,18 +258,18 @@ export function useBacktestRun({
     onError: (err) => setBanner({ kind: 'err', message: errorMessage(err) }),
   });
 
-  const liveForActive = liveProgress?.runId === activeRunId ? liveProgress : null;
-  const progress = liveForActive?.pct ?? activeRun.data?.progress ?? 0;
+  const liveForActive = liveProgress?.payload.runId === activeRunId ? liveProgress : null;
+  const progress = liveForActive?.payload.pct ?? activeRun.data?.progress ?? 0;
   const progressDetail: BacktestProgressDetail | null =
-    liveForActive ?? activeRun.data?.progressDetail ?? null;
-  const replayStartMs = replayStartMsRef.current;
+    liveForActive?.payload ?? activeRun.data?.progressDetail ?? null;
+  const replayStartMs = liveForActive?.replayStartedAtMs;
   const etaLabel =
     progressDetail?.phase === 'replay' &&
     progressDetail.processed &&
     progressDetail.total &&
     replayStartMs
       ? formatEta(
-          ((Date.now() - replayStartMs) / progressDetail.processed) *
+          ((liveForActive.receivedAtMs - replayStartMs) / progressDetail.processed) *
             (progressDetail.total - progressDetail.processed),
         )
       : null;

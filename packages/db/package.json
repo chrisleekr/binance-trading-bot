@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@app/testcontainers": "workspace:*",
-    "@types/pg": "~8.21.0",
+    "@types/pg": "~8.23.1",
     "drizzle-kit": "~0.31.10"
   }
 }

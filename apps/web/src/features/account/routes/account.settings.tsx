@@ -10,7 +10,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createRoute, useRouter } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { accountScopeRoute } from '@/features/account/routes/account-scope';
@@ -64,12 +64,8 @@ function AccountSettingsPage(): React.JSX.Element {
     queryFn: () => fetchAccount(accountId),
   });
 
-  const [name, setName] = useState('');
-  // Seed from the server once it lands, and re-seed if the operator switches
-  // account without unmounting the page.
-  useEffect(() => {
-    if (account.data) setName(account.data.name);
-  }, [account.data]);
+  const [nameDraft, setNameDraft] = useState<{ accountId: string; value: string } | null>(null);
+  const name = nameDraft?.accountId === accountId ? nameDraft.value : (account.data?.name ?? '');
 
   const rename = useMutation({
     mutationFn: (next: string) => patchAccount(accountId, { name: next }),
@@ -78,6 +74,7 @@ function AccountSettingsPage(): React.JSX.Element {
       // old name until a reload.
       await queryClient.invalidateQueries({ queryKey: accountsQueryKey });
       await queryClient.invalidateQueries({ queryKey: ['account', accountId] });
+      setNameDraft(null);
       toast.success('Account renamed.');
     },
     onError: (err) => toast.error(errorMessage(err)),
@@ -126,7 +123,7 @@ function AccountSettingsPage(): React.JSX.Element {
               id="account-name"
               data-testid="account-name-input"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setNameDraft({ accountId, value: e.target.value })}
             />
           </div>
           <Button type="submit" disabled={rename.isPending} className="w-full sm:w-32">

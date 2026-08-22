@@ -11,7 +11,7 @@
 // single-interval profile collapses to the same compact one-section
 // layout the panel had pre-multi-interval.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, RefreshCw } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
@@ -574,17 +574,13 @@ export function SymbolTechnicalsPanel({
     return m;
   }, [recs.data]);
 
-  // The active tab is operator-controlled; default to the first configured
-  // interval. A clamped `safeActiveIdx` covers the render-frame race
-  // between the operator editing the intervals list (state may briefly
-  // index past the array) and the post-commit `useEffect` resetting it —
-  // without the clamp both `aria-selected` and the active-row highlight
-  // would point at a tab that doesn't exist.
+  // Clamp stale tab state when the configured interval list shrinks.
   const [activeIdx, setActiveIdx] = useState(0);
-  useEffect(() => {
-    if (activeIdx >= intervalRows.length && intervalRows.length > 0) setActiveIdx(0);
-  }, [intervalRows.length, activeIdx]);
-  const safeActiveIdx = activeIdx < intervalRows.length ? activeIdx : 0;
+  let safeActiveIdx = activeIdx;
+  if (activeIdx >= intervalRows.length && intervalRows.length > 0) {
+    safeActiveIdx = 0;
+    setActiveIdx(0);
+  }
   const active = intervalRows[safeActiveIdx];
 
   const { announcement, refresh, refreshing } = useRefreshAnnouncement(

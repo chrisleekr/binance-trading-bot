@@ -126,7 +126,7 @@ export function useBacktestConfig({
   testedConfig,
 }: BacktestConfigArgs) {
   const [params, setParams] = useState<ParamState>(INITIAL_PARAMS);
-  const [symbol, setSymbol] = useState('');
+  const [symbol, setSymbol] = useState(() => symbolParam ?? '');
 
   const dashboard = useQuery({
     queryKey: profileDashboardQueryKey(profileId),
@@ -157,28 +157,21 @@ export function useBacktestConfig({
   const defaultSymbol =
     tradedSymbols.find((s) => s.quantity !== null && Number(s.quantity) > 0)?.symbol ??
     tradedSymbols[0]?.symbol;
-  useEffect(() => {
-    if (symbol !== '') return;
-    const seed = symbolParam ?? defaultSymbol;
-    if (seed) setSymbol(seed);
-  }, [symbol, symbolParam, defaultSymbol]);
+  if (symbol === '' && defaultSymbol) setSymbol(defaultSymbol);
 
   // Default the cost model from the profile's configured live fees so a backtest
   // measures the same round-trip cost the live bot pays. Seeds once when the
   // profile loads; the operator can still override.
   const [feesSeeded, setFeesSeeded] = useState(false);
-  useEffect(() => {
-    if (feesSeeded) return;
-    const fees = (profile.data?.config as { fees?: { makerBps?: string; takerBps?: string } })
-      ?.fees;
-    if (!fees) return;
+  const fees = (profile.data?.config as { fees?: { makerBps?: string; takerBps?: string } })?.fees;
+  if (!feesSeeded && fees) {
     setParams((p) => ({
       ...p,
       makerBps: p.makerBps === INITIAL_PARAMS.makerBps ? (fees.makerBps ?? p.makerBps) : p.makerBps,
       takerBps: p.takerBps === INITIAL_PARAMS.takerBps ? (fees.takerBps ?? p.takerBps) : p.takerBps,
     }));
     setFeesSeeded(true);
-  }, [feesSeeded, profile.data]);
+  }
 
   // The config form (AutoForm) starts seeded from the live config. Track when it
   // drifts so the "reset to live config" affordance shows only then; bumping the
@@ -440,35 +433,28 @@ export function useBacktestConfig({
       return;
     }
     if (!loadedParams) return; // detail still loading — keep the intent for the next tick
-    wantConfigLoadForRunRef.current = null;
-    seededRunIdRef.current = loadedRunId;
-    // Repopulate the backtest-only params (window, intervals, costs) and symbol.
-    setParams(paramStateFromResult(loadedParams));
-    const runSymbol = loadedParams.symbols[0];
-    if (!isBasket && runSymbol) setSymbol(runSymbol);
-    if (result) {
-      // A finished run: seed from its FULL effective config (resolved/merged), so
-      // every section shows what it actually ran, not the partial override. No
-      // override means it used the live config as-is, so seed null (form falls
-      // back to the live config, keeping the reset affordance hidden).
-      const hasOverride = testedConfig != null && Object.keys(testedConfig).length > 0;
-      setRunConfigSeed(hasOverride ? omitKey(attributionConfig, 'symbol') : null);
-    } else {
-      // A queued/running run has no result yet, but its launch params carry the
-      // override. resolvedConfig isn't persisted until completion, so reconstruct
-      // the FULL config the run tests by merging the override onto the current
-      // profile config — seeding the bare override would drop every non-overridden
-      // field (runConfigSeed replaces the defaults, not layers on them). No
-      // override means it runs the live config as-is, so seed null.
-      const override = loadedParams.strategyConfigOverride;
-      const hasOverride = override != null && Object.keys(override).length > 0;
-      const merged = mergeConfig(
-        (profile.data?.config ?? {}) as Record<string, unknown>,
-        (override ?? {}) as Record<string, unknown>,
-      );
-      setRunConfigSeed(hasOverride ? omitKey(merged, 'symbol') : null);
-    }
-    setConfigResetNonce((n) => n + 1);
+    const loadRun = setTimeout(() => {
+      if (wantConfigLoadForRunRef.current !== loadedRunId) return;
+      wantConfigLoadForRunRef.current = null;
+      seededRunIdRef.current = loadedRunId;
+      setParams(paramStateFromResult(loadedParams));
+      const runSymbol = loadedParams.symbols[0];
+      if (!isBasket && runSymbol) setSymbol(runSymbol);
+      if (result) {
+        const hasOverride = testedConfig != null && Object.keys(testedConfig).length > 0;
+        setRunConfigSeed(hasOverride ? omitKey(attributionConfig, 'symbol') : null);
+      } else {
+        const override = loadedParams.strategyConfigOverride;
+        const hasOverride = override != null && Object.keys(override).length > 0;
+        const merged = mergeConfig(
+          (profile.data?.config ?? {}) as Record<string, unknown>,
+          (override ?? {}) as Record<string, unknown>,
+        );
+        setRunConfigSeed(hasOverride ? omitKey(merged, 'symbol') : null);
+      }
+      setConfigResetNonce((n) => n + 1);
+    }, 0);
+    return () => clearTimeout(loadRun);
   }, [
     loadedRunId,
     loadedParams,
@@ -486,12 +472,16 @@ export function useBacktestConfig({
     if (anchoredId === null || loadedRunId !== anchoredId) return;
     if (autoSeededRunIdRef.current === anchoredId) return;
     if (!result) return; // detail still loading — seed on the next tick
-    autoSeededRunIdRef.current = anchoredId;
     const resolved = result.resolvedConfig as Record<string, unknown> | null | undefined;
-    if (resolved == null) return; // pre-resolvedConfig run → leave the live-config draft
-    const seed = omitKey(resolved, 'symbol');
-    setRunConfigSeed(deepEqual(seed, configDefaults) ? null : seed);
-    setConfigResetNonce((n) => n + 1);
+    const seedAnchored = setTimeout(() => {
+      if (autoAnchoredRunIdRef.current !== anchoredId) return;
+      autoSeededRunIdRef.current = anchoredId;
+      if (resolved == null) return;
+      const seed = omitKey(resolved, 'symbol');
+      setRunConfigSeed(deepEqual(seed, configDefaults) ? null : seed);
+      setConfigResetNonce((n) => n + 1);
+    }, 0);
+    return () => clearTimeout(seedAnchored);
   }, [loadedRunId, result, configDefaults]);
 
   return {
