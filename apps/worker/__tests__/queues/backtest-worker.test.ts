@@ -2,24 +2,20 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Job, Processor } from 'bullmq';
 import type { Redis } from 'ioredis';
 import pino from 'pino';
-import type { ProfileRepo } from '@app/db';
+import type { BacktestRunRow, ProfileRepo } from '@app/db';
 import type { QueueSet } from '../../src/queues/queue-set.js';
 import type { BacktestJobData } from '../../src/queues/job-payloads.js';
 import type { BacktestWorkerDeps } from '../../src/queues/backtest-worker.js';
 import type { NotifyEvent } from '../../src/notifiers/notify-event.js';
 
-type BoundMethod<K extends keyof ProfileRepo['backtestRuns'], R> = (
-  ...args: Parameters<ProfileRepo['backtestRuns'][K]>
-) => Promise<R>;
+type RepoMethod<K extends keyof ProfileRepo['backtestRuns']> = ProfileRepo['backtestRuns'][K];
 
 const repoMocks = vi.hoisted(() => ({
-  markRunning: vi.fn<BoundMethod<'markRunning', boolean>>(async () => true),
-  updateProgress: vi.fn<BoundMethod<'updateProgress', void>>(async () => undefined),
-  complete: vi.fn<BoundMethod<'complete', void>>(async () => undefined),
-  fail: vi.fn<BoundMethod<'fail', void>>(async () => undefined),
-  get: vi.fn<BoundMethod<'get', { status: string; symbols?: readonly string[] } | null>>(
-    async () => null,
-  ),
+  markRunning: vi.fn<RepoMethod<'markRunning'>>(async () => true),
+  updateProgress: vi.fn<RepoMethod<'updateProgress'>>(async () => undefined),
+  complete: vi.fn<RepoMethod<'complete'>>(async () => undefined),
+  fail: vi.fn<RepoMethod<'fail'>>(async () => undefined),
+  get: vi.fn<RepoMethod<'get'>>(async () => null),
   failById: vi.fn(async () => true),
   ledgerUpsert: vi.fn(async () => undefined),
   profileRepo: vi.fn(async () => ({
@@ -46,16 +42,28 @@ vi.mock('@app/db', async (importOriginal) => {
   };
 });
 
+// `get` returns a full `BacktestRunRow`, so the mock builds one rather than a two-field shape: narrowing the mock's return would let a column the worker reads disappear from the row type without failing here.
+const runRow = (over: Partial<BacktestRunRow> = {}): BacktestRunRow => ({
+  id: '00000000-0000-0000-0000-0000000000dd',
+  profileId: '00000000-0000-0000-0000-0000000000bb',
+  symbols: ['BTCUSDT'],
+  params: {},
+  status: 'done',
+  progress: 100,
+  progressDetail: null,
+  result: null,
+  error: null,
+  configFingerprint: null,
+  backtestSignature: null,
+  parentRunId: null,
+  createdAt: new Date(0),
+  startedAt: null,
+  finishedAt: null,
+  ...over,
+});
+
 const emitEvent = vi.hoisted(() =>
-  vi.fn<
-    (
-      deps: unknown,
-      accountId: unknown,
-      profileId: unknown,
-      topic: string,
-      payload: unknown,
-    ) => Promise<void>
-  >(async () => undefined),
+  vi.fn<typeof import('../../src/executor/event-emitter.js').emitEvent>(async () => undefined),
 );
 vi.mock('../../src/executor/event-emitter.js', () => ({ emitEvent }));
 
@@ -154,7 +162,7 @@ describe('registerBacktestWorker', () => {
 
   it('notifies the operator channels when a run completes', async () => {
     // A completed run fans out to the profile's notifiers.
-    repoMocks.get.mockResolvedValue({ status: 'done', symbols: ['BTCUSDT'] });
+    repoMocks.get.mockResolvedValue(runRow());
     const { queueSet, invoke } = harness();
     const run = vi.fn(async () => RUN_OUT);
     registerBacktestWorker(queueSet, {
@@ -182,7 +190,7 @@ describe('registerBacktestWorker', () => {
   });
 
   it('includes formatted fields and a results deep link when PUBLIC_WEB_URL is set', async () => {
-    repoMocks.get.mockResolvedValue({ status: 'done', symbols: ['BTCUSDT'] });
+    repoMocks.get.mockResolvedValue(runRow());
     const { queueSet, invoke } = harness();
     const metrics = { totalTrades: 8, profitFactor: 1.4, alphaVsHoldPct: 5 };
     const run = vi.fn(async () => ({ ...RUN_OUT, result: { metrics } }) as never);
@@ -206,7 +214,7 @@ describe('registerBacktestWorker', () => {
   });
 
   it('omits the link when PUBLIC_WEB_URL is unset', async () => {
-    repoMocks.get.mockResolvedValue({ status: 'done', symbols: ['BTCUSDT'] });
+    repoMocks.get.mockResolvedValue(runRow());
     const { queueSet, invoke } = harness();
     registerBacktestWorker(queueSet, {
       db: {} as never,
@@ -226,7 +234,7 @@ describe('registerBacktestWorker', () => {
     [{ totalTrades: 8, profitFactor: null, alphaVsHoldPct: 5 }, 'profit factor n/a'],
     [{ totalTrades: 8, profitFactor: 1.4, alphaVsHoldPct: -3.2 }, 'lagged buy-and-hold by 3.20%'],
   ])('renders the completion text for %o', async (metrics, expected) => {
-    repoMocks.get.mockResolvedValue({ status: 'done', symbols: ['BTCUSDT'] });
+    repoMocks.get.mockResolvedValue(runRow());
     const { queueSet, invoke } = harness();
     const run = vi.fn(async () => ({ ...RUN_OUT, result: { metrics } }) as never);
     registerBacktestWorker(queueSet, {

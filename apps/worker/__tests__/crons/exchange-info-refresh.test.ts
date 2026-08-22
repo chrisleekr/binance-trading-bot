@@ -16,6 +16,7 @@ type FetchImpl = NonNullable<ExchangeInfoRefreshDeps['fetchImpl']>;
 type FetchCall = (...args: Parameters<FetchImpl>) => ReturnType<FetchImpl>;
 type FetchSpy = Mock<FetchCall> & Pick<FetchImpl, 'preconnect'>;
 
+// `fetchImpl` is typed as the global `fetch`, which carries a `preconnect` property a bare `vi.fn` does not, so the spy grafts the real one on to satisfy the type.
 const fetchSpy = (implementation: FetchCall): FetchSpy =>
   Object.assign(vi.fn<FetchCall>(implementation), { preconnect: fetch.preconnect });
 

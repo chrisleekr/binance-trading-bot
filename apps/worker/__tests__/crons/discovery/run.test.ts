@@ -139,6 +139,7 @@ const fakePort = (over: Partial<DiscoveryProfilePort> = {}): DiscoveryProfilePor
   ...over,
 });
 
+// The port's `persistSnapshot` is a `vi.fn`, but the DiscoveryProfilePort type says nothing about mocks, so reading `.mock.calls` needs the cast back to the spy type it was built with.
 const snapshotFor = (
   port: DiscoveryProfilePort,
 ): Parameters<DiscoveryProfilePort['persistSnapshot']>[0] => {
